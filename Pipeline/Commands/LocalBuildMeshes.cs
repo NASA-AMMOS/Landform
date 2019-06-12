@@ -44,9 +44,6 @@ namespace OPS.Pipeline
         [Option(HelpText = "Output coordinate frame: rover, sitedrive, or root", Default = "root")]
         public string OutputFrame { get; set; }
 
-        [Option(HelpText = "don't build textures for the mesh", Default = false)]
-        public bool NoTextures { get; set; }
-
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
         public string AdjustedTransformSources { get; set; }
 
@@ -244,12 +241,9 @@ namespace OPS.Pipeline
                 //set up raycasting for occlusion
                 pipeline.LogInfo("Building occlusion data structures");
                 SceneCaster sc = null;
-                if (!options.NoTextures)
-                {
-                    sc = new SceneCaster();
-                    sc.AddMesh(fullMesh, null, Matrix.Identity);
-                    sc.Build();
-                }
+                sc = new SceneCaster();
+                sc.AddMesh(fullMesh, null, Matrix.Identity);
+                sc.Build();
 
                 //decimate mesh
                 Mesh processedFullMesh = new Mesh(fullMesh); //can't change mesh after adding to collider
@@ -325,7 +319,7 @@ namespace OPS.Pipeline
                     Mesh leafMesh = null;
                     pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
 
-                    if (false == ClipMeshForTile(leaf, meshOp, out leafMesh, options.NoTextures ? 0 : options.TileResolution))
+                    if (false == ClipMeshForTile(leaf, meshOp, out leafMesh, options.TileResolution))
                     {
                         pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
                         return;
@@ -339,148 +333,139 @@ namespace OPS.Pipeline
                     }
 
                     Image leafImage = null;
-                    if (!options.NoTextures)
+
+                    // coarse frustum test: get all observations that intersect mesh hull
+                    ConvexHull leafHull = new ConvexHull(leafMesh);
+                    List<Observation> intersectingObservations = new List<Observation>();
+                    foreach (var obs in imageObservations)
                     {
-                        // coarse frustum test: get all observations that intersect mesh hull
-                        ConvexHull leafHull = new ConvexHull(leafMesh);
-                        List<Observation> intersectingObservations = new List<Observation>();
-                        foreach (var obs in imageObservations)
-                        {
-                            if (!obsToHull.ContainsKey(obs))
-                                continue;
+                        if (!obsToHull.ContainsKey(obs))
+                            continue;
 
-                            if (leafHull.Intersects(obsToHull[obs]))
+                        if (leafHull.Intersects(obsToHull[obs]))
+                        {
+                            pipeline.LogInfo("Leaf {0}: intersecting observation {1}:{2}", leaf.Name, intersectingObservations.Count(), obs.Name);
+                            if (options.OutputDebugMeshes)
                             {
-                                pipeline.LogInfo("Leaf {0}: intersecting observation {1}:{2}", leaf.Name, intersectingObservations.Count(), obs.Name);
-                                if (options.OutputDebugMeshes)
-                                {
-                                    obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_ihull_" + leaf.Name + ".ply"));
-                                }
-                                intersectingObservations.Add(obs);
+                                obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_ihull_" + leaf.Name + ".ply"));
                             }
+                            intersectingObservations.Add(obs);
                         }
-
-                        // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                        if (intersectingObservations.Count() == 0)
-                        {
-                            pipeline.LogWarn("Failed: no images intersected tile: {0}", leaf.Name);
-                            failedNodes.Add(leaf);
-                            return;
-                        }
-
-                        pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
-
-                        //create image
-                        leafImage = new Image(3, options.TileResolution, options.TileResolution);
-                        leafImage.CreateMask(true);
-
-                        //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
-                        MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-                        List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution, options.TileResolution);
-
-                        //calculate goodness (spatial density)
-                        Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
-                        {
-                            //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
-                            double percentagePointsToTest = options.BackprojectGoodnessSamplingPct;
-
-                            //simple sample which skips enough points to return the requested amount of points
-                            int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
-                            int skipPoints = pointsToBackproject.Count / subsampledPts;
-                            List<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
-
-                            //calculate the median spatial density for the requested pixels per observation
-                            foreach (var obs in intersectingObservations.Cast<RoverObservation>())
-                            {
-                                CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-
-                                List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
-                                foreach (var pt in pointsToTestSamplingDensity)
-                                {
-                                    //test hull (protect against bad ray calculations from camera model)
-                                    if (!obsToHull.ContainsKey(obs))
-                                        continue;
-
-                                    if (!obsToHull[obs].Contains(pt.Point))
-                                        continue;
-
-                                    Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
-
-                                    //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
-                                    minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
-                                }
-
-                                //store the median of the min distances
-                                double medianDistance = double.MaxValue;
-                                if (minDistances.Count() > 0)
-                                {
-                                    minDistances.Sort();
-                                    medianDistance = minDistances.ElementAt(minDistances.Count / 2);
-                                }
-
-                                spatialDensityByObs.Add(obs, medianDistance);
-                            }
-                        }
-
-                        //sort the list of observations by goodness
-                        intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
-
-                        //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
-                        foreach (var obs in intersectingObservations)
-                        {
-                            //quit if done
-                            if (pointsToBackproject.Count == 0)
-                                break;
-
-                            int contributedPixels = BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
-
-                            if (contributedPixels > 0)
-                            {
-                                pipeline.LogInfo("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
-                                if (options.OutputDebugMeshes)
-                                {
-                                    obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_chull_" + leaf.Name + ".ply"));
-                                    Image dbgimg = pipeline.LoadImage(obs.Url);
-                                    dbgimg.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + "_" + obs.Name + ".png"));
-                                }
-                            }
-                        }
-
-                        if (options.DontInpaint)
-                        {
-                            while (pointsToBackproject.Count() > 0)
-                            {
-                                //during development color pixels that failed to backproject blue
-                                var pair = pointsToBackproject.First();
-                                pointsToBackproject.RemoveAt(0);
-                                leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
-                            }
-
-                            leafImage.DeleteMask();
-                        }
-                        else
-                        {
-                            //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
-                            // full inpaint needed for building parent tiles
-                            leafImage.Inpaint(-1, preserveMask: false);
-                        }
-
-                        //save image
-                        leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
                     }
+
+                    // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
+                    if (intersectingObservations.Count() == 0)
+                    {
+                        pipeline.LogWarn("Failed: no images intersected tile: {0}", leaf.Name);
+                        failedNodes.Add(leaf);
+                        return;
+                    }
+
+                    pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
+
+                    //create image
+                    leafImage = new Image(3, options.TileResolution, options.TileResolution);
+                    leafImage.CreateMask(true);
+
+                    //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
+                    MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+                    List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution, options.TileResolution);
+
+                    //calculate goodness (spatial density)
+                    Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
+                    {
+                        //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
+                        double percentagePointsToTest = options.BackprojectGoodnessSamplingPct;
+
+                        //simple sample which skips enough points to return the requested amount of points
+                        int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
+                        int skipPoints = pointsToBackproject.Count / subsampledPts;
+                        List<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
+
+                        //calculate the median spatial density for the requested pixels per observation
+                        foreach (var obs in intersectingObservations.Cast<RoverObservation>())
+                        {
+                            CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+
+                            List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
+                            foreach (var pt in pointsToTestSamplingDensity)
+                            {
+                                //test hull (protect against bad ray calculations from camera model)
+                                if (!obsToHull.ContainsKey(obs))
+                                    continue;
+
+                                if (!obsToHull[obs].Contains(pt.Point))
+                                    continue;
+
+                                Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
+
+                                //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
+                                minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
+                            }
+
+                            //store the median of the min distances
+                            double medianDistance = double.MaxValue;
+                            if (minDistances.Count() > 0)
+                            {
+                                minDistances.Sort();
+                                medianDistance = minDistances.ElementAt(minDistances.Count / 2);
+                            }
+
+                            spatialDensityByObs.Add(obs, medianDistance);
+                        }
+                    }
+
+                    //sort the list of observations by goodness
+                    intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
+
+                    //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
+                    foreach (var obs in intersectingObservations)
+                    {
+                        //quit if done
+                        if (pointsToBackproject.Count == 0)
+                            break;
+
+                        int contributedPixels = BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
+
+                        if (contributedPixels > 0)
+                        {
+                            pipeline.LogInfo("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
+                            if (options.OutputDebugMeshes)
+                            {
+                                obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_chull_" + leaf.Name + ".ply"));
+                                Image dbgimg = pipeline.LoadImage(obs.Url);
+                                dbgimg.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + "_" + obs.Name + ".png"));
+                            }
+                        }
+                    }
+
+                    if (options.DontInpaint)
+                    {
+                        while (pointsToBackproject.Count() > 0)
+                        {
+                            //during development color pixels that failed to backproject blue
+                            var pair = pointsToBackproject.First();
+                            pointsToBackproject.RemoveAt(0);
+                            leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
+                        }
+
+                        leafImage.DeleteMask();
+                    }
+                    else
+                    {
+                        //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+                        // full inpaint needed for building parent tiles
+                        leafImage.Inpaint(-1, preserveMask: false);
+                    }
+
+                    //save image
+                    leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
 
                     //convert mesh to astro
                     EmtToScene.ConvertMeshToYUp(leafMesh);
 
-                    // save meshes
-                    if (options.NoTextures)
-                    {
-                        leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"));
-                    }
-                    else
-                    {
-                        leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"), Path.Combine(leafTilesPath, leaf.Name + ".png"));
-                    }
+                    // save meshes                   
+                    leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"), Path.Combine(leafTilesPath, leaf.Name + ".png"));
 
                     leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, leafImage));
                     //leaf.AddComponent(new NodeGeometricError(0));
