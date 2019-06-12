@@ -558,6 +558,7 @@ namespace OPS.Pipeline
             };
 
             var createProject = new CreateProject(createOptions);
+            createProject.DeleteIfExists();
             int runResult = createProject.Run();
             if (runResult == 1)
             {
