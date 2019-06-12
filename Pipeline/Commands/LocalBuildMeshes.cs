@@ -548,7 +548,6 @@ namespace OPS.Pipeline
                 ProjectName = project.Name,
                 TilingScheme = options.TilingScheme,
                 SkirtMode = Geometry.SkirtMode.None,
-                ReconMethod = Geometry.MeshReconMethod.Poisson,
                 ReconMethod = Geometry.MeshReconMethod.FSSR,
                 FacesPerTile = options.FacesPerTile,
                 TileResolution = options.TileResolution,
@@ -565,40 +564,40 @@ namespace OPS.Pipeline
                 pipeline.LogWarn("failed to create project: " + project.Name);
             }
 
-            //pipeline.LogInfo("uploading input");
-            //foreach (var node in root.Leaves().Where(sn => sn.HasComponent<MeshImagePair>() && sn.GetComponent<MeshImagePair>() != null && sn.GetComponent<MeshImagePair>().Mesh != null))
-            //{
-            //    var uploadOptions = new UploadInputOptions()
-            //    {
-            //        ProjectName = project.Name,
-            //        MeshFilepath = Path.Combine(leafTilesPath, node.Name + ".ply"),
-            //        ImageFilepath = node.GetComponent<MeshImagePair>().Image != null ? Path.Combine(leafTilesPath, node.Name + ".png") : null,
-            //        TileId = null,
-            //        NoWait = false
-            //    };
-            //    runResult = new UploadInput(uploadOptions).Run();
-            //    if (runResult == 1)
-            //    {
-            //        pipeline.LogWarn("failed to upload tile: " + node.Name);
-            //    }
-            //}
+            pipeline.LogInfo("uploading input");
+            foreach (var node in root.Leaves().Where(sn => sn.HasComponent<MeshImagePair>() && sn.GetComponent<MeshImagePair>() != null && sn.GetComponent<MeshImagePair>().Mesh != null))
+            {
+                var uploadOptions = new UploadInputOptions()
+                {
+                    ProjectName = project.Name,
+                    MeshFilepath = Path.Combine(leafTilesPath, node.Name + ".ply"),
+                    ImageFilepath = node.GetComponent<MeshImagePair>().Image != null ? Path.Combine(leafTilesPath, node.Name + ".png") : null,
+                    TileId = null,
+                    NoWait = false
+                };
+                runResult = new UploadInput(uploadOptions).Run();
+                if (runResult == 1)
+                {
+                    pipeline.LogWarn("failed to upload tile: " + node.Name);
+                }
+            }
 
-            ////free memory
-            //root = null;
+            //free memory
+            root = null;
 
-            //var runOptions = new RunProjectOptions()
-            //{
-            //    ProjectName = project.Name
-            //};
+            var runOptions = new RunProjectOptions()
+            {
+                ProjectName = project.Name
+            };
 
-            //int result = new RunProject(runOptions).Run();
+            int result = new RunProject(runOptions).Run();
 
             var tilesetUrl = createProject.GetStorageUrl("www", project.Name, "tileset.json");
-            //pipeline.LogInfo("Building tileset. ");
-            //if (tilingTask != null)
-            //{
-            //    tilingTask.Wait();
-            //}
+            pipeline.LogInfo("Building tileset. ");
+            if (tilingTask != null)
+            {
+                tilingTask.Wait();
+            }
 
             //get primary sitedrive from the path
             string primarySiteDrive = Directory.GetParent(Path.GetDirectoryName(manifestPath)).Name.Substring(2);
