@@ -72,6 +72,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
         public double MaxTriangleAspect { get; set; }
 
+        [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
+        public bool NoGenerateNormals { get; set; }
+
         [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
         public double BEVMetersPerPixel { get; set; }
 
@@ -339,7 +342,7 @@ namespace OPS.Pipeline
             {
                 AllowMastcam = false,
                 RequirePoints = true,
-                RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt,
+                RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt && options.NoGenerateNormals,
                 RequireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture,
                 RequirePriorTransform = true,
                 TargetFrame = "root"
@@ -419,7 +422,8 @@ namespace OPS.Pipeline
                         pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
                     }
                     Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, masker, obs, frameCache, "root", usePriors: true,
-                                                           decimate: mbs);
+                                                           decimate: mbs, maxTriangleAspect: options.MaxTriangleAspect,
+                                                           generateNormals: !options.NoGenerateNormals);
 
                     Image img = null;
                     if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture && obs.Texture != null)

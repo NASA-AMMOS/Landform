@@ -98,6 +98,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Isolated point size for organized mesh reconstruction, 0 to disable", Default = 0)]
         public double IsolatedPointSize { get; set; }
 
+        [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
+        public bool NoGenerateNormals { get; set; }
+
         [Option(HelpText = "Scale normals by confidence (for Poisson reconstruction)", Default = false)]
         public bool ScaleNormalsByConfidence { get; set; }
 
@@ -378,14 +381,13 @@ namespace OPS.Pipeline
                         {
                             case ReconstructionMethod.Organized:
                             {
-                                bool generateNormals = true;
                                 mesh = Meshing.BuildOrganizedMesh(pipeline, masker, obs, frameCache,
                                                                   out numPoints, out numNormals,
                                                                   outputFrame,
                                                                   options.UsePriors, options.OnlyAligned,
                                                                   mbs,
                                                                   options.MaxTriangleAspect,
-                                                                  withUVs, generateNormals,
+                                                                  withUVs, !options.NoGenerateNormals,
                                                                   options.IsolatedPointSize);
                                 if (numNormals == 0 && mesh != null && mesh.HasNormals)
                                 {
