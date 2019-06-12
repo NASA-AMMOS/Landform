@@ -549,6 +549,7 @@ namespace OPS.Pipeline
                 TilingScheme = options.TilingScheme,
                 SkirtMode = Geometry.SkirtMode.None,
                 ReconMethod = Geometry.MeshReconMethod.Poisson,
+                ReconMethod = Geometry.MeshReconMethod.FSSR,
                 FacesPerTile = options.FacesPerTile,
                 TileResolution = options.TileResolution,
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
