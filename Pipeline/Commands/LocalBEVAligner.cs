@@ -78,6 +78,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
         public double BEVMetersPerPixel { get; set; }
 
+        [Option(HelpText = "Birds eye view max radius in meters from site drive origin, 0 or negative for unlimited", Default = 20)]
+        public double MaxBEVRadius { get; set; }
+
         [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = Meshing.BlendMode.Max)]
         public Meshing.BlendMode BEVBlending { get; set; }
 
@@ -514,7 +517,9 @@ namespace OPS.Pipeline
                 MinSparseBlockValidRatio = options.BEVMinValidBlockRatio,
                 Inpaint = options.BEVInpaint,
                 Blur = options.BEVSmoothing,
-                Decimate = options.BEVDecimation
+                Decimate = options.BEVDecimation,
+                MaxRadiusMeters = options.MaxBEVRadius,
+                RadiusRelativeToOrigin = true
             };
 
             var demOptions = (Meshing.BEVOptions)(bevOptions.Clone());
@@ -580,17 +585,23 @@ namespace OPS.Pipeline
                         mesh.Save(outputPath + siteDrive + meshExt, imageFilename);
                     }
 
+                    var sdToWorld = frameCache.GetBestTransform(siteDrive).Transform.Mean;
+                    var sdOrigin = Vector3.Transform(Vector3.Zero, sdToWorld);
+                    var sdOriginPixel = new Vector2(sdOrigin.X, sdOrigin.Y) / options.BEVMetersPerPixel;
+
                     if (!bevs.ContainsKey(siteDrive))
                     {
-                        var bev = Meshing.RenderBirdsEyeView(mesh, img, out Vector2 origin, bevOptions);
+                        Vector2 origin = sdOriginPixel;
+                        var bev = Meshing.RenderBirdsEyeView(mesh, img, ref origin, bevOptions);
                         
                         pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
                                             "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
-                                            "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}",
+                                            "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}, " +
+                                            "max radius {12}m",
                                             siteDrive, bev.Width, bev.Height, (int)origin.X, (int)origin.Y,
-                                            options.BEVMetersPerPixel, 1 / PixelsPerMeter, options.BEVSparseBlocksize,
+                                            options.BEVMetersPerPixel, MetersPerPixel, options.BEVSparseBlocksize,
                                             options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
-                                            options.BEVDecimation);
+                                            options.BEVDecimation, options.MaxBEVRadius);
                         
                         bevs[siteDrive] = bev;
                         bevOrigins[siteDrive] = origin;
@@ -609,17 +620,22 @@ namespace OPS.Pipeline
                         else
                         {
                             Meshing.ColorMeshByElevation(mesh, absolute: true);
-                            var dem = Meshing.RenderBirdsEyeView(mesh, null, out Vector2 demOrigin, demOptions);
+
+                            Vector2 demOrigin = sdOriginPixel;
+                            var dem = Meshing.RenderBirdsEyeView(mesh, null, ref demOrigin, demOptions);
+
                             if (dem.Width != bev.Width || dem.Height != bev.Height)
                             {
                                 throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
                                                                   dem.Width, dem.Height, bev.Width, bev.Height));
                             }
+
                             if (demOrigin != origin)
                             {
                                 throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
                                                                   demOrigin, origin));
                             }
+
                             dems[siteDrive] = dem;
                         }
                     }

@@ -1867,6 +1867,8 @@ namespace OPS.Pipeline
             public int Inpaint = 20;
             public int Blur = 0;
             public int Decimate = 2;
+            public double MaxRadiusMeters = 20;
+            public bool RadiusRelativeToOrigin = false;
 
             public object Clone()
             {
@@ -1876,39 +1878,67 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// rasterize a birds eye view image of mesh
+        ///
         /// if mesh has UVs and img is not null it will be texture mapped
         /// otherwise the mesh vertex colors will be used
+        ///
         /// the view is from above but assuming +Z is down, so that we are looking at the backfaces of ccw triangles
         /// and we do render the backfaces
         /// you can flip all that by specifying ccw = true
+        ///
         /// occlusion is painters algorithm, so sort the mesh faces if you need to
+        ///
+        /// input meshOrigin is the center in mesh frame to use if MaxRadiusMeters>0 and RadiusRelativeToOrigin=true
+        /// (if MaxRadiusMeters>0 but RadiusRelativeToOrigin=false then the mesh bounds center is used)
+        ///
         /// output meshOrigin is the pixel corresponding to the origin of mesh frame (which may be outside image)
         /// </summary>
-        public static Image RenderBirdsEyeView(Mesh mesh, Image img, out Vector2 meshOrigin, BEVOptions options = null)
+        public static Image RenderBirdsEyeView(Mesh mesh, Image img, ref Vector2 meshOrigin, BEVOptions options = null)
         {
             if (options == null)
             {
                 options = new BEVOptions();
             }
 
+            bool ccw = options.CCW;
+            double pixelsPerMeter = 1 / options.MetersPerPixel;
+            bool greyscale = options.Greyscale || img != null && img.Bands == 1;
+
             var meshBounds = mesh.Bounds();
+
+            if (options.MaxRadiusMeters > 0)
+            {
+                var ctr = options.RadiusRelativeToOrigin ? options.MetersPerPixel * meshOrigin
+                    : 0.5 * new Vector2(meshBounds.Max.X + meshBounds.Min.X, meshBounds.Max.Y + meshBounds.Min.Y);
+                if (ctr.X - meshBounds.Min.X > options.MaxRadiusMeters)
+                {
+                    meshBounds.Min.X = ctr.X - options.MaxRadiusMeters;
+                }
+                if (meshBounds.Max.X - ctr.X > options.MaxRadiusMeters)
+                {
+                    meshBounds.Max.X = ctr.X + options.MaxRadiusMeters;
+                }
+                if (ctr.Y - meshBounds.Min.Y > options.MaxRadiusMeters)
+                {
+                    meshBounds.Min.Y = ctr.Y - options.MaxRadiusMeters;
+                }
+                if (meshBounds.Max.Y - ctr.Y > options.MaxRadiusMeters)
+                {
+                    meshBounds.Max.Y = ctr.Y + options.MaxRadiusMeters;
+                }
+            }
 
             double widthMeters = meshBounds.Max.X - meshBounds.Min.X;
             double heightMeters = meshBounds.Max.Y - meshBounds.Min.Y;
 
-            double pixelsPerMeter = 1 / options.MetersPerPixel;
-
             int widthPixels =  (int)(widthMeters * pixelsPerMeter);
             int heightPixels =  (int)(heightMeters * pixelsPerMeter);
 
-            bool greyscale = options.Greyscale || img != null && img.Bands == 1;
-            var ret = new Image(greyscale ? 1 : 3, widthPixels, heightPixels);
-            ret.CreateMask(true); //pixels default to masked
-
-            bool ccw = options.CCW;
-
             var offset = new Vector2(meshBounds.Min.X, ccw ? meshBounds.Max.Y : meshBounds.Min.Y);
             meshOrigin = -1 * offset * pixelsPerMeter;
+
+            var ret = new Image(greyscale ? 1 : 3, widthPixels, heightPixels);
+            ret.CreateMask(true); //pixels default to masked
 
             double relDist(Vector2 p, Vector2 a, Vector2 b)
             {
@@ -1993,6 +2023,13 @@ namespace OPS.Pipeline
                 var v1 = mesh.Vertices[t.P1];
                 var v2 = mesh.Vertices[ccw ? t.P2 : t.P0];
 
+                if (meshBounds.Contains(v0.Position) == ContainmentType.Disjoint &&
+                    meshBounds.Contains(v1.Position) == ContainmentType.Disjoint &&
+                    meshBounds.Contains(v2.Position) == ContainmentType.Disjoint)
+                {
+                    continue;
+                }
+
                 var p0 = (new Vector2(v0.Position.X, v0.Position.Y) - offset) * pixelsPerMeter;
                 var p1 = (new Vector2(v1.Position.X, v1.Position.Y) - offset) * pixelsPerMeter;
                 var p2 = (new Vector2(v2.Position.X, v2.Position.Y) - offset) * pixelsPerMeter;
@@ -2075,7 +2112,8 @@ namespace OPS.Pipeline
 
         public static Image RenderBirdsEyeView(Mesh mesh, Image img, BEVOptions options = null)
         {
-            return RenderBirdsEyeView(mesh, img, out Vector2 meshOrigin, options);
+            Vector2 meshOrigin = new Vector2();
+            return RenderBirdsEyeView(mesh, img, ref meshOrigin, options);
         }
     }
 }
