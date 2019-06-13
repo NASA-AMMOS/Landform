@@ -18,6 +18,10 @@ namespace OPS.Imaging
         private int[] DownsampleRatios;
         private double MeterPerPixel;
 
+        public IEnumerable<Image> Images { get { return DownsampledImages.Select(img => (Image)img.Clone()); } }
+        public IEnumerable<BoundingBox> Bounds { get { return (IEnumerable<BoundingBox>)ImageBounds.Clone(); } }
+        public IEnumerable<int> Ratios { get { return (IEnumerable<int>)DownsampleRatios.Clone(); } }
+
         /// <summary>
         /// Creates a new blank image with the specified resolution and bands
         /// </summary>
@@ -67,7 +71,6 @@ namespace OPS.Imaging
             this.MeterPerPixel = meterPerPixel;
 
             List<KeyValuePair<BoundingBox, double>> pairList = regions.ToList();
-            //Todo: make ascending (smaller meter per pixel indicates higher resolution)
             pairList.Sort((p1, p2) => p1.Value.CompareTo(p2.Value));
 
             List<Image> images = new List<Image>();
@@ -85,7 +88,7 @@ namespace OPS.Imaging
                 }
 
                 //Get downsample ratio
-                int gridCellSize = (int)Math.Floor(Math.Sqrt(p.Value / meterPerPixel));
+                int gridCellSize = (int)Math.Floor(p.Value / meterPerPixel);
                 gridCellSize = Math.Max(gridCellSize, 1);
 
                 //Correct bounding box dimensions to a multiple of computed grid cell size
@@ -95,7 +98,7 @@ namespace OPS.Imaging
                 //Internally store bounds at half pixel offset so BoundingBox.Contains returns inclusive min, exclusive max
                 bounds.Add(new BoundingBox(new Vector3(newColBounds.X - 0.5, newRowBounds.X - 0.5, -1), new Vector3(newColBounds.Y - 0.5, newRowBounds.Y - 0.5, 1)));
 
-                Image tmp = imageRegion((int)newColBounds.X, (int)newRowBounds.X, (int)(newColBounds.Y - newColBounds.X), (int)(newRowBounds.Y - newRowBounds.X));// ((GDALSerializer)s).PartialRead(filename, ), s.DefaultReadConverter());
+                Image tmp = imageRegion((int)newColBounds.X, (int)newRowBounds.X, (int)(newColBounds.Y - newColBounds.X), (int)(newRowBounds.Y - newRowBounds.X));
                 images.Add(tmp.Resize(tmp.Width / gridCellSize, tmp.Height / gridCellSize));
                 ratios.Add(gridCellSize);
             }
