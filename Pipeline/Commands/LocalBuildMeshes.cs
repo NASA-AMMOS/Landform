@@ -656,15 +656,31 @@ namespace OPS.Pipeline
             {
                 pipeline.LogInfo("Tiling parents locally");
 
-                pipeline.LogInfo("Saving leaves");
+                pipeline.LogInfo("Rotating to astro frame");
                 foreach (var leaf in root.Leaves())
                 {
                     if (!leaf.HasComponent<MeshImagePair>())
                     {
-                        pipeline.LogWarn("node {0} has no MeshImagePair", leaf.Name);
-                        leaf.Parent = null;
-                        continue;
+                        throw new InvalidDataException("node " + leaf.Name + "has no MeshImagePair");
                     }
+
+                    var pair = leaf.GetComponent<MeshImagePair>();
+                    EmtToScene.ConvertMeshToYUp(pair.Mesh);
+                }
+
+                foreach( var n in root.GetComponentsInTree<NodeBounds>(true))
+                {
+                    Vector3 min = n.Bounds.Min;
+                    Vector3 max = n.Bounds.Max;
+                    EmtToScene.ConvertVectorToYUp(ref min);
+                    EmtToScene.ConvertVectorToYUp(ref max);
+                    n.Bounds = new BoundingBox(min, max);
+                }
+
+                pipeline.LogInfo("Saving leaves");
+                foreach (var leaf in root.Leaves())
+                {
+                  
 
                     leaf.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
                 }
@@ -684,7 +700,6 @@ namespace OPS.Pipeline
                 string jsonData = JsonConvert.SerializeObject(builder.Tileset, Newtonsoft.Json.Formatting.None);
                 File.WriteAllText(Path.Combine(astroTilesetDir, "tileset.json"), jsonData);
 
-                
             }
 
             //HACK to emulate the previous version of tilest.json that asttro uses

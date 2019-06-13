@@ -684,12 +684,31 @@ namespace OPS.Pipeline
         /// This is more unity like but is still right handed
         /// </summary>
         /// <param name="mesh"></param>
+        public static void ConvertVectorToYUp(ref Vector3 v)
+        {
+            v = new Vector3(-v.Y, -v.Z, v.X);
+        }
+
+        /// <summary>
+        /// Convert a mesh 
+        /// From: Right-handed Z down
+        /// To: Right-handed Y up with a 90 degree rotation
+        /// This is more unity like but is still right handed
+        /// </summary>
+        /// <param name="mesh"></param>
         public static void ConvertMeshToYUp(Mesh mesh)
         {
             foreach (var v in mesh.Vertices)
             {
-                var p = v.Position;
-                v.Position = new Vector3(-p.Y, -p.Z, p.X);
+                ConvertVectorToYUp(ref v.Position);
+            }
+
+            if(mesh.HasNormals)
+            {
+                foreach (var v in mesh.Vertices)
+                {
+                    ConvertVectorToYUp(ref v.Normal);
+                }
             }
         }
 
