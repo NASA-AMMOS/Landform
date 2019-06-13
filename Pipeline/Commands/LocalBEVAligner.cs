@@ -51,6 +51,12 @@ namespace OPS.Pipeline
         [Option(HelpText = "Only use products from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = "NavcamLeft")]
         public string OnlyForCameras { get; set; }
 
+        [Option(HelpText = "Stop after rendering BEVs (and DEMs)", Default = false)]
+        public bool OnlyRenderBEVs { get; set; }
+
+        [Option(HelpText = "Stop after detecting features", Default = false)]
+        public bool OnlyDetectFeatures { get; set; }
+
         [Option(HelpText = "Wedge mesh decimation blocksize, or -1 for auto", Default = -1)]
         public int DecimateMeshes { get; set; }
 
@@ -346,7 +352,7 @@ namespace OPS.Pipeline
             //later in ComputePairs we may change the order depending on options
             siteDrives = observations.Select(obs => obs.SiteDrive.ToString()).Distinct().OrderBy(sd => sd).ToArray();
 
-            if (siteDrives.Length < 2)
+            if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
             {
                 pipeline.LogError("birds eye view aligner requires at least 2 site drives");
                 return 1;
@@ -357,7 +363,21 @@ namespace OPS.Pipeline
 
             LoadOrRenderBEVs(); //observations -> bevs, dems
 
+            if (options.OnlyRenderBEVs)
+            {
+                pipeline.LogInfo("rendered birds eye views for {0} site drives ({1:F3}s)",
+                                 bevs.Count, UTCTime.Now() - startSec);
+                return 0;
+            }
+
             LoadOrDetectFeatures(); //bevs -> features
+
+            if (options.OnlyDetectFeatures)
+            {
+                pipeline.LogInfo("rendered birds eye views for {0} site drives and detected features ({1:F3}s)",
+                                 bevs.Count, UTCTime.Now() - startSec);
+                return 0;
+            }
 
             ComputePairs(); //siteDrives -> siteDrivePairs
 
