@@ -487,7 +487,7 @@ namespace OPS.Pipeline
             string sceneDir = Path.Combine(workingDir, "Scene");
             string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
             string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
-            return tileDir;
+            return StringHelper.NormalizeSlashes(tileDir,true);
         }
 
         static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath)
