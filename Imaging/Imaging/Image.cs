@@ -8,6 +8,31 @@ using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
+    public class BinaryImage
+    {
+        protected bool[,] data;
+
+        protected BinaryImage() { }
+
+        public BinaryImage(int width, int height)
+        {
+            data = new bool[height, width];
+        }
+
+        public virtual bool this[int row, int column]
+        {
+            get
+            {
+                return data[row, column];
+            }
+
+            set
+            {
+                data[row, column] = value;
+            }
+        }
+    }
+
     /// <summary>
     /// This is the primary image class.  It stores data in a floating point format
     /// to enable generalized operations on a large variety of image types.
@@ -58,6 +83,11 @@ namespace OPS.Imaging
         public virtual Image Instantiate(int bands, int width, int height)
         {
             return new Image(bands, width, height);
+        }
+
+        public virtual BinaryImage InstantiateBinaryImage(int width, int height)
+        {
+            return new BinaryImage(width, height);
         }
 
         /// <summary>
@@ -510,7 +540,7 @@ namespace OPS.Imaging
                 return this;
             }
 
-            var marked = new bool[Height, Width];
+            var marked = InstantiateBinaryImage(Width, Height);
 
             var seeds = new Queue<Pixel>();
             var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };

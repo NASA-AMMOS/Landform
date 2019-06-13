@@ -9,6 +9,56 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
+    public class SparseBinaryImage : BinaryImage
+    {
+        private bool[,][,] images;
+
+        private int width;
+        private int height;
+        private int chunkSize;
+        private int chunkRows;
+        private int chunkCols;
+
+        public SparseBinaryImage(int width, int height, int chunkSize = 256)
+        {
+            this.width = width;
+            this.height = height;
+            this.chunkSize = chunkSize;
+            chunkRows = (int)Math.Ceiling((float)height / chunkSize);
+            chunkCols = (int)Math.Ceiling((float)width / chunkSize);
+            images = new bool[chunkRows, chunkCols][,];
+        }
+
+        public override bool this[int row, int col]
+        {
+            get
+            {
+                int chunkRow = row / chunkSize;
+                int chunkCol = col / chunkSize;
+                if (images[chunkRow, chunkCol] == null)
+                {
+                    return false;
+                }
+                else
+                {
+                    return images[chunkRow, chunkCol][row % chunkSize, col % chunkSize];
+                }
+            }
+
+            set
+            {
+                int chunkRow = row / chunkSize;
+                int chunkCol = col / chunkSize;
+                if (images[chunkRow, chunkCol] == null)
+                {
+                    int chunkHeight = chunkRow < chunkRows - 1 ? chunkSize : height - chunkSize * (chunkRows - 1);
+                    int chunkWidth = chunkCol < chunkCols - 1 ? chunkSize : width - chunkSize * (chunkCols - 1);
+                    images[chunkRow, chunkCol] = new bool[chunkHeight, chunkWidth];
+                }
+                images[chunkRow, chunkCol][row % chunkSize, col % chunkSize] = value;
+            }
+        }
+    }
     /// <summary>
     /// Stores an Image as array of smaller chunk Images
     /// </summary>
@@ -312,6 +362,11 @@ namespace OPS.Imaging
             {
                 chunks = new Image[chunkRows, chunkCols];
             }
+        }
+
+        public override BinaryImage InstantiateBinaryImage(int width, int height)
+        {
+            return new SparseBinaryImage(width, height, chunkSize);
         }
 
         public bool CanDensify()
