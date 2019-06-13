@@ -92,7 +92,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
         public double StretchStdDev { get; set; }
 
-        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
+        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
         public double MaxTriangleAspect { get; set; }
 
         [Option(HelpText = "Isolated point size for organized mesh reconstruction, 0 to disable", Default = 0)]

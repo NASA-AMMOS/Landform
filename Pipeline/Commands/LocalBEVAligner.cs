@@ -69,7 +69,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
         public int TargetMeshResolution { get; set; }
 
-        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
+        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
         public double MaxTriangleAspect { get; set; }
 
         [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
