@@ -222,7 +222,7 @@ namespace OPS.Pipeline
 
                 //build or load cached full mesh
                 Mesh fullMesh = null;
-                if (options.CachedFullMesh == null)
+                if (String.IsNullOrEmpty(options.CachedFullMesh))
                 {
                     fullMesh = BuildFullMesh(frameCache, observationCache, outputFrame);
                 }
@@ -238,7 +238,7 @@ namespace OPS.Pipeline
                 }
 
                 //save full mesh if new one was built
-                if (options.CachedFullMesh == null)
+                if (String.IsNullOrEmpty(options.CachedFullMesh))
                 {
                     string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
                     pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
@@ -329,9 +329,16 @@ namespace OPS.Pipeline
                     if (false == ClipMeshForTile(leaf, meshOp, out leafMesh, options.TileResolution))
                     {
                         pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
+                        failedNodes.Add(leaf);
                         return;
                     }
 
+                    if(leafMesh.Vertices.Count == 0)
+                    {
+                        pipeline.LogError("Failed: mehs generated for tile: {0} had no verts", leaf.Name);
+                        failedNodes.Add(leaf);
+                        return;
+                    }
 
                     if (options.OutputDebugMeshes)
                     {
@@ -468,16 +475,22 @@ namespace OPS.Pipeline
                     //save image
                     leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
 
-                    //convert mesh to astro
-                    EmtToScene.ConvertMeshToYUp(leafMesh);
+                    //convert mesh to astro and update bounds for rotation
+                    //EmtToScene.ConvertMeshToYUp(leafMesh);
+                    //leaf.GetComponent<NodeBounds>().Bounds = leafMesh.Bounds();
 
                     // save meshes                   
                     leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"), Path.Combine(leafTilesPath, leaf.Name + ".png"));
 
                     leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, leafImage));
-                    //leaf.AddComponent(new NodeGeometricError(0));
-                    //leaf.SaveMesh(tileSetPath, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                    leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
+              
                 });
+
+                foreach(var node in failedNodes)
+                {
+                    node.Parent = null;
+                }
             }
             else
             {
@@ -521,7 +534,7 @@ namespace OPS.Pipeline
             //get primary sitedrive from the path
             string primarySiteDrive = Directory.GetParent(Path.GetDirectoryName(manifestPath)).Name.Substring(2);
             string astroTilesetDir = EmtToScene.GetTilesetDir(astroOutputPath, primarySiteDrive);
-
+            
             if (options.TileInCloud)
             {
                 ////start server
@@ -603,20 +616,44 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("Download tileset from " + tilesetUrl + " to tile3d_2.0 directory " + astroTilesetDir);
                 StorageHelper storage = new StorageHelper(options.AWSProfile, options.AWSRegion);
                 var s3tilesetDirectory = /*StringHelper.EnsureTrailingSlash(*/new Uri(new Uri(tilesetUrl), ".").AbsoluteUri/*)*/;
-                storage.DownloadDirectory(s3tilesetDirectory, StringHelper.NormalizeSlashes(astroTilesetDir));
+                storage.DownloadDirectory(s3tilesetDirectory, astroTilesetDir);
             }
             else
             {
-
                 pipeline.LogInfo("Tiling parents locally");
+
+                pipeline.LogInfo("Saving leaves");
+                foreach (var leaf in root.Leaves())
+                {
+                    if (!leaf.HasComponent<MeshImagePair>())
+                        throw new InvalidDataException("node {0} has no MeshImagePair");
+
+                    leaf.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                }
+
+                //retile for the rotated unity coordinate frame (node boudns would be wrong)
+                //pipeline.LogInfo("retiling for rotated transforms");
+                //{
+                //    var pairs = root.GetComponentsInTree<MeshImagePair>().ToList();
+                //    root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, pairs);
+                //}
+
                 pipeline.LogInfo("Building parent tiles");
                 TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, astroTilesetDir, options.MeshExtension, options.ImageExtension);
+
+                pipeline.LogInfo("Saving parents");
+                foreach (var parent in root.NonLeaves().Where(n => n.HasComponent<MeshImagePair>()))
+                {
+                    parent.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
+                }
 
                 pipeline.LogInfo("Building tileset json");
                 Tile3DBuilder builder = new Tile3DBuilder(root);
                 builder.BuildTileset(node => node.Name + "." + options.MeshExtension, false);
                 string jsonData = JsonConvert.SerializeObject(builder.Tileset, Newtonsoft.Json.Formatting.None);
                 File.WriteAllText(Path.Combine(astroTilesetDir, "tileset.json"), jsonData);
+
+                
             }
 
             //HACK to emulate the previous version of tilest.json that asttro uses
