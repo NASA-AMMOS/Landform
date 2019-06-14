@@ -257,8 +257,8 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
         }
 
-        //this function returns the site to local level offset, after all sites are processed
-        // the sites can be fixed up to provide site to first site by chaining
+        //this function returns local level to site
+        //TODO: after all sites are processed the matrices can be fixed up to provide current site to root (first site) by chaining
         private UncertainRigidTransform GetSiteDriveTransformFromPDS(PDSParser parser)
         {            
             var siteDrive = new SiteDrive(parser.SiteDrive);
