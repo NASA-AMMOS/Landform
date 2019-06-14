@@ -41,7 +41,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
 
-        [Option(HelpText = "Output coordinate frame: rover, sitedrive, or root", Default = "root")]
+        [Option(HelpText = "Output coordinate frame: rover, a numeric sitedrive SSSSSDDDDD, or root", Default = "root")]
         public string OutputFrame { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
@@ -121,10 +121,6 @@ namespace OPS.Pipeline
 
         [Option(Required = false, HelpText = "allows you to skip generation of the tileset to test postprocessing and upload")]
         public string CachedLeavesPath { get; set; }
-
-        [Option(HelpText = "recreate tiling project", Default = false)]
-        public bool RecreateTilingProject { get; set; }
-
     }
 
     public class LocalBuildMeshes
