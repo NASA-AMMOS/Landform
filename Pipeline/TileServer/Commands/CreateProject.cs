@@ -159,5 +159,15 @@ namespace OPS.Pipeline.TileServer
 
             return 0;
         }
-    }    
+
+        public void DeleteIfExists()
+        {
+            var tilingProject = TilingProject.Find(this, options.ProjectName);
+            if (tilingProject != null)
+            {
+                LogInfo("deleting existing tiling project \"{0}\"", options.ProjectName);
+                tilingProject.Delete(this, false);
+            }
+        }
+    }  
 }

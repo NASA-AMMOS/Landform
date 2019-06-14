@@ -136,7 +136,7 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static void BuildGeometryFromChildren(this SceneNode node, SceneNode root, MeshReconMethod reconstructionMethod, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root, MeshReconMethod reconstructionMethod, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
             BoundingBox searchBounds;
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
@@ -158,6 +158,13 @@ namespace OPS.Pipeline
 
             Mesh combinedDecimated = null;
             Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
+            
+            if(fullClipped.Vertices.Count == 0)
+            {
+                //failed
+                return false;
+            }
+
             // If the combined mesh is already less than the target face count we can skip the ResampleDecimation
             // This also has the added benifit of avoiding calls to ResampleDecimation on very low face count meshes which can sometimes fail
             if (fullClipped.Faces.Count <= maxFaceCountTarget)
@@ -223,6 +230,8 @@ namespace OPS.Pipeline
                 var error = child.GetComponent<NodeGeometricError>().Error;
                 geoError.Error = Math.Max(error, geoError.Error);
             }
+
+            return true;
         }
 
         /// <summary>

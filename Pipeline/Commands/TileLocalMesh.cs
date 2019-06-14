@@ -187,9 +187,14 @@ namespace OPS
                         return;
                     }
                     logger.InfoFormat("Parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount);
-                    node.BuildGeometryFromChildren(root, MeshReconMethod.Poisson,
+                    if(false == node.BuildGeometryFromChildren(root, MeshReconMethod.Poisson,
                                                    targetFacesPerTile, maxResolutionPerTile,
-                                                   skirtAxis);
+                                                   skirtAxis))
+                    {
+                        logger.InfoFormat("Failed to build parent: {0} ({1}/{2})", node.Name, index + groupCountOffset, totalParentCount);
+                        return;
+                    }
+                    
                     if (skirtsEnabled)
                     {
                         var m = node.GetComponent<MeshImagePair>().Mesh;

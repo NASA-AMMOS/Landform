@@ -481,13 +481,20 @@ namespace OPS.Pipeline
             var lines = File.ReadAllLines(path).Select(line => line.Trim()).Where(line => !string.IsNullOrEmpty(line));
             return new HashSet<string>(lines);
         }
-
-        void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords)
+        
+        static public string GetTilesetDir(string workingDir, string primarySiteDrive)
         {
-            string sceneDir = Path.Combine(options.WorkingDir, "Scene");
+            string sceneDir = Path.Combine(workingDir, "Scene");
+            string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
+            string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
+            return StringHelper.NormalizeSlashes(tileDir,true);
+        }
+
+        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath, string primarySiteDrive = null)
+        {
+            string sceneDir = Path.Combine(workingDir, "Scene");
             string imagesDir = Path.Combine(sceneDir, "images");
             PathHelper.EnsureExists(imagesDir);
-
 
             ConcurrentBag<LegacySceneManfiest.ImageData> imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>();
             CoreLimitedParallel.ForEach(localFileRecords, rec =>
@@ -501,11 +508,16 @@ namespace OPS.Pipeline
             });
             imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>(imageDatas.Where(id => new PDSParser(id.Metadata).SiteDrive != null));
             var groupedImageData = imageDatas.GroupBy(id => new PDSParser(id.Metadata).SiteDrive.ToString());
-            var primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
+
+            if (primarySiteDrive == null)
+            {
+                primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
+            }
             logger.Info("Converting images for scene");
             CoreLimitedParallel.ForEach(localFileRecords, rec => 
-            { 
-                string siteImageDir = Path.Combine(imagesDir, primarySiteDrive);
+            {
+                string siteDrive = new PDSParser(new PDSMetadata(rec.PreferedMetadataImage)).SiteDrive;
+                string siteImageDir = Path.Combine(imagesDir, siteDrive);
                 PathHelper.EnsureExists(siteImageDir);
                 var outfile = Path.Combine(siteImageDir, rec.FilenameBase + ".IMG.jpg");
                 if (File.Exists(outfile))
@@ -529,7 +541,9 @@ namespace OPS.Pipeline
             string content = manifest.Create();
             string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
             PathHelper.EnsureExists(sceneSiteDriveFolder);
-            File.WriteAllText(Path.Combine(sceneSiteDriveFolder, "manifest.xml"), content);
+            manifestPath = Path.Combine(sceneSiteDriveFolder, "manifest.xml");
+            File.WriteAllText(manifestPath, content);
+
             string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
             PathHelper.EnsureExists(tileDir);
             File.WriteAllText(Path.Combine(tileDir, "tilesetSky.json"), LegacySceneManfiest.SkyTilesetContent);
@@ -613,7 +627,7 @@ namespace OPS.Pipeline
 
 
             logger.Info("Creating legacy scene");
-            CreateLegacyScene(downloadedRASLRecords);
+            CreateLegacyScene(downloadedRASLRecords, options.WorkingDir, out string manifestPath);
 
             logger.Info("Processing Meshes");
             var processedDirectory = Path.Combine(options.WorkingDir, "Processed");
@@ -674,12 +688,31 @@ namespace OPS.Pipeline
         /// This is more unity like but is still right handed
         /// </summary>
         /// <param name="mesh"></param>
+        public static void ConvertVectorToYUp(ref Vector3 v)
+        {
+            v = new Vector3(-v.Y, -v.Z, v.X);
+        }
+
+        /// <summary>
+        /// Convert a mesh 
+        /// From: Right-handed Z down
+        /// To: Right-handed Y up with a 90 degree rotation
+        /// This is more unity like but is still right handed
+        /// </summary>
+        /// <param name="mesh"></param>
         public static void ConvertMeshToYUp(Mesh mesh)
         {
             foreach (var v in mesh.Vertices)
             {
-                var p = v.Position;
-                v.Position = new Vector3(-p.Y, -p.Z, p.X);
+                ConvertVectorToYUp(ref v.Position);
+            }
+
+            if(mesh.HasNormals)
+            {
+                foreach (var v in mesh.Vertices)
+                {
+                    ConvertVectorToYUp(ref v.Normal);
+                }
             }
         }
 
