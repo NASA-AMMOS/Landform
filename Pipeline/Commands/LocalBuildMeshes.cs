@@ -158,7 +158,7 @@ namespace OPS.Pipeline
                 this.options.OutputS3Bucket = string.Empty;
             }
 
-            if (0==options.OutputFrame.CompareTo("rover"))
+            if (options.OutputFrame == "rover")
                 throw new NotImplementedException("only root and numeric sitedrive are currently supported");
         }
 
