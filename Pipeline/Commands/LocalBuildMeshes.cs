@@ -155,11 +155,7 @@ namespace OPS.Pipeline
             }
 
             var outputFrame = options.OutputFrame.ToLower().Trim();
-            if (!(new[] { "rover", "sitedrive", "root" }).Any(f => outputFrame == f))
-            {
-                throw new InvalidOperationException("unknown output frame: " + outputFrame);
-            }
-
+           
             bool providedBucket = !string.IsNullOrEmpty(options.OutputS3Bucket);
             bool providedProfile = !string.IsNullOrEmpty(options.AWSProfile);
             if (providedBucket != providedProfile)
