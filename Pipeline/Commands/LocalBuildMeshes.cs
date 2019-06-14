@@ -524,38 +524,40 @@ namespace OPS.Pipeline
             }
             else
             {
-                pipeline.LogInfo("Using cached leaves: " + options.CachedLeavesPath);
-                root = new SceneNode("");
+                throw new NotImplementedException();
 
-                //build flat tree of nodes with just mesh image pairs
-                var leafMeshes = System.IO.Directory.EnumerateFiles(options.CachedLeavesPath, "*.ply");
-                foreach (var leafMeshPath in leafMeshes)
-                {
-                    string leafImagePath = Path.ChangeExtension(leafMeshPath, ".png");
-                    if (File.Exists(leafImagePath))
-                    {
-                        MeshImagePair pair = new MeshImagePair(Mesh.Load(leafMeshPath), Image.Load(leafImagePath));
-                        SceneNode leafNode = new SceneNode(Path.GetFileNameWithoutExtension(leafMeshPath));
-                        leafNode.AddComponent<MeshImagePair>(pair);
-                        leafNode.Parent = root;
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("Skipping. No texture found for cached leaf mesh " + leafMeshPath);
-                    }
+                //pipeline.LogInfo("Using cached leaves: " + options.CachedLeavesPath);
+                //root = new SceneNode("");
 
-                }
+                ////build flat tree of nodes with just mesh image pairs
+                //var leafMeshes = System.IO.Directory.EnumerateFiles(options.CachedLeavesPath, "*.ply");
+                //foreach (var leafMeshPath in leafMeshes)
+                //{
+                //    string leafImagePath = Path.ChangeExtension(leafMeshPath, ".png");
+                //    if (File.Exists(leafImagePath))
+                //    {
+                //        MeshImagePair pair = new MeshImagePair(Mesh.Load(leafMeshPath), Image.Load(leafImagePath));
+                //        SceneNode leafNode = new SceneNode(Path.GetFileNameWithoutExtension(leafMeshPath));
+                //        leafNode.AddComponent<MeshImagePair>(pair);
+                //        leafNode.Parent = root;
+                //    }
+                //    else
+                //    {
+                //        pipeline.LogWarn("Skipping. No texture found for cached leaf mesh " + leafMeshPath);
+                //    }
 
-                string astroScenePath = Path.Combine(astroOutputPath, "Scene");
-                var astroSceneSubdirs = Directory.GetDirectories(astroScenePath).Where(x => new DirectoryInfo(x).Name.CompareTo("images") != 0);
+                //}
 
-                if (astroSceneSubdirs.Count() != 1)
-                {
-                    pipeline.LogError("Can't get manifest's primary site drive from paths, more than one result in astrooutput path");
-                    return 1;
-                }
+                //string astroScenePath = Path.Combine(astroOutputPath, "Scene");
+                //var astroSceneSubdirs = Directory.GetDirectories(astroScenePath).Where(x => new DirectoryInfo(x).Name.CompareTo("images") != 0);
 
-                manifestPath = Path.Combine(astroSceneSubdirs.First(), "201801010000\\manifest.xml");
+                //if (astroSceneSubdirs.Count() != 1)
+                //{
+                //    pipeline.LogError("Can't get manifest's primary site drive from paths, more than one result in astrooutput path");
+                //    return 1;
+                //}
+
+                //manifestPath = Path.Combine(astroSceneSubdirs.First(), "201801010000\\manifest.xml");
             }
 
             pipeline.LogInfo("Building master manifest");
