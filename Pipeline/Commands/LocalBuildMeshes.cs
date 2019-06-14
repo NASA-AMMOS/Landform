@@ -520,7 +520,18 @@ namespace OPS.Pipeline
 
             pipeline.LogInfo("removed {0} former parent nodes. {1} leaves remain", formerParentCount, root.Leaves().Count());
             pipeline.LogInfo("Building master manifest");
-            CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"),outputFrame);
+
+            int numNavcams = 0;
+            int numMastcams = 0;
+            foreach(var obs in imageObservations)
+            {
+                PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
+                if (mission.IsNavcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                    numNavcams++;
+                else if (mission.IsMastcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                    numMastcams++;
+            }
+            CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"),outputFrame, numNavcams, numMastcams);
 
             //get primary sitedrive from the path
             string primarySiteDrive = outputFrame; //todo: handle if root is passed
@@ -691,7 +702,7 @@ namespace OPS.Pipeline
             node.Attributes.Append(att);
 
         }
-        private void CreateMasterManifest(string sceneManifestUrl, string masterManifestPath, string primarySiteDrive)
+        private void CreateMasterManifest(string sceneManifestUrl, string masterManifestPath, string primarySiteDrive, int navCams, int mastCams)
         {
             XmlDocument doc = new XmlDocument();
             XmlDeclaration xmldecl;
@@ -715,9 +726,9 @@ namespace OPS.Pipeline
             AddAttributeXml(manifest, "pipelineVersion", "0.1.15");
             AddAttributeXml(manifest, "startSol", "0");
             AddAttributeXml(manifest, "endSol", "0");
-            AddAttributeXml(manifest, "navcamCount", "1");
-            AddAttributeXml(manifest, "hazcamCount", "0");
-            AddAttributeXml(manifest, "mastcamCount", "0"); //TODO: tally cameras
+            AddAttributeXml(manifest, "navcamCount", navCams.ToString());
+            AddAttributeXml(manifest, "hazcamCount",  mastCams.ToString());
+            AddAttributeXml(manifest, "mastcamCount", "0");
             AddAttributeXml(manifest, "color", "0.0");
             AddAttributeXml(manifest, "grayscale", "1.0");
             AddAttributeXml(manifest, "orbital", "0.0");
