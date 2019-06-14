@@ -45,11 +45,17 @@ namespace OPS.Pipeline
         [Option(HelpText = "Algorithm to bring un-aligned \"calf\" site drives along for the ride: None, Centroid (match to aligned site drive with closest horizontal centroid), Temporal (match to closest aligned site drive by acquisition time)", Default = CalfMode.Centroid)]
         public CalfMode CalfMode { get; set; }
 
-        [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.BiggestFirst)]
+        [Option(HelpText = "In pairwise alignment modes lower priority site drives will be aligned to higher priority ones (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.OldestFirst)]
         public SiteDrivePriority SiteDrivePriority { get; set; }
 
         [Option(HelpText = "Only use products from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = "NavcamLeft")]
         public string OnlyForCameras { get; set; }
+
+        [Option(HelpText = "Stop after rendering BEVs (and DEMs)", Default = false)]
+        public bool OnlyRenderBEVs { get; set; }
+
+        [Option(HelpText = "Stop after detecting features", Default = false)]
+        public bool OnlyDetectFeatures { get; set; }
 
         [Option(HelpText = "Wedge mesh decimation blocksize, or -1 for auto", Default = -1)]
         public int DecimateMeshes { get; set; }
@@ -63,11 +69,17 @@ namespace OPS.Pipeline
         [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
         public int TargetMeshResolution { get; set; }
 
-        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 20)]
+        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
         public double MaxTriangleAspect { get; set; }
+
+        [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
+        public bool NoGenerateNormals { get; set; }
 
         [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
         public double BEVMetersPerPixel { get; set; }
+
+        [Option(HelpText = "Birds eye view max radius in meters from site drive origin, 0 or negative for unlimited", Default = 20)]
+        public double MaxBEVRadius { get; set; }
 
         [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = Meshing.BlendMode.Max)]
         public Meshing.BlendMode BEVBlending { get; set; }
@@ -344,7 +356,7 @@ namespace OPS.Pipeline
             {
                 AllowMastcam = false,
                 RequirePoints = true,
-                RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt,
+                RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt && options.NoGenerateNormals,
                 RequireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture,
                 RequirePriorTransform = true,
                 TargetFrame = "root"
@@ -356,7 +368,7 @@ namespace OPS.Pipeline
             //later in ComputePairs we may change the order depending on options
             siteDrives = observations.Select(obs => obs.SiteDrive.ToString()).Distinct().OrderBy(sd => sd).ToArray();
 
-            if (siteDrives.Length < 2)
+            if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
             {
                 pipeline.LogError("birds eye view aligner requires at least 2 site drives");
                 return 1;
@@ -367,7 +379,21 @@ namespace OPS.Pipeline
 
             LoadOrRenderBEVs(); //observations -> bevs, dems
 
+            if (options.OnlyRenderBEVs)
+            {
+                pipeline.LogInfo("rendered birds eye views for {0} site drives ({1:F3}s)",
+                                 bevs.Count, UTCTime.Now() - startSec);
+                return 0;
+            }
+
             LoadOrDetectFeatures(); //bevs -> features
+
+            if (options.OnlyDetectFeatures)
+            {
+                pipeline.LogInfo("rendered birds eye views for {0} site drives and detected features ({1:F3}s)",
+                                 bevs.Count, UTCTime.Now() - startSec);
+                return 0;
+            }
 
             ComputePairs(); //siteDrives -> siteDrivePairs
 
@@ -409,7 +435,8 @@ namespace OPS.Pipeline
                         pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
                     }
                     Mesh mesh = Meshing.BuildOrganizedMesh(pipeline, masker, obs, frameCache, "root", usePriors: true,
-                                                           decimate: mbs);
+                                                           decimate: mbs, maxTriangleAspect: options.MaxTriangleAspect,
+                                                           generateNormals: !options.NoGenerateNormals);
 
                     Image img = null;
                     if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture && obs.Texture != null)
@@ -500,7 +527,9 @@ namespace OPS.Pipeline
                 MinSparseBlockValidRatio = options.BEVMinValidBlockRatio,
                 Inpaint = options.BEVInpaint,
                 Blur = options.BEVSmoothing,
-                Decimate = options.BEVDecimation
+                Decimate = options.BEVDecimation,
+                MaxRadiusMeters = options.MaxBEVRadius,
+                RadiusRelativeToOrigin = true
             };
 
             var demOptions = (Meshing.BEVOptions)(bevOptions.Clone());
@@ -566,17 +595,23 @@ namespace OPS.Pipeline
                         mesh.Save(outputPath + siteDrive + meshExt, imageFilename);
                     }
 
+                    var sdToWorld = frameCache.GetBestTransform(siteDrive).Transform.Mean;
+                    var sdOrigin = Vector3.Transform(Vector3.Zero, sdToWorld);
+                    var sdOriginPixel = new Vector2(sdOrigin.X, sdOrigin.Y) / options.BEVMetersPerPixel;
+
                     if (!bevs.ContainsKey(siteDrive))
                     {
-                        var bev = Meshing.RenderBirdsEyeView(mesh, img, out Vector2 origin, bevOptions);
+                        Vector2 origin = sdOriginPixel;
+                        var bev = Meshing.RenderBirdsEyeView(mesh, img, ref origin, bevOptions);
                         
                         pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
                                             "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
-                                            "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}",
+                                            "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}, " +
+                                            "max radius {12}m",
                                             siteDrive, bev.Width, bev.Height, (int)origin.X, (int)origin.Y,
-                                            options.BEVMetersPerPixel, 1 / PixelsPerMeter, options.BEVSparseBlocksize,
+                                            options.BEVMetersPerPixel, MetersPerPixel, options.BEVSparseBlocksize,
                                             options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
-                                            options.BEVDecimation);
+                                            options.BEVDecimation, options.MaxBEVRadius);
                         
                         bevs[siteDrive] = bev;
                         bevOrigins[siteDrive] = origin;
@@ -595,17 +630,22 @@ namespace OPS.Pipeline
                         else
                         {
                             Meshing.ColorMeshByElevation(mesh, absolute: true);
-                            var dem = Meshing.RenderBirdsEyeView(mesh, null, out Vector2 demOrigin, demOptions);
+
+                            Vector2 demOrigin = sdOriginPixel;
+                            var dem = Meshing.RenderBirdsEyeView(mesh, null, ref demOrigin, demOptions);
+
                             if (dem.Width != bev.Width || dem.Height != bev.Height)
                             {
                                 throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
                                                                   dem.Width, dem.Height, bev.Width, bev.Height));
                             }
+
                             if (demOrigin != origin)
                             {
                                 throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
                                                                   demOrigin, origin));
                             }
+
                             dems[siteDrive] = dem;
                         }
                     }
