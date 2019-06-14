@@ -155,7 +155,7 @@ namespace OPS.Pipeline
             }
 
             var outputFrame = options.OutputFrame.ToLower().Trim();
-           
+
             bool providedBucket = !string.IsNullOrEmpty(options.OutputS3Bucket);
             bool providedProfile = !string.IsNullOrEmpty(options.AWSProfile);
             if (providedBucket != providedProfile)
@@ -200,277 +200,275 @@ namespace OPS.Pipeline
 
             SceneNode root = null;
             string manifestPath = null;
-            if (string.IsNullOrEmpty(options.CachedLeavesPath))
+            //get transforms
+            pipeline.LogInfo("Populating frame cache");
+            FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
+            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
+
+            ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
+            observationCache.Preload(obs => obs.UseForReconstruction &&
+                                            ((options.OnlyForSite == -1) || options.OnlyForSite == ((RoverObservation)obs).Site) &&
+                                            ((options.OnlyForDrive == -1) || options.OnlyForDrive == ((RoverObservation)obs).Drive));
+
+            //build or load cached full mesh
+            Mesh fullMesh = null;
+            if (String.IsNullOrEmpty(options.CachedFullMesh))
             {
-                //get transforms
-                pipeline.LogInfo("Populating frame cache");
-                FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
-                frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
+                fullMesh = BuildFullMesh(frameCache, observationCache, outputFrame);
+            }
+            else
+            {
+                fullMesh = LoadFullMesh();
+            }
 
-                ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
-                observationCache.Preload(obs => obs.UseForReconstruction &&
-                                                ((options.OnlyForSite == -1) || options.OnlyForSite == ((RoverObservation)obs).Site) &&
-                                                ((options.OnlyForDrive == -1) || options.OnlyForDrive == ((RoverObservation)obs).Drive));
+            if (fullMesh == null)
+            {
+                pipeline.LogError("failed to build or load full mesh");
+                return 1;
+            }
 
-                //build or load cached full mesh
-                Mesh fullMesh = null;
-                if (String.IsNullOrEmpty(options.CachedFullMesh))
+            //save full mesh if new one was built
+            if (String.IsNullOrEmpty(options.CachedFullMesh))
+            {
+                string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
+                pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
+                fullMesh.Save(meshFilePath);
+            }
+
+            //set up raycasting for occlusion
+            pipeline.LogInfo("Building occlusion data structures");
+            SceneCaster sc = null;
+            sc = new SceneCaster();
+            sc.AddMesh(fullMesh, null, Matrix.Identity);
+            sc.Build();
+
+            //decimate mesh
+            Mesh processedFullMesh = new Mesh(fullMesh); //can't change mesh after adding to collider
+            if (options.FullMeshFaces > 0)
+            {
+                pipeline.LogInfo("Decimating full mesh to {0} faces", options.FullMeshFaces);
+                processedFullMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
+            }
+
+            //clip mesh
+            if (options.ClipExtent > 0)
+            {
+                pipeline.LogInfo("Clipping full mesh to 2D {0} meters around origin (xy axes)", options.ClipExtent);
+                BoundingBox fullMeshBounds = processedFullMesh.Bounds();
+                double halfExtent = options.ClipExtent * 0.5;
+                Vector3 min = new Vector3(-halfExtent, -halfExtent, fullMeshBounds.Min.Z);
+                Vector3 max = new Vector3(halfExtent, halfExtent, fullMeshBounds.Max.Z);
+                BoundingBox clippedBounds = new BoundingBox(min, max);
+                processedFullMesh = Mesh.Clip(processedFullMesh, clippedBounds);
+            }
+
+            if (processedFullMesh.Vertices.Count() == 0)
+            {
+                pipeline.LogError("after clipping and/or decimation, full mesh has no vertices");
+                return 1;
+            }
+
+            //build convex hulls
+            IEnumerable<Observation> imageObservations = null;
+            Dictionary<Observation, ConvexHull> obsToHull = null;
+            pipeline.LogInfo("Building convex hulls");
+            obsToHull = new Dictionary<Observation, ConvexHull>();
+            string imageObsType = ObservationType.Image.ToString();
+            imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType);
+            foreach (var obs in imageObservations)
+            {
+                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
+                ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
+                if (obsHull != null)
                 {
-                    fullMesh = BuildFullMesh(frameCache, observationCache, outputFrame);
-                }
-                else
-                {
-                    fullMesh = LoadFullMesh();
-                }
+                    obsToHull.Add(obs, obsHull);
 
-                if (fullMesh == null)
-                {
-                    pipeline.LogError("failed to build or load full mesh");
-                    return 1;
-                }
-
-                //save full mesh if new one was built
-                if (String.IsNullOrEmpty(options.CachedFullMesh))
-                {
-                    string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
-                    pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
-                    fullMesh.Save(meshFilePath);
-                }
-
-                //set up raycasting for occlusion
-                pipeline.LogInfo("Building occlusion data structures");
-                SceneCaster sc = null;
-                sc = new SceneCaster();
-                sc.AddMesh(fullMesh, null, Matrix.Identity);
-                sc.Build();
-
-                //decimate mesh
-                Mesh processedFullMesh = new Mesh(fullMesh); //can't change mesh after adding to collider
-                if (options.FullMeshFaces > 0)
-                {
-                    pipeline.LogInfo("Decimating full mesh to {0} faces", options.FullMeshFaces);
-                    processedFullMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
-                }
-
-                //clip mesh
-                if (options.ClipExtent > 0)
-                {
-                    pipeline.LogInfo("Clipping full mesh to 2D {0} meters around origin (xy axes)", options.ClipExtent);
-                    BoundingBox fullMeshBounds = processedFullMesh.Bounds();
-                    double halfExtent = options.ClipExtent * 0.5;
-                    Vector3 min = new Vector3(-halfExtent, -halfExtent, fullMeshBounds.Min.Z);
-                    Vector3 max = new Vector3(halfExtent, halfExtent, fullMeshBounds.Max.Z);
-                    BoundingBox clippedBounds = new BoundingBox(min, max);
-                    processedFullMesh = Mesh.Clip(processedFullMesh, clippedBounds);
-                }
-
-                if(processedFullMesh.Vertices.Count() == 0)
-                {
-                    pipeline.LogError("after clipping and/or decimation, full mesh has no vertices");
-                    return 1;
-                }
-
-                //build convex hulls
-                IEnumerable<Observation> imageObservations = null;
-                Dictionary<Observation, ConvexHull> obsToHull = null;
-                pipeline.LogInfo("Building convex hulls");
-                obsToHull = new Dictionary<Observation, ConvexHull>();
-                string imageObsType = ObservationType.Image.ToString();
-                imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType);
-                foreach (var obs in imageObservations)
-                {
-                    pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
-                    ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
-                    if (obsHull != null)
+                    if (options.OutputDebugMeshes)
                     {
-                        obsToHull.Add(obs, obsHull);
-
-                        if (options.OutputDebugMeshes)
-                        {
-                            obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
-                        }
+                        obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
                     }
                 }
+            }
 
-                imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
+            imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
 
-                pipeline.LogInfo("Building legacy scene for astro");
-                var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
-                EmtToScene.CreateLegacyScene(RASLRecords, astroOutputPath, out manifestPath);
+            pipeline.LogInfo("Building legacy scene for astro");
+            var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
+            EmtToScene.CreateLegacyScene(RASLRecords, astroOutputPath, out manifestPath, outputFrame);
 
-                //build tile bounds
-                pipeline.LogInfo("Building tile tree bounds from fullmesh");
-                SplitByTextureOpts texSplitOpts = new SplitByTextureOpts();
-                texSplitOpts.pctPixelsToTest = options.SplitByTexturePctToTest;
-                texSplitOpts.pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied;
-                texSplitOpts.subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio;
-                texSplitOpts.tileResolution = options.TileResolution;
-                texSplitOpts.scInMesh = sc;
-                texSplitOpts.cameraInstances = imageObservations.Select(obs => ToCameraInstance((RoverObservation)obs, obsToHull, frameCache)).ToArray();
-                root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(processedFullMesh) }, texSplitOpts);
+            //build tile bounds
+            pipeline.LogInfo("Building tile tree bounds from fullmesh");
+            SplitByTextureOpts texSplitOpts = new SplitByTextureOpts();
+            texSplitOpts.pctPixelsToTest = options.SplitByTexturePctToTest;
+            texSplitOpts.pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied;
+            texSplitOpts.subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio;
+            texSplitOpts.tileResolution = options.TileResolution;
+            texSplitOpts.scInMesh = sc;
+            texSplitOpts.cameraInstances = imageObservations.Select(obs => ToCameraInstance((RoverObservation)obs, obsToHull, frameCache)).ToArray();
+            root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile, new List<MeshImagePair>() { new MeshImagePair(processedFullMesh) }, texSplitOpts);
 
-                //make leaf tiles meshes
-                List<SceneNode> failedNodes = new List<SceneNode>();
-                MeshOperator meshOp = new MeshOperator(processedFullMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-                int curLeafNum = 0;
-                CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
-                {
+            //make leaf tiles meshes
+            List<SceneNode> failedNodes = new List<SceneNode>();
+            MeshOperator meshOp = new MeshOperator(processedFullMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            int curLeafNum = 0;
+            CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
+            {
                     //debug functionality to only generate a single tile
                     if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
-                        return;
+                    return;
 
-                    Interlocked.Increment(ref curLeafNum);
+                Interlocked.Increment(ref curLeafNum);
 
-                    try
+                try
+                {
+                    Mesh leafMesh = null;
+                    pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
+
+                    if (false == ClipMeshForTile(leaf, meshOp, out leafMesh, options.TileResolution))
                     {
-                        Mesh leafMesh = null;
-                        pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, root.Leaves().Count(), (int)(100 * curLeafNum / (float)root.Leaves().Count()));
+                        pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
+                        failedNodes.Add(leaf);
+                        return;
+                    }
 
-                        if (false == ClipMeshForTile(leaf, meshOp, out leafMesh, options.TileResolution))
-                        {
-                            pipeline.LogError("Failed: couldn't generate texture coordinates for tile: {0}", leaf.Name);
-                            failedNodes.Add(leaf);
-                            return;
-                        }
+                    if (leafMesh.Vertices.Count == 0)
+                    {
+                        pipeline.LogError("Failed: mesh generated for tile: {0} had no verts", leaf.Name);
+                        failedNodes.Add(leaf);
+                        return;
+                    }
 
-                        if (leafMesh.Vertices.Count == 0)
-                        {
-                            pipeline.LogError("Failed: mesh generated for tile: {0} had no verts", leaf.Name);
-                            failedNodes.Add(leaf);
-                            return;
-                        }
+                    if (options.OutputDebugMeshes)
+                    {
+                        Mesh boundsMesh = leaf.GetComponent<NodeBounds>().Bounds.ToMesh();
+                        boundsMesh.Save(Path.Combine(leafTilesPath, leaf.Name + "_bounds.ply"));
+                    }
 
-                        if (options.OutputDebugMeshes)
-                        {
-                            Mesh boundsMesh = leaf.GetComponent<NodeBounds>().Bounds.ToMesh();
-                            boundsMesh.Save(Path.Combine(leafTilesPath, leaf.Name + "_bounds.ply"));
-                        }
-
-                        Image leafImage = null;
+                    Image leafImage = null;
 
                         // coarse frustum test: get all observations that intersect mesh hull
                         ConvexHull leafHull = new ConvexHull(leafMesh);
-                        List<Observation> intersectingObservations = new List<Observation>();
-                        foreach (var obs in imageObservations)
-                        {
-                            if (!obsToHull.ContainsKey(obs))
-                                continue;
+                    List<Observation> intersectingObservations = new List<Observation>();
+                    foreach (var obs in imageObservations)
+                    {
+                        if (!obsToHull.ContainsKey(obs))
+                            continue;
 
-                            if (leafHull.Intersects(obsToHull[obs]))
+                        if (leafHull.Intersects(obsToHull[obs]))
+                        {
+                            pipeline.LogInfo("Leaf {0}: intersecting observation {1}:{2}", leaf.Name, intersectingObservations.Count(), obs.Name);
+                            if (options.OutputDebugMeshes)
                             {
-                                pipeline.LogInfo("Leaf {0}: intersecting observation {1}:{2}", leaf.Name, intersectingObservations.Count(), obs.Name);
-                                if (options.OutputDebugMeshes)
-                                {
-                                    obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_ihull_" + leaf.Name + ".ply"));
-                                }
-                                intersectingObservations.Add(obs);
+                                obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_ihull_" + leaf.Name + ".ply"));
                             }
+                            intersectingObservations.Add(obs);
                         }
+                    }
 
                         // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                         if (intersectingObservations.Count() == 0)
-                        {
-                            pipeline.LogWarn("Failed: no images intersected tile: {0}", leaf.Name);
-                            failedNodes.Add(leaf);
-                            return;
-                        }
+                    {
+                        pipeline.LogWarn("Failed: no images intersected tile: {0}", leaf.Name);
+                        failedNodes.Add(leaf);
+                        return;
+                    }
 
-                        pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
+                    pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
 
                         //create image
                         leafImage = new Image(3, options.TileResolution, options.TileResolution);
-                        leafImage.CreateMask(true);
+                    leafImage.CreateMask(true);
 
                         //cache the destination pixels (and the mesh positions for perf) for which backproject is valid
                         MeshOperator leafOp = new MeshOperator(leafMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-                        List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution, options.TileResolution);
+                    List<PixelPoint> pointsToBackproject = leafOp.SampleUVSpace(options.TileResolution, options.TileResolution);
 
                         //calculate goodness (spatial density)
                         Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
-                        {
+                    {
                             //select a coarse sampling of the points to backproject to use get a rough sorting of texture quality
                             double percentagePointsToTest = options.BackprojectGoodnessSamplingPct;
 
                             //simple sample which skips enough points to return the requested amount of points
                             int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
-                            int skipPoints = pointsToBackproject.Count / subsampledPts;
-                            List<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
+                        int skipPoints = pointsToBackproject.Count / subsampledPts;
+                        List<PixelPoint> pointsToTestSamplingDensity = pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
 
                             //calculate the median spatial density for the requested pixels per observation
                             foreach (var obs in intersectingObservations.Cast<RoverObservation>())
-                            {
-                                CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                        {
+                            CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
-                                List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
-                                foreach (var pt in pointsToTestSamplingDensity)
-                                {
+                            List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
+                            foreach (var pt in pointsToTestSamplingDensity)
+                            {
                                     //test hull (protect against bad ray calculations from camera model)
                                     if (!obsToHull.ContainsKey(obs))
-                                        continue;
+                                    continue;
 
-                                    if (!obsToHull[obs].Contains(pt.Point))
-                                        continue;
+                                if (!obsToHull[obs].Contains(pt.Point))
+                                    continue;
 
-                                    Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
+                                Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
 
                                     //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
                                     minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
-                                }
+                            }
 
                                 //store the median of the min distances
                                 double medianDistance = double.MaxValue;
-                                if (minDistances.Count() > 0)
-                                {
-                                    minDistances.Sort();
-                                    medianDistance = minDistances.ElementAt(minDistances.Count / 2);
-                                }
-
-                                spatialDensityByObs.Add(obs, medianDistance);
+                            if (minDistances.Count() > 0)
+                            {
+                                minDistances.Sort();
+                                medianDistance = minDistances.ElementAt(minDistances.Count / 2);
                             }
+
+                            spatialDensityByObs.Add(obs, medianDistance);
                         }
+                    }
 
                         //sort the list of observations by goodness
                         intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
 
                         //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
                         foreach (var obs in intersectingObservations)
-                        {
+                    {
                             //quit if done
                             if (pointsToBackproject.Count == 0)
-                                break;
+                            break;
 
-                            int contributedPixels = BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
+                        int contributedPixels = BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, leafImage);
 
-                            if (contributedPixels > 0)
+                        if (contributedPixels > 0)
+                        {
+                            pipeline.LogInfo("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
+                            if (options.OutputDebugMeshes)
                             {
-                                pipeline.LogInfo("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
-                                if (options.OutputDebugMeshes)
-                                {
-                                    obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_chull_" + leaf.Name + ".ply"));
-                                    Image dbgimg = pipeline.LoadImage(obs.Url);
-                                    dbgimg.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + "_" + obs.Name + ".png"));
-                                }
+                                obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_chull_" + leaf.Name + ".ply"));
+                                Image dbgimg = pipeline.LoadImage(obs.Url);
+                                dbgimg.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + "_" + obs.Name + ".png"));
                             }
                         }
+                    }
 
-                        if (options.DontInpaint)
+                    if (options.DontInpaint)
+                    {
+                        while (pointsToBackproject.Count() > 0)
                         {
-                            while (pointsToBackproject.Count() > 0)
-                            {
                                 //during development color pixels that failed to backproject blue
                                 var pair = pointsToBackproject.First();
-                                pointsToBackproject.RemoveAt(0);
-                                leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
-                            }
-
-                            leafImage.DeleteMask();
+                            pointsToBackproject.RemoveAt(0);
+                            leafImage[2, (int)pair.Pixel.Y, (int)pair.Pixel.X] = 1.0f;
                         }
-                        else
-                        {
+
+                        leafImage.DeleteMask();
+                    }
+                    else
+                    {
                             //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
                             // full inpaint needed for building parent tiles
                             leafImage.Inpaint(-1, preserveMask: false);
-                        }
+                    }
 
                         //save image
                         leafImage.Save<byte>(Path.Combine(leafTilesPath, leaf.Name + ".png"));
@@ -478,95 +476,56 @@ namespace OPS.Pipeline
                         // save meshes                   
                         leafMesh.Save(Path.Combine(leafTilesPath, leaf.Name + ".ply"), Path.Combine(leafTilesPath, leaf.Name + ".png"));
 
-                        leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, leafImage));
-                        leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
-                    }
-                    catch
-                    {
-                        failedNodes.Add(leaf);
-                    }
-
-                });
-
-                //remove all the failed nodes
-                pipeline.LogInfo("removing {0} failed nodes from the tree",failedNodes.Count());
-                foreach(var node in failedNodes)
+                    leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, leafImage));
+                    leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
+                }
+                catch
                 {
+                    failedNodes.Add(leaf);
+                }
+
+            });
+
+            //remove all the failed nodes
+            pipeline.LogInfo("removing {0} failed nodes from the tree", failedNodes.Count());
+            foreach (var node in failedNodes)
+            {
+                node.Parent = null;
+            }
+
+            //check for parents who have become leaves but have no valid children
+            pipeline.LogInfo("leaves remanining {0}, tidying up parents with no children with meshes", root.Leaves().Count());
+            bool madeChanges = true;
+            int formerParentCount = 0;
+            while (madeChanges && root.Leaves().Any())
+            {
+                madeChanges = false;
+                List<SceneNode> newLeavesNoMesh = new List<SceneNode>();
+                foreach (var node in root.Leaves())
+                {
+                    if (!node.HasComponent<MeshImagePair>())
+                    {
+                        newLeavesNoMesh.Add(node);
+                    }
+                }
+
+                madeChanges = newLeavesNoMesh.Any();
+                formerParentCount += newLeavesNoMesh.Count();
+                foreach (var node in newLeavesNoMesh)
+                {
+                    pipeline.LogInfo("removing former parent leaf node {0} with no mesh from the tree", node.Name);
                     node.Parent = null;
                 }
-
-                //check for parents who have become leaves but have no valid children
-                pipeline.LogInfo("leaves remanining {0}, tidying up parents with no children with meshes", root.Leaves().Count());
-                bool madeChanges = true;
-                int formerParentCount = 0;
-                while (madeChanges && root.Leaves().Any())
-                {
-                    madeChanges = false;
-                    List<SceneNode> newLeavesNoMesh = new List<SceneNode>();
-                    foreach (var node in root.Leaves())
-                    {
-                        if (!node.HasComponent<MeshImagePair>())
-                        {
-                            newLeavesNoMesh.Add(node);
-                        }
-                    }
-
-                    madeChanges = newLeavesNoMesh.Any();
-                    formerParentCount += newLeavesNoMesh.Count();
-                    foreach (var node in newLeavesNoMesh)
-                    {
-                        pipeline.LogInfo("removing former parent leaf node {0} with no mesh from the tree", node.Name);
-                        node.Parent = null;                        
-                    }
-                }
-
-                pipeline.LogInfo("removed {0} former parent nodes. {1} leaves remain", formerParentCount, root.Leaves().Count());
-            }
-            else
-            {
-                throw new NotImplementedException();
-
-                //pipeline.LogInfo("Using cached leaves: " + options.CachedLeavesPath);
-                //root = new SceneNode("");
-
-                ////build flat tree of nodes with just mesh image pairs
-                //var leafMeshes = System.IO.Directory.EnumerateFiles(options.CachedLeavesPath, "*.ply");
-                //foreach (var leafMeshPath in leafMeshes)
-                //{
-                //    string leafImagePath = Path.ChangeExtension(leafMeshPath, ".png");
-                //    if (File.Exists(leafImagePath))
-                //    {
-                //        MeshImagePair pair = new MeshImagePair(Mesh.Load(leafMeshPath), Image.Load(leafImagePath));
-                //        SceneNode leafNode = new SceneNode(Path.GetFileNameWithoutExtension(leafMeshPath));
-                //        leafNode.AddComponent<MeshImagePair>(pair);
-                //        leafNode.Parent = root;
-                //    }
-                //    else
-                //    {
-                //        pipeline.LogWarn("Skipping. No texture found for cached leaf mesh " + leafMeshPath);
-                //    }
-
-                //}
-
-                //string astroScenePath = Path.Combine(astroOutputPath, "Scene");
-                //var astroSceneSubdirs = Directory.GetDirectories(astroScenePath).Where(x => new DirectoryInfo(x).Name.CompareTo("images") != 0);
-
-                //if (astroSceneSubdirs.Count() != 1)
-                //{
-                //    pipeline.LogError("Can't get manifest's primary site drive from paths, more than one result in astrooutput path");
-                //    return 1;
-                //}
-
-                //manifestPath = Path.Combine(astroSceneSubdirs.First(), "201801010000\\manifest.xml");
             }
 
+            pipeline.LogInfo("removed {0} former parent nodes. {1} leaves remain", formerParentCount, root.Leaves().Count());
             pipeline.LogInfo("Building master manifest");
-            CreateMasterManifest(manifestPath, LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"));
+            CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"),outputFrame);
 
             //get primary sitedrive from the path
-            string primarySiteDrive = Directory.GetParent(Path.GetDirectoryName(manifestPath)).Name.Substring(2);
+            string primarySiteDrive = outputFrame; //todo: handle if root is passed
             string astroTilesetDir = EmtToScene.GetTilesetDir(astroOutputPath, primarySiteDrive);
-            
+
             if (options.TileInCloud)
             {
                 ////start server
@@ -666,7 +625,7 @@ namespace OPS.Pipeline
                     EmtToScene.ConvertMeshToYUp(pair.Mesh);
                 }
 
-                foreach( var n in root.GetComponentsInTree<NodeBounds>(true))
+                foreach (var n in root.GetComponentsInTree<NodeBounds>(true))
                 {
                     Vector3 min = n.Bounds.Min;
                     Vector3 max = n.Bounds.Max;
@@ -680,7 +639,7 @@ namespace OPS.Pipeline
                 {
                     leaf.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
                 }
-             
+
                 pipeline.LogInfo("Building parent tiles");
                 TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, astroTilesetDir, options.MeshExtension, options.ImageExtension);
 
@@ -732,7 +691,7 @@ namespace OPS.Pipeline
             node.Attributes.Append(att);
 
         }
-        private void CreateMasterManifest(string sceneManifestLocalPath, string sceneManifestUrl, string masterManifestPath)
+        private void CreateMasterManifest(string sceneManifestUrl, string masterManifestPath, string primarySiteDrive)
         {
             XmlDocument doc = new XmlDocument();
             XmlDeclaration xmldecl;
@@ -744,13 +703,15 @@ namespace OPS.Pipeline
 
             XmlElement scenes = (XmlElement)doc.AppendChild(doc.CreateElement("scenes"));
             XmlElement scene = (XmlElement)scenes.AppendChild(doc.CreateElement("scene"));
-            AddAttributeXml(scene, "id", Directory.GetParent(Path.GetDirectoryName(sceneManifestLocalPath)).Name);  //eg. "ds0000100372"
+            AddAttributeXml(scene, "id", "ds" + primarySiteDrive);  //eg. "ds0000100372"
             AddAttributeXml(scene, "type", "master");
-            AddAttributeXml(scene, "primarySite", "1");
-            AddAttributeXml(scene, "primaryDrive", "0");
+
+            SiteDrive primarySD = new SiteDrive(primarySiteDrive);
+            AddAttributeXml(scene, "primarySite", primarySD.Site.ToString());
+            AddAttributeXml(scene, "primaryDrive", primarySD.Drive.ToString());
             XmlElement manifests = (XmlElement)scene.AppendChild(doc.CreateElement("manifests"));
             XmlElement manifest = (XmlElement)manifests.AppendChild(doc.CreateElement("manifest"));
-            AddAttributeXml(manifest, "version", new DirectoryInfo(Path.GetDirectoryName(sceneManifestLocalPath)).Name); //eg. "201801010000"
+            AddAttributeXml(manifest, "version", "201801010000");
             AddAttributeXml(manifest, "pipelineVersion", "0.1.15");
             AddAttributeXml(manifest, "startSol", "0");
             AddAttributeXml(manifest, "endSol", "0");

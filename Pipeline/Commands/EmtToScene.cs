@@ -490,7 +490,7 @@ namespace OPS.Pipeline
             return StringHelper.NormalizeSlashes(tileDir,true);
         }
 
-        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath)
+        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath, string primarySiteDrive = null)
         {
             string sceneDir = Path.Combine(workingDir, "Scene");
             string imagesDir = Path.Combine(sceneDir, "images");
@@ -509,7 +509,11 @@ namespace OPS.Pipeline
             });
             imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>(imageDatas.Where(id => new PDSParser(id.Metadata).SiteDrive != null));
             var groupedImageData = imageDatas.GroupBy(id => new PDSParser(id.Metadata).SiteDrive.ToString());
-            var primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
+
+            if (primarySiteDrive == null)
+            {
+                primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
+            }
             logger.Info("Converting images for scene");
             CoreLimitedParallel.ForEach(localFileRecords, rec => 
             { 
