@@ -41,6 +41,7 @@ namespace OPS.Pipeline.AlignmentServer
         {
             get
             {
+                //DEPRECATED use mission specific methods
                 return Sensor == RoverProductCamera.MastcamLeft.ToString() ||
                     Sensor == RoverProductCamera.MastcamRight.ToString();
             }

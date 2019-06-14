@@ -496,7 +496,6 @@ namespace OPS.Pipeline
             string imagesDir = Path.Combine(sceneDir, "images");
             PathHelper.EnsureExists(imagesDir);
 
-
             ConcurrentBag<LegacySceneManfiest.ImageData> imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>();
             CoreLimitedParallel.ForEach(localFileRecords, rec =>
             {
@@ -516,8 +515,9 @@ namespace OPS.Pipeline
             }
             logger.Info("Converting images for scene");
             CoreLimitedParallel.ForEach(localFileRecords, rec => 
-            { 
-                string siteImageDir = Path.Combine(imagesDir, primarySiteDrive);
+            {
+                string siteDrive = new PDSParser(new PDSMetadata(rec.PreferedMetadataImage)).SiteDrive;
+                string siteImageDir = Path.Combine(imagesDir, siteDrive);
                 PathHelper.EnsureExists(siteImageDir);
                 var outfile = Path.Combine(siteImageDir, rec.FilenameBase + ".IMG.jpg");
                 if (File.Exists(outfile))
