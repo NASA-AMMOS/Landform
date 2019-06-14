@@ -157,6 +157,9 @@ namespace OPS.Pipeline
                 this.options.AWSProfile = string.Empty;
                 this.options.OutputS3Bucket = string.Empty;
             }
+
+            if (0==options.OutputFrame.CompareTo("rover"))
+                throw new NotImplementedException("only root and numeric sitedrive are currently supported");
         }
 
         public int Run()
@@ -527,7 +530,7 @@ namespace OPS.Pipeline
             CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"), outputFrame, numNavcams, numMastcams);
 
             //get primary sitedrive from the path
-            string primarySiteDrive = outputFrame; //todo: handle if root is passed
+            string primarySiteDrive = outputFrame; 
             string astroTilesetDir = EmtToScene.GetTilesetDir(astroOutputPath, primarySiteDrive);
 
             pipeline.LogInfo("Tiling parents locally");
