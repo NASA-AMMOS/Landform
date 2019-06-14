@@ -678,19 +678,11 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("Saving leaves");
                 foreach (var leaf in root.Leaves())
                 {
-                  
-
                     leaf.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
                 }
              
                 pipeline.LogInfo("Building parent tiles");
                 TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, astroTilesetDir, options.MeshExtension, options.ImageExtension);
-
-                pipeline.LogInfo("Saving parents");
-                foreach (var parent in root.NonLeaves().Where(n => n.HasComponent<MeshImagePair>()))
-                {
-                    parent.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
-                }
 
                 pipeline.LogInfo("Building tileset json");
                 Tile3DBuilder builder = new Tile3DBuilder(root);
