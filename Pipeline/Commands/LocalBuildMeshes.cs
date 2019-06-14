@@ -238,7 +238,7 @@ namespace OPS.Pipeline
             sc.AddMesh(fullMesh, null, Matrix.Identity);
             sc.Build();
 
-            //decimate mesh
+            //decimate mesh if requested
             Mesh processedFullMesh = new Mesh(fullMesh); //can't change mesh after adding to collider
             if (options.FullMeshFaces > 0)
             {
@@ -246,7 +246,7 @@ namespace OPS.Pipeline
                 processedFullMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
             }
 
-            //clip mesh
+            //clip mesh if requested
             if (options.ClipExtent > 0)
             {
                 pipeline.LogInfo("Clipping full mesh to 2D {0} meters around origin (xy axes)", options.ClipExtent);
@@ -529,12 +529,6 @@ namespace OPS.Pipeline
             }
             CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath), Path.Combine(astroOutputPath, "mastermanifest.xml"), outputFrame, numNavcams, numMastcams);
 
-            //get primary sitedrive from the path
-            string primarySiteDrive = outputFrame; 
-            string astroTilesetDir = EmtToScene.GetTilesetDir(astroOutputPath, primarySiteDrive);
-
-            pipeline.LogInfo("Tiling parents locally");
-
             pipeline.LogInfo("Rotating to astro frame");
             foreach (var leaf in root.Leaves())
             {
@@ -556,7 +550,9 @@ namespace OPS.Pipeline
                 n.Bounds = new BoundingBox(min, max);
             }
 
-            pipeline.LogInfo("Saving leaves");
+            pipeline.LogInfo("Saving leaf tiles");
+            string astroTilesetDir = EmtToScene.GetTilesetDir(astroOutputPath, outputFrame);
+
             foreach (var leaf in root.Leaves())
             {
                 leaf.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
@@ -569,14 +565,8 @@ namespace OPS.Pipeline
             Tile3DBuilder builder = new Tile3DBuilder(root);
             builder.BuildTileset(node => node.Name + "." + options.MeshExtension, false);
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Newtonsoft.Json.Formatting.None);
+            jsonData = jsonData.Replace("uri", "url"); //HACK: Issue #602: to emulate the previous version of tilest.json that asttro uses
             File.WriteAllText(Path.Combine(astroTilesetDir, "tileset.json"), jsonData);
-
-            //HACK to emulate the previous version of tilest.json that asttro uses
-            pipeline.LogInfo("Converting tileset to previous version");
-            string tilesetJSONPath = Path.Combine(astroTilesetDir, "tileset.json");
-            var tilesetJSON = File.ReadAllText(tilesetJSONPath);
-            tilesetJSON = tilesetJSON.Replace("uri", "url");
-            File.WriteAllText(tilesetJSONPath, tilesetJSON);
 
             // setup s3 bucket
             if (!string.IsNullOrEmpty(options.OutputS3Bucket))
