@@ -489,10 +489,10 @@ namespace OPS.Geometry
 
             // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
             // Vertices that are part of the skirt that need to be removed at the end
-            List<Vertex> verticesToRemove = EdgeVertices();
-
+            List<Vertex> edgeVertices = EdgeVertices();
+            List<Vertex> verticesToRemove = new List<Vertex>();
             // Run through each unique vertex on the edge and remove it if it qualifies as part of a skirt
-            foreach (Vertex edgeVertex in verticesToRemove)
+            foreach (Vertex edgeVertex in edgeVertices)
             {
                 // Find index of the current edge vertex
                 int vertexIndexInMesh = Vertices.IndexOf(edgeVertex);
