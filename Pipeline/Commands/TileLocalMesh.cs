@@ -127,6 +127,7 @@ namespace OPS
                 {
                     var childBounds = tilingScheme.Split(null, curBounds);
                     childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                    childBounds = childBounds.Select(box => tilingScheme.ExpandBounds(box, new BoundingBox(new Vector3(-10000000, -10000000, -10000000), new Vector3(10000000, 10000000, 10000000))));
                     int counter = 0;
                     foreach (var childBound in childBounds)
                     {

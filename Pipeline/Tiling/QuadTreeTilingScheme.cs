@@ -120,7 +120,12 @@ namespace OPS.Pipeline
                 currentBounds.Max.Y = Math.Max(currentBounds.Max.Y, desiredBounds.Max.Y);
                 return currentBounds;
             }
-            else
+            else if (Direction == QuadTreeAxis.X)
+            {
+                currentBounds.Min.X = Math.Min(currentBounds.Min.X, desiredBounds.Min.X);
+                currentBounds.Max.X = Math.Max(currentBounds.Max.X, desiredBounds.Max.X);
+                return currentBounds;
+            } else
             {
                 throw new NotImplementedException();
             }
