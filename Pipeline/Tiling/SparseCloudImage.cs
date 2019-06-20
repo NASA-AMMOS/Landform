@@ -57,7 +57,7 @@ namespace OPS.Pipeline
             {
                 for (int c = 0; c <= Width / chunkSize; c++)
                 {
-                    pipeline.LogInfo("Creating chunk (" + r + ", " + c + "), " + (r * Width + c) + " / " + (Width * Height) + " complete.");
+                    pipeline.LogInfo("Creating chunk (" + r + ", " + c + "), " + (r * Width / chunkSize + c) + " / " + (Width / chunkSize * Height / chunkSize) + " complete.");
                     Image chunk = ((GDALSerializer)s).PartialRead(filename, c * chunkSize, r * chunkSize, Math.Min(Width - c * chunkSize, chunkSize), Math.Min(Height - r * chunkSize, chunkSize), s.DefaultReadConverter());
                     SaveChunk<byte>(chunk, CreateFileName(r, c, storageUrl, extension));
                 }
