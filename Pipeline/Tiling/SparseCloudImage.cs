@@ -46,8 +46,7 @@ namespace OPS.Pipeline
         /// Split an image into chunks with dimensions chunkSize without loading the full image into memory; chunks stored on disk for on demand loading.
         /// </summary>
         protected void Partition(string filename)
-        {
-            
+        {        
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
             if (s.GetType() != typeof(GDALSerializer))
             {

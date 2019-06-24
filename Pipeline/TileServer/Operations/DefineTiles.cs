@@ -27,6 +27,7 @@ namespace OPS.Pipeline.TileServer
         private readonly DefineTilesMessage message;
 
         //To limit the size of an ortho loaded as one chunk
+        //Note: this must match CHUNK_RESOLUTION expected by chunkinput; may want to expose this parameter to the tiling project
         private const int CHUNK_SIZE = 2048;
 
         //TODO it may be possible to re-use this code in ProjectCache
