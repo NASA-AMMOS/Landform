@@ -380,14 +380,6 @@ namespace OPS.Pipeline
             
             Image dem = Image.Load(options.InputDem, ImageConverters.PassThrough);
             
-            //TODO: Decide if this is a good way to allow varying resolution as input. Downside is each region must be axis aligned and overlapping regions are inefficient.
-            //      Mapping of regions to texture resolution would need to be exposed as an option.
-            
-            /*Dictionary<BoundingBox, double> regions = new Dictionary<BoundingBox, double>();
-            regions.Add(new BoundingBox(new Vector3(0, 0, -1), new Vector3(dem.Width, dem.Height, 1)), 80);
-            regions.Add(new BoundingBox(new Vector3(0, 0, -1), new Vector3(dem.Width/2, dem.Height/2, 1)), 20);
-            dem = new MultiResImage(dem, options.MetersPerPixel, regions);*/
-            
             if(dem.CameraModel == null)
             {
                 dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, options.MetersPerPixel);
@@ -408,7 +400,6 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    //TODO: implement for multi res
                     dem.ScaleValues(options.VerticalScale);
                     xyz = Meshing.ConvertRNG(dem, null);
                 }
