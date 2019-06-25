@@ -28,9 +28,6 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 1, HelpText = "Scaler to convert dem  values to verticle meters.  i.e. (meters/pixel value)")]
         public float VerticalScale { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Path to config json that maps sub regions to resolution")]
-        public string ResolutionConfigFile { get; set; }
-
         [Option(Required = false, HelpText = "Output path of mesh.  If ortho image is supplied it will be written to the same path but with a different extension.  If ommited output is written to same directory as input but with a '.mesh' appended to the filename")]
         public string OutputPath { get; set; }
 
@@ -210,7 +207,7 @@ namespace OPS.Pipeline
         /// <param name="sampleScale"></param>
         /// <param name="rand"></param>
         /// <returns></returns>
-        List<Vector2> split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Image mask, PDSParser parser, int sampleNum, int testNum, double sampleScale, Random rand)
+        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Image mask, PDSParser parser, int sampleNum, int testNum, double sampleScale, Random rand)
         {
             //Mesh the current set of vertices
             Mesh mesh = DelaunayTriangulation.Triangulate(rowCols.Select(rc => new Vertex(GetXYZ(dem,null,(int)rc.Y,(int)rc.X,parser).Value)).ToArray(), vertToDelaunay);
@@ -323,10 +320,10 @@ namespace OPS.Pipeline
             }
 
             //Recurse on children
-            newRowCols.AddRange(split(vIdxs1, r, c, width/2.0, height/2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(split(vIdxs2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(split(vIdxs3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(split(vIdxs4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs1, r, c, width/2.0, height/2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
 
             return newRowCols;
         }
@@ -372,8 +369,6 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public int Run()
         {
-            bool multiRes = false;
-
             if(!string.IsNullOrEmpty(this.options.OutputPath))
             {
                 PathHelper.EnsureExists(this.options.OutputPath);
@@ -450,26 +445,8 @@ namespace OPS.Pipeline
                         mask[0, r, c] = 1;
                     }
                 }
-                if (!multiRes)
-                {
-                    rowCols.AddRange(split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
-                }
-                else
-                {
-                    MultiResImage mrdem = (MultiResImage)dem;
-                    var images = mrdem.Images.ToArray();
-                    var bounds = mrdem.Bounds.ToArray();
-                    var ratios = mrdem.Ratios.ToArray();
-                    for(int i = 0; i < images.Count(); i++)
-                    {
-                        //Sample each image individually with error threshold scaled by downsample ratio
-                        images[i].CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, options.MetersPerPixel);
-                        List<Vector2> corners = FindCorners(images[i], parser).ToList();
-                        var tempList = split(corners, 0, 0, images[i].Width, images[i].Height, options.Error * ratios[i], images[i], mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, NumberHelper.MakeRandomGenerator());
-                        //Convert each region (row, col) back to an original image (row, col)
-                        rowCols.AddRange(tempList.Select(rc => new Vector2(rc.X = bounds[i].Min.Y + rc.X * ratios[i], bounds[i].Min.X + rc.Y * ratios[i])));
-                    }
-                }
+                rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                
                 //Construct vertices
                 var verts = rowCols.Select(rc => {
                     var v = new Vertex(GetXYZ(dem, null, (int)rc.Y, (int)rc.X, parser).Value);

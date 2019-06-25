@@ -34,10 +34,7 @@ namespace OPS.Pipeline
                 {
                     throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
                 }
-                Vector3 metadata = ((GDALSerializer)s).GetMetadata(f);
-                Bands = (int)metadata[0];
-                Width = (int)metadata[1];
-                Height = (int)metadata[2];
+                ((GDALSerializer)s).GetMetadata(f, out Bands, out Width, out Height);
                 Partition(f);
             });
         }

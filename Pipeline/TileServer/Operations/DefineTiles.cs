@@ -229,10 +229,7 @@ namespace OPS.Pipeline.TileServer
                     ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
                     if (s.GetType() == typeof(GDALSerializer))
                     {
-                        Vector3 dims = ((GDALSerializer)s).GetMetadata(f);
-                        int bands = (int)dims[0];
-                        int width = (int)dims[1];
-                        int height = (int)dims[2];
+                        ((GDALSerializer)s).GetMetadata(f, out int bands, out int width, out int height);
                         if (width > CHUNK_SIZE && height > CHUNK_SIZE)
                         {
                             image = new SparseImage(bands, width, height, input.ImageUrl, ext, CHUNK_SIZE);

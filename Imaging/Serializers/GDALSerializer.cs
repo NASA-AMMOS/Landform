@@ -187,10 +187,12 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="filename"></param>
         /// <returns></returns>
-        public Vector3 GetMetadata(string filename)
+        public void GetMetadata(string filename, out int bands, out int width, out int height)
         {
             Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly);
-            return new Vector3(dataset.RasterCount, dataset.RasterXSize, dataset.RasterYSize);
+            bands = dataset.RasterCount;
+            width = dataset.RasterXSize;
+            height = dataset.RasterYSize;
         }
 
         /// <summary>
