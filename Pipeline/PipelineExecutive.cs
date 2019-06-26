@@ -151,8 +151,8 @@ namespace OPS.Pipeline
                     }
                     catch (Exception e)
                     {
-                        pipeline.LogError("{0}: {1} task error ({w}): {3}", m.Info(), what, e.GetType().FullName,
-                                          e.Message);
+                        pipeline.LogError("{0}: {1} task error ({2}): {3}",
+                                          m.Info(), what, e.GetType().FullName, e.Message);
                         pipeline.LogError(e.StackTrace);
                     }
                 }
