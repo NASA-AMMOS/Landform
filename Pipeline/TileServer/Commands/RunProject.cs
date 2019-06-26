@@ -38,12 +38,12 @@ namespace OPS.Pipeline.TileServer
         public RunProject(RunProjectOptions options)
         {
             this.options = options;
-            if (options.Local && options.ExecutionMode == ExecutionMode.Deferred)
+            if (options.Local)
             {
                 options.Wait = true;
             }
             pipeline = TileServerCommands.MakePipeline(options, options.Local);
-            if (options.local)
+            if (options.Local)
             {
                 executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Deferred);
             }

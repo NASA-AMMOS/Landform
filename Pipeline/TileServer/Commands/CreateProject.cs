@@ -177,11 +177,11 @@ namespace OPS.Pipeline.TileServer
 
         public void DeleteIfExists()
         {
-            var tilingProject = TilingProject.Find(this, options.ProjectName);
+            var tilingProject = TilingProject.Find(pipeline, options.ProjectName);
             if (tilingProject != null)
             {
-                LogInfo("deleting existing tiling project \"{0}\"", options.ProjectName);
-                tilingProject.Delete(this, false);
+                pipeline.LogInfo("deleting existing tiling project \"{0}\"", options.ProjectName);
+                tilingProject.Delete(pipeline, false);
             }
         }
     }  

@@ -11,7 +11,7 @@ namespace OPS.Pipeline
 {
     class MSLStateMachine : PipelineStateMachine
     {
-        public MSLStateMachine(CloudPipeline pipeline, string projectName) : base(pipeline, projectName)
+        public MSLStateMachine(PipelineCore pipeline, string projectName) : base(pipeline, projectName)
         {
         }
 

@@ -9,7 +9,7 @@ namespace OPS.Pipeline
 {
     class GenericTilingStateMachine : PipelineStateMachine
     {
-        public GenericTilingStateMachine(CloudPipeline pipeline, string projectName) : base(pipeline, projectName)
+        public GenericTilingStateMachine(PipelineCore pipeline, string projectName) : base(pipeline, projectName)
         {
         }
 
