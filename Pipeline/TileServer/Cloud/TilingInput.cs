@@ -37,12 +37,10 @@ namespace OPS.Pipeline.TileServer
 
         public bool Chunked;
 
-        public List<string> ChunkIds;
+        public HashSet<string> ChunkIds = new HashSet<string>(); //MT safety: lock before accessing
 
-        public TilingInput()
-        {
-            ChunkIds = new List<string>();
-        }
+        //This constructor must be public for DynamoDB but should not be used
+        public TilingInput() { }
 
         protected TilingInput(string name, string projectName, string meshUrl, string imageUrl, string id) : this()
         {
@@ -61,7 +59,12 @@ namespace OPS.Pipeline.TileServer
             TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
             input.Save(pipeline);
 
-            if (project.AddInput(name))
+            bool added = false;
+            lock (project.InputNames)
+            {
+                added = project.InputNames.Add(name);
+            }
+            if (added)
             {
                 pipeline.SaveDatabaseItem(project);
             }
@@ -116,41 +119,6 @@ namespace OPS.Pipeline.TileServer
             if (!(Name != null && ProjectName != null && MeshUrl != null))
             {
                 throw new Exception("TilingInput is missing a required field");
-            }
-        }
-
-        public bool AddChunk(string id)
-        {
-            lock (ChunkIds)
-            {
-                if (ChunkIds.Contains(id))
-                {
-                    return false;
-                }
-                ChunkIds.Add(id);
-                return true;
-            }
-        }
-
-        public int AddChunks(IEnumerable<string> ids)
-        {
-            HashSet<string> unique = new HashSet<string>();
-            lock (ChunkIds)
-            {
-                int old = ChunkIds.Count;
-                unique.UnionWith(ChunkIds);
-                unique.UnionWith(ids);
-                ChunkIds.Clear();
-                ChunkIds.AddRange(unique);
-                return ChunkIds.Count - old;
-            }
-        }
-
-        public IEnumerable<string> GetChunks()
-        {
-            lock (ChunkIds)
-            {
-                return ChunkIds.ToArray();
             }
         }
     }

@@ -187,11 +187,19 @@ namespace OPS.Pipeline
                 frameCache.Preload();
                 foreach (var observation in observationCache.GetAllObservations())
                 {
-                    frameCache.GetFrame(observation.FrameName).AddObservation(observation);
+                    var frame = frameCache.GetFrame(observation.FrameName);
+                    lock (frame.ObservationNames)
+                    {
+                        frame.ObservationNames.Add(observation.Name);
+                    }
                 }
                 foreach (var transform in frameCache.GetAllTransforms())
                 {
-                    frameCache.GetFrame(transform.FrameName).AddTransform(transform);
+                    var frame = frameCache.GetFrame(transform.FrameName);
+                    lock (frame.Transforms)
+                    {
+                        frame.Transforms.Add(transform.Source);
+                    }
                 }
                 foreach (var frame in frameCache.GetAllFrames())
                 {

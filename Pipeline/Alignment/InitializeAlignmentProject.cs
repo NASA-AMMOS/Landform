@@ -55,7 +55,12 @@ namespace OPS.Pipeline
                 var oldRoot = Frame.Find(pipeline, projectName, rootName);
                 if (oldRoot != null)
                 {
-                    foreach (var source in oldRoot.Transforms)
+                    IEnumerable<TransformSource> transforms = null;
+                    lock (oldRoot.Transforms)
+                    {
+                        transforms = oldRoot.Transforms.ToArray();
+                    }
+                    foreach (var source in transforms)
                     {
                         var transform = FrameTransform.Find(pipeline, oldRoot, source);
                         if (transform != null)

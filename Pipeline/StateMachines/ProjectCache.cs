@@ -16,8 +16,8 @@ namespace OPS.Pipeline.TileServer
 
         private string rootId;
         private HashSet<string> ids;
-        private Dictionary<string, List<string>> dependedOnBy;
-        private Dictionary<string, List<string>> dependsOn;
+        private Dictionary<string, IEnumerable<string>> dependedOnBy;
+        private Dictionary<string, IEnumerable<string>> dependsOn;
         private HashSet<string> completed;
         private HashSet<string> enqued;
         private HashSet<string> inputsToChunk;
@@ -35,8 +35,8 @@ namespace OPS.Pipeline.TileServer
             initialized = false;
             rootId = null;
             ids = new HashSet<string>();
-            dependedOnBy = new Dictionary<string, List<string>>();
-            dependsOn = new Dictionary<string, List<string>>();
+            dependedOnBy = new Dictionary<string, IEnumerable<string>>();
+            dependsOn = new Dictionary<string, IEnumerable<string>>();
             completed = new HashSet<string>();
             enqued = new HashSet<string>();
             inputsToChunk = new HashSet<string>();
@@ -68,9 +68,17 @@ namespace OPS.Pipeline.TileServer
             foreach (var n in nodes)
             {
                 ids.Add(n.Id);
-                
-                dependedOnBy.Add(n.Id, n.DependedOnBy);
-                dependsOn.Add(n.Id, n.DependsOn);
+
+                lock (n.DependedOnBy)
+                { 
+                    dependedOnBy.Add(n.Id, n.DependedOnBy.ToArray());
+                }
+
+                lock (n.DependsOn)
+                {
+                    dependsOn.Add(n.Id, n.DependsOn.ToArray());
+                }
+
                 if (n.MeshUrl != null)
                 {
                     completed.Add(n.Id);

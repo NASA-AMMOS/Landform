@@ -151,7 +151,12 @@ namespace OPS.Pipeline.AlignmentServer
         public static IEnumerable<FrameTransform> Find(PipelineCore pipeline, Frame frame)
         {
             //avoid a database scan which by definition checks every transform in the database
-            foreach (var source in frame.Transforms)
+            IEnumerable<TransformSource> transforms = null;
+            lock (frame.Transforms)
+            {
+                transforms = frame.Transforms.ToArray();
+            }
+            foreach (var source in transforms)
             {
                 yield return Find(pipeline, frame, source);
             }
@@ -159,8 +164,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static FrameTransform FindBest(PipelineCore pipeline, Frame frame)
         {
-            var sources = frame.Transforms;
-            return sources.Count > 0 ? Find(pipeline, frame, sources.OrderBy(source => source).First()) : null;
+            TransformSource[] transforms = null;
+            lock (frame.Transforms)
+            {
+                transforms = frame.Transforms.ToArray();
+            }
+            return transforms.Length > 0 ? Find(pipeline, frame, transforms.OrderBy(source => source).First()) : null;
         }
 
         public static FrameTransform Find(PipelineCore pipeline, string projectName, string frameName,

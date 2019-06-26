@@ -28,22 +28,18 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string ParentName;
 
-        public List<TransformSource> Transforms;
+        public HashSet<TransformSource> Transforms = new HashSet<TransformSource>(); //MT safety: lock before accessing
 
-        public List<string> ObservationNames;
+        public HashSet<string> ObservationNames = new HashSet<string>(); //MT safety: lock before accessing
 
         //DEPRECATED - for legacy compat only
         public string FrameName;
 
         //DEPRECATED - for legacy compat only
-        public List<string> PriorIds;
+        public HashSet<string> PriorIds = new HashSet<string>(); //MT safety: lock before accessing
 
         //This constructor must be public for DynamoDB but should not be used
-        public Frame()
-        {
-            Transforms = new List<TransformSource>();
-            ObservationNames = new List<string>();
-        }
+        public Frame() { }
 
         /// <summary>
         /// Creates a local instance of a frame.  The frame will have an invalid id
@@ -81,8 +77,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name=""></param>
         public void Save(PipelineCore pipeline)
         {
-            Transforms = (new HashSet<TransformSource>(Transforms)).ToList();
-            ObservationNames = (new HashSet<string>(ObservationNames)).ToList();
             pipeline.SaveDatabaseItem(this);
         }
 
@@ -129,46 +123,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        public bool AddTransform(FrameTransform transform)
-        {
-            return AddTransform(transform.Source);
-        }
-
-        public bool AddTransform(TransformSource transformSource)
-        {
-            if (Transforms.Contains(transformSource))
-            {
-                return false;
-            }
-            Transforms.Add(transformSource);
-            return true;
-        }
-
-        public bool RemoveTransform(FrameTransform transform)
-        {
-            return RemoveTransform(transform.Source);
-        }
-
-        public bool RemoveTransform(TransformSource transformSource)
-        {
-            if (!Transforms.Contains(transformSource))
-            {
-                return false;
-            }
-            Transforms.Remove(transformSource);
-            return true;
-        }
-
-        public bool AddObservation(Observation observation)
-        {
-            if (ObservationNames.Contains(observation.Name))
-            {
-                return false;
-            }
-            ObservationNames.Add(observation.Name);
-            return true;
-        }
-
         public IEnumerable<Frame> GetChildren(PipelineCore pipeline)
         {
             return pipeline.ScanDatabase<Frame>("ProjectName", ProjectName, "ParentName", Name);
@@ -193,61 +147,66 @@ namespace OPS.Pipeline.AlignmentServer
                     {
                         frame.Name = frame.FrameName;
                     }
-                    
-                    if (frame.Transforms.Count == 0)
+
+                    lock (frame.Transforms)
                     {
-                        if (compatTransformCache == null)
+                        if (frame.Transforms.Count == 0)
                         {
-                            pipeline.LogInfo("populating legacy compat transform cache...");
-                            compatTransformCache = new Dictionary<string, List<FrameTransform>>();
-                            
-                            foreach (var ft in pipeline.ScanDatabase<FrameTransform>())
+                            if (compatTransformCache == null)
                             {
-                                if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                pipeline.LogInfo("populating legacy compat transform cache...");
+                                compatTransformCache = new Dictionary<string, List<FrameTransform>>();
+                                
+                                foreach (var ft in pipeline.ScanDatabase<FrameTransform>())
                                 {
-                                    compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                    if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                    {
+                                        compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                    }
+                                    ft.Source = TransformSource.Adjusted; //this should be the default anyway
+                                    compatTransformCache[ft.FrameName].Add(ft);
                                 }
-                                ft.Source = TransformSource.Adjusted; //this should be the default anyway
-                                compatTransformCache[ft.FrameName].Add(ft);
-                            }
-                            
-                            foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
-                            {
-                                if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                
+                                foreach (var ft in pipeline.ScanDatabase<FrameTransform>(null, tableName: "FrameTransformPriors"))
                                 {
-                                    compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                    if (!compatTransformCache.ContainsKey(ft.FrameName))
+                                    {
+                                        compatTransformCache[ft.FrameName] = new List<FrameTransform>();
+                                    }
+                                    ft.Source = TransformSource.Prior;
+                                    compatTransformCache[ft.FrameName].Add(ft);
                                 }
-                                ft.Source = TransformSource.Prior;
-                                compatTransformCache[ft.FrameName].Add(ft);
                             }
-                        }
-                        var transformsForFrame = compatTransformCache[frame.Name];
-                        if (transformsForFrame != null)
-                        {
-                            foreach (var transform in transformsForFrame)
+                            var transformsForFrame = compatTransformCache[frame.Name];
+                            if (transformsForFrame != null)
                             {
-                                frame.AddTransform(transform);
+                                foreach (var transform in transformsForFrame)
+                                {
+                                    frame.Transforms.Add(transform.Source);
+                                }
                             }
-                        }
-                        if (string.IsNullOrEmpty(frame.ParentName))
-                        {
-                            //root frame doesn't have a prior in the legacy database, but it's just identity
-                            frame.AddTransform(new FrameTransform(frame, TransformSource.Prior,
-                                                                  new UncertainRigidTransform()));
+                            if (string.IsNullOrEmpty(frame.ParentName))
+                            {
+                                //root frame doesn't have a prior in the legacy database, but it's just identity
+                                frame.Transforms.Add(TransformSource.Prior);
+                            }
                         }
                     }
-                    
-                    if (frame.ObservationNames.Count == 0)
+
+                    lock (frame.ObservationNames)
                     {
-                        if (compatObservationCache == null)
+                        if (frame.ObservationNames.Count == 0)
                         {
-                            pipeline.LogInfo("populating legacy compat observation cache...");
-                            compatObservationCache = new ObservationCache(pipeline, frame.ProjectName);
-                            compatObservationCache.Preload();
-                        }
-                        foreach (var obs in compatObservationCache.GetAllObservationsForFrame(frame))
-                        {
-                            frame.AddObservation(obs);
+                            if (compatObservationCache == null)
+                            {
+                                pipeline.LogInfo("populating legacy compat observation cache...");
+                                compatObservationCache = new ObservationCache(pipeline, frame.ProjectName);
+                                compatObservationCache.Preload();
+                            }
+                            foreach (var obs in compatObservationCache.GetAllObservationsForFrame(frame))
+                            {
+                                frame.ObservationNames.Add(obs.Name);
+                            }
                         }
                     }
                 }

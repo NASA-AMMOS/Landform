@@ -109,7 +109,10 @@ namespace OPS.Pipeline.TileServer
                     pipeline.LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
                 });
             });
-            input.AddChunks(chunkIds);
+            lock (input.ChunkIds)
+            {
+                input.ChunkIds.UnionWith(chunkIds);
+            }
             input.Chunked = true;
             input.Save(pipeline);
             pipeline.MasterQueue.Enqueue(message);
