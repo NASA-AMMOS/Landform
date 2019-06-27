@@ -128,7 +128,7 @@ namespace OPS.Pipeline.TileServer
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(this, options.ProjectName);
+                    project = TilingProject.Find(pipeline, options.ProjectName);
                     lock (project.InputNames)
                     {
                         added = project.InputNames.Contains(name);
