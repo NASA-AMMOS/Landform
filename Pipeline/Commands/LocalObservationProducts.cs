@@ -125,6 +125,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Write all the things", Default = false)]
         public bool AllTheThings { get; set; }
 
+        [Option(HelpText = "Only generate statistics", Default = false)]
+        public bool StatsOnly { get; set; }
+
         [Option(HelpText = "Write normals images", Default = false)]
         public bool NormalsImages { get; set; }
 
@@ -189,10 +192,12 @@ namespace OPS.Pipeline
 
         public int Run()
         {
-            options.FrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
-            options.UncertaintyInflatedFrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes;
+            options.FrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes && !options.StatsOnly;
+            options.UncertaintyInflatedFrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes && !options.StatsOnly;
             options.MergedSiteDriveMeshes |= options.OnlyMergedSiteDriveMeshes;
-            options.NoWedgeMeshes |= options.OnlyMergedSiteDriveMeshes;
+            options.MergedSiteDriveMeshes &= !options.StatsOnly;
+            options.NoWedgeMeshes |= options.OnlyMergedSiteDriveMeshes || options.StatsOnly;
+            options.NoImages |= options.StatsOnly;
 
             options.FrustumHullMeshes |= options.AllTheThings;
             options.UncertaintyInflatedFrustumHullMeshes |= options.AllTheThings;
@@ -333,9 +338,12 @@ namespace OPS.Pipeline
             var validPoints = new ConcurrentDictionary<string, int>();
             var validNormals = new ConcurrentDictionary<string, int>();
             var validTriangles = new ConcurrentDictionary<string, int>();
+            var faceStats = new ConcurrentDictionary<string, Mesh.FaceStats>();
             var generatedNormals = new ConcurrentDictionary<string, bool>();
             var wedgeDecimation = new ConcurrentDictionary<string, int>();
-            
+
+            bool buildWedgeMeshes = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes || options.StatsOnly;
+
             double startSec = UTCTime.Now();
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(observations, obs => { 
@@ -359,7 +367,8 @@ namespace OPS.Pipeline
 
                 Mesh mesh = null;
                 int numPoints = 0, numNormals = 0, numTriangles = 0;
-                bool buildMesh = obs.Points != null && (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes);
+                bool buildMesh = buildWedgeMeshes && obs.Points != null;
+
                 if (buildMesh && options.PointCloud)
                 {
                     pipeline.LogVerbose("building point cloud for {0}", obs.Points.Name);
@@ -437,7 +446,9 @@ namespace OPS.Pipeline
                     }
                     else
                     {
+                        pipeline.LogVerbose("collecting face stats for {0}", obs.Points.Name);
                         numTriangles = mesh.Faces.Count;
+                        faceStats[obs.FrameName] = mesh.CollectFaceStats();
                     }
                 }
 
@@ -695,16 +706,17 @@ namespace OPS.Pipeline
 
             foreach (var obs in observations)
             {
-                var fn = obs.FrameName;
-                if (!options.NoWedgeMeshes || options.MergedSiteDriveMeshes)
+                if (buildWedgeMeshes)
                 {
-                    pipeline.LogInfo("{0}: {1} points, {2} normals{3}, {4} triangles{5}{6}{7}",
+                    var fn = obs.FrameName;
+                    pipeline.LogInfo("{0}: {1} points, {2} normals{3}, {4} triangles{5}{6}{7}{8}",
                                      fn, validPoints[fn], validNormals[fn],
                                      generatedNormals.ContainsKey(fn) && generatedNormals[fn] ? " (generated)" : "",
                                      validTriangles[fn],
                                      wedgeDecimation[fn] > 1 ?
                                      string.Format(" after {0}x decimation", wedgeDecimation[fn])
                                      : "",
+                                     faceStats.ContainsKey(fn) ? Environment.NewLine + faceStats[fn].ToString() : "",
                                      Environment.NewLine, obs.ToString(pipeline));
                 }
                 else
