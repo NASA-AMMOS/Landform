@@ -26,6 +26,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
+        [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]
+        public string OnlyForFrames { get; set; }
+
         [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
@@ -295,7 +298,8 @@ namespace OPS.Pipeline
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras, mission)
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
+                                                           options.OnlyForCameras, mission)
                 {
                     AllowMastcam = !options.NoMastcam,
                     RequirePoints = false,

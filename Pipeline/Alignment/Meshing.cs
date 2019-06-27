@@ -156,6 +156,7 @@ namespace OPS.Pipeline
 
             public SiteDrive[] OnlyForSiteDrives = null;
             public string[] OnlyForCameras = null;
+            public string[] OnlyForFrames = null;
 
             public bool RequirePriorTransform = false;
             public bool RequireAdjustedTransform = false;
@@ -167,8 +168,8 @@ namespace OPS.Pipeline
 
             public RoverProductGeometry[] LinearPreference = null;
 
-            public MeshObservationsOptions(string onlyForSiteDrives = null, string onlyForCameras = null,
-                                           MissionSpecific mission = null)
+            public MeshObservationsOptions(string onlyForSiteDrives = null, string onlyForFrames = null,
+                                           string onlyForCameras = null, MissionSpecific mission = null)
             {
                 if (!string.IsNullOrEmpty(onlyForSiteDrives))
                 {
@@ -179,6 +180,14 @@ namespace OPS.Pipeline
                         .ToArray();
                 }
                 
+                if (!string.IsNullOrEmpty(onlyForFrames))
+                {
+                    this.OnlyForFrames = onlyForFrames
+                        .Split(',')
+                        .Where(s => !string.IsNullOrEmpty(s))
+                        .ToArray();
+                }
+
                 if (!string.IsNullOrEmpty(onlyForCameras))
                 {
                     this.OnlyForCameras = onlyForCameras
@@ -240,6 +249,7 @@ namespace OPS.Pipeline
                 .Cast<RoverObservation>()
                 .Where(obs => opts.AllowMastcam || !obs.IsMastcam)
                 .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
+                .Where(obs => opts.OnlyForFrames == null || opts.OnlyForFrames.Any(frm => frm == obs.FrameName))
                 .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => cam == obs.Sensor))
                 .ToList();
 

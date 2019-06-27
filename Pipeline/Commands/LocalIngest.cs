@@ -23,6 +23,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
+        [Option(HelpText = "Only ingest data for specific frames, comma separated", Default = null)]
+        public string OnlyForFrames { get; set; }
+
         [Option(HelpText = "Whether to make LocationsDB priors (requires locations.xml and basemap DEM)", Default = false)]
         public bool AddLocationsDBPriors { get; set; }
 
@@ -99,14 +102,14 @@ namespace OPS.Pipeline
                 inputUrl = StringHelper.NormalizeUrl(options.InputPath, options.Cloud ? "s3://" : "file://");
             }
 
+            var mission = MissionSpecific.GetInstance(options.Mission);
             var initializer = new InitializeAlignmentProject(pipeline);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission,
                                                  options.RedoProject);
-
-            var ingester = new IngestAlignmentInputs(pipeline, project, options.RedoObservations, options.RedoPriors,
-                                                     options.OnlyForSiteDrives, options.NoProgress);
-
-            var mission = MissionSpecific.GetInstance(options.Mission);
+            var ingester = new IngestAlignmentInputs(pipeline, project, mission,
+                                                     options.RedoObservations, options.RedoPriors,
+                                                     options.OnlyForSiteDrives, options.OnlyForFrames,
+                                                     options.NoProgress);
 
             MSLLocations locations = null;
             if (options.AddLocationsDBPriors && mission.AllowLocationsDB())

@@ -183,7 +183,10 @@ namespace OPS.Pipeline
             {
                 string filename = Path.GetFileNameWithoutExtension(p);
                 string ext = Path.GetExtension(p).ToUpper();
-                string sd = IngestPDSImage.FilenameToSiteDrive(filename);
+                var id = RoverProductId.ParseFromString(filename);
+                string sd =
+                    id != null && id.Producer == RoverProductProducer.OPGS ?
+                    ((OPGSProductId)id).SiteDrive.ToString() : null;
                 bool sdOkay = acceptedSiteDrives == null || acceptedSiteDrives.Contains(sd);
                 bool pidOkay = acceptedProductIds == null || acceptedProductIds.Contains(filename);
                 if (extensions.Contains(ext) &&

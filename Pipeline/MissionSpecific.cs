@@ -351,7 +351,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool CheckMetadata(PDSParser parser)
         {
-            if (GetRoverProductCamera(parser.InstrumentId)== RoverProductCamera.Unknown)
+            if (GetRoverProductCamera(parser.InstrumentId) == RoverProductCamera.Unknown)
             {
                 return false;
             }
@@ -400,16 +400,27 @@ namespace OPS.Pipeline
             return true;
         }
 
-        /// <summary>
-        /// whether to allow priors from MSLLocations
-        /// </summary>
         public abstract RoverProductCamera GetRoverProductCamera(string instrumentId);
+
+        public virtual string CameraName(PDSParser parser)
+        {
+            return GetRoverProductCamera(parser.InstrumentId).ToString();
+        }
+
+        public virtual string GetObservationFrameName(PDSParser parser)
+        {
+            return string.Format("{0}_{1}", CameraName(parser), RoverMotionCounter(parser));
+        }
+        
         public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
         public abstract double GetFocalLengthMM(RoverProductCamera camera);
 
         public abstract double GetMinimumFocusDistance(PDSMetadata metadata);
         public abstract double? GetMaximumFocusDistance(PDSMetadata metadata);
 
+        /// <summary>
+        /// whether to allow priors from MSLLocations
+        /// </summary>
         public virtual bool AllowLocationsDB()
         {
             return false;
@@ -771,6 +782,14 @@ namespace OPS.Pipeline
             }
 
             return RoverProductCamera.Unknown;
+        }
+
+        /// <summary>
+        /// ROASTT: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
+        /// </summary>
+        public override string CameraName(PDSParser parser)
+        {
+            return TranslateCamera(parser.ProductId.Camera).ToString();
         }
 
         public override double GetFocalLengthMM(RoverProductCamera rovProdCam) { throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet"); }
