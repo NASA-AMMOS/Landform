@@ -7,6 +7,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using log4net;
 using CommandLine;
 using OPS.Util;
@@ -586,13 +587,21 @@ namespace OPS.Pipeline
         public ConcurrentQueue<QueueMessage> MasterQueue { get; private set; }
         public ConcurrentQueue<QueueMessage> WorkerQueue { get; private set; }
 
+        private static int nextMessageId = -1;
+        private static string NextMessageId()
+        {
+            return "msg " + Interlocked.Increment(ref nextMessageId);
+        }
+
         protected override void EnqueueToMasterImpl(QueueMessage message)
         {
+            message.MessageId = NextMessageId();
             MasterQueue.Enqueue(message);
         }
 
         protected override void EnqueueToWorkersImpl(QueueMessage message)
         {
+            message.MessageId = NextMessageId();
             WorkerQueue.Enqueue(message);
         }
 
