@@ -38,8 +38,9 @@ namespace OPS.Pipeline
         private IngestPDSImage ingester;
         private bool noProgress;
 
-        public IngestAlignmentInputs(PipelineCore pipeline, Project project, bool recreateObservations = false,
-                                     bool resetTransforms = false, string onlyForSiteDrives = null,
+        public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
+                                     bool recreateObservations = false, bool resetTransforms = false,
+                                     string onlyForSiteDrives = null, string onlyForFrames = null,
                                      bool noProgress = false)
             : base(pipeline)
         {
@@ -84,9 +85,19 @@ namespace OPS.Pipeline
                 .Cast<SiteDrive>()
                 .ToArray();
            
+            string[] frames = (onlyForFrames ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToArray();
+
             IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
-                siteDrives.Length == 0 ||
-                siteDrives.Any(sd => sd == new SiteDrive(pdsParser.Site, pdsParser.Drive));
+                {
+                    var imgSiteDrive = new SiteDrive(pdsParser.Site, pdsParser.Drive);
+                    var imgFrame = mission.GetObservationFrameName(pdsParser);
+                    return
+                    (siteDrives.Length == 0 || siteDrives.Any(sd => sd == imgSiteDrive)) &&
+                    (frames.Length == 0 || frames.Any(frame => frame == imgFrame));
+                };
 
             this.noProgress = noProgress;
 

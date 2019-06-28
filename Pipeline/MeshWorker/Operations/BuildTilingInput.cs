@@ -94,7 +94,7 @@ namespace OPS.Pipeline.MeshWorker
 
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-            var opts = new Meshing.MeshObservationsOptions(null, onlyForCameras, mission)
+            var opts = new Meshing.MeshObservationsOptions(null, null, onlyForCameras, mission)
                 {
                     AllowMastcam = allowMastcam,
                     RequirePoints = true,

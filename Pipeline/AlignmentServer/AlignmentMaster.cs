@@ -32,6 +32,9 @@ namespace OPS.Pipeline.AlignmentServer
         [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
+        [Option(HelpText = "Only ingest data for specific frames, comma separated", Default = null)]
+        public string OnlyForFrames { get; set; }
+
         [Option(HelpText = "Whether to make LocationsDB priors", Default = false)]
         public bool AddLocationsDBPriors { get; set; }
 
@@ -189,6 +192,7 @@ namespace OPS.Pipeline.AlignmentServer
                 inputUrl = StringHelper.NormalizeUrl(options.InputPath, "s3://");
             }
 
+            var mission = MissionSpecific.GetInstance(options.Mission);
             var initializer = new InitializeAlignmentProject(this);
             var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission,
                                                  options.RedoProject);
@@ -196,10 +200,9 @@ namespace OPS.Pipeline.AlignmentServer
             //careful here - there can be more than one observation of a given type for a single frame
             //frame name -> observations
             var obsForFrame = new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
-            var ingester = new IngestAlignmentInputs(this, project, options.RedoObservations, options.RedoPriors,
-                                                     options.OnlyForSiteDrives);
-
-            var mission = MissionSpecific.GetInstance(options.Mission);
+            var ingester = new IngestAlignmentInputs(this, project, mission,
+                                                     options.RedoObservations, options.RedoPriors,
+                                                     options.OnlyForSiteDrives, options.OnlyForFrames);
 
             MSLLocations locations = null;
             if (options.AddLocationsDBPriors && mission.AllowLocationsDB())

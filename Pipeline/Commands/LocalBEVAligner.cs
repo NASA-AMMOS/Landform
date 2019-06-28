@@ -33,8 +33,11 @@ namespace OPS.Pipeline
         [Value(0, Required = true, HelpText = "Project name", Default = null)]
         public string ProjectName { get; set; }
 
-        [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only align specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
+
+        [Option(HelpText = "Only load specific frames, comma separated", Default = null)]
+        public string OnlyForFrames { get; set; }
 
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
@@ -352,7 +355,8 @@ namespace OPS.Pipeline
             observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
 
-            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForCameras, mission)
+            var opts = new Meshing.MeshObservationsOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
+                                                           options.OnlyForCameras, mission)
             {
                 AllowMastcam = false,
                 RequirePoints = true,

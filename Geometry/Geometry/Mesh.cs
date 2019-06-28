@@ -1368,6 +1368,38 @@ namespace OPS.Geometry
                     || (B.Position.AlmostEqual(e.A.Position) && A.Position.AlmostEqual(e.B.Position));
             }
         }
+
+        public struct FaceStats
+        {
+            public double MinArea;
+            public double MaxArea;
+            public double AvgArea;
+
+            public override string ToString()
+            {
+                return string.Format("min tri area {0}, max {1}, avg {2}", MinArea, MaxArea, AvgArea);
+            }
+        }
+
+        public FaceStats CollectFaceStats()
+        {
+            var stats = new FaceStats();
+            stats.MinArea = float.PositiveInfinity;
+            stats.MaxArea = float.NegativeInfinity;
+            stats.AvgArea = 0;
+            foreach (Face face in Faces)
+            {
+                double area = new Triangle(Vertices[face.P0], Vertices[face.P1], Vertices[face.P2]).Area();
+                stats.MinArea = Math.Min(area, stats.MinArea);
+                stats.MaxArea = Math.Max(area, stats.MaxArea);
+                stats.AvgArea += area;
+            }
+            if (Faces.Count > 1)
+            {
+                stats.AvgArea /= Faces.Count;
+            }
+            return stats;
+        }
     }
     
 
