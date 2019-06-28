@@ -127,6 +127,8 @@ namespace OPS
                 {
                     var childBounds = tilingScheme.Split(null, curBounds);
                     childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                    //For quad trees, expand bounds in the non-split dimension. Otherwise, we clip high peaks/low valleys in the decimated mesh that exceed the bounds of the original mesh
+                    childBounds = childBounds.Select(box => tilingScheme.ExpandBounds(box, null));
                     int counter = 0;
                     foreach (var childBound in childBounds)
                     {

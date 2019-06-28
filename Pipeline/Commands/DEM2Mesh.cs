@@ -37,7 +37,7 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = "obj", HelpText = "Export format for mesh (examples: obj or ply")]
         public string MeshFormat { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Decimate (roughly) to this error threshold against original points.")]
+        [Option(Required = false, Default = 0, HelpText = "Decimate (roughly) to this error threshold against original points. Error 0 is the special case in which the full grid mesh is built (no sampling/decimation needed)")]
         public float Error { get; set; }
 
         [Option(Required = false, Default = 30, HelpText = "Number of points to add with each split")]
@@ -85,7 +85,7 @@ namespace OPS.Pipeline
         /// <param name="minC"></param>
         /// <param name="size"></param>
         /// <returns></returns>
-        IEnumerable<Vertex> FindCorners(Image dem, PDSParser parser, int minR = 0, int minC = 0, int width = -1, int height = -1)
+        IEnumerable<Vector2> FindCorners(Image dem, PDSParser parser, int minR = 0, int minC = 0, int width = -1, int height = -1)
         {
             int d = 0;
             bool foundTopLeft = false;
@@ -113,9 +113,7 @@ namespace OPS.Pipeline
                         if (tl.HasValue)
                         {
                             foundTopLeft = true;
-                            Vertex v = new Vertex(tl.Value);
-                            v.UV = dem.PixelToUV(new Vector2(minC + c, minR + r));
-                            yield return v;
+                            yield return new Vector2(minC + c, minR + r);
                         }
                     }
                     if (!foundTopRight)
@@ -124,9 +122,7 @@ namespace OPS.Pipeline
                         if (tr.HasValue)
                         {
                             foundTopRight = true;
-                            Vertex v = new Vertex(tr.Value);
-                            v.UV = dem.PixelToUV(new Vector2(minC + width - c, minR + r));
-                            yield return v;
+                            yield return new Vector2(minC + width - c, minR + r);
                         }
                     }
                     if (!foundBotLeft)
@@ -135,9 +131,7 @@ namespace OPS.Pipeline
                         if (bl.HasValue)
                         {
                             foundBotLeft = true;
-                            Vertex v = new Vertex(bl.Value);
-                            v.UV = dem.PixelToUV(new Vector2(minC + c, minR + height - r));
-                            yield return v;
+                            yield return new Vector2(minC + c, minR + height - r);
                         }
                     }
                     if (!foundBotRight)
@@ -146,9 +140,7 @@ namespace OPS.Pipeline
                         if (br.HasValue)
                         {
                             foundBotRight = true;
-                            Vertex v = new Vertex(br.Value);
-                            v.UV = dem.PixelToUV(new Vector2(minC + width - c, minR + height - r));
-                            yield return v;
+                            yield return new Vector2(minC + width - c, minR + height - r);
                         }
                     }
                 }
@@ -202,7 +194,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// Recursively subsample regions where geometric error is too large
         /// </summary>
-        /// <param name="verts"></param>
+        /// <param name="rowCols"></param>
         /// <param name="r"></param>
         /// <param name="c"></param>
         /// <param name="error"></param>
@@ -215,13 +207,13 @@ namespace OPS.Pipeline
         /// <param name="sampleScale"></param>
         /// <param name="rand"></param>
         /// <returns></returns>
-        List<Vertex> split(List<Vertex> verts, double r, double c, double width, double height, double error, Image dem, Image mask, PDSParser parser, int sampleNum, int testNum, double sampleScale, Random rand)
+        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Image mask, PDSParser parser, int sampleNum, int testNum, double sampleScale, Random rand)
         {
             //Mesh the current set of vertices
-            Mesh mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
+            Mesh mesh = DelaunayTriangulation.Triangulate(rowCols.Select(rc => new Vertex(GetXYZ(dem,null,(int)rc.Y,(int)rc.X,parser).Value)).ToArray(), vertToDelaunay);
 
             //Sample
-            List<Vertex> newVerts = new List<Vertex>();
+            List<Vector2> newRowCols = new List<Vector2>();
             double tested = 0;
             bool shouldSplit = false;
             for (int i = 0; i < sampleNum; i++)
@@ -232,8 +224,8 @@ namespace OPS.Pipeline
                 //if (testR >= 0 && testR < mask.Height && testC > 0 && testC < mask.Width && mask[0, testR, testC] == 1)
                 if(v.HasValue)
                 {
-                    newVerts.Add(new Vertex(v.Value));
-                    newVerts[newVerts.Count - 1].UV = dem.PixelToUV(new Vector2(testC, testR));
+                    newRowCols.Add(new Vector2(testC, testR));
+                    
                     //Test error between mesh and samples
                     if(tested < testNum && testR > r && testR < r + height && testC > c && testC < c + width)
                     {
@@ -241,7 +233,7 @@ namespace OPS.Pipeline
                         List<Triangle> tris = mesh.Triangles();
                         foreach (Triangle t in tris)
                         {
-                            double tmp = t.SquaredDistance(newVerts[newVerts.Count - 1].Position);
+                            double tmp = t.SquaredDistance(v.Value);
                             dist = Math.Min(tmp, dist);
                         }
                         if(dist > error)
@@ -250,7 +242,6 @@ namespace OPS.Pipeline
                             tested = testNum;
                         }
                         tested++;
-
                     }
                 }
             }
@@ -258,7 +249,7 @@ namespace OPS.Pipeline
             //Subsample if error exceeded threshold
             if(!shouldSplit)
             {
-                return newVerts;
+                return newRowCols;
             }
 
             //Compute new child tile bounds
@@ -291,49 +282,50 @@ namespace OPS.Pipeline
             double lmidY = (minY + maxY - (maxY - minY) * 0.1) / 2.0;
 
             //Add boundary conditions to each tile child (try to find approximate tile corners, and include full dem corners in case of failure)
-            List<Vertex> verts1 = FindCorners(dem, parser, (int)r, (int)c, (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
-            List<Vertex> verts2 = FindCorners(dem, parser, (int)(r + height / 2), (int)c, (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
-            List<Vertex> verts3 = FindCorners(dem, parser, (int)r, (int)(c + width / 2), (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
-            List<Vertex> verts4 = FindCorners(dem, parser, (int)(r + height / 2), (int)(c + width / 2), (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
-            verts1.AddRange(verts.GetRange(0, 4));
-            verts2.AddRange(verts.GetRange(0, 4));
-            verts3.AddRange(verts.GetRange(0, 4));
-            verts4.AddRange(verts.GetRange(0, 4));
+            List<Vector2> vIdxs1 = FindCorners(dem, parser, (int)r, (int)c, (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
+            List<Vector2> vIdxs2 = FindCorners(dem, parser, (int)(r + height / 2), (int)c, (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
+            List<Vector2> vIdxs3 = FindCorners(dem, parser, (int)r, (int)(c + width / 2), (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
+            List<Vector2> vIdxs4 = FindCorners(dem, parser, (int)(r + height / 2), (int)(c + width / 2), (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
+            vIdxs1.AddRange(rowCols.GetRange(0, 4));
+            vIdxs2.AddRange(rowCols.GetRange(0, 4));
+            vIdxs3.AddRange(rowCols.GetRange(0, 4));
+            vIdxs4.AddRange(rowCols.GetRange(0, 4));
 
             //Partition our current set of vertices + new samples into children
-            foreach (Vertex v in verts.Union(newVerts))
+            foreach (Vector2 rc in rowCols.Union(newRowCols))
             {
-                if(v.Position.X < umidX)
+                Vector3 v = GetXYZ(dem, null, (int)rc.Y, (int)rc.X, parser).Value;
+                if(v.X < umidX)
                 {
-                    if(v.Position.Y > lmidY)
+                    if(v.Y > lmidY)
                     {
-                        verts1.Add(v);
+                        vIdxs1.Add(rc);
                     }
-                    if(v.Position.Y < umidY)
+                    if(v.Y < umidY)
                     {
-                        verts2.Add(v);
+                        vIdxs2.Add(rc);
                     }
                 }
-                if(v.Position.X > lmidX)
+                if(v.X > lmidX)
                 {
-                    if(v.Position.Y > lmidY)
+                    if(v.Y > lmidY)
                     {
-                        verts3.Add(v);
+                        vIdxs3.Add(rc);
                     }
-                    if(v.Position.Y < umidY)
+                    if(v.Y < umidY)
                     {
-                        verts4.Add(v);
+                        vIdxs4.Add(rc);
                     }
                 }
             }
 
             //Recurse on children
-            newVerts.AddRange(split(verts1, r, c, width/2.0, height/2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newVerts.AddRange(split(verts2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newVerts.AddRange(split(verts3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newVerts.AddRange(split(verts4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs1, r, c, width/2.0, height/2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
 
-            return newVerts;
+            return newRowCols;
         }
 
         /// <summary>
@@ -365,7 +357,7 @@ namespace OPS.Pipeline
                         }
                         mask[0, row, col] = 0; //Prevent this point from being sampled again
                     }
-                    return dem.CameraModel.Unproject(new Vector2(col, row), dem[0, row, col]);
+                    return dem.CameraModel.Unproject(new Vector2(col, row), -1 * dem[0, row, col]);
                 }
             }
             return null;
@@ -433,8 +425,8 @@ namespace OPS.Pipeline
                     Meshing.CheckCameraCenter(parser, dem, "ConvertRNG");
                     Meshing.AddMaskForMissingConstant(dem, dem, parser);
                 }
-                List<Vertex> verts;
-                verts = FindCorners(dem, parser).ToList();
+                List<Vector2> rowCols;
+                rowCols = FindCorners(dem, parser).ToList();
                 //This mask is only used to avoid resampling the same point. Invalid point data is masked out by the GetXYZ function (computed lazily)
                 Image mask = new Image(1, dem.Width, dem.Height);
                 for(int r = 0; r < mask.Height; r++)
@@ -444,7 +436,14 @@ namespace OPS.Pipeline
                         mask[0, r, c] = 1;
                     }
                 }
-                verts.AddRange(split(verts, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                
+                //Construct vertices
+                var verts = rowCols.Select(rc => {
+                    var v = new Vertex(GetXYZ(dem, null, (int)rc.Y, (int)rc.X, parser).Value);
+                    v.UV = dem.PixelToUV(rc);
+                    return v;
+                    }).ToArray();
                 mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
             }
             string outputImage = null;

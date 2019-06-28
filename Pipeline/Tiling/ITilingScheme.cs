@@ -25,10 +25,11 @@ namespace OPS.Pipeline
         /// <summary>
         /// Expand currentBounds to get as close as possible to desiredBounds given constraints of the tiling
         /// algorithm.  For example, a quadtree might allow expansion in one direction but not the other two.
+        /// If desiredBounds is null, try to expand all dimensions to a large value.
         /// </summary>
         /// <param name="currentBounds"></param>
         /// <param name="desiredBounds"></param>
         /// <returns></returns>
-        BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox desiredBounds);
+        BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox? desiredBounds);
     }
 }

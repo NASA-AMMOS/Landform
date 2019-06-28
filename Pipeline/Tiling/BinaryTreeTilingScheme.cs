@@ -10,7 +10,7 @@ namespace OPS.Pipeline
 {
     public class BinaryTreeTilingScheme : ITilingScheme
     {
-        public BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox desiredBounds)
+        public BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox? desiredBounds)
         {
             return currentBounds;
         }

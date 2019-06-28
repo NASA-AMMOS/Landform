@@ -8,6 +8,7 @@ using OSGeo.GDAL;
 using System.IO;
 using OPS.MathExtensions;
 using log4net;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Imaging
 {    
@@ -177,6 +178,131 @@ namespace OPS.Imaging
                             throw new ImageSerializationException("Unsupported type in image file");
                         }
                     }                    
+                }
+            }
+        }
+
+        /// <summary>
+        /// Returns bands, x size, y size of given image filename
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <returns></returns>
+        public void GetMetadata(string filename, out int bands, out int width, out int height)
+        {
+            Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly);
+            bands = dataset.RasterCount;
+            width = dataset.RasterXSize;
+            height = dataset.RasterYSize;
+        }
+
+        /// <summary>
+        /// Read a large image using the gdal library
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="converter">converts between values stored in the image file and the expected value space of the caller</param>
+        /// <param name="fillValue">
+        /// Specifies optional per-band values to be used to identify fill values.  If these are defined
+        /// pixels matching these values will be marked as masked in the returned image.  Fill values
+        /// represent the pre-converted values as they are stored in the image.
+        /// </param>
+        /// <returns></returns>
+        public Image PartialRead(string filename, int xOffset, int yOffset, int xSize, int ySize, IImageConverter converter, float[] fillValue = null)
+        {
+            lock (gdalLockObj)
+            {
+                using (Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly))
+                {
+                    Image img = new Image(dataset.RasterCount, xSize, ySize);
+
+                    for (int b = 0; b < img.Bands; b++)
+                    {
+                        using (Band band = dataset.GetRasterBand(b + 1))
+                        {
+                            if (band.DataType == DataType.GDT_Byte)
+                            {
+                                byte[] buffer = new byte[xSize * ySize];
+                                band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
+                                for (int i = 0; i < buffer.Length; i++)
+                                {
+                                    img.Data[b][i] = buffer[i];
+                                }
+                            }
+                            else if (band.DataType == DataType.GDT_Float32)
+                            {
+                                band.ReadRaster(0, 0, xSize, ySize, img.Data[b], xSize, ySize, 0, 0);
+                            }
+                            else if (band.DataType == DataType.GDT_Float64)
+                            {
+                                double[] buffer = new double[xSize * ySize];
+                                band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
+                                for (int i = 0; i < buffer.Length; i++)
+                                {
+                                    img.Data[b][i] = (float)buffer[i];
+                                }
+                            }
+                            else if (band.DataType == DataType.GDT_Int16)
+                            {
+                                short[] buffer = new short[xSize * ySize];
+                                band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
+                                for (int i = 0; i < buffer.Length; i++)
+                                {
+                                    img.Data[b][i] = buffer[i];
+                                }
+                            }
+                            else if (band.DataType == DataType.GDT_Int32 || band.DataType == DataType.GDT_UInt16 || band.DataType == DataType.GDT_UInt32)
+                            {
+                                int[] buffer = new int[xSize * ySize]; ;
+                                band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
+                                for (int i = 0; i < buffer.Length; i++)
+                                {
+                                    img.Data[b][i] = buffer[i];
+                                }
+                            }
+                            else
+                            {
+                                throw new ImageSerializationException("Unsupported type in image file");
+                            }
+                        }
+                    }
+                    if (fillValue != null)
+                    {
+                        if (fillValue.Length != img.Bands)
+                        {
+                            throw new ImageSerializationException("Fill value length must match image bounds");
+                        }
+                        img.CreateMask(fillValue);
+                    }
+                    using (Band band = dataset.GetRasterBand(1))
+                    {
+                        if (band.DataType == DataType.GDT_Byte)
+                        {
+                            return converter.Convert<byte>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Float32 || band.DataType == DataType.GDT_Float64)
+                        {
+                            return converter.Convert<float>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Int16)
+                        {
+                            return converter.Convert<Int16>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_Int32)
+                        {
+                            return converter.Convert<Int32>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_UInt16)
+                        {
+                            return converter.Convert<UInt16>(img);
+                        }
+                        else if (band.DataType == DataType.GDT_UInt32)
+                        {
+                            return converter.Convert<UInt32>(img);
+                        }
+                        else
+                        {
+                            throw new ImageSerializationException("Unsupported type in image file");
+                        }
+                    }
                 }
             }
         }

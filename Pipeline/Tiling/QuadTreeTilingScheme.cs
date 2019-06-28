@@ -105,22 +105,32 @@ namespace OPS.Pipeline
         /// <param name="currentBounds"></param>
         /// <param name="desiredBounds"></param>
         /// <returns></returns>
-        public BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox desiredBounds)
+        public BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox? desiredBounds)
         {
+            if(!desiredBounds.HasValue)
+            {
+                float big = 10 * 1000 * 1000;
+                desiredBounds = new BoundingBox(new Vector3(-big, -big, -big), new Vector3(big, big, big));
+            }
             // Allow expansion in the z direction
             if (Direction == QuadTreeAxis.Z)
             {
-                currentBounds.Min.Z = Math.Min(currentBounds.Min.Z, desiredBounds.Min.Z);
-                currentBounds.Max.Z = Math.Max(currentBounds.Max.Z, desiredBounds.Max.Z);
+                currentBounds.Min.Z = Math.Min(currentBounds.Min.Z, desiredBounds.Value.Min.Z);
+                currentBounds.Max.Z = Math.Max(currentBounds.Max.Z, desiredBounds.Value.Max.Z);
                 return currentBounds;
             }
             else if (Direction == QuadTreeAxis.Y)
             {
-                currentBounds.Min.Y = Math.Min(currentBounds.Min.Y, desiredBounds.Min.Y);
-                currentBounds.Max.Y = Math.Max(currentBounds.Max.Y, desiredBounds.Max.Y);
+                currentBounds.Min.Y = Math.Min(currentBounds.Min.Y, desiredBounds.Value.Min.Y);
+                currentBounds.Max.Y = Math.Max(currentBounds.Max.Y, desiredBounds.Value.Max.Y);
                 return currentBounds;
             }
-            else
+            else if (Direction == QuadTreeAxis.X)
+            {
+                currentBounds.Min.X = Math.Min(currentBounds.Min.X, desiredBounds.Value.Min.X);
+                currentBounds.Max.X = Math.Max(currentBounds.Max.X, desiredBounds.Value.Max.X);
+                return currentBounds;
+            } else
             {
                 throw new NotImplementedException();
             }
