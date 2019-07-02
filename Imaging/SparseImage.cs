@@ -37,7 +37,7 @@ namespace OPS.Imaging
         {
             return new Action<Image, Vector2, string>((img, rc, path) =>
             {
-                SaveChunk<Byte>(img, path + (int)rc.X + "_" + (int)rc.Y + extension);
+                SaveChunk<Byte>(img, CreateFileName((int)rc.X, (int)rc.Y, path, extension));
             });
         }
 
@@ -106,7 +106,7 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
             this.converter = converter;
             this.useCache = useCache;
             this.diskBack = diskBack;
-            this.baseUrl = Path.GetDirectoryName(filename) + '\\' + Path.GetFileNameWithoutExtension(filename);
+            this.baseUrl = Path.Combine(Path.GetDirectoryName(filename), Path.GetFileNameWithoutExtension(filename));
             this.extension = Path.GetExtension(filename);
             this.isNewImage = false;
 
@@ -252,54 +252,23 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
 
         void EnsureChunkLoaded(int rowIndex, int colIndex)
         {
+            string chunkName = CreateFileName(rowIndex, colIndex, baseUrl, extension);
+            Image chunk = null;
             if (useCache)
             {
                 Vector2 key = new Vector2(rowIndex, colIndex);
                 if (!ChunkCache.ContainsKey(key))
                 {
-                    ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
-                    if (s.GetType() != typeof(GDALSerializer))
+                    
+                    if (diskBack && File.Exists(chunkName))
                     {
-                        throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+                        chunk = LoadChunk(chunkName);
                     }
-                    string chunkName = CreateFileName(rowIndex, colIndex, baseUrl, extension);
-                    Image chunk = null;
-                    bool chunkLoaded = false;
-                    if (diskBack)
-                    {
-                        try
-                        {
-                            chunk = LoadChunk(chunkName);
-                            chunkLoaded = true;
-                        }
-                        catch
-                        {
-                            chunkLoaded = false;
-                        }
+                    else if (isNewImage)
+                    {   
+                        chunk = new Image(Bands, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize));
                     }
-                    if (!chunkLoaded)
-                    {
-                        if (isNewImage)
-                        {
-                            chunk = new Image(Bands, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize));
-                        }
-                        else
-                        {
-                            chunk = ((GDALSerializer)s).PartialRead(Filename, colIndex * chunkSize, rowIndex * chunkSize, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize), converter != null ? converter : s.DefaultReadConverter());
-                        }
-                    }
-                    ChunkCache.Add(key, chunk);
-                }
-            }
-            else
-            {
-                if (Images[rowIndex, colIndex] == null)
-                {
-                    Image chunk = null;
-                    try
-                    {
-                        chunk = LoadChunk(CreateFileName(rowIndex, colIndex, baseUrl, extension));
-                    } catch
+                    else
                     {
                         ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
                         if (s.GetType() != typeof(GDALSerializer))
@@ -308,14 +277,39 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
                         }
                         chunk = ((GDALSerializer)s).PartialRead(Filename, colIndex * chunkSize, rowIndex * chunkSize, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize), converter != null ? converter : s.DefaultReadConverter());
                     }
-                    if ((chunk.Height != chunkSize && rowIndex * chunkSize + chunk.Height != Height) ||
+                    ChunkCache.Add(key, chunk);
+                } else
+                {
+                    chunk = ChunkCache[key];
+                }
+            }
+            else
+            {
+                if (Images[rowIndex, colIndex] == null)
+                {
+                    if(File.Exists(chunkName))
+                    {
+                        chunk = LoadChunk(chunkName);
+                    } else
+                    {
+                        ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
+                        if (s.GetType() != typeof(GDALSerializer))
+                        {
+                            throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+                        }
+                        chunk = ((GDALSerializer)s).PartialRead(Filename, colIndex * chunkSize, rowIndex * chunkSize, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize), converter != null ? converter : s.DefaultReadConverter());
+                    }           
+                    Images[rowIndex, colIndex] = chunk;
+                } else
+                {
+                    chunk = Images[rowIndex, colIndex];
+                }
+            }
+            if ((chunk.Height != chunkSize && rowIndex * chunkSize + chunk.Height != Height) ||
                         (chunk.Width != chunkSize && colIndex * chunkSize + chunk.Width != Width) ||
                         (chunk.Bands != this.Bands))
-                    {
-                        throw new Exception("Chunk size does not match previously partitioned image");
-                    }
-                    Images[rowIndex, colIndex] = chunk;
-                }
+            {
+                throw new Exception("Chunk size does not match previously partitioned image");
             }
         }
 
