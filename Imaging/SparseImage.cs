@@ -1,4 +1,6 @@
-﻿using System;
+﻿using Microsoft.Xna.Framework;
+using OPS.Util;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -12,24 +14,49 @@ namespace OPS.Imaging
     /// </summary>
     public class SparseImage : Image
     {
+        private bool useCache;
+        private bool isNewImage;
+        private bool diskBack;
+
+        //Used if largeImage can fit into memory for partitioning
         private Image[,] Images;
+
+        //For limiting entire memory footprint
+        private IImageConverter converter = null;
+        protected LRUCache<Vector2, Image> ChunkCache;
+
         protected string baseUrl;
         protected string extension;
         protected int chunkSize;
 
-        /// <summary>
-        /// Contructs a SparseImage with baseUrl and extension of chunk images to load and populate the SparseImage array as needed.
-        /// </summary>
-        /// <param name="bands">Number of bands in original image</param>
-        /// <param name="width">Width of original image</param>
-        /// <param name="height">Height of original image</param>
-        /// <param name="baseUrl">Base URL of chunk images</param>
-        /// <param name="extension">Extention of chunk image file (including ".")</param>
-        /// <param name="chunkSize">Width and height of chunks</param>
-        /// <param name="loader">Function to load chunks (default Image.Load)</param>
-        /// <param name="saver">Function to save chunks (default Image.Save)</param>
-        public SparseImage(int bands, int width, int height, string baseUrl, string extension, int chunkSize = 256) : base(0, 0, 0)
+        private string Filename {
+            get { return baseUrl + extension; }            
+        }
+
+        private Action<Image, Vector2, string> getSaveFunction()
         {
+            return new Action<Image, Vector2, string>((img, rc, path) =>
+            {
+                SaveChunk<Byte>(img, path + (int)rc.X + "_" + (int)rc.Y + extension);
+            });
+        }
+
+/// <summary>
+/// Contructs a SparseImage with baseUrl and extension of chunk images to load and populate the SparseImage array as needed.
+/// </summary>
+/// <param name="bands">Number of bands in original image</param>
+/// <param name="width">Width of original image</param>
+/// <param name="height">Height of original image</param>
+/// <param name="baseUrl">Base URL of chunk images</param>
+/// <param name="extension">Extention of chunk image file (including ".")</param>
+/// <param name="chunkSize">Width and height of chunks</param>
+/// <param name="loader">Function to load chunks (default Image.Load)</param>
+/// <param name="saver">Function to save chunks (default Image.Save)</param>
+public SparseImage(int bands, int width, int height, string baseUrl, string extension, int chunkSize = 256, bool useCache = false, bool diskBack = false, int cacheSize = 5000) : base(0, 0, 0)
+        {
+            this.isNewImage = true;
+            this.useCache = useCache;
+            this.diskBack = diskBack;
             this.Metadata = new ImageMetadata(bands, width, height);
             this.Bands = bands;
             this.Width = width;
@@ -37,7 +64,14 @@ namespace OPS.Imaging
             this.baseUrl = baseUrl;
             this.extension = extension;
             this.chunkSize = chunkSize;
-            Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
+            if (useCache)
+            {
+                ChunkCache = new LRUCache<Vector2, Image>(cacheSize, Path.GetDirectoryName(Filename), diskBack ? getSaveFunction() : null);
+            }
+            else
+            {
+                Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
+            }
         }
 
         /// <summary>
@@ -48,14 +82,54 @@ namespace OPS.Imaging
         /// <param name="saver">Function to save chunks (default Image.Save)</param>
         public SparseImage(Image largeImage, int chunkSize = 256) : base(0, 0, 0)
         {
+            this.useCache = false;
+            this.isNewImage = false;
             this.Metadata = (ImageMetadata)largeImage.Metadata.Clone();
             this.Bands = largeImage.Bands;
             this.Width = largeImage.Width;
             this.Height = largeImage.Height;
+            this.Metadata = new ImageMetadata(Bands, Width, Height);
             this.chunkSize = chunkSize;
 
             Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
             Partition(largeImage);
+        }
+
+        /// <summary>
+        /// Constructs a SparseImage for image on disk without populating chunks.
+        /// </summary>
+        /// <param name="filename"></param>
+        /// <param name="chunkSize"></param>
+        public SparseImage(string filename, IImageConverter converter, int chunkSize = 1024, bool useCache = false, bool diskBack = false, int cacheSize = 10000, bool initializeChunksOnDisk = false) : base(0,0,0)
+        {
+            this.chunkSize = chunkSize;
+            this.converter = converter;
+            this.useCache = useCache;
+            this.diskBack = diskBack;
+            this.baseUrl = Path.GetDirectoryName(filename) + '\\' + Path.GetFileNameWithoutExtension(filename);
+            this.extension = Path.GetExtension(filename);
+            this.isNewImage = false;
+
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
+            if (s.GetType() != typeof(GDALSerializer))
+            {
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+            ((GDALSerializer)s).GetMetadata(filename, out Bands, out Width, out Height);
+            this.Metadata = new ImageMetadata(Bands, Width, Height);
+
+            if (useCache)
+            {
+                this.ChunkCache = new LRUCache<Vector2, Image>(cacheSize, Path.GetDirectoryName(filename), diskBack ? getSaveFunction() : null);
+            } else
+            {
+                Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
+            }
+
+            if ((!useCache || diskBack) && initializeChunksOnDisk)
+            {
+                Partition(filename);
+            }
         }
 
         protected virtual void SaveChunk<T>(Image img, string filename)
@@ -81,6 +155,11 @@ namespace OPS.Imaging
         /// <param name="extension">Extension for saved chunk</param>
         public void Save<T>(string baseUrl, string extension)
         {
+            if(useCache)
+            {
+                //TODO: implement this if needed
+                throw new NotImplementedException("Saving cached sparse image not supported.");
+            }
             for (int row = 0; row < Images.GetLength(0); row++)
             {
                 for (int col = 0; col < Images.GetLength(1); col++)
@@ -110,6 +189,26 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Split an image into chunks with dimensions chunkSize without loading the full image into memory; chunks stored on disk for on demand loading.
+        /// </summary>
+        private void Partition(string filename)
+        {
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
+            if (s.GetType() != typeof(GDALSerializer))
+            {
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+            for (int r = 0; r <= Height / chunkSize; r++)
+            {
+                for (int c = 0; c <= Width / chunkSize; c++)
+                {
+                    Image chunk = ((GDALSerializer)s).PartialRead(filename, c * chunkSize, r * chunkSize, Math.Min(Width - c * chunkSize, chunkSize), Math.Min(Height - r * chunkSize, chunkSize), converter);
+                    SaveChunk<byte>(chunk, CreateFileName(r, c, filename, extension));
+                }
+            }
+        }
+
+        /// <summary>
         /// Access chunk pixel corresponding to original image data at specified band, row, and column. If chunk does not exist, load it.
         /// </summary>
         /// <param name="band"></param>
@@ -123,30 +222,100 @@ namespace OPS.Imaging
                 int rowIndex = row / chunkSize;
                 int colIndex = column / chunkSize;
                 EnsureChunkLoaded(rowIndex, colIndex);
-                return Images[rowIndex, colIndex][band, (row % chunkSize), (column % chunkSize)];
-
+                Image chunk;
+                if (useCache)
+                {
+                    chunk = ChunkCache[new Vector2(rowIndex, colIndex)];
+                }
+                else
+                {
+                    chunk = Images[rowIndex, colIndex];
+                }
+                return chunk[band, (row % chunkSize), (column % chunkSize)];
             }
             set
             {
                 int rowIndex = row / chunkSize;
                 int colIndex = column / chunkSize;
                 EnsureChunkLoaded(rowIndex, colIndex);
-                Images[rowIndex, colIndex][band, (row % chunkSize), (column % chunkSize)] = value;
+                Image chunk;
+                if (useCache)
+                {
+                    chunk = ChunkCache[new Vector2(rowIndex, colIndex)];
+
+                } else {
+                    chunk = Images[rowIndex, colIndex];
+                }
+                chunk[band, (row % chunkSize), (column % chunkSize)] = value;
             }
         }
 
         void EnsureChunkLoaded(int rowIndex, int colIndex)
         {
-            if (Images[rowIndex, colIndex] == null)
+            if (useCache)
             {
-                var img = LoadChunk(CreateFileName(rowIndex, colIndex, baseUrl, extension));
-                if ((img.Height != chunkSize && rowIndex * chunkSize + img.Height != Height) ||
-                    (img.Width != chunkSize && colIndex * chunkSize + img.Width != Width) ||
-                    (img.Bands != this.Bands))
+                Vector2 key = new Vector2(rowIndex, colIndex);
+                if (!ChunkCache.ContainsKey(key))
                 {
-                    throw new Exception("Chunk size does not match previously partitioned image");
+                    ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
+                    if (s.GetType() != typeof(GDALSerializer))
+                    {
+                        throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+                    }
+                    string chunkName = CreateFileName(rowIndex, colIndex, baseUrl, extension);
+                    Image chunk = null;
+                    bool chunkLoaded = false;
+                    if (diskBack)
+                    {
+                        try
+                        {
+                            chunk = LoadChunk(chunkName);
+                            chunkLoaded = true;
+                        }
+                        catch
+                        {
+                            chunkLoaded = false;
+                        }
+                    }
+                    if (!chunkLoaded)
+                    {
+                        if (isNewImage)
+                        {
+                            chunk = new Image(Bands, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize));
+                        }
+                        else
+                        {
+                            chunk = ((GDALSerializer)s).PartialRead(Filename, colIndex * chunkSize, rowIndex * chunkSize, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize), converter != null ? converter : s.DefaultReadConverter());
+                        }
+                    }
+                    ChunkCache.Add(key, chunk);
                 }
-                Images[rowIndex, colIndex] = img;
+            }
+            else
+            {
+                if (Images[rowIndex, colIndex] == null)
+                {
+                    Image chunk = null;
+                    try
+                    {
+                        chunk = LoadChunk(CreateFileName(rowIndex, colIndex, baseUrl, extension));
+                    } catch
+                    {
+                        ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
+                        if (s.GetType() != typeof(GDALSerializer))
+                        {
+                            throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+                        }
+                        chunk = ((GDALSerializer)s).PartialRead(Filename, colIndex * chunkSize, rowIndex * chunkSize, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize), converter != null ? converter : s.DefaultReadConverter());
+                    }
+                    if ((chunk.Height != chunkSize && rowIndex * chunkSize + chunk.Height != Height) ||
+                        (chunk.Width != chunkSize && colIndex * chunkSize + chunk.Width != Width) ||
+                        (chunk.Bands != this.Bands))
+                    {
+                        throw new Exception("Chunk size does not match previously partitioned image");
+                    }
+                    Images[rowIndex, colIndex] = chunk;
+                }
             }
         }
 
