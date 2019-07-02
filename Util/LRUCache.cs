@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,6 +26,24 @@ namespace OPS.Util
             }
         }
         private int _capacity;
+        private string _tempdir;
+
+        public bool DiskBacked
+        {
+            get { return _save != null; }
+        }
+
+        private Action<TValue, TKey, string> _save;
+        private void flush(TKey key, TValue obj)
+        {
+            if (_save != null)
+            {
+                _save(obj, key, _tempdir);
+            } else
+            {
+                throw new Exception("LRUCache failed to flush.");
+            }
+        }
 
         /// <summary>
         /// Number of entries currently in the cache
@@ -34,8 +53,14 @@ namespace OPS.Util
             get { return Values.Count; }
         }
 
-        public LRUCache(int capacity)
+        public LRUCache(int capacity, string workingDir="", Action<TValue, TKey, string> saveFunc = null)
         {
+            this._save = saveFunc;
+            if(saveFunc != null)
+            {
+                _tempdir = workingDir + "/tmp" + DateTime.Now.ToString("hmmsstt") + "/";
+                Directory.CreateDirectory(_tempdir);
+            }
             if (capacity < 1)
             {
                 throw new ArgumentOutOfRangeException("capacity", capacity, "Capacity must be >= 1");
@@ -44,6 +69,17 @@ namespace OPS.Util
             _capacity = capacity;
             Values = new LinkedList<Entry>();
             KeyToNode = new ConcurrentDictionary<TKey, LinkedListNode<Entry>>();
+        }
+
+        /// <summary>
+        /// Delete temporary files if needed
+        /// </summary>
+        ~LRUCache ()
+        {
+            if (DiskBacked)
+            {
+                Directory.Delete(_tempdir, true);
+            }
         }
 
         public bool ContainsKey(TKey key)
@@ -76,6 +112,7 @@ namespace OPS.Util
             if (!ContainsKey(key)) return false;
 
             var node = KeyToNode[key];
+            flush(key, node.Value.Value);
             lock (Values)
             {
                 Values.Remove(node);
@@ -145,6 +182,7 @@ namespace OPS.Util
                 while (Values.Count > Capacity)
                 {
                     var last = Values.Last;
+                    flush(last.Value.Key, last.Value.Value);
                     if (!KeyToNode.TryRemove(last.Value.Key, out var junk))
                     {
                         throw new Exception("it broke");

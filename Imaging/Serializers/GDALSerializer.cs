@@ -229,7 +229,7 @@ namespace OPS.Imaging
                             }
                             else if (band.DataType == DataType.GDT_Float32)
                             {
-                                band.ReadRaster(0, 0, xSize, ySize, img.Data[b], xSize, ySize, 0, 0);
+                                band.ReadRaster(xOffset, yOffset, xSize, ySize, img.Data[b], xSize, ySize, 0, 0);
                             }
                             else if (band.DataType == DataType.GDT_Float64)
                             {
