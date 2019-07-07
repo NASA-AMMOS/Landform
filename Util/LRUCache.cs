@@ -31,7 +31,13 @@ namespace OPS.Util
         /// </summary>
         public int Count
         {
-            get { return Values.Count; }
+            get
+            {
+                lock (Values)
+                {
+                    return Values.Count;
+                }
+            }
         }
 
         public LRUCache(int capacity)

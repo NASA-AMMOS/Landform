@@ -228,7 +228,12 @@ namespace OPS.Pipeline
                     FrameTransform ft = FrameTransform.FindOrCreate(pipeline, frame, TransformSource.Agisoft, ut);
                     ft.Transform = ut;
                     ft.Save(pipeline);
-                    if (frame.AddTransform(ft))
+                    bool added = false;
+                    lock (frame.Transforms)
+                    {
+                        added = frame.Transforms.Add(ft.Source);
+                    }
+                    if (added)
                     {
                         frame.Save(pipeline);
                     }

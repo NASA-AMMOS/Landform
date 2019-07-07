@@ -105,6 +105,7 @@ namespace OPS.Pipeline.TileServer
             if (!options.NoWait)
             {
                 LogInfo("waiting for intput to be added to project");
+                bool added = false;
                 var sw = new Stopwatch();
                 sw.Start();
                 do
@@ -117,8 +118,12 @@ namespace OPS.Pipeline.TileServer
                     }
                     Thread.Sleep(SLEEP_MS);
                     project = TilingProject.Find(this, options.ProjectName);
+                    lock (project.InputNames)
+                    {
+                        added = project.InputNames.Contains(name);
+                    }
                 }
-                while (!project.InputNames.Contains(name));
+                while (!added);
                 LogInfo("intput \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);
             }
 

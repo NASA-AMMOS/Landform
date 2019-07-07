@@ -322,8 +322,6 @@ where `ENVIRONMENT` is the Elastic Beanstalk environment name, e.g. `landformweb
 ## 8: Deploy Landform Worker to EC2 Auto Scale Group
 The following instructions assume you have a `landform-worker[-VERSION].zip` bundle and an `ec2userdata.txt` file.
 
-You must already have deployed the Landform master server on Elastic Beanstalk in the same venue following the instructions above.
-
 ### 1. Setup Security
 These steps only need to be performed once before your first deployment.
 

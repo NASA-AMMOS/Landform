@@ -1730,7 +1730,12 @@ namespace OPS.Pipeline
                 var ft = FrameTransform.FindOrCreate(pipeline, frame, transformSource, ut);
                 ft.Transform = ut;
                 ft.Save(pipeline);
-                if (frame.AddTransform(ft))
+                bool added = false;
+                lock (frame.Transforms)
+                {
+                    added = frame.Transforms.Add(ft.Source);
+                }
+                if (added)
                 {
                     frame.Save(pipeline);
                 }
@@ -1739,7 +1744,12 @@ namespace OPS.Pipeline
             foreach (var sd in unaligned)
             {
                 var frame = frameCache.GetFrame(sd);
-                if (frame.RemoveTransform(transformSource))
+                bool removed = false;
+                lock (frame.Transforms)
+                {
+                    removed = frame.Transforms.Remove(transformSource);
+                }
+                if (removed)
                 {
                     frame.Save(pipeline);
                 }

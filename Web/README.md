@@ -46,7 +46,7 @@ For production or integration testing the worker is [deployed to an EC2 autoscal
 First install latest [node.js](https://nodejs.org) 8.x.x, acquire [AWS credentials](#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).  To run projects locally you will also need to start an instance of the [tiling worker](#tiling-worker).
 
 1. `npm install`
-1. `npm run show-config` - the server will connect to live AWS services for that venue.
+1. `npm run show-config` - the server will connect to live AWS services for the displayed venue.  It is not required to run `Landform.exe configure-cloud` because the javascript wrappers which run the tiling master and worker override the relevant config settings by setting environment variables from values in [config.js](./config.js).
 1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
 1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
     1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.

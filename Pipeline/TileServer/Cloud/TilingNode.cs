@@ -34,9 +34,9 @@ namespace OPS.Pipeline.TileServer
 
         public string ParentId;
 
-        public List<string> DependsOn;
+        public HashSet<string> DependsOn = new HashSet<string>(); //MT safety: lock before accessing
 
-        public List<string> DependedOnBy;
+        public HashSet<string> DependedOnBy = new HashSet<string>(); //MT safety: lock before accessing
 
         public string Bounds;
 
@@ -44,11 +44,8 @@ namespace OPS.Pipeline.TileServer
 
         public double? GeometricError;
 
-        public TilingNode()
-        {
-            DependsOn = new List<string>();
-            DependedOnBy = new List<string>();
-        }
+        //This constructor must be public for DynamoDB but should not be used
+        public TilingNode() { }
 
         /// <summary>
         /// Creates Project object locally.  
@@ -64,8 +61,14 @@ namespace OPS.Pipeline.TileServer
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
             ParentId = parentId;
-            DependsOn.AddRange(dependsOn);
-            DependedOnBy.AddRange(dependedOnBy);
+            lock (DependsOn)
+            {
+                DependsOn.UnionWith(dependsOn);
+            }
+            lock (DependedOnBy)
+            {
+                DependedOnBy.UnionWith(dependedOnBy);
+            }
             Bounds = JsonHelper.ToJson(bounds);
             BoundsWithSkirt = boundsWithSkirt.HasValue ? JsonHelper.ToJson(boundsWithSkirt) : "";
         }
@@ -420,26 +423,6 @@ namespace OPS.Pipeline.TileServer
                 }
             }
             return root;
-        }
-
-        public bool AddDependsOn(string id)
-        {
-            if (DependsOn.Contains(id))
-            {
-                return false;
-            }
-            DependsOn.Add(id);
-            return true;
-        }
-
-        public bool AddDependedOnBy(string id)
-        {
-            if (DependedOnBy.Contains(id))
-            {
-                return false;
-            }
-            DependedOnBy.Add(id);
-            return true;
         }
     }
 }

@@ -139,7 +139,7 @@ powershell.exe -Command Read-S3Object -BucketName {2} -Key {0}{3}/app/landform-w
 Remove-Item c:\landform -Force -Recurse -ErrorAction SilentlyContinue
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory(""C:\temp\landform-worker.zip"", ""c:\landform"")
-c:\landform\{5} configure --venue={0} --s3url={1} --awsregion={4} --awsprofile=null --nouserdata
+c:\landform\{5} configure-cloud --venue={0} --s3url={1} --awsregion={4} --awsprofile=null --nouserdata
 Start-Process -WorkingDirectory c:\landform c:\landform\{5} startworker
 </powershell>
 <persist>true</persist>";

@@ -26,10 +26,8 @@ namespace OPS.Pipeline.TileServer
 
         public string Bounds { get; set; }
 
-        public TilingInputChunk()
-        {
-
-        }
+        //This constructor must be public for DynamoDB but should not be used
+        public TilingInputChunk() { }
 
         protected TilingInputChunk(string id, string meshUrl, string imageUrl, BoundingBox bounds)
         {

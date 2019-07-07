@@ -42,7 +42,7 @@ namespace OPS.Pipeline.TileServer
 
         public bool FinishedRunning;
 
-        public List<string> InputNames;
+        public HashSet<string> InputNames = new HashSet<string>(); //MT safety: lock before accessing
 
         public string NodeIdsUrl;
 
@@ -52,10 +52,8 @@ namespace OPS.Pipeline.TileServer
 
         public int MaxLeafGroupSize;
 
-        public TilingProject()
-        {
-            InputNames = new List<string>();
-        }
+        //This constructor must be public for DynamoDB but should not be used
+        public TilingProject() { }
 
         /// <summary>
         /// Creates Project object locally.  
@@ -204,16 +202,6 @@ namespace OPS.Pipeline.TileServer
             });
             NodeIdsUrl = url;
             return url;
-        }
-
-        public bool AddInput(string name)
-        {
-            if (InputNames.Contains(name))
-            {
-                return false;
-            }
-            InputNames.Add(name);
-            return true;
         }
     }
 }
