@@ -52,13 +52,21 @@ namespace OPS.Pipeline
             {
                 throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
             }
-            for (int r = 0; r <= Height / chunkSize; r++)
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++)
             {
-                for (int c = 0; c <= Width / chunkSize; c++)
+                for (int c = 0; c < hChunks; c++)
                 {
-                    pipeline.LogInfo("Creating chunk (" + r + ", " + c + "), " + (r * Width / chunkSize + c) + " / " + (Width / chunkSize * Height / chunkSize) + " complete.");
-                    Image chunk = ((GDALSerializer)s).PartialRead(filename, c * chunkSize, r * chunkSize, Math.Min(Width - c * chunkSize, chunkSize), Math.Min(Height - r * chunkSize, chunkSize), s.DefaultReadConverter());
+                    pipeline.LogInfo("saving chunk ({0},{1}), {2}/{3} complete", r, c, n, vChunks * hChunks);
+                    int x = c * chunkSize;
+                    int y = r * chunkSize;
+                    int w = Math.Min(x + chunkSize, Width) - x;
+                    int h = Math.Min(y + chunkSize, Height) - y;
+                    Image chunk = ((GDALSerializer)s).PartialRead(filename, x, y, w, h, s.DefaultReadConverter());
                     SaveChunk<byte>(chunk, CreateFileName(r, c, storageUrl, extension));
+                    n++;
                 }
             }
         }
