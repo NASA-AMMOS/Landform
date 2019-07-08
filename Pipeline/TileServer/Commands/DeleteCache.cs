@@ -9,27 +9,32 @@ namespace OPS.Pipeline.TileServer
     {       
         [Option(Default = false, HelpText = "Disable confirmation prompt")]
         public bool Force { get; set; }
+
+        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
+        public bool Local { get; set; }
     }
 
-    public class DeleteCache : CloudPipeline
+    public class DeleteCache
     {
         private DeleteCacheOptions options;
+        private PipelineCore pipeline;
 
-        public DeleteCache(DeleteCacheOptions options) : base(options, queuePrefix: "tiling")
+        public DeleteCache(DeleteCacheOptions options)
         {
             this.options = options;
+            pipeline = TileServerCommands.MakePipeline(options, options.Local);
         }
 
         public int Run()
         {
             if (!options.Force)
             {
-                Console.WriteLine("delete download caches " + DownloadCache + " (yes/no)?");
+                Console.WriteLine("delete download caches " + pipeline.DownloadCache + " (yes/no)?");
                 var response = Console.ReadLine();
                 if (response.ToLower() != "yes") return 1;
             }
-            LogInfo("deleting download cache: " + DownloadCache);
-            DeleteDownloadCache();
+            pipeline.LogInfo("deleting download cache: " + pipeline.DownloadCache);
+            pipeline.DeleteDownloadCache();
             return 0;
         }
     }

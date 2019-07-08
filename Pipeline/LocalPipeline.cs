@@ -7,18 +7,24 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading;
 using log4net;
 using CommandLine;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Imaging;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
+using DBUtil = OPS.Cloud.DBUtil;
 
 namespace OPS.Pipeline
 {
     public class LocalPipeline : PipelineCore 
     {
         public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
-                             bool quietInit = false, bool initTables = true, int? maxCores = null)
+                             bool quietInit = false, bool initQueues = true, bool initTables = true,
+                             int? maxCores = null)
             : base(options, LocalPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(LocalPipelineConfig.Instance.StorageDir, "file://"),
                    LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
@@ -29,6 +35,11 @@ namespace OPS.Pipeline
             if (localConfig.RandomSeed >= 0)
             {
                 NumberHelper.RandomSeed = localConfig.RandomSeed;
+            }
+
+            if (initQueues)
+            {
+                InitializeQueues();
             }
 
             if (initTables)
@@ -571,6 +582,33 @@ namespace OPS.Pipeline
                 }
                 yield return FromJson<T>(json, ignoreNulls: false);
             }
+        }
+
+        public ConcurrentQueue<QueueMessage> MasterQueue { get; private set; }
+        public ConcurrentQueue<QueueMessage> WorkerQueue { get; private set; }
+
+        private static int nextMessageId = -1;
+        private static string NextMessageId()
+        {
+            return "msg " + Interlocked.Increment(ref nextMessageId);
+        }
+
+        protected override void EnqueueToMasterImpl(QueueMessage message)
+        {
+            message.MessageId = NextMessageId();
+            MasterQueue.Enqueue(message);
+        }
+
+        protected override void EnqueueToWorkersImpl(QueueMessage message)
+        {
+            message.MessageId = NextMessageId();
+            WorkerQueue.Enqueue(message);
+        }
+
+        private void InitializeQueues()
+        {
+            MasterQueue = new ConcurrentQueue<QueueMessage>();
+            WorkerQueue = new ConcurrentQueue<QueueMessage>();
         }
     }
 }

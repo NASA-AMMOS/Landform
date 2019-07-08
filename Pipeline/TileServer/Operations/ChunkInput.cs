@@ -8,13 +8,15 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
 
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
+
 namespace OPS.Pipeline.TileServer
 {
-
     public class ChunkInputMessage : QueueMessage
     {
         public string InputName;
@@ -22,7 +24,7 @@ namespace OPS.Pipeline.TileServer
         public ChunkInputMessage(string projectName) : base(projectName) { }
     }
 
-    public class ChunkInput : CloudPipelineOperation
+    public class ChunkInput : PipelineOperation
     {
         public const string MESH_EXT =  ".ply";
         public const string IMAGE_EXT = ".tif";
@@ -31,7 +33,7 @@ namespace OPS.Pipeline.TileServer
 
         private readonly ChunkInputMessage message;
 
-        public ChunkInput(CloudPipeline pipeline, ChunkInputMessage message) : base(pipeline, message)
+        public ChunkInput(PipelineCore pipeline, ChunkInputMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -55,7 +57,7 @@ namespace OPS.Pipeline.TileServer
             if (input.Chunked)
             {
                 pipeline.LogInfo("input " + message.InputName + " has already been chunked, skipping");
-                pipeline.MasterQueue.Enqueue(message);
+                pipeline.EnqueueToMaster(message);
                 return;
             }
 
@@ -74,7 +76,7 @@ namespace OPS.Pipeline.TileServer
                 pipeline.LogInfo("downloading " + input.ImageUrl);
                 imageBaseUrl = pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
                 pipeline.LogInfo("chunking image for input " + message.InputName);
-                sparseImage = new SparseCloudImage(input.ImageUrl, IMAGE_EXT, imageBaseUrl, pipeline, CHUNK_RESOLUTION);
+                sparseImage = new SparsePipelineImage(pipeline, input.ImageUrl, IMAGE_EXT, imageBaseUrl, CHUNK_RESOLUTION);
                 input.ImageBands = sparseImage.Bands;
                 input.ImageWidth = sparseImage.Width;
                 input.ImageHeight = sparseImage.Height;
@@ -111,7 +113,7 @@ namespace OPS.Pipeline.TileServer
             }
             input.Chunked = true;
             input.Save(pipeline);
-            pipeline.MasterQueue.Enqueue(message);
+            pipeline.EnqueueToMaster(message);
             pipeline.LogInfo("completed chunking input " + message.InputName);
         }
     }

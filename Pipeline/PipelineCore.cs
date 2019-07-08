@@ -11,6 +11,10 @@ using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TileServer;
 
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
+
 namespace OPS.Pipeline
 {
     public class PipelineCoreOptions
@@ -56,7 +60,7 @@ namespace OPS.Pipeline
      *
      * + Disk Cache API - functions to interact with and clean up the disk cach
      *
-     * + Message Queue API - interact with message queues (cloud only)
+     * + Message Queue API - interact with message queues
      **/
     public abstract class PipelineCore : IImageLoader, ILogger
     {
@@ -488,6 +492,32 @@ namespace OPS.Pipeline
         {
             return Path.Combine(DownloadCache, project ?? "", filename ?? ""); //ignores empty components
         }
+
+        //****************** Message Queue API *****************
+
+        public delegate bool MessageEnqueued(QueueMessage message);
+        public event MessageEnqueued EnqueuedToMaster;
+        public event MessageEnqueued EnqueuedToWorkers;
+        
+        public void EnqueueToMaster(QueueMessage message)
+        {
+            if (EnqueuedToMaster == null || EnqueuedToMaster(message))
+            {
+                EnqueueToMasterImpl(message);
+            }
+        }
+
+        protected abstract void EnqueueToMasterImpl(QueueMessage message);
+
+        public void EnqueueToWorkers(QueueMessage message)
+        {
+            if (EnqueuedToWorkers == null || EnqueuedToWorkers(message))
+            {
+                EnqueueToWorkersImpl(message);
+            }
+        }
+
+        protected abstract void EnqueueToWorkersImpl(QueueMessage message);
     }
 }
         

@@ -5,11 +5,14 @@ using System.Text;
 using System.Diagnostics;
 using log4net;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -34,11 +37,11 @@ namespace OPS.Pipeline.AlignmentServer
         public ImagesMatchedMessage(string projectName) : base(projectName) { }
     }
 
-    public class MatchImages : CloudPipelineOperation
+    public class MatchImages : PipelineOperation
     {
         private readonly MatchImagesMessage message;
 
-        public MatchImages(CloudPipeline pipeline, MatchImagesMessage message) : base(pipeline, message)
+        public MatchImages(PipelineCore pipeline, MatchImagesMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -72,12 +75,8 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.LogInfo("insufficient feature match for {0} in project {1}", pairName, projectName);
             }
 
-            pipeline.MasterQueue.Enqueue(new ImagesMatchedMessage(projectName)
-            {
-                ModelImageUrl = modelUrl,
-                DataImageUrl = dataUrl,
-                CorrespondenceGuid = guid
-            });
+            pipeline.EnqueueToMaster(new ImagesMatchedMessage(projectName)
+                                     { ModelImageUrl = modelUrl, DataImageUrl = dataUrl, CorrespondenceGuid = guid });
         }
     }
 }

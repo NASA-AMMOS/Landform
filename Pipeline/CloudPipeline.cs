@@ -329,8 +329,18 @@ namespace OPS.Pipeline
             }
         }
 
-        public MessageQueue WorkerQueue { get; private set; }
         public MessageQueue MasterQueue { get; private set; }
+        public MessageQueue WorkerQueue { get; private set; }
+
+        protected override void EnqueueToMasterImpl(QueueMessage message)
+        {
+            MasterQueue.Enqueue(message);
+        }
+
+        protected override void EnqueueToWorkersImpl(QueueMessage message)
+        {
+            WorkerQueue.Enqueue(message);
+        }
 
         private void InitializeQueues(bool quiet = false)
         {

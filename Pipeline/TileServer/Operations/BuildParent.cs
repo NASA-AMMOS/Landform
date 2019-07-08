@@ -6,11 +6,14 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
 using Microsoft.Xna.Framework;
 using System.Collections.Concurrent;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -22,11 +25,11 @@ namespace OPS.Pipeline.TileServer
         public BuildParentMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildParent : CloudPipelineOperation
+    public class BuildParent : PipelineOperation
     {
         private readonly BuildParentMessage message;
 
-        public BuildParent(CloudPipeline pipeline, BuildParentMessage message) : base(pipeline, message)
+        public BuildParent(PipelineCore pipeline, BuildParentMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -39,7 +42,7 @@ namespace OPS.Pipeline.TileServer
             if (parent.MeshUrl != null)
             {
                 pipeline.LogInfo("parent " + parent.Id + " already complete, skipping");
-                pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = parent.Id });
+                pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
                 return;
             }
             ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
@@ -69,7 +72,7 @@ namespace OPS.Pipeline.TileServer
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error,
                             project.ExportMeshFormat, project.ExportImageFormat, project.GetSkirtMode());
-            pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = parent.Id });
+            pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
             pipeline.LogInfo("completed building parent " + message.TileId);
         }
     }

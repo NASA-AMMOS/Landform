@@ -4,9 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Util;
-using OPS.Cloud;
 using OPS.Pipeline;
 using OPS.Imaging;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -25,11 +28,11 @@ namespace OPS.Pipeline.AlignmentServer
         public MaskCreatedMessage(string projectName) : base(projectName) { }
     }
 
-    public class CreateMask : CloudPipelineOperation
+    public class CreateMask : PipelineOperation
     {
         private readonly  CreateMaskMessage message;
 
-        public CreateMask(CloudPipeline pipeline, CreateMaskMessage message) : base(pipeline, message)
+        public CreateMask(PipelineCore pipeline, CreateMaskMessage message) : base(pipeline, message)
         {
             this.message = message;
         }
@@ -44,8 +47,8 @@ namespace OPS.Pipeline.AlignmentServer
             var mask = new PngDataProduct(masker.Build(pipeline.LoadImage(message.ImageUrl)));
             pipeline.SaveDataProduct(project.ProductPath, mask, projectName);
             pipeline.LogInfo("created mask for image {0} in project {1}", shortUrl, project.Name);
-            pipeline.MasterQueue.Enqueue(new MaskCreatedMessage(projectName)
-                                         { ImageUrl = message.ImageUrl, MaskGuid = mask.Guid });
+            pipeline.EnqueueToMaster(new MaskCreatedMessage(projectName)
+                                     { ImageUrl = message.ImageUrl, MaskGuid = mask.Guid });
         }
     }
 }

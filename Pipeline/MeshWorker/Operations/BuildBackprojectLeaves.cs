@@ -1,19 +1,22 @@
-﻿using log4net;
-using Microsoft.Xna.Framework;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.IO;
+using log4net;
+using Microsoft.Xna.Framework;
 using OPS.Pipeline;
 using OPS.Pipeline.TileServer;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Geometry;
-using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
 using OPS.Alignment;
 using OPS.RayTrace;
-using System;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.MeshWorker
 {
@@ -24,11 +27,11 @@ namespace OPS.Pipeline.MeshWorker
         public BuildBackprojectLeavesMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildBackprojectLeaves : CloudPipelineOperation
+    public class BuildBackprojectLeaves : PipelineOperation
     {
         private readonly BuildBackprojectLeavesMessage message;
 
-        public BuildBackprojectLeaves(CloudPipeline pipeline, BuildBackprojectLeavesMessage message)
+        public BuildBackprojectLeaves(PipelineCore pipeline, BuildBackprojectLeavesMessage message)
             : base(pipeline, message)
         {
             this.message = message;
@@ -104,7 +107,7 @@ namespace OPS.Pipeline.MeshWorker
                               project.GetSkirtMode());
 
                 //notify the tiling server that a tile is ready for building into parent tiles
-                pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = leaf.Id});                
+                pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id});                
             });
 
             pipeline.LogInfo("batch completed, generated " + tiledMeshes + " leaf tiles");
@@ -234,7 +237,7 @@ namespace OPS.Pipeline.MeshWorker
                 if (n.MeshUrl != null)
                 {
                     pipeline.LogInfo("leaf " + n.Id + " already complete, skipping");
-                    pipeline.MasterQueue.Enqueue(new TileCompletedMessage(projectName) { TileId = n.Id });
+                    pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }
 

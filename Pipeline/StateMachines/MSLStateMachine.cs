@@ -11,16 +11,16 @@ namespace OPS.Pipeline
 {
     class MSLStateMachine : PipelineStateMachine
     {
-        public MSLStateMachine(CloudPipeline pipeline, string projectName) : base(pipeline, projectName)
+        public MSLStateMachine(PipelineCore pipeline, string projectName) : base(pipeline, projectName)
         {
         }
 
-        override protected TypeDispatcher InitDispatcher()
+        override public TypeDispatcher MakeDispatcher()
         {
-            return base.InitDispatcher()
+            return base.MakeDispatcher()
                 .Case((BuildTilingInputMessage m) => {
                         LogInfo("tiling input built, defining tiles");
-                        pipeline.WorkerQueue.Enqueue(new DefineTilesMessage(projectName));
+                        pipeline.EnqueueToWorkers(new DefineTilesMessage(projectName));
                     });
         }
 

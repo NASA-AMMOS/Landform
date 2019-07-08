@@ -1,17 +1,20 @@
 using log4net;
 using System;
-using OPS.Cloud;
+
+//TODO: refactor so that local codepath does not have cloud dependencies
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline
 {
-    public class CloudPipelineOperation
+    public class PipelineOperation
     {
-        protected readonly CloudPipeline pipeline;
+        protected readonly PipelineCore pipeline;
         protected readonly string projectName;
 
         //intentionally not adding "message" field here so that subclasses can add their own type-specific one
 
-        public CloudPipelineOperation(CloudPipeline pipeline, QueueMessage msg)
+        public PipelineOperation(PipelineCore pipeline, QueueMessage msg)
         {
             this.pipeline = pipeline;
             this.projectName = msg.ProjectName;

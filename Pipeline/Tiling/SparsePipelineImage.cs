@@ -4,27 +4,30 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
-using OPS.Imaging;
 using OPS.Util;
+using OPS.Imaging;
+
 namespace OPS.Pipeline
 {
-    public class SparseCloudImage : SparseImage
+    public class SparsePipelineImage : SparseImage
     {
-        PipelineCore pipeline;
-        string storageUrl;
+        private PipelineCore pipeline;
+        private string storageUrl;
 
-        public SparseCloudImage(Image largeImage, PipelineCore pipeline, int chunkSize = 256) : base(largeImage, chunkSize)
+        public SparsePipelineImage(PipelineCore pipeline, Image largeImage, int chunkSize = 256)
+            : base(largeImage, chunkSize)
         {
             this.pipeline = pipeline;
         }
 
-        public SparseCloudImage(int bands, int width, int height, string baseUrl, string extension, PipelineCore pipeline, int chunkSize = 256) : base(bands, width, height, baseUrl, extension, chunkSize)
+        public SparsePipelineImage(PipelineCore pipeline, int bands, int width, int height,
+                                   string baseUrl, string extension, int chunkSize = 256)
+            : base(bands, width, height, baseUrl, extension, chunkSize)
         {
             this.pipeline = pipeline;
         }
 
-        public SparseCloudImage(string baseUrl, string extension, string storageUrl, PipelineCore pipeline, int chunkSize = 256) : base(0, 0, 0, baseUrl, extension, chunkSize)
+        public SparsePipelineImage(PipelineCore pipeline, string baseUrl, string extension, string storageUrl, int chunkSize = 256) : base(0, 0, 0, baseUrl, extension, chunkSize)
         {
             this.pipeline = pipeline;
             this.storageUrl = storageUrl;
@@ -49,13 +52,21 @@ namespace OPS.Pipeline
             {
                 throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
             }
-            for (int r = 0; r <= Height / chunkSize; r++)
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++)
             {
-                for (int c = 0; c <= Width / chunkSize; c++)
+                for (int c = 0; c < hChunks; c++)
                 {
-                    pipeline.LogInfo("Creating chunk (" + r + ", " + c + "), " + (r * Width / chunkSize + c) + " / " + (Width / chunkSize * Height / chunkSize) + " complete.");
-                    Image chunk = ((GDALSerializer)s).PartialRead(filename, c * chunkSize, r * chunkSize, Math.Min(Width - c * chunkSize, chunkSize), Math.Min(Height - r * chunkSize, chunkSize), s.DefaultReadConverter());
+                    pipeline.LogInfo("saving chunk ({0},{1}), {2}/{3} complete", r, c, n, vChunks * hChunks);
+                    int x = c * chunkSize;
+                    int y = r * chunkSize;
+                    int w = Math.Min(x + chunkSize, Width) - x;
+                    int h = Math.Min(y + chunkSize, Height) - y;
+                    Image chunk = ((GDALSerializer)s).PartialRead(filename, x, y, w, h, s.DefaultReadConverter());
                     SaveChunk<byte>(chunk, CreateFileName(r, c, storageUrl, extension));
+                    n++;
                 }
             }
         }
@@ -70,7 +81,6 @@ namespace OPS.Pipeline
             TemporaryFile.GetAndDelete(Path.GetExtension(url), f => {
                 base.SaveChunk<T>(img, f);
                 pipeline.SaveFile(f, url);
-
             });
         }
     }

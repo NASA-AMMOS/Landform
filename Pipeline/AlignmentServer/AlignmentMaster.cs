@@ -254,10 +254,8 @@ namespace OPS.Pipeline.AlignmentServer
                                                         obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                         LogVerbose("requesting feature detection for observation {0}", imageObs.Name);
                         pendingFeatures[imageObs.Url] = imageObs;
-                        WorkerQueue.Enqueue(new DetectFeaturesMessage(options.ProjectName) {
-                                ImageUrl = imageObs.Url,
-                                MaskUrl = maskObs != null ? maskObs.Url : null
-                            });
+                        EnqueueToWorkers(new DetectFeaturesMessage(options.ProjectName)
+                                         { ImageUrl = imageObs.Url, MaskUrl = maskObs != null ? maskObs.Url : null });
                     }
                 }
             }
@@ -347,14 +345,14 @@ namespace OPS.Pipeline.AlignmentServer
                 if (!skip)
                 {
                     LogVerbose("requesting feature matches for overlapping image pair {0}", pairName);
-                    WorkerQueue.Enqueue(new MatchImagesMessage(options.ProjectName)
+                    EnqueueToWorkers(new MatchImagesMessage(options.ProjectName)
                     {
-                            ModelImageUrl = modelUrl,
-                            ModelFeaturesGuid = modelObs.FeaturesGuid,
-                            ModelFrameName = modelObs.FrameName,
-                            DataImageUrl = dataUrl,
-                            DataFeaturesGuid = dataObs.FeaturesGuid,
-                            DataFrameName = dataObs.FrameName,
+                        ModelImageUrl = modelUrl,
+                        ModelFeaturesGuid = modelObs.FeaturesGuid,
+                        ModelFrameName = modelObs.FrameName,
+                        DataImageUrl = dataUrl,
+                        DataFeaturesGuid = dataObs.FeaturesGuid,
+                        DataFrameName = dataObs.FrameName,
                     });
                     nr++;
                 }

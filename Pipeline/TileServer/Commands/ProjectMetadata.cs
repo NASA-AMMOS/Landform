@@ -1,12 +1,12 @@
-using CommandLine;
-using log4net;
-using OPS.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CommandLine;
+using log4net;
+using OPS.Util;
 
 namespace OPS.Pipeline.TileServer
 {
@@ -15,6 +15,9 @@ namespace OPS.Pipeline.TileServer
     {       
         [Value(0, Required = true, HelpText = "Project Name")]
         public string ProjectName { get; set; }
+
+        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
+        public bool Local { get; set; }
     }
 
     class SanitizedInput
@@ -37,29 +40,31 @@ namespace OPS.Pipeline.TileServer
         public string OutputUrl;
     }
 
-    public class ProjectMetadata : CloudPipeline
+    public class ProjectMetadata
     {
         private ProjectMetadataOptions options;
+        private PipelineCore pipeline;
 
-        public ProjectMetadata(ProjectMetadataOptions options) : base(options, queuePrefix: "tiling")
+        public ProjectMetadata(ProjectMetadataOptions options)
         {
             this.options = options;
+            pipeline = TileServerCommands.MakePipeline(options, options.Local);
         }
 
         public int Run()
         {
-            var project = TilingProject.Find(this, options.ProjectName);
+            var project = TilingProject.Find(pipeline, options.ProjectName);
 
             if (project == null)
             {
-                LogError("project \"{0}\" not found", options.ProjectName);
+                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
                 return 1; //argument error
             }
 
             var md = new Metadata();
             md.Project = project;
 
-            var inputs = TilingInput.Find(this, project).ToList();
+            var inputs = TilingInput.Find(pipeline, project).ToList();
             var sanitizedInputs = new List<SanitizedInput>();
             foreach (var input in inputs)
             {
@@ -68,8 +73,8 @@ namespace OPS.Pipeline.TileServer
                 {
                     var sanitizedInput = new SanitizedInput {
                         Name = input.Name,
-                        MeshUrl = ConvertS3UrlToHttps(input.MeshUrl),
-                        ImageUrl = ConvertS3UrlToHttps(input.ImageUrl),
+                        MeshUrl = CloudPipeline.ConvertS3UrlToHttps(input.MeshUrl),
+                        ImageUrl = CloudPipeline.ConvertS3UrlToHttps(input.ImageUrl),
                         Processed = input.Chunked
                     };
                     if (input.Chunked)
@@ -85,7 +90,7 @@ namespace OPS.Pipeline.TileServer
 
             if (project.TilesDefined)
             {
-                var nodes = TilingNode.Find(this, project).ToList();
+                var nodes = TilingNode.Find(pipeline, project).ToList();
                 md.NumNodes = nodes.Count;
 
                 int numProcessed = 0;
@@ -100,7 +105,8 @@ namespace OPS.Pipeline.TileServer
                 md.NumProcessedNodes = numProcessed;
             }
 
-            md.OutputUrl = ConvertS3UrlToHttps(GetStorageUrl("www", project.Name, "tileset.json"));
+            md.OutputUrl =
+                CloudPipeline.ConvertS3UrlToHttps(pipeline.GetStorageUrl("www", project.Name, "tileset.json"));
 
             var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNames" };
             Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
