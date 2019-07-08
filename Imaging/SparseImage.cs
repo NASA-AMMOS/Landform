@@ -117,7 +117,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="filename"></param>
         /// <param name="chunkSize"></param>
-        public SparseImage(string filename, IImageConverter converter, int chunkSize = 1024, bool useCache = false, bool diskBack = false, int cacheSize = 10000, bool initializeChunksOnDisk = false) : base(0,0,0)
+        public SparseImage(string filename, IImageConverter converter, int chunkSize = 1024, bool useCache = false, bool diskBack = false, int cacheSize = 10000) : base(0,0,0)
         {
             this.chunkSize = chunkSize;
             this.converter = converter;
@@ -141,11 +141,6 @@ namespace OPS.Imaging
             } else
             {
                 Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
-            }
-
-            if ((!useCache || diskBack) && initializeChunksOnDisk)
-            {
-                Partition(filename);
             }
         }
 
@@ -201,26 +196,6 @@ namespace OPS.Imaging
                 {
                     Image chunk = largeImage.Crop(r, c, Math.Min(largeImage.Width - c, chunkSize), Math.Min(largeImage.Height - r,chunkSize));
                     Images[r / chunkSize, c / chunkSize] = chunk;
-                }
-            }
-        }
-
-        /// <summary>
-        /// Split an image into chunks with dimensions chunkSize without loading the full image into memory; chunks stored on disk for on demand loading.
-        /// </summary>
-        private void Partition(string filename)
-        {
-            ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
-            if (s.GetType() != typeof(GDALSerializer))
-            {
-                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
-            }
-            for (int r = 0; r <= Height / chunkSize; r++)
-            {
-                for (int c = 0; c <= Width / chunkSize; c++)
-                {
-                    Image chunk = ((GDALSerializer)s).PartialRead(filename, c * chunkSize, r * chunkSize, Math.Min(Width - c * chunkSize, chunkSize), Math.Min(Height - r * chunkSize, chunkSize), converter);
-                    SaveChunk<byte>(chunk, CreateFileName(r, c, filename, extension));
                 }
             }
         }
