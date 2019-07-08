@@ -28,17 +28,19 @@ namespace OPS.Util
         private int _capacity;
         private string _tempdir;
 
+        private Action<TValue, string> _save;
+        private Func<TKey, string> _keyToString;
+
         public bool DiskBacked
         {
-            get { return _save != null; }
+            get { return _save != null && _keyToString != null; }
         }
 
-        private Action<TValue, TKey, string> _save;
         private void flush(TKey key, TValue obj)
         {
             if (_save != null)
             {
-                _save(obj, key, _tempdir);
+                _save(obj, Path.Combine(_tempdir, _keyToString(key)));
             } else
             {
                 throw new Exception("LRUCache failed to flush.");
@@ -53,13 +55,17 @@ namespace OPS.Util
             get { return Values.Count; }
         }
 
-        public LRUCache(int capacity, string workingDir="", Action<TValue, TKey, string> saveFunc = null)
+        public LRUCache(int capacity, Action<TValue, string> flush = null, Func<TKey, string> keyToString = null)
         {
-            this._save = saveFunc;
-            if(saveFunc != null)
+            this._save = flush;
+            this._keyToString = keyToString;
+            if(flush == null && keyToString != null || flush != null && keyToString == null)
             {
-                _tempdir = workingDir + "/tmp" + DateTime.Now.ToString("hmmsstt") + "/";
-                Directory.CreateDirectory(_tempdir);
+                throw new Exception("LRU Cache needs both TKey to filename and save TValue functions to back to disk. Set both null to use in memory cache.");
+            }
+            if(flush != null && keyToString != null)
+            {
+                _tempdir = TemporaryFile.GetTempSubdir();
             }
             if (capacity < 1)
             {
@@ -78,13 +84,45 @@ namespace OPS.Util
         {
             if (DiskBacked)
             {
-                Directory.Delete(_tempdir, true);
+                TemporaryFile.DeleteTempDirectory();
             }
         }
 
+        /// <summary>
+        /// Check if a key exists in memory
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
         public bool ContainsKey(TKey key)
         {
             return KeyToNode.ContainsKey(key);
+        }
+
+        /// <summary>
+        /// Check if a key exists on disk
+        /// </summary>
+        /// <returns></returns>
+        public bool ContainsKeyOnDisk(TKey key)
+        {
+            return DiskBacked && File.Exists(Path.Combine(_tempdir, _keyToString(key)));
+        }
+
+        /// <summary>
+        /// Load a key value pair back into cache memory if it has been flushed to disk.
+        /// /// </summary>
+        /// <param name="key"></param>
+        /// <param name="load"></param>
+        public void EnsureLoaded(TKey key, Func<string, TValue> load)
+        {
+            if(!ContainsKeyOnDisk(key))
+            {
+                throw new KeyNotFoundException();
+            }
+            if (!ContainsKey(key))
+            {
+                TValue val = load(_keyToString(key));
+                Add(key, val);
+            }
         }
 
         /// <summary>

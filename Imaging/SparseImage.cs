@@ -30,29 +30,46 @@ namespace OPS.Imaging
         protected int chunkSize;
 
         private string Filename {
-            get { return baseUrl + extension; }            
+            get { return baseUrl + extension; }
         }
 
-        private Action<Image, Vector2, string> getSaveFunction()
-        {
-            return new Action<Image, Vector2, string>((img, rc, path) =>
+        private const string CHUNK_PREFIX = "chunk";
+
+        private Func<Vector2, string> GetChunkNameFunc() {
+            return new Func<Vector2, string>((rc) =>
             {
-                SaveChunk<Byte>(img, CreateFileName((int)rc.X, (int)rc.Y, path, extension));
+                return CreateFileName((int)rc.X, (int)rc.Y, CHUNK_PREFIX, extension);
             });
         }
 
-/// <summary>
-/// Contructs a SparseImage with baseUrl and extension of chunk images to load and populate the SparseImage array as needed.
-/// </summary>
-/// <param name="bands">Number of bands in original image</param>
-/// <param name="width">Width of original image</param>
-/// <param name="height">Height of original image</param>
-/// <param name="baseUrl">Base URL of chunk images</param>
-/// <param name="extension">Extention of chunk image file (including ".")</param>
-/// <param name="chunkSize">Width and height of chunks</param>
-/// <param name="loader">Function to load chunks (default Image.Load)</param>
-/// <param name="saver">Function to save chunks (default Image.Save)</param>
-public SparseImage(int bands, int width, int height, string baseUrl, string extension, int chunkSize = 256, bool useCache = false, bool diskBack = false, int cacheSize = 5000) : base(0, 0, 0)
+        private Action<Image, string> GetSaveFunc()
+        {
+            return new Action<Image, string>((img, fn) =>
+            {
+                SaveChunk<Byte>(img, fn);
+            });
+        }
+
+        private Func<string, Image> GetLoadFunc()
+        {
+            return new Func<string, Image>((fn) =>
+            {
+                return LoadChunk(fn);
+            });
+        }
+
+        /// <summary>
+        /// Contructs a SparseImage with baseUrl and extension of chunk images to load and populate the SparseImage array as needed.
+        /// </summary>
+        /// <param name="bands">Number of bands in original image</param>
+        /// <param name="width">Width of original image</param>
+        /// <param name="height">Height of original image</param>
+        /// <param name="baseUrl">Base URL of chunk images</param>
+        /// <param name="extension">Extention of chunk image file (including ".")</param>
+        /// <param name="chunkSize">Width and height of chunks</param>
+        /// <param name="loader">Function to load chunks (default Image.Load)</param>
+        /// <param name="saver">Function to save chunks (default Image.Save)</param>
+        public SparseImage(int bands, int width, int height, string baseUrl, string extension, int chunkSize = 256, bool useCache = false, bool diskBack = false, int cacheSize = 5000) : base(0, 0, 0)
         {
             this.isNewImage = true;
             this.useCache = useCache;
@@ -66,7 +83,7 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
             this.chunkSize = chunkSize;
             if (useCache)
             {
-                ChunkCache = new LRUCache<Vector2, Image>(cacheSize, Path.GetDirectoryName(Filename), diskBack ? getSaveFunction() : null);
+                ChunkCache = new LRUCache<Vector2, Image>(cacheSize, diskBack ? GetSaveFunc() : null, diskBack ? GetChunkNameFunc() : null);
             }
             else
             {
@@ -120,7 +137,7 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
 
             if (useCache)
             {
-                this.ChunkCache = new LRUCache<Vector2, Image>(cacheSize, Path.GetDirectoryName(filename), diskBack ? getSaveFunction() : null);
+                this.ChunkCache = new LRUCache<Vector2, Image>(cacheSize, diskBack ? GetSaveFunc() : null, diskBack ? GetChunkNameFunc() : null);
             } else
             {
                 Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
@@ -243,7 +260,8 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
                 {
                     chunk = ChunkCache[new Vector2(rowIndex, colIndex)];
 
-                } else {
+                } else
+                {
                     chunk = Images[rowIndex, colIndex];
                 }
                 chunk[band, (row % chunkSize), (column % chunkSize)] = value;
@@ -252,17 +270,15 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
 
         void EnsureChunkLoaded(int rowIndex, int colIndex)
         {
-            string chunkName = CreateFileName(rowIndex, colIndex, baseUrl, extension);
             Image chunk = null;
             if (useCache)
             {
                 Vector2 key = new Vector2(rowIndex, colIndex);
                 if (!ChunkCache.ContainsKey(key))
-                {
-                    
-                    if (diskBack && File.Exists(chunkName))
+                {                  
+                    if (diskBack && ChunkCache.ContainsKeyOnDisk(key))
                     {
-                        chunk = LoadChunk(chunkName);
+                        ChunkCache.EnsureLoaded(key, GetLoadFunc());
                     }
                     else if (isNewImage)
                     {   
@@ -285,6 +301,7 @@ public SparseImage(int bands, int width, int height, string baseUrl, string exte
             }
             else
             {
+                string chunkName = CreateFileName(rowIndex, colIndex, baseUrl, extension);
                 if (Images[rowIndex, colIndex] == null)
                 {
                     if(File.Exists(chunkName))
