@@ -135,6 +135,25 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Creates a mask using the provided image. Zero valued pixels in that image are valid, non-zero, invalid.
+        /// If the provided image has more than one band, the first band will be used
+        /// </summary>
+        public void CreateMask(Image mask)
+        {
+            if (mask.Width != this.Width ||
+               mask.Height != this.Height)
+            {
+                throw new ImageException("mask resolution must match image resolution");
+            }
+
+            this.Mask = new bool[Width * Height];
+
+            for (int i = 0; i < this.Mask.Length; i++)
+            {
+                this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? false : true;
+            }
+        }
+        /// <summary>
         /// Mask any pixels in this image that are masked in other.
         /// Both images must be the same size.
         /// Adds mask to this image if it doesn't already have one.
