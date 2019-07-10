@@ -135,10 +135,12 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Creates a mask using the provided image. Zero valued pixels in that image are valid, non-zero, invalid.
+        /// Creates a mask using the provided image.
+        /// In the normal case: Zero valued pixels are valid, non-zero pixels are invalid.
+        /// In the inverted case: Zero value pixels are invalid, non-zero are valid
         /// If the provided image has more than one band, the first band will be used
         /// </summary>
-        public void CreateMask(Image mask)
+        public void CreateMask(Image mask, bool inverted=false)
         {
             if (mask.Width != this.Width ||
                mask.Height != this.Height)
@@ -148,9 +150,19 @@ namespace OPS.Imaging
 
             this.Mask = new bool[Width * Height];
 
-            for (int i = 0; i < this.Mask.Length; i++)
+            if (inverted)
             {
-                this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? false : true;
+                for (int i = 0; i < this.Mask.Length; i++)
+                {
+                    this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? true : false;
+                }
+            }
+            else
+            {
+                for (int i = 0; i < this.Mask.Length; i++)
+                {
+                    this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? false : true;
+                }
             }
         }
         /// <summary>
