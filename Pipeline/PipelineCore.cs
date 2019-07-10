@@ -36,6 +36,9 @@ namespace OPS.Pipeline
 
         [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
         public bool SingleThreaded { get; set; }
+
+        [Option(Default = null, HelpText = "URL to the directory with user generated masks")]
+        public string UserMasksDirectory { get; set; }
     }
 
     /**
@@ -128,6 +131,11 @@ namespace OPS.Pipeline
 
             this.StorageUrlWithVenue = this.StorageUrl + "/" + this.Venue;
 
+            if(!string.IsNullOrEmpty(Options.UserMasksDirectory))
+            {
+                Options.UserMasksDirectory = StringHelper.NormalizeSlashes(Options.UserMasksDirectory);
+            }
+
             if (logger != null)
             {
                 this.Logger = logger;
@@ -178,18 +186,70 @@ namespace OPS.Pipeline
         public Image LoadImage(string url, IImageConverter converter = null)
         {
             if (imageCache.ContainsKey(url)) return imageCache[url];
+
+            Image image = null;
             try
             {
                 string f = GetImageFile(url);
-                var image = converter != null ? Image.Load(f, converter) : Image.Load(f);
+                image = converter != null ? Image.Load(f, converter) : Image.Load(f);
                 imageCache[url] = image;
-                return image;
+               
             }
             catch (Exception ex)
             {
                 imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
                 throw new IOException(string.Format("error loading {0}: {1}", url, ex.Message), ex);
             }
+
+            //apply an optional user generated mask to the existing image
+            if(!string.IsNullOrEmpty(Options.UserMasksDirectory))
+            {
+                try
+                {
+                    string fileName = url.Substring(url.LastIndexOf('/') + 1);
+                    var maskUrls = SearchFiles(Options.UserMasksDirectory + "/", fileName + "*");
+                    if (maskUrls.Count() != 0)
+                    {
+                        if (image.HasMask)
+                        {
+                            this.LogWarn("overwriting image mask with user generated mask for image {0}", fileName);
+                        }
+
+                        Image mask = null;
+                        string maskUrl = maskUrls.First();
+                        if (imageCache.ContainsKey(maskUrl))
+                        {
+                            mask = imageCache[maskUrl];
+                        }
+                        else
+                        {
+                            string f = GetImageFile(maskUrl);
+                            mask = Image.Load(f);
+                            imageCache[maskUrl] = mask;
+                        }
+
+                        if (mask != null)
+                        {
+                            if (mask.Width != image.Width ||
+                                mask.Height != image.Height)
+                            {
+                                this.LogWarn("Skipping user generated mask for image {0} because resolution doesn't match", fileName);
+                            }
+                            else
+                            {
+                                image.CreateMask(mask);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
+                    throw new IOException(string.Format("error loading user generated mask for {0}: {1}", url, ex.Message), ex);
+                }
+            }
+
+            return image;
         }
 
         public Exception GetImageLoadException(string url)
