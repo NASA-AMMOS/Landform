@@ -76,7 +76,7 @@ namespace OPS.Pipeline.MeshWorker
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, bool noPriors, string onlyForCameras = null, bool useCleverCombine=false, bool allowMastcam=false)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, bool noPriors, string onlyForCameras = null, bool useCleverCombine=false, bool allowMastcam=false, int decimate = 1)
         {
             pointBounds = new BoundingBox();
            
@@ -124,7 +124,7 @@ namespace OPS.Pipeline.MeshWorker
                                     (int)(100 * idx / (float)(observations.Count - 1)), obs.Points.FrameName);
 
                 var mesh = Meshing.BuildPointCloud(pipeline, masker, obs, frameCache, outputFrame,
-                                                   scaleNormalsByConfidence: true);
+                                                   scaleNormalsByConfidence: true, decimate: decimate);
                 if (mesh == null)
                 {
                     pipeline.LogError("failed to build pointcloud for {0}", obs.Name);

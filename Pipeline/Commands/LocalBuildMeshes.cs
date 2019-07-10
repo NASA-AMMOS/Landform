@@ -121,6 +121,9 @@ namespace OPS.Pipeline
 
         [Option(Required = false, HelpText = "allows you to skip generation of the tileset to test postprocessing and upload")]
         public string CachedLeavesPath { get; set; }
+
+        [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
+        public int Decimate{ get; set; }
     }
 
     public class LocalBuildMeshes
