@@ -55,6 +55,15 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 1000000, HelpText = "Dem values larger than this will be ignored")]
         public float DEMMaxFilter { get; set; }
 
+        [Option(Required = false, Default = -1, HelpText = "Output in sitedrive frame together with OutputDriveFrame")]
+        public int OutputSiteFrame { get; set; }
+
+        [Option(Required = false, Default = -1, HelpText = "Output in sitedrive frame together with OutputSiteFrame")]
+        public int OutputDriveFrame { get; set; }
+
+        [Option(Required =false, Default = -1, HelpText = "Radius in meters around origin to build mesh")]
+        public float Radius { get; set; }
+
         // TODO: Skirt option?
     }
 
@@ -62,9 +71,32 @@ namespace OPS.Pipeline
     {
         DEM2MeshOptions options;
 
+        bool useSiteDriveFame;
+        //x = col, y = row
+        Vector3 col_row_offset;
+        double zOffset;
+
         public DEM2Mesh(DEM2MeshOptions options)
         {
             this.options = options;
+            if(options.OutputSiteFrame != -1 && options.OutputDriveFrame == -1 || options.OutputSiteFrame == -1 && options.OutputDriveFrame != -1)
+            {
+                throw new ArgumentException("Dem2Mesh requires both site and drive to output in a sitedrive frame");
+            }
+            if(options.OutputDriveFrame != -1)
+            {
+                useSiteDriveFame = true;
+                int site = options.OutputSiteFrame;
+                int drive = options.OutputDriveFrame;
+                MSLPlaces places = new MSLPlaces();
+                places.GetEstimatedLatLon(new SiteDrive(site, drive), out Vector2 latlon);
+                GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
+                col_row_offset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
+                zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);
+            } else
+            {
+                useSiteDriveFame = false;
+            }
         }
 
         Func<Vertex, DelaunayPoint> vertToDelaunay = v =>
@@ -391,7 +423,7 @@ namespace OPS.Pipeline
             //Read in the dem, in chunks if too large
             Image dem = null;
             bool useHashForMask;
-            if((long)width * (long)height > MAX_SINGLE_CHUNK_SIZE * MAX_SINGLE_CHUNK_SIZE)
+            if((long)width * (long)height > MAX_SINGLE_CHUNK_SIZE * MAX_SINGLE_CHUNK_SIZE || options.Radius != -1)
             {
                 dem = new SparseImage(options.InputDem, ImageConverters.PassThrough, useCache: true, chunkSize: 1024, cacheSize: 100, diskBack: true);
                 useHashForMask = true;
@@ -410,7 +442,13 @@ namespace OPS.Pipeline
             //No decimation:
             //  Convert the entire dem to xyz's with mask
             //  Build the mesh by connecting neighboring points with a regular grid of tris
-            if (options.Error == 0)
+            if(options.Error == 0 && options.Radius == -1 && useSiteDriveFame)
+            {
+                //TODO: Refactor building full mesh to make this easy to add (likely avoid ConvertRNG)
+                throw new NotImplementedException("Building full mesh in sitedrive frame not yet supported");
+            }
+
+            if (options.Error == 0 && options.Radius != -1 && !useSiteDriveFame)
             {
                 //TODO: check on this function
                 Image xyz = null;
@@ -431,7 +469,7 @@ namespace OPS.Pipeline
                     mask[0, coord.Row, coord.Col] = value >= options.DEMMinFilter && value <= options.DEMMaxFilter ? 1 : 0;
                 }
                 mesh = Meshing.BuildOrganizedMesh(xyz, mask:mask);
-            }
+            } 
             //Build decimated mesh by iterative sampling:
             // Start with two tris that connect the dem corners
             // Test error and sample regions that need subdividing (currently quad scheme)
@@ -447,18 +485,62 @@ namespace OPS.Pipeline
                     Meshing.AddMaskForMissingConstant(dem, dem, parser);
                 }
                 List<Vector2> rowCols;
-                rowCols = FindCorners(dem, parser).ToList();
                 //This mask is only used to avoid resampling the same point. Invalid point data is masked out by the GetXYZ function (computed lazily)
-                Mask mask = new Mask(dem.Width, dem.Height, useHashForMask);
-                rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
-                
+                Mask mask;
+                if (useSiteDriveFame && options.Radius != -1)
+                {
+                    //Mesh subset of dem around sitedrive
+                    int pixelRadius = (int)(options.Radius / options.MetersPerPixel);
+                    int baseC = (int) Math.Max(col_row_offset.X - pixelRadius, 0);
+                    int baseR = (int) Math.Max(col_row_offset.Y - pixelRadius, 0);
+                    int pixelWidth = (int)Math.Min(col_row_offset.X + pixelRadius, dem.Width) - baseC;
+                    int pixelHeight = (int)Math.Min(col_row_offset.Y + pixelRadius, dem.Height) - baseR;
+                    //Always use hashset to avoid building full mask for partial dem
+                    mask = new Mask(dem.Width, dem.Height, true);             
+                    if (options.Error != 0)
+                    {
+                        rowCols = FindCorners(dem, parser, baseR, baseC, pixelWidth-1, pixelHeight-1).ToList();
+                        rowCols.AddRange(Split(rowCols, baseR, baseC, pixelWidth, pixelHeight, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                        //Split allows sampling outside the bounds to smooth density transitions, so filter to our restricted bounds at the end
+                        rowCols = rowCols.Where((rc) => rc.X >= baseC && rc.X < baseC + pixelWidth && rc.Y >= baseR && rc.Y < baseR + pixelHeight).ToList();
+                    } else
+                    {
+                        rowCols = new List<Vector2>();
+                        for(int r = 0; r < pixelHeight; r++)
+                        {
+                            for(int c = 0; c < pixelWidth; c++)
+                            {
+                                rowCols.Add(new Vector2(baseC + c, baseR + r));
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    //Mesh the full dem
+                    mask = new Mask(dem.Width, dem.Height, useHashForMask);
+                    rowCols = FindCorners(dem, parser).ToList();
+                    rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                }
                 //Construct vertices
                 var verts = rowCols.Select(rc => {
                     var v = new Vertex(GetXYZ(dem, null, (int)rc.Y, (int)rc.X, parser).Value);
+                    if(useSiteDriveFame)
+                    {
+                        //Shift image origin
+                        v.Position.X = v.Position.X - col_row_offset.X + (double)width / 2.0;
+                        v.Position.Y = v.Position.Y + col_row_offset.Y - (double)height / 2.0;
+                        //Flip Z and apply vertical offset
+                        v.Position.Z = zOffset - v.Position.Z;
+                        //Rotate xy plane to make +x northing
+                        double temp = v.Position.X;
+                        v.Position.X = v.Position.Y;
+                        v.Position.Y = temp;
+                    }
                     v.UV = dem.PixelToUV(rc);
                     return v;
                     }).ToArray();
-                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
+                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay, invertWinding : useSiteDriveFame);
             }
             string outputImage = null;
             if (options.InputOrthoImage != null)
