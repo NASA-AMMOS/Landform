@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,6 +26,26 @@ namespace OPS.Util
             }
         }
         private int _capacity;
+        private string _tempdir;
+
+        private Action<TValue, string> _save;
+        private Func<TKey, string> _keyToString;
+
+        public bool DiskBacked
+        {
+            get { return _save != null && _keyToString != null; }
+        }
+
+        private void flush(TKey key, TValue obj)
+        {
+            if (_save != null)
+            {
+                _save(obj, Path.Combine(_tempdir, _keyToString(key)));
+            } else
+            {
+                throw new Exception("LRUCache failed to flush.");
+            }
+        }
 
         /// <summary>
         /// Number of entries currently in the cache
@@ -40,8 +61,18 @@ namespace OPS.Util
             }
         }
 
-        public LRUCache(int capacity)
+        public LRUCache(int capacity, Action<TValue, string> flush = null, Func<TKey, string> keyToString = null)
         {
+            this._save = flush;
+            this._keyToString = keyToString;
+            if(flush == null && keyToString != null || flush != null && keyToString == null)
+            {
+                throw new Exception("LRU Cache needs both TKey to filename and save TValue functions to back to disk. Set both null to use in memory cache.");
+            }
+            if(flush != null && keyToString != null)
+            {
+                _tempdir = TemporaryFile.GetTempSubdir();
+            }
             if (capacity < 1)
             {
                 throw new ArgumentOutOfRangeException("capacity", capacity, "Capacity must be >= 1");
@@ -52,9 +83,52 @@ namespace OPS.Util
             KeyToNode = new ConcurrentDictionary<TKey, LinkedListNode<Entry>>();
         }
 
+        /// <summary>
+        /// Delete temporary files if needed
+        /// </summary>
+        ~LRUCache ()
+        {
+            if (DiskBacked)
+            {
+                TemporaryFile.DeleteTempDirectory();
+            }
+        }
+
+        /// <summary>
+        /// Check if a key exists in memory
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
         public bool ContainsKey(TKey key)
         {
             return KeyToNode.ContainsKey(key);
+        }
+
+        /// <summary>
+        /// Check if a key exists on disk
+        /// </summary>
+        /// <returns></returns>
+        public bool ContainsKeyOnDisk(TKey key)
+        {
+            return DiskBacked && File.Exists(Path.Combine(_tempdir, _keyToString(key)));
+        }
+
+        /// <summary>
+        /// Load a key value pair back into cache memory if it has been flushed to disk.
+        /// /// </summary>
+        /// <param name="key"></param>
+        /// <param name="load"></param>
+        public void EnsureLoaded(TKey key, Func<string, TValue> load)
+        {
+            if(!ContainsKeyOnDisk(key))
+            {
+                throw new KeyNotFoundException();
+            }
+            if (!ContainsKey(key))
+            {
+                TValue val = load(_keyToString(key));
+                Add(key, val);
+            }
         }
 
         /// <summary>
@@ -82,6 +156,7 @@ namespace OPS.Util
             if (!ContainsKey(key)) return false;
 
             var node = KeyToNode[key];
+            flush(key, node.Value.Value);
             lock (Values)
             {
                 Values.Remove(node);
@@ -151,6 +226,7 @@ namespace OPS.Util
                 while (Values.Count > Capacity)
                 {
                     var last = Values.Last;
+                    flush(last.Value.Key, last.Value.Value);
                     if (!KeyToNode.TryRemove(last.Value.Key, out var junk))
                     {
                         throw new Exception("it broke");

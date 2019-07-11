@@ -75,6 +75,8 @@ namespace OPS.Pipeline
             return p;
         };
 
+        private const long MAX_SINGLE_CHUNK_SIZE = 100000; //If input dem width x height is larger than this value squared, chunk the input and use SparseImage w/ cache to limit memory consumption
+
         /// <summary>
         /// Given Image dem, find corners that are not masked out. Optionally enter top left corner and a size parameter to get corners of a subregion.
         /// May not return a full set of vertices (potentially none) if image heavily masked
@@ -207,7 +209,7 @@ namespace OPS.Pipeline
         /// <param name="sampleScale"></param>
         /// <param name="rand"></param>
         /// <returns></returns>
-        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Image mask, PDSParser parser, int sampleNum, int testNum, double sampleScale, Random rand)
+        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Mask mask, PDSParser parser, int sampleNum, int testNum, double sampleScale, Random rand)
         {
             //Mesh the current set of vertices
             Mesh mesh = DelaunayTriangulation.Triangulate(rowCols.Select(rc => new Vertex(GetXYZ(dem,null,(int)rc.Y,(int)rc.X,parser).Value)).ToArray(), vertToDelaunay);
@@ -338,7 +340,7 @@ namespace OPS.Pipeline
         /// <param name="parser"></param>
         /// <param name="filterValues"></param>
         /// <returns></returns>
-        Vector3? GetXYZ(Image dem, Image mask, int row, int col, PDSParser parser, bool filterValues=true)
+        Vector3? GetXYZ(Image dem, Mask mask, int row, int col, PDSParser parser, bool filterValues=true)
         {
             if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || dem.IsInvalid(row, col)) //respect input image mask if it has one
             {
@@ -351,11 +353,11 @@ namespace OPS.Pipeline
                 {
                     if (mask != null)
                     {
-                        if (mask[0, row, col] == 0)
+                        if (!mask.isValid(row, col))
                         {
                             return null;
                         }
-                        mask[0, row, col] = 0; //Prevent this point from being sampled again
+                        mask.setInvalid(row, col); //Prevent this point from being sampled again
                     }
                     return dem.CameraModel.Unproject(new Vector2(col, row), -1 * dem[0, row, col]);
                 }
@@ -377,8 +379,27 @@ namespace OPS.Pipeline
             {
                 this.options.OutputPath = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.MeshFormat);
             }
-            
-            Image dem = Image.Load(options.InputDem, ImageConverters.PassThrough);
+
+            //TODO: Get Metadata without requiring GDAL
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(options.InputDem));
+            if (s.GetType() != typeof(GDALSerializer))
+            {
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+            ((GDALSerializer)s).GetMetadata(options.InputDem, out int bands, out int width, out int height);
+
+            //Read in the dem, in chunks if too large
+            Image dem = null;
+            bool useHashForMask;
+            if((long)width * (long)height > MAX_SINGLE_CHUNK_SIZE * MAX_SINGLE_CHUNK_SIZE)
+            {
+                dem = new SparseImage(options.InputDem, ImageConverters.PassThrough, useCache: true, chunkSize: 1024, cacheSize: 100, diskBack: true);
+                useHashForMask = true;
+            } else
+            {
+                dem = Image.Load(options.InputDem, ImageConverters.PassThrough);
+                useHashForMask = false;
+            }    
             
             if(dem.CameraModel == null)
             {
@@ -428,14 +449,7 @@ namespace OPS.Pipeline
                 List<Vector2> rowCols;
                 rowCols = FindCorners(dem, parser).ToList();
                 //This mask is only used to avoid resampling the same point. Invalid point data is masked out by the GetXYZ function (computed lazily)
-                Image mask = new Image(1, dem.Width, dem.Height);
-                for(int r = 0; r < mask.Height; r++)
-                {
-                    for(int c = 0; c < mask.Width; c++)
-                    {
-                        mask[0, r, c] = 1;
-                    }
-                }
+                Mask mask = new Mask(dem.Width, dem.Height, useHashForMask);
                 rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                 
                 //Construct vertices
