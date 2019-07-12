@@ -391,7 +391,10 @@ namespace OPS.Pipeline
                         }
                         mask.setInvalid(row, col); //Prevent this point from being sampled again
                     }
-                    return dem.CameraModel.Unproject(new Vector2(col, row), -1 * dem[0, row, col]);
+                    Vector3 ret = dem.CameraModel.Unproject(new Vector2(row, col), -1 * value);
+                    ret.X *= -1;
+                    ret.Y *= -1;
+                    return ret;
                 }
             }
             return null;
@@ -448,10 +451,21 @@ namespace OPS.Pipeline
                 throw new NotImplementedException("Building full mesh in sitedrive frame not yet supported");
             }
 
-            if (options.Error == 0 && options.Radius != -1 && !useSiteDriveFame)
+            PDSParser parser = null;
+            dem.ScaleValues(options.VerticalScale);
+            if (dem.Metadata.GetType() == typeof(PDSMetadata))
+            {
+                parser = new PDSParser((PDSMetadata)dem.Metadata);
+                Meshing.CheckType(parser, RoverProductType.Range, "ConvertRange");
+                Meshing.CheckCameraCenter(parser, dem, "ConvertRNG");
+                Meshing.AddMaskForMissingConstant(dem, dem, parser);
+            }
+
+            if (options.Error == 0 && options.Radius == -1 && !useSiteDriveFame)
             {
                 //TODO: check on this function
                 Image xyz = null;
+                Image mask = new Image(1, dem.Width, dem.Height);
 
                 if (dem.Bands == 3)
                 {
@@ -459,14 +473,24 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    dem.ScaleValues(options.VerticalScale);
-                    xyz = Meshing.ConvertRNG(dem, null);
-                }
-                Image mask = new Image(1, dem.Width, dem.Height);
-                foreach (var coord in dem.Coordinates(true))
-                {
-                    var value = dem[coord.Band, coord.Row, coord.Col];
-                    mask[0, coord.Row, coord.Col] = value >= options.DEMMinFilter && value <= options.DEMMaxFilter ? 1 : 0;
+                    xyz = new Image(3, dem.Width, dem.Height);
+                    for (int row = 0; row < dem.Height; row++)
+                    {
+                        for (int col = 0; col < dem.Width; col++)
+                        {
+                            Vector3? v = GetXYZ(dem, null, row, col, parser);
+                            if(v.HasValue)
+                            {
+                                xyz[0, row, col] = (float)v.Value.X;
+                                xyz[1, row, col] = (float)v.Value.Y;
+                                xyz[2, row, col] = (float)v.Value.Z;
+                                mask[0, row, col] = 1;
+                            } else
+                            {
+                                mask[0, row, col] = 0;
+                            }
+                        }
+                    }
                 }
                 mesh = Meshing.BuildOrganizedMesh(xyz, mask:mask);
             } 
@@ -475,20 +499,17 @@ namespace OPS.Pipeline
             // Test error and sample regions that need subdividing (currently quad scheme)
             else
             {
-                PDSParser parser = null;
-                dem.ScaleValues(options.VerticalScale);
-                if (dem.Metadata.GetType() == typeof(PDSMetadata))
-                {
-                    parser = new PDSParser((PDSMetadata)dem.Metadata);
-                    Meshing.CheckType(parser, RoverProductType.Range, "ConvertRange");
-                    Meshing.CheckCameraCenter(parser, dem, "ConvertRNG");
-                    Meshing.AddMaskForMissingConstant(dem, dem, parser);
-                }
                 List<Vector2> rowCols;
                 //This mask is only used to avoid resampling the same point. Invalid point data is masked out by the GetXYZ function (computed lazily)
                 Mask mask;
-                if (useSiteDriveFame && options.Radius != -1)
+                if (options.Radius != -1)
                 {
+                    if(!useSiteDriveFame)
+                    {
+                        //set origin to image center
+                        col_row_offset = new Vector3(width / 2.0, height/ 2.0, 0);
+                        zOffset = 0;
+                    }
                     //Mesh subset of dem around sitedrive
                     int pixelRadius = (int)(options.Radius / options.MetersPerPixel);
                     int baseC = (int) Math.Max(col_row_offset.X - pixelRadius, 0);
@@ -528,19 +549,15 @@ namespace OPS.Pipeline
                     if(useSiteDriveFame)
                     {
                         //Shift image origin
-                        v.Position.X = v.Position.X - col_row_offset.X + (double)width / 2.0;
-                        v.Position.Y = v.Position.Y + col_row_offset.Y - (double)height / 2.0;
-                        //Flip Z and apply vertical offset
+                        v.Position.X = v.Position.X + col_row_offset.Y - (double)width / 2.0;
+                        v.Position.Y = v.Position.Y - col_row_offset.X + (double)height / 2.0;
+                        //Apply vertical offset
                         v.Position.Z = zOffset - v.Position.Z;
-                        //Rotate xy plane to make +x northing
-                        double temp = v.Position.X;
-                        v.Position.X = v.Position.Y;
-                        v.Position.Y = temp;
-                    }
+                    }                
                     v.UV = dem.PixelToUV(rc);
                     return v;
                     }).ToArray();
-                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay, invertWinding : useSiteDriveFame);
+                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay, invertWinding : true);
             }
             string outputImage = null;
             if (options.InputOrthoImage != null)
