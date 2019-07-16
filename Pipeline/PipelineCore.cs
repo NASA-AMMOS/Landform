@@ -206,8 +206,7 @@ namespace OPS.Pipeline
             {
                 try
                 {
-                    string fileName = url.Substring(url.LastIndexOf('/') + 1);
-                    fileName = Path.GetFileNameWithoutExtension(fileName);
+                    string fileName = StringHelper.GetLastUrlPathSegment(url,true);
                     var maskUrls = SearchFiles(Options.UserMasksDirectory + "/", fileName + ".*");
                     if (maskUrls.Count() != 0)
                     {
