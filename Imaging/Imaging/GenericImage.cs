@@ -150,20 +150,11 @@ namespace OPS.Imaging
 
             this.Mask = new bool[Width * Height];
 
-            if (inverted)
+            bool valueForZero = inverted ? true : false;
+            for (int i = 0; i < this.Mask.Length; i++)
             {
-                for (int i = 0; i < this.Mask.Length; i++)
-                {
-                    this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? true : false;
-                }
-            }
-            else
-            {
-                for (int i = 0; i < this.Mask.Length; i++)
-                {
-                    this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? false : true;
-                }
-            }
+                this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? valueForZero : !valueForZero;
+            }         
         }
         /// <summary>
         /// Mask any pixels in this image that are masked in other.
