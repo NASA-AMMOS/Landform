@@ -150,6 +150,11 @@ namespace OPS.Pipeline.AlignmentServer
             return GetChildren(frame.Name);
         }
 
+        public bool ContainsFrame(string name)
+        {
+            return frames.ContainsKey(name);
+        }
+
         public Frame GetFrame(string name)
         {
             if (!frames.ContainsKey(name))
