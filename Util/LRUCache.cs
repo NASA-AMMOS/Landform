@@ -41,10 +41,7 @@ namespace OPS.Util
             if (_save != null)
             {
                 _save(obj, Path.Combine(_tempdir, _keyToString(key)));
-            } else
-            {
-                throw new Exception("LRUCache failed to flush.");
-            }
+            } 
         }
 
         /// <summary>
