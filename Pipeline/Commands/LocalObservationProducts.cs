@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using CommandLine;
 using log4net;
 using OPS.Util;
@@ -35,7 +36,7 @@ namespace OPS.Pipeline
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
 
-        [Option(HelpText = "Output coordinate frame: rover, sitedrive, or root", Default = "rover")]
+        [Option(HelpText = "Output coordinate frame: rover, sitedrive, a numeric sitedrive SSSSSDDDDD, or root", Default = "rover")]
         public string OutputFrame { get; set; }
 
         [Option(HelpText = "Don't reate meshes for mastcam observations", Default = false)]
@@ -221,7 +222,8 @@ namespace OPS.Pipeline
             masker = mission.GetMasker();
 
             var outputFrame = options.OutputFrame.ToLower().Trim();
-            if (!(new [] {"rover", "sitedrive", "root"}).Any(f => outputFrame == f))
+            bool outputToSpecificSiteDrive = (new Regex("\\d{10}")).IsMatch(outputFrame);
+            if (!(new [] {"rover", "sitedrive", "root"}).Any(f => outputFrame == f) && !outputToSpecificSiteDrive)
             {
                 pipeline.LogError("unknown output frame: " + outputFrame);
                 return 1;
@@ -299,6 +301,12 @@ namespace OPS.Pipeline
 
             var frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
+
+            if (outputToSpecificSiteDrive && !frameCache.ContainsFrame(outputFrame))
+            {
+                pipeline.LogError("sitedrive output frame not found: " + outputFrame);
+                return 1;
+            }
 
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload();
