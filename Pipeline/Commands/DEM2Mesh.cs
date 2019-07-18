@@ -55,11 +55,8 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = 1000000, HelpText = "Dem values larger than this will be ignored")]
         public float DEMMaxFilter { get; set; }
 
-        [Option(Required = false, Default = -1, HelpText = "Output in sitedrive frame together with OutputDriveFrame")]
-        public int OutputSiteFrame { get; set; }
-
-        [Option(Required = false, Default = -1, HelpText = "Output in sitedrive frame together with OutputSiteFrame")]
-        public int OutputDriveFrame { get; set; }
+        [Option(Required = false, Default = "", HelpText = "Output to sitedrive frame SSSSSDDDDD, default puts origin at dem center")]
+        public string OutputFrame { get; set; }
 
         [Option(Required =false, Default = -1, HelpText = "Radius in meters around origin to build mesh")]
         public float Radius { get; set; }
@@ -79,20 +76,20 @@ namespace OPS.Pipeline
         public DEM2Mesh(DEM2MeshOptions options)
         {
             this.options = options;
-            if(options.OutputSiteFrame != -1 && options.OutputDriveFrame == -1 || options.OutputSiteFrame == -1 && options.OutputDriveFrame != -1)
+            if(options.OutputFrame.Length == 10)
             {
-                throw new ArgumentException("Dem2Mesh requires both site and drive to output in a sitedrive frame");
-            }
-            if(options.OutputDriveFrame != -1)
-            {
-                useSiteDriveFame = true;
-                int site = options.OutputSiteFrame;
-                int drive = options.OutputDriveFrame;
-                MSLPlaces places = new MSLPlaces();
-                places.GetEstimatedLatLon(new SiteDrive(site, drive), out Vector2 latlon);
-                GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
-                col_row_offset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
-                zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);
+                int site = 0;
+                int drive = 0;
+                useSiteDriveFame = Int32.TryParse(options.OutputFrame.Substring(0, 5), out site) &&
+                                   Int32.TryParse(options.OutputFrame.Substring(5, 5), out drive);
+                if (useSiteDriveFame)
+                {
+                    MSLPlaces places = new MSLPlaces();
+                    places.GetEstimatedLatLon(new SiteDrive(site, drive), out Vector2 latlon);
+                    GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
+                    col_row_offset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
+                    zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);
+                }
             } else
             {
                 useSiteDriveFame = false;
@@ -557,7 +554,7 @@ namespace OPS.Pipeline
                     v.UV = dem.PixelToUV(rc);
                     return v;
                     }).ToArray();
-                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay, invertWinding : true);
+                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay, invertWinding : useSiteDriveFame);
             }
             string outputImage = null;
             if (options.InputOrthoImage != null)
