@@ -70,7 +70,7 @@ namespace OPS.Pipeline
 
         bool useSiteDriveFame;
         //x = col, y = row
-        Vector3 col_row_offset;
+        Vector3 colRowOffset;
         double zOffset;
 
         public DEM2Mesh(DEM2MeshOptions options)
@@ -87,7 +87,7 @@ namespace OPS.Pipeline
                     MSLPlaces places = new MSLPlaces();
                     places.GetEstimatedLatLon(new SiteDrive(site, drive), out Vector2 latlon);
                     GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
-                    col_row_offset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
+                    colRowOffset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
                     zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);
                 }
             } else
@@ -504,15 +504,15 @@ namespace OPS.Pipeline
                     if(!useSiteDriveFame)
                     {
                         //set origin to image center
-                        col_row_offset = new Vector3(width / 2.0, height/ 2.0, 0);
+                        colRowOffset = new Vector3(width / 2.0, height/ 2.0, 0);
                         zOffset = 0;
                     }
                     //Mesh subset of dem around sitedrive
                     int pixelRadius = (int)(options.Radius / options.MetersPerPixel);
-                    int baseC = (int) Math.Max(col_row_offset.X - pixelRadius, 0);
-                    int baseR = (int) Math.Max(col_row_offset.Y - pixelRadius, 0);
-                    int pixelWidth = (int)Math.Min(col_row_offset.X + pixelRadius, dem.Width) - baseC;
-                    int pixelHeight = (int)Math.Min(col_row_offset.Y + pixelRadius, dem.Height) - baseR;
+                    int baseC = (int) Math.Max(colRowOffset.X - pixelRadius, 0);
+                    int baseR = (int) Math.Max(colRowOffset.Y - pixelRadius, 0);
+                    int pixelWidth = (int)Math.Min(colRowOffset.X + pixelRadius, dem.Width) - baseC;
+                    int pixelHeight = (int)Math.Min(colRowOffset.Y + pixelRadius, dem.Height) - baseR;
                     //Always use hashset to avoid building full mask for partial dem
                     mask = new Mask(dem.Width, dem.Height, true);             
                     if (options.Error != 0)
@@ -546,8 +546,8 @@ namespace OPS.Pipeline
                     if(useSiteDriveFame)
                     {
                         //Shift image origin
-                        v.Position.X = v.Position.X + col_row_offset.Y - (double)width / 2.0;
-                        v.Position.Y = v.Position.Y - col_row_offset.X + (double)height / 2.0;
+                        v.Position.X = v.Position.X + colRowOffset.Y - (double)width / 2.0;
+                        v.Position.Y = v.Position.Y - colRowOffset.X + (double)height / 2.0;
                         //Apply vertical offset
                         v.Position.Z = zOffset - v.Position.Z;
                     }                
