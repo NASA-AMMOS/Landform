@@ -282,7 +282,12 @@ namespace OPS.Imaging
                     if(File.Exists(chunkName))
                     {
                         chunk = LoadChunk(chunkName);
-                    } else
+                    }
+                    else if (isNewImage)
+                    {
+                        chunk = new Image(Bands, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize));
+                    }
+                    else
                     {
                         ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
                         if (s.GetType() != typeof(GDALSerializer))
