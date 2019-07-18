@@ -38,8 +38,8 @@ namespace OPS.Geometry
             {
                 for(int c = 0; c < height; c++)
                 {
-                    double y = minY + c * yExtent / (height - 1);
-                    double x = minX + (width - r - 1) * xExtent / (width - 1);
+                    double y = minY + c * yExtent / (double)height;
+                    double x = minX + (width - r - 1) * xExtent / (double)width;
                     BarycentricPoint p = mo.UVToBarycentric(new Vector2(x, y));
                     if (p == null)
                     {
@@ -48,7 +48,7 @@ namespace OPS.Geometry
                     }
                     else
                     {
-                        heightmap[0, r, c] = (float)p.Position.Z;
+                        heightmap[0, r, c] = -1 * (float)p.Position.Z;
                         mask.setValid(r, c);
                     }
                 }

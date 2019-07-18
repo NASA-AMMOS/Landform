@@ -1401,7 +1401,6 @@ namespace OPS.Geometry
             return stats;
         }
     }
-    
 
     /// <summary>
     /// X, Y, or Z axis which the skirt is directed along

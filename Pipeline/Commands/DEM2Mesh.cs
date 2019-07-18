@@ -390,11 +390,8 @@ namespace OPS.Pipeline
                             return null;
                         }
                         mask.setInvalid(row, col); //Prevent this point from being sampled again
-                    }
-                    Vector3 ret = dem.CameraModel.Unproject(new Vector2(row, col), -1 * value);
-                    ret.X *= -1;
-                    ret.Y *= -1;
-                    return ret;
+                    }                 
+                    return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value);
                 }
             }
             return null;
@@ -461,9 +458,8 @@ namespace OPS.Pipeline
                 Meshing.AddMaskForMissingConstant(dem, dem, parser);
             }
 
-            if (options.Error == 0 && options.Radius == -1 && !useSiteDriveFame)
+            if (options.Error == 0 && options.Radius == -1)
             {
-                //TODO: check on this function
                 Image xyz = null;
                 Image mask = new Image(1, dem.Width, dem.Height);
 
@@ -546,19 +542,31 @@ namespace OPS.Pipeline
                 //Construct vertices
                 var verts = rowCols.Select(rc => {
                     var v = new Vertex(GetXYZ(dem, null, (int)rc.Y, (int)rc.X, parser).Value);
-                    if(useSiteDriveFame)
-                    {
-                        //Shift image origin
-                        v.Position.X = v.Position.X + col_row_offset.Y - (double)width / 2.0;
-                        v.Position.Y = v.Position.Y - col_row_offset.X + (double)height / 2.0;
-                        //Apply vertical offset
-                        v.Position.Z = zOffset - v.Position.Z;
-                    }                
                     v.UV = dem.PixelToUV(rc);
                     return v;
                     }).ToArray();
-                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay, invertWinding : true);
+                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
             }
+
+            foreach (Vertex v in mesh.Vertices)
+            {
+                if (useSiteDriveFame)
+                {
+                    //Shift image origin
+                    v.Position.X = v.Position.X - col_row_offset.X + (double)width / 2.0;
+                    v.Position.Y = v.Position.Y + col_row_offset.Y - (double)height / 2.0;
+                    //Apply vertical offset
+                    v.Position.Z = v.Position.Z - zOffset;
+                }
+
+                //Invert Z
+                v.Position.Z *= -1;
+                //Swap X Y
+                double temp = v.Position.X;
+                v.Position.X = v.Position.Y;
+                v.Position.Y = temp;
+            }
+
             string outputImage = null;
             if (options.InputOrthoImage != null)
             {
