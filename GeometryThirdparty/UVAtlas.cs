@@ -3,7 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Sharp3DBinPacking;
 using log4net;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Geometry
 {
@@ -12,6 +14,18 @@ namespace OPS.Geometry
     /// </summary>
     public static class UVAtlas
     {
+        /// <summary>
+        /// Helper struct used when performing the bin-pack during naive atlasing
+        /// </summary>
+        private struct NaiveAtlasPackingTag
+        {
+            public Vector2 u0, u1, u2;
+            public int P0, P1, P2;
+        }
+
+        private const int CUBOID_MINIMUM_DIMENSION = 1;
+        private const int NAIVE_PACKING_BIN_DEPTH = 1;
+        private const int NAIVE_PACKING_BIN_WIEGHT = 0;
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(UVAtlas));
 
@@ -56,30 +70,247 @@ namespace OPS.Geometry
             }
             float[] outU, outV;
             int[] outVertexRemap;
-            UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
-            UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices, out outU, out outV, out indices, out outVertexRemap, maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+            UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? 
+                UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : 
+                UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
+
+            // attempt to create the atlas
+            UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.Atlas(
+                inX, inY, inZ, indices,
+                out outU, out outV, out indices, out outVertexRemap,
+                maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
             if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {
-                throw new UVAtlasException("Atlas not successful.  Return code: " + rc);
+                logger.Info("Using Naive atlasing on Leaf ");
+
+                NaiveAtlas(mesh, out outU, out outV, out indices, out outVertexRemap);
             }
             if (indices.Length % 3 != 0)
             {
                 throw new UVAtlasException("Atlas output indices not divisible by 3");
             }
+
+            // create a new mesh that will contain UV info
             Mesh result = new Mesh(hasUVs: true, hasNormals: mesh.HasNormals, hasColors: mesh.HasColors);
+
+            // add vertices to the new mesh
             for (int i = 0; i < outVertexRemap.Length; i++)
             {
                 var vert = new Vertex(mesh.Vertices[outVertexRemap[i]]);
-                vert.UV = new Microsoft.Xna.Framework.Vector2(outU[i], outV[i]);
+                vert.UV = new Vector2(outU[i], outV[i]);
                 result.Vertices.Add(vert);
             }
+
+            // specify faces of the new mesh
             for (int i = 0; i < indices.Length; i += 3)
             {
                 result.Faces.Add(new Face(indices[i], indices[i + 1], indices[i + 2]));
             }
+
             result.HasNormals = true;
             result.Clean();
             return result;
+        }
+
+        /// <summary>
+        /// Will do a Naive Atlas of a mesh - 'packs' the atlas based on bounding boxes of each individual triangle in the mesh. The resultant atlas / mesh
+        /// will essentially be a set of completely separate faces/triangles - no two triangles will share a single vertex. That is, a 'single' vertex will be repeated
+        /// in the vertex array as many times as there are faces that contain it - each 'repeated' instance will have the same position, but differnt UV coordinate
+        /// </summary>
+        /// <param name="mesh">mesh to be atlased</param>
+        /// <param name="outU">u-coordinate of the vertices of the atlased mesh</param>
+        /// <param name="outV">v-coordinate of the vertices of the atlased mesh</param>
+        /// <param name="outIndices">indeces whose sets of 3 entries correspond to the faces of the atlased mesh</param>
+        /// <param name="outVertexRemap">array mapping vertices of original mesh to those of the atlased mesh</param>
+        /// <returns></returns>
+        private static UVAtlasNET.UVAtlas.ReturnCode NaiveAtlas(
+            Mesh mesh, out float[] outU, out float[] outV, out int[] outIndices, out int[] outVertexRemap)
+        {
+            // go through all faces in mesh, make a tag for each
+            var tags = new NaiveAtlasPackingTag[mesh.Faces.Count];
+            double smallestUnscaledBoundingBoxDimension = Double.MaxValue;
+            for (int iFace = 0; iFace < mesh.Faces.Count; iFace++)
+            {
+                var face = mesh.Faces[iFace];
+                var tag = new NaiveAtlasPackingTag();
+
+                // determine side lengths
+                var p0Pos = mesh.Vertices[face.P0].Position;
+                var p1Pos = mesh.Vertices[face.P1].Position;
+                var p2Pos = mesh.Vertices[face.P2].Position;
+                var p0p1LengthSq = (p1Pos - p0Pos).LengthSquared();
+                var p1p2LengthSq = (p2Pos - p1Pos).LengthSquared();
+                var p2p0LengthSq = (p0Pos - p2Pos).LengthSquared();
+
+                // find longest side, align that side along horizontal edge of cuboid
+                if (p0p1LengthSq >= p1p2LengthSq)
+                {
+                    if (p0p1LengthSq >= p2p0LengthSq)
+                    {
+                        // p0-p1 is longest side, so p0 will become the 'origin'
+                        tag.P0 = face.P0;
+                        tag.P1 = face.P1;
+                        tag.P2 = face.P2;
+                    }
+                    else
+                    {
+                        // p2-p0 is longest side, so p1 will become the 'origin'
+                        tag.P0 = face.P2;
+                        tag.P1 = face.P0;
+                        tag.P2 = face.P1;
+                    }
+                }
+                else if (p1p2LengthSq >= p2p0LengthSq)
+                {
+                    // p1-p2 is longest side, so p1 will become the 'origin'
+                    tag.P0 = face.P1;
+                    tag.P1 = face.P2;
+                    tag.P2 = face.P0;
+                }
+                else
+                {
+                    // p2-p0 is longest side, so p2 will become the 'origin'
+                    tag.P0 = face.P2;
+                    tag.P1 = face.P0;
+                    tag.P2 = face.P1;
+                }
+
+                // remapping so p0-p1 is long side
+                p0Pos = mesh.Vertices[tag.P0].Position;
+                p1Pos = mesh.Vertices[tag.P1].Position;
+                p2Pos = mesh.Vertices[tag.P2].Position;
+
+                // construct 2d, within-cuboid coordinates for each point
+                var p0p1 = p1Pos - p0Pos;
+                var p0p2 = p2Pos - p0Pos;
+                var p0p1Length = p0p1.Length();
+                var p0p2Length = p0p2.Length();
+                tag.u0 = Vector2.Zero;
+                tag.u1 = new Vector2(p0p1Length, 0d);
+                var cosTheta = Vector3.Dot(p0p1, p0p2) / (p0p1Length * p0p2Length); // guarantted positive since angle between p0-p1 and p0-p2 will be acute
+                var theta = Math.Acos(cosTheta); // guaranteed positive since that's the range of acos (which implies 0 <= theta <= 90)
+                tag.u2 = new Vector2(p0p2Length * cosTheta, p0p2Length * Math.Sin(theta)); // Achtung, Baby!
+
+                // store the tag
+                tags[iFace] = tag;
+
+                /*
+                ======================================
+                |                        u2          |
+                |                       /  \         |
+                |                    /      \        |
+                |                 /          \       | <-- BOUNDING BOX (CUBOID)
+                |              /              \      |
+                |           /                  \     |
+                |        /                      \    |
+                |     /                          \   |
+                |  /                              \  |
+                |u0--------------------------------u1|
+                ======================================
+                p0 -> u0
+                p1 -> u1
+                p2 -> u2
+                */
+
+                // check if we need to update the smalles bounding box dim (used for scaling the cuboids to an appropriate size)
+                if (tag.u2.Y < smallestUnscaledBoundingBoxDimension)
+                {
+                    smallestUnscaledBoundingBoxDimension = tag.u2.Y; // height of cuboid is always smaller than width since long triangle side is on bottom
+                }
+            }
+
+            // determine upscaling value of triangles to fit them into integer-dimensioned cuboids
+            int scaleFactor = 1;
+            if (smallestUnscaledBoundingBoxDimension < CUBOID_MINIMUM_DIMENSION)
+            {
+                scaleFactor = (int)Math.Ceiling(CUBOID_MINIMUM_DIMENSION / smallestUnscaledBoundingBoxDimension);
+            }
+
+
+            // create a cuboid for each tag/face, scaling so all faces fit well in their cuboids
+            Cuboid[] inCubes = new Cuboid[tags.Length];
+            int totalArea = 0;
+            for (int iCube = 0; iCube < inCubes.Length; iCube++)
+            {
+                // scale up dimensions stored in tag
+                var tag = tags[iCube];
+                tag.u0 = tag.u0 * scaleFactor;
+                tag.u1 = tag.u1 * scaleFactor;
+                tag.u2 = tag.u2 * scaleFactor;
+
+                // create a cuboid for this face
+                var cubeWidth = (int)Math.Ceiling(tag.u1.X);
+                var cubeHeight = (int)Math.Ceiling(tag.u2.Y);
+                inCubes[iCube] = new Cuboid(cubeWidth, cubeHeight, NAIVE_PACKING_BIN_DEPTH, NAIVE_PACKING_BIN_WIEGHT, tag);
+
+                // update area total
+                totalArea += cubeWidth * cubeHeight;
+            }
+
+            // determine initial packing parameters
+            BinPackResult packed = null;
+            var numBins = 0;
+            int binDimension = 1;
+            while (binDimension * binDimension < totalArea)
+            {
+                binDimension *= 2;
+            }
+
+            // pack cubiods - adjust bin width and height until all cuboids pack into one bin
+            while (numBins != 1)
+            {
+                var parameter = new BinPackParameter(binDimension, binDimension, NAIVE_PACKING_BIN_DEPTH, NAIVE_PACKING_BIN_WIEGHT, false, inCubes);
+                var binPacker = BinPacker.GetDefault(BinPackerVerifyOption.BestOnly);
+                packed = binPacker.Pack(parameter);
+                numBins = packed.BestResult.Count;
+                if (numBins != 1)
+                {
+                    binDimension *= 2;
+                }
+            }
+
+            // should be one cube per face
+            var packedCubes = packed.BestResult.First();
+            if(packedCubes.Count != mesh.Faces.Count)
+            {
+                throw new UVAtlasException("Number of packed cubes does not match number of mesh faces");
+            }
+
+            var newVertexCount = packedCubes.Count * 3;
+            outVertexRemap = new int[newVertexCount];
+            outIndices = new int[newVertexCount];
+            outU = new float[newVertexCount];
+            outV = new float[newVertexCount];
+
+            // populate UVs based on cuboid pos and cuboid relative triangle points (u0, u1, & u2)
+            for (int iCube = 0; iCube < packedCubes.Count; ++iCube)
+            {
+                var cube = packedCubes[iCube];
+                var tag = (NaiveAtlasPackingTag)cube.Tag;
+
+                // PO
+                var vertexIndex = iCube * 3;
+                outVertexRemap[vertexIndex] = tag.P0;
+                outIndices[vertexIndex] = vertexIndex;
+                outU[vertexIndex] = ((float)cube.X + (float)tag.u0.X) / binDimension;
+                outV[vertexIndex] = ((float)cube.Y + (float)tag.u0.Y) / binDimension;
+
+                // P1
+                vertexIndex = iCube * 3 + 1;
+                outVertexRemap[vertexIndex] = tag.P1;
+                outIndices[vertexIndex] = vertexIndex;
+                outU[vertexIndex] = ((float)cube.X + (float)tag.u1.X) / binDimension;
+                outV[vertexIndex] = ((float)cube.Y + (float)tag.u1.Y) / binDimension;
+
+                // P2
+                vertexIndex = iCube * 3 + 2;
+                outVertexRemap[vertexIndex] = tag.P2;
+                outIndices[vertexIndex] = vertexIndex;
+                outU[vertexIndex] = ((float)cube.X + (float)tag.u2.X) / binDimension;
+                outV[vertexIndex] = ((float)cube.Y + (float)tag.u2.Y) / binDimension;
+            }
+
+            return UVAtlasNET.UVAtlas.ReturnCode.SUCCESS;
         }
     }
 }
