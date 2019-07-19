@@ -1,4 +1,5 @@
-﻿using System;
+﻿using OPS.MathExtensions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -19,7 +20,7 @@ namespace OPS.Geometry
         /// </summary>
         private struct NaiveAtlasPackingTag
         {
-            public Vector2 u0, u1, u2;
+            public Vector2 uv0, uv1, uv2;
             public int P0, P1, P2;
         }
 
@@ -115,12 +116,12 @@ namespace OPS.Geometry
         /// <summary>
         /// Will do a Naive Atlas of a mesh - 'packs' the atlas based on bounding boxes of each individual triangle in the mesh. The resultant atlas / mesh
         /// will essentially be a set of completely separate faces/triangles - no two triangles will share a single vertex. That is, a 'single' vertex will be repeated
-        /// in the vertex array as many times as there are faces that contain it - each 'repeated' instance will have the same position, but differnt UV coordinate
+        /// in the vertex array as many times as there are faces that contain it - each 'repeated' instance will have the same position, but different UV coordinate
         /// </summary>
         /// <param name="mesh">mesh to be atlased</param>
         /// <param name="outU">u-coordinate of the vertices of the atlased mesh</param>
         /// <param name="outV">v-coordinate of the vertices of the atlased mesh</param>
-        /// <param name="outIndices">indeces whose sets of 3 entries correspond to the faces of the atlased mesh</param>
+        /// <param name="outIndices">indices whose sets of 3 entries correspond to the faces of the atlased mesh</param>
         /// <param name="outVertexRemap">array mapping vertices of original mesh to those of the atlased mesh</param>
         /// <returns></returns>
         private static UVAtlasNET.UVAtlas.ReturnCode NaiveAtlas(
@@ -185,47 +186,48 @@ namespace OPS.Geometry
                 var p0p2 = p2Pos - p0Pos;
                 var p0p1Length = p0p1.Length();
                 var p0p2Length = p0p2.Length();
-                tag.u0 = Vector2.Zero;
-                tag.u1 = new Vector2(p0p1Length, 0d);
-                var cosTheta = Vector3.Dot(p0p1, p0p2) / (p0p1Length * p0p2Length); // guarantted positive since angle between p0-p1 and p0-p2 will be acute
-                var theta = Math.Acos(cosTheta); // guaranteed positive since that's the range of acos (which implies 0 <= theta <= 90)
-                tag.u2 = new Vector2(p0p2Length * cosTheta, p0p2Length * Math.Sin(theta)); // Achtung, Baby!
+                tag.uv0 = Vector2.Zero;
+                tag.uv1 = new Vector2(p0p1Length, 0d);
+                var cosTheta = Vector3.Dot(p0p1, p0p2) / (p0p1Length * p0p2Length); // guaranteed positive since angle between p0-p1 and p0-p2 will be acute
+                var theta = Math.Acos(cosTheta); // guaranteed positive since that's the range of acos (which, with cosTheta being positive, implies 0 <= theta <= pi/2)
+                tag.uv2 = new Vector2(p0p2Length * cosTheta, p0p2Length * Math.Sin(theta));
 
                 // store the tag
                 tags[iFace] = tag;
 
                 /*
-                ======================================
-                |                        u2          |
-                |                       /  \         |
-                |                    /      \        |
-                |                 /          \       | <-- BOUNDING BOX (CUBOID)
-                |              /              \      |
-                |           /                  \     |
-                |        /                      \    |
-                |     /                          \   |
-                |  /                              \  |
-                |u0--------------------------------u1|
-                ======================================
-                p0 -> u0
-                p1 -> u1
-                p2 -> u2
+                =======================================
+                |                        uv2          |
+                |                       /   \         |
+                |                    /       \        |
+                |                 /           \       | <-- BOUNDING BOX (CUBOID)
+                |              /               \      |
+                |           /                   \     |
+                |        /                       \    |
+                |     /                           \   |
+                |  /                               \  |
+                |uv0-------------------------------uv1|
+                =======================================
+                p0 -> uv0
+                p1 -> uv1
+                p2 -> uv2
                 */
 
-                // check if we need to update the smalles bounding box dim (used for scaling the cuboids to an appropriate size)
-                if (tag.u2.Y < smallestUnscaledBoundingBoxDimension)
+                // check if we need to update the smallest bounding box dim (used for scaling the cuboids to an appropriate size)
+                if (tag.uv2.Y < smallestUnscaledBoundingBoxDimension)
                 {
-                    smallestUnscaledBoundingBoxDimension = tag.u2.Y; // height of cuboid is always smaller than width since long triangle side is on bottom
+                    smallestUnscaledBoundingBoxDimension = tag.uv2.Y; // height of cuboid is always smaller than width since long triangle side is on bottom
                 }
             }
 
-            // determine upscaling value of triangles to fit them into integer-dimensioned cuboids
-            int scaleFactor = 1;
+            // determine upscaling value of triange so smallest fits snugly into integer-dimensioned cuboid
+            //   this prevents the case e.g. where a triangle with base 0.01 and height 0.005 is put into a 1x1 cuboid, leaving
+            //   bunches of empty/wasted space
+            double scaleFactor = 1d;
             if (smallestUnscaledBoundingBoxDimension < CUBOID_MINIMUM_DIMENSION)
             {
-                scaleFactor = (int)Math.Ceiling(CUBOID_MINIMUM_DIMENSION / smallestUnscaledBoundingBoxDimension);
+                scaleFactor = CUBOID_MINIMUM_DIMENSION / smallestUnscaledBoundingBoxDimension;
             }
-
 
             // create a cuboid for each tag/face, scaling so all faces fit well in their cuboids
             Cuboid[] inCubes = new Cuboid[tags.Length];
@@ -234,29 +236,30 @@ namespace OPS.Geometry
             {
                 // scale up dimensions stored in tag
                 var tag = tags[iCube];
-                tag.u0 = tag.u0 * scaleFactor;
-                tag.u1 = tag.u1 * scaleFactor;
-                tag.u2 = tag.u2 * scaleFactor;
+                tag.uv0 = tag.uv0 * scaleFactor;
+                tag.uv1 = tag.uv1 * scaleFactor;
+                tag.uv2 = tag.uv2 * scaleFactor;
 
                 // create a cuboid for this face
-                var cubeWidth = (int)Math.Ceiling(tag.u1.X);
-                var cubeHeight = (int)Math.Ceiling(tag.u2.Y);
+                var cubeWidth = (int)Math.Ceiling(tag.uv1.X);
+                var cubeHeight = (int)Math.Ceiling(tag.uv2.Y);
                 inCubes[iCube] = new Cuboid(cubeWidth, cubeHeight, NAIVE_PACKING_BIN_DEPTH, NAIVE_PACKING_BIN_WIEGHT, tag);
 
                 // update area total
                 totalArea += cubeWidth * cubeHeight;
             }
 
-            // determine initial packing parameters
-            BinPackResult packed = null;
-            var numBins = 0;
-            int binDimension = 1;
-            while (binDimension * binDimension < totalArea)
-            {
-                binDimension *= 2;
-            }
+            // binDimension should really be two variables - one for width and one for height. But since we're forcing a square atlas 
+            //   we just using one. When calling 'pack', binDimension refers to the dimensions (width and height) of the bin into which 
+            //   all of the cuboids are being packed. The bigger the bin, the easier it is to fit all the cuboids in, but likely the less 
+            //   tightly packed they'll be. A tightly packed bin leads to a tightly packed atlas and a better texture, so we start with 
+            //   the smallest possible bin size (the smalles power of two large enough to fit all of the cuboids without any space to spare, 
+            //   i.e. 'totalArea') and go from there.
+            int binDimension = MathE.CeilPowerOf2(totalArea);
 
             // pack cubiods - adjust bin width and height until all cuboids pack into one bin
+            BinPackResult packed = null;
+            int numBins = 0;
             while (numBins != 1)
             {
                 var parameter = new BinPackParameter(binDimension, binDimension, NAIVE_PACKING_BIN_DEPTH, NAIVE_PACKING_BIN_WIEGHT, false, inCubes);
@@ -282,7 +285,7 @@ namespace OPS.Geometry
             outU = new float[newVertexCount];
             outV = new float[newVertexCount];
 
-            // populate UVs based on cuboid pos and cuboid relative triangle points (u0, u1, & u2)
+            // populate UVs based on cuboid pos and cuboid relative triangle points (uv0, uv1, & uv2)
             for (int iCube = 0; iCube < packedCubes.Count; ++iCube)
             {
                 var cube = packedCubes[iCube];
@@ -292,22 +295,22 @@ namespace OPS.Geometry
                 var vertexIndex = iCube * 3;
                 outVertexRemap[vertexIndex] = tag.P0;
                 outIndices[vertexIndex] = vertexIndex;
-                outU[vertexIndex] = ((float)cube.X + (float)tag.u0.X) / binDimension;
-                outV[vertexIndex] = ((float)cube.Y + (float)tag.u0.Y) / binDimension;
+                outU[vertexIndex] = ((float)cube.X + (float)tag.uv0.X) / binDimension;
+                outV[vertexIndex] = ((float)cube.Y + (float)tag.uv0.Y) / binDimension;
 
                 // P1
                 vertexIndex = iCube * 3 + 1;
                 outVertexRemap[vertexIndex] = tag.P1;
                 outIndices[vertexIndex] = vertexIndex;
-                outU[vertexIndex] = ((float)cube.X + (float)tag.u1.X) / binDimension;
-                outV[vertexIndex] = ((float)cube.Y + (float)tag.u1.Y) / binDimension;
+                outU[vertexIndex] = ((float)cube.X + (float)tag.uv1.X) / binDimension;
+                outV[vertexIndex] = ((float)cube.Y + (float)tag.uv1.Y) / binDimension;
 
                 // P2
                 vertexIndex = iCube * 3 + 2;
                 outVertexRemap[vertexIndex] = tag.P2;
                 outIndices[vertexIndex] = vertexIndex;
-                outU[vertexIndex] = ((float)cube.X + (float)tag.u2.X) / binDimension;
-                outV[vertexIndex] = ((float)cube.Y + (float)tag.u2.Y) / binDimension;
+                outU[vertexIndex] = ((float)cube.X + (float)tag.uv2.X) / binDimension;
+                outV[vertexIndex] = ((float)cube.Y + (float)tag.uv2.Y) / binDimension;
             }
 
             return UVAtlasNET.UVAtlas.ReturnCode.SUCCESS;
