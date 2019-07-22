@@ -139,7 +139,6 @@ namespace OPS.Pipeline
                 int testR = (int)(r + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * height);
                 int testC = (int)(c + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * width);
                 Vector3? v = DemOperations.GetXYZ(dem, mask, testR, testC);
-                //if (testR >= 0 && testR < mask.Height && testC > 0 && testC < mask.Width && mask[0, testR, testC] == 1)
                 if(v.HasValue)
                 {
                     newRowCols.Add(new Vector2(testC, testR));
@@ -393,7 +392,6 @@ namespace OPS.Pipeline
             {
                 if(options.AlignToScene != "")
                 {
-                    //IF NEEDED: double initialZOffset = gdaldem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);
                     Mesh scene = Mesh.Load(options.AlignToScene);
                     siteDriveTransform = DemOperations.Align(scene, dem, colRowOffset.Y, colRowOffset.X, 200, 200, options.MetersPerPixel, zOffset);
                 } else
@@ -417,6 +415,7 @@ namespace OPS.Pipeline
             string outputImage = null;
             if (options.InputOrthoImage != null)
             {
+                //TODO: Properly clip ortho when radius option is set
                 Image ortho = Image.Load(options.InputOrthoImage);
                 outputImage = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.ImageFormat);
                 ortho.Save<byte>(outputImage); // TODO, add support for matching input type
