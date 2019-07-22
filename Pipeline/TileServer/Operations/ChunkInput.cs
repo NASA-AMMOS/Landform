@@ -102,7 +102,7 @@ namespace OPS.Pipeline.TileServer
                     m.Save(f);
                     string meshUrl = pipeline.GetStorageUrl("chunk", projectName, id + MESH_EXT);
                     pipeline.SaveFile(f, meshUrl);
-                    TilingInputChunk record = TilingInputChunk.Create(pipeline, id, meshUrl, imageBaseUrl, m.Bounds());
+                    TilingInputChunk record = TilingInputChunk.Create(pipeline, id, meshUrl, imageBaseUrl, bounds);
                     chunkIds.Add(id);
                     pipeline.LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
                 });
