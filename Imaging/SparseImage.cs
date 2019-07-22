@@ -333,7 +333,7 @@ namespace OPS.Imaging
                 for (int c = 0; c < hChunks; c++)
                 {
                     SaveChunk<T>(GetChunk(r, c), ChunkPath(r, c, basePath, extension));
-                    Progress("saved chunk ({0},{1}), {2}/{3} complete", r, c, n++, vChunks * hChunks);
+                    Progress("saved chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
                 }
             }
         }
@@ -359,7 +359,7 @@ namespace OPS.Imaging
                 for (int c = 0; c < hChunks; c++)
                 {
                     GetChunk(r, c);
-                    Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, n++, vChunks * hChunks);
+                    Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
                 }
             }
             largeImage = null;
