@@ -332,6 +332,12 @@ namespace OPS.Pipeline
                                          bool ignoreErrors = true);
 
         /// <summary>
+        /// Check if a file exists in persisted storage.
+        /// </summary>
+        /// <param name="url">source URL, if constrainToStorage = true must start with StorageURL/Venue</param>
+        public abstract bool FileExists(string url, bool constrainToStorage = false);
+
+        /// <summary>
         /// Search persisted files.
         ///
         /// If url ends with "/" then it's taken to be a directory name and the search returns all matching files within

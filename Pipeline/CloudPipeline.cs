@@ -235,7 +235,13 @@ namespace OPS.Pipeline
             url = CheckUrl(url, preserveTrailingSlash: true);
             GetStorageHelper(url).DeleteObjects(url, globPattern, recursive, ignoreErrors, Logger);
         }
-            
+
+        public override bool FileExists(string url, bool constrainToStorage = false)
+        {
+            url = CheckUrl(url, constrainToStorage);
+            return GetStorageHelper(url).FileExists(url);
+        }
+        
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool constrainToStorage = false)
         {

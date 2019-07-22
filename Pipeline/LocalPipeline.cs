@@ -153,6 +153,11 @@ namespace OPS.Pipeline
             }
         }
 
+        public override bool FileExists(string url, bool constrainToStorage = false)
+        {
+            return File.Exists(UrlToFile(CheckUrl(url, constrainToStorage)));
+        }
+
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool constrainToStorage = false)
         {

@@ -7,6 +7,7 @@ using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
+using Amazon.S3.IO;
 using Amazon.Runtime;
 using System.Text.RegularExpressions;
 using System.IO;
@@ -419,6 +420,16 @@ namespace OPS.Cloud
             return meta;
         }
 
+        public bool FileExists(string s3url)
+        {
+            using (var client = GetClient(s3url))
+            {
+                S3Url location = new S3Url(s3url);
+                return new S3FileInfo(client, location.BucketName, location.Prefix).Exists;
+                
+            }
+        }
+
         public bool FileSizeMatches(string s3url, string localfile)
         {
             if (!File.Exists(localfile))
@@ -445,7 +456,7 @@ namespace OPS.Cloud
         /// <returns></returns>
         public bool FileSizeMatches(AmazonS3Client client, S3Url location, string localfile)
         {
-            if(!File.Exists(localfile))
+            if (!File.Exists(localfile))
             {
                 return false;
             }
