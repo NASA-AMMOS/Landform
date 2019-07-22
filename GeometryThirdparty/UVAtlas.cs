@@ -255,7 +255,7 @@ namespace OPS.Geometry
             //   tightly packed they'll be. A tightly packed bin leads to a tightly packed atlas and a better texture, so we start with 
             //   the smallest possible bin size (the smalles power of two large enough to fit all of the cuboids without any space to spare, 
             //   i.e. 'totalArea') and go from there.
-            int binDimension = MathE.CeilPowerOf2(totalArea);
+            int binDimension = MathE.CeilPowerOf2(Math.Sqrt(totalArea));
 
             // pack cubiods - adjust bin width and height until all cuboids pack into one bin
             BinPackResult packed = null;
