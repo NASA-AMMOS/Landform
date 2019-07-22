@@ -118,6 +118,44 @@ namespace OPS.Util
             }
         }
 
+        public static string GetUrlExtension(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            int lastDot = url.LastIndexOf('.');
+            if (lastDot > lastSlash)
+            {
+                return url.Substring(lastDot);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        public static string StripUrlExtension(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            int lastDot = url.LastIndexOf('.');
+            if (lastDot > lastSlash)
+            {
+                return url.Substring(0, lastDot);
+            }
+            else
+            {
+                return url;
+            }
+        }
+
         public static string StripNonPrintable(string str)
         {
             //https://stackoverflow.com/a/40568888
