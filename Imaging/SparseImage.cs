@@ -385,28 +385,22 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Get a chunk.
-        /// If the chunk is already in memory, then just return it.
+        /// If the chunk is already in memory then just return it.
         /// Otherwise unpersist the chunk if we have persisted backing.
-        /// Otherwise just make a new blank chunk.
+        /// Otherwise allocate a new blank chunk.
         /// </summary>
         private Image GetChunk(int chunkRow, int chunkCol)
         {
             Image chunk = null;
 
             //fast path: see if it's already in memory
-            if (chunkCache != null)
+            if (chunks != null)
             {
-                Vector2 key = new Vector2(chunkRow, chunkCol);
-                if (chunkCache.DiskBacked && chunkCache.ContainsKeyOnDisk(key))
-                {
-                    chunkCache.EnsureLoaded(key);
-                }
-                chunk = chunkCache.ContainsKey(key) ? chunkCache[key] : null;
+                chunk = chunks[chunkRow, chunkCol];
             }
             else
             {
-                chunk = chunks[chunkRow, chunkCol];
+                chunk = chunkCache.GetOrLoad(new Vector2(chunkRow, chunkCol), null);
             }
 
             if (chunk == null)
@@ -434,6 +428,11 @@ namespace OPS.Imaging
                     {
                         chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
                     }
+
+                    if (chunk != null && (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h))
+                    {
+                        throw new Exception("unexpected chunk size");
+                    }
                 }
 
                 //if there was no backing to load the chunk (e.g. chunk file missing) then create a new blank one
@@ -441,22 +440,15 @@ namespace OPS.Imaging
                 {   
                     chunk = new Image(Bands, w, h);
                 }
-                else
-                {
-                    if (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h)
-                    {
-                        throw new Exception("unexpected chunk size");
-                    }
-                }
 
                 //remember chunk so that we take the fast path next time
-                if (chunkCache != null)
+                if (chunks != null)
                 {
-                    chunkCache.Add(new Vector2(chunkRow, chunkCol), chunk);
+                    chunks[chunkRow, chunkCol] = chunk;
                 }
                 else
                 {
-                    chunks[chunkRow, chunkCol] = chunk;
+                    chunkCache.Add(new Vector2(chunkRow, chunkCol), chunk);
                 }
             }
 

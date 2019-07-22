@@ -120,30 +120,23 @@ namespace OPS.Util
         }
 
         /// <summary>
-        /// Check if a key exists on disk
-        /// </summary>
-        /// <returns></returns>
-        public bool ContainsKeyOnDisk(TKey key)
-        {
-            return DiskBacked && File.Exists(Path.Combine(tempdir, keyToFilename(key)));
-        }
-
-        /// <summary>
-        /// Load a key value pair back into cache memory if it has been flushed to disk.
+        /// Return cached value if already loaded, else try load if disk backed, else return (but don't cache) sentinel.
         /// </summary>
         /// <param name="key"></param>
-        public void EnsureLoaded(TKey key)
+        public TValue GetOrLoad(TKey key, TValue sentinel = default(TValue))
         {
-            if (!ContainsKey(key))
+            if (ContainsKey(key))
             {
-                if (ContainsKeyOnDisk(key))
-                {
-                    Add(key, LoadIfDiskBacked(key));
-                }
-                else
-                {
-                    throw new KeyNotFoundException();
-                }
+                return this[key];
+            }
+            else if (DiskBacked && File.Exists(Path.Combine(tempdir, keyToFilename(key))))
+            {
+                Add(key, LoadIfDiskBacked(key));
+                return this[key];
+            }
+            else
+            {
+                return sentinel;
             }
         }
 
