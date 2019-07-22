@@ -97,7 +97,8 @@ namespace OPS.Util
             {
                 return url;
             }
-            int lastSlash = url.LastIndexOf('/'); 
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
             if (lastSlash < 0)
             {
                 return url;
