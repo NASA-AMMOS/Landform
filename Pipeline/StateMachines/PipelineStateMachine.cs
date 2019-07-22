@@ -387,7 +387,9 @@ namespace OPS.Pipeline
 
             var leavesGroupedByChunk = new Dictionary<string, List<SceneNode>>();
 
-            // gather all leaf nodes / tiles
+            // group leaves by 'chunk group key', where a 'chunk group key' is the concatenation of all
+            //   IDs of chunks that intersect the leaf. Should be unique per set of chunks since order of the
+            //   'chunks' array remains consistent througout tree traversal
             var dfsTraversalStack = new Stack<SceneNode>();
             dfsTraversalStack.Push(root);
             while(dfsTraversalStack.Count > 0)
@@ -397,9 +399,7 @@ namespace OPS.Pipeline
                 // if we've come across a node leaf, put it in the appropriate group
                 if (node.IsLeaf)
                 {
-                    // compute a 'chunk group key' for this leaf, where a 'chunk group key' is the concatenation of all
-                    //   IDs of chunks that intersect the leaf. Should be unique per set of chunks since 'chunks' array remains
-                    //   in retrieved order over all loops.
+                    // compute a 'chunk group key' for this leaf
                     var leafTile = TilingNode.Find(pipeline, projectName, node.Name);
                     var chunkGroupKey = string.Empty;
                     foreach (var chunk in chunks)
