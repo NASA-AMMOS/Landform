@@ -61,6 +61,9 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = "", HelpText = "Scene in given sitedrive frame to align with")]
         public string AlignToScene { get; set; }
 
+        [Option(Required = false, Default = "", HelpText = "Path to save in memory heightmap created for AlignToScene mesh, default does not save")]
+        public string WriteHeightmapPath { get; set; }
+
         [Option(Required =false, Default = -1, HelpText = "Radius in meters around origin to build mesh")]
         public float Radius { get; set; }
 
@@ -393,7 +396,7 @@ namespace OPS.Pipeline
                 if(options.AlignToScene != "")
                 {
                     Mesh scene = Mesh.Load(options.AlignToScene);
-                    siteDriveTransform = DemOperations.Align(scene, dem, colRowOffset.Y, colRowOffset.X, 200, 200, options.MetersPerPixel, zOffset);
+                    siteDriveTransform = DemOperations.Align(scene, dem, colRowOffset.Y, colRowOffset.X, 200, 200, options.MetersPerPixel, zOffset, options.WriteHeightmapPath);
                 } else
                 {
                     //Shift image origin and apply vertical offset based on places priors
