@@ -206,10 +206,16 @@ namespace OPS.Imaging
         /// represent the pre-converted values as they are stored in the image.
         /// </param>
         /// <returns></returns>
-        public Image PartialRead(string filename, int xOffset, int yOffset, int xSize, int ySize, IImageConverter converter, float[] fillValue = null)
+        public Image PartialRead(string filename, int xOffset, int yOffset, int xSize, int ySize,
+                                 IImageConverter converter = null, float[] fillValue = null)
         {
             lock (gdalLockObj)
             {
+                if (converter == null)
+                {
+                    converter = DefaultReadConverter();
+                }
+
                 using (Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly))
                 {
                     Image img = new Image(dataset.RasterCount, xSize, ySize);

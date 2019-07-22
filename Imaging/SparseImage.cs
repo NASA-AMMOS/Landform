@@ -14,194 +14,359 @@ namespace OPS.Imaging
     /// </summary>
     public class SparseImage : Image
     {
-        private bool useCache;
-        private bool isNewImage;
-        private bool diskBack;
+        private Image[,] chunks;
 
-        //Used if largeImage can fit into memory for partitioning
-        private Image[,] Images;
+        //alternate instead of chunks array for limiting entire memory footprint
+        protected LRUCache<Vector2, Image> chunkCache;
 
-        //For limiting entire memory footprint
-        private IImageConverter converter = null;
-        protected LRUCache<Vector2, Image> ChunkCache;
-
-        protected string baseUrl;
+        //persisted backing, if any
+        protected string basePath;
         protected string extension;
+
+        //large image backing, if any
+        protected Image largeImage;
+
+        //chunk images are chunkSize x chunkSize
+        //except those on the right and bottom borders may be smaller
         protected int chunkSize;
 
-        private string Filename {
-            get { return baseUrl + extension; }
-        }
-
-        private const string CHUNK_PREFIX = "chunk";
-
-        private Func<Vector2, string> GetChunkNameFunc() {
-            return new Func<Vector2, string>((rc) =>
-            {
-                return CreateFileName((int)rc.X, (int)rc.Y, CHUNK_PREFIX, extension);
-            });
-        }
-
-        private Action<Image, string> GetSaveFunc()
-        {
-            return new Action<Image, string>((img, fn) =>
-            {
-                SaveChunk<Byte>(img, fn);
-            });
-        }
-
-        private Func<string, Image> GetLoadFunc()
-        {
-            return new Func<string, Image>((fn) =>
-            {
-                return LoadChunk(fn);
-            });
-        }
-
         /// <summary>
-        /// Contructs a SparseImage with baseUrl and extension of chunk images to load and populate the SparseImage array as needed.
+        /// Construct a new empty sparse image.
+        ///
+        /// Chunks are allocated in memory lazily.
+        ///
+        /// The sparse image has no persistence other than possibly temporary disk backing for the chunk cache.
         /// </summary>
-        /// <param name="bands">Number of bands in original image</param>
-        /// <param name="width">Width of original image</param>
-        /// <param name="height">Height of original image</param>
-        /// <param name="baseUrl">Base URL of chunk images</param>
-        /// <param name="extension">Extention of chunk image file (including ".")</param>
-        /// <param name="chunkSize">Width and height of chunks</param>
-        /// <param name="loader">Function to load chunks (default Image.Load)</param>
-        /// <param name="saver">Function to save chunks (default Image.Save)</param>
-        public SparseImage(int bands, int width, int height, string baseUrl, string extension, int chunkSize = 256, bool useCache = false, bool diskBack = false, int cacheSize = 5000) : base(0, 0, 0)
+        /// <param name="bands">number of bands</param>
+        /// <param name="width">total image width</param>
+        /// <param name="height">total image height</param>
+        /// <param name="chunkSize">width and height of chunks</param>
+        /// <param name="cacheSize">if > 0 then use LRU cache of chunks instead of full array</param>
+        /// <param name="diskBackedCache">enable disk backing for cache</param>
+        public SparseImage(int bands, int width, int height, int chunkSize = 256, int cacheSize = 0,
+                           bool diskBackedCache = false)
+            : base(0, 0, 0) //don't let base class constructor allocate image buffer
         {
-            this.isNewImage = true;
-            this.useCache = useCache;
-            this.diskBack = diskBack;
-            this.Metadata = new ImageMetadata(bands, width, height);
             this.Bands = bands;
             this.Width = width;
             this.Height = height;
-            this.baseUrl = baseUrl;
-            this.extension = extension;
+            this.Metadata = new ImageMetadata(bands, width, height);
             this.chunkSize = chunkSize;
-            if (useCache)
-            {
-                ChunkCache = new LRUCache<Vector2, Image>(cacheSize, diskBack ? GetSaveFunc() : null, diskBack ? GetChunkNameFunc() : null);
-            }
-            else
-            {
-                Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
-            }
+            InitChunkCacheOrArray(cacheSize, diskBackedCache);
         }
 
         /// <summary>
-        /// Constructs a SparseImage by partitioning an Image and populating the SparseImage.
+        /// Construct a sparse by backed by an existing image.
+        ///
+        /// Chunks are allocated in memory lazily.
+        /// Call Populate() to load them all and release the reference to the existing image.
+        ///
+        /// The sparse image has no persistence other than possibly temporary disk backing for the chunk cache.
         /// </summary>
-        /// <param name="largeImage">Original Image to be partitioned</param>
-        /// <param name="chunkSize">Width and height of chunks</param>
-        /// <param name="saver">Function to save chunks (default Image.Save)</param>
-        public SparseImage(Image largeImage, int chunkSize = 256) : base(0, 0, 0)
+        /// <param name="largeImage">original image</param>
+        /// <param name="chunkSize">width and height of chunks</param>
+        /// <param name="cacheSize">if > 0 then use LRU cache of chunks instead of full array</param>
+        /// <param name="diskBackedCache">enable disk backing for cache</param>
+        public SparseImage(Image largeImage, int chunkSize = 256, int cacheSize = 0, bool diskBackedCache = false)
+            : base(0, 0, 0) //don't let base class constructor allocate image buffer
         {
-            this.useCache = false;
-            this.isNewImage = false;
             this.Metadata = (ImageMetadata)largeImage.Metadata.Clone();
             this.Bands = largeImage.Bands;
             this.Width = largeImage.Width;
             this.Height = largeImage.Height;
             this.Metadata = new ImageMetadata(Bands, Width, Height);
             this.chunkSize = chunkSize;
-
-            Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
-            Partition(largeImage);
+            this.largeImage = largeImage;
+            InitChunkCacheOrArray(cacheSize, diskBackedCache);
         }
 
         /// <summary>
-        /// Constructs a SparseImage for image on disk without populating chunks.
+        /// Create a sparse image backed by persisted storage.
+        ///
+        /// The persisted backing may either
+        /// (a) not exist yet
+        /// (b) be a full image at basePath+extension
+        /// (c) be one or more chunk files at basePath_ROW_COL+extension
+        ///
+        /// The storage is not loaded immediately but lazily as needed.  Call Populate() to load them all.
+        ///
+        /// When a chunk needs to be loaded
+        /// (1) if it already has been persisted as an independent chunk that is loaded
+        /// (2) therwise if the full image has been persisted the chunk is loaded out of it with PartialRead()
+        /// (3)therwise a new blank chunk is created
+        ///
+        /// When a chunk needs to be persisted it is saved as an independent chunk file, never the full image.
+        ///
+        /// Override IsPersisted(), SaveChunk(), LoadChunk(), and PartialReadFile() to customize persistence.
+        /// The default is local disk treating basePath as a file path.
+        ///
         /// </summary>
-        /// <param name="filename"></param>
-        /// <param name="chunkSize"></param>
-        public SparseImage(string filename, IImageConverter converter, int chunkSize = 1024, bool useCache = false, bool diskBack = false, int cacheSize = 10000) : base(0,0,0)
+        /// <param name="bands">number of bands</param>
+        /// <param name="width">total image width</param>
+        /// <param name="height">total image height</param>
+        /// <param name="basePath">base path for persistence</param>
+        /// <param name="extension">filename extension for persistence including "."</param>
+        /// <param name="chunkSize">width and height of chunks</param>
+        /// <param name="cacheSize">if > 0 then use LRU cache of chunks instead of full array</param>
+        /// <param name="diskBackedCache">enable disk backing for cache</param>
+        public SparseImage(int bands, int width, int height, string basePath, string extension, int chunkSize = 256,
+                           int cacheSize = 0, bool diskBackedCache = false)
+            : base(0, 0, 0) //don't let base class constructor allocate image buffer
+        {
+            this.Bands = bands;
+            this.Width = width;
+            this.Height = height;
+            this.Metadata = new ImageMetadata(bands, width, height);
+            this.basePath = basePath;
+            this.extension = extension;
+            this.chunkSize = chunkSize;
+            InitChunkCacheOrArray(cacheSize, diskBackedCache);
+        }
+
+        /// <summary>
+        /// Create a sparse image backed by persisted storage.
+        ///
+        /// The chunks are loaded lazily with PartialRead().  Call Populate() to load them all.
+        ///
+        /// The chunks are persisted on Save() as independent chunks at basePath_ROW_COL+extension.
+        ///
+        /// Override IsPersisted(), SaveChunk(), LoadChunk(), and PartialReadFile() to customize persistence.
+        /// The default is local disk treating basePath as a file path.
+        ///
+        /// </summary>
+        /// <param name="largeImagePath">path to large image</param>
+        /// <param name="chunkSize">width and height of chunks</param>
+        /// <param name="cacheSize">if > 0 then use LRU cache of chunks instead of full array</param>
+        /// <param name="diskBackedCache">enable disk backing for cache</param>
+        public SparseImage(string largeImagePath, int chunkSize = 256, int cacheSize = 0, bool diskBackedCache = false)
+            : base(0, 0, 0) //don't let base class constructor allocate image buffer
+        {
+            InitFromLargeImage(largeImagePath, chunkSize, cacheSize, diskBackedCache);
+        }
+
+        //for subclassing
+        protected SparseImage() : base(0, 0, 0) //don't let base class constructor allocate image buffer
+        {
+        }
+
+        //broken out to facilitate subclassing where GetImageMetadataForPartialRead() may need prior init
+        protected void InitFromLargeImage(string largeImagePath, int chunkSize, int cacheSize, bool diskBackedCache)
         {
             this.chunkSize = chunkSize;
-            this.converter = converter;
-            this.useCache = useCache;
-            this.diskBack = diskBack;
-            this.baseUrl = Path.Combine(Path.GetDirectoryName(filename), Path.GetFileNameWithoutExtension(filename));
-            this.extension = Path.GetExtension(filename);
-            this.isNewImage = false;
+            this.basePath = StringHelper.StripUrlExtension(largeImagePath);
+            this.extension = StringHelper.GetUrlExtension(largeImagePath);
+            GetImageMetadataForPartialRead(largeImagePath, out Bands, out Width, out Height);
+            this.Metadata = new ImageMetadata(Bands, Width, Height);
+            InitChunkCacheOrArray(cacheSize, diskBackedCache);
+        }
 
-            ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
+        private void InitChunkArray()
+        {
+            chunks = new Image[(int)Math.Ceiling((float)Height / chunkSize),
+                               (int)Math.Ceiling((float)Width / chunkSize)];
+        }
+
+        private void InitChunkCacheOrArray(int cacheSize, bool diskBackedCache)
+        {
+            if (cacheSize > 0)
+            {
+                if (diskBackedCache)
+                {
+                    var wc = GetWriteConverter();
+                    var rc = GetReadConverter();
+                    chunkCache =
+                        new LRUCache<Vector2, Image>
+                        (cacheSize,
+                         key => ChunkPath((int)key.X, (int)key.Y, "chunk", extension),
+                         (fn, img) => {
+                            if (wc != null)
+                            {
+                                img.Save<byte>(fn, wc);
+                            }
+                            else
+                            {
+                                img.Save<byte>(fn);
+                            }
+                         },
+                         fn => rc != null ? Image.Load(fn, rc) : Image.Load(fn));
+                }
+                else
+                {
+                    chunkCache = new LRUCache<Vector2, Image>(cacheSize);
+                }
+            }
+            else
+            {
+                InitChunkArray();
+            }
+        }
+
+        /// <summary>
+        /// Subclasses can override this to spew progress for long operations.
+        /// </summary>
+        protected virtual void Progress(string msg, params Object[] args)
+        {
+        }
+
+        /// <summary>
+        /// check if an image is persisted
+        /// this could be either the full large image or a chunk image
+        /// </summary>
+        protected virtual bool IsPersisted(string path)
+        {
+            return File.Exists(path);
+        }
+
+        /// <summary>
+        /// persist a chunk image
+        /// </summary>
+        protected virtual void SaveChunk<T>(Image img, string path)
+        {
+            IImageConverter conv = GetWriteConverter();
+            if (conv != null)
+            {
+                img.Save<T>(path, conv);
+            }
+            else
+            {
+                img.Save<T>(path);
+            }
+        }
+
+        /// <summary>
+        /// unpersist a chunk image
+        /// </summary>
+        protected virtual Image LoadChunk(string path)
+        {
+            IImageConverter conv = GetReadConverter();
+            if (conv != null)
+            {
+                return Image.Load(path, conv);
+            }
+            else
+            {
+                return Image.Load(path);
+            }
+        }
+
+        protected virtual IImageConverter GetReadConverter()
+        {
+            return null;
+        }
+
+        protected virtual IImageConverter GetWriteConverter()
+        {
+            return null;
+        }
+
+        protected virtual string ChunkPath(int row, int col, string path, string extension)
+        {
+            return string.Format("{0}_{1}_{2}{3}", path, row, col, extension);
+        }
+
+        /// <summary>
+        /// Either get a new instance of an image serializer for extension and check that it's capable of partial read.
+        /// Or check that the passed serializer is capable of partial read.
+        /// </summary>
+        protected virtual ImageSerializer GetOrCheckPartialReadSerializer(ImageSerializer s = null)
+        {
+            if (s == null)
+            {
+                s = ImageSerializers.Instance.GetSerializer(extension);
+            }
             if (s.GetType() != typeof(GDALSerializer))
             {
                 throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
             }
-            ((GDALSerializer)s).GetMetadata(filename, out Bands, out Width, out Height);
-            this.Metadata = new ImageMetadata(Bands, Width, Height);
-
-            if (useCache)
-            {
-                this.ChunkCache = new LRUCache<Vector2, Image>(cacheSize, diskBack ? GetSaveFunc() : null, diskBack ? GetChunkNameFunc() : null);
-            } else
-            {
-                Images = new Image[(int)Math.Ceiling((float)Height / chunkSize), (int)Math.Ceiling((float)Width / chunkSize)];
-            }
-        }
-
-        protected virtual void SaveChunk<T>(Image img, string filename)
-        {
-            img.Save<T>(filename);
+            return s;
         }
 
         /// <summary>
-        /// Loads required chunk.
+        /// indirection to transform the pathname for the file to be used for partial reads
         /// </summary>
-        /// <param name="rowIndex">Row index of chunk</param>
-        /// <param name="colIndex">Column index of chunk</param>
-        protected virtual Image LoadChunk(string filename)
+        protected virtual string PartialReadFile(string path)
         {
-            return Image.Load(filename);
+            return path;
         }
 
+        /// <summary>
+        /// Read image metadata without reading the whole image into memory.
+        /// </summary>
+        protected virtual void GetImageMetadataForPartialRead(string path, out int bands, out int width, out int height,
+                                                              ImageSerializer s = null)
+        {
+            s = GetOrCheckPartialReadSerializer(s);
+            ((GDALSerializer)s).GetMetadata(PartialReadFile(path), out bands, out width, out height);
+        }
 
         /// <summary>
-        /// Save each chunk of SparseImage separately using specified saver.
+        /// Read a chunk of an image without reading the whole image into memory.
         /// </summary>
-        /// <param name="baseUrl">Base URL to save chunk</param>
-        /// <param name="extension">Extension for saved chunk</param>
-        public void Save<T>(string baseUrl, string extension)
+        protected virtual Image PartialRead(string path, int chunkRow, int chunkCol, ImageSerializer s = null)
         {
-            if(useCache)
+            s = GetOrCheckPartialReadSerializer(s);
+            int x = chunkCol * chunkSize;
+            int y = chunkRow * chunkSize;
+            int w = Math.Min(x + chunkSize, Width) - x;
+            int h = Math.Min(y + chunkSize, Height) - y;
+            return ((GDALSerializer)s).PartialRead(PartialReadFile(path), x, y, w, h, GetReadConverter());
+        }
+
+        /// <summary>
+        /// persist all chunks
+        /// </summary>
+        /// <param name="basePath">base path to save chunks (overrides value provided to constructor)</param>
+        /// <param name="extension">extension for saved chunks (overrides value provided to constructor)</param>
+        public void Save<T>(string basePath = null, string extension = null)
+        {
+            basePath = basePath ?? this.basePath;
+            extension = extension ?? this.extension;
+            if (string.IsNullOrEmpty(basePath) || string.IsNullOrEmpty(extension))
             {
-                //TODO: implement this if needed
-                throw new NotImplementedException("Saving cached sparse image not supported.");
+                throw new ArgumentException("must specify base path and extension to save sparse image");
             }
-            for (int row = 0; row < Images.GetLength(0); row++)
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++) 
             {
-                for (int col = 0; col < Images.GetLength(1); col++)
+                for (int c = 0; c < hChunks; c++)
                 {
-                    if (Images[row, col] != null)
-                    {
-                        SaveChunk<T>(Images[row, col], CreateFileName(row, col, baseUrl, extension));
-                    }
+                    SaveChunk<T>(GetChunk(r, c), ChunkPath(r, c, basePath, extension));
+                    Progress("saved chunk ({0},{1}), {2}/{3} complete", r, c, n++, vChunks * hChunks);
                 }
             }
         }
 
         /// <summary>
-        /// Split largeImage into chunks with dimensions chunkSize, then populate with chunks.
+        /// Populate all chunks.
+        ///
+        /// If this sparse image is backed by a large in-memory image then the chunks are cropped out of it and the
+        /// reference to the large image is released.  (NOTE: if this is combined with LRU caching of the chunks
+        /// without disk backing for the LRU cache then if the cache is not large enough some
+        /// chunks will be ejected from the cache immediately.)
+        ///
+        /// If this sparse image is backed by a large persisted image and/or individual chunk images, they are
+        /// unpersisted.
         /// </summary>
-        /// <param name="largeImage"></param>
-        private void Partition(Image largeImage)
+        public void Populate()
         {
-            for (int r = 0; r < largeImage.Height; r += chunkSize)
+            int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
+            int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
+            int n = 0;
+            for (int r = 0; r < vChunks; r++)
             {
-                for (int c = 0; c < largeImage.Width; c += chunkSize)
+                for (int c = 0; c < hChunks; c++)
                 {
-                    Image chunk = largeImage.Crop(r, c, Math.Min(largeImage.Width - c, chunkSize), Math.Min(largeImage.Height - r,chunkSize));
-                    Images[r / chunkSize, c / chunkSize] = chunk;
+                    GetChunk(r, c);
+                    Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, n++, vChunks * hChunks);
                 }
             }
+            largeImage = null;
         }
 
         /// <summary>
-        /// Access chunk pixel corresponding to original image data at specified band, row, and column. If chunk does not exist, load it.
+        /// Access chunk pixel corresponding to original image data at specified band, row, and column.
         /// </summary>
         /// <param name="band"></param>
         /// <param name="row"></param>
@@ -211,108 +376,87 @@ namespace OPS.Imaging
         {
             get
             {
-                int rowIndex = row / chunkSize;
-                int colIndex = column / chunkSize;
-                EnsureChunkLoaded(rowIndex, colIndex);
-                Image chunk;
-                if (useCache)
-                {
-                    chunk = ChunkCache[new Vector2(rowIndex, colIndex)];
-                }
-                else
-                {
-                    chunk = Images[rowIndex, colIndex];
-                }
-                return chunk[band, (row % chunkSize), (column % chunkSize)];
+                return GetChunk(row / chunkSize, column / chunkSize)[band, (row % chunkSize), (column % chunkSize)];
             }
             set
             {
-                int rowIndex = row / chunkSize;
-                int colIndex = column / chunkSize;
-                EnsureChunkLoaded(rowIndex, colIndex);
-                Image chunk;
-                if (useCache)
-                {
-                    chunk = ChunkCache[new Vector2(rowIndex, colIndex)];
-
-                } else
-                {
-                    chunk = Images[rowIndex, colIndex];
-                }
-                chunk[band, (row % chunkSize), (column % chunkSize)] = value;
+                GetChunk(row / chunkSize, column / chunkSize)[band, (row % chunkSize), (column % chunkSize)] = value;
             }
         }
 
-        void EnsureChunkLoaded(int rowIndex, int colIndex)
+        /// <summary>
+        /// Get a chunk.
+        /// If the chunk is already in memory, then just return it.
+        /// Otherwise unpersist the chunk if we have persisted backing.
+        /// Otherwise just make a new blank chunk.
+        /// </summary>
+        private Image GetChunk(int chunkRow, int chunkCol)
         {
             Image chunk = null;
-            if (useCache)
+
+            //expected dimensions of chunk image
+            int w = Math.Min(Width - chunkCol * chunkSize, chunkSize);
+            int h = Math.Min(Height - chunkRow * chunkSize, chunkSize);
+
+            //chunk key if using cache
+            Vector2 key = new Vector2(chunkRow, chunkCol);
+
+            //first see if it's already in memory
+            if (chunkCache != null)
             {
-                Vector2 key = new Vector2(rowIndex, colIndex);
-                if (!ChunkCache.ContainsKey(key))
-                {                  
-                    if (diskBack && ChunkCache.ContainsKeyOnDisk(key))
-                    {
-                        ChunkCache.EnsureLoaded(key, GetLoadFunc());
-                    }
-                    else if (isNewImage)
-                    {   
-                        chunk = new Image(Bands, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize));
-                    }
-                    else
-                    {
-                        ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
-                        if (s.GetType() != typeof(GDALSerializer))
-                        {
-                            throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
-                        }
-                        chunk = ((GDALSerializer)s).PartialRead(Filename, colIndex * chunkSize, rowIndex * chunkSize, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize), converter != null ? converter : s.DefaultReadConverter());
-                    }
-                    ChunkCache.Add(key, chunk);
-                } else
+                if (chunkCache.DiskBacked && chunkCache.ContainsKeyOnDisk(key))
                 {
-                    chunk = ChunkCache[key];
+                    chunkCache.EnsureLoaded(key);
                 }
+                chunk = chunkCache.ContainsKey(key) ? chunkCache[key] : null;
             }
             else
             {
-                string chunkName = CreateFileName(rowIndex, colIndex, baseUrl, extension);
-                if (Images[rowIndex, colIndex] == null)
+                chunk = chunks[chunkRow, chunkCol];
+            }
+
+            //if we are backed by a large monolithic image then crop out the chunk
+            if (chunk == null && largeImage != null)
+            {
+                chunk = largeImage.Crop(chunkRow * chunkSize, chunkCol * chunkSize, w, h);
+            }
+
+            //if we still don't have the chunk and we have storage bcking try to unpersist it
+            if (chunk == null && !string.IsNullOrEmpty(basePath) && !string.IsNullOrEmpty(extension))
+            {
+                string chunkFile = ChunkPath(chunkRow, chunkCol, basePath, extension);
+                string largeImageFile = basePath + extension;
+                if (IsPersisted(chunkFile))
                 {
-                    if(File.Exists(chunkName))
-                    {
-                        chunk = LoadChunk(chunkName);
-                    }
-                    else if (isNewImage)
-                    {
-                        chunk = new Image(Bands, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize));
-                    }
-                    else
-                    {
-                        ImageSerializer s = ImageSerializers.Instance.GetSerializer(extension);
-                        if (s.GetType() != typeof(GDALSerializer))
-                        {
-                            throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
-                        }
-                        chunk = ((GDALSerializer)s).PartialRead(Filename, colIndex * chunkSize, rowIndex * chunkSize, Math.Min(Width - colIndex * chunkSize, chunkSize), Math.Min(Height - rowIndex * chunkSize, chunkSize), converter != null ? converter : s.DefaultReadConverter());
-                    }           
-                    Images[rowIndex, colIndex] = chunk;
-                } else
+                    chunk = LoadChunk(chunkFile);
+                }
+                else if (IsPersisted(largeImageFile))
                 {
-                    chunk = Images[rowIndex, colIndex];
+                    chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
                 }
             }
-            if ((chunk.Height != chunkSize && rowIndex * chunkSize + chunk.Height != Height) ||
-                        (chunk.Width != chunkSize && colIndex * chunkSize + chunk.Width != Width) ||
-                        (chunk.Bands != this.Bands))
-            {
-                throw new Exception("Chunk size does not match previously partitioned image");
-            }
-        }
 
-        protected string CreateFileName(int row, int col, string baseUrl, string extension)
-        {
-            return baseUrl + "_" + row + "_" + col + extension;
+            //if we still don't have it then create a new blank chunk
+            if (chunk == null)
+            {   
+                chunk = new Image(Bands, w, h);
+
+                if (chunkCache != null)
+                {
+                    chunkCache.Add(key, chunk);
+                }
+                else
+                {
+                    chunks[chunkRow, chunkCol] = chunk;
+                }
+            }
+            
+            if (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h)
+            {
+                throw new Exception("unexpected chunk size");
+            }
+
+            return chunk;
         }
     }
 }

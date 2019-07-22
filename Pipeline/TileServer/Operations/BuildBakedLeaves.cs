@@ -107,14 +107,13 @@ namespace OPS.Pipeline.TileServer
                 var mergedMesh = Mesh.Merge(meshes.ToArray());
                 mergedMesh.Clean();
                 SparsePipelineImage image = null;
-                string imgUrl = group.Chunks[0].ImageUrl;
-                if (imgUrl != null)
+                string chunkBaseUrl = group.Chunks[0].ImageUrl;
+                if (chunkBaseUrl != null)
                 {
                     hasImages = true;
-                    image = new SparsePipelineImage(pipeline, group.Input.ImageBands,
-                                                    group.Input.ImageWidth, group.Input.ImageHeight,
-                                                    imgUrl, ChunkInput.IMAGE_EXT,
-                                                    ChunkInput.CHUNK_RESOLUTION);
+                    TilingInput ti = group.Input;
+                    image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
+                                                    chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
                 }
                 bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
             }
@@ -125,7 +124,7 @@ namespace OPS.Pipeline.TileServer
             {              
                 var m = bakeClipper.Clip(leaf.GetBounds());
                 var pair = new MeshImagePair(m, null);
-                if(hasImages)
+                if (hasImages)
                 {
                     pair = bakeClipper.BakeTexture(m, project.TileResolution);
                 }
