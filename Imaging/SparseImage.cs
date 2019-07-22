@@ -394,16 +394,10 @@ namespace OPS.Imaging
         {
             Image chunk = null;
 
-            //expected dimensions of chunk image
-            int w = Math.Min(Width - chunkCol * chunkSize, chunkSize);
-            int h = Math.Min(Height - chunkRow * chunkSize, chunkSize);
-
-            //chunk key if using cache
-            Vector2 key = new Vector2(chunkRow, chunkCol);
-
-            //first see if it's already in memory
+            //fast path: see if it's already in memory
             if (chunkCache != null)
             {
+                Vector2 key = new Vector2(chunkRow, chunkCol);
                 if (chunkCache.DiskBacked && chunkCache.ContainsKeyOnDisk(key))
                 {
                     chunkCache.EnsureLoaded(key);
@@ -415,45 +409,55 @@ namespace OPS.Imaging
                 chunk = chunks[chunkRow, chunkCol];
             }
 
-            //if we are backed by a large monolithic image then crop out the chunk
-            if (chunk == null && largeImage != null)
-            {
-                chunk = largeImage.Crop(chunkRow * chunkSize, chunkCol * chunkSize, w, h);
-            }
-
-            //if we still don't have the chunk and we have storage bcking try to unpersist it
-            if (chunk == null && !string.IsNullOrEmpty(basePath) && !string.IsNullOrEmpty(extension))
-            {
-                string chunkFile = ChunkPath(chunkRow, chunkCol, basePath, extension);
-                string largeImageFile = basePath + extension;
-                if (IsPersisted(chunkFile))
-                {
-                    chunk = LoadChunk(chunkFile);
-                }
-                else if (IsPersisted(largeImageFile))
-                {
-                    chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
-                }
-            }
-
-            //if we still don't have it then create a new blank chunk
             if (chunk == null)
-            {   
-                chunk = new Image(Bands, w, h);
+            {
+                //slow path: load or allocate the chunk
 
+                int w = Math.Min(Width - chunkCol * chunkSize, chunkSize);
+                int h = Math.Min(Height - chunkRow * chunkSize, chunkSize);
+                    
+                if (largeImage != null)
+                {
+                    //if we are backed by a large monolithic image then crop out the chunk
+                    chunk = largeImage.Crop(chunkRow * chunkSize, chunkCol * chunkSize, w, h);
+                }
+                else if (!string.IsNullOrEmpty(basePath) && !string.IsNullOrEmpty(extension))
+                {
+                    //otherwise if we have persistence backing then try to load the chunk
+                    string chunkFile = ChunkPath(chunkRow, chunkCol, basePath, extension);
+                    string largeImageFile = basePath + extension;
+                    if (IsPersisted(chunkFile))
+                    {
+                        chunk = LoadChunk(chunkFile);
+                    }
+                    else if (IsPersisted(largeImageFile))
+                    {
+                        chunk = PartialRead(largeImageFile, chunkRow, chunkCol);
+                    }
+                }
+
+                //if there was no backing to load the chunk (e.g. chunk file missing) then create a new blank one
+                if (chunk == null)
+                {   
+                    chunk = new Image(Bands, w, h);
+                }
+                else
+                {
+                    if (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h)
+                    {
+                        throw new Exception("unexpected chunk size");
+                    }
+                }
+
+                //remember chunk so that we take the fast path next time
                 if (chunkCache != null)
                 {
-                    chunkCache.Add(key, chunk);
+                    chunkCache.Add(new Vector2(chunkRow, chunkCol), chunk);
                 }
                 else
                 {
                     chunks[chunkRow, chunkCol] = chunk;
                 }
-            }
-            
-            if (chunk.Bands != Bands || chunk.Width != w || chunk.Height != h)
-            {
-                throw new Exception("unexpected chunk size");
             }
 
             return chunk;
