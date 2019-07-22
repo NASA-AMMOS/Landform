@@ -200,12 +200,22 @@ namespace OPS.Util
         /// <summary>
         /// Delete temp directory and all contents 
         /// </summary>
-        /// <returns></returns>
         public static void DeleteTempDirectory()
         {
             if (File.Exists(TemporaryDirectory))
             {
                 Directory.Delete(TemporaryDirectory, true);
+            }
+        }
+
+        /// <summary>
+        /// Delete temp subdirectory and all contents 
+        /// </summary>
+        public static void DeleteTempSubdir(string name)
+        {
+            if (File.Exists(name))
+            {
+                Directory.Delete(name, true);
             }
         }
 
