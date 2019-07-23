@@ -70,7 +70,6 @@ namespace OPS.Imaging
         public SparseImage(Image largeImage, int chunkSize = 256, int cacheSize = 0, bool diskBackedCache = false)
             : base(0, 0, 0) //don't let base class constructor allocate image buffer
         {
-            this.Metadata = (ImageMetadata)largeImage.Metadata.Clone();
             this.Bands = largeImage.Bands;
             this.Width = largeImage.Width;
             this.Height = largeImage.Height;
