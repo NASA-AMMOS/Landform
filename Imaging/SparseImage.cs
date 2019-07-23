@@ -176,8 +176,8 @@ namespace OPS.Imaging
                     chunkCache =
                         new LRUCache<Vector2, Image>
                         (cacheSize,
-                         key => ChunkPath((int)key.X, (int)key.Y, "chunk", extension),
-                         (fn, img) => {
+                         keyToFilename: key => ChunkPath((int)key.X, (int)key.Y, "chunk", extension),
+                         save: (fn, img) => {
                             if (wc != null)
                             {
                                 img.Save<byte>(fn, wc);
@@ -187,7 +187,7 @@ namespace OPS.Imaging
                                 img.Save<byte>(fn);
                             }
                          },
-                         fn => rc != null ? Image.Load(fn, rc) : Image.Load(fn));
+                         load: fn => rc != null ? Image.Load(fn, rc) : Image.Load(fn));
                 }
                 else
                 {
