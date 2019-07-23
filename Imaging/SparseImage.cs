@@ -340,15 +340,15 @@ namespace OPS.Imaging
         /// <summary>
         /// Populate all chunks.
         ///
-        /// If this sparse image is backed by a large in-memory image then the chunks are cropped out of it and the
-        /// reference to the large image is released.  (NOTE: if this is combined with LRU caching of the chunks
-        /// without disk backing for the LRU cache then if the cache is not large enough some
-        /// chunks will be ejected from the cache immediately.)
+        /// If this sparse image is backed by a large in-memory image then the chunks are cropped out of it.
+        /// NOTE: if this is combined with LRU caching of the chunks without disk backing for the LRU cache then if
+        /// the cache is not large enough some chunks will be ejected from the cache immediately.
         ///
         /// If this sparse image is backed by a large persisted image and/or individual chunk images, they are
         /// unpersisted.
         /// </summary>
-        public void Populate()
+        /// <param name="releaseBacking">whether to release the reference to the backing image, if any</param>
+        public void Populate(bool releaseBacking = true)
         {
             int vChunks = (int)Math.Ceiling(((float)Height) / chunkSize);
             int hChunks = (int)Math.Ceiling(((float)Width) / chunkSize);
@@ -361,7 +361,10 @@ namespace OPS.Imaging
                     Progress("populated chunk ({0},{1}), {2}/{3} complete", r, c, ++n, vChunks * hChunks);
                 }
             }
-            largeImage = null;
+            if (releaseBacking)
+            {
+                largeImage = null;
+            }
         }
 
         /// <summary>
