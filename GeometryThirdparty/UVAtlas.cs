@@ -231,7 +231,7 @@ namespace OPS.Geometry
 
             // create a cuboid for each tag/face, scaling so all faces fit well in their cuboids
             Cuboid[] inCubes = new Cuboid[tags.Length];
-            int totalArea = 0;
+            ulong totalArea = 0;
             for (int iCube = 0; iCube < inCubes.Length; iCube++)
             {
                 // scale up dimensions stored in tag
@@ -241,8 +241,8 @@ namespace OPS.Geometry
                 tag.uv2 = tag.uv2 * scaleFactor;
 
                 // create a cuboid for this face
-                var cubeWidth = (int)Math.Ceiling(tag.uv1.X);
-                var cubeHeight = (int)Math.Ceiling(tag.uv2.Y);
+                var cubeWidth = (ulong)Math.Ceiling(tag.uv1.X);
+                var cubeHeight = (ulong)Math.Ceiling(tag.uv2.Y);
                 inCubes[iCube] = new Cuboid(cubeWidth, cubeHeight, NAIVE_PACKING_BIN_DEPTH, NAIVE_PACKING_BIN_WIEGHT, tag);
 
                 // update area total
