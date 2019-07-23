@@ -56,7 +56,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Construct a sparse by backed by an existing image.
+        /// Construct a sparse image by backed by an existing image.
         ///
         /// Chunks are allocated in memory lazily.
         /// Call Populate() to load them all and release the reference to the existing image.
@@ -92,7 +92,7 @@ namespace OPS.Imaging
         /// When a chunk needs to be loaded
         /// (1) if it already has been persisted as an independent chunk that is loaded
         /// (2) therwise if the full image has been persisted the chunk is loaded out of it with PartialRead()
-        /// (3)therwise a new blank chunk is created
+        /// (3) otherwise a new blank chunk is created
         ///
         /// When a chunk needs to be persisted it is saved as an independent chunk file, never the full image.
         ///
