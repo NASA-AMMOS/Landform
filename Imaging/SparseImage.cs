@@ -14,7 +14,7 @@ namespace OPS.Imaging
     /// </summary>
     public class SparseImage : Image
     {
-        private Image[,] chunks;
+        protected Image[,] chunks;
 
         //alternate instead of chunks array for limiting entire memory footprint
         protected LRUCache<Vector2, Image> chunkCache;
@@ -159,13 +159,13 @@ namespace OPS.Imaging
             InitChunkCacheOrArray(cacheSize, diskBackedCache);
         }
 
-        private void InitChunkArray()
+        protected void InitChunkArray()
         {
             chunks = new Image[(int)Math.Ceiling((float)Height / chunkSize),
                                (int)Math.Ceiling((float)Width / chunkSize)];
         }
 
-        private void InitChunkCacheOrArray(int cacheSize, bool diskBackedCache)
+        protected void InitChunkCacheOrArray(int cacheSize, bool diskBackedCache)
         {
             if (cacheSize > 0)
             {
@@ -391,7 +391,7 @@ namespace OPS.Imaging
         /// Otherwise unpersist the chunk if we have persisted backing.
         /// Otherwise allocate a new blank chunk.
         /// </summary>
-        private Image GetChunk(int chunkRow, int chunkCol)
+        protected Image GetChunk(int chunkRow, int chunkCol)
         {
             Image chunk = null;
 
