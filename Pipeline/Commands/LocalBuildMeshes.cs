@@ -344,8 +344,6 @@ namespace OPS.Pipeline
                 leaf.SaveMesh(astroTilesetDir, meshExtension: options.MeshExtension, imageExtension: options.ImageExtension);
             }
 
-
-#if true
             pipeline.LogInfo("Creating Tiling project");
             var createOptions = new CreateProjectOptions()
             {
@@ -420,18 +418,6 @@ namespace OPS.Pipeline
                 jsonData = jsonData.Replace("uri", "url"); //HACK: Issue #602: to emulate the previous version of tilest.json that asttro uses
                 File.WriteAllText(tilingJSONPath, jsonData);
             }
-
-#else
-            pipeline.LogInfo("Building parent tiles");
-            TileLocalMesh.BuildParents(root, options.FacesPerTile, options.TileResolution, SkirtsEnabled, options.SkirtAxis, astroTilesetDir, options.MeshExtension, options.ImageExtension);
-            pipeline.LogInfo("Building tileset json");
-            Tile3DBuilder builder = new Tile3DBuilder(root);
-            builder.BuildTileset(node => node.Name + "." + options.MeshExtension, false);
-            string jsonData = JsonConvert.SerializeObject(builder.Tileset, Newtonsoft.Json.Formatting.None);
-            jsonData = jsonData.Replace("uri", "url"); //HACK: Issue #602: to emulate the previous version of tilest.json that asttro uses
-            File.WriteAllText(Path.Combine(astroTilesetDir, "tileset.json"), jsonData);
-
-#endif
 
             //copy parent tiles to output bucket
             string tilingPath = Path.GetDirectoryName(tilingJSONPath);
