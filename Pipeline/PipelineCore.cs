@@ -39,6 +39,9 @@ namespace OPS.Pipeline
 
         [Option(Default = null, HelpText = "URL to the directory with user generated masks")]
         public string UserMasksDirectory { get; set; }
+
+        [Option(Default = false, HelpText = "user masks are inverted: 0 means invalid, nonzero means valid")]
+        public bool UserMasksInverted { get; set; }
     }
 
     /**
@@ -237,7 +240,7 @@ namespace OPS.Pipeline
                             }
                             else
                             {
-                                image.CreateMask(mask);
+                                image.CreateMask(mask,Options.UserMasksInverted);
                             }
                         }
                     }
