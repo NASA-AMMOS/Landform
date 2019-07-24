@@ -344,6 +344,11 @@ namespace OPS.Pipeline
             return true;
         }
 
+        public virtual bool IsGeometricallyLinearlyCorrected(PDSParser parser)
+        {
+            return parser.GeometricProjection == RoverProductGeometry.Linearized;
+        }
+      
         /// <summary>
         /// Mostly just confirms what CheckFilename() did using metadata instead of the filename
         /// but some things are only checked by one or the other
@@ -382,12 +387,12 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowLinear() && parser.GeometricProjection == RoverProductGeometry.Linearized)
+            if (!AllowLinear() && IsGeometricallyLinearlyCorrected(parser))
             {
                 return false;
             }
 
-            if (!AllowNonlinear() && parser.GeometricProjection != RoverProductGeometry.Linearized)
+            if (!AllowNonlinear() && !IsGeometricallyLinearlyCorrected(parser))
             {
                 return false;
             }
@@ -530,6 +535,15 @@ namespace OPS.Pipeline
             return new MSLRoverMasker(this);
         }
 
+        public override bool IsGeometricallyLinearlyCorrected(PDSParser parser)
+        {
+            //some msss msl images are labelled incorrectly: reporting raw in the metadata, 
+            //when they are linearized and labelled correctly in the filename
+            //example 0609MR0025690030401020E01_DRCL
+            return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
+                ((parser.ProducingInstitution == RoverProductProducer.MSSS) && (parser.ProductId.Geometry == RoverProductGeometry.Linearized));
+        }
+
         public override RoverProductCamera GetRoverProductCamera(string instrumentId)
         {
             if (instrumentId.StartsWith("FHAZ_LEFT"))
@@ -568,7 +582,7 @@ namespace OPS.Pipeline
             {
                 return RoverProductCamera.MAHLI;
             }
-            
+
             return RoverProductCamera.Unknown;
         }
 
@@ -598,7 +612,7 @@ namespace OPS.Pipeline
                     throw new NotImplementedException("focal length for camera " + camera + " not added yet");
             }
         }
-      
+
         public override double GetSensorPixelSizeMM(RoverProductCamera camera)
         {
             switch (camera)
@@ -618,7 +632,7 @@ namespace OPS.Pipeline
 
         // Mastcam only
         public override double? GetMaximumFocusDistance(PDSMetadata metadata)
-        {            
+        {
             if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
             {
                 return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
@@ -627,7 +641,7 @@ namespace OPS.Pipeline
         }
 
         public override double GetMinimumFocusDistance(PDSMetadata metadata)
-        {          
+        {
             if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
             {
                 if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
