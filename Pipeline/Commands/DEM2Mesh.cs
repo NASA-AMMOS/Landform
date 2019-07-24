@@ -425,15 +425,16 @@ namespace OPS.Pipeline
             bool useHashForMask;
             if((long)width * (long)height > MAX_SINGLE_CHUNK_SIZE * MAX_SINGLE_CHUNK_SIZE || options.Radius != -1)
             {
-                dem = new SparseImage(options.InputDem, ImageConverters.PassThrough, useCache: true, chunkSize: 1024, cacheSize: 100, diskBack: true);
+                dem = new SparseDEMImage(options.InputDem);
                 useHashForMask = true;
-            } else
+            }
+            else
             {
                 dem = Image.Load(options.InputDem, ImageConverters.PassThrough);
                 useHashForMask = false;
             }    
             
-            if(dem.CameraModel == null)
+            if (dem.CameraModel == null)
             {
                 dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, options.MetersPerPixel);
             }
@@ -568,5 +569,22 @@ namespace OPS.Pipeline
             return 0;
         }
 
+    }
+
+    public class SparseDEMImage : SparseImage
+    {
+        public SparseDEMImage(string path) : base(path, chunkSize: 1024, cacheSize: 100, diskBackedCache: true)
+        {
+        }
+
+        protected override IImageConverter GetReadConverter()
+        {
+            return ImageConverters.PassThrough;
+        }
+
+        protected override IImageConverter GetWriteConverter()
+        {
+            return ImageConverters.PassThrough;
+        }
     }
 }

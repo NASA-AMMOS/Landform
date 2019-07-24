@@ -97,7 +97,8 @@ namespace OPS.Util
             {
                 return url;
             }
-            int lastSlash = url.LastIndexOf('/'); 
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
             if (lastSlash < 0)
             {
                 return url;
@@ -115,6 +116,44 @@ namespace OPS.Util
             {
                 int lastDot = ret.LastIndexOf('.');
                 return lastDot < 0 ? ret : ret.Substring(0, lastDot);
+            }
+        }
+
+        public static string GetUrlExtension(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            int lastDot = url.LastIndexOf('.');
+            if (lastDot > lastSlash)
+            {
+                return url.Substring(lastDot);
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        public static string StripUrlExtension(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            int lastDot = url.LastIndexOf('.');
+            if (lastDot > lastSlash)
+            {
+                return url.Substring(0, lastDot);
+            }
+            else
+            {
+                return url;
             }
         }
 

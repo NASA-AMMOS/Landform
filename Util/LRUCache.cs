@@ -15,33 +15,46 @@ namespace OPS.Util
         /// </summary>
         public int Capacity
         {
-            get { return _capacity; }
+            get { return capacity; }
             set
             {
-                _capacity = value;
+                capacity = value;
                 if (Count > value)
                 {
                     Trim();
                 }
             }
         }
-        private int _capacity;
-        private string _tempdir;
+        private int capacity;
+        private string tempdir;
 
-        private Action<TValue, string> _save;
-        private Func<TKey, string> _keyToString;
+        private Func<TKey, string> keyToFilename;
+        private Action<string, TValue> save;
+        private Func<string, TValue> load;
 
         public bool DiskBacked
         {
-            get { return _save != null && _keyToString != null; }
+            get { return keyToFilename != null; }
         }
 
-        private void flush(TKey key, TValue obj)
+        private void SaveIfDiskBacked(TKey key, TValue obj)
         {
-            if (_save != null)
+            if (save != null)
             {
-                _save(obj, Path.Combine(_tempdir, _keyToString(key)));
+                save(Path.Combine(tempdir, keyToFilename(key)), obj);
             } 
+        }
+
+        private TValue LoadIfDiskBacked(TKey key)
+        {
+            if (load != null)
+            {
+                return load(Path.Combine(tempdir, keyToFilename(key)));
+            }
+            else
+            {
+                throw new InvalidOperationException();
+            }
         }
 
         /// <summary>
@@ -58,26 +71,31 @@ namespace OPS.Util
             }
         }
 
-        public LRUCache(int capacity, Action<TValue, string> flush = null, Func<TKey, string> keyToString = null)
+        /// <summary>
+        /// creates an in-memory LRU cache
+        /// </summary>
+        public LRUCache(int capacity)
         {
-            this._save = flush;
-            this._keyToString = keyToString;
-            if(flush == null && keyToString != null || flush != null && keyToString == null)
-            {
-                throw new Exception("LRU Cache needs both TKey to filename and save TValue functions to back to disk. Set both null to use in memory cache.");
-            }
-            if(flush != null && keyToString != null)
-            {
-                _tempdir = TemporaryFile.GetTempSubdir();
-            }
             if (capacity < 1)
             {
-                throw new ArgumentOutOfRangeException("capacity", capacity, "Capacity must be >= 1");
+                throw new ArgumentOutOfRangeException("capacity", capacity, "capacity must be >= 1");
             }
-
-            _capacity = capacity;
+            this.capacity = capacity;
             Values = new LinkedList<Entry>();
             KeyToNode = new ConcurrentDictionary<TKey, LinkedListNode<Entry>>();
+        }
+
+        /// <summary>
+        /// creates a disk-backed LRU cache
+        /// </summary>
+        public LRUCache(int capacity, Func<TKey, string> keyToFilename, Action<string, TValue> save,
+                        Func<string, TValue> load)
+            : this(capacity)
+        {
+            this.keyToFilename = keyToFilename;
+            this.save = save;
+            this.load = load;
+            tempdir = TemporaryFile.GetTempSubdir();
         }
 
         /// <summary>
@@ -87,7 +105,7 @@ namespace OPS.Util
         {
             if (DiskBacked)
             {
-                TemporaryFile.DeleteTempDirectory();
+                TemporaryFile.DeleteTempSubdir(tempdir);
             }
         }
 
@@ -102,29 +120,23 @@ namespace OPS.Util
         }
 
         /// <summary>
-        /// Check if a key exists on disk
+        /// Return cached value if already loaded, else try load if disk backed, else return (but don't cache) sentinel.
         /// </summary>
-        /// <returns></returns>
-        public bool ContainsKeyOnDisk(TKey key)
-        {
-            return DiskBacked && File.Exists(Path.Combine(_tempdir, _keyToString(key)));
-        }
-
-        /// <summary>
-        /// Load a key value pair back into cache memory if it has been flushed to disk.
-        /// /// </summary>
         /// <param name="key"></param>
-        /// <param name="load"></param>
-        public void EnsureLoaded(TKey key, Func<string, TValue> load)
+        public TValue GetOrLoad(TKey key, TValue sentinel = default(TValue))
         {
-            if(!ContainsKeyOnDisk(key))
+            if (ContainsKey(key))
             {
-                throw new KeyNotFoundException();
+                return this[key];
             }
-            if (!ContainsKey(key))
+            else if (DiskBacked && File.Exists(Path.Combine(tempdir, keyToFilename(key))))
             {
-                TValue val = load(_keyToString(key));
-                Add(key, val);
+                Add(key, LoadIfDiskBacked(key));
+                return this[key];
+            }
+            else
+            {
+                return sentinel;
             }
         }
 
@@ -153,11 +165,14 @@ namespace OPS.Util
             if (!ContainsKey(key)) return false;
 
             var node = KeyToNode[key];
-            flush(key, node.Value.Value);
+
+            SaveIfDiskBacked(key, node.Value.Value);
+
             lock (Values)
             {
                 Values.Remove(node);
             }
+
             return KeyToNode.TryRemove(key, out var junk);
         }
         
@@ -223,11 +238,14 @@ namespace OPS.Util
                 while (Values.Count > Capacity)
                 {
                     var last = Values.Last;
-                    flush(last.Value.Key, last.Value.Value);
+
+                    SaveIfDiskBacked(last.Value.Key, last.Value.Value);
+
                     if (!KeyToNode.TryRemove(last.Value.Key, out var junk))
                     {
                         throw new Exception("it broke");
                     }
+
                     Values.RemoveLast();
                 }
             }
