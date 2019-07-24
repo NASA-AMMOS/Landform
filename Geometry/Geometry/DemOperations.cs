@@ -30,23 +30,23 @@ namespace OPS.Geometry
             double area = 0;
             if (tl.HasValue)
             {
-                ret += tl.Value * x * y;
-                area += x * y;
+                ret += tl.Value * (1-x) * (1-y);
+                area += (1-x) * (1-y);
             }
             if (tr.HasValue)
             {
-                ret += tr.Value * (1 - x) * y;
-                area += (1 - x) * y;
+                ret += tr.Value * x * (1-y);
+                area += x * (1-y);
             }
             if (bl.HasValue)
             {
-                ret += bl.Value * x * (1 - y);
-                area += x * (1 - y);
+                ret += bl.Value * (1 - x) * y;
+                area += (1 - x) * y;
             }
             if (br.HasValue)
             {
-                ret += br.Value * (1 - x) * (1 - y);
-                area += (1 - x) * (1 - y);
+                ret += br.Value * x * y;
+                area += x * y;
             }
             if (area > 0)
             {
@@ -169,7 +169,7 @@ namespace OPS.Geometry
             return GetXYZ(dem, null, row, col, filterValues, minFilter, maxFilter);
         }
 
-        public static Matrix Align(Mesh scene, Image dem, double rowCenter, double colCenter, int width, int height, double metersPerPixel, double zOffsetGuess = 0, string sceneHeightmapPath = "")
+        public static Matrix Align(Mesh scene, Image dem, double rowCenter, double colCenter, int width, int height, double metersPerPixel, out List<Vector3> alignSamples, double zOffsetGuess = 0, string sceneHeightmapPath = "")
         {
             if (dem.CameraModel == null)
             {
@@ -226,6 +226,8 @@ namespace OPS.Geometry
                     }
                 }
             }
+
+            alignSamples = demSamples;
 
             double demHorizontalOrigin = dem.Width / 2.0;
             double demVerticalOrigin = dem.Height / 2.0;
