@@ -29,10 +29,6 @@ namespace OPS.Pipeline.TileServer
     {
         private readonly DefineTilesMessage message;
 
-        //To limit the size of an ortho loaded as one chunk
-        //Note: this must match CHUNK_RESOLUTION expected by chunkinput; may want to expose this parameter to the tiling project
-        private const int CHUNK_SIZE = 2048;
-
         //TODO it may be possible to re-use this code in ProjectCache
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/428
         private class TileDependencyMapping
@@ -226,24 +222,7 @@ namespace OPS.Pipeline.TileServer
             Image image = null;
             if (input.ImageUrl != null)
             {
-                pipeline.GetFile(input.ImageUrl, f =>
-                {
-                    string ext = Path.GetExtension(f);
-                    ImageSerializer s = ImageSerializers.Instance.GetSerializer(ext);
-                    if (s.GetType() == typeof(GDALSerializer))
-                    {
-                        ((GDALSerializer)s).GetMetadata(f, out int bands, out int width, out int height);
-                        if (width > CHUNK_SIZE && height > CHUNK_SIZE)
-                        {
-                            image = new SparseImage(bands, width, height, input.ImageUrl, ext, CHUNK_SIZE);
-                        } else
-                        {
-                            image = Image.Load(f);
-                        }
-                    } else {
-                        image = Image.Load(f);
-                    }
-                });
+                image = new SparsePipelineImage(pipeline, input.ImageUrl, ChunkInput.CHUNK_RESOLUTION);
             }
             Mesh mesh = null;
             pipeline.GetFile(input.MeshUrl, f =>
@@ -255,6 +234,5 @@ namespace OPS.Pipeline.TileServer
 
             return new MeshImagePair(mesh, image);
         }
-
     }
 }

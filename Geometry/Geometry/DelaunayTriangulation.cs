@@ -12,9 +12,10 @@ namespace OPS.Geometry
         public Vector2 xy;
         public double height;
     }
+
     public static class DelaunayTriangulation
     {
-        public static Mesh Triangulate(IEnumerable<Vertex> Vertices, Func<Vertex, DelaunayPoint> projection)
+        public static Mesh Triangulate(IEnumerable<Vertex> Vertices, Func<Vertex, DelaunayPoint> projection, bool invertWinding = false)
         {
             Mesh ret = new Mesh();
             ret.Vertices = Vertices.ToList();
@@ -40,7 +41,13 @@ namespace OPS.Geometry
                 int id1 = tnTri.GetVertex(0).ID;
                 int id2 = tnTri.GetVertex(1).ID;
                 int id3 = tnTri.GetVertex(2).ID;
-                ret.Faces.Add(new Face(id1, id2, id3));
+                if (invertWinding)
+                {
+                    ret.Faces.Add(new Face(id2, id1, id3));
+                } else
+                {
+                    ret.Faces.Add(new Face(id1, id2, id3));
+                }
             }
 
             return ret;
