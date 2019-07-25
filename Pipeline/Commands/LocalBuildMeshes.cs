@@ -591,7 +591,7 @@ namespace OPS.Pipeline
                     return;
                 }
 
-                pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
+                pipeline.LogDebug("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
 
                 //create image
                 leafImage = new Image(3, options.TileResolution, options.TileResolution);
@@ -659,7 +659,7 @@ namespace OPS.Pipeline
 
                     if (contributedPixels > 0)
                     {
-                        //pipeline.LogInfo("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
+                        pipeline.LogDebug("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
                         if (options.OutputDebugMeshes)
                         {
                             obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_chull_" + leaf.Name + ".ply"));
