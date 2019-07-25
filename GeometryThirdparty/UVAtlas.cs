@@ -57,28 +57,17 @@ namespace OPS.Geometry
             float[] outU, outV;
             int[] outVertexRemap;
 
-            if (mesh.Faces.Count == 1)
+            UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
+            UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices, out outU, out outV, out indices, out outVertexRemap, maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+            if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {
-                //memory corruption exceptions are thrown consistently when a single triangle mesh is fed to the atlasser
-                // this block of code assigns a naive atlas to the single triangle
-
-                outVertexRemap = new int[] { 0, 1, 2 };
-                outU = new float[] { 0, 0, 1 }; // lower left, upper left, upper right
-                outV = new float[] { 0, 1, 1 };
+                throw new UVAtlasException("Atlas not successful.  Return code: " + rc);
             }
-            else
+            if (indices.Length % 3 != 0)
             {
-                UVAtlasNET.UVAtlas.Quality quality = forceHighestQuality ? UVAtlasNET.UVAtlas.Quality.UVATLAS_GEODESIC_QUALITY : UVAtlasNET.UVAtlas.Quality.UVATLAS_DEFAULT;
-                UVAtlasNET.UVAtlas.ReturnCode rc = UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices, out outU, out outV, out indices, out outVertexRemap, maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
-                if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
-                {
-                    throw new UVAtlasException("Atlas not successful.  Return code: " + rc);
-                }
-                if (indices.Length % 3 != 0)
-                {
-                    throw new UVAtlasException("Atlas output indices not divisible by 3");
-                }
+                throw new UVAtlasException("Atlas output indices not divisible by 3");
             }
+            
             Mesh result = new Mesh(hasUVs: true, hasNormals: mesh.HasNormals, hasColors: mesh.HasColors);
             for (int i = 0; i < outVertexRemap.Length; i++)
             {
