@@ -82,7 +82,7 @@ namespace OPS.Geometry
                 maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
             if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {
-                logger.Info("Using Naive atlasing on Leaf ");
+                logger.Info("Using Naive atlasing");
 
                 NaiveAtlas(mesh, out outU, out outV, out indices, out outVertexRemap);
             }
