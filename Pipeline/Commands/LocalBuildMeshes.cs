@@ -823,7 +823,7 @@ namespace OPS.Pipeline
             fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam: true, decimate: options.Decimate);
             if (fullMesh == null)
             {
-                pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
+                pipeline.LogError("Mesh building for {0} failed.", options.ProjectName);
                 return null;
             }
 
