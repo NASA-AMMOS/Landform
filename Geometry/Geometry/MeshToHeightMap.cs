@@ -40,15 +40,15 @@ namespace OPS.Geometry
                 {
                     double y = minY + c * yExtent / (double)height;
                     double x = minX + (width - r - 1) * xExtent / (double)width;
-                    BarycentricPoint p = mo.UVToBarycentric(new Vector2(x, y));
-                    if (p == null)
+                    List<BarycentricPoint> points = mo.UVToBarycentricList(new Vector2(x, y)).ToList();
+                    if (points.Count == 0)
                     {
                         heightmap[0, r, c] = BIGGY;
                         mask.setInvalid(r, c);
                     }
                     else
                     {
-                        heightmap[0, r, c] = -1 * (float)p.Position.Z;
+                        heightmap[0, r, c] = -1 * (float)points.Select(v => v.Position.Z).Min(); //Find highest point assuming +Z is gravity
                         mask.setValid(r, c);
                     }
                 }

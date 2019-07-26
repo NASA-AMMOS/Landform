@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Util;
 using OPS.Imaging;
+using OPS.Util;
 
 namespace OPS.Geometry
 {
@@ -15,7 +16,7 @@ namespace OPS.Geometry
         static ILog logger = LogManager.GetLogger(typeof(DemOperations));
 
         /// <summary>
-        /// Do bilinear interpolation with potentially null points.
+        /// Do bilinear interpolation with potentially null points. x and y should be horizontal and vertical offset from the top left corner respectively, see diagram.
         /// </summary>
         /// <param name="x"></param>
         /// <param name="y"></param>
@@ -24,7 +25,24 @@ namespace OPS.Geometry
         /// <param name="bl"></param>
         /// <param name="br"></param>
         /// <returns></returns>
-        public static Vector3? Bilinear(double x, double y, Vector3? tl, Vector3? tr, Vector3? bl, Vector3? br)
+        /// 
+        /// tl ---------------------------- tr
+        ///  |       |                      |
+        ///  |       | y                    |
+        ///  |       |                      |
+        ///  |-------P                      |
+        ///  |   x                          |
+        ///  |                              |
+        ///  |                              |
+        ///  |                              |
+        ///  |                              |
+        ///  |                              |
+        /// bl ---------------------------- br
+        /// 
+        ///  Returns the interpolated value at point P by summing the values at each corner, weighted by the area to the far corner.
+        ///  If a corner is missing, its contribution is ignored in the weighted average.
+ 
+        public static Vector3? Interpolate(double x, double y, Vector3? tl, Vector3? tr, Vector3? bl, Vector3? br)
         {
             Vector3 ret = new Vector3(0, 0, 0);
             double area = 0;
@@ -62,73 +80,75 @@ namespace OPS.Geometry
         /// Given Image dem, find corners that are not masked out. Optionally enter top left corner and a size parameter to get corners of a subregion.
         /// May not return a full set of vertices (potentially none) if image heavily masked
         /// </summary>
-        /// <param name="xyz"></param>
-        /// <param name="mask"></param>
-        /// <param name="minR"></param>
-        /// <param name="minC"></param>
-        /// <param name="size"></param>
+        /// <param name="dem"></param>
+        /// <param name="minRow"></param>
+        /// <param name="minCol"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
         /// <returns></returns>
-        public static IEnumerable<Vector2> FindCorners(Image dem, int minR = 0, int minC = 0, int width = -1, int height = -1)
+        public static List<Vector2> FindCorners(Image dem, int minRow = 0, int minCol = 0, int width = -1, int height = -1)
         {
-            int d = 0;
+            int diagonalLength = 0;
             bool foundTopLeft = false;
             bool foundTopRight = false;
             bool foundBotLeft = false;
             bool foundBotRight = false;
             if (width == -1)
             {
-                width = dem.Width - minC - 1;
+                width = dem.Width - minCol - 1;
             }
             if (height == -1)
             {
-                height = dem.Height - minR - 1;
+                height = dem.Height - minRow - 1;
             }
 
-            while (d < Math.Min(width, height) && (!foundTopLeft || !foundTopRight || !foundBotLeft || !foundBotRight))
+            List<Vector2> ret = new List<Vector2>();
+            while (diagonalLength < Math.Min(width, height) && (!foundTopLeft || !foundTopRight || !foundBotLeft || !foundBotRight))
             {
-                int c;
-                for (int r = 0; r <= d; r++)
+                int col;
+                for (int row = 0; row <= diagonalLength; row++)
                 {
-                    c = d - r;
+                    col = diagonalLength - row;
                     if (!foundTopLeft)
                     {
-                        Vector3? tl = DemOperations.GetXYZ(dem, null, minR + r, minC + c);
+                        Vector3? tl = DemOperations.GetXYZ(dem, null, minRow + row, minCol + col);
                         if (tl.HasValue)
                         {
                             foundTopLeft = true;
-                            yield return new Vector2(minC + c, minR + r);
+                            ret.Add(new Vector2(minCol + col, minRow + row));
                         }
                     }
                     if (!foundTopRight)
                     {
-                        Vector3? tr = DemOperations.GetXYZ(dem, null, minR + r, minC + width - c);
+                        Vector3? tr = DemOperations.GetXYZ(dem, null, minRow + row, minCol + width - col);
                         if (tr.HasValue)
                         {
                             foundTopRight = true;
-                            yield return new Vector2(minC + width - c, minR + r);
+                            ret.Add(new Vector2(minCol + width - col, minRow + row));
                         }
                     }
                     if (!foundBotLeft)
                     {
-                        Vector3? bl = DemOperations.GetXYZ(dem, null, minR + height - r, minC + c);
+                        Vector3? bl = DemOperations.GetXYZ(dem, null, minRow + height - row, minCol + col);
                         if (bl.HasValue)
                         {
                             foundBotLeft = true;
-                            yield return new Vector2(minC + c, minR + height - r);
+                            ret.Add(new Vector2(minCol + col, minRow + height - row));
                         }
                     }
                     if (!foundBotRight)
                     {
-                        Vector3? br = DemOperations.GetXYZ(dem, null, minR + height - r, minC + width - c);
+                        Vector3? br = DemOperations.GetXYZ(dem, null, minRow + height - row, minCol + width - col);
                         if (br.HasValue)
                         {
                             foundBotRight = true;
-                            yield return new Vector2(minC + width - c, minR + height - r);
+                            ret.Add(new Vector2(minCol + width - col, minRow + height - row));
                         }
                     }
                 }
-                ++d;
+                ++diagonalLength;
             }
+            return ret;
         }
 
         /// <summary>
@@ -138,7 +158,6 @@ namespace OPS.Geometry
         /// <param name="mask"></param>
         /// <param name="row"></param>
         /// <param name="col"></param>
-        /// <param name="parser"></param>
         /// <param name="filterValues"></param>
         /// <returns></returns>
         public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, bool filterValues = true, double minFilter=-1000000, double maxFilter=1000000)
@@ -151,13 +170,9 @@ namespace OPS.Geometry
             var value = dem[0, row, col];
             if (!filterValues || value >= minFilter && value <= maxFilter)
             {
-                if (mask != null)
+                if (mask != null && !mask.isValid(row, col))
                 {
-                    if (!mask.isValid(row, col))
-                    {
-                        return null;
-                    }
-                    mask.setInvalid(row, col); //Prevent this point from being sampled again
+                   return null;
                 }
                 return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value);
             }         
@@ -169,8 +184,29 @@ namespace OPS.Geometry
             return GetXYZ(dem, null, row, col, filterValues, minFilter, maxFilter);
         }
 
-        public static Matrix Align(Mesh scene, Image dem, double rowCenter, double colCenter, int width, int height, double metersPerPixel, out List<Vector3> alignSamples, double zOffsetGuess = 0, string sceneHeightmapPath = "")
+        public static Vector2? GetRowCol(Image dem, Vector3 xyz)
         {
+            return dem.CameraModel.Project(xyz, out double range);
+        }
+
+        /// <summary>
+        /// Align dem to given scene (centered approximately at rowCenter, colCenter in the dem). Algorithm only uses distance from sample dem points in a width x height box around given center to the mesh as fitness function.
+        /// </summary>
+        /// <param name="scene"></param>
+        /// <param name="dem"></param>
+        /// <param name="rowCenter"></param>
+        /// <param name="colCenter"></param>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        /// <param name="metersPerPixel"></param>
+        /// <param name="alignSamples"></param>
+        /// <param name="zOffsetGuess"></param>
+        /// <param name="sceneHeightmapPath"></param>
+        /// <returns></returns>
+        public static Matrix Align(Mesh scene, Image dem, double rowCenter, double colCenter, int width, int height, double metersPerPixel, out List<Vector3> alignSamples, double zOffsetGuess = 0, double percentToKeep=1.0, string sceneHeightmapPath = "")
+        {
+            Random rand = NumberHelper.MakeRandomGenerator();
+
             if (dem.CameraModel == null)
             {
                 dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, metersPerPixel);
@@ -188,6 +224,7 @@ namespace OPS.Geometry
             double sceneXCenter = demRowCenterDouble - demRowCenterInt - 0.5; //Correct fractional pixel offset to dem origin, and half pixel offset from projection
             double sceneYCenter = -1 * (demColCenterDouble - demColCenterInt) + 0.5;
 
+            //Assume width/height are even and round down otherwise. This allows assuming even number of pixels to either side of origin.
             int rowRadiusPixels = height / 2;
             int xRadiusPixels = rowRadiusPixels;
             int colRadiusPixels = width / 2;
@@ -208,7 +245,6 @@ namespace OPS.Geometry
             scenemap.CameraModel = new OrthographicCameraModel(Matrix.Identity, scenemap.Width, scenemap.Height, metersPerPixel);
 
             List<Vector3> sceneSamples = new List<Vector3>();
-            List<Vector3> demSamples = new List<Vector3>();
 
             for (int r = 0; r < scenemap.Height; r++)
             {
@@ -218,16 +254,21 @@ namespace OPS.Geometry
                     if (scenePoint.HasValue)
                     {
                         Vector3? demPoint = GetXYZ(dem, demRowCenterInt - rowRadiusPixels + r, demColCenterInt - colRadiusPixels + c);
-                        if (demPoint.HasValue)
+                        //Ensure that samples are taken where meshes overlap in projected space
+                        if (demPoint.HasValue && rand.NextDouble() < percentToKeep)
                         {
                             sceneSamples.Add(scenePoint.Value);
-                            demSamples.Add(demPoint.Value);
                         }
                     }
                 }
             }
 
-            alignSamples = demSamples;
+            if(sceneSamples.Count < 1)
+            {
+                throw new Exception("Alignment found no samples. Check for sufficient overlap or consider increasing sample percentage.");
+            }
+
+            alignSamples = sceneSamples;
 
             double demHorizontalOrigin = dem.Width / 2.0;
             double demVerticalOrigin = dem.Height / 2.0;
@@ -254,40 +295,71 @@ namespace OPS.Geometry
                 return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
             });
 
-            Func<double[], double> sum_squared_error = new Func<double[], double>((transformArray) => {
+            //TODO: Could instead use a 2d projection with uv face tree, possibly more efficient (2d search instead of 3d), but would only use vertical projection rather than minimum distance
+            Func<double[], double> meanZSquaredError = new Func<double[], double>((transformArray) => {
 
                 double error = 0;
-                Matrix transformMatrix = arrayToTransform(transformArray);
+                //Aligning scene sample points to dem; final transform will be dem to scene. This could be refactored to avoid invert but should not make much of a computational difference
+                Matrix transformMatrix = Matrix.Invert(arrayToTransform(transformArray));
+                int count = 0;
                 for (int i = 0; i < sceneSamples.Count; i++)
                 {
-                    Vector3 p1 = sceneSamples[i];
-                    Vector3 p2 = Vector3.Transform(demSamples[i], transformMatrix);
-                    error += Vector3.DistanceSquared(p1, p2);
+                    Vector3 sceneXYZ = Vector3.Transform(sceneSamples[i], transformMatrix);
+                    //Project the transformed scene point onto dem
+                    Vector2? demRowCol = GetRowCol(dem, sceneXYZ);
+                    if (demRowCol.HasValue)
+                    {
+                        //Unproject to get dem height
+                        Vector3? demXYZ = Interpolate(demRowCol.Value.X - (int)demRowCol.Value.X, demRowCol.Value.Y - (int)demRowCol.Value.Y, 
+                                GetXYZ(dem, (int)demRowCol.Value.Y, (int)demRowCol.Value.X),
+                                GetXYZ(dem, (int)demRowCol.Value.Y, (int)Math.Ceiling(demRowCol.Value.X)),
+                                GetXYZ(dem, (int)Math.Ceiling(demRowCol.Value.Y), (int)demRowCol.Value.X),
+                                GetXYZ(dem, (int)Math.Ceiling(demRowCol.Value.Y), (int)Math.Ceiling(demRowCol.Value.X))
+                            );
+                        //TODO: better way to handle when the scene samples no longer hit the dem? Should be rare for orbital but could be a problem for more general use case
+                        if (demXYZ.HasValue) {
+                            double zOff = sceneXYZ.Z - demXYZ.Value.Z;
+                            error += zOff * zOff;
+                            ++count;
+                        }
+                    }
                 }
-                return error;
+                return count == 0 ? double.MaxValue : error / (double)count;
             });
 
+            //Use a vertical projection to get height offset
             Func<double> meanZOffset = new Func<double>(() =>
             {
                 double x = 0;
-                for (int i = 0; i < demSamples.Count; i++)
+                int count = 0;
+                for (int i = 0; i < sceneSamples.Count; i++)
                 {
-                    x += sceneSamples[i].Z - Vector3.Transform(demSamples[i], arrayToTransform(guess)).Z;
+                    Vector3 sceneXYZ = Vector3.Transform(sceneSamples[i], Matrix.Invert(arrayToTransform(guess))); //See comment about invert in meanZError
+                    Vector2? demRowCol = GetRowCol(dem, sceneXYZ);
+                    if (demRowCol.HasValue)
+                    {
+                        Vector3? demXYZ = GetXYZ(dem, (int)demRowCol.Value.Y, (int)demRowCol.Value.X);
+                        if (demXYZ.HasValue)
+                        {
+                            x += demXYZ.Value.Z - sceneXYZ.Z;
+                            ++count;
+                        }
+                    }
                 }
-                return x / (double)demSamples.Count;
+                return count == 0 ? 0 : x / (double)count;
             });
 
             SimulatedAnnealing sa = new SimulatedAnnealing();
-            sa.maxIterations = 10000;
-            sa.noisy = true;
+            sa.maxIterations = 100;
+            sa.verbose = true;
             sa.temperatureScale = 1;
             sa.probabilityScale = 100;
-            int numAnnealStages = 10;
+            int numAnnealStages = 100;
             for (int i = 0; i < numAnnealStages; i++)
             {
                 logger.InfoFormat("Annealing pass {0}", i + 1);
                 sa.temperatureExponent = 1.0 / (Math.Max(4, numAnnealStages) - i);
-                double[] newTrans = sa.Minimize(sum_squared_error, guess, sigma);
+                double[] newTrans = sa.Minimize(meanZSquaredError, guess, sigma);
                 guess = newTrans;
                 zTranslation += meanZOffset();
             }

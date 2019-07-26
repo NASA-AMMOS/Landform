@@ -142,6 +142,7 @@ namespace OPS.Pipeline
                 int testR = (int)(r + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * height);
                 int testC = (int)(c + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * width);
                 Vector3? v = DemOperations.GetXYZ(dem, mask, testR, testC);
+                mask.setInvalid(testR, testC); //Prevent point from being resampled
                 if(v.HasValue)
                 {
                     newRowCols.Add(new Vector2(testC, testR));
@@ -173,14 +174,14 @@ namespace OPS.Pipeline
             }
 
             //Compute new child tile bounds
-            Vector3? tl = DemOperations.Bilinear(c - Math.Floor(c), r - Math.Floor(r),
+            Vector3? tl = DemOperations.Interpolate(c - Math.Floor(c), r - Math.Floor(r),
                 DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Floor(c), false),
                 DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Ceiling(c), false),
                 DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Floor(c), false),
                 DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Ceiling(c), false));
             double r1 = Math.Min(r + height, dem.Height - 1);
             double c1 = Math.Min(c + width, dem.Width - 1);
-            Vector3? br = DemOperations.Bilinear(c1 - Math.Floor(c1), r1 - Math.Floor(r1),
+            Vector3? br = DemOperations.Interpolate(c1 - Math.Floor(c1), r1 - Math.Floor(r1),
                 DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Floor(c1), false),
                 DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Ceiling(c1), false),
                 DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Floor(c1), false),
@@ -202,10 +203,10 @@ namespace OPS.Pipeline
             double lmidY = (minY + maxY - (maxY - minY) * 0.1) / 2.0;
 
             //Add boundary conditions to each tile child (try to find approximate tile corners, and include full dem corners in case of failure)
-            List<Vector2> vIdxs1 = DemOperations.FindCorners(dem, (int)r, (int)c, (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
-            List<Vector2> vIdxs2 = DemOperations.FindCorners(dem, (int)(r + height / 2), (int)c, (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
-            List<Vector2> vIdxs3 = DemOperations.FindCorners(dem, (int)r, (int)(c + width / 2), (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
-            List<Vector2> vIdxs4 = DemOperations.FindCorners(dem, (int)(r + height / 2), (int)(c + width / 2), (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
+            List<Vector2> vIdxs1 = DemOperations.FindCorners(dem, (int)r, (int)c, (int)((width - 1)/2), (int)((height - 1) / 2));
+            List<Vector2> vIdxs2 = DemOperations.FindCorners(dem, (int)(r + height / 2), (int)c, (int)((width - 1) / 2), (int)((height - 1) / 2));
+            List<Vector2> vIdxs3 = DemOperations.FindCorners(dem, (int)r, (int)(c + width / 2), (int)((width - 1) / 2), (int)((height - 1) / 2));
+            List<Vector2> vIdxs4 = DemOperations.FindCorners(dem, (int)(r + height / 2), (int)(c + width / 2), (int)((width - 1)/2), (int)((height - 1) / 2));
             vIdxs1.AddRange(rowCols.GetRange(0, 4));
             vIdxs2.AddRange(rowCols.GetRange(0, 4));
             vIdxs3.AddRange(rowCols.GetRange(0, 4));
@@ -358,7 +359,7 @@ namespace OPS.Pipeline
                     mask = new Mask(dem.Width, dem.Height, true);             
                     if (options.Error != 0)
                     {
-                        rowCols = DemOperations.FindCorners(dem, baseR, baseC, pixelWidth-1, pixelHeight-1).ToList();
+                        rowCols = DemOperations.FindCorners(dem, baseR, baseC, pixelWidth-1, pixelHeight-1);
                         rowCols.AddRange(Split(rowCols, baseR, baseC, pixelWidth, pixelHeight, options.Error, dem, mask, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                         //Split allows sampling outside the bounds to smooth density transitions, so filter to our restricted bounds at the end
                         rowCols = rowCols.Where((rc) => rc.X >= baseC && rc.X < baseC + pixelWidth && rc.Y >= baseR && rc.Y < baseR + pixelHeight).ToList();
@@ -378,7 +379,7 @@ namespace OPS.Pipeline
                 {
                     //Mesh the full dem
                     mask = new Mask(dem.Width, dem.Height, useHashForMask);
-                    rowCols = DemOperations.FindCorners(dem).ToList();
+                    rowCols = DemOperations.FindCorners(dem);
                     rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                 }
                 //Construct vertices
@@ -391,17 +392,25 @@ namespace OPS.Pipeline
             }
 
             Matrix siteDriveTransform = Matrix.Identity;
-            if(useSiteDriveFame)
+            List<Vector3> samples = new List<Vector3>();
+            if (useSiteDriveFame)
             {
                 if(options.AlignToScene != "")
                 {
                     Mesh scene = Mesh.Load(options.AlignToScene);
-                    siteDriveTransform = DemOperations.Align(scene, dem, colRowOffset.Y, colRowOffset.X, 200, 200, options.MetersPerPixel, zOffset, options.WriteHeightmapPath);
+                    siteDriveTransform = DemOperations.Align(scene, dem, colRowOffset.Y, colRowOffset.X, 200, 200, options.MetersPerPixel, out samples, zOffset, 1.0, options.WriteHeightmapPath);
                 } else
                 {
                     //Shift image origin and apply vertical offset based on places priors
                     siteDriveTransform = Matrix.CreateTranslation(options.MetersPerPixel * (-1 * colRowOffset.X + (double)width / 2.0), options.MetersPerPixel * (colRowOffset.Y - (double)height / 2.0), -1 * zOffset);
                 }
+            }
+
+            //Clip out portions of the dem that are in scene footprint        
+            if (options.Error == 0)
+            {
+                List<Vertex> toClip = mesh.Vertices.Where(v => samples.Contains(v.Position)).ToList();
+                mesh.RemoveVertices(toClip);
             }
 
             foreach (Vertex v in mesh.Vertices)

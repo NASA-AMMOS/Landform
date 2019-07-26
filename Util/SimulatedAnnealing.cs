@@ -1,4 +1,5 @@
-﻿using System;
+﻿using OPS.Util;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -10,8 +11,7 @@ namespace Util
     {
         static void Copy(double[] from, double[] to)
         {
-            int i;
-            for (i = 0; i < from.Length; i++)
+            for (int i = 0; i < from.Length; i++)
             {
                 to[i] = from[i];
             }
@@ -61,16 +61,15 @@ namespace Util
             double currentError = errorFunction(x);
             double bestError = currentError;
 
-            Random r = new Random();
+            Random r = NumberHelper.MakeRandomGenerator();
             int i;
-            for (i = 0; i < _maxIterations; i++)
+            for (i = 0; i < maxIterations; i++)
             {
-                double temperature = 1 - (i / (double)_maxIterations);
+                double temperature = 1 - (i / (double)maxIterations);
                 temperature = Math.Pow(temperature, temperatureExponent) * temperatureScale;
 
                 Copy(x, candidateX);
-                int j;
-                for (j = 0; j < dimensions; j++)
+                for (int j = 0; j < dimensions; j++)
                 {
                     candidateX[j] += NormalRandom(r) * sigma[j] * temperature;
                 }
@@ -87,31 +86,20 @@ namespace Util
                     Copy(x, bestX);
                 }
 
-                if (noisy && i % 50 == 0)
+                if (verbose && i % 50 == 0)
                 {
-                    Console.WriteLine("{0}% - best error: {1}", (int)(((i + 1) / (float)_maxIterations) * 100), bestError);
+                    Console.WriteLine("{0}% - best error: {1}", (int)(((i + 1) / (float)maxIterations) * 100), bestError);
                 }
             }
             return bestX;
         }
 
-        public int maxIterations
-        {
-            get
-            {
-                return _maxIterations;
-            }
-            set
-            {
-                _maxIterations = value;
-            }
-        }
-        int _maxIterations;
+        public int maxIterations;
         public double temperatureExponent;
         public double temperatureScale;
         public double probabilityScale;
         public double epsilon;
-        public bool noisy;
+        public bool verbose;
         public double[] sigma;
 
         public double[] Minimize(Func<double[], double> errorFunction, double[] x0, double[] sigma)
