@@ -151,7 +151,12 @@ namespace OPS.Geometry
         {
             return !IsEmpty && !other.IsEmpty && GJKIntersection.Intersects(Mesh, other.Mesh);
         }
-        
+
+        public bool Intersects(Triangle tri)
+        {
+            return this.Intersects(new ConvexHull(tri.Vertices().Select(v => v.Position)));
+        }
+
         /// <summary>
         /// Return true if <paramref name="ray"/> intersects this hull betwen <paramref name="minT"/> and <paramref name="maxT"/>.
         /// </summary>
