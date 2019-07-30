@@ -59,7 +59,7 @@ namespace OPS.Pipeline
                 var observationName = parser.ProductIdString;
                 var siteDriveName = parser.SiteDrive;
 
-                if (metadata.CameraModel.Linear != (parser.GeometricProjection == RoverProductGeometry.Linearized))
+                if (metadata.CameraModel.Linear != mission.IsGeometricallyLinearlyCorrected(parser))
                 {
                     var cmName = metadata.CameraModel.GetType().Name;
                     pipeline.LogWarn("PDS header geometry {0} but camera model {1} for {2}, using {1}",

@@ -928,13 +928,16 @@ namespace OPS.Geometry
         /// <param name="otherMeshes"></param>
         public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true, bool removeDuplicateVerts = true)
         {
-            int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
-            int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => sum + mesh.Faces.Count);
+            int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Vertices.Count);
+            int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Faces.Count);
             Vertices.Capacity = Math.Min(Vertices.Capacity, Vertices.Count + numNewVerts);
             Faces.Capacity = Math.Min(Faces.Capacity, Faces.Count + numNewFaces);
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
+                if (m == null)
+                    continue;
+
                 if (!AttributesSubsetOf(m))
                 {
                     throw new MeshException("Mesh to merge missing one or more attributes required by aggregate mesh");

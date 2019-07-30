@@ -577,7 +577,7 @@ namespace OPS.Pipeline
                     return;
                 }
 
-                pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
+                pipeline.LogDebug("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
 
                 //create image
                 leafImage = new Image(3, options.TileResolution, options.TileResolution);
@@ -603,17 +603,17 @@ namespace OPS.Pipeline
                     {
                         CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
+                        //test hull (protect against bad ray calculations from camera model)
+                        if (!obsToHull.ContainsKey(obs))
+                            continue;
+
+                        Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
+
                         List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
                         foreach (var pt in pointsToTestSamplingDensity)
                         {
-                            //test hull (protect against bad ray calculations from camera model)
-                            if (!obsToHull.ContainsKey(obs))
-                                continue;
-
                             if (!obsToHull[obs].Contains(pt.Point))
                                 continue;
-
-                            Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
 
                             //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
                             minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
@@ -645,7 +645,7 @@ namespace OPS.Pipeline
 
                     if (contributedPixels > 0)
                     {
-                        pipeline.LogInfo("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
+                        pipeline.LogDebug("Leaf {0}: contributing observation:{1}", leaf.Name, obs.Name);
                         if (options.OutputDebugMeshes)
                         {
                             obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_chull_" + leaf.Name + ".ply"));
@@ -809,7 +809,7 @@ namespace OPS.Pipeline
             fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, options.UsePriors, options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine, allowMastcam: true, decimate: options.Decimate);
             if (fullMesh == null)
             {
-                pipeline.LogError("Mesh building for {0) failed.", options.ProjectName);
+                pipeline.LogError("Mesh building for {0} failed.", options.ProjectName);
                 return null;
             }
 
