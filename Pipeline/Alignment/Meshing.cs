@@ -660,6 +660,12 @@ namespace OPS.Pipeline
         public static UncertainRigidTransform GetTransform(string fromFrame, string toFrame, FrameCache frameCache,
                                                            bool usePriors = false, bool onlyAligned = false)
         {
+            if (toFrame == fromFrame)
+            {
+                //nothing to do
+                return new UncertainRigidTransform(); //identity, no uncertainty
+            }
+
             if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
             {
                 return new UncertainRigidTransform(); //identity, no uncertainty
