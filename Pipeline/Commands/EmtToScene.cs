@@ -502,6 +502,9 @@ namespace OPS.Pipeline
             ConcurrentBag<LegacySceneManfiest.ImageData> imageDatas = new ConcurrentBag<LegacySceneManfiest.ImageData>();
             CoreLimitedParallel.ForEach(localFileRecords, rec =>
             {
+                if (!rec.HasMetadata)
+                    return;
+
                 var imageData = new LegacySceneManfiest.ImageData()
                 {
                     FileId = rec.FilenameBase,
@@ -519,6 +522,9 @@ namespace OPS.Pipeline
             logger.Info("Converting images for scene");
             CoreLimitedParallel.ForEach(localFileRecords, rec => 
             {
+                if (!rec.HasMetadata || !rec.HasImage)
+                    return;
+
                 string siteDrive = new PDSParser(new PDSMetadata(rec.PreferedMetadataImage)).SiteDrive;
                 string siteImageDir = Path.Combine(imagesDir, siteDrive);
                 PathHelper.EnsureExists(siteImageDir);
