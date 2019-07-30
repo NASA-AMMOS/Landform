@@ -244,8 +244,17 @@ namespace OPS.Imaging
                 // Loop through entire header, strip comments and empty lines
                 // For lines whose values span multiple lines, concat them into one line
                 string line = null;
+                bool firstline = true;
                 while ((line = file.ReadLine()) != null)
                 {
+                    if(firstline)
+                    {
+                        if(!line.StartsWith("PDS") && !line.StartsWith("ODL"))
+                        {
+                            throw new InvalidDataException("no metadata in pds file");
+                        }
+                        firstline = false;
+                    }
                     line = line.Trim();
                     
                     if (line == "END")
