@@ -33,7 +33,7 @@ namespace Util
                 haveExtraRandom = false;
                 return extraRandom;
             }
-            double u = r.NextDouble() * 2 - 1,
+     	    double u = r.NextDouble() * 2 - 1,
                    v = r.NextDouble() * 2 - 1;
             while (u * u + v * v >= 1)
             {
@@ -95,11 +95,17 @@ namespace Util
         }
 
         public int maxIterations;
+	//Temperature controls the chance of the algorithm moving to a worse solution (to avoid local minima), as well as how far the solution can move. Higher temperature = higher chance of larger movement. Temperature decays with each iteration 
+	//Controls the shape of temperature decay, higher exponent = sharper decay
         public double temperatureExponent;
+	//Used to scale the temperature by a factor at every iteration
         public double temperatureScale;
+	//Scales the error perceived by the algorithm between a candidate solution and the current solution. Higher probability scale = more likely to stay in local minima
         public double probabilityScale;
+	
         public double epsilon;
         public bool verbose;
+	//Allows weighting how much to fluctuate the current solution per dimension. For the case of a transformation, we likely want to perturb the rotation on a different scale than the translation. Higher sigma value for dimension d = more fluctuation of d 
         public double[] sigma;
 
         public double[] Minimize(Func<double[], double> errorFunction, double[] x0, double[] sigma)

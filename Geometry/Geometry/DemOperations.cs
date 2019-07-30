@@ -224,10 +224,12 @@ namespace OPS.Geometry
             double sceneXCenter = demRowCenterDouble - demRowCenterInt - 0.5; //Correct fractional pixel offset to dem origin, and half pixel offset from projection
             double sceneYCenter = -1 * (demColCenterDouble - demColCenterInt) + 0.5;
 
+	    //TODO: Issue 645 - Currently setting new scene heightmap origin at fractional pixel offset to be pixel aligned with given dem. 
+
             //Assume width/height are even and round down otherwise. This allows assuming even number of pixels to either side of origin.
-            int rowRadiusPixels = height / 2;
+	    int rowRadiusPixels = (int)Math.Ceiling(height / 2.0);
             int xRadiusPixels = rowRadiusPixels;
-            int colRadiusPixels = width / 2;
+            int colRadiusPixels = (int)Math.Ceiling(width / 2.0);
             int yRadiusPixels = colRadiusPixels;
 
             double xRadiusMeters = xRadiusPixels * metersPerPixel;
@@ -316,7 +318,7 @@ namespace OPS.Geometry
                                 GetXYZ(dem, (int)Math.Ceiling(demRowCol.Value.Y), (int)demRowCol.Value.X),
                                 GetXYZ(dem, (int)Math.Ceiling(demRowCol.Value.Y), (int)Math.Ceiling(demRowCol.Value.X))
                             );
-                        //TODO: better way to handle when the scene samples no longer hit the dem? Should be rare for orbital but could be a problem for more general use case
+                        //TODO: Issue 644 - better way to handle when the scene samples no longer hit the dem? Should be rare for orbital but could be a problem for more general use case
                         if (demXYZ.HasValue) {
                             double zOff = sceneXYZ.Z - demXYZ.Value.Z;
                             error += zOff * zOff;
