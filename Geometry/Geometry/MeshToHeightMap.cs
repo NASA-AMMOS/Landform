@@ -39,8 +39,9 @@ namespace OPS.Geometry
                 for(int c = 0; c < height; c++)
                 {
                     //Dem2mesh flips x and y when building mesh. Here we flip back in creating dem
-		    // scene +X = North = -row in dem
-		    // scene +Y = East  =  col in dem
+                    // scene +X = North = -row in dem
+                    // scene +Y = East  =  col in dem
+                    // x increases with (width - r - 1), y increases with c
                     double y = minY + c * yExtent / (double)height;
                     double x = minX + (width - r - 1) * xExtent / (double)width;
                     List<BarycentricPoint> points = mo.UVToBarycentricList(new Vector2(x, y)).ToList();
