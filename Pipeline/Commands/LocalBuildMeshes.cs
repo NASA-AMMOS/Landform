@@ -738,6 +738,10 @@ namespace OPS.Pipeline
                         obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
                     }
                 }
+                else
+                {
+                    pipeline.LogWarn("failed to build hull for {0}", obs.Name);
+                }
             }
         }
 
