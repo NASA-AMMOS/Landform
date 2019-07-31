@@ -307,7 +307,6 @@
     <Compile Include="Tiling\MultiMeshClipper.cs" />
     <Compile Include="Tiling\MultiMeshClipperInput.cs" />
     <Compile Include="Tiling\OctreeTilingScheme.cs" />
-    <Compile Include="Tiling\OctreeTriangle.cs" />
     <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
