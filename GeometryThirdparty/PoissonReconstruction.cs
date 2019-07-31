@@ -203,11 +203,6 @@ namespace OPS.Geometry
         public static Mesh Reconstruct(Image points, Image normals, Image mask = null,
                                        bool normalsAreScaledByConfidence = false)
         {
-            if (points == null)
-            {
-                return null;
-            }
-
             if (normals == null)
             {
                 throw new ArgumentException("Poission reconstruction requires normals");

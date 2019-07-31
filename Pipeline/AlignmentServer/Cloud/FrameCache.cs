@@ -266,7 +266,7 @@ namespace OPS.Pipeline.AlignmentServer
         public UncertainRigidTransform GetObservationTransform(Observation fromObs, string toFrame,
                                                                bool usePriors = false, bool onlyAligned = false)
         {
-            if (toFrame == "rover" || toFrame == PDSParser.ReferenceCoordinateFrame.RoverNav.ToString())
+            if (toFrame == "rover")
             {
                 return new UncertainRigidTransform(); //identity, no uncertainty
             }
@@ -277,13 +277,13 @@ namespace OPS.Pipeline.AlignmentServer
                 return null;
             }
 
-            if (toFrame == "sitedrive" || toFrame == PDSParser.ReferenceCoordinateFrame.LocalLevel.ToString())
+            if (toFrame == "sitedrive")
             {
                 var obsToSD = usePriors ? GetBestPrior(fromFrame) : GetBestTransform(fromFrame);
                 return (obsToSD == null || (onlyAligned && obsToSD.IsPrior())) ? null : obsToSD.Transform;
             }
 
-            if (toFrame == "site" || toFrame == PDSParser.ReferenceCoordinateFrame.Site.ToString())
+            if (toFrame == "site")
             {
                 throw new NotImplementedException("transform to site frame not implemented");
             }

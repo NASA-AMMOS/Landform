@@ -94,11 +94,6 @@ namespace OPS.Geometry
         /// </summary>
         public static Mesh Reconstruct(Image points, Image normals, Image mask = null)
         {
-            if (points == null)
-            {
-                return null;
-            }
-
             if (normals == null)
             {
                 throw new ArgumentException("FSSR reconstruction requires normals");

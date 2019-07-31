@@ -48,7 +48,7 @@ namespace OPS.Pipeline
         public Mesh GenerateAtlas(Mesh mesh, bool removeVertsOutsideView, bool processVertsInParallel)
         {
             var ret = new Mesh(mesh);
-            ret.TextureWith(image, removeVertsOutsideView, processVertsInParallel, meshToCameraModelFrame);
+            ret.ProjectTexture(image, removeVertsOutsideView, processVertsInParallel, meshToCameraModelFrame);
             return ret;
         }
 

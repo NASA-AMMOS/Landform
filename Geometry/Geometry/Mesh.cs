@@ -1649,8 +1649,8 @@ namespace OPS.Geometry
         /// add texture coordinates to a mesh by projecting vertices onto an image
         /// also optionally removes any vertices of the mesh that aren't visible in the image
         /// </summary>
-        public void TextureWith(Image img, bool removeVertsOutsideView = true, bool processVertsInParallel = false,
-                                Matrix? meshToImage = null)
+        public void ProjectTexture(Image img, bool removeVertsOutsideView = true, bool processVertsInParallel = false,
+                                   Matrix? meshToImage = null)
         {
             Matrix xform = meshToImage ?? Matrix.Identity;
             ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
@@ -1666,6 +1666,7 @@ namespace OPS.Geometry
                 {
                     // TODO: review this half pixel offset
                     //v.UV =  new Vector2((pixel.X - 0.5) / (image.Width+1), 1 - ((pixel.Y - 0.5) / (image.Height+1)));
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/488
                     v.UV = img.PixelToUV(pixel);
                     v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
                 }

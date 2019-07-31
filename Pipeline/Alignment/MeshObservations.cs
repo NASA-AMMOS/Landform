@@ -131,7 +131,6 @@ namespace OPS.Pipeline
             //require that there is a transform chain from the frame of the MeshObservations to TargetFrame
             public bool RequireAnyTransform = true;
 
-            //if set then 
             public string TargetFrame = null;
 
             public IComparer<RoverObservation> Comparator = null;
@@ -320,8 +319,8 @@ namespace OPS.Pipeline
 
             public bool ScaleNormalsByConfidence = false; //does not apply to generated normals
 
-            public bool ApplyTexture = false; //Mesh.TextureWith() the texture, if any (doesn't apply to point cloud)
-            public bool RemoveVertsOutsideView = true; //option for Mesh.TextureWith()
+            public bool ApplyTexture = false; //Mesh.ProjectTexture() the texture, if any (doesn't apply to point cloud)
+            public bool RemoveVertsOutsideView = true; //option for Mesh.ProjectTexture()
 
             public double MaxTriangleAspect = 20; //organized mesh only
             public bool GenerateNormals = true; //organized mesh only
@@ -502,7 +501,7 @@ namespace OPS.Pipeline
 
             if (opts.ApplyTexture && TextureImage != null)
             {
-                mesh.TextureWith(TextureImage, opts.RemoveVertsOutsideView);
+                mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
             }
 
             var xform = frameCache.GetObservationTransform(Points, opts.Frame, opts.UsePriors, opts.OnlyAligned);
