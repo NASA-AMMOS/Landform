@@ -530,7 +530,7 @@ namespace OPS.Pipeline
                         normals = (new PDSImage(normals)).ConvertNormals(confidence);
                         if (normals != null)
                         {
-                            var nbs = mbs;
+                            int nbs = mbs;
                             if (obs.Points == null)
                             {
                                 nbs = MeshObservations.AutoDecimate(obs.Normals, options.DecimateMeshes,

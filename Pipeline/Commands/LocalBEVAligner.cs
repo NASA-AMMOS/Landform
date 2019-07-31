@@ -459,7 +459,7 @@ namespace OPS.Pipeline
                     if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture && obs.Texture != null)
                     {
                         img = pipeline.LoadImage(obs.Texture.Url);
-                        var ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateImages, options.TargetImageResolution);
+                        int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateImages, options.TargetImageResolution);
                         if (ibs > 1)
                         {
                             if (ibs != options.DecimateImages)
