@@ -143,10 +143,10 @@ namespace OPS.Geometry
                 MeshOperator mo = new MeshOperator(targetCopy, false, false, true);
                 foreach(Vertex v in outMesh.Vertices)
                 {
-                    BarycentricPoint bp = mo.UVToBarycentric(getUV(v.Position));
-                    if(bp != null)
+                    var points = mo.UVToBarycentricList(getUV(v.Position)).ToList();
+                    if(points.Count > 0)
                     {
-                        double height = getHeight(bp.Position);
+                        double height = points.Select(p => getHeight(p.Position)).Max();
                         setHeight(v, height);
                     }
                 }
