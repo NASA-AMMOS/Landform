@@ -454,9 +454,9 @@ namespace OPS.Pipeline
             if (dem.Metadata.GetType() == typeof(PDSMetadata))
             {
                 parser = new PDSParser((PDSMetadata)dem.Metadata);
-                Meshing.CheckType(parser, RoverProductType.Range, "ConvertRange");
-                Meshing.CheckCameraCenter(parser, dem, "ConvertRNG");
-                Meshing.AddMaskForMissingConstant(dem, dem, parser);
+                PDSImage.CheckType(parser, RoverProductType.Range, "DEM2Mesh");
+                PDSImage.CheckCameraCenter(parser, dem, "DEM2Mesh");
+                PDSImage.AddMaskForMissingConstant(dem, dem, parser);
             }
 
             if (options.Error == 0 && options.Radius == -1 && !useSiteDriveFame)
@@ -490,8 +490,8 @@ namespace OPS.Pipeline
                         }
                     }
                 }
-                mesh = Meshing.BuildOrganizedMesh(xyz, mask:mask);
-            } 
+                mesh = OrganizedPointCloud.BuildOrganizedMesh(xyz, mask:mask);
+            }
             //Build decimated mesh by iterative sampling:
             // Start with two tris that connect the dem corners
             // Test error and sample regions that need subdividing (currently quad scheme)

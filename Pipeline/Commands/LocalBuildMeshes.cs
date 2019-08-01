@@ -607,7 +607,12 @@ namespace OPS.Pipeline
                         if (!obsToHull.ContainsKey(obs))
                             continue;
 
-                        Matrix obsToOutput = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
+                        var obsToOutput = frameCache.GetObservationTransform(obs, options.OutputFrame,
+                                                                             options.UsePriors, options.OnlyAligned);
+                        if (obsToOutput == null)
+                        {
+                            continue;
+                        }
 
                         List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
                         foreach (var pt in pointsToTestSamplingDensity)
@@ -616,7 +621,7 @@ namespace OPS.Pipeline
                                 continue;
 
                             //Issue #523: want median or average in case glancing angle? want a term that looks for consistancy in spacing? implies dead on?
-                            minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
+                            minDistances.Add(GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput.Mean, obsToHull[obs], pt.Pixel, pt.Point, obs.Width, obs.Height));
                         }
 
                         //store the median of the min distances
@@ -696,7 +701,14 @@ namespace OPS.Pipeline
             foreach (var obs in imageObservations)
             {
                 pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)", obs.Name, obsToHull.Count(), imageObservations.Count(), (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
-                ConvexHull obsHull = Meshing.BuildFrustumHull(pipeline, new MeshObservations() { Texture = obs }, frameCache, options.OutputFrame, options.UsePriors, uncertaintyInflated: false);
+                var meshObs = new MeshObservations() { Texture = obs };
+                var meshOpts = new MeshObservations.MeshOptions()
+                    {
+                        Frame = options.OutputFrame,
+                        UsePriors = options.UsePriors
+                    };
+                ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts,
+                                                              uncertaintyInflated: false);
                 if (obsHull != null)
                 {
                     obsToHull.Add(obs, obsHull);
@@ -771,9 +783,14 @@ namespace OPS.Pipeline
         }
 
         private CameraInstance ToCameraInstance(RoverObservation obs, Dictionary<Observation, ConvexHull> obsToHull, FrameCache frameCache)
-        {
+        {           
+            var xform = frameCache.GetObservationTransform(obs, options.OutputFrame, options.UsePriors);
+            if (xform == null)
+            {
+                return null;
+            }
             CameraInstance camInst = new CameraInstance();
-            camInst.cameraToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors).Mean;
+            camInst.cameraToMesh = xform.Mean;
             camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
             camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
             camInst.hullInMesh = obsToHull[obs];
@@ -847,7 +864,14 @@ namespace OPS.Pipeline
 
         private int BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc, RoverObservation obs, ConvexHull obsHull, ref List<PixelPoint> pointsToBackproject, Image leafImage)
         {
-            Matrix obsToMesh = Meshing.GetTransform(obs.FrameName, options.OutputFrame, frameCache, options.UsePriors, options.OnlyAligned).Mean;
+            var xform = frameCache.GetObservationTransform(obs, options.OutputFrame,
+                                                           options.UsePriors, options.OnlyAligned);
+            if (xform == null)
+            {
+                return 0;
+            }
+
+            Matrix obsToMesh = xform.Mean;
             Matrix meshToObs = Matrix.Invert(obsToMesh);
             CameraModel camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
