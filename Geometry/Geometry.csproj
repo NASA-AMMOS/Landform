@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -81,6 +81,7 @@
     <Compile Include="Geometry\DemOperations.cs" />
     <Compile Include="Geometry\Geohash.cs" />
     <Compile Include="Geometry\MeshException.cs" />
+    <Compile Include="Geometry\VertexProjection.cs" />
     <Compile Include="Geometry\MeshToHeightMap.cs" />
     <Compile Include="Geometry\OctreeTriangle.cs" />
     <Compile Include="Geometry\OrganizedPointCloud.cs" />

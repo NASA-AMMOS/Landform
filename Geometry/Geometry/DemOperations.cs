@@ -239,7 +239,7 @@ namespace OPS.Geometry
 
             BoundingBox sceneBounds = new BoundingBox(new Vector3(sceneXCenter - xRadiusMeters, sceneYCenter - yRadiusMeters, 0), new Vector3(sceneXCenter + xRadiusMeters, sceneYCenter + yRadiusMeters, 0));
 
-            Image scenemap = MeshToHeightMap.BuildHeightMap(scene, sceneBounds, 2 * xRadiusPixels, 2 * yRadiusPixels).Item1;
+            Image scenemap = MeshToHeightMap.BuildDem(scene, sceneBounds, 2 * xRadiusPixels, 2 * yRadiusPixels);
             if (sceneHeightmapPath != "")
             {
                 scenemap.Save<float>(sceneHeightmapPath);
