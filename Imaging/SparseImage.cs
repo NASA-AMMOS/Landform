@@ -580,5 +580,79 @@ namespace OPS.Imaging
         {
             SetMaskValue(i / Width, i % Width, value);
         }
+
+        public override bool BandValuesEqual(int i, float[] perBandValues)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                if (!this[b, i / Width, i % Width].Equals(perBandValues[b]))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public override void SetBandValues(int i, float[] perBandValues)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                this[b, i / Width, i % Width] = perBandValues[b];
+            }
+        }
+
+        public override float[] GetBandValues(int i)
+        {
+            float[] result = new float[Bands];
+            for (int b = 0; b < Bands; b++)
+            {
+                result[b] = this[b, i / Width , i % Width];
+            }
+            return result;
+        }
+
+        public override void ApplyInPlace(int band, Func<float, float> f, bool applyToMaskedValues = false)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                for (int r = 0; r < Height; r++)
+                {
+                    for (int c = 0; c < Width; c++)
+                    {
+                        if (applyToMaskedValues || IsValid(r, c))
+                        {
+                            this[b, r, c] = f(this[b, r, c]);
+                        }
+                    }
+                }
+            }
+        }
+
+        public override IEnumerator<float> GetEnumerator(bool includeInvalidValues)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                for (int r = 0; r < Height; r++)
+                {
+                    for (int c = 0; c < Width; c++)
+                    {
+                        if (includeInvalidValues || IsValid(r, c))
+                        {
+                            yield return this[b, r, c];
+                        }
+                    }
+                }
+            }
+        }
+
+        public override float[] GetBandData(int band)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override int AddBand()
+        {
+            throw new NotImplementedException();
+        }
     }
 }
