@@ -58,6 +58,12 @@ namespace OPS.Pipeline
         [Option(Required = false, Default = "", HelpText = "Output to sitedrive frame SSSSSDDDDD, default puts origin at dem center")]
         public string OutputFrame { get; set; }
 
+        [Option(Required = false, Default = "", HelpText = "Scene in given sitedrive frame to align with")]
+        public string AlignToScene { get; set; }
+
+        [Option(Required = false, Default = "", HelpText = "Path to save in memory heightmap created for AlignToScene mesh, default does not save")]
+        public string WriteHeightmapPath { get; set; }
+
         [Option(Required =false, Default = -1, HelpText = "Radius in meters around origin to build mesh")]
         public float Radius { get; set; }
 
@@ -104,123 +110,7 @@ namespace OPS.Pipeline
             return p;
         };
 
-        private const long MAX_SINGLE_CHUNK_SIZE = 100000; //If input dem width x height is larger than this value squared, chunk the input and use SparseImage w/ cache to limit memory consumption
-
-        /// <summary>
-        /// Given Image dem, find corners that are not masked out. Optionally enter top left corner and a size parameter to get corners of a subregion.
-        /// May not return a full set of vertices (potentially none) if image heavily masked
-        /// </summary>
-        /// <param name="xyz"></param>
-        /// <param name="mask"></param>
-        /// <param name="minR"></param>
-        /// <param name="minC"></param>
-        /// <param name="size"></param>
-        /// <returns></returns>
-        IEnumerable<Vector2> FindCorners(Image dem, PDSParser parser, int minR = 0, int minC = 0, int width = -1, int height = -1)
-        {
-            int d = 0;
-            bool foundTopLeft = false;
-            bool foundTopRight = false;
-            bool foundBotLeft = false;
-            bool foundBotRight = false;
-            if (width == -1)
-            {
-                width = dem.Width - minC - 1;
-            }
-            if (height == -1)
-            {
-                height = dem.Height - minR - 1;
-            }
-
-            while (d < Math.Min(width, height) && (!foundTopLeft || !foundTopRight || !foundBotLeft || !foundBotRight))
-            {
-                int c;
-                for (int r = 0; r <= d; r++)
-                {
-                    c = d - r;
-                    if (!foundTopLeft)
-                    {
-                        Vector3? tl = GetXYZ(dem, null, minR + r, minC + c, parser);
-                        if (tl.HasValue)
-                        {
-                            foundTopLeft = true;
-                            yield return new Vector2(minC + c, minR + r);
-                        }
-                    }
-                    if (!foundTopRight)
-                    {
-                        Vector3? tr = GetXYZ(dem, null, minR + r, minC + width - c, parser);
-                        if (tr.HasValue)
-                        {
-                            foundTopRight = true;
-                            yield return new Vector2(minC + width - c, minR + r);
-                        }
-                    }
-                    if (!foundBotLeft)
-                    {
-                        Vector3? bl = GetXYZ(dem, null, minR + height - r, minC + c, parser);
-                        if (bl.HasValue)
-                        {
-                            foundBotLeft = true;
-                            yield return new Vector2(minC + c, minR + height - r);
-                        }
-                    }
-                    if (!foundBotRight)
-                    {
-                        Vector3? br = GetXYZ(dem, null, minR + height - r, minC + width - c, parser);
-                        if (br.HasValue)
-                        {
-                            foundBotRight = true;
-                            yield return new Vector2(minC + width - c, minR + height - r);
-                        }
-                    }
-                }
-                ++d;
-            }
-        }
-
-        /// <summary>
-        /// Do bilinear interpolation with potentially null points.
-        /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <param name="tl"></param>
-        /// <param name="tr"></param>
-        /// <param name="bl"></param>
-        /// <param name="br"></param>
-        /// <returns></returns>
-        Vector3? Bilinear(double x, double y, Vector3? tl, Vector3? tr, Vector3? bl, Vector3? br)
-        {
-            Vector3 ret = new Vector3(0,0,0);
-            double area = 0;
-            if(tl.HasValue)
-            {
-                ret += tl.Value * x * y;
-                area += x * y;
-            }
-            if (tr.HasValue)
-            {
-                ret += tr.Value * (1 - x) * y;
-                area += (1 - x) * y;
-            }
-            if (bl.HasValue)
-            {
-                ret += bl.Value * x * (1 - y);
-                area += x * (1 - y);
-            }
-            if (br.HasValue)
-            {
-                ret += br.Value * (1 - x) * (1 - y);
-                area += (1 - x) * (1 - y);
-            }
-            if (area > 0)
-            {
-                return ret / area;
-            } else
-            {
-                return null;
-            }
-        }
+        private const long MAX_SINGLE_CHUNK_SIZE = 100000; //If input dem width x height is larger than this value squared, chunk the input and use SparseImage w/ cache to limit memory consumption   
 
         /// <summary>
         /// Recursively subsample regions where geometric error is too large
@@ -238,10 +128,10 @@ namespace OPS.Pipeline
         /// <param name="sampleScale"></param>
         /// <param name="rand"></param>
         /// <returns></returns>
-        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Mask mask, PDSParser parser, int sampleNum, int testNum, double sampleScale, Random rand)
+        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Mask mask, int sampleNum, int testNum, double sampleScale, Random rand)
         {
             //Mesh the current set of vertices
-            Mesh mesh = DelaunayTriangulation.Triangulate(rowCols.Select(rc => new Vertex(GetXYZ(dem,null,(int)rc.Y,(int)rc.X,parser).Value)).ToArray(), vertToDelaunay);
+            Mesh mesh = DelaunayTriangulation.Triangulate(rowCols.Select(rc => new Vertex(DemOperations.GetXYZ(dem,null,(int)rc.Y,(int)rc.X).Value)).ToArray(), vertToDelaunay);
 
             //Sample
             List<Vector2> newRowCols = new List<Vector2>();
@@ -251,8 +141,8 @@ namespace OPS.Pipeline
             {
                 int testR = (int)(r + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * height);
                 int testC = (int)(c + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * width);
-                Vector3? v = GetXYZ(dem, mask, testR, testC, parser);
-                //if (testR >= 0 && testR < mask.Height && testC > 0 && testC < mask.Width && mask[0, testR, testC] == 1)
+                Vector3? v = DemOperations.GetXYZ(dem, mask, testR, testC);
+                mask.setInvalid(testR, testC); //Prevent point from being resampled
                 if(v.HasValue)
                 {
                     newRowCols.Add(new Vector2(testC, testR));
@@ -284,18 +174,18 @@ namespace OPS.Pipeline
             }
 
             //Compute new child tile bounds
-            Vector3? tl = Bilinear(c - Math.Floor(c), r - Math.Floor(r),
-                GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Floor(c), parser, false),
-                GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Ceiling(c), parser, false),
-                GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Floor(c), parser, false),
-                GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Ceiling(c), parser, false));
+            Vector3? tl = DemOperations.Interpolate(c - Math.Floor(c), r - Math.Floor(r),
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Floor(c), false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Ceiling(c), false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Floor(c), false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Ceiling(c), false));
             double r1 = Math.Min(r + height, dem.Height - 1);
             double c1 = Math.Min(c + width, dem.Width - 1);
-            Vector3? br = Bilinear(c1 - Math.Floor(c1), r1 - Math.Floor(r1),
-                GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Floor(c1), parser, false),
-                GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Ceiling(c1), parser, false),
-                GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Floor(c1), parser, false),
-                GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Ceiling(c1), parser, false));
+            Vector3? br = DemOperations.Interpolate(c1 - Math.Floor(c1), r1 - Math.Floor(r1),
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Floor(c1), false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Ceiling(c1), false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Floor(c1), false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Ceiling(c1), false));
             if (!tl.HasValue || !br.HasValue)
             {
                 throw new Exception("Failed to get tile corner");
@@ -313,10 +203,10 @@ namespace OPS.Pipeline
             double lmidY = (minY + maxY - (maxY - minY) * 0.1) / 2.0;
 
             //Add boundary conditions to each tile child (try to find approximate tile corners, and include full dem corners in case of failure)
-            List<Vector2> vIdxs1 = FindCorners(dem, parser, (int)r, (int)c, (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
-            List<Vector2> vIdxs2 = FindCorners(dem, parser, (int)(r + height / 2), (int)c, (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
-            List<Vector2> vIdxs3 = FindCorners(dem, parser, (int)r, (int)(c + width / 2), (int)((width - 1) / 2), (int)((height - 1) / 2)).ToList();
-            List<Vector2> vIdxs4 = FindCorners(dem, parser, (int)(r + height / 2), (int)(c + width / 2), (int)((width - 1)/2), (int)((height - 1) / 2)).ToList();
+            List<Vector2> vIdxs1 = DemOperations.FindCorners(dem, (int)r, (int)c, (int)((width - 1)/2), (int)((height - 1) / 2));
+            List<Vector2> vIdxs2 = DemOperations.FindCorners(dem, (int)(r + height / 2), (int)c, (int)((width - 1) / 2), (int)((height - 1) / 2));
+            List<Vector2> vIdxs3 = DemOperations.FindCorners(dem, (int)r, (int)(c + width / 2), (int)((width - 1) / 2), (int)((height - 1) / 2));
+            List<Vector2> vIdxs4 = DemOperations.FindCorners(dem, (int)(r + height / 2), (int)(c + width / 2), (int)((width - 1)/2), (int)((height - 1) / 2));
             vIdxs1.AddRange(rowCols.GetRange(0, 4));
             vIdxs2.AddRange(rowCols.GetRange(0, 4));
             vIdxs3.AddRange(rowCols.GetRange(0, 4));
@@ -325,7 +215,7 @@ namespace OPS.Pipeline
             //Partition our current set of vertices + new samples into children
             foreach (Vector2 rc in rowCols.Union(newRowCols))
             {
-                Vector3 v = GetXYZ(dem, null, (int)rc.Y, (int)rc.X, parser).Value;
+                Vector3 v = DemOperations.GetXYZ(dem, null, (int)rc.Y, (int)rc.X).Value;
                 if(v.X < umidX)
                 {
                     if(v.Y > lmidY)
@@ -351,51 +241,13 @@ namespace OPS.Pipeline
             }
 
             //Recurse on children
-            newRowCols.AddRange(Split(vIdxs1, r, c, width/2.0, height/2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(Split(vIdxs2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(Split(vIdxs3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(Split(vIdxs4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, parser, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs1, r, c, width/2.0, height/2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
 
             return newRowCols;
-        }
-
-        /// <summary>
-        /// Unprojects passed in row, col in dem to return an xyz. Will return null if index is out of bounds, or point should be masked out.
-        /// </summary>
-        /// <param name="dem"></param>
-        /// <param name="mask"></param>
-        /// <param name="row"></param>
-        /// <param name="col"></param>
-        /// <param name="parser"></param>
-        /// <param name="filterValues"></param>
-        /// <returns></returns>
-        Vector3? GetXYZ(Image dem, Mask mask, int row, int col, PDSParser parser, bool filterValues=true)
-        {
-            if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || dem.IsInvalid(row, col)) //respect input image mask if it has one
-            {
-                return null;
-            }
-            else if (parser == null || !parser.HasMissingConstant) // should this be ((parser == null || !parser.HasMissingConstant) && !ret.IsInvalid(row, col)
-            {
-                var value = dem[0, row, col];
-                if (!filterValues || value >= options.DEMMinFilter && value <= options.DEMMaxFilter)
-                {
-                    if (mask != null)
-                    {
-                        if (!mask.isValid(row, col))
-                        {
-                            return null;
-                        }
-                        mask.setInvalid(row, col); //Prevent this point from being sampled again
-                    }
-                    Vector3 ret = dem.CameraModel.Unproject(new Vector2(row, col), -1 * value);
-                    ret.X *= -1;
-                    ret.Y *= -1;
-                    return ret;
-                }
-            }
-            return null;
-        }
+        }       
 
         /// <summary>
         /// Create a mesh from input dem with parameters given by command line args
@@ -448,20 +300,10 @@ namespace OPS.Pipeline
                 //TODO: Refactor building full mesh to make this easy to add (likely avoid ConvertRNG)
                 throw new NotImplementedException("Building full mesh in sitedrive frame not yet supported");
             }
-
-            PDSParser parser = null;
             dem.ScaleValues(options.VerticalScale);
-            if (dem.Metadata.GetType() == typeof(PDSMetadata))
-            {
-                parser = new PDSParser((PDSMetadata)dem.Metadata);
-                PDSImage.CheckType(parser, RoverProductType.Range, "DEM2Mesh");
-                PDSImage.CheckCameraCenter(parser, dem, "DEM2Mesh");
-                PDSImage.AddMaskForMissingConstant(dem, dem, parser);
-            }
 
-            if (options.Error == 0 && options.Radius == -1 && !useSiteDriveFame)
+            if (options.Error == 0 && options.Radius == -1)
             {
-                //TODO: check on this function
                 Image xyz = null;
                 Image mask = new Image(1, dem.Width, dem.Height);
 
@@ -476,7 +318,7 @@ namespace OPS.Pipeline
                     {
                         for (int col = 0; col < dem.Width; col++)
                         {
-                            Vector3? v = GetXYZ(dem, null, row, col, parser);
+                            Vector3? v = DemOperations.GetXYZ(dem, null, row, col);
                             if(v.HasValue)
                             {
                                 xyz[0, row, col] = (float)v.Value.X;
@@ -518,8 +360,8 @@ namespace OPS.Pipeline
                     mask = new Mask(dem.Width, dem.Height, true);             
                     if (options.Error != 0)
                     {
-                        rowCols = FindCorners(dem, parser, baseR, baseC, pixelWidth-1, pixelHeight-1).ToList();
-                        rowCols.AddRange(Split(rowCols, baseR, baseC, pixelWidth, pixelHeight, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                        rowCols = DemOperations.FindCorners(dem, baseR, baseC, pixelWidth-1, pixelHeight-1);
+                        rowCols.AddRange(Split(rowCols, baseR, baseC, pixelWidth, pixelHeight, options.Error, dem, mask, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                         //Split allows sampling outside the bounds to smooth density transitions, so filter to our restricted bounds at the end
                         rowCols = rowCols.Where((rc) => rc.X >= baseC && rc.X < baseC + pixelWidth && rc.Y >= baseR && rc.Y < baseR + pixelHeight).ToList();
                     } else
@@ -538,28 +380,55 @@ namespace OPS.Pipeline
                 {
                     //Mesh the full dem
                     mask = new Mask(dem.Width, dem.Height, useHashForMask);
-                    rowCols = FindCorners(dem, parser).ToList();
-                    rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, parser, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                    rowCols = DemOperations.FindCorners(dem);
+                    rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                 }
                 //Construct vertices
                 var verts = rowCols.Select(rc => {
-                    var v = new Vertex(GetXYZ(dem, null, (int)rc.Y, (int)rc.X, parser).Value);
-                    if(useSiteDriveFame)
-                    {
-                        //Shift image origin
-                        v.Position.X = v.Position.X + colRowOffset.Y - (double)width / 2.0;
-                        v.Position.Y = v.Position.Y - colRowOffset.X + (double)height / 2.0;
-                        //Apply vertical offset
-                        v.Position.Z = zOffset - v.Position.Z;
-                    }                
+                    var v = new Vertex(DemOperations.GetXYZ(dem, (int)rc.Y, (int)rc.X).Value);
                     v.UV = dem.PixelToUV(rc);
                     return v;
                     }).ToArray();
-                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay, invertWinding : useSiteDriveFame);
+                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
             }
+
+            Matrix siteDriveTransform = Matrix.Identity;
+            List<Vector3> samples = new List<Vector3>();
+            if (useSiteDriveFame)
+            {
+                if(options.AlignToScene != "")
+                {
+                    Mesh scene = Mesh.Load(options.AlignToScene);
+                    siteDriveTransform = DemOperations.Align(scene, dem, colRowOffset.Y, colRowOffset.X, 200, 200, options.MetersPerPixel, out samples, zOffset, 1.0, options.WriteHeightmapPath);
+                } else
+                {
+                    //Shift image origin and apply vertical offset based on places priors
+                    siteDriveTransform = Matrix.CreateTranslation(options.MetersPerPixel * (-1 * colRowOffset.X + (double)width / 2.0), options.MetersPerPixel * (colRowOffset.Y - (double)height / 2.0), -1 * zOffset);
+                }
+            }
+
+            //Clip out portions of the dem that are in scene footprint        
+            if (options.Error == 0)
+            {
+                List<Vertex> toClip = mesh.Vertices.Where(v => samples.Contains(v.Position)).ToList();
+                mesh.RemoveVertices(toClip);
+            }
+
+            foreach (Vertex v in mesh.Vertices)
+            {
+                v.Position = Vector3.Transform(v.Position, siteDriveTransform);
+                //Invert Z
+                v.Position.Z *= -1;
+                //Swap X Y
+                double temp = v.Position.X;
+                v.Position.X = v.Position.Y;
+                v.Position.Y = temp;
+            }
+
             string outputImage = null;
             if (options.InputOrthoImage != null)
             {
+                //TODO: Properly clip ortho when radius option is set
                 Image ortho = Image.Load(options.InputOrthoImage);
                 outputImage = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.ImageFormat);
                 ortho.Save<byte>(outputImage); // TODO, add support for matching input type
@@ -568,7 +437,6 @@ namespace OPS.Pipeline
             mesh.Save(this.options.OutputPath, outputImage);
             return 0;
         }
-
     }
 
     public class SparseDEMImage : SparseImage

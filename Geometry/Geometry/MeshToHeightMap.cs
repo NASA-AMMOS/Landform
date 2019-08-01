@@ -38,17 +38,21 @@ namespace OPS.Geometry
             {
                 for(int c = 0; c < height; c++)
                 {
-                    double y = minY + c * yExtent / (height - 1);
-                    double x = minX + (width - r - 1) * xExtent / (width - 1);
-                    BarycentricPoint p = mo.UVToBarycentric(new Vector2(x, y));
-                    if (p == null)
+                    //Dem2mesh flips x and y when building mesh. Here we flip back in creating dem
+                    // scene +X = North = -row in dem
+                    // scene +Y = East  =  col in dem
+                    // x increases with (width - r - 1), y increases with c
+                    double y = minY + c * yExtent / (double)height;
+                    double x = minX + (width - r - 1) * xExtent / (double)width;
+                    List<BarycentricPoint> points = mo.UVToBarycentricList(new Vector2(x, y)).ToList();
+                    if (points.Count == 0)
                     {
                         heightmap[0, r, c] = BIGGY;
                         mask.setInvalid(r, c);
                     }
                     else
                     {
-                        heightmap[0, r, c] = (float)p.Position.Z;
+                        heightmap[0, r, c] = -1 * (float)points.Select(v => v.Position.Z).Min(); //Find highest point assuming +Z is gravity
                         mask.setValid(r, c);
                     }
                 }
