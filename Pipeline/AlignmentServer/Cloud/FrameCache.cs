@@ -316,7 +316,7 @@ namespace OPS.Pipeline.AlignmentServer
             var ret = new UncertainRigidTransform(); //identity, no uncertainty
 
             bool aligned = false;
-            for (; frame != null; frame = GetFrame(frame.ParentName))
+            for (; frame != null && !string.IsNullOrEmpty(frame.ParentName); frame = GetFrame(frame.ParentName))
             {
                 var toParent = usePriors ? GetBestPrior(frame) : GetBestTransform(frame);
                 if (toParent == null)
