@@ -30,6 +30,7 @@ namespace OPS.Geometry
             public int Decimate = 2;
             public double MaxRadiusMeters = 20;
             public bool RadiusRelativeToOrigin = false;
+            public Func<int, int, int, Image> ImageFactory = null;
 
             public BEVOptions Clone()
             {
@@ -59,6 +60,12 @@ namespace OPS.Geometry
             if (options == null)
             {
                 options = new BEVOptions();
+            }
+
+            Func<int, int, int, Image> imageFactory = options.ImageFactory;
+            if (imageFactory == null)
+            {
+                imageFactory = (b, w, h) => new Image(b, w, h);
             }
 
             bool ccw = options.CCW;
@@ -98,7 +105,8 @@ namespace OPS.Geometry
             var offset = new Vector2(meshBounds.Min.X, ccw ? meshBounds.Max.Y : meshBounds.Min.Y);
             meshOrigin = -1 * offset * pixelsPerMeter;
 
-            var ret = new Image(greyscale ? 1 : 3, widthPixels, heightPixels);
+            int bands = greyscale ? 1 : 3;
+            var ret = imageFactory(bands, widthPixels, heightPixels);
             ret.CreateMask(true); //pixels default to masked
 
             double relDist(Vector2 p, Vector2 a, Vector2 b)
@@ -248,7 +256,7 @@ namespace OPS.Geometry
             {
                 //inpaint just the interior holes
                 //we do this by first creating a mask by floodfilling exterior invalid regions
-                Image mask = new Image(1, ret.Width, ret.Height);
+                Image mask = imageFactory(1, ret.Width, ret.Height);
                 ret.AddOuterRegionsToMask(mask);
                 ret.Inpaint(options.Inpaint);
                 ret.UnionMask(mask, new float[] { 1 } ); //re-apply the exterior mask

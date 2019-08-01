@@ -84,6 +84,9 @@ namespace OPS.Pipeline
         [Option(HelpText = "Birds eye view max radius in meters from site drive origin, 0 or negative for unlimited", Default = 20)]
         public double MaxBEVRadius { get; set; }
 
+        [Option(HelpText = "Max dense BEV image dimension, 0 or negative to use max heap allocation size", Default = 0)]
+        public int SparseImageThreshold { get; set; }
+
         [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = BlendMode.Max)]
         public BlendMode BEVBlending { get; set; }
 
@@ -546,7 +549,33 @@ namespace OPS.Pipeline
                 Blur = options.BEVSmoothing,
                 Decimate = options.BEVDecimation,
                 MaxRadiusMeters = options.MaxBEVRadius,
-                RadiusRelativeToOrigin = true
+                RadiusRelativeToOrigin = true,
+                ImageFactory = (bands, width, height) =>
+                {
+                    string err = null;
+                    if (options.SparseImageThreshold > 0 && width > options.SparseImageThreshold)
+                    {
+                        err = string.Format("width {0} > {1}", width, options.SparseImageThreshold);
+                    }
+                    if (options.SparseImageThreshold > 0 && err == null && height > options.SparseImageThreshold)
+                    {
+                        err = string.Format("height {0} > {1}", height, options.SparseImageThreshold);
+                    }
+                    if (err == null)
+                    {
+                        err = Image.CheckSize(bands, width, height);
+                    }
+                    if (string.IsNullOrEmpty(err))
+                    {
+                        return new Image(bands, width, height);
+                    }
+                    else
+                    {
+                        pipeline.LogVerbose("using sparse image to render {0}x{1} {2} band birds eye view: {3}",
+                                            width, height, bands, err);
+                        return new SparseImage(bands, width, height);
+                    }
+                }
             };
 
             var demOptions = bevOptions.Clone();
@@ -618,6 +647,7 @@ namespace OPS.Pipeline
 
                     if (!bevs.ContainsKey(siteDrive))
                     {
+                        pipeline.LogVerbose("rendering birds eye view for site drive {0}...", siteDrive);
                         Vector2 origin = sdOriginPixel;
                         var bev = Rasterizer.RenderBirdsEyeView(mesh, img, ref origin, bevOptions);
                         
@@ -629,7 +659,23 @@ namespace OPS.Pipeline
                                             options.BEVMetersPerPixel, MetersPerPixel, options.BEVSparseBlocksize,
                                             options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
                                             options.BEVDecimation, options.MaxBEVRadius);
-                        
+
+                        try
+                        {
+                            if (bev is SparseImage)
+                            {
+                                bev = (bev as SparseImage).Densify();
+                                pipeline.LogVerbose("densified {0}x{1} birds eye view for site drive {2}",
+                                                    bev.Width, bev.Height, siteDrive);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            throw new Exception(string.Format("cannot densify birds eye view for site drive {0}, " +
+                                                              "try increasing BEV decimation (currently {1}): {2}",
+                                                              siteDrive, options.BEVDecimation, ex.Message));
+                        }
+
                         bevs[siteDrive] = bev;
                         bevOrigins[siteDrive] = origin;
                     }
@@ -659,6 +705,22 @@ namespace OPS.Pipeline
                             {
                                 throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
                                                                   demOrigin, origin));
+                            }
+
+                            try
+                            {
+                                if (dem is SparseImage)
+                                {
+                                    dem = (dem as SparseImage).Densify();
+                                    pipeline.LogVerbose("densified {0}x{1} DEM for site drive {2}",
+                                                        dem.Width, dem.Height, siteDrive);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new Exception(string.Format("cannot densify DEM for site drive {0}, " +
+                                                                  "try increasing BEV decimation (currently {1}): {2}",
+                                                                  siteDrive, options.BEVDecimation, ex.Message));
                             }
 
                             dems[siteDrive] = dem;
