@@ -314,6 +314,21 @@ namespace OPS.Imaging
             }
         }
 
+        public bool CanDensify()
+        {
+            return string.IsNullOrEmpty(CheckSize<float>(Bands, Width, Height));
+        }
+
+        public Image Densify()
+        {
+            string err = Image.CheckSize(Bands, Width, Height);
+            if (!string.IsNullOrEmpty(err))
+            {
+                throw new InvalidOperationException(err);
+            }
+            return new Image(this);
+        }
+
         /// <summary>
         /// Subclasses can override this to spew progress for long operations.
         /// </summary>
