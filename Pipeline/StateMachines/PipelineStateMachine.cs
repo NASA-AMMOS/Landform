@@ -261,7 +261,7 @@ namespace OPS.Pipeline
             SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline, project);
 
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
-            CollectLeafGroups(root, leafGroups, project.MaxLeafGroupSize);
+            CollectLeafGroupsByChunkDependency(root, leafGroups, project.MaxLeafGroupSize);
             int totalLeaves = 0, leafJobs = 0, unprocessedLeaves = 0;
             foreach (var group in leafGroups)
             {
@@ -343,6 +343,114 @@ namespace OPS.Pipeline
                 result.Clear();
             }
             return result;
+        }
+
+        /// <summary>
+        /// collects leaves into groups based on the chunks that they depend on. All leaves in any given group will depend
+        /// on the exact same set of chunks. This should increase performance of BuilbakedLeaves.process since the minimum number
+        /// of chunks will be loaded when performing a mesh clip to define the meshes for individual leaves
+        /// </summary>
+        /// <param name="root">The root node of the tree whose leaves should be grouped</param>
+        /// <param name="groups">the output list of scene node groups 'collected' by this function</param>
+        /// <param name="maxGroupSize">the maximum size of any given group</param>
+        virtual protected void CollectLeafGroupsByChunkDependency(SceneNode root, List<List<SceneNode>> groups,
+                                                     int maxGroupSize)
+        {
+            // make sure group size is positive
+            if (maxGroupSize < 1)
+            {
+                throw new Exception("CollectLeafGroupsByChunkDependency must have maxGroupSize of 1 or more.  " +
+                    "Called with: " + maxGroupSize);
+            }
+
+            // TODO:
+            //   -consider looking at intersection of parent tile, only checking intersection 
+            //     of children on subset of chunks that intersect the parent
+
+            // get chunks
+            var chunks = new List<TilingInputChunk>();
+            var project = TilingProject.Find(pipeline, projectName);
+            var inputs = TilingInput.Find(pipeline, project).ToList();
+            foreach (var input in inputs)
+            {
+                IEnumerable<string> chunkIds = null;
+                lock (input.ChunkIds)
+                {
+                    chunkIds = input.ChunkIds.ToArray();
+                }
+                foreach (var chunkId in chunkIds)
+                {
+                    TilingInputChunk chunk = TilingInputChunk.Find(pipeline, chunkId);
+                    chunks.Add(chunk);
+                }
+            }
+
+            var leavesGroupedByChunk = new Dictionary<string, List<SceneNode>>();
+
+            // group leaves by 'chunk group key', where a 'chunk group key' is the concatenation of all
+            //   IDs of chunks that intersect the leaf. Should be unique per set of chunks since order of the
+            //   'chunks' array remains consistent througout tree traversal
+            var dfsTraversalStack = new Stack<SceneNode>();
+            dfsTraversalStack.Push(root);
+            while(dfsTraversalStack.Count > 0)
+            {
+                var node = dfsTraversalStack.Pop();
+
+                // if we've come across a node leaf, put it in the appropriate group
+                if (node.IsLeaf)
+                {
+                    // compute a 'chunk group key' for this leaf
+                    var leafTile = TilingNode.Find(pipeline, projectName, node.Name);
+                    var chunkGroupKey = string.Empty;
+                    foreach (var chunk in chunks)
+                    {
+                        if (leafTile.GetBounds().Intersects(chunk.GetBounds()))
+                        {
+                            chunkGroupKey += chunk.Id;
+                        }
+                    }
+
+                    // add this leaf to the dictionary list with corresponding 'chunk group key'
+                    if (!leavesGroupedByChunk.ContainsKey(chunkGroupKey))
+                    {
+                        leavesGroupedByChunk.Add(chunkGroupKey, new List<SceneNode>());
+                    }
+                    leavesGroupedByChunk[chunkGroupKey].Add(node);
+                }
+                // otherwise... (is NOT a leaf, so continue depth first search for children)
+                else
+                {
+                    foreach (var child in node.Children)
+                    {
+                        dfsTraversalStack.Push(child);
+                    }
+                }
+            }
+
+            // create leaf node groups based on chunk intersection grouping
+            foreach (var chunkGroupKeyValuePair in leavesGroupedByChunk)
+            {
+                var group = new List<SceneNode>(maxGroupSize);
+
+                // break each dictionary list into groups of maximum size 'maxGroupSize'
+                foreach (var leafNode in chunkGroupKeyValuePair.Value)
+                {
+                    if (group.Count < maxGroupSize)
+                    {
+                        group.Add(leafNode);
+                    }
+                    else
+                    {
+                        groups.Add(group);
+                        group = new List<SceneNode>(maxGroupSize);
+                        group.Add(leafNode);
+                    }
+                }
+                if(group.Count > 0)
+                {
+                    groups.Add(group);
+                }
+            }
         }
 
         virtual protected void TileCompleted(string tileId)

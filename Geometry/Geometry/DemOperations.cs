@@ -312,11 +312,15 @@ namespace OPS.Geometry
                     if (demRowCol.HasValue)
                     {
                         //Unproject to get dem height
-                        Vector3? demXYZ = Interpolate(demRowCol.Value.X - (int)demRowCol.Value.X, demRowCol.Value.Y - (int)demRowCol.Value.Y, 
-                                GetXYZ(dem, (int)demRowCol.Value.Y, (int)demRowCol.Value.X),
-                                GetXYZ(dem, (int)demRowCol.Value.Y, (int)Math.Ceiling(demRowCol.Value.X)),
-                                GetXYZ(dem, (int)Math.Ceiling(demRowCol.Value.Y), (int)demRowCol.Value.X),
-                                GetXYZ(dem, (int)Math.Ceiling(demRowCol.Value.Y), (int)Math.Ceiling(demRowCol.Value.X))
+                        double xFractionalOffset = demRowCol.Value.X - (int)demRowCol.Value.X;
+                        double yFractionalOffset = demRowCol.Value.Y - (int)demRowCol.Value.Y;
+                        int row = (int)demRowCol.Value.Y;
+                        int col = (int)demRowCol.Value.X;
+                        Vector3? demXYZ = Interpolate(xFractionalOffset, yFractionalOffset, 
+                                GetXYZ(dem, row, col),
+                                GetXYZ(dem, row, col + 1),
+                                GetXYZ(dem, row + 1, col),
+                                GetXYZ(dem, row + 1, col + 1)
                             );
                         //TODO: Issue 644 - better way to handle when the scene samples no longer hit the dem? Should be rare for orbital but could be a problem for more general use case
                         if (demXYZ.HasValue) {

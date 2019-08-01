@@ -277,15 +277,16 @@ namespace OPS.Pipeline
             bool useHashForMask;
             if((long)width * (long)height > MAX_SINGLE_CHUNK_SIZE * MAX_SINGLE_CHUNK_SIZE || options.Radius != -1)
             {
-                dem = new SparseImage(options.InputDem, ImageConverters.PassThrough, useCache: true, chunkSize: 1024, cacheSize: 100, diskBack: true);
+                dem = new SparseDEMImage(options.InputDem);
                 useHashForMask = true;
-            } else
+            }
+            else
             {
                 dem = Image.Load(options.InputDem, ImageConverters.PassThrough);
                 useHashForMask = false;
             }    
             
-            if(dem.CameraModel == null)
+            if (dem.CameraModel == null)
             {
                 dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, options.MetersPerPixel);
             }
@@ -331,8 +332,8 @@ namespace OPS.Pipeline
                         }
                     }
                 }
-                mesh = Meshing.BuildOrganizedMesh(xyz, mask:mask);
-            } 
+                mesh = OrganizedPointCloud.BuildOrganizedMesh(xyz, mask:mask);
+            }
             //Build decimated mesh by iterative sampling:
             // Start with two tris that connect the dem corners
             // Test error and sample regions that need subdividing (currently quad scheme)
@@ -435,6 +436,23 @@ namespace OPS.Pipeline
             mesh.HasUVs = true;
             mesh.Save(this.options.OutputPath, outputImage);
             return 0;
+        }
+    }
+
+    public class SparseDEMImage : SparseImage
+    {
+        public SparseDEMImage(string path) : base(path, chunkSize: 1024, cacheSize: 100, diskBackedCache: true)
+        {
+        }
+
+        protected override IImageConverter GetReadConverter()
+        {
+            return ImageConverters.PassThrough;
+        }
+
+        protected override IImageConverter GetWriteConverter()
+        {
+            return ImageConverters.PassThrough;
         }
     }
 }

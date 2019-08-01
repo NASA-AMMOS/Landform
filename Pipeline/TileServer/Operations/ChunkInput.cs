@@ -69,14 +69,15 @@ namespace OPS.Pipeline.TileServer
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
             });
-            SparseImage sparseImage = null;
+            SparsePipelineImage sparseImage = null;
             string imageBaseUrl = null;
             if (input.ImageUrl != null)
             {
-                pipeline.LogInfo("downloading " + input.ImageUrl);
+                pipeline.LogInfo("downloading and chunking image {0} from {1}", message.InputName, input.ImageUrl);
+                sparseImage = new SparsePipelineImage(pipeline, input.ImageUrl, CHUNK_RESOLUTION);
                 imageBaseUrl = pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
-                pipeline.LogInfo("chunking image for input " + message.InputName);
-                sparseImage = new SparsePipelineImage(pipeline, input.ImageUrl, IMAGE_EXT, imageBaseUrl, CHUNK_RESOLUTION);
+                pipeline.LogInfo("saving chunks for input {0} to {1}", message.InputName, imageBaseUrl);
+                sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
                 input.ImageBands = sparseImage.Bands;
                 input.ImageWidth = sparseImage.Width;
                 input.ImageHeight = sparseImage.Height;
@@ -88,7 +89,9 @@ namespace OPS.Pipeline.TileServer
 
             pipeline.LogInfo("building mesh chunks for input " + message.InputName);
             var tilingScheme = new BinaryTreeTilingScheme();
-            var root = TileLocalMesh.BuildBoundsTree(multiClipper, tilingScheme, new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
+            var root =
+                TileLocalMesh.BuildBoundsTree(multiClipper, tilingScheme,
+                                              new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
             
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
             var leaves = root.Leaves().ToList();
@@ -102,9 +105,10 @@ namespace OPS.Pipeline.TileServer
                     m.Save(f);
                     string meshUrl = pipeline.GetStorageUrl("chunk", projectName, id + MESH_EXT);
                     pipeline.SaveFile(f, meshUrl);
-                    TilingInputChunk record = TilingInputChunk.Create(pipeline, id, meshUrl, imageBaseUrl, m.Bounds());
+                    TilingInputChunk record = TilingInputChunk.Create(pipeline, id, meshUrl, imageBaseUrl, bounds);
                     chunkIds.Add(id);
-                    pipeline.LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
+                    pipeline.LogInfo("generated chunk {0}/{1} for input {2}",
+                                     chunkIds.Count(), leaves.Count, message.InputName);
                 });
             });
             lock (input.ChunkIds)

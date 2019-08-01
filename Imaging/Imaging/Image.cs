@@ -1127,6 +1127,26 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// count valid pixels
+        /// if mask image is provided then any pixels which are 0 there are also considered invalid
+        /// </summary>
+        public int CountValid(Image mask = null)
+        {
+            int valid = 0;
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    if (IsValid(row, col) && (mask == null || mask[0, row, col] != 0))
+                    {
+                        valid++;
+                    }
+                }
+            }
+            return valid;
+        }
+
+        /// <summary>
         /// flood fill mask from each invalid pixel on the border of this mask
         /// </summary>
         public Image AddOuterRegionsToMask(Image mask, float invalid = 1)

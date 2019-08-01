@@ -422,7 +422,7 @@ namespace OPS.Pipeline
             float missingConstant = float.NaN;
             bool hasMissingConstant = false;
             Image rng = null, xyr = null;
-            var center = Meshing.CheckCameraCenter(parser, xyzOrRng, "AddRange");
+            var center = PDSImage.CheckCameraCenter(parser, xyzOrRng, "AddRange");
             switch (parser.DerivedImageType)
             {
                 case RoverProductType.Range:
@@ -438,8 +438,8 @@ namespace OPS.Pipeline
                 }
                 case RoverProductType.XYZ:
                 {
-                    //Meshing.ConvertPoints() will set mask from missing constant
-                    xyr = Meshing.ConvertPoints(xyzOrRng);
+                    //PDSImage.ConvertPoints() will set mask from missing constant
+                    xyr = (new PDSImage(xyzOrRng, parser)).ConvertPoints();
                     if (xyr == null)
                     {
                         return 0;
