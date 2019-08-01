@@ -214,17 +214,16 @@ namespace OPS.Imaging
         /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to true will preserve the original mask</param>
         public Image Inpaint(int border = -1,bool preserveMask = false)
         {
-            bool[] savedMask = null;
             if (HasMask && preserveMask)
             {
-                savedMask = (bool[])Mask.Clone();
+                SaveMask();
             }
 
             Inpainter.Apply(this, border);
 
-            if(savedMask != null)
+            if (HasMask && preserveMask)
             {
-                Mask = savedMask;
+                RestoreMask();
             }
 
             return this;
@@ -308,14 +307,14 @@ namespace OPS.Imaging
         public Image Crop(int startRow, int startCol, int width, int height)
         {
             Image result = new Image(this.Bands, width, height);
-            if (this.HasMask)
+            if (HasMask)
             {
                 result.CreateMask();
             }
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
                 result[ic.Band, ic.Row, ic.Col] = this[ic.Band, ic.Row + startRow, ic.Col + startCol];
-                if (this.HasMask)
+                if (HasMask)
                 {
                     result.SetMaskValue(ic.Row, ic.Col, !IsValid(ic.Row + startRow, ic.Col + startCol));
                 }

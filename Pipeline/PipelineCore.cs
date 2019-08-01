@@ -240,7 +240,7 @@ namespace OPS.Pipeline
                             }
                             else
                             {
-                                image.CreateMask(mask,Options.UserMasksInverted);
+                                image.SetMask(mask,Options.UserMasksInverted);
                             }
                         }
                     }

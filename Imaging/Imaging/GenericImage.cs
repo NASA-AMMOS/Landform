@@ -32,9 +32,17 @@ namespace OPS.Imaging
         /// A mask value of true indicates that the value is masked out
         /// A mask value of false indicates that the value is valid
         /// A null mask means that this image does not have a mask
-        /// It is recommended that you use the helper methods HasMask, GetMask, and SetMask
         /// </summary>
-        protected bool[] Mask;
+        private bool[] mask;
+        private bool[] savedMask;
+
+        public virtual bool HasMask
+        {
+            get
+            {
+                return mask != null;
+            }
+        }
 
         protected GenericImage() { }
 
@@ -60,10 +68,10 @@ namespace OPS.Imaging
             {
                 Array.Copy(that.data[b], this.data[b], that.data[b].Length);
             }
-            if (that.Mask != null)
+            if (that.mask != null)
             {
-                this.Mask = new bool[that.Mask.Length];
-                Array.Copy(that.Mask, this.Mask, that.Mask.Length);
+                this.mask = new bool[that.mask.Length];
+                Array.Copy(that.mask, this.mask, that.mask.Length);
             }
             if (that.Metadata != null)
             {
@@ -102,24 +110,16 @@ namespace OPS.Imaging
         /// Creates a mask for this image and sets all pixels to the initial value specifed
         /// </summary>
         /// <param name="initialValue">false means all pixels will be valid at the end of initilization</param>
-        public void CreateMask(bool initialValue = false)
+        public virtual void CreateMask(bool initialValue = false)
         {
-            this.Mask = new bool[Width * Height];
+            mask = new bool[Width * Height];
             if (initialValue)
             {
-                for (int i = 0; i < this.Mask.Length; i++)
+                for (int i = 0; i < mask.Length; i++)
                 {
-                    this.Mask[i] = initialValue;
+                    mask[i] = initialValue;
                 }
             }
-        }
-
-        /// <summary>
-        /// Removes the mask if there is one
-        /// </summary>
-        public void DeleteMask()
-        {
-            this.Mask = null;
         }
 
         /// <summary>
@@ -128,14 +128,34 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void CreateMask(T[] perBandValues)
         {
-            this.Mask = new bool[Width * Height];
-            for (int i = 0; i < Width * Height; i++)
+            UnionMask(this, perBandValues);
+        }
+
+        /// <summary>
+        /// Removes the mask if there is one
+        /// </summary>
+        public virtual void DeleteMask()
+        {
+            mask = savedMask = null;
+        }
+
+        public virtual void SaveMask()
+        {
+            if (!HasMask || savedMask != null)
             {
-                if (BandValuesEqual(i, perBandValues))
-                {
-                    SetMaskValue(i, true);
-                }
+                throw new InvalidOperationException();
             }
+            savedMask = (bool[])mask.Clone();
+        }
+
+        public virtual void RestoreMask()
+        {
+            if (savedMask == null)
+            {
+                throw new InvalidOperationException();
+            }
+            mask = savedMask;
+            savedMask = null;
         }
 
         /// <summary>
@@ -144,22 +164,26 @@ namespace OPS.Imaging
         /// In the inverted case: Zero value pixels are invalid, non-zero are valid
         /// If the provided image has more than one band, the first band will be used
         /// </summary>
-        public void CreateMask(Image mask, bool inverted=false)
+        public void SetMask(Image mask, bool inverted = false)
         {
-            if (mask.Width != this.Width ||
-               mask.Height != this.Height)
+            if (Width != mask.Width || Height != mask.Height)
             {
                 throw new ImageException("mask resolution must match image resolution");
             }
-
-            this.Mask = new bool[Width * Height];
-
-            bool valueForZero = inverted ? true : false;
-            for (int i = 0; i < this.Mask.Length; i++)
+            if (!HasMask)
             {
-                this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? valueForZero : !valueForZero;
-            }         
+                CreateMask();
+            }
+            bool valueForZero = inverted ? true : false;
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    SetMaskValue(row, col, mask.GetBandValues(row, col)[0] == 0 ? valueForZero : !valueForZero);
+                }
+            }
         }
+
         /// <summary>
         /// Mask any pixels in this image that are masked in other.
         /// Both images must be the same size.
@@ -174,7 +198,7 @@ namespace OPS.Imaging
             }
             if (!HasMask)
             {
-                CreateMask(false);
+                CreateMask();
             }
             for (int row = 0; row < Height; row++)
             {
@@ -202,7 +226,7 @@ namespace OPS.Imaging
             }
             if (!HasMask)
             {
-                CreateMask(false);
+                CreateMask();
             }
             for (int row = 0; row < Height; row++)
             {
@@ -213,17 +237,6 @@ namespace OPS.Imaging
                         SetMaskValue(row, col, true);
                     }
                 }
-            }
-        }
-
-        /// <summary>
-        /// Returns true if this image has a mask
-        /// </summary>
-        public bool HasMask
-        {
-            get
-            {
-                return this.Mask != null;
             }
         }
 
@@ -247,7 +260,7 @@ namespace OPS.Imaging
         /// <returns></returns>
         public virtual bool IsValid(int i)
         {
-            return this.Mask == null || !this.Mask[i];
+            return mask == null || !mask[i];
         }
 
         /// <summary>
@@ -257,21 +270,14 @@ namespace OPS.Imaging
         /// <param name="row"></param>
         /// <param name="column"></param>
         /// <param name="value"></param>
-        public void SetMaskValue(int row, int column, bool value)
+        public virtual void SetMaskValue(int row, int column, bool value)
         {
-            this.Mask[(row * Width) + column] = value;
+            mask[(row * Width) + column] = value;
         }
 
-        /// <summary>
-        /// Set the mask value for the value at this data index
-        /// Create mask must have called on this image prior to setting values
-        /// </summary>
-        /// <param name="row"></param>
-        /// <param name="column"></param>
-        /// <param name="value"></param>
-        public void SetMaskValue(int i, bool value)
+        public virtual void SetMaskValue(int i, bool value)
         {
-            this.Mask[i] = value;
+            mask[i] = value;
         }
 
         /// <summary>

@@ -411,7 +411,7 @@ namespace ImageTest
             maskImage.SetBandValues(3,2, new float[]{1.0f});
 
             //set mask image as mask
-            monoImage.CreateMask(maskImage);
+            monoImage.SetMask(maskImage);
 
             for (int idxRow = 0; idxRow < 4; idxRow++)
             {
