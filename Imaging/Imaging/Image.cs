@@ -23,6 +23,7 @@ namespace OPS.Imaging
     /// </summary>
     public class Image : GenericImage<float>
     {
+        protected Image() { }
 
         /// <summary>
         /// Creates a new blank image with the specified resolution and bands
@@ -32,12 +33,32 @@ namespace OPS.Imaging
         /// <param name="height"></param>
         public Image(int bands, int width, int height) : base(bands, width, height) { }
 
+        public Image(ImageMetadata metadata) : base(metadata) { }
 
         /// <summary>
         /// Copy constructor
         /// </summary>
         /// <param name="that"></param>
         public Image(Image that) : base(that) { }
+
+        /// <summary>
+        /// Performs a deep copy of the image and all associated objects
+        /// </summary>
+        /// <returns></returns>
+        public override object Clone()
+        {
+            return new Image(this);
+        }
+
+        public static string CheckSize(int bands, int width, int height)
+        {
+            return CheckSize<float>(bands, width, height);
+        }
+
+        public virtual Image Instantiate(int bands, int width, int height)
+        {
+            return new Image(bands, width, height);
+        }
 
         /// <summary>
         /// Load an image using default serializer and converter
@@ -230,15 +251,6 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Performs a deep copy of the image and all associated objects
-        /// </summary>
-        /// <returns></returns>
-        public new object Clone()
-        {
-            return new Image(this);
-        }
-
-        /// <summary>
         /// Stretch the color channles of an image based the standard deviation of its values in place
         /// The resulting image will have its values normalzied between 0 and 1
         /// NOTE that bands with no variance (ie all the same value) will not be scaled and could be outside the 0-1 range
@@ -304,9 +316,9 @@ namespace OPS.Imaging
         /// <param name="width"></param>
         /// <param name="height"></param>
         /// <returns></returns>
-        public Image Crop(int startRow, int startCol, int width, int height)
+        public Image Crop(int startRow, int startCol, int newWidth, int newHeight)
         {
-            Image result = new Image(this.Bands, width, height);
+            Image result = Instantiate(Bands, newWidth, newHeight);
             if (HasMask)
             {
                 result.CreateMask();
@@ -350,7 +362,7 @@ namespace OPS.Imaging
             }
             else
             {
-                var ret = new Image(Bands, 0, 0);
+                var ret = Instantiate(Bands, 0, 0);
                 if (HasMask)
                 {
                     ret.CreateMask();
@@ -647,26 +659,26 @@ namespace OPS.Imaging
                 }
             }
 
-            Image horizontalResult = new Image(this.Bands, targetWidth, this.Height);
+            Image horizontalResult = Instantiate(Bands, targetWidth, Height);
 
-            List<Weight> weights = GetResizeWeights(targetWidth, this.Width, 2, filter);
+            List<Weight> weights = GetResizeWeights(targetWidth, Width, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
-                for (int row = 0; row < this.Height; row++)
+                for (int row = 0; row < Height; row++)
                 {
                     foreach (Weight w in weights)
                     {
-                        float source = this.ReadClampedToBounds(band, w.inPixel, row);
+                        float source = ReadClampedToBounds(band, w.inPixel, row);
                         horizontalResult[band, row, w.outPixel] += source * (float)w.weight;
                     }
                 }
             }
 
             //resize vertically 
-            Image result = new Image(this.Bands, targetWidth, targetHeight);
+            Image result = Instantiate(Bands, targetWidth, targetHeight);
 
-            weights = GetResizeWeights(targetHeight, this.Height, 2, filter);
+            weights = GetResizeWeights(targetHeight, Height, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
@@ -689,12 +701,12 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Image Rotate90Clockwise()
         {
-            Image result = new Image(this.Bands, this.Height, this.Width);
-            for (int r = 0; r < this.Height; r++)
+            Image result = Instantiate(Bands, Height, Width);
+            for (int r = 0; r < Height; r++)
             {
-                for (int c = 0; c < this.Width; c++)
+                for (int c = 0; c < Width; c++)
                 {
-                    result.SetBandValues(c, this.Height - 1 - r, this.GetBandValues(r, c));
+                    result.SetBandValues(c, Height - 1 - r, GetBandValues(r, c));
                 }
             }
             return result;
@@ -842,9 +854,9 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Image ResizeSimpleBicubic(int targetWidth, int targetHeight)
         {
-            Image result = new Image(this.Bands, targetWidth, targetHeight);
-            float wRatio = (this.Width - 1) / ((float)result.Width - 1);
-            float hRatio = (this.Height - 1) / ((float)result.Height - 1);
+            Image result = Instantiate(Bands, targetWidth, targetHeight);
+            float wRatio = (Width - 1) / ((float)result.Width - 1);
+            float hRatio = (Height - 1) / ((float)result.Height - 1);
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
                 result[ic.Band, ic.Row, ic.Col] = BicubicSample(ic.Band, ic.Row * hRatio, ic.Col * wRatio);
@@ -992,8 +1004,8 @@ namespace OPS.Imaging
             int targetWidth = Width / blocksize; //integer math
             int targetHeight = Height / blocksize; //integer math
 
-            Image result = new Image(this.Bands, targetWidth, targetHeight);
-            result.CreateMask(false);
+            Image result = Instantiate(Bands, targetWidth, targetHeight);
+            result.CreateMask();
 
             for (int band = 0; band < Bands; band++)
             {
@@ -1049,7 +1061,7 @@ namespace OPS.Imaging
             if (img.Bands != 1)
                 throw new InvalidDataException("expecting a single band image to be colorized");
 
-            Image result = new Image(3, img.Width, img.Height);
+            Image result = img.Instantiate(3, img.Width, img.Height);
             result.CreateMask(true);
 
             for (int idxRow = 0; idxRow < img.Height; idxRow++)
@@ -1114,7 +1126,7 @@ namespace OPS.Imaging
 
         public Image MaskToImage(float valid = 0, float invalid = 1)
         {
-            var ret = new Image(1, Width, Height);
+            var ret = Instantiate(1, Width, Height);
             for (int row = 0; row < Height; row++)
             {
                 for (int col = 0; col < Width; col++)

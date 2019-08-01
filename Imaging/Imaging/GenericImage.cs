@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -54,7 +55,14 @@ namespace OPS.Imaging
         /// <param name="height">Height of the image.</param>
         public GenericImage(int bands, int width, int height)
         {
-            Initalize(bands, width, height);
+            Initialize(bands, width, height);
+            this.Metadata = new ImageMetadata(bands, width, height);
+        }
+
+        public GenericImage(ImageMetadata metadata)
+        {
+            Initialize(metadata.Bands, metadata.Width, metadata.Height);
+            this.Metadata = metadata;
         }
 
         /// <summary>
@@ -63,38 +71,98 @@ namespace OPS.Imaging
         /// <param name="toCopy"></param>
         public GenericImage(GenericImage<T> that)
         {
-            this.Initalize(that.Bands, that.Width, that.Height);
-            for (int b = 0; b < that.data.Length; b++)
-            {
-                Array.Copy(that.data[b], this.data[b], that.data[b].Length);
-            }
-            if (that.mask != null)
-            {
-                this.mask = new bool[that.mask.Length];
-                Array.Copy(that.mask, this.mask, that.mask.Length);
-            }
+            Initialize(that.Bands, that.Width, that.Height);
+
             if (that.Metadata != null)
             {
-                this.Metadata = (ImageMetadata)that.Metadata.Clone();
+                Metadata = (ImageMetadata)that.Metadata.Clone();
             }
+
             if (that.CameraModel != null)
             {
-                this.CameraModel = (CameraModel)that.CameraModel.Clone();
+                CameraModel = (CameraModel)that.CameraModel.Clone();
             }
+
+            that.CopyDataTo(this);
+
+            if (that.HasMask)
+            {
+                CreateMask();
+                that.CopyMaskTo(this);
+            }
+        }
+
+        protected virtual void CopyDataTo<TT>(GenericImage<TT> that)
+        {
+            if (!(typeof(TT).IsAssignableFrom(typeof(T))))
+            {
+                throw new ArgumentException("failed to copy image data: type mismatch");
+            }
+
+            if (that.Bands != Bands)
+            {
+                throw new ArgumentException("failed to copy image data: bands do not match");
+            }
+
+            for (int b = 0; b < Bands; b++)
+            {
+                if (that.data[b].Length != data[b].Length)
+                {
+                    throw new ArgumentException("failed to copy image data: band lengths do not match");
+                }
+                Array.Copy(data[b], that.data[b], data[b].Length);
+            }
+        }
+
+        protected virtual void CopyMaskTo<TT>(GenericImage<TT> that)
+        {
+            if (!HasMask || !that.HasMask || that.mask.Length != mask.Length)
+            {
+                throw new ArgumentException("failed to copy image mask");
+            }
+            Array.Copy(mask, that.mask, mask.Length);
         }
 
         /// <summary>
         /// Performas a deep copy of the image
         /// </summary>
         /// <returns></returns>
-        public object Clone()
+        public virtual object Clone()
         {
             return new GenericImage<T>(this);
         }
 
-        protected void Initalize(int bands, int width, int height)
+        public static string CheckSize<TT>(int bands, int width, int height)
         {
-            Metadata = new ImageMetadata(bands, width, height);
+            //reference for C# array limits when gcAllowVeryLargeObjects is enabled:
+            //https://docs.microsoft.com/en-us/dotnet/framework/configure-apps/file-schema/runtime/gcallowverylargeobjects-element?view=netframework-4.8
+            ulong elts = (ulong)width * (ulong)height;
+            ulong maxElts = 0X7FEFFFFFul;
+            if (elts > maxElts)
+            {
+                return string.Format("cannot create {0}x{1} image, {2} elements per band exceeds max array length {3}",
+                                     width, height, elts, maxElts);
+            }
+
+            ulong bytes = elts * (ulong)Sizeof.GetManagedSize(typeof(T));
+            ulong maxBytes = uint.MaxValue;
+            if (bytes > maxBytes)
+            {
+                return string.Format("cannot create {0}x{1} {2} image, {3} bytes per band exceeds max array length {4}",
+                                     width, height, typeof(T).Name, bytes, maxBytes);
+            }
+
+            return null;
+        }
+
+        private void Initialize(int bands, int width, int height)
+        {
+            string err = CheckSize<T>(bands, width, height);
+            if (!string.IsNullOrEmpty(err))
+            {
+                throw new ArgumentException(err);
+            }
+
             this.Bands = bands;
             this.Width = width;
             this.Height = height;
