@@ -393,5 +393,34 @@ namespace ImageTest
             Assert.IsTrue(monoImage.IsValid(0, 0));
             Assert.IsTrue(monoImage.IsValid(0, 1));
         }
+
+        [TestMethod()]
+        public void CreateMaskTest()
+        {
+            //create image
+            Image monoImage = new Image(1, 4, 4);
+
+            //create mask image
+            Image maskImage = new Image(1, 4, 4);
+            maskImage.SetBandValues(3,2, new float[]{1.0f});
+
+            //set mask image as mask
+            monoImage.CreateMask(maskImage);
+
+            for (int idxRow = 0; idxRow < 4; idxRow++)
+            {
+                for (int idxCol = 0; idxCol < 4; idxCol++)
+                {
+                    if (idxRow == 3 && idxCol == 2)
+                    {
+                        Assert.IsTrue(monoImage.IsInvalid(idxRow, idxCol));
+                    }
+                    else
+                    {
+                        Assert.IsTrue(monoImage.IsValid(idxRow, idxCol));
+                    }
+                }
+            }
+        }
     }
 }

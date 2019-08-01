@@ -33,6 +33,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Util", "Util\Util.csproj", "{8145AA65-BA61-4E27-81FF-B64217B49929}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryThirdparty", "GeometryThirdparty\GeometryThirdparty.csproj", "{3C534889-B71F-4F86-8E75-B24A61CD7B86}"
+	ProjectSection(ProjectDependencies) = postProject
+		{C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805} = {C3EC3AB5-8DFD-4DAA-9833-246F0DB6A805}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryThirdpartyTest", "GeometryThirdpartyTest\GeometryThirdpartyTest.csproj", "{31F657A2-7F08-42B0-89DD-7FF679F1587B}"
 EndProject

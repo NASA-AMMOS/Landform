@@ -115,7 +115,7 @@ namespace OPS.Pipeline.TileServer
             
             if (!options.NoWait)
             {
-                pipeline.LogInfo("waiting for intput to be added to project");
+                pipeline.LogInfo("waiting for input to be added to project");
                 bool added = false;
                 var sw = new Stopwatch();
                 sw.Start();
