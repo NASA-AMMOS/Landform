@@ -17,13 +17,16 @@ namespace OPS.Imaging
     public class GenericImage<T> : ICloneable, IEnumerable<T>
     {
         public ImageMetadata Metadata;
+
         public CameraModel CameraModel;
 
-        public T[][] Data;
+        //TODO: (architecture) Metadata.{Bands, Width, Height} violates SSOT
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/597
+        public int Bands { get; protected set; }
+        public int Width { get; protected set; }
+        public int Height { get; protected set; }
 
-        public int Bands;
-        public int Width;
-        public int Height;
+        private T[][] data;
 
         /// <summary>
         /// A mask value of true indicates that the value is masked out
@@ -53,9 +56,9 @@ namespace OPS.Imaging
         public GenericImage(GenericImage<T> that)
         {
             this.Initalize(that.Bands, that.Width, that.Height);
-            for (int b = 0; b < that.Data.Length; b++)
+            for (int b = 0; b < that.data.Length; b++)
             {
-                Array.Copy(that.Data[b], this.Data[b], that.Data[b].Length);
+                Array.Copy(that.data[b], this.data[b], that.data[b].Length);
             }
             if (that.Mask != null)
             {
@@ -87,10 +90,11 @@ namespace OPS.Imaging
             this.Bands = bands;
             this.Width = width;
             this.Height = height;
-            this.Data = new T[bands][];
+
+            this.data = new T[bands][];
             for (int c = 0; c < bands; c++)
             {
-                Data[c] = new T[width * height];
+                data[c] = new T[width * height];
             }
         }
 
@@ -298,28 +302,9 @@ namespace OPS.Imaging
         /// <returns></returns>
         public bool BandValuesEqual(int row, int column, T[] perBandValues)
         {
-            for (int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < Bands; b++)
             {
                 if (!this[b, row, column].Equals(perBandValues[b]))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        /// <summary>
-        /// Returns true if the values for each band for the given data index match perBandValues
-        /// perBandValues.length must be equal to Image.Bands
-        /// </summary>
-        /// <param name="i"></param>
-        /// <param name="perBandValues"></param>
-        /// <returns></returns>
-        public bool BandValuesEqual(int i, T[] perBandValues)
-        {
-            for (int b = 0; b < this.Bands; b++)
-            {
-                if (!this.Data[b][i].Equals(perBandValues[b]))
                 {
                     return false;
                 }
@@ -336,23 +321,9 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void SetBandValues(int row, int column, T[] perBandValues)
         {
-            for (int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < Bands; b++)
             {
                 this[b, row, column] = perBandValues[b];
-            }
-        }
-
-        /// <summary>
-        /// Sets the per band values for this data index.  
-        /// perBandValues.length must be equal to Image.Bands
-        /// </summary>
-        /// <param name="i"></param>
-        /// <param name="perBandValues"></param>
-        public void SetBandValues(int i, T[] perBandValues)
-        {
-            for (int b = 0; b < this.Bands; b++)
-            {
-                this.Data[b][i] = perBandValues[b];
             }
         }
 
@@ -363,8 +334,8 @@ namespace OPS.Imaging
         /// <returns></returns>
         public T[] GetBandValues(int row, int col)
         {
-            T[] result = new T[this.Bands];
-            for (int b = 0; b < this.Bands; b++)
+            T[] result = new T[Bands];
+            for (int b = 0; b < Bands; b++)
             {
                 result[b] = this[b, row, col];
             }
@@ -372,16 +343,49 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Returns true if the values for each band for the given data index match perBandValues
+        /// perBandValues.length must be equal to Image.Bands
+        /// </summary>
+        /// <param name="i"></param>
+        /// <param name="perBandValues"></param>
+        /// <returns></returns>
+        public virtual bool BandValuesEqual(int i, T[] perBandValues)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                if (!data[b][i].Equals(perBandValues[b]))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Sets the per band values for this data index.  
+        /// perBandValues.length must be equal to Image.Bands
+        /// </summary>
+        /// <param name="i"></param>
+        /// <param name="perBandValues"></param>
+        public virtual void SetBandValues(int i, T[] perBandValues)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                data[b][i] = perBandValues[b];
+            }
+        }
+
+        /// <summary>
         /// Return the per band values for a pixel
         /// </summary>
         /// <param name="i"></param>
         /// <returns></returns>
-        public T[] GetBandValues(int i)
+        public virtual T[] GetBandValues(int i)
         {
-            T[] result = new T[this.Bands];
-            for (int b = 0; b < this.Bands; b++)
+            T[] result = new T[Bands];
+            for (int b = 0; b < Bands; b++)
             {
-                result[b] = this.Data[b][i];
+                result[b] = data[b][i];
             }
             return result;
         }
@@ -410,7 +414,7 @@ namespace OPS.Imaging
         /// <param name="f"></param>
         public void ApplyInPlace(Func<T, T> f, bool applyToMaskedValues = false)
         {
-            for (int b = 0; b < Data.Length; b++)
+            for (int b = 0; b < Bands; b++)
             {
                 ApplyInPlace(b, f, applyToMaskedValues);
             }
@@ -424,13 +428,13 @@ namespace OPS.Imaging
         /// <param name="band"></param>
         /// <param name="f"></param>
         /// <param name="applyToMaskedValues"></param>
-        public void ApplyInPlace(int band, Func<T, T> f, bool applyToMaskedValues = false)
+        public virtual void ApplyInPlace(int band, Func<T, T> f, bool applyToMaskedValues = false)
         {
-            for (int i = 0; i < Data[band].Length; i++)
+            for (int i = 0; i < data[band].Length; i++)
             {
                 if (applyToMaskedValues || IsValid(i))
                 {
-                    this.Data[band][i] = f(this.Data[band][i]);
+                    data[band][i] = f(data[band][i]);
                 }
             }
         }
@@ -439,15 +443,15 @@ namespace OPS.Imaging
         /// Iterates over all values across all bands in the image
         /// </summary>
         /// <returns></returns>
-        public IEnumerator<T> GetEnumerator(bool includeInvalidValues)
+        public virtual IEnumerator<T> GetEnumerator(bool includeInvalidValues)
         {
-            for (int b = 0; b < this.Data.Length; b++)
+            for (int b = 0; b < Bands; b++)
             {
-                for (int i = 0; i < this.Data[b].Length; i++)
+                for (int i = 0; i < data[b].Length; i++)
                 {
                     if (includeInvalidValues || IsValid(i))
                     {
-                        yield return this.Data[b][i];
+                        yield return data[b][i];
                     }
                 }
             }
@@ -464,11 +468,11 @@ namespace OPS.Imaging
         /// <returns></returns>
         public IEnumerable<ImageCoordinate> Coordinates(bool includeInvalidValues = false)
         {
-            for (int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < Bands; b++)
             {
-                for (int r = 0; r < this.Height; r++)
+                for (int r = 0; r < Height; r++)
                 {
-                    for (int c = 0; c < this.Width; c++)
+                    for (int c = 0; c < Width; c++)
                     {
                         if (includeInvalidValues || IsValid(r, c))
                         {
@@ -481,13 +485,43 @@ namespace OPS.Imaging
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
-            return this.GetEnumerator();
+            return GetEnumerator();
+        }
+
+        public virtual T[] GetBandData(int band)
+        {
+            return data[band];
+        }
+
+        public virtual int AddBand()
+        {
+            T[][] origData = data;
+
+            Bands += 1;
+            if (Metadata != null)
+            {
+                Metadata.Bands = Bands;
+            }
+
+            data = new T[Bands][];
+
+            for (int b = 0; b < Bands - 1; b++)
+            {
+                data[b] = origData[b];
+            }
+
+            data[Bands - 1] = new T[Width * Height];
+
+            return Bands - 1;
         }
 
         /// <summary>
         /// Convenience accessor for reading image data.  This is slower
-        /// than directly accessing the data array with Data[b][row*Width + col]
+        /// than directly accessing the data array with data[b][row*Width + col]
         /// but is also less prone to error. 
+        ///
+        /// Also, this is correctly overridden by SparseImage.cs, whereas directly accessing data there does not work.
+        ///
         /// </summary>
         /// <param name="band">Channel index</param>
         /// <param name="row">Y index</param>
@@ -497,12 +531,12 @@ namespace OPS.Imaging
         {
             get
             {
-                return this.Data[band][(row * Width) + column];
+                return data[band][(row * Width) + column];
             }
 
             set
             {
-                this.Data[band][(row * Width) + column] = value;
+                data[band][(row * Width) + column] = value;
             }
         }
 

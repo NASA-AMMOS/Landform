@@ -154,7 +154,13 @@ namespace OPS.Imaging
             this.chunkSize = chunkSize;
             this.basePath = StringHelper.StripUrlExtension(largeImagePath);
             this.extension = StringHelper.GetUrlExtension(largeImagePath);
-            GetImageMetadataForPartialRead(largeImagePath, out Bands, out Width, out Height);
+            int bands;
+            int width;
+            int height;
+            GetImageMetadataForPartialRead(largeImagePath, out bands, out width, out height);
+            this.Bands = bands;
+            this.Width = width;
+            this.Height = height;
             this.Metadata = new ImageMetadata(Bands, Width, Height);
             InitChunkCacheOrArray(cacheSize, diskBackedCache);
         }

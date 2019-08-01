@@ -95,11 +95,13 @@ namespace ImageTest
             {
                 imgOrig.Save<float>("floatimg.tif");
                 var imgRead = Image.Load("floatimg.tif");
-                for (int b = 0; b < imgOrig.Data.Length; b++)
+                for (int b = 0; b < imgOrig.Bands; b++)
                 {
-                    for (int i = 0; i < imgOrig.Data[b].Length; i++)
+                    float[] origBandData = imgOrig.GetBandData(b);
+                    float[] readBandData = imgRead.GetBandData(b);
+                    for (int i = 0; i < origBandData.Length; i++)
                     {
-                        Assert.AreEqual(imgRead.Data[b][i], imgOrig.Data[b][i]);
+                        Assert.AreEqual(readBandData[i], origBandData[i]);
                     }
                 }
             }
@@ -107,11 +109,13 @@ namespace ImageTest
             {
                 imgOrig.Save<double>("doubleimg.tif");
                 var imgRead = Image.Load("doubleimg.tif");
-                for (int b = 0; b < imgOrig.Data.Length; b++)
+                for (int b = 0; b < imgOrig.Bands; b++)
                 {
-                    for (int i = 0; i < imgOrig.Data[b].Length; i++)
+                    float[] origBandData = imgOrig.GetBandData(b);
+                    float[] readBandData = imgRead.GetBandData(b);
+                    for (int i = 0; i < origBandData.Length; i++)
                     {
-                        Assert.AreEqual(imgRead.Data[b][i], imgOrig.Data[b][i]);
+                        Assert.AreEqual(readBandData[i], origBandData[i]);
                     }
                 }
             }
@@ -266,7 +270,8 @@ namespace ImageTest
                     }
                 }
                 img.GaussianBoxBlur(10);
-                for (int i = 0; i < img.Data[0].Length; i++)
+                float[] bandData = img.GetBandData(0);
+                for (int i = 0; i < bandData.Length; i++)
                 {
                     if (!img.IsValid(i))
                     {
@@ -289,7 +294,8 @@ namespace ImageTest
             {
                 Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
                 img.GaussianBoxBlur(0);
-                for (int i = 0; i < img.Data[0].Length; i++)
+                float[] bandData = img.GetBandData(0);
+                for (int i = 0; i < bandData.Length; i++)
                 {
                     var a = img.GetBandValues(i);
                     var b = orig.GetBandValues(i);

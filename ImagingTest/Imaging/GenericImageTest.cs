@@ -250,8 +250,8 @@ namespace ImagingTest
             GenericImage<byte> img = new GenericImage<byte>(2, 4, 7);
             img[1, 2, 3] = 27;
             img[0, 2, 1] = 29;
-            Assert.AreEqual(27, img.Data[1][2 * 4 + 3]);
-            Assert.AreEqual(29, img.Data[0][2 * 4 + 1]);
+            Assert.AreEqual(27, img.GetBandData(1)[2 * 4 + 3]);
+            Assert.AreEqual(29, img.GetBandData(0)[2 * 4 + 1]);
         }
 
 
@@ -274,11 +274,12 @@ namespace ImagingTest
                 {
                     img[ic.Band, ic.Row, ic.Col] += 1;
                 }
-                for (int b = 0; b < img.Data.Length; b++)
+                for (int b = 0; b < img.Bands; b++)
                 {
-                    for (int i = 0; i < img.Data[b].Length; i++)
+                    int[] bandData = img.GetBandData(b);
+                    for (int i = 0; i < bandData.Length; i++)
                     {
-                        int v = img.Data[b][i];
+                        int v = bandData[i];
                         if (i == 7)
                         {
                             Assert.AreEqual(0, v);
@@ -293,11 +294,12 @@ namespace ImagingTest
                 {
                     img[ic.Band, ic.Row, ic.Col] += 1;
                 }
-                for (int b = 0; b < img.Data.Length; b++)
+                for (int b = 0; b < img.Bands; b++)
                 {
-                    for (int i = 0; i < img.Data[b].Length; i++)
+                    int[] bandData = img.GetBandData(b);
+                    for (int i = 0; i < bandData.Length; i++)
                     {
-                        int v = img.Data[b][i];
+                        int v = bandData[i];
                         if (i == 7)
                         {
                             Assert.AreEqual(1, v);
