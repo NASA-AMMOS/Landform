@@ -302,14 +302,6 @@ namespace OPS.Pipeline
             }
             dem.ScaleValues(options.VerticalScale);
 
-            if (dem.Metadata.GetType() == typeof(PDSMetadata))
-            {
-                parser = new PDSParser((PDSMetadata)dem.Metadata);
-                PDSImage.CheckType(parser, RoverProductType.Range, "DEM2Mesh");
-                PDSImage.CheckCameraCenter(parser, dem, "DEM2Mesh");
-                PDSImage.AddMaskForMissingConstant(dem, dem, parser);
-            }
-
             if (options.Error == 0 && options.Radius == -1)
             {
                 Image xyz = null;
