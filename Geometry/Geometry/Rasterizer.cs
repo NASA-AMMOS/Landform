@@ -239,7 +239,7 @@ namespace OPS.Geometry
                     (int)options.SparseBlockSize;
                 sbs = Math.Max(sbs, 1);
                 ret.InvalidateSparseExternalBlocks(sbs, options.MinSparseBlockValidRatio);
-                ret.RemoveAllButLargestValidBlob();
+                ret.InvalidateAllButLargestValidBlob();
                 ret = ret.Trim(out Vector2 ulc);
                 meshOrigin -= ulc;
             }

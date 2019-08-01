@@ -283,7 +283,7 @@ namespace OPS.Geometry
             {
                 for (int col = 0; col < points.Width; col++)
                 {
-                    if (points.IsInvalid(row, col) || (normals != null && normals.IsInvalid(row, col)) ||
+                    if (!points.IsValid(row, col) || (normals != null && !normals.IsValid(row, col)) ||
                         mask != null && mask[0, row, col] == 0)
                     {
                         continue;
@@ -353,12 +353,12 @@ namespace OPS.Geometry
 
             void addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
             {
-                if (points.IsInvalid(r0, c0) || points.IsInvalid(r1, c1) || points.IsInvalid(r2, c2))
+                if (!points.IsValid(r0, c0) || !points.IsValid(r1, c1) || !points.IsValid(r2, c2))
                 {
                     return;
                 }
                 if (normals != null &&
-                    (normals.IsInvalid(r0, c0) || normals.IsInvalid(r1, c1) || normals.IsInvalid(r2, c2)))
+                    (!normals.IsValid(r0, c0) || !normals.IsValid(r1, c1) || !normals.IsValid(r2, c2)))
                 {
                     return;
                 }

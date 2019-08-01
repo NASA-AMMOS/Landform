@@ -268,7 +268,7 @@ namespace ImageTest
                 img.GaussianBoxBlur(10);
                 for (int i = 0; i < img.Data[0].Length; i++)
                 {
-                    if (img.IsInvalid(i))
+                    if (!img.IsValid(i))
                     {
                         var a = img.GetBandValues(i);
                         var b = orig.GetBandValues(i);
@@ -387,7 +387,7 @@ namespace ImageTest
             monoImage.CreateMask(false);
             monoImage.SetMaskValue(0, 0, true);
             monoImage.Inpaint(1, true);
-            Assert.IsTrue(monoImage.IsInvalid(0, 0));
+            Assert.IsFalse(monoImage.IsValid(0, 0));
             Assert.IsTrue(monoImage.IsValid(0, 1));
             monoImage.Inpaint(1, false);
             Assert.IsTrue(monoImage.IsValid(0, 0));
@@ -413,7 +413,7 @@ namespace ImageTest
                 {
                     if (idxRow == 3 && idxCol == 2)
                     {
-                        Assert.IsTrue(monoImage.IsInvalid(idxRow, idxCol));
+                        Assert.IsFalse(monoImage.IsValid(idxRow, idxCol));
                     }
                     else
                     {

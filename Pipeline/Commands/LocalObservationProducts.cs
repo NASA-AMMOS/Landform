@@ -892,7 +892,7 @@ namespace OPS.Pipeline
             {
                 for (int idxSrcCol = 0; idxSrcCol < srcObs.Texture.Width; idxSrcCol++)
                 {
-                    if (srcPoints.IsInvalid(idxSrcRow, idxSrcCol))
+                    if (!srcPoints.IsValid(idxSrcRow, idxSrcCol))
                     {
                         continue;
                     }
@@ -939,7 +939,7 @@ namespace OPS.Pipeline
                         continue;
                     }
 
-                    if (dstPoints.IsInvalid((int)refDstPixelY, (int)refDstPixelX))
+                    if (!dstPoints.IsValid((int)refDstPixelY, (int)refDstPixelX))
                     {
                         continue;
                     }

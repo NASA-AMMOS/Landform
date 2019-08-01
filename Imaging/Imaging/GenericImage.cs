@@ -176,7 +176,7 @@ namespace OPS.Imaging
             {
                 for (int col = 0; col < Width; col++)
                 {
-                    if (other.IsInvalid(row, col))
+                    if (!other.IsValid(row, col))
                     {
                         SetMaskValue(row, col, true);
                     }
@@ -230,9 +230,9 @@ namespace OPS.Imaging
         /// <param name="row"></param>
         /// <param name="column"></param>
         /// <returns></returns>
-        public bool IsInvalid(int row, int column)
+        public virtual bool IsValid(int row, int column)
         {
-            return this.Mask != null && this.Mask[(row * Width) + column];
+            return IsValid((row * Width) + column);
         }
 
         /// <summary>
@@ -241,30 +241,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="i"></param>
         /// <returns></returns>
-        public bool IsInvalid(int i)
-        {
-            return this.Mask != null && this.Mask[i];
-        }
-
-        /// <summary>
-        /// Returns true if the value at row and column should be masked out (ignored)
-        /// If a mask is not defined for this image this will always return false
-        /// </summary>
-        /// <param name="row"></param>
-        /// <param name="column"></param>
-        /// <returns></returns>
-        public bool IsValid(int row, int column)
-        {
-            return this.Mask == null || !this.Mask[(row * Width) + column];
-        }
-
-        /// <summary>
-        /// Returns true if the value at the given index should be masked out (ignored)
-        /// If a mask is not defined for this image this will always return false
-        /// </summary>
-        /// <param name="i"></param>
-        /// <returns></returns>
-        public bool IsValid(int i)
+        public virtual bool IsValid(int i)
         {
             return this.Mask == null || !this.Mask[i];
         }
@@ -299,11 +276,14 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void SetValuesForMaskedData(T[] perBandValues)
         {
-            for (int i = 0; i < Width * Height; i++)
+            for (int r = 0; r < Height; r++)
             {
-                if (IsInvalid(i))
+                for (int c = 0; c < Width; c++)
                 {
-                    SetBandValues(i, perBandValues);
+                    if (!IsValid(r, c))
+                    {
+                        SetBandValues(r, c, perBandValues);
+                    }
                 }
             }
         }
@@ -448,7 +428,7 @@ namespace OPS.Imaging
         {
             for (int i = 0; i < Data[band].Length; i++)
             {
-                if (applyToMaskedValues || !IsInvalid(i))
+                if (applyToMaskedValues || IsValid(i))
                 {
                     this.Data[band][i] = f(this.Data[band][i]);
                 }

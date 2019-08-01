@@ -317,7 +317,7 @@ namespace OPS.Imaging
                 result[ic.Band, ic.Row, ic.Col] = this[ic.Band, ic.Row + startRow, ic.Col + startCol];
                 if (this.HasMask)
                 {
-                    result.SetMaskValue(ic.Row, ic.Col, this.IsInvalid(ic.Row + startRow, ic.Col + startCol));
+                    result.SetMaskValue(ic.Row, ic.Col, !IsValid(ic.Row + startRow, ic.Col + startCol));
                 }
             }
             return result;
@@ -491,7 +491,7 @@ namespace OPS.Imaging
         /// invalidate all but the largest blob of valid (i.e. un-masked) pixels
         /// operates on the image in-place
         /// </summary>
-        public Image RemoveAllButLargestValidBlob(out int largestBlobSize)
+        public Image InvalidateAllButLargestValidBlob(out int largestBlobSize)
         {
             if (!HasMask)
             {
@@ -571,9 +571,9 @@ namespace OPS.Imaging
             return this;
         }
 
-        public Image RemoveAllButLargestValidBlob()
+        public Image InvalidateAllButLargestValidBlob()
         {
-            return RemoveAllButLargestValidBlob(out int largestBlobSize);
+            return InvalidateAllButLargestValidBlob(out int largestBlobSize);
         }
 
         /// <summary>
@@ -1012,7 +1012,7 @@ namespace OPS.Imaging
                                 {
                                     if (srcCol >= 0 && srcCol < this.Width)
                                     {
-                                        if (!IsInvalid(srcRow, srcCol))
+                                        if (IsValid(srcRow, srcCol))
                                         {
                                             sum += this[band, srcRow, srcCol];
                                             n++;
@@ -1057,7 +1057,7 @@ namespace OPS.Imaging
             {
                 for (int idxCol = 0; idxCol < img.Width; idxCol++)
                 {
-                    if (img.IsInvalid(idxRow, idxCol))
+                    if (!img.IsValid(idxRow, idxCol))
                     {
                         result.SetBandValues(idxRow, idxCol, bgColor);
                         continue;
@@ -1169,7 +1169,7 @@ namespace OPS.Imaging
                     {
                         var tgt = px + offset;
                         if (tgt.Row >= 0 && tgt.Row < Height && tgt.Col >= 0 && tgt.Col < Width &&
-                            IsInvalid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != invalid)
+                            !IsValid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != invalid)
                         {
                             mask[0, tgt.Row, tgt.Col] = invalid;
                             queue.Enqueue(tgt);
