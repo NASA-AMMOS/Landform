@@ -30,6 +30,14 @@ namespace OPS.Imaging
         //except those on the right and bottom borders may be smaller
         protected int chunkSize;
 
+        private int chunkRows;
+        private int chunkCols;
+
+        private bool hasSavedMask;
+        private bool initialMaskValue;
+        private bool _hasMask;
+        public override bool HasMask { get { return _hasMask; } }
+
         /// <summary>
         /// Construct a new empty sparse image.
         ///
@@ -165,14 +173,10 @@ namespace OPS.Imaging
             InitChunkCacheOrArray(cacheSize, diskBackedCache);
         }
 
-        protected void InitChunkArray()
-        {
-            chunks = new Image[(int)Math.Ceiling((float)Height / chunkSize),
-                               (int)Math.Ceiling((float)Width / chunkSize)];
-        }
-
         protected void InitChunkCacheOrArray(int cacheSize, bool diskBackedCache)
         {
+            chunkRows = (int)Math.Ceiling((float)Height / chunkSize);
+            chunkCols = (int)Math.Ceiling((float)Width / chunkSize);
             if (cacheSize > 0)
             {
                 if (diskBackedCache)
@@ -202,7 +206,7 @@ namespace OPS.Imaging
             }
             else
             {
-                InitChunkArray();
+                chunks = new Image[chunkRows, chunkCols];
             }
         }
 
@@ -393,7 +397,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// If the chunk is already in memory then just return it.
+        /// If the chunk is already in memory (or the chunkCache disk cache) then just return it.
         /// Otherwise unpersist the chunk if we have persisted backing.
         /// Otherwise allocate a new blank chunk.
         /// </summary>
@@ -449,6 +453,15 @@ namespace OPS.Imaging
                     chunk = new Image(Bands, w, h);
                 }
 
+                if (HasMask)
+                {
+                    chunk.CreateMask(initialMaskValue);
+                    if (hasSavedMask)
+                    {
+                        chunk.SaveMask();
+                    }
+                }
+
                 //remember chunk so that we take the fast path next time
                 if (chunks != null)
                 {
@@ -461,6 +474,111 @@ namespace OPS.Imaging
             }
 
             return chunk;
+        }
+
+        /// <summary>
+        /// Get a chunk that's already in memory or in the chunkCache disk cache.
+        /// </summary>
+        private Image GetExistingChunk(int chunkRow, int chunkCol)
+        {
+            return chunks != null ? chunks[chunkRow, chunkCol]
+                : chunkCache.GetOrLoad(new Vector2(chunkRow, chunkCol), null);
+        }
+
+        public override void CreateMask(bool initialValue = false)
+        {
+            _hasMask = true;
+            initialMaskValue = initialValue;
+            for (int row = 0; row < chunkRows; row++)
+            {
+                for (int col = 0; col < chunkCols; col++)
+                {
+                    Image chunk = GetExistingChunk(row, col);
+                    if (chunk != null)
+                    {
+                        chunk.CreateMask(initialValue);
+                    }
+                }
+            }
+        }
+        
+        public override void DeleteMask()
+        {
+            _hasMask = hasSavedMask = initialMaskValue = false;
+            for (int row = 0; row < chunkRows; row++)
+            {
+                for (int col = 0; col < chunkCols; col++)
+                {
+                    Image chunk = GetExistingChunk(row, col);
+                    if (chunk != null)
+                    {
+                        chunk.DeleteMask();
+                    }
+                }
+            }
+        }
+
+        public override void SaveMask()
+        {
+            if (!HasMask || hasSavedMask)
+            {
+                throw new InvalidOperationException();
+            }
+            for (int row = 0; row < chunkRows; row++)
+            {
+                for (int col = 0; col < chunkCols; col++)
+                {
+                    Image chunk = GetExistingChunk(row, col);
+                    if (chunk != null)
+                    {
+                        chunk.SaveMask();
+                    }
+                }
+            }
+        }
+
+        public override void RestoreMask()
+        {
+            if (!hasSavedMask)
+            {
+                throw new InvalidOperationException();
+            }
+            hasSavedMask = false;
+            for (int row = 0; row < chunkRows; row++)
+            {
+                for (int col = 0; col < chunkCols; col++)
+                {
+                    Image chunk = GetExistingChunk(row, col);
+                    if (chunk != null)
+                    {
+                        chunk.RestoreMask();
+                    }
+                }
+            }
+        }
+
+        public override bool IsValid(int row, int col)
+        {
+            if (!HasMask)
+            {
+                return true;
+            }
+            return GetChunk(row / chunkSize, col / chunkSize).IsValid(row % chunkSize, col% chunkSize);
+        }
+
+        public override bool IsValid(int i)
+        {
+            return IsValid(i / Width, i % Width);
+        }
+
+        public override void SetMaskValue(int row, int col, bool value)
+        {
+            GetChunk(row / chunkSize, col / chunkSize).SetMaskValue(row % chunkSize, col% chunkSize, value);
+        }
+
+        public override void SetMaskValue(int i, bool value)
+        {
+            SetMaskValue(i / Width, i % Width, value);
         }
     }
 }
