@@ -157,19 +157,19 @@ namespace OPS.Geometry
                 MeshOperator delMo = null;
                 if (onMiss == ProjectionMissResponse.Delaunay)
                 {
-                    Mesh delaunaryMesh = DelaunayTriangulation.Triangulate(targetCopy.Vertices, new Func<Vertex, DelaunayPoint>(v =>
+                    Mesh delaunayMesh = DelaunayTriangulation.Triangulate(targetCopy.Vertices, new Func<Vertex, DelaunayPoint>(v =>
                     {
                         DelaunayPoint p = new DelaunayPoint();
                         p.xy = getUV(v.Position);
                         p.height = getHeight(v.Position);
                         return p;
                     }));
-                    foreach (Vertex v in delaunaryMesh.Vertices)
+                    foreach (Vertex v in delaunayMesh.Vertices)
                     {
                         v.UV = getUV(v.Position);
                     }
-                    delaunaryMesh.HasUVs = true;
-                    delMo = new MeshOperator(delaunaryMesh, false, false, true);
+                    delaunayMesh.HasUVs = true;
+                    delMo = new MeshOperator(delaunayMesh, false, false, true);
                 }
 
                 foreach (Vertex vert in outMesh.Vertices)
