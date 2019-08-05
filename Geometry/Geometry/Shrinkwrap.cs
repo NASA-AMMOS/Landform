@@ -1,4 +1,5 @@
 ﻿using Microsoft.Xna.Framework;
+using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,15 +15,15 @@ namespace OPS.Geometry
             NearestPoint,
             Project
         }
-        public enum ShrinkwrapAxis
+
+        public enum ProjectionMissResponse
         {
             None,
-            X,
-            Y,
-            Z
+            Delaunay,
+            InPaint
         }
 
-        public static Mesh BuildGrid(Mesh source, int width, int height, ShrinkwrapAxis axis)
+        public static Mesh BuildGrid(Mesh source, int width, int height, VertexProjection.ProjectionAxis axis)
         {
             BoundingBox bounds = source.Bounds();
             Mesh outMesh = new Mesh();
@@ -33,19 +34,19 @@ namespace OPS.Geometry
                 Vector3 pos;
                 switch (axis)
                 {
-                    case ShrinkwrapAxis.X:
+                    case VertexProjection.ProjectionAxis.X:
                         pos = new Vector3(
                             0, 
                             bounds.Min.Y + c * (bounds.Max.Y - bounds.Min.Y) / (double)width,
                             bounds.Min.Z + r * (bounds.Max.Z - bounds.Min.Z) / (double)height);
                         break;
-                    case ShrinkwrapAxis.Y:
+                    case VertexProjection.ProjectionAxis.Y:
                         pos = new Vector3(
                             bounds.Min.X + c * (bounds.Max.X - bounds.Min.X) / (double)width,
                             0,
                             bounds.Min.Z + r * (bounds.Max.Z - bounds.Min.Z) / (double)height);
                         break;
-                    case ShrinkwrapAxis.Z:
+                    case VertexProjection.ProjectionAxis.Z:
                         pos = new Vector3(
                             bounds.Min.X + c * (bounds.Max.X - bounds.Min.X) / (double)width,
                             bounds.Min.Y + r * (bounds.Max.Y - bounds.Min.Y) / (double)height,
@@ -82,9 +83,9 @@ namespace OPS.Geometry
             return outMesh;
         }
 
-        public static Mesh Wrap(Mesh source, Mesh target, ShrinkwrapMode mode, ShrinkwrapAxis axis = ShrinkwrapAxis.None)
+        public static Mesh Wrap(Mesh source, Mesh target, ShrinkwrapMode mode, VertexProjection.ProjectionAxis axis = VertexProjection.ProjectionAxis.None, ProjectionMissResponse onMiss = ProjectionMissResponse.None)
         {
-            if(mode == ShrinkwrapMode.Project && axis == ShrinkwrapAxis.None)
+            if(mode == ShrinkwrapMode.Project && axis == VertexProjection.ProjectionAxis.None)
             {
                 throw new Exception("Shrinkwrap project mode requires projection axis.");
             }
@@ -94,11 +95,11 @@ namespace OPS.Geometry
                 Func<Vector3, Vector2> getUV = new Func<Vector3, Vector2>(xyz =>
                 {
                     switch (axis) {
-                        case ShrinkwrapAxis.X:
+                        case VertexProjection.ProjectionAxis.X:
                             return new Vector2(xyz.Y, xyz.Z);
-                        case ShrinkwrapAxis.Y:
+                        case VertexProjection.ProjectionAxis.Y:
                             return new Vector2(xyz.X, xyz.Z);
-                        case ShrinkwrapAxis.Z:
+                        case VertexProjection.ProjectionAxis.Z:
                             return new Vector2(xyz.X, xyz.Y);
                         default:
                             throw new Exception("Getting UV requires shrinkwrap axis.");
@@ -109,11 +110,11 @@ namespace OPS.Geometry
                 {
                     switch (axis)
                     {
-                        case ShrinkwrapAxis.X:
+                        case VertexProjection.ProjectionAxis.X:
                             return xyz.X;
-                        case ShrinkwrapAxis.Y:
+                        case VertexProjection.ProjectionAxis.Y:
                             return xyz.Y;
-                        case ShrinkwrapAxis.Z:
+                        case VertexProjection.ProjectionAxis.Z:
                             return xyz.Z;
                         default:
                             throw new Exception("Getting height requires shrinkwrap axis.");
@@ -124,13 +125,13 @@ namespace OPS.Geometry
                 {
                     switch (axis)
                     {
-                        case ShrinkwrapAxis.X:
+                        case VertexProjection.ProjectionAxis.X:
                             v.Position.X = h;
                             break;
-                        case ShrinkwrapAxis.Y:
+                        case VertexProjection.ProjectionAxis.Y:
                             v.Position.Y = h;
                             break;
-                        case ShrinkwrapAxis.Z:
+                        case VertexProjection.ProjectionAxis.Z:
                             v.Position.Z = h;
                             break;
                         default:
@@ -141,13 +142,65 @@ namespace OPS.Geometry
                 Mesh targetCopy = new Mesh(target);
                 targetCopy.Vertices.ForEach(v => v.UV = getUV(v.Position));
                 MeshOperator mo = new MeshOperator(targetCopy, false, false, true);
-                foreach(Vertex v in outMesh.Vertices)
+
+                //Initialize projection miss handler
+                Image heightMap = null;
+                if (onMiss == ProjectionMissResponse.InPaint)
                 {
-                    var points = mo.UVToBarycentricList(getUV(v.Position)).ToList();
+                    //Inpaint a heightmap of the target mesh as backup for source points that miss
+                    //Determine suitable image res (source mesh may not be a grid)
+                    int resolution = (int)Math.Sqrt(source.Vertices.Count);
+                    heightMap = MeshToHeightMap.BuildHeightMap(targetCopy, mo.Bounds, resolution, resolution, axis);
+                    heightMap.Inpaint();
+                }
+
+                MeshOperator delMo = null;
+                if (onMiss == ProjectionMissResponse.Delaunay)
+                {
+                    Mesh delaunayMesh = DelaunayTriangulation.Triangulate(targetCopy.Vertices, new Func<Vertex, DelaunayPoint>(v =>
+                    {
+                        DelaunayPoint p = new DelaunayPoint();
+                        p.xy = getUV(v.Position);
+                        p.height = getHeight(v.Position);
+                        return p;
+                    }));
+                    foreach (Vertex v in delaunayMesh.Vertices)
+                    {
+                        v.UV = getUV(v.Position);
+                    }
+                    delaunayMesh.HasUVs = true;
+                    delMo = new MeshOperator(delaunayMesh, false, false, true);
+                }
+
+                foreach (Vertex vert in outMesh.Vertices)
+                {
+                    var points = mo.UVToBarycentricList(getUV(vert.Position)).ToList();
                     if(points.Count > 0)
                     {
                         double height = points.Select(p => getHeight(p.Position)).Max();
-                        setHeight(v, height);
+                        setHeight(vert, height);
+                    } else
+                    {
+                        if (onMiss == ProjectionMissResponse.Delaunay)
+                        {
+                            points = delMo.UVToBarycentricList(getUV(vert.Position)).ToList();
+                            if (points.Count > 0)
+                            {
+                                double height = points.Select(p => getHeight(p.Position)).Max();
+                                setHeight(vert, height);
+                            }
+                        } else if (onMiss == ProjectionMissResponse.InPaint)
+                        {
+                            Vector2 uv = VertexProjection.GetUV(vert.Position, axis);
+                            Vector2 min = VertexProjection.GetUV(mo.Bounds.Min, axis);
+                            Vector2 max = VertexProjection.GetUV(mo.Bounds.Max, axis);
+                            double r = heightMap.Height - 1 - (uv.V - min.V) / (max.V - min.V) * heightMap.Height;
+                            double c = (uv.U - min.U) / (max.U - min.U) * heightMap.Width;
+                            //TODO: interpolate, possibly refactor to avoid computing 4 corners everywhere?
+                            if (r >= 0 && r < heightMap.Height && c >= 0 && c < heightMap.Width) {
+                                setHeight(vert, heightMap[0, (int)r, (int)c]);
+                            }
+                        }
                     }
                 }
             } else
