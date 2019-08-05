@@ -81,7 +81,19 @@ namespace OPS.Imaging
             this.Bands = largeImage.Bands;
             this.Width = largeImage.Width;
             this.Height = largeImage.Height;
-            this.Metadata = new ImageMetadata(Bands, Width, Height);
+            if (largeImage.Metadata != null)
+            {
+                this.Metadata = (ImageMetadata)largeImage.Metadata.Clone();
+            }
+            else
+            {
+                this.Metadata = new ImageMetadata(Bands, Width, Height);
+            }
+            if (largeImage.CameraModel != null)
+            {
+                this.CameraModel = (CameraModel)largeImage.CameraModel.Clone();
+            }
+            this._hasMask = largeImage.HasMask;
             this.chunkSize = chunkSize;
             this.largeImage = largeImage;
             InitChunkCacheOrArray(cacheSize, diskBackedCache);
@@ -154,6 +166,98 @@ namespace OPS.Imaging
         //for subclassing
         protected SparseImage() : base(0, 0, 0) //don't let base class constructor allocate image buffer
         {
+        }
+
+        public SparseImage(SparseImage that)
+            : this(that.Bands, that.Width, that.Height, that.basePath, that.extension, that.chunkSize)
+        {
+            if (that.Metadata != null)
+            {
+                this.Metadata = (ImageMetadata)that.Metadata.Clone();
+            }
+
+            if (that.CameraModel != null)
+            {
+                this.CameraModel = (CameraModel)that.CameraModel.Clone();
+            }
+
+            _hasMask = that.HasMask;
+
+            InitChunkCacheOrArray(that.chunkCache != null ? that.chunkCache.Capacity : 0,
+                                  that.chunkCache != null ? that.chunkCache.DiskBacked : false);
+
+            for (int r = 0; r < chunkRows; r++)
+            {
+                for (int c = 0; c < chunkCols; c++)
+                {
+                    Image chunk = that.GetExistingChunk(r, c);
+                    if (chunk != null)
+                    {
+                        chunk = (Image)chunk.Clone();
+                        if (chunks != null)
+                        {
+                            chunks[r, c] = chunk;
+                        } 
+                        else
+                        {
+                            chunkCache.Add(new Vector2(r, c), chunk);
+                        }
+                    }
+                }
+            }
+        }
+
+        protected override void CopyDataTo<TT>(GenericImage<TT> that)
+        {
+            if (!(typeof(TT).IsAssignableFrom(typeof(float))))
+            {
+                throw new ArgumentException("failed to copy sparse image data: type mismatch");
+            }
+
+            if (that.Bands != Bands || that.Width != Width || that.Height != Height)
+            {
+                throw new ArgumentException("failed to copy sparse image data: size mismatch");
+            }
+
+            for (int b = 0; b < Bands; b++)
+            {
+                for (int r = 0; r < Height; r++)
+                {
+                    for (int c = 0; c < Width; c++)
+                    {
+                        that[b, r, c] = (TT)Convert.ChangeType(this[b, r, c], typeof(TT));
+                    }
+                }
+            }
+        }
+
+        protected override void CopyMaskTo<TT>(GenericImage<TT> that)
+        {
+            if (!HasMask || !that.HasMask || that.Width != Width || that.Height != Height)
+            {
+                throw new ArgumentException("failed to copy sparse image mask");
+            }
+            for (int r = 0; r < Height; r++)
+            {
+                for (int c = 0; c < Width; c++)
+                {
+                    that.SetMaskValue(r, c, !IsValid(r, c));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Performas a deep copy of the image
+        /// </summary>
+        /// <returns></returns>
+        public override object Clone()
+        {
+            return new SparseImage(this);
+        }
+
+        public override Image Instantiate(int bands, int width, int height)
+        {
+            return new SparseImage(bands, width, height, basePath, extension, chunkSize);
         }
 
         //broken out to facilitate subclassing where GetImageMetadataForPartialRead() may need prior init
