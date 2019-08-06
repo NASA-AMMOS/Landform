@@ -13,7 +13,7 @@ using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Imaging;
-using OPS.Pipeline.TileServer;
+using OPS.Pipeline.TilingServer;
 
 namespace OPS.LandformUtil
 {

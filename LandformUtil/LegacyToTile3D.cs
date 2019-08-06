@@ -1,23 +1,23 @@
-﻿using CommandLine;
-using log4net;
-using OPS.Geometry;
-using OPS.Util;
-using System;
+﻿using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
+using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using System.IO;
+using CommandLine;
+using log4net;
+using OPS.Util;
 using OPS.Imaging;
-using System.Threading;
+using OPS.Geometry;
+using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
 {
-
     [Verb("legacytotile3d", HelpText = "Convert a legacy OnSight scene to 3D Tiles")]
     public class LegacyToTile3DOptions
     {

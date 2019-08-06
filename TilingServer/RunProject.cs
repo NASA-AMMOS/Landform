@@ -1,17 +1,18 @@
-﻿using CommandLine;
-using log4net;
-using OPS.Geometry;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
-using OPS.Pipeline;
 using Microsoft.Xna.Framework;
+using CommandLine;
+using log4net;
+using OPS.Geometry;
+using OPS.Pipeline;
+using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("runproject", HelpText = "Runs a tiling workflow")]
     public class RunProjectOptions : PipelineCoreOptions
@@ -38,11 +39,16 @@ namespace OPS.Pipeline.TileServer
         public RunProject(RunProjectOptions options)
         {
             this.options = options;
-            pipeline = TileServerCommands.MakePipeline(options, options.Local);
+
             if (options.Local)
             {
+                pipeline = new LocalPipeline(options);
                 executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Deferred);
                 options.Wait = true;
+            }
+            else
+            {
+                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
             }
         }
         

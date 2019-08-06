@@ -13,10 +13,11 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
+using OPS.RayTrace;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TileServer;
-using OPS.RayTrace;
+using OPS.Pipeline.TilingServer;
+using OPS.TilingServer;
 
 namespace OPS.Landform
 {
@@ -380,7 +381,7 @@ namespace OPS.Landform
                 }
             }
 
-            pipeline.LogInfo("preparing tiling input input");
+            pipeline.LogInfo("preparing tiling input");
             {
                 foreach (var node in root.Leaves().Where(sn => sn.HasComponent<MeshImagePair>() &&
                                                          sn.GetComponent<MeshImagePair>() != null &&

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline.TilingServer
 {
     public enum TilingScheme
     {        

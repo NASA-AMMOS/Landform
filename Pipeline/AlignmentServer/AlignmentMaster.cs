@@ -16,7 +16,7 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline;
-using OPS.Pipeline.TileServer;
+using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline.AlignmentServer
 {

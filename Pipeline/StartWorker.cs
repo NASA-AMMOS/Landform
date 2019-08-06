@@ -13,24 +13,20 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline
 {
     [Verb("startworker", HelpText = "Starts a worker to process tiling messages")]
     public class StartWorkerOptions : PipelineCoreOptions
     {
-        [Option(Default = false, HelpText = "Also start the master server (e.g. for debugging)")]
-        public bool StartMaster { get; set; }
-
         [Option(Default = false, HelpText = "Limit multiple workers to one core each")]
         public bool OneCorePerWorker { get; set; }
     }
 
-    //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
-    //TODO: this actually handles all worker tasks for both alignment and tiling workflows
-    //which is fine, and in the future it should handle worker tasks for all Landform workflows
-    //but it should not be Pipeline namespace, not Pipeline.TileServer
-    //and it should be a subcommand of Landform.exe not TilingServer.exe
+    //TODO: https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
+    //this actually handles worker tasks for both alignment and tiling workflows
+    //it should be a subcommand of Landform.exe not TilingServer.exe
     public class StartWorker : CloudPipeline
     {
         public const int MAX_PROCESSING_SEC = 6 * 60 * 60; //6h
@@ -97,32 +93,6 @@ namespace OPS.Pipeline.TileServer
             new DracoSerializer().Register();
             //Configure gdal
             GdalConfiguration.ConfigureGdal();
-
-            Task masterTask = null;
-            if (options.StartMaster)
-            {
-                masterTask = new Task(() =>
-                {
-                    try
-                    {
-                        StartMasterOptions opts = new StartMasterOptions();
-                        opts.Quiet = options.Quiet;
-                        opts.Verbose = options.Verbose;
-                        opts.Debug = options.Debug;
-                        opts.LogFile = options.LogFile;
-                        opts.SingleThreaded = options.SingleThreaded;
-                        var master = new StartMaster(opts);
-                        master.EnableCleanupTempDir = false;
-                        master.Run();
-                    }
-                    catch (Exception e)
-                    {
-                        LogError("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
-                        LogError(e.StackTrace);
-                    }
-                });
-                masterTask.Start();
-            }
 
             if (options.SingleThreaded)
             {
@@ -291,11 +261,6 @@ namespace OPS.Pipeline.TileServer
 
                     lastHeartbeat = start;
                 }
-            }
-
-            if (masterTask != null)
-            {
-                masterTask.Wait();
             }
 
             return 0;

@@ -17,7 +17,7 @@ using OPS.RayTrace;
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
 using QueueMessage = OPS.Cloud.QueueMessage;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline.TilingServer
 {
     public class BuildBackprojectLeavesMessage : QueueMessage
     {

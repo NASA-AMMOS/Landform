@@ -10,7 +10,7 @@ using log4net;
 using OPS.Cloud;
 using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline.TilingServer
 {
     [DynamoDBTable("TilingInput")]
     [DynamoDBReadCapacity(5, 50)]

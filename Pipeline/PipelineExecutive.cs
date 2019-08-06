@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using OPS.Util;
-using OPS.Pipeline.TileServer;
+using OPS.Pipeline.TilingServer;
 
 //TODO: refactor so that local codepath does not have cloud dependencies
 using QueueMessage = OPS.Cloud.QueueMessage;

@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using log4net;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline.TilingServer
 {
     [DynamoDBTable("TilingInputChunk")]
     [DynamoDBReadCapacity(5, 50)]

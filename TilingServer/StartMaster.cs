@@ -7,12 +7,16 @@ using System.Diagnostics;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline;
+using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("startmaster", HelpText = "Runs a tiling workflow")]
     public class StartMasterOptions : PipelineCoreOptions
     {
+        [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
+        public bool StartWorker { get; set; }
     }
 
     //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -22,7 +26,9 @@ namespace OPS.Pipeline.TileServer
     {
         private StartMasterOptions options;
 
-        private Dictionary<string, PipelineStateMachine> stateMachines = new Dictionary<string, PipelineStateMachine>();
+        private Task workerTask = null;
+        private Dictionary<string, PipelineStateMachine> stateMachines =
+            new Dictionary<string, PipelineStateMachine>();
 
         public StartMaster(StartMasterOptions options) : base(options, queuePrefix: "tiling")
         {
@@ -32,6 +38,30 @@ namespace OPS.Pipeline.TileServer
         public int Run()
         {
             DumpConfig();
+
+            if (options.StartWorker)
+            {
+                workerTask = new Task(() => {
+                        try
+                        {
+                            var opts = new StartWorkerOptions();
+                            opts.Quiet = options.Quiet;
+                            opts.Verbose = options.Verbose;
+                            opts.Debug = options.Debug;
+                            opts.LogFile = options.LogFile;
+                            opts.SingleThreaded = options.SingleThreaded;
+                            var worker = new StartWorker(opts, "alignment");
+                            worker.EnableCleanupTempDir = false;
+                            worker.Run();
+                        }
+                        catch (Exception e)
+                        {
+                            LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
+                            LogError(e.StackTrace);
+                        }
+                    });
+                workerTask.Start();
+            }
 
             while (true)
             {

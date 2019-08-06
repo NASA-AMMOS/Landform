@@ -1,5 +1,3 @@
-using CommandLine;
-using log4net;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,8 +6,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using CommandLine;
+using log4net;
+using OPS.Pipeline;
+using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("deleteproject", HelpText = "Delete project")]
     public class DeleteProjectOptions : PipelineCoreOptions
@@ -36,10 +38,15 @@ namespace OPS.Pipeline.TileServer
         public DeleteProject(DeleteProjectOptions options)
         {
             this.options = options;
-            pipeline = TileServerCommands.MakePipeline(options, options.Local);
+
             if (options.Local)
             {
+                pipeline = new LocalPipeline(options);
                 executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Immediate);
+            }
+            else
+            {
+                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
             }
         }
 

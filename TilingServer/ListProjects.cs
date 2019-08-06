@@ -1,14 +1,16 @@
-using CommandLine;
-using log4net;
-using OPS.Util;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using CommandLine;
+using log4net;
+using OPS.Util;
+using OPS.Pipeline;
+using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("listprojects", HelpText = "List projects")]
     public class ListProjectsOptions : PipelineCoreOptions
@@ -25,7 +27,15 @@ namespace OPS.Pipeline.TileServer
         public ListProjects(ListProjectsOptions options)
         {
             this.options = options;
-            pipeline = TileServerCommands.MakePipeline(options, options.Local);
+
+            if (options.Local)
+            {
+                pipeline = new LocalPipeline(options);
+            }
+            else
+            {
+                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
+            }
         }
 
         public int Run()

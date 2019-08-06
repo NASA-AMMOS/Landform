@@ -1,8 +1,9 @@
+using System;
 using CommandLine;
 using log4net;
-using System;
+using OPS.Pipeline;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("deletecache", HelpText = "Delete cache")]
     public class DeleteCacheOptions : PipelineCoreOptions
@@ -22,7 +23,15 @@ namespace OPS.Pipeline.TileServer
         public DeleteCache(DeleteCacheOptions options)
         {
             this.options = options;
-            pipeline = TileServerCommands.MakePipeline(options, options.Local);
+
+            if (options.Local)
+            {
+                pipeline = new LocalPipeline(options);
+            }
+            else
+            {
+                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
+            }
         }
 
         public int Run()

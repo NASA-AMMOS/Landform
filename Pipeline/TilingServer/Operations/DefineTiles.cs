@@ -17,7 +17,7 @@ using Microsoft.Xna.Framework;
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
 using QueueMessage = OPS.Cloud.QueueMessage;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline.TilingServer
 {
     public class DefineTilesMessage : QueueMessage
     {
@@ -176,7 +176,7 @@ namespace OPS.Pipeline.TileServer
         }
 
         
-        public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TileServer.TilingScheme tilingScheme,
+        public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
                                                         int facesPerTile, List<MeshImagePair> pairs,
                                                         SplitByTextureOpts texOpts = null )
         {

@@ -1,17 +1,19 @@
-﻿using CommandLine;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using Amazon.DynamoDBv2.Model;
+using CommandLine;
+using log4net;
 using OPS.Geometry;
 using OPS.Imaging;
-using Amazon.DynamoDBv2.Model;
-using log4net;
+using OPS.Pipeline;
+using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("createproject", HelpText = "creates a project")]
     public class CreateProjectOptions : PipelineCoreOptions
@@ -70,10 +72,15 @@ namespace OPS.Pipeline.TileServer
         public CreateProject(CreateProjectOptions options)
         {
             this.options = options;
-            pipeline = TileServerCommands.MakePipeline(options, options.Local);
+
             if (options.Local)
             {
+                pipeline = new LocalPipeline(options);
                 executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Immediate);
+            }
+            else
+            {
+                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
             }
         }
 

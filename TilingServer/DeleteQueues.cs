@@ -1,8 +1,9 @@
-using CommandLine;
-using log4net;
 using System;
+using log4net;
+using CommandLine;
+using OPS.Pipeline;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("deletequeues", HelpText = "Delete queues")]
     public class DeleteQueuesOptions : PipelineCoreOptions

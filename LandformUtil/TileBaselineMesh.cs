@@ -14,6 +14,7 @@ using OPS.MathExtensions;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
+using OPS.Pipeline.TilingServer;
 
 namespace OPS.LandformUtil
 {

@@ -7,8 +7,10 @@ using System.Threading.Tasks;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline;
+using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.TilingServer
 {
     [Verb("projectmetadata", HelpText = "Get project metadata")]
     public class ProjectMetadataOptions : PipelineCoreOptions
@@ -48,7 +50,15 @@ namespace OPS.Pipeline.TileServer
         public ProjectMetadata(ProjectMetadataOptions options)
         {
             this.options = options;
-            pipeline = TileServerCommands.MakePipeline(options, options.Local);
+
+            if (options.Local)
+            {
+                pipeline = new LocalPipeline(options);
+            }
+            else
+            {
+                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
+            }
         }
 
         public int Run()

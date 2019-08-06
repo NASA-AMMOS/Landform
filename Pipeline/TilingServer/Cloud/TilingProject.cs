@@ -14,7 +14,7 @@ using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline.TileServer
+namespace OPS.Pipeline.TilingServer
 {
     [DynamoDBTable("TilingProjects")]
     [DynamoDBReadCapacity(5, 50)]
