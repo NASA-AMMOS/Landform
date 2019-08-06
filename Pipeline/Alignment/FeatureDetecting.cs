@@ -470,7 +470,7 @@ namespace OPS.Pipeline
                 {
                     for (int c = minC; c <= maxC; c++)
                     {
-                        if (!xyzOrRng.IsInvalid(r, c))
+                        if (xyzOrRng.IsValid(r, c))
                         {
                             if (rng != null)
                             {

@@ -238,7 +238,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < src.Width; col++)
                 {
-                    if (src.IsInvalid(row, col)) //respect input image mask if it has one
+                    if (!src.IsValid(row, col)) //respect input image mask if it has one
                     {
                         ret.SetMaskValue(row, col, true);
                     }
@@ -284,7 +284,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < src.Width; col++)
                 {
-                    if (src.IsInvalid(row, col)) //respect input image mask if it has one
+                    if (!src.IsValid(row, col)) //respect input image mask if it has one
                     {
                         ret.SetMaskValue(row, col, true);
                     }
@@ -336,7 +336,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < src.Width; col++)
                 {
-                    if (src.IsInvalid(row, col) || //respect input image mask if it has one
+                    if (!src.IsValid(row, col) || //respect input image mask if it has one
                         src[0, row, col] <= 0.0f) //non-positive range values are invalid
                     {
                         ret.SetMaskValue(row, col, true);
@@ -368,7 +368,7 @@ namespace OPS.Pipeline
             {
                 for (int col = 0; col < src.Width; col++)
                 {
-                    if (src.IsInvalid(row, col)) //respect input image mask if it has one
+                    if (!src.IsValid(row, col)) //respect input image mask if it has one
                     {
                         ret.SetMaskValue(row, col, true);
                     }
@@ -414,11 +414,11 @@ namespace OPS.Pipeline
                     int down = Math.Min(row + 1, src.Height - 1);
                     int left = Math.Max(0, col - 1);
                     int right = Math.Min(col + 1, src.Width - 1);
-                    if (src.IsInvalid(row, col) || //respect input image mask if it has one
-                        (confidence != null && confidence.IsInvalid(row, col)) ||
-                        src.IsInvalid(up, left) || src.IsInvalid(up, col) || src.IsInvalid(up, right) ||
-                        src.IsInvalid(row, left) || src.IsInvalid(row, right) ||
-                        src.IsInvalid(down, left) || src.IsInvalid(down, col) || src.IsInvalid(down, right))
+                    if (!src.IsValid(row, col) || //respect input image mask if it has one
+                        (confidence != null && !confidence.IsValid(row, col)) ||
+                        !src.IsValid(up, left) || !src.IsValid(up, col) || !src.IsValid(up, right) ||
+                        !src.IsValid(row, left) || !src.IsValid(row, right) ||
+                        !src.IsValid(down, left) || !src.IsValid(down, col) || !src.IsValid(down, right))
                     {
                         ret.SetMaskValue(row, col, true);
                     }

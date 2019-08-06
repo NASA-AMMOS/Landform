@@ -18,9 +18,15 @@ namespace ImagingTest.Imaging
             img.SetMaskValue(27, 37, false);
             img.Inpaint();
             for (int r = 0; r < 100; r++)
+            {
                 for (int c = 0; c < 100; c++)
-                    if (img.IsInvalid(r, c))
+                {
+                    if (!img.IsValid(r, c))
+                    {
                         Assert.Fail();
+                    }
+                }
+            }
         }
     }
 }

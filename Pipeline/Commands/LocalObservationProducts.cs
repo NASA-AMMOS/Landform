@@ -674,9 +674,10 @@ namespace OPS.Pipeline
                             
                             Vector3 backgroundColor = new Vector3(0.9, 0.9, 0.9);
                             Image deltaRangePreview =
-                                Image.ColorizeScalarImage(deltaRangeImage.Decimated(4), previewDistanceBuckets,
-                                                          colors.Select(c => c.ToFloatArray()).ToArray(),
-                                                          backgroundColor.ToFloatArray());
+                                deltaRangeImage.Decimated(4).
+                                ColorizeScalarImage(previewDistanceBuckets,
+                                                    colors.Select(c => c.ToFloatArray()).ToArray(),
+                                                    backgroundColor.ToFloatArray());
                             deltaRangePreview =
                                 StampLegend(deltaRangePreview, previewDistanceBuckets, colors, backgroundColor);
                             deltaRangePreview.DeleteMask();
@@ -892,7 +893,7 @@ namespace OPS.Pipeline
             {
                 for (int idxSrcCol = 0; idxSrcCol < srcObs.Texture.Width; idxSrcCol++)
                 {
-                    if (srcPoints.IsInvalid(idxSrcRow, idxSrcCol))
+                    if (!srcPoints.IsValid(idxSrcRow, idxSrcCol))
                     {
                         continue;
                     }
@@ -939,7 +940,7 @@ namespace OPS.Pipeline
                         continue;
                     }
 
-                    if (dstPoints.IsInvalid((int)refDstPixelY, (int)refDstPixelX))
+                    if (!dstPoints.IsValid((int)refDstPixelY, (int)refDstPixelX))
                     {
                         continue;
                     }
