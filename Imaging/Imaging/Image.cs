@@ -1081,30 +1081,34 @@ namespace OPS.Imaging
         /// are the boundaries for the colors in colorsLowToHigh. There should be one more color than distance to catch
         /// the distances that are larger than the final bucket cutoff
         /// </summary>
-        /// <param name="img">single band source image</param>
         /// <param name="colorCutoffValues">the floating point values that represent the upper bound of that color (eg. cutoffvalue 0.2, all values less than 0.2 get that value.</param>
         /// <param name="colorsLowToHigh">colors intended to be paired with colorCutoffValues. each color in R, G, B order, range 0 to 1. Should be 1 more color than cutoff values as the upper-end catchall color (greater than the last color cutoff value)</param>
         /// <param name="bgColor">color in R, G, B order, range 0 to 1</param>
         /// <returns>3 band colorized image</returns>
-        static public Image ColorizeScalarImage(Image img, float[] colorCutoffValues, float[][] colorsLowToHigh, float[] bgColor)
+        public Image ColorizeScalarImage(float[] colorCutoffValues, float[][] colorsLowToHigh, float[] bgColor)
         {
-            if (img.Bands != 1)
-                throw new InvalidDataException("expecting a single band image to be colorized");
-
-            Image result = img.Instantiate(3, img.Width, img.Height);
-            result.CreateMask(true);
-
-            for (int idxRow = 0; idxRow < img.Height; idxRow++)
+            if (Bands != 1)
             {
-                for (int idxCol = 0; idxCol < img.Width; idxCol++)
+                throw new InvalidDataException("expecting a single band image to be colorized");
+            }
+
+            Image result = Instantiate(3, Width, Height);
+            if (HasMask)
+            {
+                result.CreateMask(true);
+            }
+
+            for (int idxRow = 0; idxRow < Height; idxRow++)
+            {
+                for (int idxCol = 0; idxCol < Width; idxCol++)
                 {
-                    if (!img.IsValid(idxRow, idxCol))
+                    if (HasMask && !IsValid(idxRow, idxCol))
                     {
                         result.SetBandValues(idxRow, idxCol, bgColor);
                         continue;
                     }
 
-                    float val = img[0, idxRow, idxCol];
+                    float val = this[0, idxRow, idxCol];
                     float[] color = colorsLowToHigh.Last(); //catchall for values > final cuttoff.
                     for (int idxColor = 0; idxColor < colorCutoffValues.Length; idxColor++)
                     {
@@ -1116,7 +1120,11 @@ namespace OPS.Imaging
                     }
 
                     result.SetBandValues(idxRow, idxCol, color);
-                    result.SetMaskValue(idxRow, idxCol, false);
+
+                    if (HasMask)
+                    {
+                        result.SetMaskValue(idxRow, idxCol, false);
+                    }
                 }
             }
 
