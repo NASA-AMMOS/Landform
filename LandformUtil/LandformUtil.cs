@@ -1,17 +1,15 @@
-using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Geometry;
-using OPS.Cloud;
-using OPS.Pipeline;
+using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline;
 
-namespace LandformUtil
+namespace OPS.LandformUtil
 {
     class LandformUtil
     {
@@ -38,17 +36,48 @@ namespace LandformUtil
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
             Logging.ConfigureLogging();
 
-            // Register filetype handlers
-            new DAESerializer().Register();
-            new OpenInventorSerializer().Register();
-            new DracoSerializer().Register();
+            //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
+            //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap
+            //however there are also some additional MeshSerializers in OPS.GeometryThirdParty
+            //and we also want those to add themselves to the OPS.Geometry.MeshSerializers SerializerMap
+            OPS.Geometry.ThirdPartyMeshSerializers.Register();
 
-            //Configure gdal
             GdalConfiguration.ConfigureGdal();
 
-            // Parse command line arguments
-            int returnCode = Commands.RunFromCommandline(args);
-            return returnCode;
+            return RunFromCommandline(args);
+        }
+
+        /// <summary>
+        /// Parses command line arguments and executes the appropriate command        
+        /// </summary>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        static int RunFromCommandline(string[] args)
+        {
+            /// Commands are defined by the list of types passed into ParseArguments
+            /// Each passed in object must have a [Verb] decorator
+            /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
+            var parsed = CommandLine.Parser.Default.ParseArguments<
+                ConvertBaselineMeshOptions,
+                ConvertBaselineMeshesOptions,
+                TileBaselineMeshOptions,
+                TileBaselineMeshesOptions,
+                PDSImageConverterOptions,
+                LegacyToWebVR,
+                LegacyToTile3D,
+                DEM2Mesh>(args);
+
+            return parsed.MapResult(
+                (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
+                (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
+                (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
+                (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
+                (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
+                (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
+                (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
+                (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
+                (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
+                errs => 1);
         }
     }
 }

@@ -120,9 +120,18 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConvertBaselineMesh.cs" />
+    <Compile Include="ConvertBaselineMeshes.cs" />
+    <Compile Include="DEM2Mesh.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="LandformUtil.cs" />
+    <Compile Include="LegacyToTile3D.cs" />
+    <Compile Include="LegacyToWebVR.cs" />
+    <Compile Include="PDSImageConverter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TileBaselineMesh.cs" />
+    <Compile Include="TileBaselineMeshes.cs" />
+    <Compile Include="TileLocalMesh.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

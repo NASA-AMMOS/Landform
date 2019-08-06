@@ -74,6 +74,7 @@
     <Compile Include="OpenInventorSerializer.cs" />
     <Compile Include="PoissonReconstruction.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="ThirdPartyMeshSerializers.cs" />
     <Compile Include="UVAtlas.cs" />
     <Compile Include="UVAtlasException.cs" />
   </ItemGroup>

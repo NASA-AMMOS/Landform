@@ -4,15 +4,15 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using Microsoft.Xna.Framework;
+using CommandLine;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
-using Microsoft.Xna.Framework;
-using CommandLine;
+using OPS.Pipeline;
 
-namespace OPS.Pipeline
+namespace OPS.LandformUtil
 {
-
     [Verb("dem2mesh", HelpText = "Convert a dem and optional ortho image to a mesh.  X North (points toward top of dem image space), Y up (values from dem), Z East (points right in dem image space)")]
     public class DEM2MeshOptions
     {

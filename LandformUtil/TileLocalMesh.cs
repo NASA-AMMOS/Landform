@@ -15,10 +15,8 @@ using OPS.Pipeline;
 using OPS.Imaging;
 using OPS.Pipeline.TileServer;
 
-namespace OPS
+namespace OPS.LandformUtil
 {
-
-
     [Verb("tilelocalmesh", HelpText = "Generates a 3D tileset locally from a mesh")]
     public class TileLocalMeshOptions
     {
@@ -51,16 +49,13 @@ namespace OPS
 
     }
 
-
-
     public class TileLocalMesh
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(TileLocalMesh));
 
+        private TileLocalMeshOptions options;
 
-        TileLocalMeshOptions options;
-
-        bool SkirtsEnabled { get { return options.SkirtAxis != SkirtMode.None; } }
+        private bool SkirtsEnabled { get { return options.SkirtAxis != SkirtMode.None; } }
 
         public TileLocalMesh(TileLocalMeshOptions opts)
         {
@@ -69,7 +64,7 @@ namespace OPS
 
         public int Run()
         {
-            OPS.Util.PathHelper.EnsureExists(options.OutputDirectory);
+            PathHelper.EnsureExists(options.OutputDirectory);
             logger.Info("Loading Input");
             MultiMeshClipper multiClipper = new MultiMeshClipper();
             multiClipper.AddInput(new MultiMeshClipperInput(options.InputMesh, options.InputTexture));
@@ -94,12 +89,15 @@ namespace OPS
             }
 
             logger.Info("Computing tree bounds");
-            SceneNode root = BuildBoundsTree(multiClipper, scheme, new ITileSplitCriteria[] { new FaceSplitCriteria(options.TargetFacesPerTile) });
+            SceneNode root =
+                DefineTiles.
+                BuildBoundsTree(multiClipper, scheme,
+                                new ITileSplitCriteria[] { new FaceSplitCriteria(options.TargetFacesPerTile) });
             logger.Info("Process leaf nodes");
             ProcessLeafNodes(multiClipper, root);
             logger.Info("Generate parents");
-            BuildParents(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, SkirtsEnabled, options.SkirtAxis,
-                          options.OutputDirectory, options.MeshExtension, options.ImageExtension);
+            BuildParents(root, options.TargetFacesPerTile, options.MaxResolutionPerTile, SkirtsEnabled,
+                         options.SkirtAxis, options.OutputDirectory, options.MeshExtension, options.ImageExtension);
             logger.Info("Generate tileset");
             Tile3DBuilder builder = new Tile3DBuilder(root);
             builder.BuildTileset(NodeToUrl, false);
@@ -108,42 +106,12 @@ namespace OPS
             return 0;
         }
 
-        string NodeToUrl(SceneNode node)
+        private string NodeToUrl(SceneNode node)
         {
             return node.Name + ".b3dm";
         }
 
-        public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme, ITileSplitCriteria[] splitCriteria)
-        {
-            SceneNode root = new SceneNode("");
-            root.AddComponent(new NodeBounds(multiClipper.TotalBounds));
-            Queue<SceneNode> queue = new Queue<SceneNode>();
-            queue.Enqueue(root);
-            while(queue.Count > 0 )
-            {
-                SceneNode cur = queue.Dequeue();
-                var curBounds = cur.GetComponent<NodeBounds>().Bounds;
-                if (splitCriteria.Any( splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
-                {
-                    var childBounds = tilingScheme.Split(null, curBounds);
-                    childBounds = multiClipper.FilterEmptyBounds(childBounds);
-                    //For quad trees, expand bounds in the non-split dimension. Otherwise, we clip high peaks/low valleys in the decimated mesh that exceed the bounds of the original mesh
-                    childBounds = childBounds.Select(box => tilingScheme.ExpandBounds(box, null));
-                    int counter = 0;
-                    foreach (var childBound in childBounds)
-                    {
-                        SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
-                        child.AddComponent(new NodeBounds(childBound));
-                        queue.Enqueue(child);
-                        counter++;
-                    }
-                }
-            }
-            root.Name = "root";
-            return root;
-        }
-
-        void ProcessLeafNodes(MultiMeshClipper multiMeshClipper, SceneNode root)
+        private void ProcessLeafNodes(MultiMeshClipper multiMeshClipper, SceneNode root)
         {
             var totalLeafCount = root.Leaves().Count();
             CoreLimitedParallel.ForEach(root.Leaves(), (node, pls, index) =>
@@ -172,9 +140,9 @@ namespace OPS
             });
         }
 
-        static public void BuildParents(SceneNode root,  int targetFacesPerTile, int maxResolutionPerTile,
-            bool skirtsEnabled, SkirtMode skirtAxis,
-            string outputDirectory, string meshExtension, string imageExtension)
+        private void BuildParents(SceneNode root,  int targetFacesPerTile, int maxResolutionPerTile,
+                                  bool skirtsEnabled, SkirtMode skirtAxis,
+                                  string outputDirectory, string meshExtension, string imageExtension)
         {
             var totalLeafCount = root.Leaves().Count();
             var totalParentCount = root.DepthFirstTraverse().Count() - totalLeafCount;

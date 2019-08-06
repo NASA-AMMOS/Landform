@@ -1,17 +1,16 @@
-using OPS.Imaging;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Geometry;
-using OPS.Cloud;
-using OPS.Pipeline;
+using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline;
+using OPS.Pipeline.AlignmentServer;
 
-namespace Landform
+namespace OPS.Landform
 {
     class Landform
     {
@@ -38,17 +37,58 @@ namespace Landform
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
             Logging.ConfigureLogging();
 
-            // Register filetype handlers
-            new DAESerializer().Register();
-            new OpenInventorSerializer().Register();
-            new DracoSerializer().Register();
+            //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
+            //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap
+            //however there are also some additional MeshSerializers in OPS.GeometryThirdParty
+            //and we also want those to add themselves to the OPS.Geometry.MeshSerializers SerializerMap
+            OPS.Geometry.ThirdPartyMeshSerializers.Register();
 
-            //Configure gdal
             GdalConfiguration.ConfigureGdal();
 
-            // Parse command line arguments
-            int returnCode = Commands.RunFromCommandline(args);
-            return returnCode;
+            return RunFromCommandline(args);
+        }
+
+        /// <summary>
+        /// Parses command line arguments and executes the appropriate command        
+        /// </summary>
+        /// <param name="args"></param>
+        /// <returns></returns>
+        static int RunFromCommandline(string[] args)
+        {
+            /// Commands are defined by the list of types passed into ParseArguments
+            /// Each passed in object must have a [Verb] decorator
+            /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
+            var parsed = CommandLine.Parser.Default.ParseArguments<
+                StartAlignMasterOptions,
+                LocalIngestOptions,
+                LocalFeaturesOptions,
+                LocalMatchingOptions,
+                LocalBundleAdjustOptions,
+                LocalObservationProductsOptions,
+                LocalBEVAlignerOptions,
+                LocalAgisoftOptions,
+                ConfigureCloudOptions,
+                ConfigureLocalOptions,
+                EmtToSceneOptions,
+                LocalBuildMeshesOptions,
+                FetchDataOptions
+                >(args);
+
+            return parsed.MapResult(
+                (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
+                (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
+                (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
+                (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
+                (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
+                (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
+                (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
+                (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
+                (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
+                (LocalBuildMeshesOptions opts) => new LocalBuildMeshes(opts).Run(),
+                (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
+                (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
+                (FetchDataOptions opts) => new FetchData(opts).Run(),
+                errs => 1);
         }
     }
 }

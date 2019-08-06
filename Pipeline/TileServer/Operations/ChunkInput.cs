@@ -89,9 +89,8 @@ namespace OPS.Pipeline.TileServer
 
             pipeline.LogInfo("building mesh chunks for input " + message.InputName);
             var tilingScheme = new BinaryTreeTilingScheme();
-            var root =
-                TileLocalMesh.BuildBoundsTree(multiClipper, tilingScheme,
-                                              new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
+            var root = DefineTiles.BuildBoundsTree(multiClipper, tilingScheme,
+                                                   new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
             
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
             var leaves = root.Leaves().ToList();
