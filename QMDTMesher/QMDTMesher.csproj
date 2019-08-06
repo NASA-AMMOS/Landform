@@ -80,27 +80,27 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\GeometryThirdparty\GeometryThirdparty.csproj">
+    <ProjectReference Include="..\GeometryThirdparty\GeometryThirdparty.csproj">
       <Project>{3c534889-b71f-4f86-8e75-b24a61cd7b86}</Project>
       <Name>GeometryThirdparty</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Geometry\Geometry.csproj">
+    <ProjectReference Include="..\Geometry\Geometry.csproj">
       <Project>{49a27854-2db1-4e1c-893a-f60bdf5f3c86}</Project>
       <Name>Geometry</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Imaging\Imaging.csproj">
+    <ProjectReference Include="..\Imaging\Imaging.csproj">
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\MathExtensions\MathExtensions.csproj">
+    <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
       <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
       <Name>MathExtensions</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Util\Util.csproj">
+    <ProjectReference Include="..\Util\Util.csproj">
       <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>
       <Name>Util</Name>
     </ProjectReference>
-    <ProjectReference Include="..\..\Xna\Xna.csproj">
+    <ProjectReference Include="..\Xna\Xna.csproj">
       <Project>{46759719-42d9-473b-a8ad-0848a33bdac6}</Project>
       <Name>Xna</Name>
     </ProjectReference>

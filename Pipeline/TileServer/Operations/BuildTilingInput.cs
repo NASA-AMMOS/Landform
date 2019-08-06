@@ -8,13 +8,12 @@ using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TileServer;
 
 //TODO: refactor so that local codepath does not have cloud dependencies
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
 using QueueMessage = OPS.Cloud.QueueMessage;
 
-namespace OPS.Pipeline.MeshWorker
+namespace OPS.Pipeline.TileServer
 {
     public class BuildTilingInputMessage : QueueMessage
     {

@@ -12,12 +12,10 @@ using Amazon.SQS;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Geometry;
-using OPS.Pipeline.MeshWorker;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TileServer
 {
-    
     [Verb("startworker", HelpText = "Starts a worker to process tiling messages")]
     public class StartWorkerOptions : PipelineCoreOptions
     {

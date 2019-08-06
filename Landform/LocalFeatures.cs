@@ -9,9 +9,10 @@ using CommandLine;
 using log4net;
 using OPS.Util;
 using OPS.Imaging;
+using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("local-features", HelpText = "create image features locally")]
     public class LocalFeaturesOptions : PipelineCoreOptions

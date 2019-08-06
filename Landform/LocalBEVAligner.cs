@@ -17,9 +17,10 @@ using OPS.Imaging;
 using OPS.Imaging.Emgu;
 using OPS.Geometry;
 using OPS.Alignment;
+using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     public enum SiteDrivePriority { NewestFirst, OldestFirst, BiggestFirst, SmallestFirst };
     

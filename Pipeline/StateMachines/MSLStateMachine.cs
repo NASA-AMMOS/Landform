@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using log4net;
 using OPS.Util;
 using OPS.Cloud;
-using OPS.Pipeline.MeshWorker;
 using OPS.Pipeline.TileServer;
 
 namespace OPS.Pipeline

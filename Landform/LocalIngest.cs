@@ -7,9 +7,10 @@ using System.IO;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("local-ingest", HelpText = "ingest mission data locally")]
     public class LocalIngestOptions : PipelineCoreOptions

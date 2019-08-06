@@ -5,8 +5,9 @@ using System.IO;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("configure-local", HelpText = "Configures Landform local")]
     public class ConfigureLocalOptions : PipelineCoreOptions

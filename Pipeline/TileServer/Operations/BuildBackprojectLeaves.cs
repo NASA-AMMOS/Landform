@@ -6,7 +6,6 @@ using System.IO;
 using log4net;
 using Microsoft.Xna.Framework;
 using OPS.Pipeline;
-using OPS.Pipeline.TileServer;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Geometry;
 using OPS.Imaging;
@@ -18,7 +17,7 @@ using OPS.RayTrace;
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
 using QueueMessage = OPS.Cloud.QueueMessage;
 
-namespace OPS.Pipeline.MeshWorker
+namespace OPS.Pipeline.TileServer
 {
     public class BuildBackprojectLeavesMessage : QueueMessage
     {

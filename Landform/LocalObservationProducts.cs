@@ -8,15 +8,16 @@ using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using CommandLine;
 using log4net;
+using Emgu.CV.Structure;
+using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
-using Microsoft.Xna.Framework;
+using OPS.Pipeline;
 using OPS.Imaging.Emgu;
-using Emgu.CV.Structure;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("local-observation-products", HelpText = "create observation mesh and image products locally")]
     public class LocalObservationProductsOptions : PipelineCoreOptions

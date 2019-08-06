@@ -6,8 +6,9 @@ using CommandLine;
 using log4net;
 using OPS.Cloud;
 using OPS.Util;
+using OPS.Pipeline;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("configure-cloud", HelpText = "Configures Landform cloud")]
     public class ConfigureCloudOptions : PipelineCoreOptions

@@ -5,17 +5,18 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.IO;
 using System.Collections;
+using System.Collections.Generic;
 using CommandLine;
 using log4net;
-using OPS.Util;
-using OPS.Pipeline.AlignmentServer;
-using OPS.Imaging;
 using Microsoft.Xna.Framework;
-using System.Collections.Generic;
-using OPS.Alignment;
+using OPS.Util;
 using OPS.Geometry;
+using OPS.Imaging;
+using OPS.Alignment;
+using OPS.Pipeline;
+using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("local-agisoft", HelpText = "run agisoft on ingested images")]
     public class LocalAgisoftOptions : PipelineCoreOptions

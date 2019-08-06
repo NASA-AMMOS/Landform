@@ -66,9 +66,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PairViewer", "PairViewer\Pa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TilingServer", "TilingServer\TilingServer.csproj", "{9CC7B3C6-93C5-459B-A41C-0C4A10BFCFB4}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Apps", "Apps", "{20746494-C99F-4EF2-A316-C2B38C4AB621}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QMDTMesher", "Apps\QMDTMesher\QMDTMesher.csproj", "{7154D5D1-08DD-464B-BEF1-1544C5CA8C7A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "QMDTMesher", "QMDTMesher\QMDTMesher.csproj", "{7154D5D1-08DD-464B-BEF1-1544C5CA8C7A}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LandformUtil", "LandformUtil\LandformUtil.csproj", "{B0B8963C-066F-45FE-AB12-D4A9D0EF0BD3}"
 	ProjectSection(ProjectDependencies) = postProject
@@ -548,9 +546,6 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{7154D5D1-08DD-464B-BEF1-1544C5CA8C7A} = {20746494-C99F-4EF2-A316-C2B38C4AB621}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {70ACE594-CE12-4A2B-8B2B-7911672DB294}

@@ -5,9 +5,10 @@ using System.Threading.Tasks;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("local-bundle-adjust", HelpText = "bundle adjust")]
     public class LocalBundleAdjustOptions : PipelineCoreOptions

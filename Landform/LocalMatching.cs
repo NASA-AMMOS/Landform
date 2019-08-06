@@ -11,9 +11,10 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Alignment;
+using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline
+namespace OPS.Landform
 {
     [Verb("local-matching", HelpText = "match features in overlapping images")]
     public class LocalMatchingOptions : PipelineCoreOptions
