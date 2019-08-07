@@ -19,23 +19,13 @@ namespace OPS.TilingServer
         public bool Local { get; set; }
     }
         
-    public class ListProjects
+    public class ListProjects : TilingCommand
     {
         private ListProjectsOptions options;
-        private PipelineCore pipeline;
 
-        public ListProjects(ListProjectsOptions options)
+        public ListProjects(ListProjectsOptions options) : base(options, options.Local)
         {
             this.options = options;
-
-            if (options.Local)
-            {
-                pipeline = new LocalPipeline(options);
-            }
-            else
-            {
-                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
-            }
         }
 
         public int Run()

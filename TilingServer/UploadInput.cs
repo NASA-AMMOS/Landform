@@ -14,11 +14,8 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("uploadinput", HelpText = "Uploads an input dataset to be tiled")]
-    public class UploadInputOptions : PipelineCoreOptions
+    public class UploadInputOptions : TilingCommandOptions
     {       
-        [Value(0, Required = true, HelpText = "Project Name")]
-        public string ProjectName { get; set; }
-
         [Value(1, Required = true, HelpText = "Mesh input file")]
         public string MeshFilepath { get; set; }
 
@@ -30,33 +27,18 @@ namespace OPS.TilingServer
 
         [Option(Default = false, HelpText = "Do not wait until input has been uploaded to project")]
         public bool NoWait { get; set; }
-
-        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
-        public bool Local { get; set; }
     }
 
-    public class UploadInput
+    public class UploadInput : TilingCommand
     {
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;
         
         private UploadInputOptions options;
-        private PipelineCore pipeline;
-        private PipelineExecutive executive;
 
-        public UploadInput(UploadInputOptions options)
+        public UploadInput(UploadInputOptions options) : base(options, ExecutionMode.Immediate)
         {
             this.options = options;
-
-            if (options.Local)
-            {
-                pipeline = new LocalPipeline(options);
-                executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Immediate);
-            }
-            else
-            {
-                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
-            }
         }
 
         public int Run()

@@ -15,23 +15,13 @@ namespace OPS.TilingServer
         public bool Local { get; set; }
     }
 
-    public class DeleteCache
+    public class DeleteCache : TilingCommand
     {
         private DeleteCacheOptions options;
-        private PipelineCore pipeline;
 
-        public DeleteCache(DeleteCacheOptions options)
+        public DeleteCache(DeleteCacheOptions options) : base(options, options.Local)
         {
             this.options = options;
-
-            if (options.Local)
-            {
-                pipeline = new LocalPipeline(options);
-            }
-            else
-            {
-                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
-            }
         }
 
         public int Run()

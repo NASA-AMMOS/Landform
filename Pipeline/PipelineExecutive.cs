@@ -12,7 +12,7 @@ using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline
 {
-    public enum ExecutionMode { Immediate, Deferred }
+    public enum ExecutionMode { Immediate, Deferred, None }
 
     public class PipelineExecutive
     {
@@ -29,6 +29,7 @@ namespace OPS.Pipeline
             {
                 case ExecutionMode.Immediate: return new ImmediateExecutive(pipeline);
                 case ExecutionMode.Deferred: return new DeferredExecutive(pipeline);
+                case ExecutionMode.None: return null;
                 default: throw new ArgumentException("unknown execution mode: " + mode);
             }
         }

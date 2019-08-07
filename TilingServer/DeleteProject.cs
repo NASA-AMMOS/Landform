@@ -14,40 +14,22 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("deleteproject", HelpText = "Delete project")]
-    public class DeleteProjectOptions : PipelineCoreOptions
+    public class DeleteProjectOptions : TilingCommandOptions
     {       
-        [Value(0, Required = true, HelpText = "Project Name")]
-        public string ProjectName { get; set; }
-
         [Option(Default = false, HelpText = "Do not wait until project has been deleted")]
         public bool NoWait { get; set; }
-
-        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
-        public bool Local { get; set; }
     }
 
-    public class DeleteProject
+    public class DeleteProject : TilingCommand
     {
         const int MAX_WAIT_MS = 30 * 60 * 1000; //it can take a while to delete a big project
         const int SLEEP_MS = 500;
 
         private DeleteProjectOptions options;
-        private PipelineCore pipeline;
-        private PipelineExecutive executive;
 
-        public DeleteProject(DeleteProjectOptions options)
+        public DeleteProject(DeleteProjectOptions options) : base(options, ExecutionMode.Immediate)
         {
             this.options = options;
-
-            if (options.Local)
-            {
-                pipeline = new LocalPipeline(options);
-                executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Immediate);
-            }
-            else
-            {
-                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
-            }
         }
 
         public int Run()

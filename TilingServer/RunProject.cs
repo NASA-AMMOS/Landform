@@ -15,40 +15,26 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("runproject", HelpText = "Runs a tiling workflow")]
-    public class RunProjectOptions : PipelineCoreOptions
+    public class RunProjectOptions : TilingCommandOptions
     {
-        [Value(0, Required = true, HelpText = "Project Name")]
-        public string ProjectName { get; set; }
-
         [Option(Default = false, HelpText = "wait until project has finished running")]
         public bool Wait { get; set; }
-
-        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
-        public bool Local { get; set; }
     }
 
-    public class RunProject
+    public class RunProject : TilingCommand
     {
         const int MAX_WAIT_SEC = 60 * 60 * 10; //10h
         const int SLEEP_MS = 500;
 
         private RunProjectOptions options;
-        private PipelineCore pipeline;
-        private PipelineExecutive executive;
 
-        public RunProject(RunProjectOptions options)
+        public RunProject(RunProjectOptions options) : base(options, ExecutionMode.Deferred)
         {
             this.options = options;
 
             if (options.Local)
             {
-                pipeline = new LocalPipeline(options);
-                executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Deferred);
                 options.Wait = true;
-            }
-            else
-            {
-                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
             }
         }
         

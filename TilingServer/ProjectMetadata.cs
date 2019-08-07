@@ -13,13 +13,8 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("projectmetadata", HelpText = "Get project metadata")]
-    public class ProjectMetadataOptions : PipelineCoreOptions
+    public class ProjectMetadataOptions : TilingCommandOptions
     {       
-        [Value(0, Required = true, HelpText = "Project Name")]
-        public string ProjectName { get; set; }
-
-        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
-        public bool Local { get; set; }
     }
 
     class SanitizedInput
@@ -42,23 +37,13 @@ namespace OPS.TilingServer
         public string OutputUrl;
     }
 
-    public class ProjectMetadata
+    public class ProjectMetadata : TilingCommand
     {
         private ProjectMetadataOptions options;
-        private PipelineCore pipeline;
 
-        public ProjectMetadata(ProjectMetadataOptions options)
+        public ProjectMetadata(ProjectMetadataOptions options) : base(options)
         {
             this.options = options;
-
-            if (options.Local)
-            {
-                pipeline = new LocalPipeline(options);
-            }
-            else
-            {
-                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
-            }
         }
 
         public int Run()

@@ -125,6 +125,7 @@
     <Compile Include="ProjectMetadata.cs" />
     <Compile Include="RunProject.cs" />
     <Compile Include="StartMaster.cs" />
+    <Compile Include="TilingCommand.cs" />
     <Compile Include="TilingServer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UploadInput.cs" />

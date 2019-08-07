@@ -16,11 +16,8 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("createproject", HelpText = "creates a project")]
-    public class CreateProjectOptions : PipelineCoreOptions
+    public class CreateProjectOptions : TilingCommandOptions
     {
-        [Value(0, Required = true, HelpText = "project name")]
-        public string ProjectName { get; set; }
-        
         [Option(Default = TilingScheme.Bin, HelpText = "tiling scheme")]
         public TilingScheme TilingScheme { get; set; }
 
@@ -50,38 +47,23 @@ namespace OPS.TilingServer
 
         [Option(Default = false, HelpText = "do not wait until project has been created")]
         public bool NoWait { get; set; }
-
-        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
-        public bool Local { get; set; }
     }
 
-    public class CreateProject
+    public class CreateProject : TilingCommand
     {
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;
 
         private CreateProjectOptions options;
-        private PipelineCore pipeline;
-        private PipelineExecutive executive;
 
         public PipelineCore GetPipeline()
         {
             return pipeline;
         }
 
-        public CreateProject(CreateProjectOptions options)
+        public CreateProject(CreateProjectOptions options) : base(options, ExecutionMode.Immediate)
         {
             this.options = options;
-
-            if (options.Local)
-            {
-                pipeline = new LocalPipeline(options);
-                executive = PipelineExecutive.MakeExecutive(pipeline, ExecutionMode.Immediate);
-            }
-            else
-            {
-                pipeline = new CloudPipeline(options, queuePrefix: "tiling");
-            }
         }
 
         public int Run()
