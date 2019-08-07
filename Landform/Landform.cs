@@ -59,7 +59,9 @@ namespace OPS.Landform
             /// Each passed in object must have a [Verb] decorator
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             var parsed = CommandLine.Parser.Default.ParseArguments<
-                StartAlignMasterOptions,
+                ConfigureCloudOptions,
+                ConfigureLocalOptions,
+                FetchDataOptions,
                 LocalIngestOptions,
                 LocalFeaturesOptions,
                 LocalMatchingOptions,
@@ -67,15 +69,14 @@ namespace OPS.Landform
                 LocalObservationProductsOptions,
                 LocalBEVAlignerOptions,
                 LocalAgisoftOptions,
-                ConfigureCloudOptions,
-                ConfigureLocalOptions,
                 EmtToSceneOptions,
                 LocalBuildMeshesOptions,
-                FetchDataOptions
-                >(args);
+                StartAlignMasterOptions>(args);
 
             return parsed.MapResult(
-                (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
+                (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
+                (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
+                (FetchDataOptions opts) => new FetchData(opts).Run(),
                 (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
                 (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
                 (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
@@ -85,9 +86,7 @@ namespace OPS.Landform
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
                 (LocalBuildMeshesOptions opts) => new LocalBuildMeshes(opts).Run(),
-                (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
-                (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
-                (FetchDataOptions opts) => new FetchData(opts).Run(),
+                (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
         }
     }

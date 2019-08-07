@@ -63,9 +63,10 @@ namespace OPS.LandformUtil
                 TileBaselineMeshOptions,
                 TileBaselineMeshesOptions,
                 PDSImageConverterOptions,
-                LegacyToWebVR,
-                LegacyToTile3D,
-                DEM2Mesh>(args);
+                LegacyToWebVROptions,
+                LegacyToTile3DOptions,
+                DEM2MeshOptions,
+                BenchmarkS3Options>(args);
 
             return parsed.MapResult(
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
@@ -77,6 +78,7 @@ namespace OPS.LandformUtil
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
+                (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 errs => 1);
         }
     }

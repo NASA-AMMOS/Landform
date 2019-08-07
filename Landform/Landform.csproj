@@ -145,7 +145,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BenchmarkS3.cs" />
     <Compile Include="ConfigureCloud.cs" />
     <Compile Include="ConfigureLocal.cs" />
     <Compile Include="EmtToScene.cs" />

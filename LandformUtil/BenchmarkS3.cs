@@ -10,7 +10,7 @@ using CommandLine;
 using OPS.Cloud;
 using OPS.Util;
 
-namespace OPS.Landform
+namespace OPS.LandformUtil
 {
     [Verb("benchmarks3", HelpText = "Run a benchmark against S3 to test read speed")]
     public class BenchmarkS3Options

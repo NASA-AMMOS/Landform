@@ -120,6 +120,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="BenchmarkS3.cs" />
     <Compile Include="ConvertBaselineMesh.cs" />
     <Compile Include="ConvertBaselineMeshes.cs" />
     <Compile Include="DEM2Mesh.cs" />
