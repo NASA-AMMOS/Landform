@@ -17,12 +17,10 @@ using OPS.Pipeline;
 
 namespace OPS.Landform
 {
-    /// "Stop Trying to Make Fetch Happen"
-    ///   - Regina George (Mean Girls)
-    [Verb("fetch", HelpText = "Convert emt data into an ASTTRO scene")]
+    /// "Stop Trying to Make Fetch Happen" - Regina George (Mean Girls)
+    [Verb("fetch", HelpText = "Download data products from S3")]
     public class FetchDataOptions
     {
-
         [Value(0, Required = true, Default = null, HelpText = "'27-32' or '607,609' or a mixture '27-32,607,609-611'")]
         public string Sols { get; set; }
 
@@ -170,8 +168,6 @@ namespace OPS.Landform
             }
             return sols.Distinct().OrderBy(x => x).Select(x=> x.ToString("00000")).ToArray();
         }
-
-
 
         List<string> Filter(List<string> products)
         {
