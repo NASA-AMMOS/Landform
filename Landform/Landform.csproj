@@ -160,7 +160,6 @@
     <Compile Include="LocalFeatures.cs" />
     <Compile Include="LocalIngest.cs" />
     <Compile Include="LocalMatching.cs" />
-    <Compile Include="LocalObservationProducts.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

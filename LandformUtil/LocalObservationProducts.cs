@@ -16,8 +16,9 @@ using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
 using OPS.Imaging.Emgu;
+using OPS.Landform;
 
-namespace OPS.Landform
+namespace OPS.LandformUtil
 {
     [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
     public class LocalObservationProductsOptions : LandformCommandOptions

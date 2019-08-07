@@ -58,6 +58,7 @@ namespace OPS.LandformUtil
             /// Each passed in object must have a [Verb] decorator
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             var parsed = CommandLine.Parser.Default.ParseArguments<
+                LocalObservationProductsOptions,
                 ConvertBaselineMeshOptions,
                 ConvertBaselineMeshesOptions,
                 TileBaselineMeshOptions,
@@ -69,6 +70,7 @@ namespace OPS.LandformUtil
                 BenchmarkS3Options>(args);
 
             return parsed.MapResult(
+                (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
                 (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
