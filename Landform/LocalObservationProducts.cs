@@ -19,12 +19,9 @@ using OPS.Imaging.Emgu;
 
 namespace OPS.Landform
 {
-    [Verb("local-observation-products", HelpText = "create observation mesh and image products locally")]
-    public class LocalObservationProductsOptions : PipelineCoreOptions
+    [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
+    public class LocalObservationProductsOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "Project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
@@ -160,35 +157,23 @@ namespace OPS.Landform
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
-
         [Option(HelpText = "Write delta range images: a visualization of the 3d distance between the points in one image projected into and compared to the points in another image", Default = false)]
         public bool DeltaRangeImages { get; set;}
     } 
 
-    public class LocalObservationProducts
+    public class LocalObservationProducts : LandformCommand
     {
         private LocalObservationProductsOptions options;
 
-        private PipelineCore pipeline;
         private MissionSpecific mission;
         private RoverMasker masker;
 
         private string imageExt;
         private string meshExt;
 
-        public LocalObservationProducts(LocalObservationProductsOptions options)
+        public LocalObservationProducts(LocalObservationProductsOptions options) : base(options)
         {
             this.options = options;
-            if (options.Cloud)
-            {
-                this.pipeline = new CloudPipeline(options, initQueues: false);
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
-            }
         }
 
         public int Run()

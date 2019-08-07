@@ -11,11 +11,8 @@ using OPS.Pipeline.AlignmentServer;
 namespace OPS.Landform
 {
     [Verb("local-bundle-adjust", HelpText = "bundle adjust")]
-    public class LocalBundleAdjustOptions : PipelineCoreOptions
+    public class LocalBundleAdjustOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "Project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "Allow bundle adjust to change individual image poses", Default = false)]
         public bool AdjustWithinSiteDrives { get; set; }
 
@@ -30,28 +27,17 @@ namespace OPS.Landform
 
         [Option(HelpText = "Optional directory to save bundle adjuster debug files to", Default = null)]
         public string DebugOutputFolder { get; set; }
-
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
     }
 
-    public class LocalBundleAdjust
+    public class LocalBundleAdjust : LandformCommand
     {
         private LocalBundleAdjustOptions options;
-        private PipelineCore pipeline;
+
         private string dbgDir;
 
-        public LocalBundleAdjust(LocalBundleAdjustOptions options)
+        public LocalBundleAdjust(LocalBundleAdjustOptions options) : base(options)
         {
             this.options = options;
-            if (options.Cloud)
-            {
-                this.pipeline = new CloudPipeline(options, initQueues: false);
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
-            }
         }
 
         public int Run()

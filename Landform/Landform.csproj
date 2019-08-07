@@ -151,6 +151,7 @@
     <Compile Include="FetchData.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Landform.cs" />
+    <Compile Include="LandformCommand.cs" />
     <Compile Include="LocalAgisoft.cs" />
     <Compile Include="LocalBEVAligner.cs" />
     <Compile Include="LocalBuildMeshes.cs" />

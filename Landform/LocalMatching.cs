@@ -17,11 +17,8 @@ using OPS.Pipeline.AlignmentServer;
 namespace OPS.Landform
 {
     [Verb("local-matching", HelpText = "match features in overlapping images")]
-    public class LocalMatchingOptions : PipelineCoreOptions
+    public class LocalMatchingOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "Recreate frustum overlaps that already exist", Default = false)]
         public bool RedoOverlaps { get; set; }
 
@@ -90,15 +87,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Comma separated list of observation pairs (\"Name1-Name2\", order agnostic) to process, omit for all", Default = null)]
         public string OnlyForOverlaps { get; set; }
-
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
     }
 
-    public class LocalMatching
+    public class LocalMatching : LandformCommand
     {
         private LocalMatchingOptions options;
-        private PipelineCore pipeline;
+
         private string dbgDir;
         private string imageExt;
         private string meshExt;
@@ -106,7 +100,7 @@ namespace OPS.Landform
         private Histogram matchesPerImage = new Histogram(5, "image pairs", "matches after filtering");
         private Histogram matchesPerDistance = new Histogram(50, "feature matches", "distance after filtering");
 
-        public LocalMatching(LocalMatchingOptions options)
+        public LocalMatching(LocalMatchingOptions options) : base(options)
         {
             this.options = options;
 
@@ -114,15 +108,6 @@ namespace OPS.Landform
             {
                 options.RedoMatches = true;
                 options.RedoOverlaps = true;
-            }
-
-            if (options.Cloud)
-            {
-                this.pipeline = new CloudPipeline(options, initQueues: false);
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
             }
         }
 

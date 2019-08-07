@@ -14,12 +14,9 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-features", HelpText = "create image features locally")]
-    public class LocalFeaturesOptions : PipelineCoreOptions
+    [Verb("local-features", HelpText = "create image features")]
+    public class LocalFeaturesOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "Detector type", Default = FeatureDetector.DEF_DETECTOR_TYPE)]
         public FeatureDetector.DetectorType DetectorType { get; set; }
 
@@ -76,32 +73,21 @@ namespace OPS.Landform
 
         [Option(HelpText = "Comma separated list of observations to process, omit for all", Default = null)]
         public string OnlyForObservations { get; set; }
-
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
     }
 
-    public class LocalFeatures
+    public class LocalFeatures : LandformCommand
     {
         private LocalFeaturesOptions options;
-        private PipelineCore pipeline;
+
         private MissionSpecific mission;
         private RoverMasker masker;
 
         private string imageDir;
         private string imageExt;
 
-        public LocalFeatures(LocalFeaturesOptions options)
+        public LocalFeatures(LocalFeaturesOptions options) : base(options)
         {
             this.options = options;
-            if (options.Cloud)
-            {
-                this.pipeline = new CloudPipeline(options, initQueues: false);
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
-            }
         }
 
         public int Run()

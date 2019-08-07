@@ -20,11 +20,8 @@ using OPS.TilingServer;
 namespace OPS.Landform
 {
     [Verb("emttoscene", HelpText = "Convert emt data into an ASTTRO scene")]
-    public class EmtToSceneOptions
+    public class EmtToSceneOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "Tiling project name")]
-        public string ProjectName { get; set; }
-
         [Value(1, Required = true, HelpText = "List of S3 locations to search for data")]
         public IEnumerable<string> SearchLocations { get; set; }
         
@@ -67,14 +64,11 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Start a tiling server within this process")]
         public bool RunTilingServer { get; set; }
 
-        [Option(Default = false, HelpText = "run locally, do not connect to cloud")]
-        public bool Local { get; set; }
-
         [Option(Required = false, Default = false, HelpText = "Force recalculating normals using meshlab at the begining")]
         public bool ForceNormalComputation { get; set; }
     }
 
-    public class EmtToScene
+    public class EmtToScene /* TODO : LandformCommand */
     {
         EmtToSceneOptions options;
 
@@ -557,7 +551,7 @@ namespace OPS.Landform
         public int Run()
         {
             Task tilingTask = null;
-            if (options.RunTilingServer && !options.Local)
+            if (options.RunTilingServer && options.Cloud)
             {
                 tilingTask = new Task(() =>
                 {
@@ -649,7 +643,7 @@ namespace OPS.Landform
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
                 NoWait = false,
                 MaxLeafGroupSize = 32,
-                Local = options.Local
+                Local = !options.Cloud
             };
             
             var createProject = new CreateProject(createOptions);
@@ -664,14 +658,14 @@ namespace OPS.Landform
                     ImageFilepath = rec.PreferedImage,
                     TileId = null,
                     NoWait = false,
-                    Local = options.Local
+                    Local = !options.Cloud
                 };
                 r = new UploadInput(uploadOptions).Run();               
             }
             var runOptions = new RunProjectOptions()
             {
                 ProjectName = projectName,
-                Local = options.Local
+                Local = !options.Cloud
             };
             r = new RunProject(runOptions).Run();
             

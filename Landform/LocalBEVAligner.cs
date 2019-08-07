@@ -28,12 +28,9 @@ namespace OPS.Landform
 
     public enum CalfMode { None, Centroid, Temporal };
 
-    [Verb("local-bev-align", HelpText = "birds eye view align locally")]
-    public class LocalBEVAlignerOptions : PipelineCoreOptions
+    [Verb("local-bev-align", HelpText = "birds eye view alignment")]
+    public class LocalBEVAlignerOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "Project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "Only align specific site drives, comma separated", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
@@ -192,15 +189,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
-
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
     }
 
-    public class LocalBEVAligner
+    public class LocalBEVAligner : LandformCommand
     {
         private LocalBEVAlignerOptions options;
-        private PipelineCore pipeline;
+
         private Project project;
         private MissionSpecific mission;
         private RoverMasker masker;
@@ -304,7 +298,7 @@ namespace OPS.Landform
             return bev.Width * bev.Height;
         }
 
-        public LocalBEVAligner(LocalBEVAlignerOptions options)
+        public LocalBEVAligner(LocalBEVAlignerOptions options) : base(options)
         {
             this.options = options;
 
@@ -313,15 +307,6 @@ namespace OPS.Landform
                 options.RedoBEVs = true;
                 options.RedoFeatures = true;
                 options.RedoMatches = true;
-            }
-
-            if (options.Cloud)
-            {
-                this.pipeline = new CloudPipeline(options, initQueues: false);
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
             }
         }
 

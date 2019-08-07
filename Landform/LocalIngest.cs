@@ -12,12 +12,9 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-ingest", HelpText = "ingest mission data locally")]
-    public class LocalIngestOptions : PipelineCoreOptions
+    [Verb("local-ingest", HelpText = "ingest mission data")]
+    public class LocalIngestOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
@@ -57,9 +54,6 @@ namespace OPS.Landform
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
-
         [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
         public string LegacyManifestURL { get; set; }
 
@@ -67,12 +61,11 @@ namespace OPS.Landform
         public Mission Mission { get; set; }
     }
 
-    public class LocalIngest
+    public class LocalIngest : LandformCommand
     {
         private LocalIngestOptions options;
-        private PipelineCore pipeline;
 
-        public LocalIngest(LocalIngestOptions options)
+        public LocalIngest(LocalIngestOptions options) : base(options)
         {
             this.options = options;
 
@@ -81,15 +74,6 @@ namespace OPS.Landform
                 options.RedoProject = true;
                 options.RedoObservations = true;
                 options.RedoPriors = true;
-            }
-
-            if (options.Cloud)
-            {
-                this.pipeline = new CloudPipeline(options, initQueues: false);
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
             }
         }
 

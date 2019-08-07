@@ -19,11 +19,8 @@ using OPS.Pipeline.AlignmentServer;
 namespace OPS.Landform
 {
     [Verb("local-agisoft", HelpText = "run agisoft on ingested images")]
-    public class LocalAgisoftOptions : PipelineCoreOptions
+    public class LocalAgisoftOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Value(1, Required = false, HelpText = "path to the Agisoft Metashape Professional exe", Default = @"C:\Program Files\Agisoft\Metashape Pro\metashape.exe")]
         public string MetaShapeExePath { get; set; }
 
@@ -35,30 +32,18 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't clear agisoft inputs/outputs", Default = false)]
         public bool DontClearInputsOutputs { get; set; }
-
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
     }
 
-    public class LocalAgisoft
+    public class LocalAgisoft : LandformCommand
     {
         private LocalAgisoftOptions options;
 
-        private PipelineCore pipeline;
         private MissionSpecific mission;
         private RoverMasker masker;
 
-        public LocalAgisoft(LocalAgisoftOptions options)
+        public LocalAgisoft(LocalAgisoftOptions options) : base(options)
         {
             this.options = options;
-            if (options.Cloud)
-            {
-                this.pipeline = new CloudPipeline(options, initQueues: false);
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
-            }
         }
 
         public int Run()

@@ -21,12 +21,9 @@ using OPS.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-meshes", HelpText = "create mesh locally")]
-    public class LocalBuildMeshesOptions : PipelineCoreOptions
+    [Verb("local-build-meshes", HelpText = "create mesh")]
+    public class LocalBuildMeshesOptions : LandformCommandOptions
     {
-        [Value(0, Required = true, HelpText = "project name", Default = null)]
-        public string ProjectName { get; set; }
-
         [Option(HelpText = "the type of tiling project (currently only MSL supported)", Default = "MSL")]
         public string ProjectType { get; set; }
 
@@ -124,22 +121,26 @@ namespace OPS.Landform
         public int Decimate { get; set; }
     }
 
-    public class LocalBuildMeshes
+    public class LocalBuildMeshes : LandformCommand
     {
         private LocalBuildMeshesOptions options;
-        private PipelineCore pipeline;
+
         private MissionSpecific mission;
         private RoverMasker masker;
 
-        public LocalBuildMeshes(LocalBuildMeshesOptions options)
+        public LocalBuildMeshes(LocalBuildMeshesOptions options) : base(options)
         {
-            this.options = options;
-            this.pipeline = new LocalPipeline(options);
+            if (options.Cloud)
+            {
+                throw new NotImplementedException("cloud operation not implemented yet");
+            }
 
             if (options.ProjectType != "MSL")
             {
                 throw new NotImplementedException("project type not implemented yet");
             }
+
+            this.options = options;
 
             var outputFrame = options.OutputFrame.ToLower().Trim();
 
