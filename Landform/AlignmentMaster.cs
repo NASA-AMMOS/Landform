@@ -17,8 +17,9 @@ using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline;
 using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.Pipeline.AlignmentServer
+namespace OPS.Landform
 {
     [Verb("start-align-master", HelpText = "Runs an alignment workflow")]
     public class StartAlignMasterOptions : PipelineCoreOptions
@@ -90,7 +91,7 @@ namespace OPS.Pipeline.AlignmentServer
         public Mission Mission { get; set; }
     }
 
-    //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
+    //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
     //TODO this class should go away
     //in its current implementation it can only handle running one alignment project at a time
     //instead the alignment project flow control should get refactored as a PipelineStateMachine

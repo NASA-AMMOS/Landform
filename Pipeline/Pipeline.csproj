@@ -160,7 +160,6 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AlignmentServer\AlignmentMaster.cs" />
     <Compile Include="AlignmentServer\Cloud\BirdsEyeView.cs" />
     <Compile Include="AlignmentServer\Cloud\BirdsEyeViewFeatures.cs" />
     <Compile Include="AlignmentServer\Cloud\FeatureMatches.cs" />

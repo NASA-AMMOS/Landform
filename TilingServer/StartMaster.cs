@@ -19,7 +19,7 @@ namespace OPS.TilingServer
         public bool StartWorker { get; set; }
     }
 
-    //https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
+    //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
     //TODO this needs to get refactored as the master task for all Landform pipeline workflows
     //for now it only handles tiling workflows
     public class StartMaster : CloudPipeline

@@ -145,6 +145,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AlignmentMaster.cs" />
     <Compile Include="ConfigureCloud.cs" />
     <Compile Include="ConfigureLocal.cs" />
     <Compile Include="EmtToScene.cs" />
