@@ -57,9 +57,6 @@ namespace OPS.Landform
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
 
-        [Option(HelpText = "Operate on cloud data", Default = false)]
-        public bool Cloud { get; set; }
-
         [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
 
@@ -137,14 +134,7 @@ namespace OPS.Landform
         public LocalBuildMeshes(LocalBuildMeshesOptions options)
         {
             this.options = options;
-            if (options.Cloud)
-            {
-                throw new NotImplementedException("building meshes from cloud data not supported yet");
-            }
-            else
-            {
-                this.pipeline = new LocalPipeline(options);
-            }
+            this.pipeline = new LocalPipeline(options);
 
             if (options.ProjectType != "MSL")
             {
