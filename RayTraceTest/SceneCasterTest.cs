@@ -48,28 +48,36 @@ namespace RayTraceTest
             Image img = new Image(3, width, height);
             img.ApplyInPlace(x => 1);   // Fill with white
             img.CreateMask(true);
-            for (int i = 0; i < hits.Data[0].Length; i++)
+            HitData[] hitData = hits.GetBandData(0);
+            Ray[] rayData = rays.GetBandData(0);
+            for (int i = 0; i < hitData.Length; i++)
             {
-                var hit = sc.Raycast(rays.Data[0][i]);
-                img.SetMaskValue(i, !sc.Occludes(rays.Data[0][i]));
-                hits.Data[0][i] = hit;
+                var hit = sc.Raycast(rayData[i]);
+                img.SetMaskValue(i, !sc.Occludes(rayData[i]));
+                hitData[i] = hit;
             }            
-            
-            for(int i = 0; i < hits.Data[0].Length; i++)
+
+            float[][] imgData = new float[3][];
+            for (int i = 0; i < 3; i++)
             {
-                var hit = hits.Data[0][i];
+                imgData[i] = img.GetBandData(i);
+            }
+
+            for(int i = 0; i < hitData.Length; i++)
+            {
+                var hit = hitData[i];
                 if (hit != null)
                 {
                     var pixel = hit.Texture.UVToPixel(hit.UV.Value);
-                    img.Data[0][i] = hit.Texture[0, (int)pixel.Y, (int)pixel.X];
-                    img.Data[1][i] = hit.Texture[1, (int)pixel.Y, (int)pixel.X];
-                    img.Data[2][i] = hit.Texture[2, (int)pixel.Y, (int)pixel.X];
+                    imgData[0][i] = hit.Texture[0, (int)pixel.Y, (int)pixel.X];
+                    imgData[1][i] = hit.Texture[1, (int)pixel.Y, (int)pixel.X];
+                    imgData[2][i] = hit.Texture[2, (int)pixel.Y, (int)pixel.X];
                 }
             }
             bool anyNonFillPixels = false;
-            for (int i = 0; i < img.Data[0].Length; i++)
+            for (int i = 0; i < imgData[0].Length; i++)
             {
-                if(img.Data[0][i] != 1 || img.Data[1][i] != 1 | img.Data[2][i] != 1)
+                if(imgData[0][i] != 1 || imgData[1][i] != 1 | imgData[2][i] != 1)
                 {
                     anyNonFillPixels = true;
                     break;
@@ -77,7 +85,7 @@ namespace RayTraceTest
             }
             Assert.IsTrue(anyNonFillPixels);
             bool anyOccluded = false;
-            for (int i = 0; i < img.Data[0].Length; i++)
+            for (int i = 0; i < imgData[0].Length; i++)
             {
                 if (img.IsValid(i))
                 {
@@ -100,11 +108,12 @@ namespace RayTraceTest
             var hit = sc.Raycast(new Ray(new Vector3(0, 0, -10), new Vector3(0, 0, 1)));            
             var img = RenderOrtho(sc, cameraMatrix, 512, 256, 120);
             Image mask = new Image(img.Bands, img.Width, img.Height);
-            for(int i = 0; i < mask.Data[0].Length; i++)
+            float[] maskData = mask.GetBandData(0);
+            for(int i = 0; i < maskData.Length; i++)
             {
                 if(img.IsValid(i))
                 {
-                    mask.Data[0][i] = 1;
+                    maskData[i] = 1;
                 }
             }
             img.DeleteMask();

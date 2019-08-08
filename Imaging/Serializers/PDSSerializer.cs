@@ -50,6 +50,7 @@ namespace OPS.Imaging
                     {
                         for (int b = 0; b < img.Bands; b++)
                         {
+                            float[] bandData = img.GetBandData(b);
                             for (int i = 0; i < img.Width * img.Height; i++)
                             {
                                 ushort v = br.ReadUInt16();
@@ -57,7 +58,7 @@ namespace OPS.Imaging
                                 {
                                     v = ReverseBytes16(v);
                                 }
-                                img.Data[b][i] = v;
+                                bandData[i] = v;
                             }
                         }
                         CreateMaskFromFillValues(img, fillValue);
@@ -67,6 +68,7 @@ namespace OPS.Imaging
                     {
                         for (int b = 0; b < img.Bands; b++)
                         {
+                            float[] bandData = img.GetBandData(b);
                             for (int i = 0; i < img.Width * img.Height; i++)
                             {
                                 short v = br.ReadInt16();
@@ -74,7 +76,7 @@ namespace OPS.Imaging
                                 {
                                     v = ReverseBytes16(v);
                                 }
-                                img.Data[b][i] = v;
+                                bandData[i] = v;
                             }
                         }
                         CreateMaskFromFillValues(img, fillValue);
@@ -84,6 +86,7 @@ namespace OPS.Imaging
                     {
                         for (int b = 0; b < img.Bands; b++)
                         {
+                            float[] bandData = img.GetBandData(b);
                             for (int i = 0; i < img.Width * img.Height; i++)
                             {
                                 UInt32 v = br.ReadUInt32();
@@ -91,7 +94,7 @@ namespace OPS.Imaging
                                 {
                                     v = ReverseBytes32(v);
                                 }
-                                img.Data[b][i] = BitConverter.ToSingle(BitConverter.GetBytes(v), 0);
+                                bandData[i] = BitConverter.ToSingle(BitConverter.GetBytes(v), 0);
                             }
                         }
                         CreateMaskFromFillValues(img, fillValue);
@@ -111,9 +114,10 @@ namespace OPS.Imaging
                         }
                         for (int b = 0; b < img.Bands; b++)
                         {
+                            float[] bandData = img.GetBandData(b);
                             for (int i = 0; i < img.Width * img.Height; i++)
                             {
-                                img.Data[b][i] = br.ReadByte();
+                                bandData[i] = br.ReadByte();
                             }
                         }
                         CreateMaskFromFillValues(img, fillValue);

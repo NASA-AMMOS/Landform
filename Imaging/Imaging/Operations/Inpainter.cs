@@ -92,7 +92,7 @@ namespace OPS.Imaging
             {
                 for (int c = 0; c < image.Width; c++)
                 {
-                    if (HasNeighbors(r, c, image) && image.IsInvalid(r, c))
+                    if (HasNeighbors(r, c, image) && !image.IsValid(r, c))
                     {
                         edgePoints.Add(new Vector2(r, c));
                     }
@@ -125,22 +125,22 @@ namespace OPS.Imaging
                     int r = (int)edge.X;
                     int c = (int)edge.Y;
 
-                    if (r > 0 && image.IsInvalid(r - 1, c))
+                    if (r > 0 && !image.IsValid(r - 1, c))
                     {
                         newEdgePoints.Add(new Vector2(r - 1, c));
                         image.SetMaskValue(r-1, c, false);
                     }
-                    if (c > 0 && image.IsInvalid(r, c - 1))
+                    if (c > 0 && !image.IsValid(r, c - 1))
                     {
                         newEdgePoints.Add(new Vector2(r, c - 1));
                         image.SetMaskValue(r, c-1, false);
                     }
-                    if (r < image.Height - 1 && image.IsInvalid(r + 1, c))
+                    if (r < image.Height - 1 && !image.IsValid(r + 1, c))
                     {
                         newEdgePoints.Add(new Vector2(r + 1, c));
                         image.SetMaskValue(r+1, c, false);
                     }
-                    if (c < image.Width - 1 && image.IsInvalid(r, c + 1))
+                    if (c < image.Width - 1 && !image.IsValid(r, c + 1))
                     {
                         newEdgePoints.Add(new Vector2(r, c + 1));
                         image.SetMaskValue(r, c+1, false);

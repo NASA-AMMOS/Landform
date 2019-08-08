@@ -1,14 +1,24 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.IO;
 using Microsoft.Xna.Framework;
 using System.Diagnostics;
 using OPS.MathExtensions;
+using OPS.Util;
+using OPS.Imaging;
 
 namespace OPS.Geometry
 {
+    /// <summary>
+    /// X, Y, or Z axis which the skirt is directed along
+    /// </summary>
+    public enum SkirtMode { X, Y, Z, Normal, None }
+
+    public enum MeshColor { None, Texture, Normals, Elevation, Curvature };
+    
     /// <summary>
     /// A class representing a 3D mesh
     /// 
@@ -1068,6 +1078,84 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// TODO doc  
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/577 
+        /// </summary>
+        public static Tuple<Mesh, Image> MergeMeshesAndTextures(IEnumerable<Tuple<Mesh, Image>> inputs)
+        {
+            var meshes = inputs
+                .Where(pair => pair.Item1 != null)
+                .Select(pair => pair.Item1)
+                .ToArray();
+
+            var textures = inputs
+                .Where(pair => pair.Item1 != null && pair.Item1.HasUVs)
+                .Where(pair => pair.Item2 != null)
+                .Select(pair => pair.Item2)
+                .ToArray();
+
+            int bands = 0;
+            if (textures.Length > 0)
+            {
+                if (textures.Length != meshes.Length)
+                {
+                    throw new ArgumentException("cannot merged textured meshes with untextured");
+                }
+                int maxWidth = textures.Select(t => t.Width).Max();
+                int maxHeight = textures.Select(t => t.Height).Max();
+                int maxBands = bands = textures.Select(t => t.Bands).Max();
+                int minBands = textures.Select(t => t.Bands).Min();
+                if (minBands != maxBands)
+                {
+                    throw new ArgumentException("cannot merge textures with different numbers of bands");
+                }
+            }
+
+            var merged = Merge(meshes, clean: false);
+
+            Image atlas = null;
+            if (textures.Length > 0)
+            {
+                int maxWidth = textures.Select(t => t.Width).Max();
+                int maxHeight = textures.Select(t => t.Height).Max();
+
+                int cols = (int)Math.Sqrt(textures.Length);
+                int rows = (int)Math.Ceiling((double)(textures.Length) / cols);
+
+                var uvScale = new Vector2(1.0 / cols, 1.0 / rows);
+
+                atlas = new Image(bands, cols * maxWidth, rows * maxHeight);
+
+                int row = 0, col = 0, index = 0;
+                for (int i = 0; i < textures.Length; i++)
+                {
+                    int x = col * maxWidth, y = row * maxHeight;
+
+                    atlas.Blit(textures[i], x, y);
+
+                    var offset = atlas.PixelToUV(new Vector2(x, y + maxHeight - 1));
+                    var mesh = meshes[i];
+                    for (int j = 0; j < mesh.Vertices.Count; j++)
+                    {
+                        var vert = merged.Vertices[index++];
+                        vert.UV.X *= uvScale.X;
+                        vert.UV.Y *= uvScale.Y;
+                        vert.UV += offset;
+                    }
+
+                    col++;
+                    if (col >= cols)
+                    {
+                        col = 0;
+                        row++;
+                    }
+                }
+            }
+
+            return new Tuple<Mesh, Image>(merged, atlas);
+        }
+
+        /// <summary>
         /// Clips a mesh to remove everything within the given bounding box
         /// </summary>
         /// <param name="m"></param>
@@ -1327,6 +1415,280 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// like Image.ApplyStdDevStretch() but operates on the vertex colors of this mesh  
+        /// if greyscale=true then the colors are interpreted as greyscale (R = G = B)
+        /// </summary>
+        public void ApplyStdDevStretchToColors(bool greyscale = false, double nStddev = 3)
+        {
+            void applyToChannel(Func<Vertex, double> getter, Action<Vertex, double> setter)
+            {
+                int n = 0;
+                double min = double.PositiveInfinity;
+                double max = double.NegativeInfinity;
+                double mean = 0;
+                foreach (var v in Vertices)
+                {
+                    var val = getter(v);
+                    mean += val;
+                    min = Math.Min(min, val);
+                    max = Math.Max(max, val);
+                    n++;
+                }
+                mean /= n;
+
+                double variance = 0;
+                foreach (var v in Vertices)
+                {
+                    var d = getter(v) - mean;
+                    variance += d * d;
+                }
+                variance /= n;
+                double stddev = Math.Sqrt(variance);
+
+                double lower = Math.Max(mean - stddev * nStddev, min);
+                double upper = Math.Min(mean + stddev * nStddev, max);
+
+                if (min != max)
+                {
+                    foreach (var v in Vertices)
+                    {
+                        setter(v, MathE.Clamp01((getter(v) - lower) / (upper - lower)));
+                    }
+                }
+            }
+
+            if (greyscale)
+            {
+                applyToChannel(v => v.Color.X, (v, g) => { v.Color.X = v.Color.Y = v.Color.Z = g; });
+            }
+            else
+            {
+                applyToChannel(v => v.Color.X, (v, r) => { v.Color.X = r; });
+                applyToChannel(v => v.Color.Y, (v, g) => { v.Color.Y = g; });
+                applyToChannel(v => v.Color.Z, (v, b) => { v.Color.Z = b; });
+            }
+        }
+
+        /// <summary>
+        /// set vertex color components as absolute values of normal components
+        /// if tiltMode is set then a greyscale color is set instead, see OrganizedPointCloud.NormalToTilt()
+        /// up defaults to (0, 0, -1)
+        /// </summary>
+        public void ColorByNormals(out double minTilt, out double maxTilt, TiltMode? tiltMode = null,
+                                   Vector3? up = null) 
+        {
+            if (!HasNormals)
+            {
+                throw new ArgumentException("cannot color mesh without normals by normals");
+            }
+
+            if (up == null)
+            {
+                up = new Vector3(0, 0, -1);
+            }
+
+            minTilt = double.PositiveInfinity;
+            maxTilt = double.NegativeInfinity;
+            foreach (var v in Vertices)
+            {
+                var n = v.Normal;
+                if (!tiltMode.HasValue)
+                {
+                    v.Color.X = Math.Abs(n.X);
+                    v.Color.Y = Math.Abs(n.Y);
+                    v.Color.Z = Math.Abs(n.Z);
+                }
+                else
+                {
+                    var tilt = OrganizedPointCloud.NormalToTilt(n, tiltMode.Value, up.Value);
+                    minTilt = Math.Min(minTilt, tilt);
+                    maxTilt = Math.Max(maxTilt, tilt);
+                    v.Color.X = v.Color.Y = v.Color.Z = tilt;
+                }
+            }
+            HasColors = true;
+        }
+
+        public void ColorByNormals(TiltMode? tiltMode = null, Vector3? up = null) 
+        {
+            ColorByNormals(out double minTilt, out double maxTilt, tiltMode, up);
+        }
+
+        /// <summary>
+        /// compute elevation at each vertex and set it as greyscale vertex color
+        /// </summary>
+        public void ColorByElevation(out double min, out double max, bool absolute = false, Vector3? up = null) 
+        {
+            if (up == null)
+            {
+                up = new Vector3(0, 0, 1);
+            }
+
+            var ctr = absolute ? new Vector3(0, 0, 0) : Bounds().Center();
+
+            min = double.PositiveInfinity;
+            max = double.NegativeInfinity;
+            foreach (var v in Vertices)
+            {
+                var elev = (v.Position - ctr).Dot(up.Value);
+                v.Color.X = v.Color.Y = v.Color.Z = elev;
+                min = Math.Min(min, elev);
+                max = Math.Max(max, elev);
+            }
+            
+            HasColors = true;
+        }
+
+        public void ColorByElevation(bool absolute = false, Vector3? up = null) 
+        {
+            ColorByElevation(out double min, out double max, absolute, up);
+        }
+
+        /// <summary>
+        /// https://computergraphics.stackexchange.com/a/1719
+        /// </summary>
+        public static double Curvature(Vector3 p1, Vector3 p2, Vector3 n1, Vector3 n2)
+        {
+            var d = p2 - p1;
+            return (n2 - n1).Dot(d) / d.LengthSquared();
+        }
+
+        /// <summary>
+        /// compute approximate max abs curvature at each vertex and set it as greyscale vertex color
+        /// the mesh must have normals
+        /// </summary>
+        public void ColorByCurvature(out double min, out double max)
+        {
+            if (!HasNormals)
+            {
+                throw new ArgumentException("cannot color mesh without normals by curvature");
+            }
+
+            var graph = new EdgeGraph(this);
+
+            min = double.PositiveInfinity;
+            max = double.NegativeInfinity;
+            foreach (var v in graph.VertNodes)
+            {
+                double maxAbsCurvature = 0;
+                foreach (var e in v.AdjacentEdges)
+                {
+                    var c = Math.Abs(Curvature(v.Vert.Position, e.Dst.Vert.Position, v.Vert.Normal, e.Dst.Vert.Normal));
+                    maxAbsCurvature = Math.Max(maxAbsCurvature, c);
+                }
+                v.Vert.Color.X = v.Vert.Color.Y = v.Vert.Color.Z = maxAbsCurvature;
+                min = Math.Min(min, maxAbsCurvature);
+                max = Math.Max(max, maxAbsCurvature);
+            }
+            HasColors = true;
+        }
+
+        public void ColorByCurvature()
+        {
+            ColorByCurvature(out double min, out double max);
+        }
+
+        /// <summary>
+        /// set the colors of this mesh according to the specified mode 
+        /// does nothing if mode=Texture or mode=None
+        /// otherwise if allowAdjustColors=false then result is same as calling ColorBy{Normals,Curvature,Elevation}()
+        /// but if allowAdjustColors=true then the resulting colors are optimized
+        /// if stretch=true then ApplyStdDevStretchToColors() is called
+        /// otherwise if if the resulting colors are greyscale they are normalized to [0,1]
+        /// the colors will be greyscale for Curvature and Elevation modes and Normals modes where tiltMode is not None
+        /// </summary>
+        public void ColorBy(MeshColor mode, TiltMode tiltMode = TiltMode.None, bool allowAdjustColors = true,
+                            bool stretch = false, double nStddev = 3)
+        {
+            bool greyscale = false;
+            bool adjustColors = false;
+            double min = double.PositiveInfinity;
+            double max = double.NegativeInfinity;
+
+            switch (mode)
+            {
+                case MeshColor.None: break;
+                case MeshColor.Texture: break;
+                case MeshColor.Normals:
+                {
+                    ColorByNormals(out min, out max, tiltMode);
+                    adjustColors = greyscale = tiltMode != TiltMode.None;
+                    break;
+                }
+                case MeshColor.Curvature:
+                {
+                    ColorByCurvature(out min, out max);
+                    adjustColors = greyscale = true;
+                    break;
+                }
+                case MeshColor.Elevation:
+                {
+                    ColorByElevation(out min, out max);
+                    adjustColors = greyscale = true;
+                    break;
+                }
+            }
+
+            if (adjustColors && allowAdjustColors)
+            {
+                if (stretch)
+                {
+                    ApplyStdDevStretchToColors(greyscale, nStddev);
+                }
+                else if (greyscale)
+                {
+                    foreach (var v in Vertices)
+                    {
+                        v.Color.X = v.Color.Y = v.Color.Z = (v.Color.X - min) / (max - min);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// add texture coordinates to a mesh by projecting vertices onto an image
+        /// also optionally removes any vertices of the mesh that aren't visible in the image
+        /// </summary>
+        public void ProjectTexture(Image img, bool removeVertsOutsideView = true, bool processVertsInParallel = false,
+                                   Matrix? meshToImage = null)
+        {
+            Matrix xform = meshToImage ?? Matrix.Identity;
+            ConcurrentBag<Vertex> verticesToRemove = new ConcurrentBag<Vertex>();
+            Action<Vertex> generateUV = v =>
+            {
+                double range;
+                Vector2 pixel = img.CameraModel.Project(Vector3.Transform(v.Position, xform), out range);
+                if (range < 0 || pixel.X < 0 || pixel.X > (img.Width - 1) || pixel.Y < 0 || pixel.Y > (img.Height - 1))
+                {
+                    verticesToRemove.Add(v);
+                }
+                else
+                {
+                    // TODO: review this half pixel offset
+                    //v.UV =  new Vector2((pixel.X - 0.5) / (image.Width+1), 1 - ((pixel.Y - 0.5) / (image.Height+1)));
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/488
+                    v.UV = img.PixelToUV(pixel);
+                    v.UV = Vector2.Clamp(v.UV, Vector2.Zero, Vector2.One);
+                }
+            };
+            if (processVertsInParallel)
+            {
+                CoreLimitedParallel.ForEach(Vertices, generateUV);
+            }
+            else
+            {
+                Vertices.ForEach(generateUV);
+            }
+
+            HasUVs = true;
+
+            if (removeVertsOutsideView)
+            {
+                RemoveVertices(verticesToRemove);
+            }
+        }
+
+        /// <summary>
         /// Read a mesh to disk
         /// </summary>
         /// <param name="filename"></param>
@@ -1403,18 +1765,5 @@ namespace OPS.Geometry
             }
             return stats;
         }
-    }
-    
-
-    /// <summary>
-    /// X, Y, or Z axis which the skirt is directed along
-    /// </summary>
-    public enum SkirtMode
-    {
-        X,
-        Y,
-        Z,
-        Normal,
-        None
     }
 }
