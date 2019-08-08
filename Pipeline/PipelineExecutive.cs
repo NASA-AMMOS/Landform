@@ -5,14 +5,14 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using OPS.Util;
-using OPS.Pipeline.TileServer;
+using OPS.Pipeline.TilingServer;
 
 //TODO: refactor so that local codepath does not have cloud dependencies
 using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline
 {
-    public enum ExecutionMode { Immediate, Deferred }
+    public enum ExecutionMode { Immediate, Deferred, None }
 
     public class PipelineExecutive
     {
@@ -29,6 +29,7 @@ namespace OPS.Pipeline
             {
                 case ExecutionMode.Immediate: return new ImmediateExecutive(pipeline);
                 case ExecutionMode.Deferred: return new DeferredExecutive(pipeline);
+                case ExecutionMode.None: return null;
                 default: throw new ArgumentException("unknown execution mode: " + mode);
             }
         }
