@@ -34,6 +34,7 @@ namespace OPS.Imaging
         /// Higher values will cause sharper transitions between images but better conform to the inputs.
         /// </summary>
         private double lambda;
+
         private PoissonProblem2D.EdgeBehavior edgeMode;
 
         public LimberDMG(double residualEpsilon = 1e-3, int numRelaxationSteps = 15, double lambda = 0.003, PoissonProblem2D.EdgeBehavior edgeMode = PoissonProblem2D.EdgeBehavior.Clamp)
@@ -611,7 +612,6 @@ namespace OPS.Imaging
             }
         }
 
-
         public double[] StitchBand(double[] composite, int[] indices, byte[] flags, int width, int height, int bandNum)
         {
             ImageStitchingProblem p = new ImageStitchingProblem(width, height, composite, indices, flags, lambda, edgeMode);
@@ -636,41 +636,52 @@ namespace OPS.Imaging
             return x;
         }
 
+        public enum ColorConversion { None, RGBToLAB, RGBToLogLAB };
+
         /// <summary>
-        /// Given a composite image, a mask, and flags, output a stitched image with smoothed seams between composited images
+        /// Given a composite image, a mask, and flags, output a stitched image with smoothed seams
         /// </summary>
         /// <param name="composite">original mosaic of images</param>
-        /// <param name="index">mask assigning same color ID to pixels coming from the same source</param>
-        /// <param name="flags">describes the desired function to apply at each pixel</param>
-        /// <param name="outputPath"></param>
+        /// <param name="index">mask assigning same color ID to pixels coming from the same source, should have either one band or same number as input image, typically in the range 1 - 65534; 0 and 65535 are treated as flags = NO_DATA | HOLD_CONSTANT</param>
+        /// <param name="flags">extra options to apply at each pixel (see LimberDMG.Flags enum), null for none, otherwise should have either one band or same number as input image</param>
+        /// <param name="color">color conversion to apply before blending and then unapply after blending</param>
         /// <returns></returns>
-        public Image StitchImage(Image composite, Image index, Image flags, string outputPath)
+        public Image StitchImage(Image composite, Image index, Image flags = null,
+                                 ColorConversion colorConversion = ColorConversion.RGBToLogLAB)
         {
-            int originalWidth = composite.Width,
-                originalHeight = composite.Height;
+            int originalWidth = composite.Width;
+            int originalHeight = composite.Height;
 
-            // Some sanity checks
+            if (index.Width != composite.Width || index.Height != composite.Height)
             {
-                if (index.Width != composite.Width || index.Height != composite.Height)
-                {
-                    throw new ArgumentException("Sizes of composite and index images don't match");
-                }
-                if (index.Bands != 1 && index.Bands != composite.Bands)
-                {
-                    throw new ArgumentException(string.Format("Expected either 1 or {0} index bands, got {1}", composite.Bands, index.Bands));
-                }
+                throw new ArgumentException("Sizes of composite and index images don't match");
+            }
 
-                if (flags != null)
+            if (index.Bands != 1 && index.Bands != composite.Bands)
+            {
+                throw new ArgumentException(string.Format("Expected either 1 or {0} index bands, got {1}",
+                                                          composite.Bands, index.Bands));
+            }
+            
+            if (flags != null)
+            {
+                if (flags.Width != composite.Width || flags.Height != composite.Height)
                 {
-                    if (flags.Width != composite.Width || flags.Height != composite.Height)
-                    {
-                        throw new ArgumentException("Sizes of composite and flag images don't match");
-                    }
-                    if (flags.Bands != 1 && flags.Bands != composite.Bands)
-                    {
-                        throw new ArgumentException(string.Format("Expected either 1 or {0} flag bands, got {1}", composite.Bands, index.Bands));
-                    }
+                    throw new ArgumentException("Sizes of composite and flag images don't match");
                 }
+                if (flags.Bands != 1 && flags.Bands != composite.Bands)
+                {
+                    throw new ArgumentException(string.Format("Expected either 1 or {0} flag bands, got {1}",
+                                                              composite.Bands, flags.Bands));
+                }
+            }
+
+            switch (colorConversion)
+            {
+                case ColorConversion.RGBToLAB: composite = composite.RGBToLAB(); break;
+                case ColorConversion.RGBToLogLAB: composite = composite.RGBToLAB(logLuminance: true); break;
+                case ColorConversion.None: break;
+                default: throw new ArgumentException("unkown color conversion: " + colorConversion);
             }
 
             //change image dimensions to powers of 2
@@ -680,7 +691,7 @@ namespace OPS.Imaging
                 int height = MathExtensions.MathE.CeilPowerOf2(composite.Height);
                 Image comp = new Image(composite.Bands, width, height);
                 Image ind = new Image(index.Bands, width, height);
-                Image flag = new Image(flags.Bands, width, height);
+                Image flag = new Image(flags != null ? flags.Bands : 1, width, height);
                 for (int r = 0; r < comp.Height; r++)
                 {
                     for (int c = 0; c < comp.Width; c++)
@@ -689,13 +700,20 @@ namespace OPS.Imaging
                         {
                             comp.SetBandValues(r, c, composite.GetBandValues(r, c));
                             ind.SetBandValues(r, c, index.GetBandValues(r, c));
-                            flag.SetBandValues(r, c, flags.GetBandValues(r, c));
+                            if (flags != null)
+                            {
+                                flag.SetBandValues(r, c, flags.GetBandValues(r, c));
+                            }
+                            else
+                            {
+                                flags[0, r, c] = (float)Flags.NONE;
+                            }
                         }
                         else
                         {
                             for (int b = 0; b < flag.Bands; b++)
                             {
-                                flag[b,r,c] = (float)Flags.NO_DATA;
+                                flag[b, r, c] = (float)Flags.NO_DATA;
                             }
                         }
                     }
@@ -709,12 +727,22 @@ namespace OPS.Imaging
 
             CoreLimitedParallel.For(0, composite.Bands, (i) =>
             {
-                var blendedBand = StitchBand(GetBandDouble(composite, i), GetBandInt(index, index.Bands == 1 ? 0 : i), GetBandByte(flags, flags.Bands == 1 ? 0 : i), composite.Width, composite.Height, i);
+                var blendedBand = StitchBand(GetBandDouble(composite, i),
+                                             GetBandInt(index, index.Bands == 1 ? 0 : i),
+                                             GetBandByte(flags, flags.Bands == 1 ? 0 : i),
+                                             composite.Width, composite.Height, i);
                 WriteBand(blendedImage, i, blendedBand);
             });
             
-            blendedImage = blendedImage.Crop(0, 0, originalWidth, originalHeight);
-            return blendedImage;
+            var ret = blendedImage.Crop(0, 0, originalWidth, originalHeight);
+
+            switch (colorConversion)
+            {
+                case ColorConversion.RGBToLAB: return ret.LABToRGB();
+                case ColorConversion.RGBToLogLAB: return ret.LABToRGB(logLuminance: true);
+                case ColorConversion.None: return ret;
+                default: throw new ArgumentException("unkown color conversion: " + colorConversion);
+            }
         }
 
         double[] GetBandDouble(Image img, int bandNum)

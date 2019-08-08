@@ -67,7 +67,8 @@ namespace OPS.LandformUtil
                 LegacyToWebVROptions,
                 LegacyToTile3DOptions,
                 DEM2MeshOptions,
-                BenchmarkS3Options>(args);
+                BenchmarkS3Options,
+                LimberDMGOptions>(args);
 
             return parsed.MapResult(
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
@@ -81,6 +82,7 @@ namespace OPS.LandformUtil
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
+                (LimberDMGOptions opts) => new LimberDMGDriver(opts).Run(),
                 errs => 1);
         }
     }
