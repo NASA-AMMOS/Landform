@@ -95,13 +95,11 @@ namespace ImageTest
             {
                 imgOrig.Save<float>("floatimg.tif");
                 var imgRead = Image.Load("floatimg.tif");
-                for (int b = 0; b < imgOrig.Bands; b++)
+                for (int b = 0; b < imgOrig.Data.Length; b++)
                 {
-                    float[] origBandData = imgOrig.GetBandData(b);
-                    float[] readBandData = imgRead.GetBandData(b);
-                    for (int i = 0; i < origBandData.Length; i++)
+                    for (int i = 0; i < imgOrig.Data[b].Length; i++)
                     {
-                        Assert.AreEqual(readBandData[i], origBandData[i]);
+                        Assert.AreEqual(imgRead.Data[b][i], imgOrig.Data[b][i]);
                     }
                 }
             }
@@ -109,13 +107,11 @@ namespace ImageTest
             {
                 imgOrig.Save<double>("doubleimg.tif");
                 var imgRead = Image.Load("doubleimg.tif");
-                for (int b = 0; b < imgOrig.Bands; b++)
+                for (int b = 0; b < imgOrig.Data.Length; b++)
                 {
-                    float[] origBandData = imgOrig.GetBandData(b);
-                    float[] readBandData = imgRead.GetBandData(b);
-                    for (int i = 0; i < origBandData.Length; i++)
+                    for (int i = 0; i < imgOrig.Data[b].Length; i++)
                     {
-                        Assert.AreEqual(readBandData[i], origBandData[i]);
+                        Assert.AreEqual(imgRead.Data[b][i], imgOrig.Data[b][i]);
                     }
                 }
             }
@@ -270,10 +266,9 @@ namespace ImageTest
                     }
                 }
                 img.GaussianBoxBlur(10);
-                float[] bandData = img.GetBandData(0);
-                for (int i = 0; i < bandData.Length; i++)
+                for (int i = 0; i < img.Data[0].Length; i++)
                 {
-                    if (!img.IsValid(i))
+                    if (img.IsInvalid(i))
                     {
                         var a = img.GetBandValues(i);
                         var b = orig.GetBandValues(i);
@@ -294,8 +289,7 @@ namespace ImageTest
             {
                 Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
                 img.GaussianBoxBlur(0);
-                float[] bandData = img.GetBandData(0);
-                for (int i = 0; i < bandData.Length; i++)
+                for (int i = 0; i < img.Data[0].Length; i++)
                 {
                     var a = img.GetBandValues(i);
                     var b = orig.GetBandValues(i);
@@ -393,7 +387,7 @@ namespace ImageTest
             monoImage.CreateMask(false);
             monoImage.SetMaskValue(0, 0, true);
             monoImage.Inpaint(1, true);
-            Assert.IsFalse(monoImage.IsValid(0, 0));
+            Assert.IsTrue(monoImage.IsInvalid(0, 0));
             Assert.IsTrue(monoImage.IsValid(0, 1));
             monoImage.Inpaint(1, false);
             Assert.IsTrue(monoImage.IsValid(0, 0));
@@ -411,7 +405,7 @@ namespace ImageTest
             maskImage.SetBandValues(3,2, new float[]{1.0f});
 
             //set mask image as mask
-            monoImage.SetMask(maskImage);
+            monoImage.CreateMask(maskImage);
 
             for (int idxRow = 0; idxRow < 4; idxRow++)
             {
@@ -419,7 +413,7 @@ namespace ImageTest
                 {
                     if (idxRow == 3 && idxCol == 2)
                     {
-                        Assert.IsFalse(monoImage.IsValid(idxRow, idxCol));
+                        Assert.IsTrue(monoImage.IsInvalid(idxRow, idxCol));
                     }
                     else
                     {

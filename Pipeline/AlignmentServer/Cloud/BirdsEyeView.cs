@@ -7,7 +7,6 @@ using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
 using OPS.Cloud;
 using OPS.Imaging;
-using OPS.Geometry;
 using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -25,7 +24,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public BirdsEyeViewing.ColorMode Coloring;
 
-        public BlendMode Blending;
+        public Meshing.BlendMode Blending;
 
         public double MetersPerPixel;
 
@@ -74,7 +73,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         protected BirdsEyeView(string projectName, string name, Guid bevGuid, Guid demGuid, Guid maskGuid,
                                Vector2 origin, int width, int height, BirdsEyeViewing.ColorMode coloring,
-                               BlendMode blending, double metersPerPixel, double sparseBlockSize,
+                               Meshing.BlendMode blending, double metersPerPixel, double sparseBlockSize,
                                double minValidBlockRatio, int inpaint, int smoothing, int decimation)
             
         {
@@ -100,7 +99,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static BirdsEyeView Create(PipelineCore pipeline, Project project, string name, Image bev, Image dem,
                                           Image mask, Vector2 origin, BirdsEyeViewing.ColorMode coloring,
-                                          BlendMode blending, double metersPerPixel, double sparseBlockSize,
+                                          Meshing.BlendMode blending, double metersPerPixel, double sparseBlockSize,
                                           double minValidBlockRatio, int inpaint, int smoothing, int decimation)
         {
             int width = bev.Width;

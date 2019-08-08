@@ -9,7 +9,7 @@ using CommandLine;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.TileServer;
 
 //TODO: refactor so that local codepath does not have cloud dependencies
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
@@ -240,7 +240,7 @@ namespace OPS.Pipeline
                             }
                             else
                             {
-                                image.SetMask(mask,Options.UserMasksInverted);
+                                image.CreateMask(mask,Options.UserMasksInverted);
                             }
                         }
                     }

@@ -51,7 +51,7 @@ namespace ImagingTest
             Assert.AreEqual(img2.Metadata.Height, 30);
             Assert.AreEqual(img2[1, 2, 3], 7);
             Assert.AreEqual(img.HasMask, img2.HasMask);
-            Assert.AreEqual(true, !img2.IsValid(4));
+            Assert.AreEqual(true, img2.IsInvalid(4));
             img[1, 2, 4] = 2;
             img.SetMaskValue(4, false);
             Assert.AreEqual(0, img2[1, 2, 4]);
@@ -65,27 +65,21 @@ namespace ImagingTest
             Assert.IsFalse(img.HasMask);
             img.CreateMask();
             Assert.IsTrue(img.HasMask);
-            for (int r = 0; r < img.Height; r++)
+            for (int i = 0; i < img.Width * img.Height; i++)
             {
-                for (int c = 0; c < img.Width; c++)
-                {
-                    Assert.IsTrue(img.IsValid(r, c));
-                }
+                Assert.IsFalse(img.IsInvalid(i));
             }
             img.CreateMask(true);
-            for (int r = 0; r < img.Height; r++)
+            for (int i = 0; i < img.Width * img.Height; i++)
             {
-                for (int c = 0; c < img.Width; c++)
-                {
-                    Assert.IsFalse(img.IsValid(r, c));
-                }
+                Assert.IsTrue(img.IsInvalid(i));
             }
             img = new GenericImage<float>(2, 3, 4);
             img.SetBandValues(2, 3, new float[] { 4, 5 });
             img.SetBandValues(1, 2, new float[] { 3, 5 });
             img.CreateMask(new float[] { 4, 5 });
-            Assert.IsFalse(img.IsValid(2, 3));
-            Assert.IsTrue(img.IsValid(1, 2));
+            Assert.IsTrue(img.IsInvalid(2, 3));
+            Assert.IsFalse(img.IsInvalid(1, 2));
         }
 
         [TestMethod]
@@ -94,14 +88,14 @@ namespace ImagingTest
             GenericImage<byte> img = new GenericImage<byte>(3, 2, 3);
             img.CreateMask();
             img.SetMaskValue(1, 0, true);
-            Assert.AreEqual(false, img.IsValid(1, 0));
+            Assert.AreEqual(true, img.IsInvalid(1, 0));
             img.SetMaskValue(1, 0, false);
-            Assert.AreEqual(true, img.IsValid(1, 0));
+            Assert.AreEqual(false, img.IsInvalid(1, 0));
 
             img.SetMaskValue(5, true);
-            Assert.AreEqual(false, img.IsValid(5));
+            Assert.AreEqual(true, img.IsInvalid(5));
             img.SetMaskValue(5, false);
-            Assert.AreEqual(true, img.IsValid(5));
+            Assert.AreEqual(false, img.IsInvalid(5));
         }
 
         [TestMethod]
@@ -250,8 +244,8 @@ namespace ImagingTest
             GenericImage<byte> img = new GenericImage<byte>(2, 4, 7);
             img[1, 2, 3] = 27;
             img[0, 2, 1] = 29;
-            Assert.AreEqual(27, img.GetBandData(1)[2 * 4 + 3]);
-            Assert.AreEqual(29, img.GetBandData(0)[2 * 4 + 1]);
+            Assert.AreEqual(27, img.Data[1][2 * 4 + 3]);
+            Assert.AreEqual(29, img.Data[0][2 * 4 + 1]);
         }
 
 
@@ -274,12 +268,11 @@ namespace ImagingTest
                 {
                     img[ic.Band, ic.Row, ic.Col] += 1;
                 }
-                for (int b = 0; b < img.Bands; b++)
+                for (int b = 0; b < img.Data.Length; b++)
                 {
-                    int[] bandData = img.GetBandData(b);
-                    for (int i = 0; i < bandData.Length; i++)
+                    for (int i = 0; i < img.Data[b].Length; i++)
                     {
-                        int v = bandData[i];
+                        int v = img.Data[b][i];
                         if (i == 7)
                         {
                             Assert.AreEqual(0, v);
@@ -294,12 +287,11 @@ namespace ImagingTest
                 {
                     img[ic.Band, ic.Row, ic.Col] += 1;
                 }
-                for (int b = 0; b < img.Bands; b++)
+                for (int b = 0; b < img.Data.Length; b++)
                 {
-                    int[] bandData = img.GetBandData(b);
-                    for (int i = 0; i < bandData.Length; i++)
+                    for (int i = 0; i < img.Data[b].Length; i++)
                     {
-                        int v = bandData[i];
+                        int v = img.Data[b][i];
                         if (i == 7)
                         {
                             Assert.AreEqual(1, v);

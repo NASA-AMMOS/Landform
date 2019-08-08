@@ -8,31 +8,6 @@ using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
-    public class BinaryImage
-    {
-        protected bool[,] data;
-
-        protected BinaryImage() { }
-
-        public BinaryImage(int width, int height)
-        {
-            data = new bool[height, width];
-        }
-
-        public virtual bool this[int row, int column]
-        {
-            get
-            {
-                return data[row, column];
-            }
-
-            set
-            {
-                data[row, column] = value;
-            }
-        }
-    }
-
     /// <summary>
     /// This is the primary image class.  It stores data in a floating point format
     /// to enable generalized operations on a large variety of image types.
@@ -48,7 +23,6 @@ namespace OPS.Imaging
     /// </summary>
     public class Image : GenericImage<float>
     {
-        protected Image() { }
 
         /// <summary>
         /// Creates a new blank image with the specified resolution and bands
@@ -58,37 +32,12 @@ namespace OPS.Imaging
         /// <param name="height"></param>
         public Image(int bands, int width, int height) : base(bands, width, height) { }
 
-        public Image(ImageMetadata metadata) : base(metadata) { }
 
         /// <summary>
         /// Copy constructor
         /// </summary>
         /// <param name="that"></param>
         public Image(Image that) : base(that) { }
-
-        /// <summary>
-        /// Performs a deep copy of the image and all associated objects
-        /// </summary>
-        /// <returns></returns>
-        public override object Clone()
-        {
-            return new Image(this);
-        }
-
-        public static string CheckSize(int bands, int width, int height)
-        {
-            return CheckSize<float>(bands, width, height);
-        }
-
-        public virtual Image Instantiate(int bands, int width, int height)
-        {
-            return new Image(bands, width, height);
-        }
-
-        public virtual BinaryImage InstantiateBinaryImage(int width, int height)
-        {
-            return new BinaryImage(width, height);
-        }
 
         /// <summary>
         /// Load an image using default serializer and converter
@@ -265,19 +214,29 @@ namespace OPS.Imaging
         /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to true will preserve the original mask</param>
         public Image Inpaint(int border = -1,bool preserveMask = false)
         {
+            bool[] savedMask = null;
             if (HasMask && preserveMask)
             {
-                SaveMask();
+                savedMask = (bool[])Mask.Clone();
             }
 
             Inpainter.Apply(this, border);
 
-            if (HasMask && preserveMask)
+            if(savedMask != null)
             {
-                RestoreMask();
+                Mask = savedMask;
             }
 
             return this;
+        }
+
+        /// <summary>
+        /// Performs a deep copy of the image and all associated objects
+        /// </summary>
+        /// <returns></returns>
+        public new object Clone()
+        {
+            return new Image(this);
         }
 
         /// <summary>
@@ -346,19 +305,19 @@ namespace OPS.Imaging
         /// <param name="width"></param>
         /// <param name="height"></param>
         /// <returns></returns>
-        public Image Crop(int startRow, int startCol, int newWidth, int newHeight)
+        public Image Crop(int startRow, int startCol, int width, int height)
         {
-            Image result = Instantiate(Bands, newWidth, newHeight);
-            if (HasMask)
+            Image result = new Image(this.Bands, width, height);
+            if (this.HasMask)
             {
                 result.CreateMask();
             }
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
                 result[ic.Band, ic.Row, ic.Col] = this[ic.Band, ic.Row + startRow, ic.Col + startCol];
-                if (HasMask)
+                if (this.HasMask)
                 {
-                    result.SetMaskValue(ic.Row, ic.Col, !IsValid(ic.Row + startRow, ic.Col + startCol));
+                    result.SetMaskValue(ic.Row, ic.Col, this.IsInvalid(ic.Row + startRow, ic.Col + startCol));
                 }
             }
             return result;
@@ -392,7 +351,7 @@ namespace OPS.Imaging
             }
             else
             {
-                var ret = Instantiate(Bands, 0, 0);
+                var ret = new Image(Bands, 0, 0);
                 if (HasMask)
                 {
                     ret.CreateMask();
@@ -532,7 +491,7 @@ namespace OPS.Imaging
         /// invalidate all but the largest blob of valid (i.e. un-masked) pixels
         /// operates on the image in-place
         /// </summary>
-        public Image InvalidateAllButLargestValidBlob(out int largestBlobSize)
+        public Image RemoveAllButLargestValidBlob(out int largestBlobSize)
         {
             if (!HasMask)
             {
@@ -540,7 +499,7 @@ namespace OPS.Imaging
                 return this;
             }
 
-            var marked = InstantiateBinaryImage(Width, Height);
+            var marked = new bool[Height, Width];
 
             var seeds = new Queue<Pixel>();
             var offsets = new Pixel[] { new Pixel(-1, 0), new Pixel(1, 0), new Pixel(0, -1), new Pixel(0, 1) };
@@ -612,9 +571,9 @@ namespace OPS.Imaging
             return this;
         }
 
-        public Image InvalidateAllButLargestValidBlob()
+        public Image RemoveAllButLargestValidBlob()
         {
-            return InvalidateAllButLargestValidBlob(out int largestBlobSize);
+            return RemoveAllButLargestValidBlob(out int largestBlobSize);
         }
 
         /// <summary>
@@ -689,26 +648,26 @@ namespace OPS.Imaging
                 }
             }
 
-            Image horizontalResult = Instantiate(Bands, targetWidth, Height);
+            Image horizontalResult = new Image(this.Bands, targetWidth, this.Height);
 
-            List<Weight> weights = GetResizeWeights(targetWidth, Width, 2, filter);
+            List<Weight> weights = GetResizeWeights(targetWidth, this.Width, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
-                for (int row = 0; row < Height; row++)
+                for (int row = 0; row < this.Height; row++)
                 {
                     foreach (Weight w in weights)
                     {
-                        float source = ReadClampedToBounds(band, w.inPixel, row);
+                        float source = this.ReadClampedToBounds(band, w.inPixel, row);
                         horizontalResult[band, row, w.outPixel] += source * (float)w.weight;
                     }
                 }
             }
 
             //resize vertically 
-            Image result = Instantiate(Bands, targetWidth, targetHeight);
+            Image result = new Image(this.Bands, targetWidth, targetHeight);
 
-            weights = GetResizeWeights(targetHeight, Height, 2, filter);
+            weights = GetResizeWeights(targetHeight, this.Height, 2, filter);
 
             for (int band = 0; band < Bands; band++)
             {
@@ -731,12 +690,12 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Image Rotate90Clockwise()
         {
-            Image result = Instantiate(Bands, Height, Width);
-            for (int r = 0; r < Height; r++)
+            Image result = new Image(this.Bands, this.Height, this.Width);
+            for (int r = 0; r < this.Height; r++)
             {
-                for (int c = 0; c < Width; c++)
+                for (int c = 0; c < this.Width; c++)
                 {
-                    result.SetBandValues(c, Height - 1 - r, GetBandValues(r, c));
+                    result.SetBandValues(c, this.Height - 1 - r, this.GetBandValues(r, c));
                 }
             }
             return result;
@@ -884,9 +843,9 @@ namespace OPS.Imaging
         /// <returns></returns>
         public Image ResizeSimpleBicubic(int targetWidth, int targetHeight)
         {
-            Image result = Instantiate(Bands, targetWidth, targetHeight);
-            float wRatio = (Width - 1) / ((float)result.Width - 1);
-            float hRatio = (Height - 1) / ((float)result.Height - 1);
+            Image result = new Image(this.Bands, targetWidth, targetHeight);
+            float wRatio = (this.Width - 1) / ((float)result.Width - 1);
+            float hRatio = (this.Height - 1) / ((float)result.Height - 1);
             foreach (ImageCoordinate ic in result.Coordinates(true))
             {
                 result[ic.Band, ic.Row, ic.Col] = BicubicSample(ic.Band, ic.Row * hRatio, ic.Col * wRatio);
@@ -1034,8 +993,8 @@ namespace OPS.Imaging
             int targetWidth = Width / blocksize; //integer math
             int targetHeight = Height / blocksize; //integer math
 
-            Image result = Instantiate(Bands, targetWidth, targetHeight);
-            result.CreateMask();
+            Image result = new Image(this.Bands, targetWidth, targetHeight);
+            result.CreateMask(false);
 
             for (int band = 0; band < Bands; band++)
             {
@@ -1053,7 +1012,7 @@ namespace OPS.Imaging
                                 {
                                     if (srcCol >= 0 && srcCol < this.Width)
                                     {
-                                        if (IsValid(srcRow, srcCol))
+                                        if (!IsInvalid(srcRow, srcCol))
                                         {
                                             sum += this[band, srcRow, srcCol];
                                             n++;
@@ -1081,34 +1040,30 @@ namespace OPS.Imaging
         /// are the boundaries for the colors in colorsLowToHigh. There should be one more color than distance to catch
         /// the distances that are larger than the final bucket cutoff
         /// </summary>
+        /// <param name="img">single band source image</param>
         /// <param name="colorCutoffValues">the floating point values that represent the upper bound of that color (eg. cutoffvalue 0.2, all values less than 0.2 get that value.</param>
         /// <param name="colorsLowToHigh">colors intended to be paired with colorCutoffValues. each color in R, G, B order, range 0 to 1. Should be 1 more color than cutoff values as the upper-end catchall color (greater than the last color cutoff value)</param>
         /// <param name="bgColor">color in R, G, B order, range 0 to 1</param>
         /// <returns>3 band colorized image</returns>
-        public Image ColorizeScalarImage(float[] colorCutoffValues, float[][] colorsLowToHigh, float[] bgColor)
+        static public Image ColorizeScalarImage(Image img, float[] colorCutoffValues, float[][] colorsLowToHigh, float[] bgColor)
         {
-            if (Bands != 1)
-            {
+            if (img.Bands != 1)
                 throw new InvalidDataException("expecting a single band image to be colorized");
-            }
 
-            Image result = Instantiate(3, Width, Height);
-            if (HasMask)
-            {
-                result.CreateMask(true);
-            }
+            Image result = new Image(3, img.Width, img.Height);
+            result.CreateMask(true);
 
-            for (int idxRow = 0; idxRow < Height; idxRow++)
+            for (int idxRow = 0; idxRow < img.Height; idxRow++)
             {
-                for (int idxCol = 0; idxCol < Width; idxCol++)
+                for (int idxCol = 0; idxCol < img.Width; idxCol++)
                 {
-                    if (HasMask && !IsValid(idxRow, idxCol))
+                    if (img.IsInvalid(idxRow, idxCol))
                     {
                         result.SetBandValues(idxRow, idxCol, bgColor);
                         continue;
                     }
 
-                    float val = this[0, idxRow, idxCol];
+                    float val = img[0, idxRow, idxCol];
                     float[] color = colorsLowToHigh.Last(); //catchall for values > final cuttoff.
                     for (int idxColor = 0; idxColor < colorCutoffValues.Length; idxColor++)
                     {
@@ -1120,11 +1075,7 @@ namespace OPS.Imaging
                     }
 
                     result.SetBandValues(idxRow, idxCol, color);
-
-                    if (HasMask)
-                    {
-                        result.SetMaskValue(idxRow, idxCol, false);
-                    }
+                    result.SetMaskValue(idxRow, idxCol, false);
                 }
             }
 
@@ -1164,7 +1115,7 @@ namespace OPS.Imaging
 
         public Image MaskToImage(float valid = 0, float invalid = 1)
         {
-            var ret = Instantiate(1, Width, Height);
+            var ret = new Image(1, Width, Height);
             for (int row = 0; row < Height; row++)
             {
                 for (int col = 0; col < Width; col++)
@@ -1173,26 +1124,6 @@ namespace OPS.Imaging
                 }
             }
             return ret;
-        }
-
-        /// <summary>
-        /// count valid pixels
-        /// if mask image is provided then any pixels which are 0 there are also considered invalid
-        /// </summary>
-        public int CountValid(Image mask = null)
-        {
-            int valid = 0;
-            for (int row = 0; row < Height; row++)
-            {
-                for (int col = 0; col < Width; col++)
-                {
-                    if (IsValid(row, col) && (mask == null || mask[0, row, col] != 0))
-                    {
-                        valid++;
-                    }
-                }
-            }
-            return valid;
         }
 
         /// <summary>
@@ -1218,7 +1149,7 @@ namespace OPS.Imaging
                     {
                         var tgt = px + offset;
                         if (tgt.Row >= 0 && tgt.Row < Height && tgt.Col >= 0 && tgt.Col < Width &&
-                            !IsValid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != invalid)
+                            IsInvalid(tgt.Row, tgt.Col) && mask[0, tgt.Row, tgt.Col] != invalid)
                         {
                             mask[0, tgt.Row, tgt.Col] = invalid;
                             queue.Enqueue(tgt);

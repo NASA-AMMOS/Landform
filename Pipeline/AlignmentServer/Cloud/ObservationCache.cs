@@ -83,11 +83,6 @@ namespace OPS.Pipeline.AlignmentServer
             return observations[name];
         }
 
-        public bool ContainsObservation(string name)
-        {
-            return observations.ContainsKey(name);
-        }
-
         public IEnumerable<string> GetAllFramesWithObservations()
         {
             foreach (var pair in forFrame)

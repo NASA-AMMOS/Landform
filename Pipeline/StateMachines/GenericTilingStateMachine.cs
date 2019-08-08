@@ -3,7 +3,7 @@ using System.Linq;
 using System.Collections.Generic;
 using log4net;
 using OPS.Cloud;
-using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.TileServer;
 
 namespace OPS.Pipeline
 {

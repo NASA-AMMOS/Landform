@@ -240,17 +240,6 @@ namespace OPS.Geometry
         /// <returns></returns>
         public BarycentricPoint UVToBarycentric(Vector2 uv)
         {
-            var points = UVToBarycentricList(uv, 1);
-            return points.Count() > 0 ? points.First() : null;
-        }
-
-        /// <summary>
-        /// Returns the barycentric positions in all faces intersected by the point in uv space
-        /// </summary>
-        /// <param name="uv"></param>
-        /// <returns></returns>
-        public IEnumerable<BarycentricPoint> UVToBarycentricList(Vector2 uv, int maxCount=0)
-        {
             if (uvFaceTree == null)
             {
                 throw new Exception("MeshOperator must have a uv face tree to convert UV to barycentric");
@@ -265,19 +254,14 @@ namespace OPS.Geometry
 
             // position returned by attempt to locate uv in r tree triangle
             BarycentricPoint b;
-            int count = 0;
 
             // find first actual face that intersects point and return interpolated position, null otherwise
             foreach (var triangle in triangleList) {
                 b = triangle.UVToBarycentric(uv);
-                if (b != null) {
-                    yield return b;
-                    if(maxCount != 0 && ++count >= maxCount)
-                    {
-                        break;
-                    }
-                }
+                if (b != null)
+                    return b;
             }
+            return null;
         }
 
         public List<Triangle> UVIntersects(BoundingBox box)

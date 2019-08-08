@@ -3,9 +3,8 @@ using System.Linq;
 using Amazon.DynamoDBv2.DataModel;
 using log4net;
 using System.Diagnostics;
-using OPS.Pipeline.TilingServer;
 
-namespace OPS.Pipeline
+namespace OPS.Pipeline.TileServer
 {
     public class ProjectCache
     {

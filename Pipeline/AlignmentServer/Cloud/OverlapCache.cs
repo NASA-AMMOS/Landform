@@ -85,10 +85,5 @@ namespace OPS.Pipeline.AlignmentServer
             }
             return overlaps[name];
         }
-
-        public bool ContainsOverlap(string name)
-        {
-            return overlaps.ContainsKey(name);
-        }
     }
 }

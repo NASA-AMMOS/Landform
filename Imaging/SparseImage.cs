@@ -9,56 +9,6 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
-    public class SparseBinaryImage : BinaryImage
-    {
-        private bool[,][,] images;
-
-        private int width;
-        private int height;
-        private int chunkSize;
-        private int chunkRows;
-        private int chunkCols;
-
-        public SparseBinaryImage(int width, int height, int chunkSize = 256)
-        {
-            this.width = width;
-            this.height = height;
-            this.chunkSize = chunkSize;
-            chunkRows = (int)Math.Ceiling((float)height / chunkSize);
-            chunkCols = (int)Math.Ceiling((float)width / chunkSize);
-            images = new bool[chunkRows, chunkCols][,];
-        }
-
-        public override bool this[int row, int col]
-        {
-            get
-            {
-                int chunkRow = row / chunkSize;
-                int chunkCol = col / chunkSize;
-                if (images[chunkRow, chunkCol] == null)
-                {
-                    return false;
-                }
-                else
-                {
-                    return images[chunkRow, chunkCol][row % chunkSize, col % chunkSize];
-                }
-            }
-
-            set
-            {
-                int chunkRow = row / chunkSize;
-                int chunkCol = col / chunkSize;
-                if (images[chunkRow, chunkCol] == null)
-                {
-                    int chunkHeight = chunkRow < chunkRows - 1 ? chunkSize : height - chunkSize * (chunkRows - 1);
-                    int chunkWidth = chunkCol < chunkCols - 1 ? chunkSize : width - chunkSize * (chunkCols - 1);
-                    images[chunkRow, chunkCol] = new bool[chunkHeight, chunkWidth];
-                }
-                images[chunkRow, chunkCol][row % chunkSize, col % chunkSize] = value;
-            }
-        }
-    }
     /// <summary>
     /// Stores an Image as array of smaller chunk Images
     /// </summary>
@@ -79,14 +29,6 @@ namespace OPS.Imaging
         //chunk images are chunkSize x chunkSize
         //except those on the right and bottom borders may be smaller
         protected int chunkSize;
-
-        private int chunkRows;
-        private int chunkCols;
-
-        private bool hasSavedMask;
-        private bool initialMaskValue;
-        private bool _hasMask;
-        public override bool HasMask { get { return _hasMask; } }
 
         /// <summary>
         /// Construct a new empty sparse image.
@@ -131,19 +73,7 @@ namespace OPS.Imaging
             this.Bands = largeImage.Bands;
             this.Width = largeImage.Width;
             this.Height = largeImage.Height;
-            if (largeImage.Metadata != null)
-            {
-                this.Metadata = (ImageMetadata)largeImage.Metadata.Clone();
-            }
-            else
-            {
-                this.Metadata = new ImageMetadata(Bands, Width, Height);
-            }
-            if (largeImage.CameraModel != null)
-            {
-                this.CameraModel = (CameraModel)largeImage.CameraModel.Clone();
-            }
-            this._hasMask = largeImage.HasMask;
+            this.Metadata = new ImageMetadata(Bands, Width, Height);
             this.chunkSize = chunkSize;
             this.largeImage = largeImage;
             InitChunkCacheOrArray(cacheSize, diskBackedCache);
@@ -218,119 +148,25 @@ namespace OPS.Imaging
         {
         }
 
-        public SparseImage(SparseImage that)
-            : this(that.Bands, that.Width, that.Height, that.basePath, that.extension, that.chunkSize)
-        {
-            if (that.Metadata != null)
-            {
-                this.Metadata = (ImageMetadata)that.Metadata.Clone();
-            }
-
-            if (that.CameraModel != null)
-            {
-                this.CameraModel = (CameraModel)that.CameraModel.Clone();
-            }
-
-            _hasMask = that.HasMask;
-
-            InitChunkCacheOrArray(that.chunkCache != null ? that.chunkCache.Capacity : 0,
-                                  that.chunkCache != null ? that.chunkCache.DiskBacked : false);
-
-            for (int r = 0; r < chunkRows; r++)
-            {
-                for (int c = 0; c < chunkCols; c++)
-                {
-                    Image chunk = that.GetExistingChunk(r, c);
-                    if (chunk != null)
-                    {
-                        chunk = (Image)chunk.Clone();
-                        if (chunks != null)
-                        {
-                            chunks[r, c] = chunk;
-                        } 
-                        else
-                        {
-                            chunkCache.Add(new Vector2(r, c), chunk);
-                        }
-                    }
-                }
-            }
-        }
-
-        protected override void CopyDataTo<TT>(GenericImage<TT> that)
-        {
-            if (!(typeof(TT).IsAssignableFrom(typeof(float))))
-            {
-                throw new ArgumentException("failed to copy sparse image data: type mismatch");
-            }
-
-            if (that.Bands != Bands || that.Width != Width || that.Height != Height)
-            {
-                throw new ArgumentException("failed to copy sparse image data: size mismatch");
-            }
-
-            for (int b = 0; b < Bands; b++)
-            {
-                for (int r = 0; r < Height; r++)
-                {
-                    for (int c = 0; c < Width; c++)
-                    {
-                        that[b, r, c] = (TT)Convert.ChangeType(this[b, r, c], typeof(TT));
-                    }
-                }
-            }
-        }
-
-        protected override void CopyMaskTo<TT>(GenericImage<TT> that)
-        {
-            if (!HasMask || !that.HasMask || that.Width != Width || that.Height != Height)
-            {
-                throw new ArgumentException("failed to copy sparse image mask");
-            }
-            for (int r = 0; r < Height; r++)
-            {
-                for (int c = 0; c < Width; c++)
-                {
-                    that.SetMaskValue(r, c, !IsValid(r, c));
-                }
-            }
-        }
-
-        /// <summary>
-        /// Performas a deep copy of the image
-        /// </summary>
-        /// <returns></returns>
-        public override object Clone()
-        {
-            return new SparseImage(this);
-        }
-
-        public override Image Instantiate(int bands, int width, int height)
-        {
-            return new SparseImage(bands, width, height, basePath, extension, chunkSize);
-        }
-
         //broken out to facilitate subclassing where GetImageMetadataForPartialRead() may need prior init
         protected void InitFromLargeImage(string largeImagePath, int chunkSize, int cacheSize, bool diskBackedCache)
         {
             this.chunkSize = chunkSize;
             this.basePath = StringHelper.StripUrlExtension(largeImagePath);
             this.extension = StringHelper.GetUrlExtension(largeImagePath);
-            int bands;
-            int width;
-            int height;
-            GetImageMetadataForPartialRead(largeImagePath, out bands, out width, out height);
-            this.Bands = bands;
-            this.Width = width;
-            this.Height = height;
+            GetImageMetadataForPartialRead(largeImagePath, out Bands, out Width, out Height);
             this.Metadata = new ImageMetadata(Bands, Width, Height);
             InitChunkCacheOrArray(cacheSize, diskBackedCache);
         }
 
+        protected void InitChunkArray()
+        {
+            chunks = new Image[(int)Math.Ceiling((float)Height / chunkSize),
+                               (int)Math.Ceiling((float)Width / chunkSize)];
+        }
+
         protected void InitChunkCacheOrArray(int cacheSize, bool diskBackedCache)
         {
-            chunkRows = (int)Math.Ceiling((float)Height / chunkSize);
-            chunkCols = (int)Math.Ceiling((float)Width / chunkSize);
             if (cacheSize > 0)
             {
                 if (diskBackedCache)
@@ -360,28 +196,8 @@ namespace OPS.Imaging
             }
             else
             {
-                chunks = new Image[chunkRows, chunkCols];
+                InitChunkArray();
             }
-        }
-
-        public override BinaryImage InstantiateBinaryImage(int width, int height)
-        {
-            return new SparseBinaryImage(width, height, chunkSize);
-        }
-
-        public bool CanDensify()
-        {
-            return string.IsNullOrEmpty(CheckSize<float>(Bands, Width, Height));
-        }
-
-        public Image Densify()
-        {
-            string err = Image.CheckSize(Bands, Width, Height);
-            if (!string.IsNullOrEmpty(err))
-            {
-                throw new InvalidOperationException(err);
-            }
-            return new Image(this);
         }
 
         /// <summary>
@@ -571,7 +387,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// If the chunk is already in memory (or the chunkCache disk cache) then just return it.
+        /// If the chunk is already in memory then just return it.
         /// Otherwise unpersist the chunk if we have persisted backing.
         /// Otherwise allocate a new blank chunk.
         /// </summary>
@@ -627,15 +443,6 @@ namespace OPS.Imaging
                     chunk = new Image(Bands, w, h);
                 }
 
-                if (HasMask)
-                {
-                    chunk.CreateMask(initialMaskValue);
-                    if (hasSavedMask)
-                    {
-                        chunk.SaveMask();
-                    }
-                }
-
                 //remember chunk so that we take the fast path next time
                 if (chunks != null)
                 {
@@ -648,185 +455,6 @@ namespace OPS.Imaging
             }
 
             return chunk;
-        }
-
-        /// <summary>
-        /// Get a chunk that's already in memory or in the chunkCache disk cache.
-        /// </summary>
-        private Image GetExistingChunk(int chunkRow, int chunkCol)
-        {
-            return chunks != null ? chunks[chunkRow, chunkCol]
-                : chunkCache.GetOrLoad(new Vector2(chunkRow, chunkCol), null);
-        }
-
-        public override void CreateMask(bool initialValue = false)
-        {
-            _hasMask = true;
-            initialMaskValue = initialValue;
-            for (int row = 0; row < chunkRows; row++)
-            {
-                for (int col = 0; col < chunkCols; col++)
-                {
-                    Image chunk = GetExistingChunk(row, col);
-                    if (chunk != null)
-                    {
-                        chunk.CreateMask(initialValue);
-                    }
-                }
-            }
-        }
-        
-        public override void DeleteMask()
-        {
-            _hasMask = hasSavedMask = initialMaskValue = false;
-            for (int row = 0; row < chunkRows; row++)
-            {
-                for (int col = 0; col < chunkCols; col++)
-                {
-                    Image chunk = GetExistingChunk(row, col);
-                    if (chunk != null)
-                    {
-                        chunk.DeleteMask();
-                    }
-                }
-            }
-        }
-
-        public override void SaveMask()
-        {
-            if (!HasMask || hasSavedMask)
-            {
-                throw new InvalidOperationException();
-            }
-            for (int row = 0; row < chunkRows; row++)
-            {
-                for (int col = 0; col < chunkCols; col++)
-                {
-                    Image chunk = GetExistingChunk(row, col);
-                    if (chunk != null)
-                    {
-                        chunk.SaveMask();
-                    }
-                }
-            }
-        }
-
-        public override void RestoreMask()
-        {
-            if (!hasSavedMask)
-            {
-                throw new InvalidOperationException();
-            }
-            hasSavedMask = false;
-            for (int row = 0; row < chunkRows; row++)
-            {
-                for (int col = 0; col < chunkCols; col++)
-                {
-                    Image chunk = GetExistingChunk(row, col);
-                    if (chunk != null)
-                    {
-                        chunk.RestoreMask();
-                    }
-                }
-            }
-        }
-
-        public override bool IsValid(int row, int col)
-        {
-            if (!HasMask)
-            {
-                return true;
-            }
-            return GetChunk(row / chunkSize, col / chunkSize).IsValid(row % chunkSize, col% chunkSize);
-        }
-
-        public override bool IsValid(int i)
-        {
-            return IsValid(i / Width, i % Width);
-        }
-
-        public override void SetMaskValue(int row, int col, bool value)
-        {
-            GetChunk(row / chunkSize, col / chunkSize).SetMaskValue(row % chunkSize, col% chunkSize, value);
-        }
-
-        public override void SetMaskValue(int i, bool value)
-        {
-            SetMaskValue(i / Width, i % Width, value);
-        }
-
-        public override bool BandValuesEqual(int i, float[] perBandValues)
-        {
-            for (int b = 0; b < Bands; b++)
-            {
-                if (!this[b, i / Width, i % Width].Equals(perBandValues[b]))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        public override void SetBandValues(int i, float[] perBandValues)
-        {
-            for (int b = 0; b < Bands; b++)
-            {
-                this[b, i / Width, i % Width] = perBandValues[b];
-            }
-        }
-
-        public override float[] GetBandValues(int i)
-        {
-            float[] result = new float[Bands];
-            for (int b = 0; b < Bands; b++)
-            {
-                result[b] = this[b, i / Width , i % Width];
-            }
-            return result;
-        }
-
-        public override void ApplyInPlace(int band, Func<float, float> f, bool applyToMaskedValues = false)
-        {
-            for (int b = 0; b < Bands; b++)
-            {
-                for (int r = 0; r < Height; r++)
-                {
-                    for (int c = 0; c < Width; c++)
-                    {
-                        if (applyToMaskedValues || IsValid(r, c))
-                        {
-                            this[b, r, c] = f(this[b, r, c]);
-                        }
-                    }
-                }
-            }
-        }
-
-        public override IEnumerator<float> GetEnumerator(bool includeInvalidValues)
-        {
-            for (int b = 0; b < Bands; b++)
-            {
-                for (int r = 0; r < Height; r++)
-                {
-                    for (int c = 0; c < Width; c++)
-                    {
-                        if (includeInvalidValues || IsValid(r, c))
-                        {
-                            yield return this[b, r, c];
-                        }
-                    }
-                }
-            }
-        }
-
-        public override float[] GetBandData(int band)
-        {
-            throw new NotImplementedException();
-        }
-
-        public override int AddBand()
-        {
-            throw new NotImplementedException();
         }
     }
 }

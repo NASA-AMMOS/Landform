@@ -19,7 +19,7 @@ namespace OPS.Imaging
         static public void GaussianBoxBlur(Image img, int r)
         {
             int[] boxes = BoxesForGauss(r, 3);
-            Image tmp = img.Instantiate(img.Bands, img.Width, img.Height);
+            Image tmp = new Image(img.Bands, img.Width, img.Height);
             BoxBlur(img, tmp, (boxes[0] - 1) / 2);
             BoxBlur(img, tmp, (boxes[1] - 1) / 2);
             BoxBlur(img, tmp, (boxes[2] - 1) / 2);

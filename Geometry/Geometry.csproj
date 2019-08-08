@@ -78,13 +78,9 @@
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />
     <Compile Include="Geometry\ConvexHull.cs" />
     <Compile Include="Geometry\DelaunayTriangulation.cs" />
-    <Compile Include="Geometry\DemOperations.cs" />
     <Compile Include="Geometry\Geohash.cs" />
     <Compile Include="Geometry\MeshException.cs" />
-    <Compile Include="Geometry\VertexProjection.cs" />
     <Compile Include="Geometry\MeshToHeightMap.cs" />
-    <Compile Include="Geometry\OctreeTriangle.cs" />
-    <Compile Include="Geometry\OrganizedPointCloud.cs" />
     <Compile Include="Geometry\PlaneFit.cs" />
     <Compile Include="Geometry\PointCloudRoughness.cs" />
     <Compile Include="Geometry\Procrustes.cs" />
@@ -101,10 +97,8 @@
     <Compile Include="Geometry\Mesh.cs" />
     <Compile Include="Geometry\MeshOperator.cs" />
     <Compile Include="Geometry\PlaneExtensions.cs" />
-    <Compile Include="Geometry\Rasterizer.cs" />
     <Compile Include="Geometry\RayExtensions.cs" />
     <Compile Include="Geometry\RigidTransform2D.cs" />
-    <Compile Include="Geometry\Shrinkwrap.cs" />
     <Compile Include="Geometry\SurfacePointSampler.cs" />
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\UncertainRigidTransform.cs" />

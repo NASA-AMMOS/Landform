@@ -1,13 +1,12 @@
-﻿using System;
-using System.IO;
+﻿using OPS.MathExtensions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using log4net;
-using OPS.MathExtensions;
 using OPS.Util;
-using OPS.Imaging;
+using System.IO;
+using log4net;
 
 namespace OPS.Geometry
 {
@@ -85,21 +84,6 @@ namespace OPS.Geometry
             result.Clean();
             result.GenerateVertexNormals();
             return result;
-        }
-
-        /// <summary>
-        /// build a mesh with FSSR reconstruction from an organized point cloud
-        /// normals image must be supplied
-        /// if mask image is provided then any pixels which are 0 there are ignored
-        /// </summary>
-        public static Mesh Reconstruct(Image points, Image normals, Image mask = null)
-        {
-            if (normals == null)
-            {
-                throw new ArgumentException("FSSR reconstruction requires normals");
-            }
-
-            return Reconstruct(OrganizedPointCloud.BuildPointCloudMesh(points, normals, mask));            
         }
     }
 }

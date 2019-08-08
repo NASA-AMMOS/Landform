@@ -20,26 +20,29 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public static Image GenerateAlphaFromArmImage(Image img, Image reachability, float unreachableAlpha = 0.75f)
         {
-            Image ret = new Image(img);
-            float[] alphaChannel = ret.GetBandData(ret.AddBand());
-            float[][] reachabilityChannel = new float[reachability.Bands][];
-            for (int b = 0; b < reachability.Bands; b++)
+            Image r = new Image(img);
+            float[][] origData = r.Data;
+            r.Data = new float[img.Bands + 1][];
+            r.Data[img.Bands] = new float[img.Width * img.Height];
+            r.Bands += 1;
+
+            for (int b = 0; b < img.Bands; b++)
             {
-                reachabilityChannel[b] = reachability.GetBandData(b);
+                r.Data[b] = origData[b];
             }
-            for (int i = 0; i < alphaChannel.Length; i++)
+            for (int i = 0; i < r.Data[0].Length; i++)
             {
-                alphaChannel[i] = unreachableAlpha;
+                r.Data[r.Bands - 1][i] = unreachableAlpha;
                 for (int b = 0; b < reachability.Bands; b++)
                 {
-                    if (reachabilityChannel[b][i] != 0)
+                    if (reachability.Data[b][i] != 0)
                     {
-                        alphaChannel[i] = 1;
+                        r.Data[r.Bands - 1][i] = 1;
                         break;
                     }
                 }
             }
-            return ret;
+            return r;
         }
     }
 }

@@ -1,13 +1,12 @@
-﻿using System;
-using System.IO;
+﻿using OPS.MathExtensions;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using log4net;
-using OPS.MathExtensions;
 using OPS.Util;
-using OPS.Imaging;
+using System.IO;
+using log4net;
 
 namespace OPS.Geometry
 {
@@ -193,31 +192,6 @@ namespace OPS.Geometry
             }
 
             return result;
-        }
-
-        /// <summary>
-        /// build a mesh with Poisson reconstruction from the given organized point cloud
-        /// normals image must be supplied
-        /// if mask image is provided then any pixels which are 0 there are ignored
-        /// </summary>
-        public static Mesh Reconstruct(Image points, Image normals, Image mask = null,
-                                       bool normalsAreScaledByConfidence = false)
-        {
-            if (normals == null)
-            {
-                throw new ArgumentException("Poission reconstruction requires normals");
-            }
-
-            var opts = new Options
-            {
-                Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
-                MinOctreeCellWidthMeters = 0.05f,
-                MinOctreeSamplesPerCell = 15,
-                BSplineDegree = 1,
-                UseNormalsForConfidence = normalsAreScaledByConfidence
-            };
-
-            return Reconstruct(OrganizedPointCloud.BuildPointCloudMesh(points, normals, mask), opts);
         }
     }
 }

@@ -5,7 +5,7 @@ using log4net;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Geometry;
-using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.TileServer;
 
 namespace OPS.Pipeline
 {

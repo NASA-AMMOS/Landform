@@ -38,6 +38,7 @@ namespace OPS.Pipeline
             return GenerateAtlas(mesh, true, true);
         }
 
+
         /// <summary>
         /// Return a copy of the provided mesh but UVed according to our provided image
         /// Any vertices (and referencing faces) outside the view of the camera will be removed
@@ -48,7 +49,7 @@ namespace OPS.Pipeline
         public Mesh GenerateAtlas(Mesh mesh, bool removeVertsOutsideView, bool processVertsInParallel)
         {
             var ret = new Mesh(mesh);
-            ret.ProjectTexture(image, removeVertsOutsideView, processVertsInParallel, meshToCameraModelFrame);
+            Meshing.AddUVs(ret, image, meshToCameraModelFrame, removeVertsOutsideView, processVertsInParallel);
             return ret;
         }
 

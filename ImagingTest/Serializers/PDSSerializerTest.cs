@@ -16,18 +16,18 @@ namespace ImagingTest
         {
             Image img = new PDSSerializer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage);
             Assert.IsFalse(img.HasMask);
-            Assert.AreEqual(1, img.Bands);
-            Assert.AreEqual(img.Width * img.Height, img.GetBandData(0).Length);
+            Assert.AreEqual(1, img.Data.Length);
+            Assert.AreEqual(img.Width * img.Height, img.Data[0].Length);
 
             Image imgMasked = new PDSSerializer().Read(Path.Combine("TestData", "img", "FLB_509619692RAS_T0530000FHAZ00323M_.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0 });
             Assert.IsTrue(imgMasked.HasMask);
-            Assert.IsFalse(imgMasked.IsValid(4, 6));
-            Assert.IsTrue(imgMasked.IsValid(5, 6));
+            Assert.IsTrue(imgMasked.IsInvalid(4, 6));
+            Assert.IsFalse(imgMasked.IsInvalid(5, 6));
 
             Image mastcam = new PDSSerializer().Read(Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG"), ImageConverters.PDSBitMaskValueRangeToNormalizedImage, new float[] { 0, 0, 0 });
             Assert.IsTrue(mastcam.HasMask);
-            Assert.AreEqual(3, mastcam.Bands);
-            Assert.AreEqual(1408 * 1200, mastcam.GetBandData(0).Length);
+            Assert.AreEqual(3, mastcam.Data.Length);
+            Assert.AreEqual(1408 * 1200, mastcam.Data[0].Length);
 
             Image range = new PDSSerializer().Read(Path.Combine("TestData", "img", "NLB_451649560RNGLF0311330NCAM12813M1.IMG"), ImageConverters.PassThrough, new float[] { 0 });
             Assert.IsTrue(range.HasMask);

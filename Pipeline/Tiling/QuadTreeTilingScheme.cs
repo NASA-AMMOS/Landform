@@ -5,8 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
+using OPS.Pipeline.TileServer;
 
-namespace OPS.Pipeline.TilingServer
+namespace OPS.Pipeline
 {
     public enum QuadTreeAxis
     {
