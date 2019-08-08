@@ -98,6 +98,7 @@
     <Compile Include="Imaging\Mask.cs" />
     <Compile Include="Operations\Blur.cs" />
     <Compile Include="Operations\Colorize.cs" />
+    <Compile Include="Operations\Colorspace.cs" />
     <Compile Include="Operations\Inpainter.cs" />
     <Compile Include="Imaging\PDSCameraModelParser.cs" />
     <Compile Include="Imaging\PDSMetadata.cs" />
