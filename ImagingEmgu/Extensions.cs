@@ -43,19 +43,43 @@ namespace OPS.Imaging.Emgu
 
         /// <summary>
         /// Convert image to a grayscale Emgu image by averaging all color channels.
+        /// TODO: for feature detection we may want to use Image.LuminanceMode.GREEN
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/654
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/502#issuecomment-194829
         /// </summary>
-        public static Image<Gray, byte> ToEmguGrayscale(this Image img)
+        public static Image<Gray, byte> ToEmguGrayscale(this Image img,
+                                                        Image.LuminanceMode mode = Image.LuminanceMode.AVERAGE)
         {
+            if (img.Bands == 1)
+            {
+                return img.ToEmgu<Gray>();
+            }
+
+            if (mode != Image.LuminanceMode.AVERAGE && img.Bands != 3)
+            {
+                throw new ArgumentException(string.Format("luminance mode {0} requires 3 band image, got {1}",
+                                                          mode, img.Bands));
+            }
+
             Image<Gray, byte> res = new Image<Gray, byte>(img.Width, img.Height);
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
                 {
                     float value = 0;
-                    for (int band = 0; band < img.Bands; band++)
+                    if (img.Bands == 3)
                     {
-                        value += img[0, row, col] / img.Bands;
+                        //NOTE: implies RGB ordering
+                        value = Image.ColorToMono(img[0, row, col], img[1, row, col], img[2, row, col], mode);
                     }
+                    else
+                    {
+                        for (int band = 0; band < img.Bands; band++)
+                        {
+                            value += img[0, row, col] / img.Bands;
+                        }
+                    }
+
                     res[row, col] = new Gray(value * 255);
                 }
             }

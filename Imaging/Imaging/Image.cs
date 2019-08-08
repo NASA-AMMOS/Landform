@@ -1239,14 +1239,25 @@ namespace OPS.Imaging
             return mask;
         }
 
-        public float[] MonoToColor(float mono)
+        public static float[] MonoToColor(float mono)
         {
             return new float[3] { mono, mono, mono };
         }
 
-        public float ColorToMono(float r, float g, float b)
+        public enum LuminanceMode { AVERAGE, MAX, ITU_BT709, RED, GREEN, BLUE };
+
+        public static float ColorToMono(float r, float g, float b, LuminanceMode mode = LuminanceMode.AVERAGE)
         {
-            throw new NotImplementedException("Need to do luminance calculation to turn color to mono"); //Issue: #502
+            switch (mode)
+            {
+                case LuminanceMode.AVERAGE: return (r + g + b) / 3;
+                case LuminanceMode.MAX: return Math.Max(r, Math.Max(g,  b));
+                case LuminanceMode.ITU_BT709: return  0.2126f * r + 0.7152f * g + 0.0722f * b;
+                case LuminanceMode.RED: return r;
+                case LuminanceMode.GREEN: return g;
+                case LuminanceMode.BLUE: return b;
+                default: throw new ArgumentException("unhandled mode: " + mode);
+            }
         }
 
         /// <summary>
@@ -1277,7 +1288,7 @@ namespace OPS.Imaging
         /// <summary>
         /// bilinearly sample the image and return a single channel color
         /// </summary>
-        public float SampleAsMono(Vector2 srcPixel)
+        public float SampleAsMono(Vector2 srcPixel, LuminanceMode mode = LuminanceMode.AVERAGE)
         {
             if (Bands == 3)
             {
@@ -1287,7 +1298,7 @@ namespace OPS.Imaging
                     samples[idxBand] = BilinearSample(idxBand, (float)srcPixel.Y, (float)srcPixel.X);
                 }
 
-                return ColorToMono(samples[0], samples[1], samples[2]); //NOTE: implies RGB ordering
+                return ColorToMono(samples[0], samples[1], samples[2], mode); //NOTE: implies RGB ordering
             }
             else if (Bands == 1)
             {
@@ -1305,7 +1316,9 @@ namespace OPS.Imaging
         public void SetAsColor(float[] samples, int destRow, int destCol)
         {
             if (Bands != 3)
+            {
                 throw new NotImplementedException("set as color requires a 3 band destination");
+            }
 
             if (samples.Length == 3)
             {
@@ -1330,14 +1343,16 @@ namespace OPS.Imaging
         /// <summary>
         /// fill destination with samples from source texture (eg. replicate a single band to 3 if needed)
         /// </summary>
-        public void SetAsMono(float[] samples, int destRow, int destCol)
+        public void SetAsMono(float[] samples, int destRow, int destCol, LuminanceMode mode = LuminanceMode.AVERAGE)
         {
             if (Bands != 1)
+            {
                 throw new NotImplementedException("set as mono requires a single band destination");
+            }
 
             if (samples.Length == 3)
             {
-                this[0, destRow, destCol] = ColorToMono(samples[0], samples[1], samples[2]); //implies RGB ordering on samples             
+                this[0, destRow, destCol] = ColorToMono(samples[0], samples[1], samples[2], mode); //implies RGB ordering on samples             
             }
             else if (samples.Length == 1)
             {
