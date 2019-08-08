@@ -97,11 +97,16 @@
     <Compile Include="Imaging\LimberDMG.cs" />
     <Compile Include="Imaging\Mask.cs" />
     <Compile Include="Operations\Blur.cs" />
+    <Compile Include="Operations\Colorize.cs" />
     <Compile Include="Operations\Inpainter.cs" />
     <Compile Include="Imaging\PDSCameraModelParser.cs" />
     <Compile Include="Imaging\PDSMetadata.cs" />
     <Compile Include="Imaging\RawMetadata.cs" />
     <Compile Include="Imaging\SparseImage.cs" />
+    <Compile Include="Operations\MaskOps.cs" />
+    <Compile Include="Operations\Resize.cs" />
+    <Compile Include="Operations\Sample.cs" />
+    <Compile Include="Operations\Stretch.cs" />
     <Compile Include="SpatialTranslators\ISpatialTranslator.cs" />
     <Compile Include="SpatialTranslators\MarsSpatialTranslator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

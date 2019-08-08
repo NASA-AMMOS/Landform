@@ -48,14 +48,14 @@ namespace OPS.Imaging.Emgu
         /// https://github.jpl.nasa.gov/OnSight/Landform/issues/502#issuecomment-194829
         /// </summary>
         public static Image<Gray, byte> ToEmguGrayscale(this Image img,
-                                                        Image.LuminanceMode mode = Image.LuminanceMode.AVERAGE)
+                                                        Colorize.LuminanceMode mode = Colorize.LuminanceMode.AVERAGE)
         {
             if (img.Bands == 1)
             {
                 return img.ToEmgu<Gray>();
             }
 
-            if (mode != Image.LuminanceMode.AVERAGE && img.Bands != 3)
+            if (mode != Colorize.LuminanceMode.AVERAGE && img.Bands != 3)
             {
                 throw new ArgumentException(string.Format("luminance mode {0} requires 3 band image, got {1}",
                                                           mode, img.Bands));
@@ -70,7 +70,7 @@ namespace OPS.Imaging.Emgu
                     if (img.Bands == 3)
                     {
                         //NOTE: implies RGB ordering
-                        value = Image.ColorToMono(img[0, row, col], img[1, row, col], img[2, row, col], mode);
+                        value = Colorize.ColorToMono(img[0, row, col], img[1, row, col], img[2, row, col], mode);
                     }
                     else
                     {

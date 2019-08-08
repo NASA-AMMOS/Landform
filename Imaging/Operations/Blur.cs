@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace OPS.Imaging
 {
-    class Blur
+    public static class Blur
     {
         /// <summary>
         /// Simulates a gaussian blur using 3 box blurs
@@ -16,13 +16,14 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="img">image to blur</param>
         /// <param name="r">radius of blur</param>
-        static public void GaussianBoxBlur(Image img, int r)
+        public static Image GaussianBoxBlur(this Image img, int r)
         {
             int[] boxes = BoxesForGauss(r, 3);
             Image tmp = img.Instantiate(img.Bands, img.Width, img.Height);
             BoxBlur(img, tmp, (boxes[0] - 1) / 2);
             BoxBlur(img, tmp, (boxes[1] - 1) / 2);
             BoxBlur(img, tmp, (boxes[2] - 1) / 2);
+            return img;
         }
 
         /// <summary>
@@ -58,7 +59,7 @@ namespace OPS.Imaging
         /// <param name="src">The image to blur</param>
         /// <param name="tmp">Temporary image same size as src used to store intermediate computations</param>
         /// <param name="r">radius of blur</param>
-        static void BoxBlur(Image src, Image tmp, int r)
+        public static void BoxBlur(this Image src, Image tmp, int r)
         {
             // First compute the horizontal blur 
             for(int row = 0; row < src.Height; row++)
