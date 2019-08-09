@@ -113,5 +113,13 @@ namespace OPS.Util
         {            
             Parallel.For(start, end, new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, action);
         }
+
+        //parallel for with thread local data
+        public static void For<TLocal>(int start, int end, Func<TLocal> localInit, Func<int,TLocal,TLocal> action,
+                                       Action<TLocal> localFinally)
+        {            
+            Parallel.For(start, end, new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, localInit,
+                         (i, opts, local) => action(i, local), localFinally);
+        }
     }
 }

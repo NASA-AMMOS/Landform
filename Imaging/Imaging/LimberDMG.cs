@@ -1,4 +1,5 @@
-﻿using System;
+﻿//#define LEGACY_TUNING
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -14,43 +15,79 @@ namespace OPS.Imaging
     /// </summary>
     public class LimberDMG
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(LimberDMG));
+#if LEGACY_TUNING
+        public const double DEF_RESIDUAL_EPSILON = 1e-5; //1e-5 in JDBlendImageGradients, 1e-3 in LimberDMG
+        public const int DEF_NUM_RELAXATION_STEPS = 15;
+        public const int DEF_NUM_MULTIGRID_ITERATIONS = 5;
+        public const double DEF_LAMBDA = 0.003;
+        public const EdgeBehavior DEF_EDGE_BEHAVIOUR = EdgeBehavior.Clamp;
+        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLogLAB;
+#else
+        public const double DEF_RESIDUAL_EPSILON = 0.01;
+        public const int DEF_NUM_RELAXATION_STEPS = 500;
+        public const int DEF_NUM_MULTIGRID_ITERATIONS = 5;
+        public const double DEF_LAMBDA = 0.0001;
+        public const EdgeBehavior DEF_EDGE_BEHAVIOUR = EdgeBehavior.Clamp;
+        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLAB;
+#endif
+
+        public enum Flags { NONE = 0, HOLD_CONSTANT = 1, GRADIENT_ONLY = 2, NO_DATA = 4 }
+
+        public enum EdgeBehavior { Clamp, WrapSphere, WrapCylinder, WrapTorus }
+
+        public enum ColorConversion { None, RGBToLAB, RGBToLogLAB };
 
         /// <summary>
         /// Acceptable error in solving the linear system.
-        /// 
         /// Lower will give better quality results, at the expense of computation time.
         /// </summary>
         private double residualEpsilon;
+
         /// <summary>
-        /// Number of iterations of Gauss-Seidel relaxation to perform between multigrid iterations.
-        /// 
+        /// Number of iterations of relaxation to perform between multigrid iterations.
         /// Higher may produce better quality results, at the expense of computation time.
         /// </summary>
         private int numRelaxationSteps;
+
+        /// <summary>
+        /// Max number of multigrid iterations.
+        /// Higher may produce better quality results, at the expense of computation time.
+        /// </summary>
+        private int numMultigridIterations;
+
         /// <summary>
         /// Weighting applied to original pixel values.
-        /// 
         /// Higher values will cause sharper transitions between images but better conform to the inputs.
         /// </summary>
         private double lambda;
 
-        private PoissonProblem2D.EdgeBehavior edgeMode;
+        /// <summary>
+        /// Boundary behaviour.
+        /// </summary>
+        private EdgeBehavior edgeMode;
 
-        public LimberDMG(double residualEpsilon = 1e-3, int numRelaxationSteps = 15, double lambda = 0.003, PoissonProblem2D.EdgeBehavior edgeMode = PoissonProblem2D.EdgeBehavior.Clamp)
+        /// <summary>
+        /// Color conversion to apply before blending and then unapply after blending
+        /// </summary>
+        private ColorConversion colorConversion;
+
+        private Action<string> progress;
+
+        public LimberDMG(double residualEpsilon = DEF_RESIDUAL_EPSILON,
+                         int numRelaxationSteps = DEF_NUM_RELAXATION_STEPS,
+                         int numMultigridIterations = DEF_NUM_MULTIGRID_ITERATIONS,
+                         double lambda = DEF_LAMBDA,
+                         EdgeBehavior edgeMode = DEF_EDGE_BEHAVIOUR,
+                         ColorConversion colorConversion = DEF_COLOR_CONVERSION,
+                         Action<string> progress = null)
         {
             this.residualEpsilon = residualEpsilon;
             this.numRelaxationSteps = numRelaxationSteps;
+            this.numMultigridIterations = numMultigridIterations;
             this.lambda = lambda;
             this.edgeMode = edgeMode;
-        }
-
-        public enum Flags
-        {
-            NONE = 0,
-            HOLD_CONSTANT = 1,
-            GRADIENT_ONLY = 2,
-            NO_DATA = 4
+            this.colorConversion = colorConversion;
+            this.progress = progress;
         }
 
         /// <summary>
@@ -59,7 +96,7 @@ namespace OPS.Imaging
         /// $\nabla^2f - \lambda f = \lambda u - \nabla \cdot g$
         /// 
         /// </summary>
-        public class PoissonProblem2D
+        private class PoissonProblem2D
         {
             public int Width, Height;
             public byte[] Flags;
@@ -71,15 +108,8 @@ namespace OPS.Imaging
 
             double[] k;
 
-            public enum EdgeBehavior
-            {
-                Clamp = 0,
-                WrapSphere = 1,
-                WrapCylinder = 2,
-                WrapTorus = 3
-            }
-
-            public PoissonProblem2D(int width, int height, double[] U, double[] divG, byte[] flags, double lambda, EdgeBehavior edgeBehavior)
+            public PoissonProblem2D(int width, int height, double[] U, double[] divG, byte[] flags, double lambda,
+                                    EdgeBehavior edgeBehavior)
             {
                 this.Width = width;
                 this.Height = height;
@@ -91,20 +121,11 @@ namespace OPS.Imaging
 
                 switch (edgeBehavior)
                 {
-                    case EdgeBehavior.Clamp:
-                        getNeighbors = PixelNeighborsClamp;
-                        break;
-                    case EdgeBehavior.WrapCylinder:
-                        getNeighbors = PixelNeighborsCylinder;
-                        break;
-                    case EdgeBehavior.WrapSphere:
-                        getNeighbors = PixelNeighborsSphere;
-                        break;
-                    case EdgeBehavior.WrapTorus:
-                        getNeighbors = PixelNeighborsTorus;
-                        break;
-                    default:
-                        throw new ArgumentException("Invalid edge behavior!");
+                    case EdgeBehavior.Clamp: getNeighbors = PixelNeighborsClamp; break;
+                    case EdgeBehavior.WrapCylinder: getNeighbors = PixelNeighborsCylinder; break;
+                    case EdgeBehavior.WrapSphere: getNeighbors = PixelNeighborsSphere; break;
+                    case EdgeBehavior.WrapTorus: getNeighbors = PixelNeighborsTorus; break;
+                    default: throw new ArgumentException("Invalid edge behavior!");
                 }
 
                 if (divG != null)
@@ -113,7 +134,6 @@ namespace OPS.Imaging
                 }
             }
 
-            #region Pixel neighbor functions
             internal delegate IEnumerable<int> PixelNeighborFunction(int pixelIdx);
 
             IEnumerable<int> PixelNeighborsClamp(int pixelIdx)
@@ -172,7 +192,8 @@ namespace OPS.Imaging
                 if ((Flags[h0] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return h0;
 
                 // Wrap to mirror side of image on vertical edges
-                if ((v == 0 || v == Height - 1) && (Flags[v * Width + (Width - 1 - u)] & (byte)LimberDMG.Flags.NO_DATA) == 0)
+                if ((v == 0 || v == Height - 1) &&
+                    (Flags[v * Width + (Width - 1 - u)] & (byte)LimberDMG.Flags.NO_DATA) == 0)
                 {
                     yield return v * Width + (Width - 1 - u);
                 }
@@ -204,7 +225,6 @@ namespace OPS.Imaging
                 int v0 = ((v + Height - 1) % Height) * Width + u;
                 if ((Flags[v0] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return v0;
             }
-            #endregion
 
             internal void ComputeK()
             {
@@ -267,7 +287,10 @@ namespace OPS.Imaging
                     }
                     double lhs = lambda * x[i];
                     if ((Flags[i] & (byte)LimberDMG.Flags.GRADIENT_ONLY) != 0) lhs = 0;
-                    else if (useAffine && (Flags[i] & (byte)LimberDMG.Flags.HOLD_CONSTANT) != 0) lhs = lambda * affineScale * U[i];
+                    else if (useAffine && (Flags[i] & (byte)LimberDMG.Flags.HOLD_CONSTANT) != 0)
+                    {
+                        lhs = lambda * affineScale * U[i];
+                    }
 
                     b[i] = lhs - Laplacian(x, i);
                 });
@@ -305,7 +328,7 @@ namespace OPS.Imaging
             /// <param name="x">Guess $x$ for $A x = k$</param>
             /// <param name="maxIters">Maximum number of iterations</param>
             /// <param name="residualEpsilon">Acceptable error for early bailout</param>
-            public void OptimizeConjugateGradient(double[] x, int maxIters = 20, double residualEpsilon = 1e-6)
+            public double OptimizeConjugateGradient(double[] x, int maxIters, double residualEpsilon)
             {
                 double[] R = new double[Width * Height];
                 double[] P = new double[Width * Height];
@@ -314,25 +337,28 @@ namespace OPS.Imaging
 
                 // Calculate initial R, P, sqrError
                 CalculateResidual(x, R);
-                int i;
-                for (i = 0; i < Width * Height; i++)
+                for (int i = 0; i < Width * Height; i++)
                 {
                     sqrError += R[i] * R[i];
                     P[i] = R[i];
                 }
+#if !LEGACY_TUNING
+                sqrError /= (Width * Height);
+#endif
 
                 if (sqrError < residualEpsilon * residualEpsilon)
-                    return;
+                {
+                    return Math.Sqrt(sqrError);
+                }
 
-                int iter;
-                for (iter = 0; iter < maxIters; iter++)
+                for (int iter = 0; iter < maxIters; iter++)
                 {
                     // Calculate A*P
                     MatrixMultiply(P, AP, useAffine: true, affineScale: 0);
 
                     // Calculate alpha
                     double invAlpha = 0.0;
-                    for (i = 0; i < Width * Height; i++)
+                    for (int i = 0; i < Width * Height; i++)
                     {
                         if ((Flags[i] & (byte)LimberDMG.Flags.HOLD_CONSTANT) != 0)
                         {
@@ -344,26 +370,33 @@ namespace OPS.Imaging
                     double alpha = sqrError / invAlpha;
 
                     double newSqrError = 0.0;
-                    for (i = 0; i < Width * Height; i++)
+                    for (int i = 0; i < Width * Height; i++)
                     {
                         x[i] += alpha * P[i];
                         R[i] -= alpha * AP[i];
                         newSqrError += R[i] * R[i];
                     }
+#if !LEGACY_TUNING
+                    newSqrError /= (Width * Height);
+#endif
+
                     if (newSqrError < residualEpsilon * residualEpsilon)
                     {
-                        break;
+                        return Math.Sqrt(sqrError);
                     }
 
-                    for (i = 0; i < Width * Height; i++)
+                    for (int i = 0; i < Width * Height; i++)
                     {
                         P[i] = R[i] + newSqrError / sqrError * P[i];
                     }
+
                     sqrError = newSqrError;
                 }
+
+                return Math.Sqrt(sqrError);
             }
 
-            double ComputeGaussSeidelValue(double[] x, int i, ref double sqrDelta)
+            private double ComputeGaussSeidelValue(double[] x, int i, ref double sqrDelta)
             {
                 if ((Flags[i] & (byte)(LimberDMG.Flags.HOLD_CONSTANT | LimberDMG.Flags.NO_DATA)) != 0)
                 {
@@ -400,16 +433,18 @@ namespace OPS.Imaging
             /// <param name="x">Guess $x$ for $A x = k$</param>
             /// <param name="maxIters">Maximum number of iterations</param>
             /// <param name="residualEpsilon">Acceptable change in x for early bailout</param>
-            public void OptimizeGaussSeidel(double[] x, int maxIters = 20, double deltaEpsilon = 1e-8)
+            public double OptimizeGaussSeidel(double[] x, int maxIters, double deltaEpsilon)
             {
                 // Gauss-Seidel relaxation
                 // Our matrix A = \lambda - \nabla^2 can be defined as follows:
                 // For any i \neq j, a_{ij} = -1 if nodes i and j are adjacent and 0 otherwise.
                 // For any i a_{ii} = deg(i) + lambda
-                int iter;
-                for (iter = 0; iter < maxIters; iter++)
+                double sqrDeltaSum = 0.0;
+                object sumLock = new object();
+                for (int iter = 0; iter < maxIters; iter++)
                 {
-                    double sqrDelta = 0.0;
+                    sqrDeltaSum = 0;
+
                     // Here we exploit the fact that given a poisson problem over a regular
                     // grid, each cell has no dependency on its diagonal neighbors. The
                     // space can be partitioned into 'red' and 'black' cells, as such:
@@ -419,7 +454,7 @@ namespace OPS.Imaging
                     // Gauss-Seidel updates can be performed in parallel within each set.
 
                     // Red
-                    CoreLimitedParallel.For(0, Height, (v) =>
+                    CoreLimitedParallel.For<double>(0, Height, () => 0, (v, sqrDelta) =>
                     {
                         int u;
                         for (u = v % 2; u < Width; u += 2)
@@ -427,9 +462,12 @@ namespace OPS.Imaging
                             int idx = v * Width + u;
                             x[idx] = ComputeGaussSeidelValue(x, idx, ref sqrDelta);
                         }
-                    });
+                        return sqrDelta;
+
+                    }, sqrDelta => { lock (sumLock) { sqrDeltaSum += sqrDelta; } });
+
                     // Black
-                    CoreLimitedParallel.For(0, Height, (v) =>
+                    CoreLimitedParallel.For<double>(0, Height, () => 0, (v, sqrDelta) =>
                     {
                         int u;
                         for (u = (v + 1) % 2; u < Width; u += 2)
@@ -437,17 +475,25 @@ namespace OPS.Imaging
                             int idx = v * Width + u;
                             x[idx] = ComputeGaussSeidelValue(x, idx, ref sqrDelta);
                         }
-                    });
-                    if (sqrDelta < deltaEpsilon)
+                        return sqrDelta;
+
+                    }, sqrDelta => { lock (sumLock) { sqrDeltaSum += sqrDelta; } });
+
+#if LEGACY_TUNING
+                    if (sqrDeltaSum < deltaEpsilon)
+#else
+                    sqrDeltaSum /= (Width * Height);
+                    if (sqrDeltaSum < deltaEpsilon * deltaEpsilon)
+#endif
                     {
-                        break;
+                        return Math.Sqrt(sqrDeltaSum);
                     }
                 }
+                return Math.Sqrt(sqrDeltaSum);
             }
-
         }
 
-        class ImageStitchingProblem : PoissonProblem2D
+        private class ImageStitchingProblem : PoissonProblem2D
         {
             int[] indices;
             /// <summary>
@@ -460,7 +506,8 @@ namespace OPS.Imaging
             /// <param name="flags">pixel data values of flags in a particular band</param>
             /// <param name="lambda"></param>
             /// <param name="edgeBehavior"></param>
-            public ImageStitchingProblem(int width, int height, double[] composite, int[] indices, byte[] flags, double lambda, EdgeBehavior edgeBehavior)
+            public ImageStitchingProblem(int width, int height, double[] composite, int[] indices, byte[] flags,
+                                         double lambda, EdgeBehavior edgeBehavior)
                 : base(width, height, composite, null, flags, lambda, edgeBehavior)
             {
                 this.indices = indices;
@@ -566,7 +613,15 @@ namespace OPS.Imaging
             }
         }
 
-        void IterateMultigrid(ImageStitchingProblem p, int scale, double[] x)
+        private void Log(string msg, params Object[] args)
+        {
+            if (progress != null)
+            {
+                progress(string.Format(msg, args));
+            }
+        }
+
+        private double IterateMultigrid(ImageStitchingProblem p, int scale, double[] x)
         {
             // Downsample problem and initial guess to requested scale
             double[] mX;
@@ -578,17 +633,22 @@ namespace OPS.Imaging
                 mX0[i] = mX[i];
             }
 
+            double ret = 0;
+#if LEGACY_TUNING
             if (scale >= 64)
             {
-                coarser.OptimizeConjugateGradient(mX, maxIters: 15, residualEpsilon: residualEpsilon);
+                ret = coarser.OptimizeConjugateGradient(mX, maxIters: 15, residualEpsilon: residualEpsilon);
             }
             else
             {
-                coarser.OptimizeGaussSeidel(mX, maxIters: 15, deltaEpsilon: residualEpsilon / 100);
+                ret = coarser.OptimizeGaussSeidel(mX, maxIters: 15, deltaEpsilon: residualEpsilon / 100);
             }
+#else
+            ret = coarser.OptimizeGaussSeidel(mX, maxIters: numRelaxationSteps, deltaEpsilon: residualEpsilon);
+#endif
 
             // Propagate difference to original scale
-            for (i = 0; i < p.Width *p.Height; i++)
+            for (i = 0; i < p.Width * p.Height; i++)
             {
                 if ((p.Flags[i] & (byte)(Flags.HOLD_CONSTANT | Flags.NO_DATA)) != 0) continue;
                 int u = i % p.Width,
@@ -610,11 +670,14 @@ namespace OPS.Imaging
                             (mX[i11] - mX0[i11]) * up * vp;
                 x[i] += dx;
             }
+            return ret;
         }
 
-        public double[] StitchBand(double[] composite, int[] indices, byte[] flags, int width, int height, int bandNum)
+        private double[] StitchBand(double[] composite, int[] indices, byte[] flags, int width, int height, int bandNum)
         {
-            ImageStitchingProblem p = new ImageStitchingProblem(width, height, composite, indices, flags, lambda, edgeMode);
+            Log("stitching band {0}", bandNum);
+            ImageStitchingProblem p =
+                new ImageStitchingProblem(width, height, composite, indices, flags, lambda, edgeMode);
             // Set initial guess to be the composite image
             double[] x = new double[width * height];
             int i;
@@ -623,20 +686,33 @@ namespace OPS.Imaging
                 x[i] = composite[i];
             }
 
-            for (int N = 0; N < 5; N++)
+            double err = -1;
+            for (int N = 0; N < numMultigridIterations; N++)
             {
                 // Multigrid for low-frequency correction
                 for (i = 8; i > 0; i--)
                 {
-                    IterateMultigrid(p, 1 << i, x);
+                    Log("stitching band {0}, iteration {1}, multigrid scale 1/{2}, error {3}", bandNum, N, 1 << i, err);
+                    err = IterateMultigrid(p, 1 << i, x);
                 }
 
-                p.OptimizeGaussSeidel(x, maxIters: numRelaxationSteps, deltaEpsilon: 1e-10);
+                Log("stitching band {0}, iteration {1}, multigrid scale 1, error {2}", bandNum, N, err);
+#if LEGACY_TUNING
+                err = p.OptimizeGaussSeidel(x, maxIters: numRelaxationSteps, deltaEpsilon: 1e-10);
+#else
+                err = p.OptimizeGaussSeidel(x, maxIters: numRelaxationSteps, deltaEpsilon: residualEpsilon);
+#endif
+                if (err < residualEpsilon)
+                {
+                    Log("stitching band {0}, stopping at iteration {1}, error {2} < {3}",
+                        bandNum, N, err, residualEpsilon);
+                    break;
+                }
+                Log("stitching band {0}, iteration {1} final error {2}", bandNum, N, err);
             }
+            Log("finished stitching band {0}, final error {1}", bandNum, err);
             return x;
         }
-
-        public enum ColorConversion { None, RGBToLAB, RGBToLogLAB };
 
         /// <summary>
         /// Given a composite image, a mask, and flags, output a stitched image with smoothed seams
@@ -644,10 +720,8 @@ namespace OPS.Imaging
         /// <param name="composite">original mosaic of images</param>
         /// <param name="index">mask assigning same color ID to pixels coming from the same source, should have either one band or same number as input image, typically in the range 1 - 65534; 0 and 65535 are treated as flags = NO_DATA | HOLD_CONSTANT</param>
         /// <param name="flags">extra options to apply at each pixel (see LimberDMG.Flags enum), null for none, otherwise should have either one band or same number as input image</param>
-        /// <param name="color">color conversion to apply before blending and then unapply after blending</param>
         /// <returns></returns>
-        public Image StitchImage(Image composite, Image index, Image flags = null,
-                                 ColorConversion colorConversion = ColorConversion.RGBToLogLAB)
+        public Image StitchImage(Image composite, Image index, Image flags = null)
         {
             int originalWidth = composite.Width;
             int originalHeight = composite.Height;
@@ -676,6 +750,7 @@ namespace OPS.Imaging
                 }
             }
 
+            Log("performing colorspace conversion {0}", colorConversion);
             switch (colorConversion)
             {
                 case ColorConversion.RGBToLAB: composite = composite.RGBToLAB(); break;
@@ -689,6 +764,7 @@ namespace OPS.Imaging
             {
                 int width = MathExtensions.MathE.CeilPowerOf2(composite.Width);
                 int height = MathExtensions.MathE.CeilPowerOf2(composite.Height);
+                Log("converting {0}x{1} to {2}x{3}", composite.Width, composite.Height, width, height);
                 Image comp = new Image(composite.Bands, width, height);
                 Image ind = new Image(index.Bands, width, height);
                 Image flag = new Image(flags != null ? flags.Bands : 1, width, height);
@@ -733,9 +809,16 @@ namespace OPS.Imaging
                                              composite.Width, composite.Height, i);
                 WriteBand(blendedImage, i, blendedBand);
             });
-            
-            var ret = blendedImage.Crop(0, 0, originalWidth, originalHeight);
 
+            var ret = blendedImage;
+            if (originalWidth < blendedImage.Width || originalHeight < blendedImage.Height)
+            {
+                Log("cropping {0}x{1} to {2}x{3}",
+                    blendedImage.Width, blendedImage.Height, originalWidth, originalHeight);
+                ret = blendedImage.Crop(0, 0, originalWidth, originalHeight);
+            }
+
+            Log("undoing colorspace conversion {0}", colorConversion);
             switch (colorConversion)
             {
                 case ColorConversion.RGBToLAB: return ret.LABToRGB();
@@ -745,7 +828,7 @@ namespace OPS.Imaging
             }
         }
 
-        double[] GetBandDouble(Image img, int bandNum)
+        private static double[] GetBandDouble(Image img, int bandNum)
         {
             double[] band = new double[img.Width*img.Height];
             for(int i = 0; i < img.Height; i++)
@@ -758,7 +841,7 @@ namespace OPS.Imaging
             return band;
         }
 
-        int[] GetBandInt(Image img, int bandNum)
+        private static int[] GetBandInt(Image img, int bandNum)
         {
             int[] band = new int[img.Width * img.Height];
             for (int i = 0; i < img.Height; i++)
@@ -771,7 +854,7 @@ namespace OPS.Imaging
             return band;
         }
 
-        byte[] GetBandByte(Image img, int bandNum)
+        private static byte[] GetBandByte(Image img, int bandNum)
         {
             byte[] band = new byte[img.Width * img.Height];
             for (int i = 0; i < img.Height; i++)
@@ -784,7 +867,7 @@ namespace OPS.Imaging
             return band;
         }
 
-        void WriteBand(Image img, int bandNum, double[] data)
+        private static void WriteBand(Image img, int bandNum, double[] data)
         {
             for (int i = 0; i < img.Height; i++)
             {
