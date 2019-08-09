@@ -7,6 +7,30 @@ using System.Threading.Tasks;
 using log4net;
 using OPS.Util;
 
+//https://github.jpl.nasa.gov/OnSight/Landform/wiki/Composite-Image-Stitching-aka-DMG
+//https://github.jpl.nasa.gov/OnSight/Landform/wiki/DMG---a-brief-history
+
+//vona to menzies 8/8/19
+//It looks like you actually run DMG twice in the TerrainTools flow (this is in NearShrink.cs).  I know you wrote something about this in "DMG a brief history" but it's going to take me some time to reconcile what you wrote there with what I'm seeing in the code.
+//
+//Anyway at least the filenames involved seem to be as follows:
+//
+//first run inputs:
+//mesh_region_shrink_tex_orbital_adjust.tif -> mesh_region_shrink_tex_orbital_adjust_lab.tif
+//mesh_region_shrink_tex_image_numbers.tif
+//mesh_region_shrink_tex_mask_adjust.tif -> mesh_region_shrink_tex_orbital_adjust_limberflags.tif
+//
+//first run outputs:
+//mesh_region_shrink_tex_orbital_adjust_lab_blended.tif -> mesh_region_shrink_blended.tif
+//
+//second run inputs:
+//mesh_region_shrink_tex_blended_composite.tif -> mesh_region_shrink_tex_blended_composite_lab.tif
+//mesh_region_shrink_tex_blended_composite_image_numbers.tif
+//mesh_region_shrink_tex_blended_composite_mask.tif -> mesh_region_shrink_tex_blended_composite_limberflags.tif
+//
+//second run outputs:
+//mesh_region_shrink_tex_blended_composite_lab_blended.tif -> mesh_region_shrink_blended_composite_blended.tif
+
 namespace OPS.Imaging
 {
     /// <summary>
