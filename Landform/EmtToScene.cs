@@ -501,7 +501,7 @@ namespace OPS.Landform
                 if (!rec.HasMetadata)
                     return;
 
-                var imageData = new LegacySceneManfiest.ImageData()
+                var imageData = new LegacySceneManifest.ImageData()
                 {
                     FileId = rec.FilenameBase,
                     Metadata = new PDSMetadata(rec.PreferedMetadataImage)
