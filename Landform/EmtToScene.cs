@@ -498,6 +498,9 @@ namespace OPS.Landform
             ConcurrentBag<LegacySceneManifest.ImageData> imageDatas = new ConcurrentBag<LegacySceneManifest.ImageData>();
             CoreLimitedParallel.ForEach(localFileRecords, rec =>
             {
+                if (!rec.HasMetadata)
+                    return;
+
                 var imageData = new LegacySceneManifest.ImageData()
                 {
                     FileId = rec.FilenameBase,
@@ -515,6 +518,9 @@ namespace OPS.Landform
             logger.Info("Converting images for scene");
             CoreLimitedParallel.ForEach(localFileRecords, rec => 
             {
+                if (!rec.HasMetadata || !rec.HasImage)
+                    return;
+
                 string siteDrive = new PDSParser(new PDSMetadata(rec.PreferedMetadataImage)).SiteDrive;
                 string siteImageDir = Path.Combine(imagesDir, siteDrive);
                 PathHelper.EnsureExists(siteImageDir);

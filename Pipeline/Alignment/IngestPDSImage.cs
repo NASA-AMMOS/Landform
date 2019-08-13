@@ -47,8 +47,18 @@ namespace OPS.Pipeline
                     pipeline.LogDebug("rejected {0} by filename", imgUrl);
                     return new Result(imgUrl, Status.Skipped);
                 }
-                
-                var metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
+
+                PDSMetadata metadata = null;
+                try
+                {
+                    metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
+                }
+                catch
+                {
+                    pipeline.LogDebug("rejected {0} by problem parsing metadata", imgUrl);
+                    return new Result(imgUrl, Status.Skipped);
+                }
+
                 var parser = new PDSParser(metadata);
                 if (!mission.CheckMetadata(parser))
                 {
