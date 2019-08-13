@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -17,21 +18,32 @@ namespace OPS.Imaging
     public class GenericImage<T> : ICloneable, IEnumerable<T>
     {
         public ImageMetadata Metadata;
+
         public CameraModel CameraModel;
 
-        public T[][] Data;
+        //TODO: (architecture) Metadata.{Bands, Width, Height} violates SSOT
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/597
+        public int Bands { get; protected set; }
+        public int Width { get; protected set; }
+        public int Height { get; protected set; }
 
-        public int Bands;
-        public int Width;
-        public int Height;
+        private T[][] data;
 
         /// <summary>
         /// A mask value of true indicates that the value is masked out
         /// A mask value of false indicates that the value is valid
         /// A null mask means that this image does not have a mask
-        /// It is recommended that you use the helper methods HasMask, GetMask, and SetMask
         /// </summary>
-        protected bool[] Mask;
+        private bool[] mask;
+        private bool[] savedMask;
+
+        public virtual bool HasMask
+        {
+            get
+            {
+                return mask != null;
+            }
+        }
 
         protected GenericImage() { }
 
@@ -43,7 +55,14 @@ namespace OPS.Imaging
         /// <param name="height">Height of the image.</param>
         public GenericImage(int bands, int width, int height)
         {
-            Initalize(bands, width, height);
+            Initialize(bands, width, height);
+            this.Metadata = new ImageMetadata(bands, width, height);
+        }
+
+        public GenericImage(ImageMetadata metadata)
+        {
+            Initialize(metadata.Bands, metadata.Width, metadata.Height);
+            this.Metadata = metadata;
         }
 
         /// <summary>
@@ -52,45 +71,106 @@ namespace OPS.Imaging
         /// <param name="toCopy"></param>
         public GenericImage(GenericImage<T> that)
         {
-            this.Initalize(that.Bands, that.Width, that.Height);
-            for (int b = 0; b < that.Data.Length; b++)
-            {
-                Array.Copy(that.Data[b], this.Data[b], that.Data[b].Length);
-            }
-            if (that.Mask != null)
-            {
-                this.Mask = new bool[that.Mask.Length];
-                Array.Copy(that.Mask, this.Mask, that.Mask.Length);
-            }
+            Initialize(that.Bands, that.Width, that.Height);
+
             if (that.Metadata != null)
             {
-                this.Metadata = (ImageMetadata)that.Metadata.Clone();
+                Metadata = (ImageMetadata)that.Metadata.Clone();
             }
+
             if (that.CameraModel != null)
             {
-                this.CameraModel = (CameraModel)that.CameraModel.Clone();
+                CameraModel = (CameraModel)that.CameraModel.Clone();
             }
+
+            that.CopyDataTo(this);
+
+            if (that.HasMask)
+            {
+                CreateMask();
+                that.CopyMaskTo(this);
+            }
+        }
+
+        protected virtual void CopyDataTo<TT>(GenericImage<TT> that)
+        {
+            if (!(typeof(TT).IsAssignableFrom(typeof(T))))
+            {
+                throw new ArgumentException("failed to copy image data: type mismatch");
+            }
+
+            if (that.Bands != Bands)
+            {
+                throw new ArgumentException("failed to copy image data: bands do not match");
+            }
+
+            for (int b = 0; b < Bands; b++)
+            {
+                if (that.data[b].Length != data[b].Length)
+                {
+                    throw new ArgumentException("failed to copy image data: band lengths do not match");
+                }
+                Array.Copy(data[b], that.data[b], data[b].Length);
+            }
+        }
+
+        protected virtual void CopyMaskTo<TT>(GenericImage<TT> that)
+        {
+            if (!HasMask || !that.HasMask || that.mask.Length != mask.Length)
+            {
+                throw new ArgumentException("failed to copy image mask");
+            }
+            Array.Copy(mask, that.mask, mask.Length);
         }
 
         /// <summary>
         /// Performas a deep copy of the image
         /// </summary>
         /// <returns></returns>
-        public object Clone()
+        public virtual object Clone()
         {
             return new GenericImage<T>(this);
         }
 
-        protected void Initalize(int bands, int width, int height)
+        public static string CheckSize<TT>(int bands, int width, int height)
         {
-            Metadata = new ImageMetadata(bands, width, height);
+            //reference for C# array limits when gcAllowVeryLargeObjects is enabled:
+            //https://docs.microsoft.com/en-us/dotnet/framework/configure-apps/file-schema/runtime/gcallowverylargeobjects-element?view=netframework-4.8
+            ulong elts = (ulong)width * (ulong)height;
+            ulong maxElts = 0X7FEFFFFFul;
+            if (elts > maxElts)
+            {
+                return string.Format("cannot create {0}x{1} image, {2} elements per band exceeds max array length {3}",
+                                     width, height, elts, maxElts);
+            }
+
+            ulong bytes = elts * (ulong)Sizeof.GetManagedSize(typeof(T));
+            ulong maxBytes = uint.MaxValue;
+            if (bytes > maxBytes)
+            {
+                return string.Format("cannot create {0}x{1} {2} image, {3} bytes per band exceeds max array length {4}",
+                                     width, height, typeof(T).Name, bytes, maxBytes);
+            }
+
+            return null;
+        }
+
+        private void Initialize(int bands, int width, int height)
+        {
+            string err = CheckSize<T>(bands, width, height);
+            if (!string.IsNullOrEmpty(err))
+            {
+                throw new ArgumentException(err);
+            }
+
             this.Bands = bands;
             this.Width = width;
             this.Height = height;
-            this.Data = new T[bands][];
+
+            this.data = new T[bands][];
             for (int c = 0; c < bands; c++)
             {
-                Data[c] = new T[width * height];
+                data[c] = new T[width * height];
             }
         }
 
@@ -98,24 +178,16 @@ namespace OPS.Imaging
         /// Creates a mask for this image and sets all pixels to the initial value specifed
         /// </summary>
         /// <param name="initialValue">false means all pixels will be valid at the end of initilization</param>
-        public void CreateMask(bool initialValue = false)
+        public virtual void CreateMask(bool initialValue = false)
         {
-            this.Mask = new bool[Width * Height];
+            mask = new bool[Width * Height];
             if (initialValue)
             {
-                for (int i = 0; i < this.Mask.Length; i++)
+                for (int i = 0; i < mask.Length; i++)
                 {
-                    this.Mask[i] = initialValue;
+                    mask[i] = initialValue;
                 }
             }
-        }
-
-        /// <summary>
-        /// Removes the mask if there is one
-        /// </summary>
-        public void DeleteMask()
-        {
-            this.Mask = null;
         }
 
         /// <summary>
@@ -124,14 +196,34 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void CreateMask(T[] perBandValues)
         {
-            this.Mask = new bool[Width * Height];
-            for (int i = 0; i < Width * Height; i++)
+            UnionMask(this, perBandValues);
+        }
+
+        /// <summary>
+        /// Removes the mask if there is one
+        /// </summary>
+        public virtual void DeleteMask()
+        {
+            mask = savedMask = null;
+        }
+
+        public virtual void SaveMask()
+        {
+            if (!HasMask || savedMask != null)
             {
-                if (BandValuesEqual(i, perBandValues))
-                {
-                    SetMaskValue(i, true);
-                }
+                throw new InvalidOperationException();
             }
+            savedMask = (bool[])mask.Clone();
+        }
+
+        public virtual void RestoreMask()
+        {
+            if (savedMask == null)
+            {
+                throw new InvalidOperationException();
+            }
+            mask = savedMask;
+            savedMask = null;
         }
 
         /// <summary>
@@ -140,22 +232,26 @@ namespace OPS.Imaging
         /// In the inverted case: Zero value pixels are invalid, non-zero are valid
         /// If the provided image has more than one band, the first band will be used
         /// </summary>
-        public void CreateMask(Image mask, bool inverted=false)
+        public void SetMask(Image mask, bool inverted = false)
         {
-            if (mask.Width != this.Width ||
-               mask.Height != this.Height)
+            if (Width != mask.Width || Height != mask.Height)
             {
                 throw new ImageException("mask resolution must match image resolution");
             }
-
-            this.Mask = new bool[Width * Height];
-
-            bool valueForZero = inverted ? true : false;
-            for (int i = 0; i < this.Mask.Length; i++)
+            if (!HasMask)
             {
-                this.Mask[i] = mask.GetBandValues(i)[0] == 0 ? valueForZero : !valueForZero;
-            }         
+                CreateMask();
+            }
+            bool valueForZero = inverted ? true : false;
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    SetMaskValue(row, col, mask.GetBandValues(row, col)[0] == 0 ? valueForZero : !valueForZero);
+                }
+            }
         }
+
         /// <summary>
         /// Mask any pixels in this image that are masked in other.
         /// Both images must be the same size.
@@ -170,13 +266,13 @@ namespace OPS.Imaging
             }
             if (!HasMask)
             {
-                CreateMask(false);
+                CreateMask();
             }
             for (int row = 0; row < Height; row++)
             {
                 for (int col = 0; col < Width; col++)
                 {
-                    if (other.IsInvalid(row, col))
+                    if (!other.IsValid(row, col))
                     {
                         SetMaskValue(row, col, true);
                     }
@@ -198,7 +294,7 @@ namespace OPS.Imaging
             }
             if (!HasMask)
             {
-                CreateMask(false);
+                CreateMask();
             }
             for (int row = 0; row < Height; row++)
             {
@@ -213,26 +309,15 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Returns true if this image has a mask
-        /// </summary>
-        public bool HasMask
-        {
-            get
-            {
-                return this.Mask != null;
-            }
-        }
-
-        /// <summary>
         /// Returns true if the value at row and column should be masked out (ignored)
         /// If a mask is not defined for this image this will always return false
         /// </summary>
         /// <param name="row"></param>
         /// <param name="column"></param>
         /// <returns></returns>
-        public bool IsInvalid(int row, int column)
+        public virtual bool IsValid(int row, int column)
         {
-            return this.Mask != null && this.Mask[(row * Width) + column];
+            return IsValid((row * Width) + column);
         }
 
         /// <summary>
@@ -241,32 +326,9 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="i"></param>
         /// <returns></returns>
-        public bool IsInvalid(int i)
+        public virtual bool IsValid(int i)
         {
-            return this.Mask != null && this.Mask[i];
-        }
-
-        /// <summary>
-        /// Returns true if the value at row and column should be masked out (ignored)
-        /// If a mask is not defined for this image this will always return false
-        /// </summary>
-        /// <param name="row"></param>
-        /// <param name="column"></param>
-        /// <returns></returns>
-        public bool IsValid(int row, int column)
-        {
-            return this.Mask == null || !this.Mask[(row * Width) + column];
-        }
-
-        /// <summary>
-        /// Returns true if the value at the given index should be masked out (ignored)
-        /// If a mask is not defined for this image this will always return false
-        /// </summary>
-        /// <param name="i"></param>
-        /// <returns></returns>
-        public bool IsValid(int i)
-        {
-            return this.Mask == null || !this.Mask[i];
+            return mask == null || !mask[i];
         }
 
         /// <summary>
@@ -276,21 +338,14 @@ namespace OPS.Imaging
         /// <param name="row"></param>
         /// <param name="column"></param>
         /// <param name="value"></param>
-        public void SetMaskValue(int row, int column, bool value)
+        public virtual void SetMaskValue(int row, int column, bool value)
         {
-            this.Mask[(row * Width) + column] = value;
+            mask[(row * Width) + column] = value;
         }
 
-        /// <summary>
-        /// Set the mask value for the value at this data index
-        /// Create mask must have called on this image prior to setting values
-        /// </summary>
-        /// <param name="row"></param>
-        /// <param name="column"></param>
-        /// <param name="value"></param>
-        public void SetMaskValue(int i, bool value)
+        public virtual void SetMaskValue(int i, bool value)
         {
-            this.Mask[i] = value;
+            mask[i] = value;
         }
 
         /// <summary>
@@ -299,11 +354,14 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void SetValuesForMaskedData(T[] perBandValues)
         {
-            for (int i = 0; i < Width * Height; i++)
+            for (int r = 0; r < Height; r++)
             {
-                if (IsInvalid(i))
+                for (int c = 0; c < Width; c++)
                 {
-                    SetBandValues(i, perBandValues);
+                    if (!IsValid(r, c))
+                    {
+                        SetBandValues(r, c, perBandValues);
+                    }
                 }
             }
         }
@@ -318,28 +376,9 @@ namespace OPS.Imaging
         /// <returns></returns>
         public bool BandValuesEqual(int row, int column, T[] perBandValues)
         {
-            for (int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < Bands; b++)
             {
                 if (!this[b, row, column].Equals(perBandValues[b]))
-                {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        /// <summary>
-        /// Returns true if the values for each band for the given data index match perBandValues
-        /// perBandValues.length must be equal to Image.Bands
-        /// </summary>
-        /// <param name="i"></param>
-        /// <param name="perBandValues"></param>
-        /// <returns></returns>
-        public bool BandValuesEqual(int i, T[] perBandValues)
-        {
-            for (int b = 0; b < this.Bands; b++)
-            {
-                if (!this.Data[b][i].Equals(perBandValues[b]))
                 {
                     return false;
                 }
@@ -356,23 +395,9 @@ namespace OPS.Imaging
         /// <param name="perBandValues"></param>
         public void SetBandValues(int row, int column, T[] perBandValues)
         {
-            for (int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < Bands; b++)
             {
                 this[b, row, column] = perBandValues[b];
-            }
-        }
-
-        /// <summary>
-        /// Sets the per band values for this data index.  
-        /// perBandValues.length must be equal to Image.Bands
-        /// </summary>
-        /// <param name="i"></param>
-        /// <param name="perBandValues"></param>
-        public void SetBandValues(int i, T[] perBandValues)
-        {
-            for (int b = 0; b < this.Bands; b++)
-            {
-                this.Data[b][i] = perBandValues[b];
             }
         }
 
@@ -383,8 +408,8 @@ namespace OPS.Imaging
         /// <returns></returns>
         public T[] GetBandValues(int row, int col)
         {
-            T[] result = new T[this.Bands];
-            for (int b = 0; b < this.Bands; b++)
+            T[] result = new T[Bands];
+            for (int b = 0; b < Bands; b++)
             {
                 result[b] = this[b, row, col];
             }
@@ -392,16 +417,49 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Returns true if the values for each band for the given data index match perBandValues
+        /// perBandValues.length must be equal to Image.Bands
+        /// </summary>
+        /// <param name="i"></param>
+        /// <param name="perBandValues"></param>
+        /// <returns></returns>
+        public virtual bool BandValuesEqual(int i, T[] perBandValues)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                if (!data[b][i].Equals(perBandValues[b]))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// Sets the per band values for this data index.  
+        /// perBandValues.length must be equal to Image.Bands
+        /// </summary>
+        /// <param name="i"></param>
+        /// <param name="perBandValues"></param>
+        public virtual void SetBandValues(int i, T[] perBandValues)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                data[b][i] = perBandValues[b];
+            }
+        }
+
+        /// <summary>
         /// Return the per band values for a pixel
         /// </summary>
         /// <param name="i"></param>
         /// <returns></returns>
-        public T[] GetBandValues(int i)
+        public virtual T[] GetBandValues(int i)
         {
-            T[] result = new T[this.Bands];
-            for (int b = 0; b < this.Bands; b++)
+            T[] result = new T[Bands];
+            for (int b = 0; b < Bands; b++)
             {
-                result[b] = this.Data[b][i];
+                result[b] = data[b][i];
             }
             return result;
         }
@@ -430,7 +488,7 @@ namespace OPS.Imaging
         /// <param name="f"></param>
         public void ApplyInPlace(Func<T, T> f, bool applyToMaskedValues = false)
         {
-            for (int b = 0; b < Data.Length; b++)
+            for (int b = 0; b < Bands; b++)
             {
                 ApplyInPlace(b, f, applyToMaskedValues);
             }
@@ -444,13 +502,13 @@ namespace OPS.Imaging
         /// <param name="band"></param>
         /// <param name="f"></param>
         /// <param name="applyToMaskedValues"></param>
-        public void ApplyInPlace(int band, Func<T, T> f, bool applyToMaskedValues = false)
+        public virtual void ApplyInPlace(int band, Func<T, T> f, bool applyToMaskedValues = false)
         {
-            for (int i = 0; i < Data[band].Length; i++)
+            for (int i = 0; i < data[band].Length; i++)
             {
-                if (applyToMaskedValues || !IsInvalid(i))
+                if (applyToMaskedValues || IsValid(i))
                 {
-                    this.Data[band][i] = f(this.Data[band][i]);
+                    data[band][i] = f(data[band][i]);
                 }
             }
         }
@@ -459,15 +517,15 @@ namespace OPS.Imaging
         /// Iterates over all values across all bands in the image
         /// </summary>
         /// <returns></returns>
-        public IEnumerator<T> GetEnumerator(bool includeInvalidValues)
+        public virtual IEnumerator<T> GetEnumerator(bool includeInvalidValues)
         {
-            for (int b = 0; b < this.Data.Length; b++)
+            for (int b = 0; b < Bands; b++)
             {
-                for (int i = 0; i < this.Data[b].Length; i++)
+                for (int i = 0; i < data[b].Length; i++)
                 {
                     if (includeInvalidValues || IsValid(i))
                     {
-                        yield return this.Data[b][i];
+                        yield return data[b][i];
                     }
                 }
             }
@@ -484,11 +542,11 @@ namespace OPS.Imaging
         /// <returns></returns>
         public IEnumerable<ImageCoordinate> Coordinates(bool includeInvalidValues = false)
         {
-            for (int b = 0; b < this.Bands; b++)
+            for (int b = 0; b < Bands; b++)
             {
-                for (int r = 0; r < this.Height; r++)
+                for (int r = 0; r < Height; r++)
                 {
-                    for (int c = 0; c < this.Width; c++)
+                    for (int c = 0; c < Width; c++)
                     {
                         if (includeInvalidValues || IsValid(r, c))
                         {
@@ -501,13 +559,43 @@ namespace OPS.Imaging
 
         System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
         {
-            return this.GetEnumerator();
+            return GetEnumerator();
+        }
+
+        public virtual T[] GetBandData(int band)
+        {
+            return data[band];
+        }
+
+        public virtual int AddBand()
+        {
+            T[][] origData = data;
+
+            Bands += 1;
+            if (Metadata != null)
+            {
+                Metadata.Bands = Bands;
+            }
+
+            data = new T[Bands][];
+
+            for (int b = 0; b < Bands - 1; b++)
+            {
+                data[b] = origData[b];
+            }
+
+            data[Bands - 1] = new T[Width * Height];
+
+            return Bands - 1;
         }
 
         /// <summary>
         /// Convenience accessor for reading image data.  This is slower
-        /// than directly accessing the data array with Data[b][row*Width + col]
+        /// than directly accessing the data array with data[b][row*Width + col]
         /// but is also less prone to error. 
+        ///
+        /// Also, this is correctly overridden by SparseImage.cs, whereas directly accessing data there does not work.
+        ///
         /// </summary>
         /// <param name="band">Channel index</param>
         /// <param name="row">Y index</param>
@@ -517,12 +605,12 @@ namespace OPS.Imaging
         {
             get
             {
-                return this.Data[band][(row * Width) + column];
+                return data[band][(row * Width) + column];
             }
 
             set
             {
-                this.Data[band][(row * Width) + column] = value;
+                data[band][(row * Width) + column] = value;
             }
         }
 

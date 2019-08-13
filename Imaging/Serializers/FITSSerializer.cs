@@ -16,7 +16,6 @@ namespace OPS.Imaging
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(FITSSerializer));
 
-
         public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
             FITSMetadata metadata = new FITSMetadata(filename);
