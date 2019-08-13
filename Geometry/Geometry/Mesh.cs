@@ -1406,10 +1406,13 @@ namespace OPS.Geometry
         public void Save(string filename, string textureFilename = null)
         {
             string ext = Path.GetExtension(filename).ToLower();
-            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
+            var serializers = MeshSerializers.Instance;
+            MeshSerializer s = serializers.GetSerializer(ext);
             if (s == null)
             {
-                throw new MeshSerializerException("Mesh format not supported");
+                throw new MeshSerializerException(string.Format("mesh format \"{0}\" not supported, " +
+                                                                "supported formats: {1}", ext,
+                                                                string.Join(", ", serializers.SupportedFormats())));
             }
             s.Save(this, filename, textureFilename);
         }

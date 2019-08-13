@@ -5,6 +5,7 @@ using System.Linq;
 using System.Diagnostics;
 using CommandLine;
 using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.LandformUtil
 {
@@ -20,6 +21,12 @@ namespace OPS.LandformUtil
         [Option(Required = false, HelpText = "flags image (optional), should have either one band or same number as input image; NONE = 0, HOLD_CONSTANT = 1, GRADIENT_ONLY = 2, NO_DATA = 4")]
         public string FlagsImage { get; set; }
         
+        [Option(HelpText = "output format, e.g. png, jpg, help for list; omit to use input format", Default = null)]
+        public string OutputFormat { get; set; }
+
+        [Option(HelpText = "apply output image as texture on this mesh", Default = null)]
+        public string Mesh { get; set; }
+
         [Option(Required = false, HelpText = "color conversion mode: None, RGBToLAB, RGBToLogLAB", Default = LimberDMG.DEF_COLOR_CONVERSION)]
         public LimberDMG.ColorConversion ColorConversion { get; set; }
 
@@ -50,51 +57,86 @@ namespace OPS.LandformUtil
 
         public int Run()
         {
+            var basename = Path.GetFileNameWithoutExtension(options.InputImage);
+            var ext = Path.GetExtension(options.InputImage);
+            var dir = Path.GetDirectoryName(options.InputImage);
+
+            if (!string.IsNullOrEmpty(options.OutputFormat))
+            {
+                ext = ImageSerializers.Instance.CheckFormat(options.OutputFormat, Log, Log);
+                if (ext == null)
+                {
+                    return 1;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(options.Mesh))
+            {
+                var fmt = Path.GetExtension(options.Mesh).Replace(".", "");
+                if (!MeshSerializers.Instance.SupportsFormat(fmt))
+                {
+                    Log("mesh format \"{0}\" not supported; supported formats: {1}",
+                        fmt, string.Join(", ", MeshSerializers.Instance.SupportedFormats()));
+                }
+            }
+
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
-            Console.WriteLine("loading input image {0}...", options.InputImage);
+            Log("loading input image {0}...", options.InputImage);
             Image composite = Image.Load(options.InputImage);
 
-            Console.WriteLine("loaded {0}x{1} image, {2} bands", composite.Width, composite.Height, composite.Bands);
+            Log("loaded {0}x{1} image, {2} bands", composite.Width, composite.Height, composite.Bands);
 
-            Console.WriteLine("loading index image {0}...", options.IndexImage);
+            Log("loading index image {0}...", options.IndexImage);
             Image index = Image.Load(options.IndexImage, ImageConverters.PassThrough);
 
             Image flags = null;
             if (!string.IsNullOrEmpty(options.FlagsImage))
             {
-                Console.WriteLine("loading flags image {0}...", options.FlagsImage);
+                Log("loading flags image {0}...", options.FlagsImage);
                 flags = Image.Load(options.FlagsImage, ImageConverters.PassThrough);
             }
             else
             {
-                Console.WriteLine("no flags image");
+                Log("no flags image");
             }
 
-            Console.WriteLine("stitching image with LimberDMG, " +
-                              "residual epsilon {0}, {1} relaxation steps, {2} multigrid iterations, " +
-                              "lambda {3}, edge mode {4}...",
-                              options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
-                              options.Lambda, options.EdgeMode);
+            Log("stitching image with LimberDMG, " +
+                "residual epsilon {0}, {1} relaxation steps, {2} multigrid iterations, lambda {3}, edge mode {4}...",
+                options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
+                options.Lambda, options.EdgeMode);
             var dmg = new LimberDMG(options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
                                     options.Lambda, options.EdgeMode, options.ColorConversion,
-                                    msg => Console.WriteLine(msg));
+                                    msg => Log(msg));
             var output = dmg.StitchImage(composite, index, flags);
 
-            var basename = Path.GetFileNameWithoutExtension(options.InputImage);
-            var ext = Path.GetExtension(options.InputImage);
-            var dir = Path.GetDirectoryName(options.InputImage);
-            var outFile = Path.Combine(dir, basename + "_dmg" + ext);
+            var outFile = basename + "_dmg" + ext;
+            var outPath = Path.Combine(dir, outFile);
+            Log("saving {0}...", outPath);
+            output.Save<byte>(outPath);
 
-            Console.WriteLine("saving {0}...", outFile);
-            output.Save<byte>(outFile);
+            if (!string.IsNullOrEmpty(options.Mesh))
+            {
+                var meshBase = Path.GetFileNameWithoutExtension(options.Mesh);
+                var meshExt = Path.GetExtension(options.Mesh);
+                var outMesh = meshBase + "_dmg" + meshExt;
+                var meshPath = Path.Combine(dir, outMesh);
+                Log("applying {0} as texture on {1}, saving as {2}...", outFile, options.Mesh, meshPath);
+                var mesh = Mesh.Load(options.Mesh);
+                mesh.Save(meshPath, outFile);
+            }
 
             stopwatch.Stop();
 
-            Console.WriteLine("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
+            Log("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
+        }
+
+        private void Log(string msg, params Object[] args)
+        {
+            Console.WriteLine(msg, args);
         }
     }
 }
