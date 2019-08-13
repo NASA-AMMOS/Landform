@@ -99,3 +99,9 @@ TilingServer/obj/
 tmp/
 Apps/QMDTMesher/bin/
 Apps/QMDTMesher/obj/
+LandformUtil/bin/
+LandformUtil/obj/
+MatchDebug/bin/
+MatchDebug/obj/
+QMDTMesher/bin/
+QMDTMesher/obj/
