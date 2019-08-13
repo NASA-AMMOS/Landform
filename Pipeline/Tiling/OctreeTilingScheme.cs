@@ -8,7 +8,7 @@ using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
-    class OctreeTilingScheme : ITilingScheme
+    public class OctreeTilingScheme : ITilingScheme
     {
         public BoundingBox ExpandBounds(BoundingBox currentBounds, BoundingBox? desiredBounds)
         {

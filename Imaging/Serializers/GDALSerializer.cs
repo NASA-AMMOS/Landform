@@ -90,21 +90,21 @@ namespace OPS.Imaging
                                           
                     for (int b = 0; b < img.Bands; b++)
                     {
+                        float[] bandData = img.GetBandData(b);
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
-                            object bandData = img.Data[b];
                             if (band.DataType == DataType.GDT_Byte)
                             {
                                 byte[] buffer = new byte[img.Width * img.Height];
                                 band.ReadRaster(0, 0, img.Width, img.Height, buffer, img.Width, img.Height, 0, 0);
                                 for(int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = buffer[i];
+                                    bandData[i] = buffer[i];
                                 }
                             }
                             else if (band.DataType == DataType.GDT_Float32)
                             {
-                                band.ReadRaster(0, 0, img.Width, img.Height, img.Data[b], img.Width, img.Height, 0, 0);
+                                band.ReadRaster(0, 0, img.Width, img.Height, bandData, img.Width, img.Height, 0, 0);
                             }
                             else if (band.DataType == DataType.GDT_Float64)
                             {
@@ -112,7 +112,7 @@ namespace OPS.Imaging
                                 band.ReadRaster(0, 0, img.Width, img.Height, buffer, img.Width, img.Height, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = (float)buffer[i];
+                                    bandData[i] = (float)buffer[i];
                                 }
                             }
                             else if (band.DataType == DataType.GDT_Int16)
@@ -121,7 +121,7 @@ namespace OPS.Imaging
                                 band.ReadRaster(0, 0, img.Width, img.Height, buffer, img.Width, img.Height, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = buffer[i];
+                                    bandData[i] = buffer[i];
                                 }
                             }
                             else if (band.DataType == DataType.GDT_Int32 || band.DataType == DataType.GDT_UInt16 || band.DataType == DataType.GDT_UInt32)
@@ -130,7 +130,7 @@ namespace OPS.Imaging
                                 band.ReadRaster(0, 0, img.Width, img.Height, buffer, img.Width, img.Height, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = buffer[i];
+                                    bandData[i] = buffer[i];
                                 }
                             }
                             else
@@ -222,6 +222,7 @@ namespace OPS.Imaging
 
                     for (int b = 0; b < img.Bands; b++)
                     {
+                        float[] bandData = img.GetBandData(b);
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
                             if (band.DataType == DataType.GDT_Byte)
@@ -230,12 +231,12 @@ namespace OPS.Imaging
                                 band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = buffer[i];
+                                    bandData[i] = buffer[i];
                                 }
                             }
                             else if (band.DataType == DataType.GDT_Float32)
                             {
-                                band.ReadRaster(xOffset, yOffset, xSize, ySize, img.Data[b], xSize, ySize, 0, 0);
+                                band.ReadRaster(xOffset, yOffset, xSize, ySize, bandData, xSize, ySize, 0, 0);
                             }
                             else if (band.DataType == DataType.GDT_Float64)
                             {
@@ -243,7 +244,7 @@ namespace OPS.Imaging
                                 band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = (float)buffer[i];
+                                    bandData[i] = (float)buffer[i];
                                 }
                             }
                             else if (band.DataType == DataType.GDT_Int16)
@@ -252,7 +253,7 @@ namespace OPS.Imaging
                                 band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = buffer[i];
+                                    bandData[i] = buffer[i];
                                 }
                             }
                             else if (band.DataType == DataType.GDT_Int32 || band.DataType == DataType.GDT_UInt16 || band.DataType == DataType.GDT_UInt32)
@@ -261,7 +262,7 @@ namespace OPS.Imaging
                                 band.ReadRaster(xOffset, yOffset, xSize, ySize, buffer, xSize, ySize, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    img.Data[b][i] = buffer[i];
+                                    bandData[i] = buffer[i];
                                 }
                             }
                             else
@@ -382,6 +383,7 @@ namespace OPS.Imaging
                     }
                     for (int b = 0; b < bands; b++)
                     {
+                        float[] bandData = convertedImage.GetBandData(b);
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
                             if (typeof(T) == typeof(byte))
@@ -389,20 +391,20 @@ namespace OPS.Imaging
                                 byte[] buffer = new byte[convertedImage.Width*convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {                                  
-                                    buffer[i] = (byte)convertedImage.Data[b][i];
+                                    buffer[i] = (byte)bandData[i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
                             else if (typeof(T) == typeof(float))
                             {
-                                band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, convertedImage.Data[b], convertedImage.Width, convertedImage.Height, 0, 0);
+                                band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, bandData, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
                             else if (typeof(T) == typeof(double))
                             {
                                 double[] buffer = new double[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    buffer[i] = (double)convertedImage.Data[b][i];
+                                    buffer[i] = (double)bandData[i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
@@ -411,7 +413,7 @@ namespace OPS.Imaging
                                 short[] buffer = new short[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
-                                    buffer[i] = (short)convertedImage.Data[b][i];
+                                    buffer[i] = (short)bandData[i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
@@ -420,7 +422,7 @@ namespace OPS.Imaging
                                 int[] buffer = new int[convertedImage.Width * convertedImage.Height];
                                 for (int i = 0; i < buffer.Length; i++)
                                 {                                                                        
-                                    buffer[i] = (int)convertedImage.Data[b][i];
+                                    buffer[i] = (int)bandData[i];
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
@@ -431,7 +433,7 @@ namespace OPS.Imaging
                                 {
                                     // We need to cast to long and then clamp to the int value range in this case becuase floating point precision 
                                     // can't distinguish between int.MaxValue and int.MaxValue+1 resulting in wrap arround errors
-                                    buffer[i] = (int)MathExtensions.MathE.Clamp((long)convertedImage.Data[b][i], (long)int.MinValue, (long)int.MaxValue);
+                                    buffer[i] = (int)MathExtensions.MathE.Clamp((long)bandData[i], (long)int.MinValue, (long)int.MaxValue);
                                 }
                                 band.WriteRaster(0, 0, convertedImage.Width, convertedImage.Height, buffer, convertedImage.Width, convertedImage.Height, 0, 0);
                             }
