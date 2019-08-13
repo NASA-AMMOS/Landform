@@ -130,7 +130,10 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
                                  entry.Recursive ? "recursively " : "", entry.Url, project.Name);
 
-                var images = pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive);
+                var images = pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive).ToList();
+                images.AddRange(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive).ToList());
+                images.AddRange(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive).ToList());
+
                 CoreLimitedParallel.ForEach(images, url => {
 
                         Interlocked.Increment(ref ni);
