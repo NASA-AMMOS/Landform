@@ -869,9 +869,14 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="f"></param>
         /// <returns></returns>
-        Vertex[] FaceToVertexArray(Face f)
+        public Vertex[] FaceToVertexArray(Face f)
         {
             return new Vertex[] { this.Vertices[f.P0], this.Vertices[f.P1], this.Vertices[f.P2] };
+        }
+
+        public Triangle FaceToTriangle(Face f)
+        {
+            return new Triangle(this.Vertices[f.P0], this.Vertices[f.P1], this.Vertices[f.P2]);
         }
 
         /// <summary>

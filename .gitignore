@@ -10,3 +10,7 @@ Cloud/docs/*.xml
 project.lock.json
 *.vspx
 *.diagsession
+CloudMessages/CloudMessagesCore/obj/
+CloudMessages/CloudMessagesCore/bin/
+CloudMessages/CloudMessagesFramework/bin/
+CloudMessages/CloudMessagesFramework/obj/

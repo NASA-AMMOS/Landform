@@ -36,6 +36,9 @@ namespace OPS.Landform
         [Option(HelpText = "Only build mesh from observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
         public int OnlyForDrive { get; set; }
 
+        [Option(HelpText = "Only build tiles that intersect these observations, comma separated", Default = null)]
+        public string OnlyTilesForObs { get; set; }
+
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
 
@@ -254,12 +257,6 @@ namespace OPS.Landform
                 processedFullMesh = Mesh.Clip(processedFullMesh, clippedBounds);
             }
 
-            if (processedFullMesh.Vertices.Count() == 0)
-            {
-                pipeline.LogError("after clipping and/or decimation, full mesh has no vertices");
-                return 1;
-            }
-
             //build convex hulls
             string imageObsType = ObservationType.Image.ToString();
             IEnumerable<Observation> imageObservations =
@@ -268,6 +265,41 @@ namespace OPS.Landform
             Dictionary<Observation, ConvexHull> obsToHull = null;
             BuildConvexHulls(leafTilesPath, frameCache, observationCache, imageObservations, out obsToHull);
             imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
+
+            // test if only a portion of the full mesh is needed
+            if (!string.IsNullOrEmpty(options.OnlyTilesForObs))
+            {
+                var obsNames = options.OnlyTilesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
+                var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
+                var hulls = obs.Select(o => obsToHull[o]);
+                
+                Mesh goodMesh = new Mesh(processedFullMesh);
+                goodMesh.Faces = new List<Face>();
+                foreach (var face in processedFullMesh.Faces)
+                {
+                    foreach (var hull in hulls)
+                    {
+                        if (hull.Intersects(processedFullMesh.FaceToTriangle(face)))
+                        {
+                            goodMesh.Faces.Add(face);
+                            break;
+                        }
+                    }
+                }
+                processedFullMesh = goodMesh;
+                processedFullMesh.Clean();
+
+            }
+
+            if (processedFullMesh.Vertices.Count() == 0)
+            {
+                pipeline.LogError("after clipping and/or decimation, full mesh has no vertices");
+                return 1;
+            }
+
+            string processedMeshFilePath = Path.Combine(outputPath, "processedFullMesh.ply");
+            pipeline.LogInfo("Saving processed mesh to: {0}", processedMeshFilePath);
+            processedFullMesh.Save(processedMeshFilePath);
 
             pipeline.LogInfo("Building legacy scene for astro");
             {
@@ -580,8 +612,7 @@ namespace OPS.Landform
 
                     if (leafHull.Intersects(obsToHull[obs]))
                     {
-                        pipeline.LogInfo("Leaf {0}: intersecting observation {1}:{2}",
-                                         leaf.Name, intersectingObservations.Count(), obs.Name);
+                        pipeline.LogDebug("Leaf {0}: intersecting observation {1}:{2}", leaf.Name, intersectingObservations.Count(), obs.Name);
                         if (options.OutputDebugMeshes)
                         {
                             obsToHull[obs].Mesh.Save(Path.Combine(leafTilesPath,
@@ -601,6 +632,7 @@ namespace OPS.Landform
 
                 pipeline.LogDebug("Found {0} observations instersecting tile {1}",
                                   intersectingObservations.Count(), leaf.Name);
+                pipeline.LogInfo("Found {0} observations instersecting tile {1}", intersectingObservations.Count(), leaf.Name);
 
                 //create image
                 leafImage = new Image(3, options.TileResolution, options.TileResolution);
@@ -757,6 +789,10 @@ namespace OPS.Landform
                     {
                         obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
                     }
+                }
+                else
+                {
+                    pipeline.LogWarn("failed to build hull for {0}", obs.Name);
                 }
             }
         }
