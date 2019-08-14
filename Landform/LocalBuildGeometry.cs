@@ -152,8 +152,7 @@ namespace OPS.Landform
             {
                 var obsNames = options.OnlyFacesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
                 var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
-
-                BuildConvexHulls(frameCache, observationCache, obs, out Dictionary<Observation, ConvexHull> obsToHull);
+                Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, options.OutputDebugInfo ? outputPath : null, frameCache, observationCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, obs);
                 var hulls = obs.Select(o => obsToHull[o]);
 
                 Mesh goodMesh = new Mesh(fullMesh);
@@ -178,36 +177,6 @@ namespace OPS.Landform
             fullMesh.Save(meshFilePath);
 
             return 0;
-        }
-
-        private void BuildConvexHulls(FrameCache frameCache, ObservationCache observationCache,
-                                     IEnumerable<Observation> imageObservations, out Dictionary<Observation,
-                                     ConvexHull> obsToHull)
-        {
-            pipeline.LogInfo("Building convex hulls");
-            obsToHull = new Dictionary<Observation, ConvexHull>();
-            foreach (var obs in imageObservations)
-            {
-                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)",
-                                 obs.Name, obsToHull.Count(), imageObservations.Count(),
-                                 (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
-                var meshObs = new MeshObservations() { Texture = obs };
-                var meshOpts = new MeshObservations.MeshOptions()
-                {
-                    Frame = options.OutputFrame,
-                    UsePriors = options.UsePriors
-                };
-                ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts,
-                                                              uncertaintyInflated: false);
-                if (obsHull != null)
-                {
-                    obsToHull.Add(obs, obsHull);
-                }
-                else
-                {
-                    pipeline.LogWarn("failed to build hull for {0}", obs.Name);
-                }
-            }
         }
 
         private Mesh BuildFullMesh(FrameCache frameCache, ObservationCache observationCache, string outputFrame)

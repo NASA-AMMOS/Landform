@@ -166,8 +166,7 @@ namespace OPS.Landform
 
             //build convex hulls for image observations
             pipeline.LogInfo("Building observation hulls");
-            Dictionary<Observation, ConvexHull> obsToHull = null;
-            BuildConvexHulls(outputPath, frameCache, observationCache, imageObservations, out obsToHull);
+            Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, outputPath, frameCache, observationCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, imageObservations);
             imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
 
             // coarse frustum test: get all observations that intersect mesh hull
@@ -352,41 +351,6 @@ namespace OPS.Landform
             }
 
             return spatialDensityByObs;
-        }
-
-        private void BuildConvexHulls(string leafTilesPath, FrameCache frameCache, ObservationCache observationCache,
-                                      IEnumerable<Observation> imageObservations, out Dictionary<Observation,
-                                      ConvexHull> obsToHull)
-        {
-            pipeline.LogInfo("Building convex hulls");
-            obsToHull = new Dictionary<Observation, ConvexHull>();
-            foreach (var obs in imageObservations)
-            {
-                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)",
-                                 obs.Name, obsToHull.Count(), imageObservations.Count(),
-                                 (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
-                var meshObs = new MeshObservations() { Texture = obs };
-                var meshOpts = new MeshObservations.MeshOptions()
-                {
-                    Frame = options.OutputFrame,
-                    UsePriors = options.UsePriors
-                };
-                ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts,
-                                                              uncertaintyInflated: false);
-                if (obsHull != null)
-                {
-                    obsToHull.Add(obs, obsHull);
-
-                    if (options.OutputDebugInfo)
-                    {
-                        obsHull.Mesh.Save(Path.Combine(leafTilesPath, obs.Name + "_hull.ply"));
-                    }
-                }
-                else
-                {
-                    pipeline.LogWarn("failed to build hull for {0}", obs.Name);
-                }
-            }
         }
 
         private Mesh LoadMesh(string pathToMesh)

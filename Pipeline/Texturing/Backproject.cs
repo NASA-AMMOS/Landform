@@ -46,11 +46,11 @@ namespace OPS.Pipeline
             var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName)).Where(o => o.ObservationType == maskType).FirstOrDefault();
             Image mask = FeatureDetecting.MakeMask(pipeline, masker, maskObs == null ? null : maskObs.Url, img, obs.Name);
             int pointsToBackprojectCount = pointsToBackproject.Count();
-            
+
             foreach (var pixelpoint in pointsToBackproject)
             {
                 Vector3 meshPos = pixelpoint.Point;
-           
+
                 // validate surface point is in the frustum to avoid camera model issues with offscreen points
                 if (obsHull.Contains(meshPos))
                 {
@@ -93,6 +93,41 @@ namespace OPS.Pipeline
             }
 
             return backprojectedPoints;
+        }
+        
+        static public Dictionary<Observation, ConvexHull> BuildConvexHulls(PipelineCore pipeline, string debugOutputPath, FrameCache frameCache, ObservationCache observationCache,
+                                      string outputFrame, bool usePriors, bool onlyAligned, IEnumerable<Observation> imageObservations)
+        {
+            pipeline.LogInfo("Building convex hulls");
+            Dictionary<Observation, ConvexHull> obsToHull = new Dictionary<Observation, ConvexHull>();
+            foreach (var obs in imageObservations)
+            {
+                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)",
+                                 obs.Name, obsToHull.Count(), imageObservations.Count(),
+                                 (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
+                var meshObs = new MeshObservations() { Texture = obs };
+                var meshOpts = new MeshObservations.MeshOptions()
+                {
+                    Frame = outputFrame,
+                    UsePriors = usePriors,
+                    OnlyAligned = onlyAligned
+                };
+                ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts, uncertaintyInflated: false);
+                if (obsHull != null)
+                {
+                    obsToHull.Add(obs, obsHull);
+
+                    if (!string.IsNullOrEmpty(debugOutputPath))
+                    {
+                        obsHull.Mesh.Save(Path.Combine(debugOutputPath, obs.Name + "_hull.ply"));
+                    }
+                }
+                else
+                {
+                    pipeline.LogWarn("failed to build hull for {0}", obs.Name);
+                }
+            }
+            return obsToHull;
         }
     }
 }
