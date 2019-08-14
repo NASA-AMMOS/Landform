@@ -24,7 +24,7 @@ namespace OPS.Landform
     [Verb("local-build-tilesetscene", HelpText = "builds a tileset and astro scene")]
     public class LocalBuildTilesetSceneOptions : LandformCommandOptions
     {
-        [Value(1, Required = true, Default = null, HelpText = "path to the input full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)")]
+        [Value(1, Required = true, Default = null, HelpText = "path to the input full mesh")]
         public string InputFullMesh { get; set; }
 
         [Option(HelpText = "the type of tiling project (currently only MSL supported)", Default = "MSL")]
@@ -146,17 +146,14 @@ namespace OPS.Landform
 
             if (options.OutputFrame == "rover")
                 throw new NotImplementedException("only root and numeric sitedrive are currently supported");
+
+            if (options.UsePriors && options.OnlyAligned)
+                throw new InvalidOperationException("cannot specify both --usepriors and --onlyaligned");
         }
 
         public int Run()
         {
-            pipeline.LogInfo("Running local-build-meshes command");
-
-            if (options.UsePriors && options.OnlyAligned)
-            {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
-                return 1;
-            }
+            pipeline.LogInfo("Running local-build-tilesetscene command");
 
             var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
@@ -853,7 +850,7 @@ namespace OPS.Landform
             Mesh fullMesh = Mesh.Load(options.InputFullMesh);
             if (fullMesh == null)
             {
-                pipeline.LogError("Loading mesh from {0) failed.", options.InputFullMesh);
+                pipeline.LogError("Loading mesh from {0} failed.", options.InputFullMesh);
                 return null;
             }
 
