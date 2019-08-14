@@ -60,7 +60,7 @@ namespace OPS.Landform
         private FetchDataOptions options;
         private MissionSpecific mission;
 
-        private static readonly ILog logger = LogManager.GetLogger(typeof(FetchDataOptions));
+        private static readonly ILog logger = LogManager.GetLogger(typeof(FetchData));
 
         string[] extensions = new string[] { ".OBJ", ".IMG", ".PNG", ".MTL" };
         
@@ -100,7 +100,7 @@ namespace OPS.Landform
                 {
                     if (retryCounter > 0)
                     {
-                        logger.Info("\tRetrying: " + Path.GetFileName(s3Location));
+                        logger.InfoFormat("retrying download \"{0}\"", Path.GetFileName(s3Location));
                     }
                     retryCounter++;
                     try
@@ -110,12 +110,11 @@ namespace OPS.Landform
                     }
                     catch (Exception e)
                     {
-                        logger.Info("\tError downloading: " + Path.GetFileName(s3Location));
-                        logger.Info("\t" + e.Message);
+                        logger.InfoFormat("error downloading \"{0}\": {1}", Path.GetFileName(s3Location), e.Message);
                     }
                     if (!success)
                     {
-                        logger.Info("\tError downloading: " + Path.GetFileName(s3Location));
+                        logger.InfoFormat("failed to download \"{0}\"", Path.GetFileName(s3Location));
                     }
                 }
             });
@@ -127,7 +126,7 @@ namespace OPS.Landform
             try
             {
                 List<string> results = new List<string>();
-                logger.Info("Searching " + searchDir);
+                logger.InfoFormat("searching \"{0}\"", searchDir);
                 var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
                 // TODO: Limit folder depth as "tiles" directory can result in long indexing time
                 var paths = inputStorageHelper.SearchObjects(searchDir).ToList();
@@ -139,8 +138,7 @@ namespace OPS.Landform
             }
             catch (Amazon.S3.AmazonS3Exception e)
             {
-                logger.Info("\tError scanning: " + searchDir);
-                logger.Info("\t" + e.Message);
+                logger.InfoFormat("error searching \"{0}\": {1}", searchDir, e.Message);
                 return new string[] { };
             }
         }
@@ -230,7 +228,7 @@ namespace OPS.Landform
                 }
                 catch (ArgumentException)
                 {
-                    logger.Error("Invalid site drive argument");
+                    logger.ErrorFormat("invalid site drive argument \"{0}\"", v);
                     throw;
                 }
             }
@@ -241,7 +239,7 @@ namespace OPS.Landform
         {
 
             var sols = ExpandSolSpecifier(options.Sols);
-            logger.Info("Seaching sols: " + string.Join(",", sols));
+            logger.InfoFormat("seaching sols {0}", string.Join(", ", sols));
 
             ConcurrentDictionary<string, List<string>> solToProducts = new ConcurrentDictionary<string, List<string>>();
             CoreLimitedParallel.ForEach(sols, sol =>
@@ -254,7 +252,7 @@ namespace OPS.Landform
                 }
                 solToProducts.TryAdd(sol, prods);
             });
-            logger.Info("Filtering Files");
+            logger.Info("filtering Files");
             foreach (var sol in sols)
             {
                 solToProducts[sol] = Filter(solToProducts[sol]);
@@ -274,15 +272,16 @@ namespace OPS.Landform
                 });
                 remainingFilesToDownload = toDownload.ToList();
             }
-            logger.Info("Found " + (totalFilesToDownload.Count() - remainingFilesToDownload.Count()) + " on disk");
-            logger.Info("Downloading " + remainingFilesToDownload.Count() + " files");
+            int total = totalFilesToDownload.Count();
+            int remaining = remainingFilesToDownload.Count();
             int downloaded = 0;
-            int total = remainingFilesToDownload.Count();
+            logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
             CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
             {
                 DownloadFile(f);
                 Interlocked.Increment(ref downloaded);
-                logger.Info("Downloaded: " + Path.GetFileName(f) + " ("+((downloaded*100)/total)+"%)");
+                logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
+                                  downloaded, remaining, (downloaded * 100) / remaining);
             });
             return 0;
         }
