@@ -207,8 +207,7 @@ namespace OPS.Landform
                 if (pointsToBackproject.Count == 0)
                     break;
 
-                var contributedPixels = BackprojectObservation(frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], ref pointsToBackproject, null);
-                
+                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], options.OutputFrame, options.UsePriors, options.OnlyAligned, masker, ref pointsToBackproject, null);                
                 if (contributedPixels.Count() > 0)
                 {
                     float obsIndex = GetObservationIndex(obs);
@@ -403,103 +402,6 @@ namespace OPS.Landform
                 return null;
             }
             return mesh;
-        }
-
-        struct PixelPixel
-        {
-            public Vector2 Source;
-            public Vector2 Dest;
-        }
-
-        private List<PixelPixel> BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc,
-                                           RoverObservation obs, ConvexHull obsHull,
-                                           ref List<PixelPoint> pointsToBackproject, Image outputImage)
-        {
-            var xform = frameCache.GetObservationTransform(obs, options.OutputFrame,
-                                                           options.UsePriors, options.OnlyAligned);
-            if (xform == null)
-            {
-                return null;
-            }
-
-            List<PixelPixel> backprojectedPoints = new List<PixelPixel>();
-
-            Matrix obsToMesh = xform.Mean;
-            Matrix meshToObs = Matrix.Invert(obsToMesh);
-            CameraModel camera = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-
-            Image img = pipeline.LoadImage(obs.Url);
-
-            //want the version with border pixels and invalid pixels
-            string maskType = ObservationType.RoverMask.ToString();
-            var maskObs =
-                obsCache
-                .GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                .Where(o => o.ObservationType == maskType)
-                .FirstOrDefault(); ;
-            Image mask =
-                FeatureDetecting.MakeMask(pipeline, masker, maskObs == null ? null : maskObs.Url, img, obs.Name);
-            int pointsToBackprojectCount = pointsToBackproject.Count();
-            List<PixelPoint> failedToBackproject = new List<PixelPoint>();
-            while (pointsToBackproject.Count() > 0)
-            {
-                var pixelpoint = pointsToBackproject.First();
-                pointsToBackproject.RemoveAt(0);
-
-                Vector3 meshPos = pixelpoint.Point;
-
-                bool failedToBackprojectPoint = true;
-
-                // validate surface point is in the frustum to avoid camera model issues with offscreen points
-                if (obsHull.Contains(meshPos))
-                {
-                    //project into observation
-                    Vector3 obsPos = Vector3.Transform(meshPos, meshToObs);
-                    Vector2 obsPixel = camera.Project(obsPos, out double rangeMeshToImage);
-
-                    //sanity check
-                    if (rangeMeshToImage <= 0 ||
-                        (int)obsPixel.X < 0 || (int)obsPixel.X >= obs.Width ||
-                        (int)obsPixel.Y < 0 || (int)obsPixel.Y >= obs.Height)
-                        throw new InvalidDataException("should have been caught by frustum test");
-
-                    //test if rover masked or missing data (any neighbor pixels that are set to zero
-                    // will cause the bilinear sample to be less than 1
-                    if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 0.9)
-                    {
-                        // raycast the scene to test if the desired position is occluded by terrain
-                        if (!TextureSplitCriteria
-                            .IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, obsToMesh))
-                        {
-                            //copy src image data to dst image data
-                            if (outputImage != null)
-                            {
-                                float[] samples = img.SampleAsColor(obsPixel);
-                                outputImage.SetAsColor(samples, (int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X);
-
-                                //mark mask as valid
-                                outputImage.SetMaskValue((int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X, false);
-                            }
-
-                            backprojectedPoints.Add(new PixelPixel()
-                            {
-                                Source = obsPixel,
-                                Dest = pixelpoint.Pixel
-                            });
-                            failedToBackprojectPoint = false;
-                        }
-                    }
-                }
-
-                //add to failed
-                if (failedToBackprojectPoint)
-                {
-                    failedToBackproject.Add(pixelpoint);
-                }
-            }
-         
-            pointsToBackproject = failedToBackproject;
-            return backprojectedPoints;
         }
 
         //TODO: share
