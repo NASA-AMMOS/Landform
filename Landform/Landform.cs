@@ -69,7 +69,7 @@ namespace OPS.Landform
                 LocalBEVAlignerOptions,
                 LocalAgisoftOptions,
                 EmtToSceneOptions,
-                LocalBuildGeometry,
+                LocalBuildGeometryOptions,
                 LocalBuildMeshesOptions,
                 StartAlignMasterOptions>(args);
 
