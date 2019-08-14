@@ -24,6 +24,18 @@ namespace OPS.Landform
     [Verb("local-build-geometry", HelpText = "create mesh")]
     public class LocalBuildGeometryOptions : LandformCommandOptions
     {
+        //input related 
+        [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
+        public int Decimate { get; set; }
+
+        //output related
+        [Option(HelpText = "decimates the full mesh to this target number of faces", Default = 0)]
+        public int FullMeshFaces { get; set; }
+
+        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
+        public bool NoCleverCombine { get; set; }
+
+        // observation filtering related (landform standard)
         [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
@@ -50,15 +62,10 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
-
-        [Option(HelpText = "decimates the full mesh to this target number of faces", Default = 0)]
-        public int FullMeshFaces { get; set; }
-
-        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
-        public bool NoCleverCombine { get; set; }
-
-        [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
-        public int Decimate { get; set; }
+              
+        // debug related
+        [Option(HelpText = "Output debug products", Default = false)]
+        public bool OutputDebugInfo { get; set; }
 
         [Option(HelpText = "Only emit faces that intersect these observations, comma separated", Default = null)]
         public string OnlyFacesForObs { get; set; }
