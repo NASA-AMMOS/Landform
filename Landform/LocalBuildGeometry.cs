@@ -108,6 +108,10 @@ namespace OPS.Landform
             var outputFrame = options.OutputFrame.ToLower().Trim();
             string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "geometry/" + dir, options.ProjectName);
+            if(!Directory.Exists(outputPath))
+            {
+                Directory.CreateDirectory(outputPath);
+            }
 
             //get transforms
             pipeline.LogInfo("Populating frame cache");
