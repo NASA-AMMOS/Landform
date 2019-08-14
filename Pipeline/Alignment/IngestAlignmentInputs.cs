@@ -133,6 +133,12 @@ namespace OPS.Pipeline
             var minSol = new ConcurrentDictionary<SiteDrive, int>();
             var maxSol = new ConcurrentDictionary<SiteDrive, int>();
 
+            var orphans = new ConcurrentDictionary<string, bool>();
+            foreach (var obsName in preExistingObservations)
+            {
+                orphans.AddOrUpdate(obsName, _ => true, (_, __) => true);
+            }
+
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
             int nt = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
@@ -191,6 +197,8 @@ namespace OPS.Pipeline
                             minSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Min(sol, obs.Day));
                             maxSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Max(sol, obs.Day));
 
+                            orphans.TryRemove(obs.Name, out bool ignore);
+
                             pipeline.LogVerbose("{0} ({1}) -> observation {2}",
                                                 res.ImageUrl, res.Status, obs.ToString(brief: true));
 
@@ -231,6 +239,21 @@ namespace OPS.Pipeline
                 foreach (var frame in frameCache.GetAllFrames())
                 {
                     frame.Save(pipeline);
+                }
+            }
+
+            if (orphans.Count > 0)
+            {
+                pipeline.LogInfo("deleting {0} orphan observations", orphans.Count);
+                foreach (var orphanName in orphans.Keys)
+                {
+                    var obs = RoverObservation.Find(pipeline, project.Name, orphanName);
+                    if (obs != null)
+                    {
+                        pipeline.LogDebug("deleting orphan observation {0}", orphanName);
+                        pipeline.DeleteDatabaseItem(obs);
+                    }
+                    indices.TryRemove(orphanName, out int ignore);
                 }
             }
 
