@@ -165,10 +165,10 @@ namespace OPS.Landform
             masker = mission.GetMasker();
 
             //create directory for output
-            var adjustedSources = ParseSources(options.AdjustedTransformSources);
-            var priorSources = ParseSources(options.PriorTransformSources);
+            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
+            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
             var outputFrame = options.OutputFrame.ToLower().Trim();
-            string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
+            string dir = outputFrame + "Frame" + FrameTransform.CreateSourcesPath(adjustedSources, priorSources,options.UsePriors);
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "tiling/" + dir, options.ProjectName);
 
             string leafTilesPath = outputPath + "leafTiles/";
@@ -963,43 +963,6 @@ namespace OPS.Landform
             int contributedPixels = pointsToBackprojectCount - failedToBackproject.Count();
             pointsToBackproject = failedToBackproject;
             return contributedPixels;
-        }
-
-        private string CreateSourcesPath(TransformSource[] adjustedSources, TransformSource[] priorSources)
-        {
-            string sourcesString = string.Empty;
-            if (options.UsePriors)
-            {
-                sourcesString += "/prior";
-                if (priorSources.Length > 0)
-                {
-                    sourcesString += "_" + String.Join("_", priorSources);
-                }
-            }
-            else
-            {
-                sourcesString += "/best";
-                if (priorSources.Length > 0)
-                {
-                    sourcesString += "_" + String.Join("_", priorSources);
-                }
-                if (adjustedSources.Length > 0)
-                {
-                    sourcesString += "_" + String.Join("_", adjustedSources);
-                }
-            }
-
-            return sourcesString;
-        }
-
-        private TransformSource[] ParseSources(string sources)
-        {
-            return (sources ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
-                .Cast<TransformSource>()
-                .ToArray();
-        }
+        }      
     }
 }
