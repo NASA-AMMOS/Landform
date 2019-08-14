@@ -17,12 +17,24 @@ namespace OPS.Landform
     [Verb("local-build-backprojectindex", HelpText = "builds an index of images to use for texturing a mesh")]
     public class LocalBuildBackprojectIndexOptions : LandformCommandOptions
     {
+        // input related
         [Value(1, Required = true, Default = null, HelpText = "path to the mesh to build an index for")]
         public string InputMesh { get; set; }
 
-        [Option(HelpText = "path to mesh to use for occlusions, if not provided will usee the input mesh", Default = null)]
+        [Option(HelpText = "path to mesh to use for occlusions, if not provided will use the input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
+        // output generation related
+        [Option(HelpText = "maximum image resolution per tile", Default = 256)]
+        public int OutputTextureResolution { get; set; }
+
+        [Option(HelpText = "percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
+        public double BackprojectGoodnessSamplingPct { get; set; }
+
+        [Option(HelpText = "Output coordinate frame: rover, a numeric sitedrive SSSSSDDDDD, or root", Default = "root")]
+        public string OutputFrame { get; set; }
+
+        // observation filtering related (landform standard)
         [Option(HelpText = "Only use observations from a specific site)", Default = -1)]
         public int OnlyForSite { get; set; }
 
@@ -31,10 +43,7 @@ namespace OPS.Landform
 
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
-
-        [Option(HelpText = "Output coordinate frame: rover, a numeric sitedrive SSSSSDDDDD, or root", Default = "root")]
-        public string OutputFrame { get; set; }
-
+       
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
         public string AdjustedTransformSources { get; set; }
 
@@ -46,57 +55,10 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
-
-        [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
-        public TilingScheme TilingScheme { get; set; }
-
-        [Option(HelpText = "target maximum faces per tile", Default = 2000)]
-        public int FacesPerTile { get; set; }
-
-        [Option(HelpText = "maximum image resolution per tile", Default = 256)]
-        public int OutputTextureResolution { get; set; }
-
+      
+        // debug related
         [Option(HelpText = "Output bounding box and frustum hull meshes", Default = false)]
         public bool OutputDebugInfo { get; set; }
-
-        [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
-        public bool DontInpaint { get; set; }
-
-        [Option(HelpText = "Debug function that skips all tiles except that one with this name", Default = null)]
-        public string OnlyTileNamed { get; set; }
-
-        [Option(Required = false, Default = SkirtMode.None, HelpText = "Axis to use as up in quad tree tiling")]
-        public SkirtMode SkirtAxis { get; set; }
-
-        [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
-        public string MeshExtension { get; set; }
-
-        [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
-        public string ImageExtension { get; set; }
-
-        [Option(HelpText = "clip the full mesh to this half this length on the x and y axes, centered at 0,0,0", Default = 0.0)]
-        public double ClipExtent { get; set; }
-
-        [Option(HelpText = "percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality)", Default = 0.1)]
-        public double SplitByTexturePctToTest { get; set; }
-
-        [Option(HelpText = "percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = 0.5)]
-        public double SplitByTexturePctSatisfied { get; set; }
-
-        [Option(HelpText = "the area of source pixels mapped to a single destination pixel that would trigger a split", Default = 4.5)]
-        public double SplitByTextureSamplingRatio { get; set; }
-
-        [Option(HelpText = "percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
-        public double BackprojectGoodnessSamplingPct { get; set; }
-
-        [Option(Required = false, HelpText = "a url to a bucket in the form: s3://<bucket>/<path>/ ")]
-        public string OutputS3Bucket { get; set; }
-
-        [Option(Required = false, HelpText = "the aws profile used for credentials for uploading tileset")]
-        public string AWSProfile { get; set; }
-
-        [Option(Required = false, Default = "us-gov-west-1", HelpText = "the aws endpoint for the destination tileset bucket")]
-        public string AWSRegion { get; set; }
     }
 
     public class LocalBuildBackprojectIndex : LandformCommand
@@ -108,8 +70,9 @@ namespace OPS.Landform
         
         struct ObservationIndex
         {
-            public int Index;
-            public Vector2 Pixel;
+            public float Index;
+            public Vector2 SourcePixel;
+            public Vector2 DestPixel;
         }
 
         public LocalBuildBackprojectIndex(LocalBuildBackprojectIndexOptions options) : base(options)
@@ -123,15 +86,6 @@ namespace OPS.Landform
 
             var outputFrame = options.OutputFrame.ToLower().Trim();
 
-            bool providedBucket = !string.IsNullOrEmpty(options.OutputS3Bucket);
-            bool providedProfile = !string.IsNullOrEmpty(options.AWSProfile);
-            if (providedBucket != providedProfile)
-            {
-                pipeline.LogError("To save tileset to the cloud you must provide the OutputS3Bucket and AWSProfile (and optionally AWSRegion) options");
-                this.options.AWSProfile = string.Empty;
-                this.options.OutputS3Bucket = string.Empty;
-            }
-
             if (options.OutputFrame == "rover")
                 throw new NotImplementedException("only root and numeric sitedrive are currently supported");
 
@@ -141,7 +95,7 @@ namespace OPS.Landform
 
         public int Run()
         {
-            pipeline.LogInfo("Running local-build-meshes command");
+            pipeline.LogInfo("Running local-build-backprojectindex command");
 
             //collect project data
             var project = Project.Find(pipeline, options.ProjectName);
@@ -177,6 +131,12 @@ namespace OPS.Landform
             if (inputMesh == null)
             {
                 pipeline.LogError("failed to build or load input mesh {0}", options.InputMesh);
+                return 1;
+            }
+
+            if (!inputMesh.HasUVs)
+            {
+                pipeline.LogError("input mesh needs UVs");
                 return 1;
             }
 
@@ -220,11 +180,21 @@ namespace OPS.Landform
 
             // collect the destination points to sample
             pipeline.LogInfo("collecting sampling points in destination texture");
-            MeshOperator meshOp = new MeshOperator(inputMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            MeshOperator meshOp = new MeshOperator(inputMesh);
             List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(options.OutputTextureResolution, options.OutputTextureResolution);
+            if (options.OutputDebugInfo)
+            {
+                Image validUVImg = new Image(1, options.OutputTextureResolution, options.OutputTextureResolution);
+                foreach(var pixelPt in pointsToBackproject)
+                {
+                    validUVImg[0, (int)pixelPt.Pixel.Y, (int)pixelPt.Pixel.X] = 1.0f;
+                }
 
-            //calculate goodness (spatial density)
-            Dictionary<Observation, double> spatialDensityByObs = CalculateSpatialDensity(frameCache, sc, obsToHull, pointsToBackproject, intersectingObservations);
+                validUVImg.Save<byte>(Path.Combine(outputPath, "backprojectValidUV.png"));
+
+            }
+                //calculate goodness (spatial density)
+                Dictionary<Observation, double> spatialDensityByObs = CalculateSpatialDensity(frameCache, sc, obsToHull, pointsToBackproject, intersectingObservations);
 
             //sort the list of observations by goodness
             intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
@@ -241,7 +211,7 @@ namespace OPS.Landform
                 
                 if (contributedPixels.Count() > 0)
                 {
-                    int obsIndex = GetObservationIndex(obs);
+                    float obsIndex = GetObservationIndex(obs);
                     pipeline.LogInfo("Obs index {0}: {1}", obsIndex, obs.Name);
                     
                     if (options.OutputDebugInfo)
@@ -257,18 +227,48 @@ namespace OPS.Landform
                         indexEntries.Add(new ObservationIndex()
                         {
                             Index = obsIndex,
-                            Pixel = contributedPixel.Pixel
+                            SourcePixel = contributedPixel.Source,
+                            DestPixel = contributedPixel.Dest
                         });
                     }
                 }
             }
+
+            Image outputImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
+            foreach(var entry in indexEntries)
+            {
+                outputImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X, new float[] { entry.Index, (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
+            }
+
+            if (options.OutputDebugInfo)
+            {
+                Image previewImg = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
+                Dictionary<float, Vector3> colorsByIndex = new Dictionary<float, Vector3>();
+                Random random = NumberHelper.MakeRandomGenerator();
+                for (int idxPixel = 0; idxPixel < options.OutputTextureResolution * options.OutputTextureResolution; idxPixel++)
+                {
+                    float index = outputImage.GetBandValues(idxPixel)[0];
+                    if (index == 0)
+                        continue;
+
+                    if(!colorsByIndex.ContainsKey(index))
+                    {
+                        colorsByIndex.Add(index, new Vector3(random.NextDouble(), random.NextDouble(), random.NextDouble()));
+                    }
+
+                    previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
+                }
+
+                previewImg.Save<byte>(Path.Combine(outputPath, "backprojectPreview.png"));
+            }
+
+            outputImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
             
-            //TODO: save image          
             return 0;
         }
 
-        static int placeholderIndex = 0;
-        private int GetObservationIndex(Observation obs)
+        static float placeholderIndex = 0;
+        private float GetObservationIndex(Observation obs)
         {
             return placeholderIndex++;
         }
@@ -387,24 +387,6 @@ namespace OPS.Landform
             }
         }
 
-        private CameraInstance ToCameraInstance(RoverObservation obs, Dictionary<Observation, ConvexHull> obsToHull,
-                                                FrameCache frameCache)
-        {
-            var xform = frameCache.GetObservationTransform(obs, options.OutputFrame, options.UsePriors);
-            if (xform == null)
-            {
-                return null;
-            }
-            CameraInstance camInst = new CameraInstance();
-            camInst.cameraToMesh = xform.Mean;
-            camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
-            camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-            camInst.hullInMesh = obsToHull[obs];
-            camInst.widthPixels = obs.Width;
-            camInst.heightPixels = obs.Height;
-            return camInst;
-        }
-
         private Mesh LoadMesh(string pathToMesh)
         {
             pipeline.LogInfo("Loading input mesh from {0}", pathToMesh);
@@ -423,7 +405,13 @@ namespace OPS.Landform
             return mesh;
         }
 
-        private List<PixelPoint> BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc,
+        struct PixelPixel
+        {
+            public Vector2 Source;
+            public Vector2 Dest;
+        }
+
+        private List<PixelPixel> BackprojectObservation(FrameCache frameCache, ObservationCache obsCache, SceneCaster sc,
                                            RoverObservation obs, ConvexHull obsHull,
                                            ref List<PixelPoint> pointsToBackproject, Image outputImage)
         {
@@ -434,7 +422,7 @@ namespace OPS.Landform
                 return null;
             }
 
-            List<PixelPoint> backprojectedPoints = new List<PixelPoint>();
+            List<PixelPixel> backprojectedPoints = new List<PixelPixel>();
 
             Matrix obsToMesh = xform.Mean;
             Matrix meshToObs = Matrix.Invert(obsToMesh);
@@ -493,6 +481,11 @@ namespace OPS.Landform
                                 outputImage.SetMaskValue((int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X, false);
                             }
 
+                            backprojectedPoints.Add(new PixelPixel()
+                            {
+                                Source = obsPixel,
+                                Dest = pixelpoint.Pixel
+                            });
                             failedToBackprojectPoint = false;
                         }
                     }
@@ -504,8 +497,7 @@ namespace OPS.Landform
                     failedToBackproject.Add(pixelpoint);
                 }
             }
-
-            backprojectedPoints = pointsToBackproject.Where(pt => !failedToBackproject.Contains(pt)).ToList();
+         
             pointsToBackproject = failedToBackproject;
             return backprojectedPoints;
         }
