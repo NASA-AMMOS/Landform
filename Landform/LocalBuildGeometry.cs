@@ -51,7 +51,7 @@ namespace OPS.Landform
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
 
-        [Option(HelpText = "Debug function that decimates the full mesh to this target number of faces", Default = 0)]
+        [Option(HelpText = "decimates the full mesh to this target number of faces", Default = 0)]
         public int FullMeshFaces { get; set; }
 
         [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
