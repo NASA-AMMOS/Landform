@@ -24,9 +24,6 @@ namespace OPS.Landform
     [Verb("local-build-geometry", HelpText = "create mesh")]
     public class LocalBuildGeometryOptions : LandformCommandOptions
     {
-        [Option(HelpText = "the type of tiling project (currently only MSL supported)", Default = "MSL")]
-        public string ProjectType { get; set; }
-
         [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
