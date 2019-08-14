@@ -69,7 +69,8 @@ namespace OPS.Landform
                 LocalBEVAlignerOptions,
                 LocalAgisoftOptions,
                 EmtToSceneOptions,
-                LocalBuildMeshesOptions,
+                LocalBuildGeometryOptions,
+                LocalBuildTilesetSceneOptions,
                 StartAlignMasterOptions>(args);
 
             return parsed.MapResult(
@@ -83,7 +84,8 @@ namespace OPS.Landform
                 (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
-                (LocalBuildMeshesOptions opts) => new LocalBuildMeshes(opts).Run(),
+                (LocalBuildGeometryOptions opts) => new LocalBuildGeometry(opts).Run(),
+                (LocalBuildTilesetSceneOptions opts) => new LocalBuildTilesetScene(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
         }

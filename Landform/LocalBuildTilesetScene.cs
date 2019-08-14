@@ -21,19 +21,19 @@ using OPS.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-meshes", HelpText = "create mesh")]
-    public class LocalBuildMeshesOptions : LandformCommandOptions
+    [Verb("local-build-tilesetscene", HelpText = "builds a tileset and astro scene")]
+    public class LocalBuildTilesetSceneOptions : LandformCommandOptions
     {
+        [Value(1, Required = true, Default = null, HelpText = "path to the input full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)")]
+        public string InputFullMesh { get; set; }
+
         [Option(HelpText = "the type of tiling project (currently only MSL supported)", Default = "MSL")]
         public string ProjectType { get; set; }
 
-        [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
-        public string OnlyForCameras { get; set; }
-
-        [Option(HelpText = "Only build mesh from observations from a specific site)", Default = -1)]
+        [Option(HelpText = "Only use observations from a specific site)", Default = -1)]
         public int OnlyForSite { get; set; }
 
-        [Option(HelpText = "Only build mesh from observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
+        [Option(HelpText = "Only use observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
         public int OnlyForDrive { get; set; }
 
         [Option(HelpText = "Only build tiles that intersect these observations, comma separated", Default = null)]
@@ -66,9 +66,6 @@ namespace OPS.Landform
         [Option(HelpText = "maximum image resolution per tile", Default = 256)]
         public int TileResolution { get; set; }
 
-        [Option(HelpText = "path to cached full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)", Default = null)]
-        public string CachedFullMesh { get; set; }
-
         [Option(HelpText = "Output bounding box and frustum hull meshes", Default = false)]
         public bool OutputDebugMeshes { get; set; }
 
@@ -89,9 +86,6 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
         public string ImageExtension { get; set; }
-
-        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
-        public bool NoCleverCombine { get; set; }
 
         [Option(HelpText = "clip the full mesh to this half this length on the x and y axes, centered at 0,0,0", Default = 0.0)]
         public double ClipExtent { get; set; }
@@ -116,22 +110,16 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = "us-gov-west-1", HelpText = "the aws endpoint for the destination tileset bucket")]
         public string AWSRegion { get; set; }
+     }
 
-        [Option(Required = false, HelpText = "allows you to skip generation of the tileset to test postprocessing and upload")]
-        public string CachedLeavesPath { get; set; }
-
-        [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
-        public int Decimate { get; set; }
-    }
-
-    public class LocalBuildMeshes : LandformCommand
+    public class LocalBuildTilesetScene : LandformCommand
     {
-        private LocalBuildMeshesOptions options;
+        private LocalBuildTilesetSceneOptions options;
 
         private MissionSpecific mission;
         private RoverMasker masker;
 
-        public LocalBuildMeshes(LocalBuildMeshesOptions options) : base(options)
+        public LocalBuildTilesetScene(LocalBuildTilesetSceneOptions options) : base(options)
         {
             if (options.Cloud)
             {
@@ -205,29 +193,13 @@ namespace OPS.Landform
                          ((options.OnlyForSite == -1) || options.OnlyForSite == ((RoverObservation)obs).Site) &&
                          ((options.OnlyForDrive == -1) || options.OnlyForDrive == ((RoverObservation)obs).Drive));
 
-            //build or load cached full mesh
-            Mesh fullMesh = null;
-            if (String.IsNullOrEmpty(options.CachedFullMesh))
-            {
-                fullMesh = BuildFullMesh(frameCache, observationCache, outputFrame);
-            }
-            else
-            {
-                fullMesh = LoadFullMesh();
-            }
+            // load input full mesh
+            Mesh fullMesh = LoadFullMesh();
 
             if (fullMesh == null)
             {
                 pipeline.LogError("failed to build or load full mesh");
                 return 1;
-            }
-
-            //save full mesh if new one was built
-            if (String.IsNullOrEmpty(options.CachedFullMesh))
-            {
-                string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
-                pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
-                fullMesh.Save(meshFilePath);
             }
 
             //set up raycasting for occlusion
@@ -237,13 +209,7 @@ namespace OPS.Landform
             sc.AddMesh(fullMesh, null, Matrix.Identity);
             sc.Build();
 
-            //decimate mesh if requested
             Mesh processedFullMesh = new Mesh(fullMesh); //can't change mesh after adding to collider
-            if (options.FullMeshFaces > 0)
-            {
-                pipeline.LogInfo("Decimating full mesh to {0} faces", options.FullMeshFaces);
-                processedFullMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
-            }
 
             //clip mesh if requested
             if (options.ClipExtent > 0)
@@ -883,40 +849,13 @@ namespace OPS.Landform
 
         private Mesh LoadFullMesh()
         {
-            pipeline.LogInfo("Loading cached mesh from {0}", options.CachedFullMesh);
-            Mesh fullMesh = Mesh.Load(options.CachedFullMesh);
+            pipeline.LogInfo("Loading input mesh from {0}", options.InputFullMesh);
+            Mesh fullMesh = Mesh.Load(options.InputFullMesh);
             if (fullMesh == null)
             {
-                pipeline.LogError("Loading mesh from {0) failed.", options.CachedFullMesh);
+                pipeline.LogError("Loading mesh from {0) failed.", options.InputFullMesh);
                 return null;
             }
-
-            return fullMesh;
-        }
-
-        private Mesh BuildFullMesh(FrameCache frameCache, ObservationCache observationCache, string outputFrame)
-        {
-            Mesh fullMesh = null;
-
-            pipeline.LogInfo("Populating observations cache for mesh building");
-
-            //build mesh
-            pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds,
-                                                  frameCache, observationCache, outputFrame, options.UsePriors,
-                                                  options.OnlyAligned, options.OnlyForCameras,
-                                                  !options.NoCleverCombine, allowMastcam: true,
-                                                  decimate: options.Decimate);
-            if (fullMesh == null)
-            {
-                pipeline.LogError("Mesh building for {0} failed.", options.ProjectName);
-                return null;
-            }
-
-            //beautify mesh
-            pipeline.LogInfo("Post-processing full mesh");
-            fullMesh = Mesh.Clip(fullMesh, pointBounds); // clips the mesh to the 2d bounds of the input points
-            fullMesh.Clean();  // normalizes the normals that were used for generating the mesh
 
             return fullMesh;
         }
