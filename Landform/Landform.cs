@@ -71,7 +71,7 @@ namespace OPS.Landform
                 EmtToSceneOptions,
                 LocalBuildGeometryOptions,
                 LocalBuildTilesetSceneOptions,
-                LocalBuildBackprojectIndex,
+                LocalBuildBackprojectIndexOptions,
                 StartAlignMasterOptions >(args);
 
             return parsed.MapResult(
@@ -87,7 +87,7 @@ namespace OPS.Landform
                 (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
                 (LocalBuildGeometryOptions opts) => new LocalBuildGeometry(opts).Run(),
                 (LocalBuildTilesetSceneOptions opts) => new LocalBuildTilesetScene(opts).Run(),
-                (LocalBuildBackprojectIndex opts) => new LocalBuildBackprojectIndex(opts).Run(),
+                (LocalBuildBackprojectIndexOptions opts) => new LocalBuildBackprojectIndex(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
         }
