@@ -207,7 +207,7 @@ namespace OPS.Landform
                 if (pointsToBackproject.Count == 0)
                     break;
 
-                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], options.OutputFrame, options.UsePriors, options.OnlyAligned, masker, ref pointsToBackproject, null);                
+                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], options.OutputFrame, options.UsePriors, options.OnlyAligned, masker, pointsToBackproject, null);                
                 if (contributedPixels.Count() > 0)
                 {
                     float obsIndex = GetObservationIndex(obs);
@@ -230,6 +230,9 @@ namespace OPS.Landform
                             DestPixel = contributedPixel.Dest
                         });
                     }
+
+                    //remove points that successfully backprojected
+                    pointsToBackproject = pointsToBackproject.Where(pt => !contributedPixels.Where(cp => cp.Dest == pt.Pixel).Any()).ToList();
                 }
             }
 

@@ -27,7 +27,7 @@ namespace OPS.Pipeline
         /// </summary>
         static public List<PixelPixel> BackprojectObservation(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache, SceneCaster sc,
                                            RoverObservation obs, ConvexHull obsHull, string outputFrame, bool usePriors, bool onlyAligned, RoverMasker masker,
-                                           ref List<PixelPoint> pointsToBackproject, Image outputImage)
+                                           List<PixelPoint> pointsToBackproject, Image outputImage)
         {
             var xform = frameCache.GetObservationTransform(obs, outputFrame, usePriors, onlyAligned);
             if (xform == null)
@@ -46,15 +46,11 @@ namespace OPS.Pipeline
             var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName)).Where(o => o.ObservationType == maskType).FirstOrDefault();
             Image mask = FeatureDetecting.MakeMask(pipeline, masker, maskObs == null ? null : maskObs.Url, img, obs.Name);
             int pointsToBackprojectCount = pointsToBackproject.Count();
-            List<PixelPoint> failedToBackproject = new List<PixelPoint>();
-            while (pointsToBackproject.Count() > 0)
+            
+            foreach (var pixelpoint in pointsToBackproject)
             {
-                var pixelpoint = pointsToBackproject.First();
-                pointsToBackproject.RemoveAt(0);
-
                 Vector3 meshPos = pixelpoint.Point;
-                bool failedToBackprojectPoint = true;
-
+           
                 // validate surface point is in the frustum to avoid camera model issues with offscreen points
                 if (obsHull.Contains(meshPos))
                 {
@@ -91,19 +87,11 @@ namespace OPS.Pipeline
                                 Source = obsPixel,
                                 Dest = pixelpoint.Pixel
                             });
-                            failedToBackprojectPoint = false;
                         }
                     }
                 }
-
-                //add to failed
-                if (failedToBackprojectPoint)
-                {
-                    failedToBackproject.Add(pixelpoint);
-                }
             }
 
-            pointsToBackproject = failedToBackproject;
             return backprojectedPoints;
         }
     }
