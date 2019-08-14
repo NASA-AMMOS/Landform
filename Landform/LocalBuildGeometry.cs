@@ -81,17 +81,14 @@ namespace OPS.Landform
 
             if (options.OutputFrame == "rover")
                 throw new NotImplementedException("only root and numeric sitedrive are currently supported");
+
+            if (options.UsePriors && options.OnlyAligned)
+                throw new InvalidOperationException("cannot specify both --usepriors and --onlyaligned");
         }
 
         public int Run()
         {
-            pipeline.LogInfo("Running local-build-meshes command");
-
-            if (options.UsePriors && options.OnlyAligned)
-            {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
-                return 1;
-            }
+            pipeline.LogInfo("Running local-build-geometry command");
 
             var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
@@ -108,10 +105,7 @@ namespace OPS.Landform
             var outputFrame = options.OutputFrame.ToLower().Trim();
             string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "geometry/" + dir, options.ProjectName);
-            if(!Directory.Exists(outputPath))
-            {
-                Directory.CreateDirectory(outputPath);
-            }
+            PathHelper.EnsureExists(outputPath);
 
             //get transforms
             pipeline.LogInfo("Populating frame cache");
