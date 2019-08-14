@@ -219,6 +219,7 @@
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
     <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="Texturing\Backproject.cs" />
+    <Compile Include="Texturing\SpatialDensity.cs" />
     <Compile Include="TilingServer\Cloud\TilingNode.cs" />
     <Compile Include="TilingServer\Cloud\TilingInput.cs" />
     <Compile Include="TilingServer\Cloud\TilingProject.cs" />

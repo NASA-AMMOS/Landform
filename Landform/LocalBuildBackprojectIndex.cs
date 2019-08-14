@@ -43,7 +43,7 @@ namespace OPS.Landform
 
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
-       
+
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
         public string AdjustedTransformSources { get; set; }
 
@@ -55,9 +55,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
-      
+
         // debug related
-        [Option(HelpText = "Output bounding box and frustum hull meshes", Default = false)]
+        [Option(HelpText = "Output debug products", Default = false)]
         public bool OutputDebugInfo { get; set; }
     }
 
@@ -67,7 +67,7 @@ namespace OPS.Landform
 
         private MissionSpecific mission;
         private RoverMasker masker;
-        
+
         struct ObservationIndex
         {
             public float Index;
@@ -173,32 +173,33 @@ namespace OPS.Landform
             pipeline.LogInfo("performing coarse intersections");
             ConvexHull meshHull = new ConvexHull(inputMesh);
             List<Observation> intersectingObservations = GetIntersectingObservations(meshHull, imageObservations, obsToHull, outputPath).ToList();
-            pipeline.LogInfo("Found {0} observations instersecting mesh", intersectingObservations.Count());
-
-            // TODO: create index datastructure and serialization
-
+            pipeline.LogInfo("Found {0} observations intersecting mesh", intersectingObservations.Count());
+                
             // collect the destination points to sample
             pipeline.LogInfo("collecting sampling points in destination texture");
             MeshOperator meshOp = new MeshOperator(inputMesh);
             List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(options.OutputTextureResolution, options.OutputTextureResolution);
             if (options.OutputDebugInfo)
             {
+                pipeline.LogInfo("generating debug uv validity image");
                 Image validUVImg = new Image(1, options.OutputTextureResolution, options.OutputTextureResolution);
-                foreach(var pixelPt in pointsToBackproject)
+                foreach (var pixelPt in pointsToBackproject)
                 {
                     validUVImg[0, (int)pixelPt.Pixel.Y, (int)pixelPt.Pixel.X] = 1.0f;
                 }
 
                 validUVImg.Save<byte>(Path.Combine(outputPath, "backprojectValidUV.png"));
-
             }
-                //calculate goodness (spatial density)
-                Dictionary<Observation, double> spatialDensityByObs = CalculateSpatialDensity(frameCache, sc, obsToHull, pointsToBackproject, intersectingObservations);
+
+            //calculate goodness (spatial density)
+            pipeline.LogInfo("calculating spatial density");
+            Dictionary<Observation, double> spatialDensityByObs = SpatialDensity.Calculate(frameCache, sc, obsToHull, options.BackprojectGoodnessSamplingPct, options.OutputFrame, options.UsePriors, options.OnlyAligned, pointsToBackproject, intersectingObservations);
 
             //sort the list of observations by goodness
             intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
 
             //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
+            pipeline.LogInfo("backprojecting observations");
             List<ObservationIndex> indexEntries = new List<ObservationIndex>();
             foreach (var obs in intersectingObservations)
             {
@@ -206,12 +207,13 @@ namespace OPS.Landform
                 if (pointsToBackproject.Count == 0)
                     break;
 
-                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], options.OutputFrame, options.UsePriors, options.OnlyAligned, masker, pointsToBackproject, null);                
+                //backproject the destination pixels to find which source pixels should be used
+                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], options.OutputFrame, options.UsePriors, options.OnlyAligned, masker, pointsToBackproject, null);
                 if (contributedPixels.Count() > 0)
                 {
                     float obsIndex = GetObservationIndex(obs);
                     pipeline.LogInfo("Obs index {0}: {1}", obsIndex, obs.Name);
-                    
+
                     if (options.OutputDebugInfo)
                     {
                         obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_chull.ply"));
@@ -230,19 +232,22 @@ namespace OPS.Landform
                         });
                     }
 
-                    //remove points that successfully backprojected
+                    //remove points that successfully backprojected from this observation
                     pointsToBackproject = pointsToBackproject.Where(pt => !contributedPixels.Where(cp => cp.Dest == pt.Pixel).Any()).ToList();
                 }
             }
 
+            //fill in output index
+            pipeline.LogInfo("populating output index texture");
             Image outputImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
-            foreach(var entry in indexEntries)
+            foreach (var entry in indexEntries)
             {
                 outputImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X, new float[] { entry.Index, (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
             }
 
             if (options.OutputDebugInfo)
             {
+                pipeline.LogInfo("generating debug preview image");
                 Image previewImg = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
                 Dictionary<float, Vector3> colorsByIndex = new Dictionary<float, Vector3>();
                 Random random = NumberHelper.MakeRandomGenerator();
@@ -252,7 +257,7 @@ namespace OPS.Landform
                     if (index == 0)
                         continue;
 
-                    if(!colorsByIndex.ContainsKey(index))
+                    if (!colorsByIndex.ContainsKey(index))
                     {
                         colorsByIndex.Add(index, new Vector3(random.NextDouble(), random.NextDouble(), random.NextDouble()));
                     }
@@ -264,10 +269,11 @@ namespace OPS.Landform
             }
 
             outputImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
-            
+
             return 0;
         }
 
+        //TODO: placeholder function to be replaced by the observation index in the database
         static float placeholderIndex = 0;
         private float GetObservationIndex(Observation obs)
         {
@@ -293,64 +299,6 @@ namespace OPS.Landform
                 }
             }
             return intersectingObservations;
-        }
-         
-        private Dictionary<Observation, double> CalculateSpatialDensity(FrameCache frameCache, SceneCaster sc, Dictionary<Observation, ConvexHull> obsToHull, List<PixelPoint> pointsToBackproject, IEnumerable<Observation> intersectingObservations)
-        {
-            Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
-
-            //select a coarse sampling of the points to backproject
-            //to get a rough sorting of texture quality
-            double percentagePointsToTest = options.BackprojectGoodnessSamplingPct;
-
-            //simple sample which skips enough points to return the requested amount of points
-            int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
-            int skipPoints = pointsToBackproject.Count / subsampledPts;
-            List<PixelPoint> pointsToTestSamplingDensity =
-                pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
-
-            //calculate the median spatial density for the requested pixels per observation
-            foreach (var obs in intersectingObservations.Cast<RoverObservation>())
-            {
-                CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-
-                //test hull (protect against bad ray calculations from camera model)
-                if (!obsToHull.ContainsKey(obs))
-                    continue;
-
-                var obsToOutput = frameCache.GetObservationTransform(obs, options.OutputFrame,
-                                                                     options.UsePriors, options.OnlyAligned);
-                if (obsToOutput == null)
-                {
-                    continue;
-                }
-
-                List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
-                foreach (var pt in pointsToTestSamplingDensity)
-                {
-                    if (!obsToHull[obs].Contains(pt.Point))
-                        continue;
-
-                    //Issue #523: want median or average in case glancing angle?
-                    //want a term that looks for consistancy in spacing? implies dead on?
-                    minDistances.Add(TextureSplitCriteria
-                                     .GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput.Mean,
-                                                                obsToHull[obs], pt.Pixel, pt.Point,
-                                                                obs.Width, obs.Height));
-                }
-
-                //store the median of the min distances
-                double medianDistance = double.MaxValue;
-                if (minDistances.Count() > 0)
-                {
-                    minDistances.Sort();
-                    medianDistance = minDistances.ElementAt(minDistances.Count / 2);
-                }
-
-                spatialDensityByObs.Add(obs, medianDistance);
-            }
-
-            return spatialDensityByObs;
         }
 
         private Mesh LoadMesh(string pathToMesh)
