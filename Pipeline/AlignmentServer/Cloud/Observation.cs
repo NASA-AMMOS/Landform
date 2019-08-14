@@ -30,6 +30,17 @@ namespace OPS.Pipeline.AlignmentServer
     [DynamoDBWriteCapacity(50, 100)]
     public class Observation
     {
+        //index 0 is reserved to mean "no observation"
+        //also note, in legacy TerrainTools index 65535 (0xffff) is treated equivalent to 0 in LimberDMG
+        //and those values can get serialized out to the index image for pixels where backprojection failed
+        public const int MIN_INDEX = 1;
+
+        //limit indices to unsigned ints that can be exactly represented in a float
+        //https://stackoverflow.com/a/3793950
+        //this makes it possible to store an observation index in one band of a float image
+        //and we want to do that when creating backproject index images
+        public const int MAX_INDEX = 16777216;
+
         [DynamoDBRangeKey]
         public string ProjectName;
 
@@ -61,6 +72,8 @@ namespace OPS.Pipeline.AlignmentServer
         public int Bits;
 
         public int Day;
+
+        public int Index;
 
         //DEPRECATED - for legacy compat only
         public string MaskGuid;
@@ -112,7 +125,8 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="url"></param>
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
-        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int bands, int bits, int day)
+        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel,
+                              bool useForReconstruction, int width, int height, int bands, int bits, int day, int index)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -126,6 +140,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.Bands = bands;
             this.Bits = bits;
             this.Day = day;
+            this.Index = index;
             IsValid();
         }
 
@@ -140,9 +155,12 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         /// <returns></returns>
-        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url, string observationType, string cameraModel, bool useForReconstruction, int width, int height, int bands, int bits, int day)
+        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
+                                         string observationType, string cameraModel, bool useForReconstruction,
+                                         int width, int height, int bands, int bits, int day, int index)
         {
-            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, bands, bits, day);
+            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction,
+                                              width, height, bands, bits, day, index);
             obs.Save(pipeline);
             return obs;
         }

@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
+using System.Threading;
 using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
 using OPS.Util;
@@ -14,18 +15,26 @@ namespace OPS.Pipeline
 {
     public class IngestPDSImage : IngestImage
     {
-        private Project project;
-        private bool recreateExistingObservations;
-        private bool resetTransforms;
-        private MissionSpecific mission;
-        public delegate bool Filter(string imageUrl, PDSMetadata pdsMetadata, PDSParser pdsParser);
-        private Filter filter;
         public MSLLocations Locations;
         public MSLPlaces Places;
         public MSLLegacyManifest LegacyManifest; 
 
+        private Project project;
+
+        private bool recreateExistingObservations;
+        private bool resetTransforms;
+
+        private MissionSpecific mission;
+
+        public delegate bool Filter(string imageUrl, PDSMetadata pdsMetadata, PDSParser pdsParser);
+        private Filter filter;
+
+        private ConcurrentDictionary<string, int> indices;
+        private int maxIndex;
+
         public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
-                              bool resetTransforms = false, Filter filter = null)
+                              bool resetTransforms = false, Filter filter = null,
+                              ConcurrentDictionary<string, int> indices = null)
             : base(pipeline)
         {
             this.project = project;
@@ -33,6 +42,14 @@ namespace OPS.Pipeline
             this.resetTransforms = resetTransforms;
             this.filter = filter;
             this.mission = MissionSpecific.GetInstance(project.Mission);
+
+            this.indices = indices ?? new ConcurrentDictionary<string, int>();
+
+            maxIndex = Observation.MIN_INDEX - 1;
+            if (indices.Count > 0)
+            {
+                maxIndex = Math.Max(indices.Values.Max(), Observation.MIN_INDEX - 1);
+            }
         }
 
         public override Result Ingest(string imgUrl)
@@ -144,7 +161,21 @@ namespace OPS.Pipeline
                 var observationFrameName = cameraName + "_" + mission.RoverMotionCounter(parser);
                 var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
-                
+
+                //if we already assigned an index to this observation, re-use it
+                //that way already created backproject index images have a fighting chance of not being stale
+                //otherwise assign the next available index
+                int index = indices.GetOrAdd(observationName, _ => Interlocked.Increment(ref maxIndex));
+
+                if (index < Observation.MIN_INDEX)
+                {
+                    //the main case where we could get here is when re-ingesting a project with existing observations
+                    //that were created prior to adding the Index field
+                    //in that case the existing index will be 0 which is less than MIN_INDEX
+                    index = Interlocked.Increment(ref maxIndex);
+                    indices.AddOrUpdate(observationName, _ => index, (_, __) => index);
+                }
+
                 var observation = RoverObservation.Find(pipeline, project.Name, observationName);
                 if (observation != null)
                 {
@@ -156,6 +187,13 @@ namespace OPS.Pipeline
                     else
                     {
                         pipeline.LogDebug("not recreating existing observation {0}", observationName);
+                        if (observation.Index != index)
+                        {
+                            pipeline.LogDebug("updating index {0} -> {1} on existing observation {2}",
+                                              observation.Index, index, observationName);
+                            observation.Index = index;
+                            observation.Save(pipeline);
+                        }
                         return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
                     }
                 }
@@ -169,7 +207,7 @@ namespace OPS.Pipeline
                                                       cameraName, parser.ImageSizeType.ToString(),
                                                       parser.ProducingInstitution.ToString(),
                                                       metadata.Width, metadata.Height, metadata.Bands,
-                                                      metadata.BitDepth, mission.DayNumber(parser));
+                                                      metadata.BitDepth, mission.DayNumber(parser), index);
 
                 if (observation == null)
                 {
