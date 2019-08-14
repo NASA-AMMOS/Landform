@@ -59,6 +59,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
         public int Decimate { get; set; }
+
+        [Option(HelpText = "Only emit faces that intersect these observations, comma separated", Default = null)]
+        public string OnlyFacesForObs { get; set; }
     }
 
     public class LocalBuildGeometry : LandformCommand
@@ -144,11 +147,67 @@ namespace OPS.Landform
                 return 1;
             }
 
+            // test if only a portion of the full mesh is needed
+            if (!string.IsNullOrEmpty(options.OnlyFacesForObs))
+            {
+                var obsNames = options.OnlyFacesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
+                var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
+
+                BuildConvexHulls(frameCache, observationCache, obs, out Dictionary<Observation, ConvexHull> obsToHull);
+                var hulls = obs.Select(o => obsToHull[o]);
+
+                Mesh goodMesh = new Mesh(fullMesh);
+                goodMesh.Faces = new List<Face>();
+                foreach (var face in fullMesh.Faces)
+                {
+                    foreach (var hull in hulls)
+                    {
+                        if (hull.Intersects(fullMesh.FaceToTriangle(face)))
+                        {
+                            goodMesh.Faces.Add(face);
+                            break;
+                        }
+                    }
+                }
+                fullMesh = goodMesh;
+                fullMesh.Clean();
+            }
+
             string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
             pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
             fullMesh.Save(meshFilePath);
 
             return 0;
+        }
+
+        private void BuildConvexHulls(FrameCache frameCache, ObservationCache observationCache,
+                                     IEnumerable<Observation> imageObservations, out Dictionary<Observation,
+                                     ConvexHull> obsToHull)
+        {
+            pipeline.LogInfo("Building convex hulls");
+            obsToHull = new Dictionary<Observation, ConvexHull>();
+            foreach (var obs in imageObservations)
+            {
+                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)",
+                                 obs.Name, obsToHull.Count(), imageObservations.Count(),
+                                 (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
+                var meshObs = new MeshObservations() { Texture = obs };
+                var meshOpts = new MeshObservations.MeshOptions()
+                {
+                    Frame = options.OutputFrame,
+                    UsePriors = options.UsePriors
+                };
+                ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts,
+                                                              uncertaintyInflated: false);
+                if (obsHull != null)
+                {
+                    obsToHull.Add(obs, obsHull);
+                }
+                else
+                {
+                    pipeline.LogWarn("failed to build hull for {0}", obs.Name);
+                }
+            }
         }
 
         private Mesh BuildFullMesh(FrameCache frameCache, ObservationCache observationCache, string outputFrame)
