@@ -21,16 +21,19 @@ using OPS.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-meshes", HelpText = "create mesh")]
-    public class LocalBuildMeshesOptions : LandformCommandOptions
+    [Verb("local-build-tilesetscene", HelpText = "builds a tileset and astro scene")]
+    public class LocalBuildTilesetSceneOptions : LandformCommandOptions
     {
+        [Value(1, Required = true, Default = null, HelpText = "path to the input full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)")]
+        public string InputFullMesh { get; set; }
+
         [Option(HelpText = "the type of tiling project (currently only MSL supported)", Default = "MSL")]
         public string ProjectType { get; set; }
 
-        [Option(HelpText = "Only build mesh from observations from a specific site)", Default = -1)]
+        [Option(HelpText = "Only use observations from a specific site)", Default = -1)]
         public int OnlyForSite { get; set; }
 
-        [Option(HelpText = "Only build mesh from observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
+        [Option(HelpText = "Only use observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
         public int OnlyForDrive { get; set; }
 
         [Option(HelpText = "Only build tiles that intersect these observations, comma separated", Default = null)]
@@ -62,9 +65,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "maximum image resolution per tile", Default = 256)]
         public int TileResolution { get; set; }
-
-        [Option(HelpText = "path to cached full mesh (when set will skip generating a full mesh and instead load the existing mesh at this path)", Required=true, Default = null)]
-        public string InputFullMesh { get; set; }
 
         [Option(HelpText = "Output bounding box and frustum hull meshes", Default = false)]
         public bool OutputDebugMeshes { get; set; }
@@ -112,14 +112,14 @@ namespace OPS.Landform
         public string AWSRegion { get; set; }
      }
 
-    public class LocalBuildMeshes : LandformCommand
+    public class LocalBuildTilesetScene : LandformCommand
     {
-        private LocalBuildMeshesOptions options;
+        private LocalBuildTilesetSceneOptions options;
 
         private MissionSpecific mission;
         private RoverMasker masker;
 
-        public LocalBuildMeshes(LocalBuildMeshesOptions options) : base(options)
+        public LocalBuildTilesetScene(LocalBuildTilesetSceneOptions options) : base(options)
         {
             if (options.Cloud)
             {
@@ -193,7 +193,7 @@ namespace OPS.Landform
                          ((options.OnlyForSite == -1) || options.OnlyForSite == ((RoverObservation)obs).Site) &&
                          ((options.OnlyForDrive == -1) || options.OnlyForDrive == ((RoverObservation)obs).Drive));
 
-            //build or load cached full mesh
+            // load input full mesh
             Mesh fullMesh = LoadFullMesh();
 
             if (fullMesh == null)
@@ -849,7 +849,7 @@ namespace OPS.Landform
 
         private Mesh LoadFullMesh()
         {
-            pipeline.LogInfo("Loading cached mesh from {0}", options.InputFullMesh);
+            pipeline.LogInfo("Loading input mesh from {0}", options.InputFullMesh);
             Mesh fullMesh = Mesh.Load(options.InputFullMesh);
             if (fullMesh == null)
             {
