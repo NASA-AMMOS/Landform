@@ -15,17 +15,12 @@ namespace OPS.Pipeline
 {
     public class Backproject
     {
-        public struct PixelPixel
-        {
-            public Vector2 Source;
-            public Vector2 Dest;
-        }
-
         /// <summary>
-        /// pass a list of points to backproject. will return the mapping of source to destination pixels. 
+        /// pass a list of points to backproject. will return a dictionary where the key is the
+        /// destination pixel and the value is the source pixel
         /// if an output image is provided the image data will be set in the output texture
         /// </summary>
-        static public List<PixelPixel> BackprojectObservation(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache, SceneCaster sc,
+        static public Dictionary<Vector2,Vector2> BackprojectObservation(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache, SceneCaster sc,
                                            RoverObservation obs, ConvexHull obsHull, string outputFrame, bool usePriors, bool onlyAligned, RoverMasker masker,
                                            List<PixelPoint> pointsToBackproject, Image outputImage)
         {
@@ -33,7 +28,7 @@ namespace OPS.Pipeline
             if (xform == null)
                 return null;
 
-            List<PixelPixel> backprojectedPoints = new List<PixelPixel>();
+            Dictionary<Vector2, Vector2> backprojectedPoints = new Dictionary<Vector2, Vector2>(); //key is the destination pixel and the value is the source pixel
 
             Matrix obsToMesh = xform.Mean;
             Matrix meshToObs = Matrix.Invert(obsToMesh);
@@ -84,11 +79,7 @@ namespace OPS.Pipeline
                                 outputImage.SetMaskValue((int)pixelpoint.Pixel.Y, (int)pixelpoint.Pixel.X, false);
                             }
 
-                            backprojectedPoints.Add(new PixelPixel()
-                            {
-                                Source = obsPixel,
-                                Dest = pixelpoint.Pixel
-                            });
+                            backprojectedPoints.Add(pixelpoint.Pixel, obsPixel);
                         }
                     }
                 }

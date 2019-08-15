@@ -227,13 +227,13 @@ namespace OPS.Landform
                         indexEntries.Add(new ObservationIndex()
                         {
                             Index = obsIndex,
-                            SourcePixel = contributedPixel.Source,
-                            DestPixel = contributedPixel.Dest
+                            SourcePixel = contributedPixel.Value,
+                            DestPixel = contributedPixel.Key
                         });
                     }
 
                     //remove points that successfully backprojected from this observation
-                    pointsToBackproject = pointsToBackproject.Where(pt => !contributedPixels.Where(cp => cp.Dest == pt.Pixel).Any()).ToList();
+                    pointsToBackproject = pointsToBackproject.Where(pt => !contributedPixels.ContainsKey(pt.Pixel)).ToList();
                 }
             }
 
