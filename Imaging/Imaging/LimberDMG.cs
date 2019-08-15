@@ -735,8 +735,17 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Given a composite image, a mask, and flags, output a stitched image with smoothed seams
+        ///
+        /// The flags image may be omitted but the other two are required.
+        ///
         /// Note on invalid indices: index value 0 is always treated as flags = NO_DATA | HOLD_CONSTANT.
         /// If legacyInvalidIndices is also set then 65535 is also treated the same way.
+        ///
+        /// Note on image dimensions: the input images must all be the same size.  If either the width or height is not
+        /// a power of two, all the inputs will be copied to temp images with power of two dimensions.  In this
+        /// situation the Wrap edge modes may not work as originally intended because the images will be padded with
+        /// NO_DATA areas. https://github.jpl.nasa.gov/OnSight/Landform/issues/663
+        ///
         /// </summary>
         /// <param name="composite">original mosaic of images</param>
         /// <param name="index">source of each pixel, should have either one band or same number as input image
