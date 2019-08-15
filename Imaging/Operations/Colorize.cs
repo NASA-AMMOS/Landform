@@ -69,8 +69,9 @@ namespace OPS.Imaging
         }
 
         public enum LuminanceMode { AVERAGE, MAX, ITU_BT709, RED, GREEN, BLUE };
+        public const LuminanceMode DEF_LUMINANCE_MODE = LuminanceMode.ITU_BT709;
 
-        public static float ColorToMono(float r, float g, float b, LuminanceMode mode = LuminanceMode.AVERAGE)
+        public static float ColorToMono(float r, float g, float b, LuminanceMode mode = DEF_LUMINANCE_MODE)
         {
             switch (mode)
             {
@@ -111,7 +112,7 @@ namespace OPS.Imaging
         /// <summary>
         /// bilinearly sample the image and return a single channel color
         /// </summary>
-        public static float SampleAsMono(this Image img, Vector2 srcPixel, LuminanceMode mode = LuminanceMode.AVERAGE)
+        public static float SampleAsMono(this Image img, Vector2 srcPixel, LuminanceMode mode = DEF_LUMINANCE_MODE)
         {
             if (img.Bands == 3)
             {
@@ -166,7 +167,7 @@ namespace OPS.Imaging
         /// fill destination with samples from source texture (eg. replicate a single band to 3 if needed)
         /// </summary>
         public static void SetAsMono(this Image img, float[] samples, int destRow, int destCol,
-                                     LuminanceMode mode = LuminanceMode.AVERAGE)
+                                     LuminanceMode mode = DEF_LUMINANCE_MODE)
         {
             if (img.Bands != 1)
             {
