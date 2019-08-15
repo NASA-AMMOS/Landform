@@ -119,6 +119,21 @@ namespace OPS.Util
             }
         }
 
+        public static string StripLastUrlPathSegment(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            if (lastSlash < 0)
+            {
+                return url;
+            }
+            return url.Substring(0, lastSlash);
+        }
+
         public static string GetUrlExtension(string url)
         {
             if (string.IsNullOrEmpty(url))

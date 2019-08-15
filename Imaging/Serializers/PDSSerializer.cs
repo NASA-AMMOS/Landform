@@ -12,6 +12,13 @@ namespace OPS.Imaging
     /// </summary>
     public class PDSSerializer : ImageSerializer
     {
+        /// <summary>
+        /// Hook to formulate the path to a PDS data file given path to a PDS LBL file and the DataPath from it.
+        /// Default implementation returns lblPath if DataPath is null (monolithic PDS file)
+        /// else appends DataPath to directory containing the LBL file.
+        /// </summary>
+        public static Func<string, string, string> DataPath =
+            (lblPath, dataPath) => dataPath != null ? Path.Combine(Path.GetDirectoryName(lblPath), dataPath) : lblPath;
 
         /// <summary>
         /// Read a pds image
@@ -39,7 +46,8 @@ namespace OPS.Imaging
                 }
             }
 
-            string fileToRead = metadata.DataPath != null ? Path.Combine(Path.GetDirectoryName(filename),metadata.DataPath) : filename;
+            string fileToRead = DataPath(filename, metadata.DataPath);
+
             using (FileStream fs = File.OpenRead(fileToRead))
             {
                 fs.Seek(metadata.DataOffset, SeekOrigin.Begin);

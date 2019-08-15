@@ -1,6 +1,7 @@
 using System;
 using CommandLine;
 using OPS.Pipeline;
+using OPS.Imaging;
 
 namespace OPS.Landform
 {
@@ -27,6 +28,7 @@ namespace OPS.Landform
             {
                 pipeline = new LocalPipeline(options);
             }
+            PDSSerializer.DataPath = pipeline.PDSDataPath;
         }
     }
 }
