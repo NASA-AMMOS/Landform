@@ -193,10 +193,10 @@ namespace OPS.Landform
 
             //calculate goodness (spatial density)
             pipeline.LogInfo("calculating spatial density");
-            Dictionary<Observation, double> spatialDensityByObs = SpatialDensity.Calculate(frameCache, sc, obsToHull, options.BackprojectGoodnessSamplingPct, options.OutputFrame, options.UsePriors, options.OnlyAligned, pointsToBackproject, intersectingObservations);
+            Dictionary<Observation, double> projectedPixelDistances = ProjectedPixelDistances.Calculate(frameCache, sc, obsToHull, options.BackprojectGoodnessSamplingPct, options.OutputFrame, options.UsePriors, options.OnlyAligned, pointsToBackproject, intersectingObservations);
 
             //sort the list of observations by goodness
-            intersectingObservations.Sort((obs1, obs2) => spatialDensityByObs[obs1].CompareTo(spatialDensityByObs[obs2]));
+            intersectingObservations.Sort((obs1, obs2) => projectedPixelDistances[obs1].CompareTo(projectedPixelDistances[obs2]));
 
             //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
             pipeline.LogInfo("backprojecting observations");

@@ -12,13 +12,13 @@ using System.Threading.Tasks;
 namespace OPS.Pipeline
 {
     // a measure of texture quality for a set of observations using how far the pixels are apart (in meters) when projected onto a specific mesh
-    public class SpatialDensity
+    public class ProjectedPixelDistances
     {
         static public Dictionary<Observation, double> Calculate(FrameCache frameCache, SceneCaster sc, Dictionary<Observation, ConvexHull> obsToHull,
             double percentagePointsToTest, string outputFrame, bool usePriors, bool onlyAligned,
             List<PixelPoint> pointsToBackproject, IEnumerable<Observation> observations)
         {
-            Dictionary<Observation, double> spatialDensityByObs = new Dictionary<Observation, double>();
+            Dictionary<Observation, double> pixelDistancesByObs = new Dictionary<Observation, double>();
 
             //simple sample which skips enough points to return the requested amount of points
             int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
@@ -63,10 +63,10 @@ namespace OPS.Pipeline
                     medianDistance = minDistances.ElementAt(minDistances.Count / 2);
                 }
 
-                spatialDensityByObs.Add(obs, medianDistance);
+                pixelDistancesByObs.Add(obs, medianDistance);
             }
 
-            return spatialDensityByObs;
+            return pixelDistancesByObs;
         }
     }
 }
