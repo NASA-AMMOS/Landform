@@ -3,15 +3,37 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-
-using OPS.Imaging;
 using Microsoft.Xna.Framework;
+using OPS.Imaging;
 
 namespace OPS.Imaging
 {
-
-    static class Inpainter
+    public static class Inpainter
     {
+        /// <summary>
+        /// Given an image with a mask, extend the image and the mask by border pixels in place
+        /// If border is negative (the default) continue inpainting until there are no
+        /// masked pixels left.  Inpainted pixels are an average of their non-masked neighbors
+        /// </summary>
+        /// <param name="border"></param>
+        /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to true will preserve the original mask</param>
+        public static Image Inpaint(this Image img, int border = -1, bool preserveMask = false)
+        {
+            if (img.HasMask && preserveMask)
+            {
+                img.SaveMask();
+            }
+
+            Apply(img, border);
+
+            if (img.HasMask && preserveMask)
+            {
+                img.RestoreMask();
+            }
+
+            return img;
+        }
+
         /// <summary>
         /// Return trues if at least one of 4 neighbors of position (r, c) in image is unmasked
         /// </summary>
@@ -19,7 +41,7 @@ namespace OPS.Imaging
         /// <param name="c"></param>
         /// <param name="image"></param>
         /// <returns></returns>
-        static bool HasNeighbors(int r, int c, Image image)
+        private static bool HasNeighbors(int r, int c, Image image)
         {
             if (r > 0 && image.IsValid(r - 1, c))
             {
@@ -46,7 +68,7 @@ namespace OPS.Imaging
         /// <param name="r"></param>
         /// <param name="c"></param>
         /// <param name="image"></param>
-        static void FillWithNeighborAverage(int r, int c, Image image)
+        private static void FillWithNeighborAverage(int r, int c, Image image)
         {
             float num = 0;
             float[] average = new float[image.Bands];
@@ -78,7 +100,7 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="image"></param>
         /// <param name="padWidth"></param>
-        public static void Apply(Image image, int padWidth = -1)
+        private static void Apply(Image image, int padWidth = -1)
         {
             if(!image.HasMask)
             {

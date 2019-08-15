@@ -79,11 +79,13 @@ namespace OPS.Util
             return ret;
         }
 
-        public string CheckFormat(string fmt, ILogger logger)
+        public delegate void LogCallback(string msg, params Object[] args);
+
+        public string CheckFormat(string fmt, LogCallback logInfo, LogCallback logError)
         {
             if (fmt.ToLower() == "help")
             {
-                logger.LogInfo("{0} formats: {1}", Kind(), string.Join(", ", SupportedFormats()));
+                logInfo("{0} formats: {1}", Kind(), string.Join(", ", SupportedFormats()));
                 return null;
             }
             if (!fmt.StartsWith("."))
@@ -92,11 +94,18 @@ namespace OPS.Util
             }
             if (!SupportsFormat(fmt))
             {
-                logger.LogError("invalid {0} format \"{1}\", valid formats: {2}", Kind(), fmt,
-                                string.Join(", ", SupportedFormats()));
+                logError("invalid {0} format \"{1}\", valid formats: {2}", Kind(), fmt,
+                         string.Join(", ", SupportedFormats()));
                 return null;
             }
             return fmt;
+        }
+
+        public string CheckFormat(string fmt, ILogger logger)
+        {
+            return CheckFormat(fmt,
+                               (msg, args) => logger.LogInfo(msg, args),
+                               (msg, args) => logger.LogError(msg, args));
         }
     }
 }

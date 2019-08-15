@@ -68,7 +68,8 @@ namespace OPS.Pipeline
      *
      * + Message Queue API - interact with message queues
      **/
-    public abstract class PipelineCore : IImageLoader, ILogger
+    public abstract class PipelineCore
+        : IImageLoader, OPS.Util.ILogger //Microsoft.Extensions.Logging and log4net.Core also have ILogger interfaces
     {
         public readonly PipelineCoreOptions Options;
         public readonly Config Config;
