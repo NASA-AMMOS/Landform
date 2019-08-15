@@ -93,7 +93,7 @@ namespace OPS.Pipeline
         {
             pipeline.LogInfo("Building convex hulls");
             Dictionary<Observation, ConvexHull> obsToHull = new Dictionary<Observation, ConvexHull>();
-            foreach (var obs in imageObservations)
+            CoreLimitedParallel.ForEach(imageObservations, obs =>
             {
                 pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)",
                                  obs.Name, obsToHull.Count(), imageObservations.Count(),
@@ -108,7 +108,10 @@ namespace OPS.Pipeline
                 ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts, uncertaintyInflated: false);
                 if (obsHull != null)
                 {
-                    obsToHull.Add(obs, obsHull);
+                    lock (obsToHull)
+                    {
+                        obsToHull.Add(obs, obsHull);
+                    }
 
                     if (!string.IsNullOrEmpty(debugOutputPath))
                     {
@@ -119,7 +122,7 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogWarn("failed to build hull for {0}", obs.Name);
                 }
-            }
+            });
             return obsToHull;
         }
     }
