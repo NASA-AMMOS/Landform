@@ -266,7 +266,7 @@ namespace OPS.Pipeline.AlignmentServer
         public UncertainRigidTransform GetObservationTransform(Observation fromObs, string toFrame,
                                                                bool usePriors = false, bool onlyAligned = false)
         {
-            if (toFrame == "rover")
+            if (toFrame == "rover" || fromObs.FrameName == toFrame)
             {
                 return new UncertainRigidTransform(); //identity, no uncertainty
             }
