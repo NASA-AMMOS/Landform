@@ -161,12 +161,12 @@ namespace OPS.Pipeline
                         if (res.Status == IngestImage.Status.Skipped)
                         {
                             Interlocked.Increment(ref ns);
-                            pipeline.LogVerbose("{0} ({1})", res.ImageUrl, res.Status);
+                            pipeline.LogVerbose(res.ToString());
                         }
                         else if (res.Status == IngestImage.Status.Failed)
                         {
                             Interlocked.Increment(ref nf);
-                            pipeline.LogVerbose("{0} ({1})", res.ImageUrl, res.Status);
+                            pipeline.LogVerbose(res.ToString());
                         }
                         else if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
                         {
@@ -191,8 +191,7 @@ namespace OPS.Pipeline
 
                             orphans.TryRemove(obs.Name, out bool ignore);
 
-                            pipeline.LogVerbose("{0} ({1}) -> observation {2}",
-                                                res.ImageUrl, res.Status, obs.ToString(brief: true));
+                            pipeline.LogVerbose("{0} -> observation {1}", res.ToString(), obs.ToString(brief: true));
 
                             if (obs.ObservationType == imageObs && obs.UseForReconstruction)
                             {

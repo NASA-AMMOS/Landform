@@ -52,35 +52,42 @@ namespace OPS.Pipeline
             }
         }
 
-        public override Result Ingest(string imgUrl)
+        public override Result Ingest(string url)
         {
             try
             {
-                var filename = StringHelper.GetLastUrlPathSegment(imgUrl, stripExtension: true);
+                var filename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                 
                 // Parse the filename to quickly rule out data products we know we don't care about.
                 if (!mission.CheckFilename(filename))
                 {
-                    pipeline.LogDebug("rejected {0} by filename", imgUrl);
-                    return new Result(imgUrl, Status.Skipped);
+                    pipeline.LogDebug("rejected {0} by filename", url);
+                    return new Result(url, null, Status.Skipped);
                 }
 
                 PDSMetadata metadata = null;
                 try
                 {
-                    metadata = new PDSMetadata(pipeline.GetImageFile(imgUrl));
+                    metadata = new PDSMetadata(pipeline.GetImageFile(url));
                 }
                 catch
                 {
-                    pipeline.LogDebug("rejected {0} by problem parsing metadata", imgUrl);
-                    return new Result(imgUrl, Status.Skipped);
+                    pipeline.LogDebug("rejected {0} by problem parsing metadata", url);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                string dataUrl = null;
+                if (metadata.DataPath != null)
+                {
+                    dataUrl = StringHelper.StripLastUrlPathSegment(url) + "/" +
+                        StringHelper.NormalizeSlashes(metadata.DataPath);
                 }
 
                 var parser = new PDSParser(metadata);
                 if (!mission.CheckMetadata(parser))
                 {
-                    pipeline.LogDebug("rejected {0} by metadata", imgUrl);
-                    return new Result(imgUrl, Status.Skipped);
+                    pipeline.LogDebug("rejected {0} by metadata", url);
+                    return new Result(url, dataUrl, Status.Skipped);
                 }
                 
                 var observationName = parser.ProductIdString;
@@ -102,13 +109,13 @@ namespace OPS.Pipeline
                 catch
                 {
                     pipeline.LogDebug("rejected {0} for invalid camera model", observationName);
-                    return new Result(imgUrl, Status.Skipped);
+                    return new Result(url, dataUrl, Status.Skipped);
                 }
 
-                if (filter != null && !filter(imgUrl, metadata, parser))
+                if (filter != null && !filter(url, metadata, parser))
                 {
                     pipeline.LogDebug("rejected {0} due to filter", observationName);
-                    return new Result(imgUrl, Status.Skipped);
+                    return new Result(url, dataUrl, Status.Skipped);
                 }
                 
                 // Create database entries
@@ -194,13 +201,13 @@ namespace OPS.Pipeline
                             observation.Index = index;
                             observation.Save(pipeline);
                         }
-                        return new Result(imgUrl, Status.Duplicate, observation, observationFrame);
+                        return new Result(url, dataUrl, Status.Duplicate, observation, observationFrame);
                     }
                 }
 
                 var obsType = Observation.ProductTypeToObservationType(parser.DerivedImageType).ToString();
 
-                observation = RoverObservation.Create(pipeline, observationFrame, observationName, imgUrl, obsType,
+                observation = RoverObservation.Create(pipeline, observationFrame, observationName, url, obsType,
                                                       JsonHelper.ToJson(cameraModel),
                                                       mission.UseForReconstruction(parser),
                                                       parser.Site, parser.Drive, parser.ProductId.Version,
@@ -217,7 +224,7 @@ namespace OPS.Pipeline
                     //could resolve to the same observationName (which may itself be a bug)
                     //and in that case we could race here
                     pipeline.LogDebug("observation {0} already created", observationName);
-                    return new Result(imgUrl, Status.Failed, null, observationFrame);
+                    return new Result(url, dataUrl, Status.Failed, null, observationFrame);
                 }
 
                 //don't add to frame.ObservationNames here
@@ -225,12 +232,12 @@ namespace OPS.Pipeline
                 //so that would be a read-modify-write hazard
                 //instead this is done later in IngestAlignmentInputs
                 pipeline.LogDebug("created observation {0}", observationName);
-                return new Result(imgUrl, Status.Added, observation, observationFrame);
+                return new Result(url, dataUrl, Status.Added, observation, observationFrame);
             }
             catch (MetadataException ex)
             {
-                pipeline.LogError("error parsing metadata for {0}: {1}", imgUrl, ex.Message);
-                return new Result(imgUrl, Status.Failed);
+                pipeline.LogError("error parsing metadata for {0}: {1}", url, ex.Message);
+                return new Result(url, null, Status.Failed);
             }
         }
 
