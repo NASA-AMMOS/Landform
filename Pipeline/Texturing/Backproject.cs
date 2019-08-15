@@ -68,7 +68,7 @@ namespace OPS.Pipeline
                     //test if rover masked or missing data (any neighbor pixels that are set to zero
                     // will cause the bilinear sample to be less than 1
                     //mask: 0 means bad, 1 means good
-                    if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) < 1)
+                    if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 1)
                     {
                         // raycast the scene to test if the desired position is occluded by terrain
                         if (!TextureSplitCriteria
