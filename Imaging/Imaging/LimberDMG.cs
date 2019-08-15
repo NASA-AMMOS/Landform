@@ -160,7 +160,7 @@ namespace OPS.Imaging
 
             internal delegate IEnumerable<int> PixelNeighborFunction(int pixelIdx);
 
-            IEnumerable<int> PixelNeighborsClamp(int pixelIdx)
+            private IEnumerable<int> PixelNeighborsClamp(int pixelIdx)
             {
                 int u = pixelIdx % Width,
                     v = pixelIdx / Width;
@@ -183,7 +183,7 @@ namespace OPS.Imaging
                 }
             }
 
-            IEnumerable<int> PixelNeighborsCylinder(int pixelIdx)
+            private IEnumerable<int> PixelNeighborsCylinder(int pixelIdx)
             {
                 int u = pixelIdx % Width,
                     v = pixelIdx / Width;
@@ -204,7 +204,7 @@ namespace OPS.Imaging
                 }
             }
 
-            IEnumerable<int> PixelNeighborsSphere(int pixelIdx)
+            private IEnumerable<int> PixelNeighborsSphere(int pixelIdx)
             {
                 int u = pixelIdx % Width,
                     v = pixelIdx / Width;
@@ -232,7 +232,7 @@ namespace OPS.Imaging
                 }
             }
 
-            IEnumerable<int> PixelNeighborsTorus(int pixelIdx)
+            private IEnumerable<int> PixelNeighborsTorus(int pixelIdx)
             {
                 int u = pixelIdx % Width,
                     v = pixelIdx / Width;
@@ -250,7 +250,7 @@ namespace OPS.Imaging
                 if ((Flags[v0] & (byte)LimberDMG.Flags.NO_DATA) == 0) yield return v0;
             }
 
-            internal void ComputeK()
+            protected void ComputeK()
             {
                 if (k == null || k.Length != Width * Height)
                 {
@@ -278,7 +278,7 @@ namespace OPS.Imaging
             /// <param name="x">Input vector</param>
             /// <param name="i">Index in input vector</param>
             /// <returns>$\nabla^2f$</returns>
-            public double Laplacian(double[] x, int i)
+            protected double Laplacian(double[] x, int i)
             {
                 if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0) return 0;
 
@@ -300,7 +300,7 @@ namespace OPS.Imaging
             /// </summary>
             /// <param name="x">Input vector</param>
             /// <param name="b">Output vector</param>
-            public void MatrixMultiply(double[] x, double[] b, bool useAffine = false, double affineScale = 1.0)
+            protected void MatrixMultiply(double[] x, double[] b, bool useAffine = false, double affineScale = 1.0)
             {
                 CoreLimitedParallel.For(0, Width * Height, (i) =>
                 {
@@ -326,7 +326,7 @@ namespace OPS.Imaging
             /// <param name="x">Input vector</param>
             /// <param name="r">Output vector</param>
             /// <param name="b">If not null, the value $A x$ will be stored here</param>
-            public void CalculateResidual(double[] x, double[] r, double[] b = null)
+            protected void CalculateResidual(double[] x, double[] r, double[] b = null)
             {
                 if (b == null)
                 {
@@ -535,21 +535,16 @@ namespace OPS.Imaging
                 : base(width, height, composite, null, flags, lambda, edgeBehavior)
             {
                 this.indices = indices;
-                this.divG = CalculateTargetLaplacian(indices);
+                this.divG = CalculateTargetLaplacian();
                 ComputeK();
             }
 
-            double[] CalculateTargetLaplacian(int[] indices)
+            private double[] CalculateTargetLaplacian()
             {
                 double[] divGrad = new double[Width * Height];
                 int i;
                 for (i = 0; i < Width * Height; i++)
                 {
-                    if (indices[i] == 0 || indices[i] == 0xffff)
-                    {
-                        indices[i] = 0;
-                        Flags[i] = (byte)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
-                    }
                     if ((Flags[i] & (byte)LimberDMG.Flags.NO_DATA) != 0)
                     {
                         divGrad[i] = 0;
@@ -740,12 +735,15 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Given a composite image, a mask, and flags, output a stitched image with smoothed seams
+        /// Note on invalid indices: index value 0 is always treated as flags = NO_DATA | HOLD_CONSTANT.
+        /// If legacyInvalidIndices is also set then 65535 is also treated the same way.
         /// </summary>
         /// <param name="composite">original mosaic of images</param>
-        /// <param name="index">mask assigning same color ID to pixels coming from the same source, should have either one band or same number as input image, typically in the range 1 - 65534; 0 and 65535 are treated as flags = NO_DATA | HOLD_CONSTANT</param>
+        /// <param name="index">source of each pixel, should have either one band or same number as input image
         /// <param name="flags">extra options to apply at each pixel (see LimberDMG.Flags enum), null for none, otherwise should have either one band or same number as input image</param>
+        /// <param name="legacyInvalidIndices">treat index 65535 same as 0</param>
         /// <returns></returns>
-        public Image StitchImage(Image composite, Image index, Image flags = null)
+        public Image StitchImage(Image composite, Image index, Image flags = null, bool legacyInvalidIndices = false)
         {
             int originalWidth = composite.Width;
             int originalHeight = composite.Height;
@@ -806,7 +804,16 @@ namespace OPS.Imaging
                             }
                             else
                             {
-                                flags[0, r, c] = (float)Flags.NONE;
+                                flag[0, r, c] = (float)Flags.NONE;
+                            }
+                            for (int b = 0; b < ind.Bands; b++)
+                            {
+                                if (ind[b, r, c] == 0 || (legacyInvalidIndices && ind[b, r, c] == 0xffff))
+                                {
+                                    ind[b, r, c] = 0;
+                                    flag[flag.Bands > 1 ? b : 1, r, c] =
+                                        (float)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
+                                }
                             }
                         }
                         else
@@ -822,6 +829,30 @@ namespace OPS.Imaging
                 index = ind;
                 flags = flag;
             }       
+            else
+            {
+                if (legacyInvalidIndices)
+                {
+                    index = (Image)index.Clone(); //don't mutate inputs
+                }
+                flags = flags != null ? ((Image)flags.Clone()) : new Image(1, index.Width, index.Height);
+
+                for (int r = 0; r < index.Height; r++)
+                {
+                    for (int c = 0; c < index.Width; c++)
+                    {
+                        for (int b = 0; b < index.Bands; b++)
+                        {
+                            if (index[b, r, c] == 0 || (legacyInvalidIndices && index[b, r, c] == 0xffff))
+                            {
+                                index[b, r, c] = 0;
+                                flags[flags.Bands > 1 ? b : 1, r, c] =
+                                    (float)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
+                            }
+                        }
+                    }
+                }
+            }
 
             Image blendedImage = new Image(composite.Bands, composite.Width, composite.Height);
 

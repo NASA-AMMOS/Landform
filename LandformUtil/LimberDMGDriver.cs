@@ -44,6 +44,9 @@ namespace OPS.LandformUtil
 
         [Option(Required = false, HelpText = "boundary handling: Clamp, WrapSphere, WrapCylinder, WrapTorus", Default = LimberDMG.DEF_EDGE_BEHAVIOUR)]
         public LimberDMG.EdgeBehavior EdgeMode { get; set; }
+
+        [Option(Required = false, HelpText = "include 65535 as an invalid index", Default = false)]
+        public bool LegacyInvalidIndices { get; set; }
     }
 
     public class LimberDMGDriver
@@ -109,7 +112,7 @@ namespace OPS.LandformUtil
             var dmg = new LimberDMG(options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
                                     options.Lambda, options.EdgeMode, options.ColorConversion,
                                     msg => Log(msg));
-            var output = dmg.StitchImage(composite, index, flags);
+            var output = dmg.StitchImage(composite, index, flags, options.LegacyInvalidIndices);
 
             var outFile = basename + "_dmg" + ext;
             var outPath = Path.Combine(dir, outFile);
