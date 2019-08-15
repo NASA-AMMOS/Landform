@@ -298,7 +298,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// handle PDS LBL files that refer to other PDS files containing the actual image data
+        /// handle PDS LBL files that refer to other IMG files containing the actual image data
         /// </summary>
         public string PDSDataPath(string lblUrl, string dataPath)
         {

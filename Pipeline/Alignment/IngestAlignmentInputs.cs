@@ -133,75 +133,108 @@ namespace OPS.Pipeline
 
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
-            int nt = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
+            int nt = 0, nu = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
+
+            ConcurrentDictionary<string, bool> done = new ConcurrentDictionary<string, bool>();
+
+            Action<string> ingestUrl = url => {
+
+                Interlocked.Increment(ref nu);
+                Interlocked.Increment(ref ni);
+
+                if (done.ContainsKey(url))
+                {
+                    return;
+                }
+
+                Interlocked.Increment(ref np);
+                if (!noProgress)
+                {
+                    pipeline.LogInfo("ingesting {0} images in parallel, completed {1}/{2}, {3} overall",
+                                     np, ni, nt, nu);
+                }
+                
+                var res = ingester.Ingest(url);
+                
+                Interlocked.Decrement(ref np);
+
+                done.AddOrUpdate(res.Url, _ => true, (_, __) => true);
+                if (res.DataUrl != null)
+                {
+                    done.AddOrUpdate(res.DataUrl, _ => true, (_, __) => true);
+                }
+
+                if (res.Status == IngestImage.Status.Skipped)
+                {
+                    Interlocked.Increment(ref ns);
+                    pipeline.LogVerbose(res.ToString());
+                }
+                else if (res.Status == IngestImage.Status.Failed)
+                {
+                    Interlocked.Increment(ref nf);
+                    pipeline.LogVerbose(res.ToString());
+                }
+                else if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
+                {
+                    //duplicates are OK to allow ingestion being re-run on an existing proj
+                    
+                    Interlocked.Increment(ref na);
+                    
+                    if (res.Status == IngestImage.Status.Duplicate)
+                    {
+                        Interlocked.Increment(ref ne);
+                    }
+                    
+                    var obs = res.Observation as RoverObservation;
+                    var frame = res.ObservationFrame;
+                    
+                    var sd = new SiteDrive(obs.Site, obs.Drive);
+                    var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
+                    sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, count) => count + 1);
+                    
+                    minSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Min(sol, obs.Day));
+                    maxSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Max(sol, obs.Day));
+                    
+                    orphans.TryRemove(obs.Name, out bool ignore);
+                    
+                    pipeline.LogVerbose("{0} -> observation {1}", res.ToString(), obs.ToString(brief: true));
+                    
+                    if (obs.ObservationType == imageObs && obs.UseForReconstruction)
+                    {
+                        Interlocked.Increment(ref nr);
+                    }
+                    
+                    if (func != null) func(res);
+                }
+            };
+
+            //if there are any LBL files ingest them first
+            //because they will generally refer to other IMG files containing the actual image data
+            //and for each pair (foo.LBL, foo.IMG) we want to mark both URLs as done
+            //because below we're going to also ingest all IMG files
+            //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
+            //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
+            HashSet<string> urls = new HashSet<string>();
             foreach (var entry in BaseUrls)
             {
-                pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
+                pipeline.LogInfo("{0}ingesting input LBL files from {1} for alignment project {2}",
                                  entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-
-                var images = pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive).ToList();
-                images.AddRange(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive).ToList());
-                images.AddRange(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive).ToList());
-
-                nt = images.Count();
-
-                CoreLimitedParallel.ForEach(images, url => {
-
-                        Interlocked.Increment(ref ni);
-                        Interlocked.Increment(ref np);
-                        if (!noProgress)
-                        {
-                            pipeline.LogInfo("ingesting {0} images in parallel, completed {1}/{2}", np, ni, nt);
-                        }
-
-                        var res = ingester.Ingest(url);
-
-                        Interlocked.Decrement(ref np);
-
-                        if (res.Status == IngestImage.Status.Skipped)
-                        {
-                            Interlocked.Increment(ref ns);
-                            pipeline.LogVerbose(res.ToString());
-                        }
-                        else if (res.Status == IngestImage.Status.Failed)
-                        {
-                            Interlocked.Increment(ref nf);
-                            pipeline.LogVerbose(res.ToString());
-                        }
-                        else if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
-                        {
-                            //duplicates are OK to allow ingestion being re-run on an existing proj
-
-                            Interlocked.Increment(ref na);
-
-                            if (res.Status == IngestImage.Status.Duplicate)
-                            {
-                                Interlocked.Increment(ref ne);
-                            }
-
-                            var obs = res.Observation as RoverObservation;
-                            var frame = res.ObservationFrame;
-
-                            var sd = new SiteDrive(obs.Site, obs.Drive);
-                            var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
-                            sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, count) => count + 1);
-
-                            minSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Min(sol, obs.Day));
-                            maxSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Max(sol, obs.Day));
-
-                            orphans.TryRemove(obs.Name, out bool ignore);
-
-                            pipeline.LogVerbose("{0} -> observation {1}", res.ToString(), obs.ToString(brief: true));
-
-                            if (obs.ObservationType == imageObs && obs.UseForReconstruction)
-                            {
-                                Interlocked.Increment(ref nr);
-                            }
-                            
-                            if (func != null) func(res);
-                        }
-                    });
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive).ToList());
             }
+            nt = urls.Count();
+            CoreLimitedParallel.ForEach(urls, ingestUrl);
+
+            urls.Clear();
+            foreach (var entry in BaseUrls)
+            {
+                pipeline.LogInfo("{0}ingesting input IMG and VIC files from {1} for alignment project {2}",
+                                 entry.Recursive ? "recursively " : "", entry.Url, project.Name);
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive).ToList());
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive).ToList());
+            }
+            nt = urls.Count();
+            ni = 0;
+            CoreLimitedParallel.ForEach(urls, ingestUrl);
                                             
             //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
             if (na > ne) //don't write to database if we didn't add any observations
@@ -265,8 +298,8 @@ namespace OPS.Pipeline
                 }
             }
 
-            pipeline.LogInfo("processed {0} files ({1:F3}s), {2} accepted, {3} existing, {4} failed, {5} skipped",
-                             ni, UTCTime.Now() - startTime, na, ne, nf, ns);
+            pipeline.LogInfo("processed {0} urls ({1:F3}s), {2} accepted, {3} existing, {4} failed, {5} skipped",
+                             nu, UTCTime.Now() - startTime, na, ne, nf, ns);
 
             var totalStats = new SortedDictionary<string, int>();
             foreach (var sd in stats.Keys.OrderBy(sd => sd))

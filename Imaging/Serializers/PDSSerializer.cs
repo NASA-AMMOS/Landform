@@ -14,7 +14,7 @@ namespace OPS.Imaging
     {
         /// <summary>
         /// Hook to formulate the path to a PDS data file given path to a PDS LBL file and the DataPath from it.
-        /// Default implementation returns lblPath if DataPath is null (monolithic PDS file)
+        /// Default implementation returns lblPath if DataPath is null (monolithic IMG file)
         /// else appends DataPath to directory containing the LBL file.
         /// </summary>
         public static Func<string, string, string> DataPath =
