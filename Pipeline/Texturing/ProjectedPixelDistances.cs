@@ -31,7 +31,6 @@ namespace OPS.Pipeline
             {
                 CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
-                //test hull (protect against bad ray calculations from camera model)
                 if (!obsToHull.ContainsKey(obs))
                     continue;
 
@@ -41,9 +40,11 @@ namespace OPS.Pipeline
                     continue;
                 }
 
+                //ISSUE #664: investigate whether raytrace is threadsafe and then this can be parallelized
                 List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
                 foreach (var pt in pointsToTestSamplingDensity)
                 {
+                    //test hull (protect against bad ray calculations from camera model)
                     if (!obsToHull[obs].Contains(pt.Point))
                         continue;
 

@@ -25,7 +25,7 @@ namespace OPS.Landform
         public string OcclusionMesh { get; set; }
 
         // output generation related
-        [Option(HelpText = "maximum image resolution per tile", Default = 256)]
+        [Option(HelpText = "image resolution for output texture", Default = 256)]
         public int OutputTextureResolution { get; set; }
 
         [Option(HelpText = "percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
@@ -35,7 +35,7 @@ namespace OPS.Landform
         public string OutputFrame { get; set; }
 
         // observation filtering related (landform standard)
-        [Option(HelpText = "Only use observations from a specific site)", Default = -1)]
+        [Option(HelpText = "Only use observations from a specific site", Default = -1)]
         public int OnlyForSite { get; set; }
 
         [Option(HelpText = "Only use observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
@@ -145,19 +145,19 @@ namespace OPS.Landform
             Mesh occlusionMesh = null;
             if (string.IsNullOrEmpty(options.OcclusionMesh))
             {
-                occlusionMesh = new Mesh(inputMesh); //can't change mesh after adding to collider
+                occlusionMesh = new Mesh(inputMesh);
             }
             else
             {
                 occlusionMesh = LoadMesh(options.OcclusionMesh);
                 if (occlusionMesh == null)
                 {
-                    pipeline.LogError("failed to build or load occlusion mesh {1}", options.OcclusionMesh);
+                    pipeline.LogError("failed to build or load occlusion mesh {0}", options.OcclusionMesh);
                     return 1;
                 }
             }
             SceneCaster sc = new SceneCaster();
-            sc.AddMesh(occlusionMesh, null, Matrix.Identity);
+            sc.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
             sc.Build();
 
             //get image observations
@@ -303,7 +303,7 @@ namespace OPS.Landform
 
         private Mesh LoadMesh(string pathToMesh)
         {
-            pipeline.LogInfo("Loading input mesh from {0}", pathToMesh);
+            pipeline.LogInfo("Loading mesh from {0}", pathToMesh);
             Mesh mesh = Mesh.Load(pathToMesh);
             if (mesh == null)
             {

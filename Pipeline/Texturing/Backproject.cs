@@ -47,6 +47,7 @@ namespace OPS.Pipeline
             Image mask = FeatureDetecting.MakeMask(pipeline, masker, maskObs == null ? null : maskObs.Url, img, obs.Name);
             int pointsToBackprojectCount = pointsToBackproject.Count();
 
+            //ISSUE #664: investigate whether raytrace is threadsafe and then this can be parallelized
             foreach (var pixelpoint in pointsToBackproject)
             {
                 Vector3 meshPos = pixelpoint.Point;
