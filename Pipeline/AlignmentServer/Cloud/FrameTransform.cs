@@ -198,5 +198,43 @@ namespace OPS.Pipeline.AlignmentServer
             }
             return ft;
         }
+
+        public static string CreateSourcesPath(TransformSource[] adjustedSources, TransformSource[] priorSources, bool usePriors)
+        {
+            string sourcesString = string.Empty;
+            if (usePriors)
+            {
+                sourcesString += "/prior";
+                if (priorSources.Length > 0)
+                {
+                    sourcesString += "_" + String.Join("_", priorSources);
+                }
+            }
+            else
+            {
+                sourcesString += "/best";
+                if (priorSources.Length > 0)
+                {
+                    sourcesString += "_" + String.Join("_", priorSources);
+                }
+                if (adjustedSources.Length > 0)
+                {
+                    sourcesString += "_" + String.Join("_", adjustedSources);
+                }
+            }
+
+            return sourcesString;
+        }
+
+        public static TransformSource[] ParseSources(string sources)
+        {
+            return (sources ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
+                .Cast<TransformSource>()
+                .ToArray();
+        }
     }
 }
+

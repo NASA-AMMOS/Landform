@@ -24,6 +24,18 @@ namespace OPS.Landform
     [Verb("local-build-geometry", HelpText = "create mesh")]
     public class LocalBuildGeometryOptions : LandformCommandOptions
     {
+        //input related 
+        [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
+        public int Decimate { get; set; }
+
+        //output related
+        [Option(HelpText = "decimates the full mesh to this target number of faces", Default = 0)]
+        public int FullMeshFaces { get; set; }
+
+        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
+        public bool NoCleverCombine { get; set; }
+
+        // observation filtering related (landform standard)
         [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
@@ -50,15 +62,13 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
+              
+        // debug related
+        [Option(HelpText = "Output debug products", Default = false)]
+        public bool OutputDebugInfo { get; set; }
 
-        [Option(HelpText = "decimates the full mesh to this target number of faces", Default = 0)]
-        public int FullMeshFaces { get; set; }
-
-        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
-        public bool NoCleverCombine { get; set; }
-
-        [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
-        public int Decimate { get; set; }
+        [Option(HelpText = "Only emit faces that intersect these observations, comma separated", Default = null)]
+        public string OnlyFacesForObs { get; set; }
     }
 
     public class LocalBuildGeometry : LandformCommand
@@ -81,17 +91,14 @@ namespace OPS.Landform
 
             if (options.OutputFrame == "rover")
                 throw new NotImplementedException("only root and numeric sitedrive are currently supported");
+
+            if (options.UsePriors && options.OnlyAligned)
+                throw new InvalidOperationException("cannot specify both --usepriors and --onlyaligned");
         }
 
         public int Run()
         {
-            pipeline.LogInfo("Running local-build-meshes command");
-
-            if (options.UsePriors && options.OnlyAligned)
-            {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
-                return 1;
-            }
+            pipeline.LogInfo("Running local-build-geometry command");
 
             var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
@@ -103,15 +110,12 @@ namespace OPS.Landform
             masker = mission.GetMasker();
 
             //create directory for output
-            var adjustedSources = ParseSources(options.AdjustedTransformSources);
-            var priorSources = ParseSources(options.PriorTransformSources);
+            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
+            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
             var outputFrame = options.OutputFrame.ToLower().Trim();
-            string dir = outputFrame + "Frame" + CreateSourcesPath(adjustedSources, priorSources);
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "geometry/" + dir, options.ProjectName);
-            if(!Directory.Exists(outputPath))
-            {
-                Directory.CreateDirectory(outputPath);
-            }
+            string dir = outputFrame + "Frame" + FrameTransform.CreateSourcesPath(adjustedSources, priorSources, options.UsePriors);
+            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir + "/geometry/", options.ProjectName);
+            PathHelper.EnsureExists(outputPath);
 
             //get transforms
             pipeline.LogInfo("Populating frame cache");
@@ -150,6 +154,31 @@ namespace OPS.Landform
                 return 1;
             }
 
+            // test if only a portion of the full mesh is needed
+            if (!string.IsNullOrEmpty(options.OnlyFacesForObs))
+            {
+                var obsNames = options.OnlyFacesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
+                var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
+                Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, options.OutputDebugInfo ? outputPath : null, frameCache, observationCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, obs);
+                var hulls = obs.Select(o => obsToHull[o]);
+
+                Mesh goodMesh = new Mesh(fullMesh);
+                goodMesh.Faces = new List<Face>();
+                foreach (var face in fullMesh.Faces)
+                {
+                    foreach (var hull in hulls)
+                    {
+                        if (hull.Intersects(fullMesh.FaceToTriangle(face)))
+                        {
+                            goodMesh.Faces.Add(face);
+                            break;
+                        }
+                    }
+                }
+                fullMesh = goodMesh;
+                fullMesh.Clean();
+            }
+
             string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
             pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
             fullMesh.Save(meshFilePath);
@@ -182,43 +211,6 @@ namespace OPS.Landform
             fullMesh.Clean();  // normalizes the normals that were used for generating the mesh
 
             return fullMesh;
-        }
-
-        private string CreateSourcesPath(TransformSource[] adjustedSources, TransformSource[] priorSources)
-        {
-            string sourcesString = string.Empty;
-            if (options.UsePriors)
-            {
-                sourcesString += "/prior";
-                if (priorSources.Length > 0)
-                {
-                    sourcesString += "_" + String.Join("_", priorSources);
-                }
-            }
-            else
-            {
-                sourcesString += "/best";
-                if (priorSources.Length > 0)
-                {
-                    sourcesString += "_" + String.Join("_", priorSources);
-                }
-                if (adjustedSources.Length > 0)
-                {
-                    sourcesString += "_" + String.Join("_", adjustedSources);
-                }
-            }
-
-            return sourcesString;
-        }
-
-        private TransformSource[] ParseSources(string sources)
-        {
-            return (sources ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
-                .Cast<TransformSource>()
-                .ToArray();
         }
     }
 }
