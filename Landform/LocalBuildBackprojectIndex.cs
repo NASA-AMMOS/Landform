@@ -283,11 +283,11 @@ namespace OPS.Landform
         IEnumerable<Observation> GetIntersectingObservations(ConvexHull meshHull, IEnumerable<Observation> imageObservations, Dictionary<Observation, ConvexHull> obsToHull, string outputPath)
         {
             List<Observation> intersectingObservations = new List<Observation>();
-            foreach (var obs in imageObservations)
-            {
-                if (!obsToHull.ContainsKey(obs))
-                    continue;
 
+            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            {
+                if (obsToHull.ContainsKey(obs))
+                {
                 if (meshHull.Intersects(obsToHull[obs]))
                 {
                     pipeline.LogDebug("intersecting observation {0}:{1}", intersectingObservations.Count(), obs.Name);
@@ -295,9 +295,14 @@ namespace OPS.Landform
                     {
                         obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_ihull.ply"));
                     }
+
+                        lock (intersectingObservations)
+                        {
                     intersectingObservations.Add(obs);
                 }
             }
+                }
+            });
             return intersectingObservations;
         }
 
