@@ -48,7 +48,7 @@ namespace OPS.Pipeline
             maxIndex = Observation.MIN_INDEX - 1;
             if (indices.Count > 0)
             {
-                maxIndex = Math.Max(indices.Values.Max(), Observation.MIN_INDEX - 1);
+                maxIndex = Math.Max(indices.Values.Max(), maxIndex);
             }
         }
 
