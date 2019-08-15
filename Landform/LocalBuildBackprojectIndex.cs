@@ -288,19 +288,19 @@ namespace OPS.Landform
             {
                 if (obsToHull.ContainsKey(obs))
                 {
-                if (meshHull.Intersects(obsToHull[obs]))
-                {
-                    pipeline.LogDebug("intersecting observation {0}:{1}", intersectingObservations.Count(), obs.Name);
-                    if (options.OutputDebugInfo)
+                    if (meshHull.Intersects(obsToHull[obs]))
                     {
-                        obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_ihull.ply"));
-                    }
+                        pipeline.LogDebug("intersecting observation {0}:{1}", intersectingObservations.Count(), obs.Name);
+                        if (options.OutputDebugInfo)
+                        {
+                            obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_ihull.ply"));
+                        }
 
                         lock (intersectingObservations)
                         {
-                    intersectingObservations.Add(obs);
-                }
-            }
+                            intersectingObservations.Add(obs);
+                        }
+                    }
                 }
             });
             return intersectingObservations;
