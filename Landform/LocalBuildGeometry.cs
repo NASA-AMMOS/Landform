@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
+using System.Diagnostics;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
@@ -25,31 +26,34 @@ namespace OPS.Landform
     public class LocalBuildGeometryOptions : LandformCommandOptions
     {
         //input related 
-        [Option(HelpText = "decimate mesh products by this factor before building full mesh", Default = 1)]
+        [Option(HelpText = "Observation point cloud decimation blocksize, or -1 for auto", Default = -1)]
         public int Decimate { get; set; }
 
+        [Option(HelpText = "Auto decimation target resolution", Default = 1024)]
+        public int TargetPointCloudResolution { get; set; }
+
         //output related
-        [Option(HelpText = "decimates the full mesh to this target number of faces", Default = 0)]
+        [Option(HelpText = "Decimate the full mesh to this target number of faces if positive", Default = 0)]
         public int FullMeshFaces { get; set; }
 
-        [Option(HelpText = "disable clever combine point cloud merging", Default = false)]
+        [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
+
+        [Option(HelpText = "Output coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
+        public string OutputFrame { get; set; }
+
+        [Option(HelpText = "Only emit faces that intersect these observations, comma separated", Default = null)]
+        public string OnlyFacesForObs { get; set; }
+
+        [Option(HelpText = "Mesh format, e.g. ply, obj, help for list", Default = "ply")]
+        public string MeshFormat { get; set; }
 
         // observation filtering related (landform standard)
         [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Only build mesh from observations from a specific site)", Default = -1)]
-        public int OnlyForSite { get; set; }
-
-        [Option(HelpText = "Only build mesh from observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
-        public int OnlyForDrive { get; set; }
-
-        [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
-
-        [Option(HelpText = "Output coordinate frame: rover, a numeric sitedrive SSSSSDDDDD, or root", Default = "root")]
-        public string OutputFrame { get; set; }
+        [Option(HelpText = "Only use observations from specific site drives, comma separated", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
         public string AdjustedTransformSources { get; set; }
@@ -65,10 +69,10 @@ namespace OPS.Landform
               
         // debug related
         [Option(HelpText = "Output debug products", Default = false)]
-        public bool OutputDebugInfo { get; set; }
+        public bool WriteDebug { get; set; }
 
-        [Option(HelpText = "Only emit faces that intersect these observations, comma separated", Default = null)]
-        public string OnlyFacesForObs { get; set; }
+        [Option(HelpText = "Debug output directory, or omit to save to local project storage", Default = null)]
+        public string DebugOutputFolder { get; set; }
     }
 
     public class LocalBuildGeometry : LandformCommand
@@ -80,25 +84,19 @@ namespace OPS.Landform
 
         public LocalBuildGeometry(LocalBuildGeometryOptions options) : base(options)
         {
-            if (options.Cloud)
-            {
-                throw new NotImplementedException("cloud operation not implemented yet");
-            }
-
             this.options = options;
-
-            var outputFrame = options.OutputFrame.ToLower().Trim();
-
-            if (options.OutputFrame == "rover")
-                throw new NotImplementedException("only root and numeric sitedrive are currently supported");
-
-            if (options.UsePriors && options.OnlyAligned)
-                throw new InvalidOperationException("cannot specify both --usepriors and --onlyaligned");
         }
 
         public int Run()
         {
-            pipeline.LogInfo("Running local-build-geometry command");
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            if (options.UsePriors && options.OnlyAligned)
+            {
+                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                return 1;
+            }
 
             var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
@@ -109,24 +107,41 @@ namespace OPS.Landform
             mission = MissionSpecific.GetInstance(project.Mission);
             masker = mission.GetMasker();
 
-            //create directory for output
+            var outputFrame = options.OutputFrame;
+            FrameTransform.ParseFrameName(ref outputFrame, out bool specificSiteDrive);
+            if (!specificSiteDrive && outputFrame != "root")
+            {
+                pipeline.LogError("unsupported output frame: " + outputFrame);
+                return 1;
+            }
+
             var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
             var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
-            var outputFrame = options.OutputFrame.ToLower().Trim();
-            string dir = FrameTransform.AppendSourcesPath(outputFrame + "Frame", adjustedSources, priorSources, options.UsePriors);
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir + "/geometry/", options.ProjectName);
-            PathHelper.EnsureExists(outputPath);
 
-            //get transforms
-            pipeline.LogInfo("Populating frame cache");
-            FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
+            string dir = string.Format("meshing/GeometryProducts/{0}Frame", outputFrame);
+            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
+            string outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, options.ProjectName);
+            //don't ensure outputPath exists here, we may never need it
+
+            var meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
+            if (meshExt == null)
+            {
+                return 0;
+            }
+
+            SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => new SiteDrive(s.Trim()))
+                .ToArray();
+
+            var frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
 
-            ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache
-                .Preload(obs => obs.UseForReconstruction &&
-                         ((options.OnlyForSite == -1) || options.OnlyForSite == ((RoverObservation)obs).Site) &&
-                         ((options.OnlyForDrive == -1) || options.OnlyForDrive == ((RoverObservation)obs).Drive));
+            var observationCache = new ObservationCache(pipeline, options.ProjectName);
+            observationCache.
+                Preload(obs => obs.UseForReconstruction &&
+                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)));
 
             //build or load cached full mesh
             Mesh fullMesh = BuildFullMesh(frameCache, observationCache, outputFrame);
@@ -159,7 +174,7 @@ namespace OPS.Landform
             {
                 var obsNames = options.OnlyFacesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
                 var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
-                Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, options.OutputDebugInfo ? outputPath : null, frameCache, observationCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, obs);
+                Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, options.WriteDebug ? outputPath : null, frameCache, observationCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, obs);
                 var hulls = obs.Select(o => obsToHull[o]);
 
                 Mesh goodMesh = new Mesh(fullMesh);
@@ -182,6 +197,9 @@ namespace OPS.Landform
             string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
             pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
             fullMesh.Save(meshFilePath);
+
+            stopwatch.Stop();
+            pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
         }

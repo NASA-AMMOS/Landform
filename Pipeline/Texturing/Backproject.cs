@@ -115,6 +115,7 @@ namespace OPS.Pipeline
 
                     if (!string.IsNullOrEmpty(debugOutputPath))
                     {
+                        PathHelper.EnsureExists(debugOutputPath);
                         obsHull.Mesh.Save(Path.Combine(debugOutputPath, obs.Name + "_hull.ply"));
                     }
                 }

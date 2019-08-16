@@ -1,16 +1,19 @@
-﻿using CommandLine;
+﻿using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.IO;
+using System.Linq;
+using System.Diagnostics;
+using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Geometry;
+using OPS.Util;
 using OPS.Imaging;
+using OPS.RayTrace;
+using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
-using OPS.RayTrace;
-using OPS.Util;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 
 namespace OPS.Landform
 {
@@ -18,31 +21,28 @@ namespace OPS.Landform
     public class LocalBuildBackprojectIndexOptions : LandformCommandOptions
     {
         // input related
-        [Value(1, Required = true, Default = null, HelpText = "path to the mesh to build an index for")]
+        [Value(1, Required = true, Default = null, HelpText = "Mesh to backproject")]
         public string InputMesh { get; set; }
 
-        [Option(HelpText = "path to mesh to use for occlusions, if not provided will use the input mesh", Default = null)]
+        [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
-        // output generation related
-        [Option(HelpText = "image resolution for output texture", Default = 256)]
+        [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
+        public string MeshFrame { get; set; }
+
+        // output related
+        [Option(HelpText = "Image resolution for output texture", Default = 4096)]
         public int OutputTextureResolution { get; set; }
 
-        [Option(HelpText = "percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
+        [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
 
-        [Option(HelpText = "Output coordinate frame: rover, a numeric sitedrive SSSSSDDDDD, or root", Default = "root")]
-        public string OutputFrame { get; set; }
-
         // observation filtering related (landform standard)
-        [Option(HelpText = "Only use observations from a specific site", Default = -1)]
-        public int OnlyForSite { get; set; }
+        [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
+        public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Only use observations from a specific drive (can be combined with OnlyForSite)", Default = -1)]
-        public int OnlyForDrive { get; set; }
-
-        [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
+        [Option(HelpText = "Only use observations from specific site drives, comma separated", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
         public string AdjustedTransformSources { get; set; }
@@ -58,7 +58,16 @@ namespace OPS.Landform
 
         // debug related
         [Option(HelpText = "Output debug products", Default = false)]
-        public bool OutputDebugInfo { get; set; }
+        public bool WriteDebug { get; set; }
+
+        [Option(HelpText = "Debug output directory, or omit to save to project storage", Default = null)]
+        public string DebugOutputFolder { get; set; }
+
+        [Option(HelpText = "Debug mesh format, e.g. ply, obj, help for list", Default = "ply")]
+        public string MeshFormat { get; set; }
+
+        [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
+        public string ImageFormat { get; set; }
     }
 
     public class LocalBuildBackprojectIndex : LandformCommand
@@ -67,6 +76,10 @@ namespace OPS.Landform
 
         private MissionSpecific mission;
         private RoverMasker masker;
+
+        private string outputPath;
+        private string imageExt;
+        private string meshExt;
 
         struct ObservationIndex
         {
@@ -77,27 +90,20 @@ namespace OPS.Landform
 
         public LocalBuildBackprojectIndex(LocalBuildBackprojectIndexOptions options) : base(options)
         {
-            if (options.Cloud)
-            {
-                throw new NotImplementedException("cloud operation not implemented yet");
-            }
-
             this.options = options;
-
-            var outputFrame = options.OutputFrame.ToLower().Trim();
-
-            if (options.OutputFrame == "rover")
-                throw new NotImplementedException("only root and numeric sitedrive are currently supported");
-
-            if (options.UsePriors && options.OnlyAligned)
-                throw new InvalidOperationException("cannot specify both --usepriors and --onlyaligned");
         }
 
         public int Run()
         {
-            pipeline.LogInfo("Running local-build-backprojectindex command");
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
 
-            //collect project data
+            if (options.UsePriors && options.OnlyAligned)
+            {
+                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                return 1;
+            }
+
             var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
             {
@@ -107,56 +113,104 @@ namespace OPS.Landform
             mission = MissionSpecific.GetInstance(project.Mission);
             masker = mission.GetMasker();
 
-            //create directory for output
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
-            var outputFrame = options.OutputFrame.ToLower().Trim();
-            string dir = FrameTransform.AppendSourcesPath(outputFrame + "Frame", adjustedSources, priorSources, options.UsePriors);
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir + "/backprojectindex/", options.ProjectName);
-            PathHelper.EnsureExists(outputPath);
-
-            //get transforms
-            pipeline.LogInfo("Populating frame and observation cache");
-            FrameCache frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
-            ObservationCache observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache
-                .Preload(obs => obs.UseForReconstruction &&
-                         ((options.OnlyForSite == -1) || options.OnlyForSite == ((RoverObservation)obs).Site) &&
-                         ((options.OnlyForDrive == -1) || options.OnlyForDrive == ((RoverObservation)obs).Drive));
-
-            // load input full mesh
-            Mesh inputMesh = LoadMesh(options.InputMesh);
-            if (inputMesh == null)
+            var meshFrame = options.MeshFrame;
+            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
+            if (!specificSiteDrive && meshFrame != "root")
             {
-                pipeline.LogError("failed to build or load input mesh {0}", options.InputMesh);
+                pipeline.LogError("unsupported mesh frame: " + meshFrame);
                 return 1;
             }
 
+            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
+            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
+
+            string dir = "meshing/TextureProducts";
+            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
+            outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, options.ProjectName);
+            //don't ensure outputPath exists here, we may never need it
+
+            if (options.WriteDebug)
+            {
+                meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
+                if (meshExt == null)
+                {
+                    return 0;
+                }
+                pipeline.LogInfo("writing {0} debug meshes to {1}", meshExt, outputPath);
+            
+                imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
+                if (imageExt == null)
+                {
+                    return 0;
+                }
+                pipeline.LogInfo("writing {0} debug images to {1}", imageExt, outputPath);
+            }
+
+            SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => new SiteDrive(s.Trim()))
+                .ToArray();
+
+            string[] cameras = (options.OnlyForCameras ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .ToArray();
+
+            var frameCache = new FrameCache(pipeline, options.ProjectName);
+            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
+
+            string imageObs = ObservationType.Image.ToString();
+            string maskObs = ObservationType.RoverMask.ToString();
+            var observationCache = new ObservationCache(pipeline, options.ProjectName);
+            observationCache.
+                Preload(obs => obs.UseForReconstruction &&
+                        (obs.ObservationType == imageObs || obs.ObservationType == maskObs) &&
+                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
+                        (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
+
+            //TODO load input mesh from database
+            pipeline.LogInfo("loading input mesh {0}", options.InputMesh);
+            Mesh inputMesh = Mesh.Load(options.InputMesh);
+            if (inputMesh == null)
+            {
+                pipeline.LogError("failed to load input mesh");
+                return 1;
+            }
+            if (inputMesh.Faces.Count == 0)
+            {
+                pipeline.LogError("input mesh empty");
+                return 1;
+            }
             if (!inputMesh.HasUVs)
             {
                 pipeline.LogError("input mesh needs UVs");
                 return 1;
             }
 
-            //set up raycasting for occlusion
-            pipeline.LogInfo("Building occlusion data structures");
             Mesh occlusionMesh = null;
-            if (string.IsNullOrEmpty(options.OcclusionMesh))
+            if (!string.IsNullOrEmpty(options.OcclusionMesh))
             {
-                occlusionMesh = new Mesh(inputMesh);
-            }
-            else
-            {
-                occlusionMesh = LoadMesh(options.OcclusionMesh);
+                pipeline.LogInfo("loading occlusion mesh {0}", options.OcclusionMesh);
+                occlusionMesh = Mesh.Load(options.OcclusionMesh);
                 if (occlusionMesh == null)
                 {
-                    pipeline.LogError("failed to build or load occlusion mesh {0}", options.OcclusionMesh);
+                    pipeline.LogError("failed to load occlusion mesh");
+                    return 1;
+                }
+                if (occlusionMesh.Faces.Count == 0)
+                {
+                    pipeline.LogError("occlusion mesh empty");
                     return 1;
                 }
             }
-            SceneCaster sc = new SceneCaster();
+            else
+            {
+                occlusionMesh = new Mesh(inputMesh);
+            }
+
+            pipeline.LogInfo("building occlusion data structures");
+            var sc = new SceneCaster();
             sc.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
             sc.Build();
 
@@ -166,7 +220,7 @@ namespace OPS.Landform
 
             //build convex hulls for image observations
             pipeline.LogInfo("Building observation hulls");
-            Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, outputPath, frameCache, observationCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, imageObservations);
+            Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, outputPath, frameCache, observationCache, meshFrame, options.UsePriors, options.OnlyAligned, imageObservations);
             imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
 
             // coarse frustum test: get all observations that intersect mesh hull
@@ -179,7 +233,7 @@ namespace OPS.Landform
             pipeline.LogInfo("collecting sampling points in destination texture");
             MeshOperator meshOp = new MeshOperator(inputMesh);
             List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(options.OutputTextureResolution, options.OutputTextureResolution);
-            if (options.OutputDebugInfo)
+            if (options.WriteDebug)
             {
                 pipeline.LogInfo("generating debug uv validity image");
                 Image validUVImg = new Image(1, options.OutputTextureResolution, options.OutputTextureResolution);
@@ -188,12 +242,13 @@ namespace OPS.Landform
                     validUVImg[0, (int)pixelPt.Pixel.Y, (int)pixelPt.Pixel.X] = 1.0f;
                 }
 
+                PathHelper.EnsureExists(outputPath);
                 validUVImg.Save<byte>(Path.Combine(outputPath, "backprojectValidUV.png"));
             }
 
             //calculate goodness (spatial density)
             pipeline.LogInfo("calculating spatial density");
-            Dictionary<Observation, double> projectedPixelDistances = ProjectedPixelDistances.Calculate(frameCache, sc, obsToHull, options.BackprojectGoodnessSamplingPct, options.OutputFrame, options.UsePriors, options.OnlyAligned, pointsToBackproject, intersectingObservations);
+            Dictionary<Observation, double> projectedPixelDistances = ProjectedPixelDistances.Calculate(frameCache, sc, obsToHull, options.BackprojectGoodnessSamplingPct, meshFrame, options.UsePriors, options.OnlyAligned, pointsToBackproject, intersectingObservations);
 
             //sort the list of observations by goodness
             intersectingObservations.Sort((obs1, obs2) => projectedPixelDistances[obs1].CompareTo(projectedPixelDistances[obs2]));
@@ -208,17 +263,18 @@ namespace OPS.Landform
                     break;
 
                 //backproject the destination pixels to find which source pixels should be used
-                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], options.OutputFrame, options.UsePriors, options.OnlyAligned, masker, pointsToBackproject, null);
+                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], meshFrame, options.UsePriors, options.OnlyAligned, masker, pointsToBackproject, null);
                 if (contributedPixels.Count() > 0)
                 {
                     float obsIndex = GetObservationIndex(obs);
                     pipeline.LogInfo("Obs index {0}: {1}", obsIndex, obs.Name);
 
-                    if (options.OutputDebugInfo)
+                    if (options.WriteDebug)
                     {
                         obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_chull.ply"));
 
                         Image dbgimg = pipeline.LoadImage(obs.Url);
+                        PathHelper.EnsureExists(outputPath);
                         dbgimg.Save<byte>(Path.Combine(outputPath, obs.Name + ".png"));
                     }
 
@@ -245,7 +301,7 @@ namespace OPS.Landform
                 outputImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X, new float[] { entry.Index, (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
             }
 
-            if (options.OutputDebugInfo)
+            if (options.WriteDebug)
             {
                 pipeline.LogInfo("generating debug preview image");
                 Image previewImg = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
@@ -265,10 +321,14 @@ namespace OPS.Landform
                     previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
                 }
 
+                PathHelper.EnsureExists(outputPath);
                 previewImg.Save<byte>(Path.Combine(outputPath, "backprojectPreview.png"));
             }
 
             outputImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
+
+            stopwatch.Stop();
+            pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
         }
@@ -291,8 +351,9 @@ namespace OPS.Landform
                     if (meshHull.Intersects(obsToHull[obs]))
                     {
                         pipeline.LogDebug("intersecting observation {0}:{1}", intersectingObservations.Count(), obs.Name);
-                        if (options.OutputDebugInfo)
+                        if (options.WriteDebug)
                         {
+                            PathHelper.EnsureExists(outputPath);
                             obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_ihull.ply"));
                         }
 
@@ -304,24 +365,6 @@ namespace OPS.Landform
                 }
             });
             return intersectingObservations;
-        }
-
-        private Mesh LoadMesh(string pathToMesh)
-        {
-            pipeline.LogInfo("Loading mesh from {0}", pathToMesh);
-            Mesh mesh = Mesh.Load(pathToMesh);
-            if (mesh == null)
-            {
-                pipeline.LogError("Loading mesh from {0} failed.", pathToMesh);
-                return null;
-            }
-
-            if (mesh.Vertices.Count() == 0 || mesh.Faces.Count() == 0)
-            {
-                pipeline.LogError("mesh {0} was invalid. mesh has {1} vertices and {2} faces", pathToMesh, mesh.Vertices.Count(), mesh.Faces.Count());
-                return null;
-            }
-            return mesh;
         }
     }
 }
