@@ -111,7 +111,7 @@ namespace OPS.Landform
             var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
             var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
             var outputFrame = options.OutputFrame.ToLower().Trim();
-            string dir = outputFrame + "Frame" + FrameTransform.CreateSourcesPath(adjustedSources, priorSources, options.UsePriors);
+            string dir = FrameTransform.AppendSourcesPath(outputFrame + "Frame", adjustedSources, priorSources, options.UsePriors);
             string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir + "/backprojectindex/", options.ProjectName);
             PathHelper.EnsureExists(outputPath);
 

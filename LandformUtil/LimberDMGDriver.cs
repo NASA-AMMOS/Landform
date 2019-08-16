@@ -60,6 +60,9 @@ namespace OPS.LandformUtil
 
         public int Run()
         {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
             var basename = Path.GetFileNameWithoutExtension(options.InputImage);
             var ext = Path.GetExtension(options.InputImage);
             var dir = Path.GetDirectoryName(options.InputImage);
@@ -82,9 +85,6 @@ namespace OPS.LandformUtil
                         fmt, string.Join(", ", MeshSerializers.Instance.SupportedFormats()));
                 }
             }
-
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
 
             Log("loading input image {0}...", options.InputImage);
             Image composite = Image.Load(options.InputImage);
@@ -131,7 +131,6 @@ namespace OPS.LandformUtil
             }
 
             stopwatch.Stop();
-
             Log("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
