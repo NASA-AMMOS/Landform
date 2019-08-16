@@ -214,123 +214,150 @@ namespace OPS.Landform
             sc.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
             sc.Build();
 
-            //get image observations
-            string imageObsType = ObservationType.Image.ToString();
-            IEnumerable<Observation> imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType);
+            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs);
 
-            //build convex hulls for image observations
-            pipeline.LogInfo("Building observation hulls");
-            var obsToHullTmp = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors, options.OnlyAligned, imageObservations);
-            var obsToHull = new Dictionary<Observation, ConvexHull>();
-            foreach (var entry in obsToHullTmp)
-            {
-                obsToHull[observationCache.GetObservation(entry.Key)] = entry.Value;
-            }
-            imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
-
-            // coarse frustum test: get all observations that intersect mesh hull
-            pipeline.LogInfo("performing coarse intersections");
-            ConvexHull meshHull = new ConvexHull(inputMesh);
-            List<Observation> intersectingObservations = GetIntersectingObservations(meshHull, imageObservations, obsToHull, outputPath).ToList();
-            pipeline.LogInfo("Found {0} observations intersecting mesh", intersectingObservations.Count());
-                
-            // collect the destination points to sample
-            pipeline.LogInfo("collecting sampling points in destination texture");
-            MeshOperator meshOp = new MeshOperator(inputMesh);
-            List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(options.OutputTextureResolution, options.OutputTextureResolution);
+            var obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors,
+                                                         options.OnlyAligned, imageObservations);
             if (options.WriteDebug)
             {
-                pipeline.LogInfo("generating debug uv validity image");
-                Image validUVImg = new Image(1, options.OutputTextureResolution, options.OutputTextureResolution);
+                foreach (var entry in obsToHull)
+                {
+                    SaveDebugMesh(entry.Value.Mesh, entry.Key + "_hull");
+                }
+            }
+            
+            imageObservations = imageObservations.Where(obs => obsToHull.ContainsKey(obs.Name));
+
+            //coarse frustum test: get all observations that intersect mesh hull
+            pipeline.LogInfo("performing coarse intersections");
+            var meshHull = new ConvexHull(inputMesh);
+            if (options.WriteDebug)
+            {
+                SaveDebugMesh(meshHull.Mesh, "fullMeshHull");
+            }
+            var intersecting = new ConcurrentBag<string>();
+            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            {
+                if (meshHull.Intersects(obsToHull[obs.Name]))
+                {
+                    intersecting.Add(obs.Name);
+                }
+            });
+            var intersectingObservations = intersecting
+                .Distinct()
+                .Select(obsName => observationCache.GetObservation(obsName))
+                .ToList();
+            pipeline.LogInfo("found {0} observations intersecting mesh", intersectingObservations.Count());
+                
+            pipeline.LogInfo("collecting sampling points in destination texture");
+            int outRes = options.OutputTextureResolution; 
+            var meshOp = new MeshOperator(inputMesh);
+            List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outRes, outRes);
+            if (options.WriteDebug)
+            {
+                Image validUV = new Image(1, outRes, outRes);
                 foreach (var pixelPt in pointsToBackproject)
                 {
-                    validUVImg[0, (int)pixelPt.Pixel.Y, (int)pixelPt.Pixel.X] = 1.0f;
+                    validUV[0, (int)pixelPt.Pixel.Y, (int)pixelPt.Pixel.X] = 1.0f;
                 }
-
-                PathHelper.EnsureExists(outputPath);
-                validUVImg.Save<byte>(Path.Combine(outputPath, "backprojectValidUV.png"));
+                SaveDebugImage(validUV, "backprojectValidUV");
             }
 
-            //calculate goodness (spatial density)
             pipeline.LogInfo("calculating spatial density");
-            Dictionary<Observation, double> projectedPixelDistances = ProjectedPixelDistances.Calculate(frameCache, sc, obsToHull, options.BackprojectGoodnessSamplingPct, meshFrame, options.UsePriors, options.OnlyAligned, pointsToBackproject, intersectingObservations);
-
-            //sort the list of observations by goodness
-            intersectingObservations.Sort((obs1, obs2) => projectedPixelDistances[obs1].CompareTo(projectedPixelDistances[obs2]));
 
             //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
+            var projectedPixelDistances = ProjectedPixelDistances.Calculate(frameCache, sc, meshHull, obsToHull,
+                                                                            options.BackprojectGoodnessSamplingPct,
+                                                                            meshFrame, options.UsePriors,
+                                                                            options.OnlyAligned, pointsToBackproject,
+                                                                            intersectingObservations, pipeline);
+            //sort observatoins by decreasing goodness
+            intersectingObservations
+                .Sort((obs1, obs2) => projectedPixelDistances[obs1.Name].CompareTo(projectedPixelDistances[obs2.Name]));
+
+            //for each source image in order from good to bad
+            //try to backproject all valid destination pixels (not atlas gutter pixels)
+            //greedily remove points that successfully backprojected
             pipeline.LogInfo("backprojecting observations");
-            List<ObservationIndex> indexEntries = new List<ObservationIndex>();
+            var indexEntries = new List<ObservationIndex>(pointsToBackproject.Count);
+            Image fullTex = options.WriteDebug ? new Image(3, outRes, outRes) : null;
+            int i = 0;
+            int np = pointsToBackproject.Count;
             foreach (var obs in intersectingObservations)
             {
-                //quit if done
                 if (pointsToBackproject.Count == 0)
+                {
                     break;
+                }
+
+                pipeline.LogInfo("backprojecting observation {0} {1}/{2}, {3}/{4} remaining pixels",
+                                 obs.Name, ++i, intersectingObservations.Count, pointsToBackproject.Count, np);
 
                 //backproject the destination pixels to find which source pixels should be used
-                var contributedPixels = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc, (RoverObservation)obs, obsToHull[obs], meshFrame, options.UsePriors, options.OnlyAligned, masker, pointsToBackproject, null);
-                if (contributedPixels.Count() > 0)
+                var hits = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc,
+                                                              (RoverObservation)obs, obsToHull[obs.Name],
+                                                              meshFrame, options.UsePriors,
+                                                              options.OnlyAligned, masker, pointsToBackproject,
+                                                              fullTex);
+
+                pipeline.LogInfo("observation {0} backprojected to {1} pixels", obs.Name, hits.Count);
+
+                if (hits.Count > 0)
                 {
-                    float obsIndex = GetObservationIndex(obs);
-                    pipeline.LogInfo("Obs index {0}: {1}", obsIndex, obs.Name);
-
-                    if (options.WriteDebug)
-                    {
-                        obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_chull.ply"));
-
-                        Image dbgimg = pipeline.LoadImage(obs.Url);
-                        PathHelper.EnsureExists(outputPath);
-                        dbgimg.Save<byte>(Path.Combine(outputPath, obs.Name + ".png"));
-                    }
-
-                    foreach (var contributedPixel in contributedPixels)
+                    foreach (var hit in hits)
                     {
                         indexEntries.Add(new ObservationIndex()
-                        {
-                            Index = obsIndex,
-                            SourcePixel = contributedPixel.Value,
-                            DestPixel = contributedPixel.Key
+                         {
+                            Index = obs.Index,
+                            SourcePixel = hit.Value,
+                            DestPixel = hit.Key
                         });
                     }
 
-                    //remove points that successfully backprojected from this observation
-                    pointsToBackproject = pointsToBackproject.Where(pt => !contributedPixels.ContainsKey(pt.Pixel)).ToList();
+                    pointsToBackproject = pointsToBackproject.Where(pt => !hits.ContainsKey(pt.Pixel)).ToList();
                 }
             }
+            if (options.WriteDebug)
+            {
+                SaveDebugImage(fullTex, "backprojectTexture");
+                SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectTexture" + imageExt);
+            }
 
-            //fill in output index
-            pipeline.LogInfo("populating output index texture");
-            Image outputImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
+            pipeline.LogInfo("populating output");
+            Image outputImage = new Image(3, outRes, outRes);
             foreach (var entry in indexEntries)
             {
-                outputImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X, new float[] { entry.Index, (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
+                outputImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X,
+                                          new float[] { entry.Index,
+                                                        (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
             }
+
+            //TODO save to database
+            PathHelper.EnsureExists(outputPath);
+            outputImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
 
             if (options.WriteDebug)
             {
-                pipeline.LogInfo("generating debug preview image");
-                Image previewImg = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
-                Dictionary<float, Vector3> colorsByIndex = new Dictionary<float, Vector3>();
-                Random random = NumberHelper.MakeRandomGenerator();
-                for (int idxPixel = 0; idxPixel < options.OutputTextureResolution * options.OutputTextureResolution; idxPixel++)
+                pipeline.LogInfo("generating false color debug image");
+                Image previewImg = new Image(3, outRes, outRes);
+                var colorsByIndex = new Dictionary<float, Vector3>();
+                Random rand = NumberHelper.MakeRandomGenerator();
+                for (int idxPixel = 0; idxPixel < outRes * outRes; idxPixel++)
                 {
                     float index = outputImage.GetBandValues(idxPixel)[0];
-                    if (index == 0)
+                    if (index < Observation.MIN_INDEX)
+                    {
                         continue;
-
+                    }
                     if (!colorsByIndex.ContainsKey(index))
                     {
-                        colorsByIndex.Add(index, new Vector3(random.NextDouble(), random.NextDouble(), random.NextDouble()));
+                        colorsByIndex.Add(index, new Vector3(rand.NextDouble(), rand.NextDouble(), rand.NextDouble()));
                     }
-
                     previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
                 }
 
-                PathHelper.EnsureExists(outputPath);
-                previewImg.Save<byte>(Path.Combine(outputPath, "backprojectPreview.png"));
+                SaveDebugImage(previewImg, "backprojectIndexFalseColor");
             }
-
-            outputImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
 
             stopwatch.Stop();
             pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
@@ -338,38 +365,16 @@ namespace OPS.Landform
             return 0;
         }
 
-        //TODO: placeholder function to be replaced by the observation index in the database
-        static float placeholderIndex = 0;
-        private float GetObservationIndex(Observation obs)
+        private void SaveDebugImage(Image img, string name)
         {
-            return placeholderIndex++;
+            PathHelper.EnsureExists(outputPath);
+            img.Save<byte>(Path.Combine(outputPath, name + imageExt));
         }
 
-        IEnumerable<Observation> GetIntersectingObservations(ConvexHull meshHull, IEnumerable<Observation> imageObservations, Dictionary<Observation, ConvexHull> obsToHull, string outputPath)
+        private void SaveDebugMesh(Mesh mesh, string name, string texture = null)
         {
-            List<Observation> intersectingObservations = new List<Observation>();
-
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
-            {
-                if (obsToHull.ContainsKey(obs))
-                {
-                    if (meshHull.Intersects(obsToHull[obs]))
-                    {
-                        pipeline.LogDebug("intersecting observation {0}:{1}", intersectingObservations.Count(), obs.Name);
-                        if (options.WriteDebug)
-                        {
-                            PathHelper.EnsureExists(outputPath);
-                            obsToHull[obs].Mesh.Save(Path.Combine(outputPath, obs.Name + "_ihull.ply"));
-                        }
-
-                        lock (intersectingObservations)
-                        {
-                            intersectingObservations.Add(obs);
-                        }
-                    }
-                }
-            });
-            return intersectingObservations;
+            PathHelper.EnsureExists(outputPath);
+            mesh.Save(Path.Combine(outputPath, name + meshExt), texture);
         }
     }
 }

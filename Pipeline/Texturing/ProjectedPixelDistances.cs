@@ -1,73 +1,97 @@
-﻿using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Pipeline.AlignmentServer;
-using OPS.RayTrace;
-using OPS.Util;
+﻿//#define NO_PARALLEL_RAYCASTS
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
+using Microsoft.Xna.Framework;
+using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
+using OPS.RayTrace;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    // a measure of texture quality for a set of observations using how far the pixels are apart (in meters) when projected onto a specific mesh
+    //a measure of texture quality for a set of observations
+    //using how far the pixels are apart (in meters) when projected onto a specific mesh
     public class ProjectedPixelDistances
     {
-        static public Dictionary<Observation, double> Calculate(FrameCache frameCache, SceneCaster sc, Dictionary<Observation, ConvexHull> obsToHull,
-            double percentagePointsToTest, string outputFrame, bool usePriors, bool onlyAligned,
-            List<PixelPoint> pointsToBackproject, IEnumerable<Observation> observations)
+        static public IDictionary<string, double> //observation name => median pixel spread
+            Calculate(FrameCache frameCache, SceneCaster sc, ConvexHull meshHull,
+                      IDictionary<string, ConvexHull> obsToHull,
+                      double percentagePointsToTest, string outputFrame, bool usePriors, bool onlyAligned,
+                      List<PixelPoint> pointsToBackproject, IEnumerable<Observation> observations,
+                      ILogger logger = null)
         {
-            Dictionary<Observation, double> pixelDistancesByObs = new Dictionary<Observation, double>();
-
             //simple sample which skips enough points to return the requested amount of points
-            int subsampledPts = Math.Max(1, (int)(pointsToBackproject.Count * percentagePointsToTest));
-            int skipPoints = pointsToBackproject.Count / subsampledPts;
-            List<PixelPoint> pointsToTestSamplingDensity =
-                pointsToBackproject.Where((pt, index) => index % skipPoints == 0).ToList();
+            int numPoints = pointsToBackproject.Count;
+            int skip = numPoints / Math.Max(1, (int)(numPoints * percentagePointsToTest));
+            var samples = pointsToBackproject.Where((pt, index) => index % skip == 0).ToList();
 
-            //calculate the median spatial density for the requested pixels per observation
+            var ret = new Dictionary<string, double>();
+            double[] spreads = new double[samples.Count];
             foreach (var obs in observations.Cast<RoverObservation>())
             {
+                if (!obsToHull.ContainsKey(obs.Name))
+                { 
+                    continue;
+                }
+                ConvexHull obsHull = obsToHull[obs.Name];
+
+                var xform = frameCache.GetObservationTransform(obs, outputFrame, usePriors, onlyAligned);
+                if (xform == null)
+                {
+                    continue;
+                }
+                Matrix obsToOutput = xform.Mean;
+
                 CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
-                if (!obsToHull.ContainsKey(obs))
-                    continue;
-
-                var obsToOutput = frameCache.GetObservationTransform(obs, outputFrame, usePriors, onlyAligned);
-                if (obsToOutput == null)
+                if (logger != null)
                 {
-                    continue;
+                    logger.LogVerbose("projecting pixel distances for {0} points in observation {1} {2}",
+                                      samples.Count, obs.Name,
+#if NO_PARALLEL_RAYCASTS
+                                      "serially"
+#else
+                                      "in paralell"
+#endif
+                                      );
                 }
 
-                //ISSUE #664: investigate whether raytrace is threadsafe and then this can be parallelized
-                List<double> minDistances = new List<double>(capacity: pointsToTestSamplingDensity.Count());
-                foreach (var pt in pointsToTestSamplingDensity)
-                {
-                    //test hull (protect against bad ray calculations from camera model)
-                    if (!obsToHull[obs].Contains(pt.Point))
-                        continue;
+                int i = -1;
+#if NO_PARALLEL_RAYCASTS
+                Serial.
+#else
+                CoreLimitedParallel.
+#endif
+                ForEach(samples, pt => {
+                
+                        int index = Interlocked.Increment(ref i);
 
-                    //Issue #523: want median or average in case glancing angle?
-                    //want a term that looks for consistancy in spacing? implies dead on?
-                    minDistances.Add(TextureSplitCriteria
-                                     .GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput.Mean,
-                                                                obsToHull[obs], pt.Pixel, pt.Point,
-                                                                obs.Width, obs.Height));
-                }
+                        if (obsHull.Contains(pt.Point)) //protect against bad ray calculations from camera model
+                        {
+                            //Issue #523: want median or average in case glancing angle?
+                            //want a term that looks for consistancy in spacing? implies dead on?
+                            spreads[index] =
+                                TextureSplitCriteria.
+                                GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, meshHull,
+                                                          pt.Pixel, pt.Point, obs.Width, obs.Height);
+                        }
+                        else
+                        {
+                            spreads[index] = -1;
+                        }
+                    });
 
-                //store the median of the min distances
-                double medianDistance = double.MaxValue;
-                if (minDistances.Count() > 0)
-                {
-                    minDistances.Sort();
-                    medianDistance = minDistances.ElementAt(minDistances.Count / 2);
-                }
-
-                pixelDistancesByObs.Add(obs, medianDistance);
+                //take median of valid spreads
+                var validSpreads = spreads.Where(spread => spread >= 0).ToList();
+                validSpreads.Sort();
+                ret[obs.Name] = validSpreads.Count > 0 ? validSpreads[validSpreads.Count / 2] : double.MaxValue;
             }
 
-            return pixelDistancesByObs;
+            return ret;
         }
     }
 }
