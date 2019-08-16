@@ -1,13 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using RTree;
 using Supercluster.KDTree;
-
-using System.Diagnostics;
+using OPS.Util;
 using OPS.Imaging;
 
 namespace OPS.Geometry
@@ -325,27 +326,33 @@ namespace OPS.Geometry
         public List<PixelPoint> SampleUVSpace(int widthPixels, int heightPixels)
         {
             if (!HasUVs)
-                throw new Exception("mesh needs uvs to subsample uv space");
-
-            List<PixelPoint> pts = new List<PixelPoint>();
-            for (int row = 0; row < heightPixels; row++)
             {
-                for (int col = 0; col < widthPixels; col++)
-                {
+                throw new Exception("mesh needs uvs to sample uv space");
+            }
+
+            var pixelToPoint = new ConcurrentDictionary<Vector2, Vector3>();
+            int numPixels = widthPixels * heightPixels;
+            CoreLimitedParallel.For(0, numPixels, pixel => {
+
+                    int row = pixel / widthPixels;
+                    int col = pixel % widthPixels;
+
                     //half pixel offset applied because we are testing if there would be mesh coverage at the location
-                    // we would be sampling at, the center of the pixel
+                    //we would be sampling at, the center of the pixel
                     Vector2 pixelCenter = Image.ApplyHalfPixelOffset(row, col);
                     Vector2 destPixelUV = Image.PixelToUV(pixelCenter, widthPixels, heightPixels);
                     
                     BarycentricPoint baryPt = UVToBarycentric(destPixelUV); 
-                    if (baryPt == null)
-                        continue;
+                    if (baryPt != null)
+                    {
+                        Vector2 key = Image.UVToPixel(destPixelUV, widthPixels, heightPixels);
+                        pixelToPoint.AddOrUpdate(key, _ => baryPt.Position, (_, __) => baryPt.Position);
+                    }
+                });
 
-                    pts.Add(new PixelPoint() { Pixel = Image.UVToPixel(destPixelUV, widthPixels, heightPixels), Point = baryPt.Position });
-                }
-            }
-
-            return pts;
+            return pixelToPoint
+                .Select(entry => new PixelPoint() { Pixel = entry.Key, Point = entry.Value })
+                .ToList();
         }
 
         /// <summary>
@@ -354,10 +361,14 @@ namespace OPS.Geometry
         public List<PixelPoint> SubsampleUVSpace(double pct, int widthPixels, int heightPixels)
         {
             if (pct >= 1.0)
+            {
                 throw new Exception("expecting to subsample uv space, a percentage >= 1 was passed");
+            }
 
             if (pct <= 0)
+            {
                 throw new Exception("valid subsample pcts need to be greater than zero");
+            }
 
             List<PixelPoint> pts = SampleUVSpace(widthPixels, heightPixels);
 
