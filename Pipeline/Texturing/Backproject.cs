@@ -1,15 +1,16 @@
-﻿using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
-using OPS.RayTrace;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using OPS.Imaging;
-using Microsoft.Xna.Framework;
+using System.Threading;
 using System.IO;
+using Microsoft.Xna.Framework;
 using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
+using OPS.Pipeline.AlignmentServer;
+using OPS.RayTrace;
 
 namespace OPS.Pipeline
 {
@@ -88,42 +89,33 @@ namespace OPS.Pipeline
             return backprojectedPoints;
         }
         
-        static public Dictionary<Observation, ConvexHull> BuildConvexHulls(PipelineCore pipeline, string debugOutputPath, FrameCache frameCache, ObservationCache observationCache,
-                                      string outputFrame, bool usePriors, bool onlyAligned, IEnumerable<Observation> imageObservations)
+        static public IDictionary<string, ConvexHull> //indexed by observation name
+            BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
+                             bool onlyAligned, IEnumerable<Observation> imageObservations)
         {
-            pipeline.LogInfo("Building convex hulls");
-            Dictionary<Observation, ConvexHull> obsToHull = new Dictionary<Observation, ConvexHull>();
+            int no = imageObservations.Count();
+
+            pipeline.LogInfo("building convex hulls for {0} observations", no);
+
+            var obsToHull = new ConcurrentDictionary<string, ConvexHull>();
+
+            int nh = 0;
             CoreLimitedParallel.ForEach(imageObservations, obs =>
             {
-                pipeline.LogInfo("Building hull for {0}, {1}/{2} ({3}%)",
-                                 obs.Name, obsToHull.Count(), imageObservations.Count(),
-                                 (int)(100 * obsToHull.Count() / (float)imageObservations.Count()));
+                Interlocked.Increment(ref nh);
+                pipeline.LogInfo("building convex hull for observation {0}, {1}/{2}", obs.Name, nh, no);
                 var meshObs = new MeshObservations() { Texture = obs };
-                var meshOpts = new MeshObservations.MeshOptions()
+                var opts = new MeshObservations.MeshOptions()
+                { Frame = outputFrame, UsePriors = usePriors, OnlyAligned = onlyAligned };
+                var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false);
+                if (hull != null)
                 {
-                    Frame = outputFrame,
-                    UsePriors = usePriors,
-                    OnlyAligned = onlyAligned
-                };
-                ConvexHull obsHull = meshObs.BuildFrustumHull(pipeline, frameCache, meshOpts, uncertaintyInflated: false);
-                if (obsHull != null)
-                {
-                    lock (obsToHull)
-                    {
-                        obsToHull.Add(obs, obsHull);
-                    }
-
-                    if (!string.IsNullOrEmpty(debugOutputPath))
-                    {
-                        PathHelper.EnsureExists(debugOutputPath);
-                        obsHull.Mesh.Save(Path.Combine(debugOutputPath, obs.Name + "_hull.ply"));
-                    }
-                }
-                else
-                {
-                    pipeline.LogWarn("failed to build hull for {0}", obs.Name);
+                    obsToHull.AddOrUpdate(obs.Name, _ => hull, (_, __) => hull);
                 }
             });
+
+            pipeline.LogInfo("built convex hulls for {0} observations", obsToHull.Count);
+
             return obsToHull;
         }
     }

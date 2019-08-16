@@ -70,7 +70,7 @@ namespace OPS.Geometry
             {
                 this.Vertices.Add((Vertex)other.Vertices[i].Clone());
             }
-            SetProperties(other.HasNormals, other.HasUVs, other.HasColors);
+            SetProperties(other);
         }
 
         /// <summary>
@@ -109,6 +109,11 @@ namespace OPS.Geometry
             this.HasNormals = hasNormals;
             this.HasUVs = hasUVs;
             this.HasColors = hasColors;
+        }
+
+        public void SetProperties(Mesh other)
+        {
+            SetProperties(other.HasNormals, other.HasUVs, other.HasColors);
         }
 
         /// <summary>

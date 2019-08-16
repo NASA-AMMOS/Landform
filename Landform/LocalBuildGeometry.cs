@@ -143,42 +143,60 @@ namespace OPS.Landform
                 Preload(obs => obs.UseForReconstruction &&
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)));
 
-            //build or load cached full mesh
-            Mesh fullMesh = BuildFullMesh(frameCache, observationCache, outputFrame);
+            pipeline.LogInfo("building mesh for {0}", options.ProjectName);
+            bool allowMastcam = true;
+            Mesh fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds,
+                                                       frameCache, observationCache, outputFrame, options.UsePriors,
+                                                       options.OnlyAligned, options.OnlyForCameras,
+                                                       !options.NoCleverCombine, allowMastcam,
+                                                       options.Decimate, options.TargetPointCloudResolution);
             if (fullMesh == null)
             {
                 pipeline.LogError("failed to build or load full mesh");
                 return 1;
             }
 
+            pipeline.LogInfo("clipping mesh to input bounds");
+            fullMesh = Mesh.Clip(fullMesh, pointBounds); // clips the mesh to the 2d bounds of the input points
+
+            pipeline.LogInfo("cleaning mesh");
+            fullMesh.Clean(); // normalizes the normals
+
             if (fullMesh.Vertices.Count() == 0)
             {
-                pipeline.LogError("after building, full mesh has no vertices");
+                pipeline.LogError("mesh has no vertices");
                 return 1;
             }
 
             if (options.FullMeshFaces > 0)
             {
-                pipeline.LogInfo("Decimating full mesh to {0} faces", options.FullMeshFaces);
+                pipeline.LogInfo("decimating mesh, target {0} faces", options.FullMeshFaces);
                 fullMesh = MeshLab.Decimate(fullMesh, options.FullMeshFaces);
+                pipeline.LogInfo("decimated mesh to {0} faces", fullMesh.Faces.Count);
             }
 
             if (fullMesh.Vertices.Count() == 0)
             {
-                pipeline.LogError("after decimation, full mesh has no vertices");
+                pipeline.LogError("mesh has no vertices after decimation");
                 return 1;
             }
 
-            // test if only a portion of the full mesh is needed
-            if (!string.IsNullOrEmpty(options.OnlyFacesForObs))
-            {
-                var obsNames = options.OnlyFacesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
-                var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
-                Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, options.WriteDebug ? outputPath : null, frameCache, observationCache, options.OutputFrame, options.UsePriors, options.OnlyAligned, obs);
-                var hulls = obs.Select(o => obsToHull[o]);
+            var onlyForObs = (options.OnlyFacesForObs ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(n => observationCache.GetObservation(n.Trim()))
+                .Where(o => o != null)
+                .ToArray();
 
-                Mesh goodMesh = new Mesh(fullMesh);
-                goodMesh.Faces = new List<Face>();
+            if (onlyForObs.Length > 0)
+            {
+                pipeline.LogInfo("only keeping triangles visible in observations: {0}",
+                                 string.Join(", ", onlyForObs.Select(obs => obs.Name)));
+                var hulls = Backproject.BuildConvexHulls(pipeline, frameCache, options.OutputFrame, options.UsePriors,
+                                                         options.OnlyAligned, onlyForObs).Values;
+                Mesh goodMesh = new Mesh();
+                goodMesh.SetProperties(fullMesh);
+                goodMesh.Vertices = fullMesh.Vertices;
                 foreach (var face in fullMesh.Faces)
                 {
                     foreach (var hull in hulls)
@@ -192,43 +210,23 @@ namespace OPS.Landform
                 }
                 fullMesh = goodMesh;
                 fullMesh.Clean();
+                pipeline.LogInfo("kept {0} faces visible in specified observations", fullMesh.Faces.Count);
             }
 
-            string meshFilePath = Path.Combine(outputPath, "fullMesh.ply");
-            pipeline.LogInfo("Saving full mesh to: {0}", meshFilePath);
-            fullMesh.Save(meshFilePath);
+            if (options.WriteDebug)
+            {
+                string meshFilePath = Path.Combine(outputPath, "fullMesh" + meshExt);
+                pipeline.LogInfo("saving {0}", meshFilePath);
+                PathHelper.EnsureExists(outputPath);
+                fullMesh.Save(meshFilePath);
+            }
 
+            //TODO save in database
+                
             stopwatch.Stop();
             pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
-        }
-
-        private Mesh BuildFullMesh(FrameCache frameCache, ObservationCache observationCache, string outputFrame)
-        {
-            Mesh fullMesh = null;
-
-            pipeline.LogInfo("Populating observations cache for mesh building");
-
-            //build mesh
-            pipeline.LogInfo("Building full mesh for {0}", options.ProjectName);
-            fullMesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out BoundingBox pointBounds,
-                                                  frameCache, observationCache, outputFrame, options.UsePriors,
-                                                  options.OnlyAligned, options.OnlyForCameras,
-                                                  !options.NoCleverCombine, allowMastcam: true,
-                                                  decimate: options.Decimate);
-            if (fullMesh == null)
-            {
-                pipeline.LogError("Mesh building for {0} failed.", options.ProjectName);
-                return null;
-            }
-
-            //beautify mesh
-            pipeline.LogInfo("Post-processing full mesh");
-            fullMesh = Mesh.Clip(fullMesh, pointBounds); // clips the mesh to the 2d bounds of the input points
-            fullMesh.Clean();  // normalizes the normals that were used for generating the mesh
-
-            return fullMesh;
         }
     }
 }

@@ -220,7 +220,12 @@ namespace OPS.Landform
 
             //build convex hulls for image observations
             pipeline.LogInfo("Building observation hulls");
-            Dictionary<Observation, ConvexHull> obsToHull = Backproject.BuildConvexHulls(pipeline, outputPath, frameCache, observationCache, meshFrame, options.UsePriors, options.OnlyAligned, imageObservations);
+            var obsToHullTmp = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors, options.OnlyAligned, imageObservations);
+            var obsToHull = new Dictionary<Observation, ConvexHull>();
+            foreach (var entry in obsToHullTmp)
+            {
+                obsToHull[observationCache.GetObservation(entry.Key)] = entry.Value;
+            }
             imageObservations = imageObservations.Where(x => obsToHull.ContainsKey(x));
 
             // coarse frustum test: get all observations that intersect mesh hull
