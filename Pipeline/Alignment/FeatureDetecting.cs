@@ -301,8 +301,9 @@ namespace OPS.Pipeline
         ///
         /// the image mask we use for feature detection purposes combines three things
         /// 1) rover mask
-        /// 2) invalid pixels in the original image
-        /// 3) inset borders of the original image (image borders sometimes have solid bars)
+        /// 2) invalid pixels in the original image (e.g. pixels equal to the PDS header MissingConstant)
+        /// 3) masked pixels the original image (e.g. due to a user mask override image)
+        /// 4) inset borders of the original image (image borders sometimes have solid bars)
         /// </summary>
         public static Image MakeMask(PipelineCore pipeline, RoverMasker masker, string roverMaskUrl, Image img,
                                      string observationName, int border = DEF_MASK_BORDER)
@@ -310,7 +311,19 @@ namespace OPS.Pipeline
             //do not mutate rover mask if it's loaded from mission product (clone: true)
             Image mask = masker.LoadOrBuild(pipeline, roverMaskUrl, img, observationName, clone: true);
 
-            //propagate invalid image pixels to mask
+            //propagate masked pixels from original image to mask
+            for (int row = 0; row < img.Height; row++)
+            {
+                for (int col = 0; col < img.Width; col++)
+                {
+                    if (!img.IsValid(row, col))
+                    {
+                        mask[0, row, col] = 0;
+                    }
+                }
+            } 
+
+            //propagate invalid pixels from original image to mask
             if (img.Metadata is PDSMetadata)
             {
                 var parser = new PDSParser((PDSMetadata)img.Metadata);
@@ -358,6 +371,7 @@ namespace OPS.Pipeline
                     mask[0, row, mask.Width - 1 - b] = 0;
                 }
             }
+
             return mask;
         }
 
