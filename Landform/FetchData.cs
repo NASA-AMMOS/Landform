@@ -21,8 +21,8 @@ namespace OPS.Landform
     [Verb("fetch", HelpText = "Download data products from S3")]
     public class FetchDataOptions
     {
-        [Value(0, Required = true, Default = null, HelpText = "'27-32' or '607,609' or a mixture '27-32,607,609-611'")]
-        public string Sols { get; set; }
+        [Value(0, Required = true, Default = null, HelpText = "sol numbers to download, e.g. '27-32', '607,609', '27-32,607,609-611'; or a comma-separated list of raw S3 URLs if --raw is also specified")]
+        public string Input { get; set; }
 
         [Value(1, Required = true, Default = null, HelpText = "output directory, e.g. c:/Users/$USERNAME/Downloads")]
         public string OutputDir { get; set; }
@@ -30,10 +30,13 @@ namespace OPS.Landform
         [Value(2, Required = false, HelpText = "RDR search locations with sol replaced with ##### (ie s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr/")]
         public IEnumerable<string> SearchLocations { get; set; } = null;
 
+        [Option(Required = false, Default = false, HelpText = "treat input as raw S3 URLs, not sol numbers")]
+        public bool Raw { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "A set of comma delimited site drives to filter by `0000100000,0003101330`")]
         public string SiteDrives { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "")]
+        [Option(Required = false, Default = null, HelpText = "text file listing files (and/or product IDs) to include, one per line")]
         public string Include { get; set; }
 
         [Option(Required = true, HelpText = "")]
@@ -237,40 +240,55 @@ namespace OPS.Landform
 
         public int Run()
         {
-
-            var sols = ExpandSolSpecifier(options.Sols);
-            logger.InfoFormat("seaching sols {0}", string.Join(", ", sols));
-
-            ConcurrentDictionary<string, List<string>> solToProducts = new ConcurrentDictionary<string, List<string>>();
-            CoreLimitedParallel.ForEach(sols, sol =>
+            if (options.Raw)
             {
-                var prods = new List<string>();
-                foreach (var location in options.SearchLocations)
-                {
-                    var solLocation = location.Replace("#####", sol);
-                    prods.AddRange(IndexFiles(solLocation));
-                }
-                solToProducts.TryAdd(sol, prods);
-            });
-            logger.Info("filtering Files");
-            foreach (var sol in sols)
-            {
-                solToProducts[sol] = Filter(solToProducts[sol]);
+                DownloadFiles(options.Input.Split(',').Select(f => f.Trim()).Where(f => f != "").ToList());
             }
+            else
+            {
+                var sols = ExpandSolSpecifier(options.Input);
+                logger.InfoFormat("seaching sols {0}", string.Join(", ", sols));
+                
+                var solToProducts = new ConcurrentDictionary<string, List<string>>();
+                CoreLimitedParallel.ForEach(sols, sol =>
+                        {
+                            var prods = new List<string>();
+                            foreach (var location in options.SearchLocations)
+                            {
+                                var solLocation = location.Replace("#####", sol);
+                                prods.AddRange(IndexFiles(solLocation));
+                            }
+                            solToProducts.TryAdd(sol, prods);
+                        });
+                logger.Info("filtering Files");
+                foreach (var sol in sols)
+                {
+                    solToProducts[sol] = Filter(solToProducts[sol]);
+                }
+                
+                DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
+            }
+
+            return 0;
+        }
+
+        private void DownloadFiles(List<string> files)
+        {
             var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };
-            var totalFilesToDownload = solToProducts.SelectMany(s => s.Value);
+
+            var totalFilesToDownload = files;
             var remainingFilesToDownload = totalFilesToDownload;
-            if(!options.Overwrite)
+            if (!options.Overwrite)
             {
                 ConcurrentBag<string> toDownload = new ConcurrentBag<string>();
                 CoreLimitedParallel.ForEach(totalFilesToDownload, po, f =>
                 {
-                    if(ShouldDownload(f))
+                    if (ShouldDownload(f))
                     {
                         toDownload.Add(f);
                     }
                 });
-                remainingFilesToDownload = toDownload.ToList();
+                remainingFilesToDownload = toDownload.Distinct().ToList();
             }
             int total = totalFilesToDownload.Count();
             int remaining = remainingFilesToDownload.Count();
@@ -283,7 +301,6 @@ namespace OPS.Landform
                 logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
                                   downloaded, remaining, (downloaded * 100) / remaining);
             });
-            return 0;
         }
     }
 }
