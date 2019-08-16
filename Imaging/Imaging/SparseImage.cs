@@ -200,7 +200,7 @@ namespace OPS.Imaging
                         } 
                         else
                         {
-                            chunkCache.Add(new Vector2(r, c), chunk);
+                            chunkCache[new Vector2(r, c)] = chunk;
                         }
                     }
                 }
@@ -536,7 +536,7 @@ namespace OPS.Imaging
             }
             else
             {
-                chunk = chunkCache.GetOrLoad(new Vector2(chunkRow, chunkCol), null);
+                chunk = chunkCache[new Vector2(chunkRow, chunkCol)];
             }
 
             if (chunk == null)
@@ -593,7 +593,7 @@ namespace OPS.Imaging
                 }
                 else
                 {
-                    chunkCache.Add(new Vector2(chunkRow, chunkCol), chunk);
+                    chunkCache[new Vector2(chunkRow, chunkCol)] = chunk;
                 }
             }
 
@@ -605,8 +605,7 @@ namespace OPS.Imaging
         /// </summary>
         private Image GetExistingChunk(int chunkRow, int chunkCol)
         {
-            return chunks != null ? chunks[chunkRow, chunkCol]
-                : chunkCache.GetOrLoad(new Vector2(chunkRow, chunkCol), null);
+            return chunks != null ? chunks[chunkRow, chunkCol] : chunkCache[new Vector2(chunkRow, chunkCol)];
         }
 
         public override void CreateMask(bool initialValue = false)
