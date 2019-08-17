@@ -21,7 +21,7 @@ namespace OPS.Landform
     public class LocalBuildBackprojectIndexOptions : LandformCommandOptions
     {
         // input related
-        [Value(1, Required = true, Default = null, HelpText = "Mesh to backproject")]
+        [Value(1, Required = false, Default = null, HelpText = "Mesh to backproject, search project storage if omitted")]
         public string InputMesh { get; set; }
 
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
@@ -169,9 +169,35 @@ namespace OPS.Landform
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
                         (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
 
-            //TODO load input mesh from database
-            pipeline.LogInfo("loading input mesh {0}", options.InputMesh);
-            Mesh inputMesh = Mesh.Load(options.InputMesh);
+            //try to load SceneMesh record from database even if options.InputMesh is going to override it
+            //because if it exists we will update it below with the generated backproject index image
+            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+
+            Mesh inputMesh = null;
+            if (!string.IsNullOrEmpty(options.InputMesh))
+            {
+                pipeline.LogInfo("loading input mesh from {0}", options.InputMesh);
+                inputMesh = Mesh.Load(pipeline.GetFileCached(options.InputMesh, "meshes"));
+            }
+            else if (sceneMesh != null)
+            {
+                if (sceneMesh.MeshGuid != Guid.Empty)
+                {
+                    pipeline.LogInfo("loading scene mesh in frame {0} from database", meshFrame);
+                    inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                }
+                else
+                {
+                    pipeline.LogError("scene mesh in frame {0} in database but without mesh", meshFrame);
+                    return 1;
+                }
+            }
+            else
+            {
+                pipeline.LogError("no input mesh specified and no scene mesh in frame {0} in database", meshFrame);
+                return 1;
+            }
+
             if (inputMesh == null)
             {
                 pipeline.LogError("failed to load input mesh");
@@ -192,7 +218,7 @@ namespace OPS.Landform
             if (!string.IsNullOrEmpty(options.OcclusionMesh))
             {
                 pipeline.LogInfo("loading occlusion mesh {0}", options.OcclusionMesh);
-                occlusionMesh = Mesh.Load(options.OcclusionMesh);
+                occlusionMesh = Mesh.Load(pipeline.GetFileCached(options.OcclusionMesh, "meshes"));
                 if (occlusionMesh == null)
                 {
                     pipeline.LogError("failed to load occlusion mesh");
@@ -220,6 +246,7 @@ namespace OPS.Landform
                                                          options.OnlyAligned, imageObservations);
             if (options.WriteDebug)
             {
+                pipeline.LogInfo("saving {0} observation hull meshes", obsToHull.Count);
                 foreach (var entry in obsToHull)
                 {
                     SaveDebugMesh(entry.Value.Mesh, entry.Key + "_hull");
@@ -233,6 +260,7 @@ namespace OPS.Landform
             var meshHull = new ConvexHull(inputMesh);
             if (options.WriteDebug)
             {
+                pipeline.LogInfo("saving full mesh hull");
                 SaveDebugMesh(meshHull.Mesh, "fullMeshHull");
             }
             var intersecting = new ConcurrentBag<string>();
@@ -255,6 +283,7 @@ namespace OPS.Landform
             List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outRes, outRes);
             if (options.WriteDebug)
             {
+                pipeline.LogInfo("saving backproject validity image");
                 Image validUV = new Image(1, outRes, outRes);
                 foreach (var pixelPt in pointsToBackproject)
                 {
@@ -271,7 +300,7 @@ namespace OPS.Landform
                                                                             meshFrame, options.UsePriors,
                                                                             options.OnlyAligned, pointsToBackproject,
                                                                             intersectingObservations, pipeline);
-            //sort observatoins by decreasing goodness
+            //sort observations by decreasing goodness
             intersectingObservations
                 .Sort((obs1, obs2) => projectedPixelDistances[obs1.Name].CompareTo(projectedPixelDistances[obs2.Name]));
 
@@ -319,32 +348,33 @@ namespace OPS.Landform
             }
             if (options.WriteDebug)
             {
+                pipeline.LogInfo("saving backproject texture and textured mesh");
                 SaveDebugImage(fullTex, "backprojectTexture");
                 SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectTexture" + imageExt);
             }
 
             pipeline.LogInfo("populating output");
-            Image outputImage = new Image(3, outRes, outRes);
+            Image indexImage = new Image(3, outRes, outRes);
             foreach (var entry in indexEntries)
             {
-                outputImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X,
-                                          new float[] { entry.Index,
-                                                        (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
+                indexImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X,
+                                         new float[] { entry.Index,
+                                                       (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
             }
-
-            //TODO save to database
-            PathHelper.EnsureExists(outputPath);
-            outputImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
 
             if (options.WriteDebug)
             {
-                pipeline.LogInfo("generating false color debug image");
+                pipeline.LogInfo("saving backproject index image");
+                PathHelper.EnsureExists(outputPath);
+                indexImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
+
+                pipeline.LogInfo("generating false color image");
                 Image previewImg = new Image(3, outRes, outRes);
                 var colorsByIndex = new Dictionary<float, Vector3>();
                 Random rand = NumberHelper.MakeRandomGenerator();
                 for (int idxPixel = 0; idxPixel < outRes * outRes; idxPixel++)
                 {
-                    float index = outputImage.GetBandValues(idxPixel)[0];
+                    float index = indexImage.GetBandValues(idxPixel)[0];
                     if (index < Observation.MIN_INDEX)
                     {
                         continue;
@@ -356,7 +386,21 @@ namespace OPS.Landform
                     previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
                 }
 
+                pipeline.LogInfo("saving false color image");
                 SaveDebugImage(previewImg, "backprojectIndexFalseColor");
+            }
+
+            pipeline.LogInfo("saving backproject index to project storage");
+            if (sceneMesh != null)
+            {
+                var indexProd = new TiffDataProduct(indexImage);
+                pipeline.SaveDataProduct(project, indexProd);
+                sceneMesh.BackprojectIndexGuid = indexProd.Guid;
+                sceneMesh.Save(pipeline);
+            }
+            else
+            {
+                SceneMesh.Create(pipeline, project, meshFrame, null, indexImage);
             }
 
             stopwatch.Stop();
