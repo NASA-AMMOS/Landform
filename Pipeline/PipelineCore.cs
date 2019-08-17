@@ -108,6 +108,7 @@ namespace OPS.Pipeline
                 typeof(RoverObservation), //TODO msl specific
                 typeof(BirdsEyeView),
                 typeof(BirdsEyeViewFeatures),
+                typeof(SceneMesh),
                 typeof(FeatureMatches),
                 typeof(SpatialMatches),
                 typeof(Overlap),

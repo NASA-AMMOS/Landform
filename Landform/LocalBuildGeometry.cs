@@ -192,7 +192,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("only keeping triangles visible in observations: {0}",
                                  string.Join(", ", onlyForObs.Select(obs => obs.Name)));
-                var hulls = Backproject.BuildConvexHulls(pipeline, frameCache, options.OutputFrame, options.UsePriors,
+                var hulls = Backproject.BuildConvexHulls(pipeline, frameCache, outputFrame, options.UsePriors,
                                                          options.OnlyAligned, onlyForObs).Values;
                 Mesh goodMesh = new Mesh();
                 goodMesh.SetProperties(fullMesh);
@@ -221,7 +221,19 @@ namespace OPS.Landform
                 fullMesh.Save(meshFilePath);
             }
 
-            //TODO save in database
+            pipeline.LogInfo("saving scene mesh in frame {0} to database and project storage", outputFrame);
+            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, outputFrame);
+            if (sceneMesh != null)
+            {
+                var meshProd = new PlyGZDataProduct(fullMesh);
+                pipeline.SaveDataProduct(project, meshProd);
+                sceneMesh.MeshGuid = meshProd.Guid;
+                sceneMesh.Save(pipeline);
+            }
+            else
+            {
+                SceneMesh.Create(pipeline, project, outputFrame, fullMesh);
+            }
                 
             stopwatch.Stop();
             pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
