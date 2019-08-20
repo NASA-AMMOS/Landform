@@ -37,7 +37,7 @@ namespace OPS.Pipeline
         private Project project;
         private IngestPDSImage ingester;
         private bool noProgress;
-        private ConcurrentDictionary<string, int> indices;
+        private ConcurrentDictionary<string, int> indices; //observation name -> observation index
         private HashSet<string> preExistingObservations;
 
         public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
