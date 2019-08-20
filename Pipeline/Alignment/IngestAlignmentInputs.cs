@@ -37,6 +37,8 @@ namespace OPS.Pipeline
         private Project project;
         private IngestPDSImage ingester;
         private bool noProgress;
+        private ConcurrentDictionary<string, int> indices; //observation name -> observation index
+        private HashSet<string> preExistingObservations;
 
         public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
                                      bool recreateObservations = false, bool resetTransforms = false,
@@ -101,7 +103,16 @@ namespace OPS.Pipeline
 
             this.noProgress = noProgress;
 
-            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter);
+            pipeline.LogInfo("scanning for existing observations...");
+            preExistingObservations = new HashSet<string>();
+            indices = new ConcurrentDictionary<string, int>();
+            RoverObservation.Find(pipeline, project.Name).ToList().ForEach(ro => {
+                    preExistingObservations.Add(ro.Name);
+                    indices.GetOrAdd(ro.Name, _ => ro.Index);
+                });
+            pipeline.LogInfo("found {0} existing observations in project", preExistingObservations.Count);
+
+            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter, indices);
         }
 
         public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest,
@@ -122,9 +133,15 @@ namespace OPS.Pipeline
             var minSol = new ConcurrentDictionary<SiteDrive, int>();
             var maxSol = new ConcurrentDictionary<SiteDrive, int>();
 
+            var orphans = new ConcurrentDictionary<string, bool>();
+            foreach (var obsName in preExistingObservations)
+            {
+                orphans.AddOrUpdate(obsName, _ => true, (_, __) => true);
+            }
+
             string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
-            int ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
+            int nt = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input files from {1} for alignment project {2}",
@@ -134,13 +151,15 @@ namespace OPS.Pipeline
                 images.AddRange(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive).ToList());
                 images.AddRange(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive).ToList());
 
+                nt = images.Count();
+
                 CoreLimitedParallel.ForEach(images, url => {
 
                         Interlocked.Increment(ref ni);
                         Interlocked.Increment(ref np);
                         if (!noProgress)
                         {
-                            pipeline.LogInfo("ingesting {0} images in parallel, completed {1}", np, ni);
+                            pipeline.LogInfo("ingesting {0} images in parallel, completed {1}/{2}", np, ni, nt);
                         }
 
                         var res = ingester.Ingest(url);
@@ -178,6 +197,8 @@ namespace OPS.Pipeline
                             minSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Min(sol, obs.Day));
                             maxSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Max(sol, obs.Day));
 
+                            orphans.TryRemove(obs.Name, out bool ignore);
+
                             pipeline.LogVerbose("{0} ({1}) -> observation {2}",
                                                 res.ImageUrl, res.Status, obs.ToString(brief: true));
 
@@ -185,12 +206,12 @@ namespace OPS.Pipeline
                             {
                                 Interlocked.Increment(ref nr);
                             }
-
+                            
                             if (func != null) func(res);
                         }
                     });
             }
-
+                                            
             //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
             if (na > ne) //don't write to database if we didn't add any observations
             {
@@ -218,6 +239,38 @@ namespace OPS.Pipeline
                 foreach (var frame in frameCache.GetAllFrames())
                 {
                     frame.Save(pipeline);
+                }
+            }
+
+            if (orphans.Count > 0)
+            {
+                pipeline.LogInfo("deleting {0} orphan observations", orphans.Count);
+                foreach (var orphanName in orphans.Keys)
+                {
+                    var obs = RoverObservation.Find(pipeline, project.Name, orphanName);
+                    if (obs != null)
+                    {
+                        pipeline.LogDebug("deleting orphan observation {0}", orphanName);
+                        pipeline.DeleteDatabaseItem(obs);
+                    }
+                    indices.TryRemove(orphanName, out int ignore);
+                }
+            }
+
+            if (indices.Count > 0)
+            {
+                int minIndex = indices.Values.Min();
+                int maxIndex = indices.Values.Max();
+                pipeline.LogInfo("min observation index {0}, max {1}", minIndex, maxIndex);
+                if (minIndex < Observation.MIN_INDEX)
+                {
+                    pipeline.LogInfo("min observation index {0} less than min allowed index {1}",
+                                     minIndex, Observation.MIN_INDEX);
+                }
+                if (maxIndex > Observation.MAX_INDEX)
+                {
+                    pipeline.LogInfo("max observation index {0} greater than max allowed index {1}",
+                                     maxIndex, Observation.MAX_INDEX);
                 }
             }
 
