@@ -233,9 +233,7 @@ namespace OPS.Landform
             // test if only a portion of the full mesh is needed
             if (!string.IsNullOrEmpty(options.OnlyTilesForObs))
             {
-                var obsNames = options.OnlyTilesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
-                var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
-                var hulls = obs.Select(o => obsToHull[o]);
+                var hulls = observationCache.ParseList(options.OnlyTilesForObs).Select(o => obsToHull[o]);
                 
                 Mesh goodMesh = new Mesh(processedFullMesh);
                 goodMesh.Faces = new List<Face>();

@@ -41,7 +41,7 @@ namespace OPS.Landform
         [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Only use observations from specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
@@ -146,16 +146,9 @@ namespace OPS.Landform
                 pipeline.LogInfo("writing {0} debug images to {1}", imageExt, outputPath);
             }
 
-            SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => new SiteDrive(s.Trim()))
-                .ToArray();
+            SiteDrive[] siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
 
-            string[] cameras = (options.OnlyForCameras ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToArray();
+            string[] cameras = StringHelper.ParseList(options.OnlyForCameras);
 
             var frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
@@ -272,7 +265,7 @@ namespace OPS.Landform
                 }
             });
             var intersectingObservations = intersecting
-                .Distinct()
+                .Distinct() //defensive and not zero-cost, and *prob* not required here, but also prob doesn't hurt
                 .Select(obsName => observationCache.GetObservation(obsName))
                 .ToList();
             pipeline.LogInfo("found {0} observations intersecting mesh", intersectingObservations.Count());

@@ -23,7 +23,7 @@ namespace OPS.LandformUtil
     [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
     public class LocalObservationProductsOptions : LandformCommandOptions
     {
-        [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only generate products for specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]

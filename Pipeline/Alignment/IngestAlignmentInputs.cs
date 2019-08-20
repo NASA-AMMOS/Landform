@@ -80,17 +80,9 @@ namespace OPS.Pipeline
 
             this.project = project;
 
-            SiteDrive[] siteDrives = (onlyForSiteDrives ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => new SiteDrive(s.Trim()))
-                .Cast<SiteDrive>()
-                .ToArray();
-           
-            string[] frames = (onlyForFrames ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToArray();
+            SiteDrive[] siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
+
+            string[] frames = StringHelper.ParseList(onlyForFrames);
 
             IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
                 {
@@ -278,7 +270,7 @@ namespace OPS.Pipeline
                              ni, UTCTime.Now() - startTime, na, ne, nf, ns);
 
             var totalStats = new SortedDictionary<string, int>();
-            foreach (var sd in stats.Keys.OrderBy(sd => (int)sd))
+            foreach (var sd in stats.Keys.OrderBy(sd => sd))
             {
                 var sds = new SortedDictionary<string, int>();
                 foreach (var entry in stats[sd])

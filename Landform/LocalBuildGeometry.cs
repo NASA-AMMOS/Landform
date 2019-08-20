@@ -52,7 +52,7 @@ namespace OPS.Landform
         [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Only use observations from specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
@@ -129,11 +129,7 @@ namespace OPS.Landform
                 return 0;
             }
 
-            SiteDrive[] siteDrives = (options.OnlyForSiteDrives ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(s => new SiteDrive(s.Trim()))
-                .ToArray();
+            SiteDrive[] siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
 
             var frameCache = new FrameCache(pipeline, options.ProjectName);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
@@ -181,12 +177,7 @@ namespace OPS.Landform
                 return 1;
             }
 
-            var onlyForObs = (options.OnlyFacesForObs ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Select(n => observationCache.GetObservation(n.Trim()))
-                .Where(o => o != null)
-                .ToArray();
+            var onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
 
             if (onlyForObs.Length > 0)
             {

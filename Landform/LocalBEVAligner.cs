@@ -31,7 +31,7 @@ namespace OPS.Landform
     [Verb("local-bev-align", HelpText = "birds eye view alignment")]
     public class LocalBEVAlignerOptions : LandformCommandOptions
     {
-        [Option(HelpText = "Only align specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only align specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Only load specific frames, comma separated", Default = null)]
@@ -1739,10 +1739,7 @@ namespace OPS.Landform
                 siteDriveToNode[sd] = node;
             }
 
-            var fx = (options.FixSiteDrives ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToArray();
+            var fx = StringHelper.ParseList(options.FixSiteDrives);
 
             var specials = new Dictionary<string, string>();
             specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
