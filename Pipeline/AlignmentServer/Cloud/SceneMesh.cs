@@ -12,6 +12,8 @@ using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
 {
+    public enum MeshVariant { Default = 0, Shrinkwrap = 1 }
+
     [DynamoDBTable("SceneMeshes")]
     [DynamoDBReadCapacity(50, 100)]
     [DynamoDBWriteCapacity(50, 100)]
@@ -21,7 +23,13 @@ namespace OPS.Pipeline.AlignmentServer
         public string ProjectName;
 
         [DynamoDBHashKey]
-        public string Name; //e.g. "root", "root_shrinkwrap", "SSSSSDDDDD", "SSSSSDDDDD_shrinkwrap" 
+        public string Name;
+
+        public HashSet<SiteDrive> SiteDrives = new HashSet<SiteDrive>(); //immutable, empty = all site drives in project
+
+        public String Frame;
+
+        public MeshVariant Variant;
 
         public Guid MeshGuid;
 
@@ -29,7 +37,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         protected void IsValid()
         {
-            if (!(ProjectName != null && Name != null))
+            if (!(ProjectName != null && Name != null && Frame != null))
             {
                 throw new Exception("missing required property in SceneMesh");
             }
@@ -38,18 +46,40 @@ namespace OPS.Pipeline.AlignmentServer
         //This constructor must be public for DynamoDb but should not be used
         public SceneMesh() { }
 
-        protected SceneMesh(string projectName, string name, Guid meshGuid = default(Guid),
+        protected SceneMesh(string projectName, string frame, SiteDrive[] siteDrives = null,
+                            MeshVariant variant = MeshVariant.Default, Guid meshGuid = default(Guid),
                             Guid backprojectIndexGuid = default(Guid))
         {
             this.ProjectName = projectName;
-            this.Name = name;
+            this.Name = MakeName(frame, siteDrives, variant);
+            if (siteDrives != null)
+            {
+                this.SiteDrives.UnionWith(siteDrives);
+            }
+            this.Frame = frame;
+            this.Variant = variant;
             this.MeshGuid = meshGuid;
             this.BackprojectIndexGuid = backprojectIndexGuid;
             IsValid();
         }
 
-        public static SceneMesh Create(PipelineCore pipeline, Project project, string name, Mesh mesh = null,
-                                       Image backprojectIndex = null)
+        public static string MakeName(string frame, SiteDrive[] siteDrives, MeshVariant variant)
+        {
+            string name = frame;
+            if (siteDrives != null && siteDrives.Length > 0)
+            {
+                name += "_" + string.Join("_", siteDrives.Distinct().OrderBy(sd => sd).ToArray());
+            }
+            if (variant != MeshVariant.Default)
+            {
+                name += "_" + variant;
+            }
+            return name;
+        }
+
+        public static SceneMesh Create(PipelineCore pipeline, Project project, string frame,
+                                       SiteDrive[] siteDrives = null, MeshVariant variant = MeshVariant.Default,
+                                       Mesh mesh = null, Image backprojectIndex = null)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null)
@@ -63,7 +93,7 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.SaveDataProduct(project, indexProd);
             } 
 
-            var ret = new SceneMesh(project.Name, name,
+            var ret = new SceneMesh(project.Name, frame, siteDrives, variant,
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
                                     indexProd != null ? indexProd.Guid : Guid.Empty);
             ret.Save(pipeline);
@@ -76,9 +106,10 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDatabaseItem(this);
         }
 
-        public static SceneMesh Find(PipelineCore pipeline, string projectName, string name)
+        public static SceneMesh Find(PipelineCore pipeline, string projectName, string frame,
+                                     SiteDrive[] siteDrives = null, MeshVariant variant = MeshVariant.Default)
         {
-            return pipeline.LoadDatabaseItem<SceneMesh>(name, projectName);
+            return pipeline.LoadDatabaseItem<SceneMesh>(MakeName(frame, siteDrives, variant), projectName);
         }
 
         public static IEnumerable<SceneMesh> Find(PipelineCore pipeline, string projectName)

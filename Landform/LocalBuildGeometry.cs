@@ -52,7 +52,7 @@ namespace OPS.Landform
         [Option(HelpText = "Only build mesh from specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
+        [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
@@ -206,24 +206,29 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                string meshFilePath = Path.Combine(outputPath, "fullMesh" + meshExt);
+                string name = "scene";
+                if (onlyForObs.Length > 0) name += "_" + string.Join("_", onlyForObs.Select(obs => obs.Name).ToArray());
+                string meshFilePath = Path.Combine(outputPath, name + meshExt);
                 pipeline.LogInfo("saving {0}", meshFilePath);
                 PathHelper.EnsureExists(outputPath);
                 fullMesh.Save(meshFilePath);
             }
 
-            pipeline.LogInfo("saving scene mesh in frame {0} to database and project storage", outputFrame);
-            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, outputFrame);
-            if (sceneMesh != null)
+            if (onlyForObs.Length == 0)
             {
-                var meshProd = new PlyGZDataProduct(fullMesh);
-                pipeline.SaveDataProduct(project, meshProd);
-                sceneMesh.MeshGuid = meshProd.Guid;
-                sceneMesh.Save(pipeline);
-            }
-            else
-            {
-                SceneMesh.Create(pipeline, project, outputFrame, fullMesh);
+                pipeline.LogInfo("saving scene mesh in frame {0} to database and project storage", outputFrame);
+                SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, outputFrame, siteDrives);
+                if (sceneMesh != null)
+                {
+                    var meshProd = new PlyGZDataProduct(fullMesh);
+                    pipeline.SaveDataProduct(project, meshProd);
+                    sceneMesh.MeshGuid = meshProd.Guid;
+                    sceneMesh.Save(pipeline);
+                }
+                else
+                {
+                    SceneMesh.Create(pipeline, project, outputFrame, mesh: fullMesh);
+                }
             }
                 
             stopwatch.Stop();

@@ -260,7 +260,7 @@ namespace OPS.Landform
             }
             else
             {
-                SceneMesh.Create(pipeline, project, meshFrame, null, indexImage);
+                SceneMesh.Create(pipeline, project, meshFrame, backprojectIndex: indexImage);
             }
 
             stopwatch.Stop();
