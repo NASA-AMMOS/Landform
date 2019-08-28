@@ -17,9 +17,10 @@ using OPS.RayTrace;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
+using OPS.Landform;
 using OPS.TilingServer;
 
-namespace OPS.Landform
+namespace OPS.LandformUtil
 {
     [Verb("local-build-tilesetscene", HelpText = "builds a tileset and astro scene")]
     public class LocalBuildTilesetSceneOptions : LandformCommandOptions

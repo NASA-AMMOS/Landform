@@ -152,7 +152,6 @@
     <Compile Include="AlignmentMaster.cs" />
     <Compile Include="ConfigureCloud.cs" />
     <Compile Include="ConfigureLocal.cs" />
-    <Compile Include="EmtToScene.cs" />
     <Compile Include="FetchData.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="Landform.cs" />

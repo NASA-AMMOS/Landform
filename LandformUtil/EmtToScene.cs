@@ -15,9 +15,10 @@ using OPS.Geometry;
 using OPS.Cloud;
 using OPS.Pipeline;
 using OPS.Pipeline.TilingServer;
+using OPS.Landform;
 using OPS.TilingServer;
 
-namespace OPS.Landform
+namespace OPS.LandformUtil
 {
     [Verb("emttoscene", HelpText = "Convert emt data into an ASTTRO scene")]
     public class EmtToSceneOptions : LandformCommandOptions
