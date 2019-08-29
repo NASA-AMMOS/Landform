@@ -37,6 +37,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid TextureGuid;
 
+        public Guid BlendedTextureGuid;
+
         protected void IsValid()
         {
             if (!(ProjectName != null && Name != null && Frame != null))
@@ -50,7 +52,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         protected SceneMesh(string projectName, string frame, SiteDrive[] siteDrives = null,
                             MeshVariant variant = MeshVariant.Default, Guid meshGuid = default(Guid),
-                            Guid backprojectIndexGuid = default(Guid), Guid textureGuid = default(Guid))
+                            Guid backprojectIndexGuid = default(Guid), Guid textureGuid = default(Guid),
+                            Guid blendedTextureGuid = default(Guid))
         {
             this.ProjectName = projectName;
             this.Name = MakeName(frame, siteDrives, variant);
@@ -63,6 +66,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.MeshGuid = meshGuid;
             this.BackprojectIndexGuid = backprojectIndexGuid;
             this.TextureGuid = textureGuid;
+            this.BlendedTextureGuid = blendedTextureGuid;
             IsValid();
         }
 
@@ -82,7 +86,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static SceneMesh Create(PipelineCore pipeline, Project project, string frame,
                                        SiteDrive[] siteDrives = null, MeshVariant variant = MeshVariant.Default,
-                                       Mesh mesh = null, Image backprojectIndex = null, Image texture = null)
+                                       Mesh mesh = null, Image backprojectIndex = null, Image texture = null,
+                                       Image blendedTexture = null)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null)
@@ -102,10 +107,17 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.SaveDataProduct(project, textureProd);
             } 
 
+            PngDataProduct blendedTextureProd = blendedTexture != null ? new PngDataProduct(blendedTexture) : null;
+            if (blendedTextureProd != null)
+            {
+                pipeline.SaveDataProduct(project, blendedTextureProd);
+            } 
+
             var ret = new SceneMesh(project.Name, frame, siteDrives, variant,
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
                                     indexProd != null ? indexProd.Guid : Guid.Empty,
-                                    textureProd != null ? textureProd.Guid : Guid.Empty);
+                                    textureProd != null ? textureProd.Guid : Guid.Empty,
+                                    blendedTextureProd != null ? blendedTextureProd.Guid : Guid.Empty);
             ret.Save(pipeline);
             return ret;
         }

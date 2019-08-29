@@ -76,10 +76,33 @@ namespace OPS.Pipeline
             }
         }
 
+        public static Image GenerateIndexPreviewImage(Image indexImage)
+        {
+            Image previewImg = new Image(3, indexImage.Width, indexImage.Height);
+            var colorsByIndex = new Dictionary<float, Vector3>();
+            Random rand = NumberHelper.MakeRandomGenerator();
+            int numPixels = indexImage.Width * indexImage.Height;
+            for (int idxPixel = 0; idxPixel < numPixels; idxPixel++)
+            {
+                float index = indexImage.GetBandValues(idxPixel)[0];
+                if (index < Observation.MIN_INDEX)
+                {
+                    continue;
+                }
+                if (!colorsByIndex.ContainsKey(index))
+                {
+                    colorsByIndex.Add(index, new Vector3(rand.NextDouble(), rand.NextDouble(), rand.NextDouble()));
+                }
+                previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
+            }
+
+            return previewImg;
+        }
+
         /// <summary>
         /// high level function that takes backproject results and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
         /// </summary>
-        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, bool inpaint)
+        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, bool inpaint = true)
         {
             if (outputImage.Bands != 3)
             {

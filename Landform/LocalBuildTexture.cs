@@ -252,7 +252,7 @@ namespace OPS.Landform
                     indexImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
 
                     pipeline.LogInfo("generating false color image");
-                    Image previewImg = GeneratePreviewImage(options.OutputTextureResolution, indexImage);
+                    Image previewImg = Backproject.GenerateIndexPreviewImage(indexImage);
 
                     pipeline.LogInfo("saving backproject index false color image and textured mesh");
                     SaveDebugImage(previewImg, "backprojectIndexFalseColor");
@@ -264,8 +264,7 @@ namespace OPS.Landform
             if (!options.NoTexture)
             {
                 fullTex = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
-                bool inpaint = true;
-                Backproject.FillOutputTexture(pipeline, backprojectResults, fullTex, inpaint);
+                Backproject.FillOutputTexture(pipeline, backprojectResults, fullTex);
                 if (options.WriteDebug)
                 {
                     pipeline.LogInfo("saving backproject texture and textured mesh");
@@ -300,28 +299,6 @@ namespace OPS.Landform
             pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
-        }
-
-        private static Image GeneratePreviewImage(int outRes, Image indexImage)
-        {
-            Image previewImg = new Image(3, outRes, outRes);
-            var colorsByIndex = new Dictionary<float, Vector3>();
-            Random rand = NumberHelper.MakeRandomGenerator();
-            for (int idxPixel = 0; idxPixel < outRes * outRes; idxPixel++)
-            {
-                float index = indexImage.GetBandValues(idxPixel)[0];
-                if (index < Observation.MIN_INDEX)
-                {
-                    continue;
-                }
-                if (!colorsByIndex.ContainsKey(index))
-                {
-                    colorsByIndex.Add(index, new Vector3(rand.NextDouble(), rand.NextDouble(), rand.NextDouble()));
-                }
-                previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
-            }
-
-            return previewImg;
         }
 
         private void SaveDebugImage(Image img, string name)

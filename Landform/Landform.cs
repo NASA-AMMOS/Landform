@@ -72,6 +72,7 @@ namespace OPS.Landform
                 LocalBuildTilesetOptions,
                 LocalBuildTextureOptions,
                 LocalBuildLeavesOptions,
+                LocalBlendImagesOptions,
                 StartAlignMasterOptions >(args);
 
             return parsed.MapResult(
@@ -88,6 +89,7 @@ namespace OPS.Landform
                 (LocalBuildTilesetOptions opts) => new LocalBuildTileset(opts).Run(),
                 (LocalBuildTextureOptions opts) => new LocalBuildTexture(opts).Run(),
                 (LocalBuildLeavesOptions opts) => new LocalBuildLeaves(opts).Run(),
+                (LocalBlendImagesOptions opts) => new LocalBlendImages(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
         }
