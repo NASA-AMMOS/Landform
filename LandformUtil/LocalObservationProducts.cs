@@ -23,7 +23,7 @@ namespace OPS.LandformUtil
     [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
     public class LocalObservationProductsOptions : LandformCommandOptions
     {
-        [Option(HelpText = "Only generate products for specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only generate products for specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]
@@ -32,7 +32,7 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
+        [Option(HelpText = "Output directory, or omit to save to local project storage", Default = null)]
         public string OutputFolder { get; set; }
 
         [Option(HelpText = "Output coordinate frame: rover, sitedrive, a numeric sitedrive SSSSSDDDDD, or root", Default = "rover")]
@@ -198,6 +198,12 @@ namespace OPS.LandformUtil
 
             options.NoImages |= options.OnlyMergedSiteDriveMeshes && !withTextures;
 
+            if (options.UsePriors && options.OnlyAligned)
+            {
+                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                return 1;
+            }
+
             var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
             {
@@ -207,11 +213,10 @@ namespace OPS.LandformUtil
             mission = MissionSpecific.GetInstance(project.Mission);
             masker = mission.GetMasker();
 
-            var outputFrame = options.OutputFrame.ToLower().Trim();
-            bool outputToSpecificSiteDrive = (new Regex("\\d{10}")).IsMatch(outputFrame);
-            if (!(new [] {"rover", "sitedrive", "root"}).Any(f => outputFrame == f) && !outputToSpecificSiteDrive)
+            var outputFrame = options.OutputFrame;
+            if (!FrameTransform.ParseFrameName(ref outputFrame, out bool outputToSpecificSiteDrive))
             {
-                pipeline.LogError("unknown output frame: " + outputFrame);
+                pipeline.LogError("unsupported output frame: " + outputFrame);
                 return 1;
             }
 
@@ -221,48 +226,13 @@ namespace OPS.LandformUtil
                 return 1;
             }
 
-            TransformSource[] parseSources(string sources)
-            {
-                return (sources ?? "")
-                    .Split(',')
-                    .Where(s => !string.IsNullOrEmpty(s))
-                    .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
-                    .Cast<TransformSource>()
-                    .ToArray();
-            }
-            var adjustedSources = parseSources(options.AdjustedTransformSources);
-            var priorSources = parseSources(options.PriorTransformSources);
+            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
+            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
 
-            string dir = outputFrame + "Frame";
-            if (options.UsePriors)
-            {
-                if (options.OnlyAligned)
-                {
-                    pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
-                    return 1;
-                }
-
-                dir += "/prior";
-                if (priorSources.Length > 0)
-                {
-                    dir += "_" + String.Join("_", priorSources);
-                }
-            }
-            else
-            {
-                dir += "/best";
-                if (priorSources.Length > 0)
-                {
-                    dir += "_" + String.Join("_", priorSources);
-                }
-                if (adjustedSources.Length > 0)
-                {
-                    dir += "_" + String.Join("_", adjustedSources);
-                }
-            }
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder,
-                                                             "alignment/ObservationProducts/" + dir,
-                                                             project.Name);
+            string dir = string.Format("alignment/ObservationProducts/{0}Frame", outputFrame);
+            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
+            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, project.Name);
+            //don't ensure outputPath exists here, we may never need it
 
             if (!options.NoWedgeMeshes || options.FrustumHullMeshes ||
                 options.UncertaintyInflatedFrustumHullMeshes || options.MergedSiteDriveMeshes)
@@ -790,46 +760,59 @@ namespace OPS.LandformUtil
             return 0;
         }
 
-        private Image StampLegend(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh, Vector3 backgroundColor)
+        private Image StampLegend(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh,
+                                  Vector3 backgroundColor)
         {
             //formatting parameters
             // if we need a more general layout api these can be exposed
-            int largeSpacingPixels = 16;
-            int smallSpacingPixels = 7;
-            int colorChipWidthPixels = 10;
-            int frameWidthPixels = 70;
+            int largeSpacing = 16;
+            int smallSpacing = 7;
+            int colorChipWidth = 10;
+            int frameWidth = 70;
 
             int legendDimColor = 3;
             Rgb textColor = new Rgb(40, 40, 40);
             Rgb bgColor = OPS.Imaging.Emgu.Extensions.ToEmguColor(backgroundColor.ToFloatArray());
-            Rgb legendColor = new Rgb(Math.Max(0,bgColor.Red - legendDimColor), Math.Max(0, bgColor.Green - legendDimColor), Math.Max(0, bgColor.Blue - legendDimColor));
+            Rgb legendColor = new Rgb(Math.Max(0,bgColor.Red - legendDimColor),
+                                      Math.Max(0, bgColor.Green - legendDimColor),
+                                      Math.Max(0, bgColor.Blue - legendDimColor));
 
             //allocate expanded image and clear to background color
-            System.Drawing.Size expandedImageSize = new System.Drawing.Size(frameWidthPixels + img.Width, img.Height);
+            System.Drawing.Size expandedImageSize = new System.Drawing.Size(frameWidth + img.Width, img.Height);
             Emgu.CV.Image<Rgb, byte> emguImg = new Emgu.CV.Image<Rgb, byte>(expandedImageSize);
-            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(0, 0), new System.Drawing.Size(frameWidthPixels, img.Height)), legendColor, -1);
+            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(0, 0),
+                                                      new System.Drawing.Size(frameWidth, img.Height)),
+                         legendColor, -1);
 
             //draw legend
 
-            System.Drawing.Point pt = new System.Drawing.Point(largeSpacingPixels, largeSpacingPixels);
+            System.Drawing.Point pt = new System.Drawing.Point(largeSpacing, largeSpacing);
             
             //catchall
-            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X, pt.Y - (int)colorChipWidthPixels / 2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh.Last().ToFloatArray()), -1);
-            emguImg.Draw("> " + previewDistanceBuckets[previewDistanceBuckets.Length - 1].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
-            pt.Y += largeSpacingPixels;
+            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X, pt.Y - (int)colorChipWidth / 2),
+                                                      new System.Drawing.Size(colorChipWidth, colorChipWidth)),
+                         OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh.Last().ToFloatArray()), -1);
+            emguImg.Draw("> " + previewDistanceBuckets[previewDistanceBuckets.Length - 1].ToString("F2") + "m",
+                         new System.Drawing.Point(pt.X + colorChipWidth + smallSpacing, pt.Y),
+                         Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
+            pt.Y += largeSpacing;
 
             for (int idx = previewDistanceBuckets.Length-1; idx >= 0; idx--)
             {
                 Rgb color = OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh[idx].ToFloatArray());
-                emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X,pt.Y - (int)colorChipWidthPixels/2), new System.Drawing.Size(colorChipWidthPixels, colorChipWidthPixels)), color, -1);
-                emguImg.Draw("< " + previewDistanceBuckets[idx].ToString("F2") + "m", new System.Drawing.Point(pt.X + colorChipWidthPixels + smallSpacingPixels, pt.Y), Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
-                pt.Y += largeSpacingPixels;
+                emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X,pt.Y - (int)colorChipWidth / 2),
+                                                          new System.Drawing.Size(colorChipWidth, colorChipWidth)),
+                             color, -1);
+                emguImg.Draw("< " + previewDistanceBuckets[idx].ToString("F2") + "m",
+                             new System.Drawing.Point(pt.X + colorChipWidth + smallSpacing, pt.Y),
+                             Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
+                pt.Y += largeSpacing;
             }
             
             Image result = emguImg.ToOPSImage();
             emguImg.Dispose();
 
-            result.Blit(img,frameWidthPixels,0);
+            result.Blit(img, frameWidth, 0);
 
             return result;
         }

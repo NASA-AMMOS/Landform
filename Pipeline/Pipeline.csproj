@@ -173,6 +173,7 @@
     <Compile Include="AlignmentServer\Cloud\OverlapCache.cs" />
     <Compile Include="AlignmentServer\Cloud\Project.cs" />
     <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
+    <Compile Include="AlignmentServer\Cloud\SceneMesh.cs" />
     <Compile Include="AlignmentServer\Cloud\SpatialIndex.cs" />
     <Compile Include="AlignmentServer\Cloud\SpatialMatches.cs" />
     <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
@@ -195,6 +196,7 @@
     <Compile Include="Alignment\NodeObservation.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
+    <Compile Include="DataProducts\PlyGZDataProduct.cs" />
     <Compile Include="PipelineOperation.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\FeatureMatchesDataProduct.cs" />

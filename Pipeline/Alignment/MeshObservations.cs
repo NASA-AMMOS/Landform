@@ -142,27 +142,17 @@ namespace OPS.Pipeline
             {
                 if (!string.IsNullOrEmpty(onlyForSiteDrives))
                 {
-                    this.OnlyForSiteDrives = onlyForSiteDrives
-                        .Split(',')
-                        .Where(s => !string.IsNullOrEmpty(s))
-                        .Select(s => new SiteDrive(s.Trim()))
-                        .ToArray();
+                    this.OnlyForSiteDrives = SiteDrive.ParseList(onlyForSiteDrives);
                 }
 
                 if (!string.IsNullOrEmpty(onlyForFrames))
                 {
-                    this.OnlyForFrames = onlyForFrames
-                        .Split(',')
-                        .Where(s => !string.IsNullOrEmpty(s))
-                        .ToArray();
+                    this.OnlyForFrames = StringHelper.ParseList(onlyForFrames);
                 }
 
                 if (!string.IsNullOrEmpty(onlyForCameras))
                 {
-                    this.OnlyForCameras = onlyForCameras
-                        .Split(',')
-                        .Where(s => !string.IsNullOrEmpty(s))
-                        .ToArray();
+                    this.OnlyForCameras = StringHelper.ParseList(onlyForCameras);
                 }
 
                 if (mission != null)

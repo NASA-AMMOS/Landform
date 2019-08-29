@@ -42,7 +42,7 @@ namespace OPS.Landform
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
         public string OutputFolder { get; set; }
 
-        [Option(HelpText = "Output coordinate frame: rover, a numeric sitedrive SSSSSDDDDD, or root", Default = "root")]
+        [Option(HelpText = "Output coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
         public string OutputFrame { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
@@ -132,28 +132,21 @@ namespace OPS.Landform
             }
 
             this.options = options;
-
-            var outputFrame = options.OutputFrame.ToLower().Trim();
-
-            bool providedBucket = !string.IsNullOrEmpty(options.OutputS3Bucket);
-            bool providedProfile = !string.IsNullOrEmpty(options.AWSProfile);
-            if (providedBucket != providedProfile)
-            {
-                pipeline.LogError("To save tileset to the cloud you must provide the OutputS3Bucket and AWSProfile (and optionally AWSRegion) options");
-                this.options.AWSProfile = string.Empty;
-                this.options.OutputS3Bucket = string.Empty;
-            }
-
-            if (options.OutputFrame == "rover")
-                throw new NotImplementedException("only root and numeric sitedrive are currently supported");
-
-            if (options.UsePriors && options.OnlyAligned)
-                throw new InvalidOperationException("cannot specify both --usepriors and --onlyaligned");
         }
 
         public int Run()
         {
-            pipeline.LogInfo("Running local-build-tilesetscene command");
+            if (options.UsePriors && options.OnlyAligned)
+            {
+                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                return 1;
+            }
+
+            if (!string.IsNullOrEmpty(options.OutputS3Bucket) != !string.IsNullOrEmpty(options.AWSProfile))
+            {
+                pipeline.LogError("cloud output requires --outputs3bucket, --awsprofile, and optionally --awsregion");
+                return 1;
+            }
 
             var project = Project.Find(pipeline, options.ProjectName);
             if (project == null)
@@ -164,12 +157,20 @@ namespace OPS.Landform
             mission = MissionSpecific.GetInstance(project.Mission);
             masker = mission.GetMasker();
 
-            //create directory for output
+            var outputFrame = options.OutputFrame;
+            FrameTransform.ParseFrameName(ref outputFrame, out bool specificSiteDrive);
+            if (!specificSiteDrive && outputFrame != "root")
+            {
+                pipeline.LogError("unsupported output frame: " + outputFrame);
+                return 1;
+            }
+
             var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
             var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
-            var outputFrame = options.OutputFrame.ToLower().Trim();
-            string dir = outputFrame + "Frame" + FrameTransform.CreateSourcesPath(adjustedSources, priorSources,options.UsePriors);
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, "tiling/" + dir, options.ProjectName);
+
+            string dir = string.Format("tiling/TilesetProducts/{0}Frame", outputFrame);
+            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
+            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
 
             string leafTilesPath = outputPath + "leafTiles/";
             PathHelper.EnsureExists(leafTilesPath);
@@ -232,9 +233,7 @@ namespace OPS.Landform
             // test if only a portion of the full mesh is needed
             if (!string.IsNullOrEmpty(options.OnlyTilesForObs))
             {
-                var obsNames = options.OnlyTilesForObs.Split(',').Where(s => !string.IsNullOrEmpty(s));
-                var obs = obsNames.Select(n => observationCache.GetObservation(n)).Where(o => o != null);
-                var hulls = obs.Select(o => obsToHull[o]);
+                var hulls = observationCache.ParseList(options.OnlyTilesForObs).Select(o => obsToHull[o]);
                 
                 Mesh goodMesh = new Mesh(processedFullMesh);
                 goodMesh.Faces = new List<Face>();

@@ -10,9 +10,6 @@ namespace OPS.Util
 {
     public class LRUCache<TKey, TValue>
     {
-        /// <summary>
-        /// Maximum number of entries in the cache 
-        /// </summary>
         public int Capacity
         {
             get { return capacity; }
@@ -25,6 +22,20 @@ namespace OPS.Util
                 }
             }
         }
+
+        public int Count
+        {
+            get
+            {
+                return keyToNode.Count;
+            }
+        }
+
+        public bool DiskBacked
+        {
+            get { return keyToFilename != null; }
+        }
+
         private int capacity;
         private string tempdir;
 
@@ -32,44 +43,19 @@ namespace OPS.Util
         private Action<string, TValue> save;
         private Func<string, TValue> load;
 
-        public bool DiskBacked
+        private class Entry
         {
-            get { return keyToFilename != null; }
-        }
+            public TKey key;
+            public TValue value;
 
-        private void SaveIfDiskBacked(TKey key, TValue obj)
-        {
-            if (save != null)
+            public Entry(TKey key, TValue value)
             {
-                save(Path.Combine(tempdir, keyToFilename(key)), obj);
-            } 
-        }
-
-        private TValue LoadIfDiskBacked(TKey key)
-        {
-            if (load != null)
-            {
-                return load(Path.Combine(tempdir, keyToFilename(key)));
-            }
-            else
-            {
-                throw new InvalidOperationException();
+                this.key = key;
+                this.value = value;
             }
         }
-
-        /// <summary>
-        /// Number of entries currently in the cache
-        /// </summary>
-        public int Count
-        {
-            get
-            {
-                lock (Values)
-                {
-                    return Values.Count;
-                }
-            }
-        }
+        private LinkedList<Entry> values;
+        private ConcurrentDictionary<TKey, LinkedListNode<Entry>> keyToNode;
 
         /// <summary>
         /// creates an in-memory LRU cache
@@ -81,8 +67,8 @@ namespace OPS.Util
                 throw new ArgumentOutOfRangeException("capacity", capacity, "capacity must be >= 1");
             }
             this.capacity = capacity;
-            Values = new LinkedList<Entry>();
-            KeyToNode = new ConcurrentDictionary<TKey, LinkedListNode<Entry>>();
+            values = new LinkedList<Entry>();
+            keyToNode = new ConcurrentDictionary<TKey, LinkedListNode<Entry>>();
         }
 
         /// <summary>
@@ -110,50 +96,13 @@ namespace OPS.Util
         }
 
         /// <summary>
-        /// Check if a key exists in memory
+        /// Check if a key is cached in memory
         /// </summary>
         /// <param name="key"></param>
         /// <returns></returns>
         public bool ContainsKey(TKey key)
         {
-            return KeyToNode.ContainsKey(key);
-        }
-
-        /// <summary>
-        /// Return cached value if already loaded, else try load if disk backed, else return (but don't cache) sentinel.
-        /// </summary>
-        /// <param name="key"></param>
-        public TValue GetOrLoad(TKey key, TValue sentinel = default(TValue))
-        {
-            if (ContainsKey(key))
-            {
-                return this[key];
-            }
-            else if (DiskBacked && File.Exists(Path.Combine(tempdir, keyToFilename(key))))
-            {
-                Add(key, LoadIfDiskBacked(key));
-                return this[key];
-            }
-            else
-            {
-                return sentinel;
-            }
-        }
-
-        /// <summary>
-        /// Add an entry to the cache.
-        /// </summary>
-        public void Add(TKey key, TValue value)
-        {
-            // Add entry to cache
-            LinkedListNode<Entry> node;
-            lock (Values)
-            {
-                node = Values.AddFirst(new Entry(key, value));
-            }
-            KeyToNode[key] = node;
-
-            Trim();
+            return keyToNode.ContainsKey(key);
         }
 
         /// <summary>
@@ -162,93 +111,86 @@ namespace OPS.Util
         /// <returns>True if entry was present and succesfully removed, false otherwise</returns>
         public bool Remove(TKey key)
         {
-            if (!ContainsKey(key)) return false;
-
-            var node = KeyToNode[key];
-
-            SaveIfDiskBacked(key, node.Value.Value);
-
-            lock (Values)
+            if (keyToNode.TryGetValue(key, out LinkedListNode<Entry> node))
             {
-                Values.Remove(node);
+                SaveIfDiskBacked(key, node.Value.value);
+                lock (values)
+                {
+                    values.Remove(node); //OK if already removed
+                }
+                return keyToNode.TryRemove(key, out var junk); //OK if already removed
             }
-
-            return KeyToNode.TryRemove(key, out var junk);
+            else
+            {
+                return false;
+            }
         }
         
         public TValue this[TKey key]
         {
+            //returns null if key not found
             get
             {
-                if (!ContainsKey(key))
+                if (keyToNode.TryGetValue(key, out LinkedListNode<Entry> node))
                 {
-                    throw new KeyNotFoundException();
+                    return node.Value.value;
                 }
-                return KeyToNode[key].Value.Value;
-            }
-            set
-            {
-                if (ContainsKey(key))
+                else if (DiskBacked && File.Exists(Path.Combine(tempdir, keyToFilename(key))))
                 {
-                    var node = KeyToNode[key];
-                    node.Value.Value = value;
-                    TouchNode(node);
+                    var value = load(Path.Combine(tempdir, keyToFilename(key)));
+                    this[key] = value;
+                    return value;
                 }
                 else
                 {
-                    Add(key, value);
+                    return default(TValue);
+                }
+            }
+
+            set
+            {
+                lock (values)
+                {
+                    LinkedListNode<Entry> node = null;
+                    if (keyToNode.TryGetValue(key, out node))
+                    {
+                        node.Value.value = value;
+                        values.Remove(node);
+                        values.AddFirst(node);
+                    }
+                    else
+                    {
+                        node = values.AddFirst(new Entry(key, value));
+                        Trim();
+                        keyToNode.AddOrUpdate(key, _ => node, (_, __) => node);
+                    }
                 }
             }
         }
         
-        private class Entry
-        {
-            public TKey Key;
-            public TValue Value;
-
-            public Entry(TKey key, TValue value)
-            {
-                Key = key;
-                Value = value;
-            }
-        }
-        private LinkedList<Entry> Values;
-        private ConcurrentDictionary<TKey, LinkedListNode<Entry>> KeyToNode;
-
-        /// <summary>
-        /// Move an entry to the front of the cache.
-        /// </summary>
-        /// <param name="node"></param>
-        private void TouchNode(LinkedListNode<Entry> node)
-        {
-            lock (Values)
-            {
-                Values.Remove(node);
-                Values.AddFirst(node);
-            }
-        }
-
         /// <summary>
         /// Trim cache to be no greater than Capacity elements.
         /// </summary>
         private void Trim()
         {
-            lock (Values)
+            lock (values)
             {
-                while (Values.Count > Capacity)
+                while (values.Count > Capacity)
                 {
-                    var last = Values.Last;
-
-                    SaveIfDiskBacked(last.Value.Key, last.Value.Value);
-
-                    if (!KeyToNode.TryRemove(last.Value.Key, out var junk))
-                    {
-                        throw new Exception("it broke");
-                    }
-
-                    Values.RemoveLast();
+                    var last = values.Last;
+                    SaveIfDiskBacked(last.Value.key, last.Value.value);
+                    keyToNode.TryRemove(last.Value.key, out var junk);
+                    values.RemoveLast();
                 }
             }
+        }
+
+        private void SaveIfDiskBacked(TKey key, TValue obj)
+        {
+            if (save != null)
+            {
+                save(Path.Combine(tempdir, keyToFilename(key)), obj);
+            } 
         }
     }
 }

@@ -31,7 +31,7 @@ namespace OPS.Landform
     [Verb("local-bev-align", HelpText = "birds eye view alignment")]
     public class LocalBEVAlignerOptions : LandformCommandOptions
     {
-        [Option(HelpText = "Only align specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only align specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Only load specific frames, comma separated", Default = null)]
@@ -127,13 +127,13 @@ namespace OPS.Landform
         [Option(HelpText = "Write products for debugging", Default = false)]
         public bool WriteDebug { get; set; }
 
-        [Option(HelpText = "Debug output directory", Default = null)]
+        [Option(HelpText = "Debug output directory, omit to save to local project storage", Default = null)]
         public string DebugOutputFolder { get; set; }
 
-        [Option(HelpText = "Mesh format, e.g. ply, obj, help for list", Default = "ply")]
+        [Option(HelpText = "Debug mesh format, e.g. ply, obj, help for list", Default = "ply")]
         public string MeshFormat { get; set; }
 
-        [Option(HelpText = "Image format, e.g. png, jpg, help for list", Default = "png")]
+        [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
         public string ImageFormat { get; set; }
 
         [Option(HelpText = "Recompute existing BEVs", Default = false)]
@@ -321,8 +321,9 @@ namespace OPS.Landform
             mission = MissionSpecific.GetInstance(project.Mission);
             masker = mission.GetMasker();
 
-            outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, "alignment/AdjustProducts/",
-                                                      project.Name);
+            string dir = "alignment/AdjustProducts/";
+            outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, project.Name);
+            //don't ensure outputPath exists here, we may never need it
 
             if (options.WriteDebug)
             {
@@ -1738,10 +1739,7 @@ namespace OPS.Landform
                 siteDriveToNode[sd] = node;
             }
 
-            var fx = (options.FixSiteDrives ?? "")
-                .Split(',')
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToArray();
+            var fx = StringHelper.ParseList(options.FixSiteDrives);
 
             var specials = new Dictionary<string, string>();
             specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();

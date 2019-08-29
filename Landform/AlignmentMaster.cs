@@ -30,7 +30,7 @@ namespace OPS.Landform
         [Option(HelpText = "Input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
-        [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
+        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Only ingest data for specific frames, comma separated", Default = null)]

@@ -1,5 +1,8 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.Threading;
 using System.Linq;
 using log4net;
 using Microsoft.Xna.Framework;
@@ -45,8 +48,11 @@ namespace OPS.Pipeline.TilingServer
             var observationCache = new ObservationCache(pipeline, projectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 
-            string outputFrame = "root";
-            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache, observationCache, outputFrame, usePriors:false, noPriors:false, onlyForCameras:null, useCleverCombine:false, allowMastcam:false);
+            //temporarily suppress mastcam point cloud data until validated
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+            Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
+                                          observationCache, "root", usePriors: false, noPriors: false,
+                                          onlyForCameras: null, useCleverCombine: false, allowMastcam: false);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 pipeline.LogError("point cloud failed to reconstruct");
@@ -75,7 +81,11 @@ namespace OPS.Pipeline.TilingServer
             return 0;
         }
 
-        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds, FrameCache frameCache, ObservationCache observationCache, string outputFrame, bool usePriors, bool noPriors, string onlyForCameras = null, bool useCleverCombine=false, bool allowMastcam=false, int decimate = 1)
+        static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
+                                     FrameCache frameCache, ObservationCache observationCache, string outputFrame,
+                                     bool usePriors, bool noPriors, string onlyForCameras = null,
+                                     bool useCleverCombine = false, bool allowMastcam = false, int decimate = 1,
+                                     int targetPointCloudResolution = 1024)
         {
             pointBounds = new BoundingBox();
            
@@ -94,8 +104,6 @@ namespace OPS.Pipeline.TilingServer
             var mission = MissionSpecific.GetInstance(project != null ? project.Mission : Mission.MSL.ToString());
             var masker = mission.GetMasker();
 
-            //temporarily suppress mastcam point cloud data until validated
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             var opts = new MeshObservations.CollectOptions(null, null, onlyForCameras, mission)
                 {
                     AllowMastcam = allowMastcam,
@@ -114,66 +122,84 @@ namespace OPS.Pipeline.TilingServer
                 return null;
             }
 
-            var meshOpts = new MeshObservations.MeshOptions()
-            {
-                Frame = outputFrame,
-                ScaleNormalsByConfidence = true,
-                Decimate = decimate
-            };
+            var meshOpts = new MeshObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
-            //accumulate the collection of point clouds
-            List<Mesh> meshInputs = new List<Mesh>();
-            List<Vector3> meshOrigins = new List<Vector3>();
-            for (int idx = 0; idx < observations.Count; idx++)
-            {
-                var obs = observations[idx];
-                pipeline.LogInfo("building point cloud {0}/{1} ({2})%): {3}", idx + 1, observations.Count,
-                                    (int)(100 * idx / (float)(observations.Count - 1)), obs.Points.FrameName);
+            var obsToMesh = new ConcurrentDictionary<string, Mesh>();
+            int no = observations.Count;
+            int np = 0, nc = 0, nf = 0;
+            CoreLimitedParallel.ForEach(observations, obs => {
 
-                var mesh = obs.BuildPointCloud(pipeline, frameCache, masker, meshOpts);
-                if (mesh == null)
-                {
-                    pipeline.LogError("failed to build pointcloud for {0}", obs.Name);
-                    continue;
-                }
+                    Interlocked.Increment(ref np);
 
-                if (mesh.ContainsZeroLengthNormals())
-                {
-                    pipeline.LogError("pointcloud has zero length normals for {0}", obs.Name);
-                    continue;
-                }
+                    pipeline.LogInfo("building {0} observation point clouds in parallel, completed {1}/{2}, {3} failed",
+                                     np, nc, no, nf);
 
-                //the reference point used to determine how good a point is for clever combine
-                //naive version is using distance from camera
-                var obsToOutput = frameCache.GetObservationTransform(obs.Points, outputFrame, usePriors, noPriors);
-                if (obsToOutput == null)
-                {
-                    pipeline.LogError("failed to get transform for {0}", obs.Name);
-                    continue;
-                }
+                    var mo = meshOpts.Clone();
+                    mo.Decimate = MeshObservations.AutoDecimate(obs.Points, decimate, targetPointCloudResolution);
+                    if (mo.Decimate > 1 && mo.Decimate != decimate)
+                    {
+                        pipeline.LogVerbose("auto decimating point cloud for observation {0} with blocksize {1}",
+                                            obs.Name, mo.Decimate);
+                    }
+                    
+                    var mesh = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
 
-                CAHV cam = (CameraModel)JsonHelper.FromJson(obs.Points.CameraModel) as CAHV;
-                Vector3 cameraPosInOutput = Vector3.Transform(cam.C, obsToOutput.Mean);
+                    if (mesh == null)
+                    {
+                        pipeline.LogError("failed to build pointcloud for observation {0}", obs.Name);
+                        Interlocked.Increment(ref nf);
+                        return;
+                    }
+                    
+                    if (mesh.ContainsZeroLengthNormals())
+                    {
+                        pipeline.LogError("pointcloud for observation {0} has zero length normals", obs.Name);
+                        Interlocked.Increment(ref nf);
+                        return;
+                    }
 
-                meshOrigins.Add(cameraPosInOutput);
-                meshInputs.Add(mesh);
-            }
+                    obsToMesh.AddOrUpdate(obs.Points.Name, _ => mesh, (_, __) => mesh);
 
-            // combine into large point cloud
+                    Interlocked.Increment(ref nc);
+                });
+
             Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             if (useCleverCombine)
             {
-                pipeline.LogInfo("combining {0} point clouds with clever combine", meshInputs.Count());
-                aggregatePointCloud = CleverCombinePointClouds.Combine(meshOrigins.ToArray(), meshInputs.ToArray());
+                var meshes = new List<Mesh>();
+                var origins = new List<Vector3>();
+                foreach (var entry in obsToMesh)
+                {
+                    var pointsObs = observationCache.GetObservation(entry.Key);
+                    var obsToOutput = frameCache.GetObservationTransform(pointsObs, outputFrame, usePriors, noPriors);
+                    if (obsToOutput == null)
+                    {
+                        pipeline.LogError("failed to get transform to {0} for observation {1}", outputFrame, entry.Key);
+                        continue;
+                    }
+
+                    CAHV cam = (CameraModel)JsonHelper.FromJson(pointsObs.CameraModel) as CAHV;
+                    Vector3 cameraPosInOutput = Vector3.Transform(cam.C, obsToOutput.Mean);
+                
+                    //the reference point used to determine how good a point is for clever combine
+                    //naive version is using distance from camera
+                    origins.Add(cameraPosInOutput);
+                    meshes.Add(entry.Value);
+                }
+                int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
+                pipeline.LogInfo("combining {0} point clouds with clever combine, total {1} points", meshes.Count, nv);
+                aggregatePointCloud = CleverCombinePointClouds.Combine(origins.ToArray(), meshes.ToArray());
             }
             else
             {
-                aggregatePointCloud.MergeWith(meshInputs.ToArray(), normalize: false, removeDuplicateVerts: false);
+                var meshes = obsToMesh.Values.ToArray();
+                int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
+                pipeline.LogInfo("merging {0} point clouds, total {1} points", meshes.Length, nv);
+                aggregatePointCloud.MergeWith(meshes, normalize: false, removeDuplicateVerts: false);
             }
 
             //significant memory usage
-            meshInputs.Clear();
-            meshOrigins.Clear();
+            obsToMesh.Clear();
 
             // build the large mesh from the aggregate point cloud using poisson reconstruction
             if (aggregatePointCloud.Vertices.Count == 0)
@@ -184,7 +210,7 @@ namespace OPS.Pipeline.TilingServer
 
             pointBounds = aggregatePointCloud.Bounds();
 
-            pipeline.LogInfo("reconstructing point cloud: " + aggregatePointCloud.Vertices.Count() + " vertices");
+            pipeline.LogInfo("Poisson reconstructing mesh from {0} points", aggregatePointCloud.Vertices.Count);
             PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
             {
                 //extrapolates the edges of the mesh
@@ -195,8 +221,8 @@ namespace OPS.Pipeline.TilingServer
 
                 // a value on the upper end of the suggested range in the docs
                 // meaning we think our data in noisy, so wait for this many samples in a cell
-
                 MinOctreeSamplesPerCell = 15,
+
                 // attempts to allow higher order surfaces than the defaults
                 BSplineDegree = 2,
 
@@ -205,7 +231,11 @@ namespace OPS.Pipeline.TilingServer
                 UseNormalsForConfidence = true
             };
 
-            return PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+            var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+
+            pipeline.LogInfo("Poisson reconstructed mesh with {0} faces", ret.Faces.Count);
+
+            return ret;
         }
     }
 }

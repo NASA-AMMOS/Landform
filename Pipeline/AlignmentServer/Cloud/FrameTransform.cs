@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
+using System.Text.RegularExpressions;
 using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.Model;
@@ -199,31 +200,31 @@ namespace OPS.Pipeline.AlignmentServer
             return ft;
         }
 
-        public static string CreateSourcesPath(TransformSource[] adjustedSources, TransformSource[] priorSources, bool usePriors)
+        public static string AppendSourcesPath(string dir, TransformSource[] adjustedSources,
+                                               TransformSource[] priorSources, bool usePriors)
         {
-            string sourcesString = string.Empty;
             if (usePriors)
             {
-                sourcesString += "/prior";
+                dir += "/prior";
                 if (priorSources.Length > 0)
                 {
-                    sourcesString += "_" + String.Join("_", priorSources);
+                    dir += "_" + String.Join("_", priorSources);
                 }
             }
             else
             {
-                sourcesString += "/best";
+                dir += "/best";
                 if (priorSources.Length > 0)
                 {
-                    sourcesString += "_" + String.Join("_", priorSources);
+                    dir += "_" + String.Join("_", priorSources);
                 }
                 if (adjustedSources.Length > 0)
                 {
-                    sourcesString += "_" + String.Join("_", adjustedSources);
+                    dir += "_" + String.Join("_", adjustedSources);
                 }
             }
 
-            return sourcesString;
+            return dir;
         }
 
         public static TransformSource[] ParseSources(string sources)
@@ -234,6 +235,13 @@ namespace OPS.Pipeline.AlignmentServer
                 .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
                 .Cast<TransformSource>()
                 .ToArray();
+        }
+
+        public static bool ParseFrameName(ref string frameName, out bool specificSiteDrive)
+        {
+            frameName = frameName.ToLower().Trim();
+            specificSiteDrive = (new Regex("\\d{10}")).IsMatch(frameName);
+            return specificSiteDrive || frameName == "rover" || frameName == "sitedrive" || frameName == "root";
         }
     }
 }

@@ -163,6 +163,15 @@ namespace OPS.Util
             return Regex.Replace(str, @"\p{C}+", string.Empty);
         }
 
+        /// <summary>
+        /// Parse a list of strings (posibly null).
+        /// Returns array of zero or more whitespace trimmed non-empty substrings.
+        /// </summary>
+        public static string[] ParseList(string list, char sep = ',')
+        {
+            return (list ?? "").Split(sep).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+        }
+
         public static int? ParseIntSafe(string str)
         {
             if (string.IsNullOrEmpty(str))

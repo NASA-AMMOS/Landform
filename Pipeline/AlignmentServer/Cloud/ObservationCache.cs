@@ -98,5 +98,15 @@ namespace OPS.Pipeline.AlignmentServer
                 }
             }
         }
+
+        public Observation[] ParseList(string list)
+        {
+            return (list ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => GetObservation(s.Trim()))
+                .Where(o => o != null)
+                .ToArray();
+        }
     }
 }

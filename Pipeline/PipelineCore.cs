@@ -108,6 +108,7 @@ namespace OPS.Pipeline
                 typeof(RoverObservation), //TODO msl specific
                 typeof(BirdsEyeView),
                 typeof(BirdsEyeViewFeatures),
+                typeof(SceneMesh),
                 typeof(FeatureMatches),
                 typeof(SpatialMatches),
                 typeof(Overlap),
@@ -134,11 +135,6 @@ namespace OPS.Pipeline
             this.Venue = venue.ToLower().Replace('\\','/').Trim().Trim(new char[] {'/'});
 
             this.StorageUrlWithVenue = this.StorageUrl + "/" + this.Venue;
-
-            if(!string.IsNullOrEmpty(Options.UserMasksDirectory))
-            {
-                Options.UserMasksDirectory = StringHelper.NormalizeSlashes(Options.UserMasksDirectory);
-            }
 
             if (logger != null)
             {
@@ -189,71 +185,104 @@ namespace OPS.Pipeline
 
         public Image LoadImage(string url, IImageConverter converter = null)
         {
-            if (imageCache.ContainsKey(url)) return imageCache[url];
-
-            Image image = null;
+            Image image = imageCache[url];
+            if (image != null)
+            {
+                return image;
+            }
             try
             {
                 string f = GetImageFile(url);
                 image = converter != null ? Image.Load(f, converter) : Image.Load(f);
+                AddAnyUserMask(url, image);
                 imageCache[url] = image;
-               
+                return image;
             }
             catch (Exception ex)
             {
                 imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
                 throw new IOException(string.Format("error loading {0}: {1}", url, ex.Message), ex);
             }
+        }
 
-            //apply an optional user generated mask to the existing image
-            if(!string.IsNullOrEmpty(Options.UserMasksDirectory))
+        private ConcurrentDictionary<string, string> userMasks = null; //image basename -> user mask URL
+        private object userMasksInitLock = new object();
+
+        protected void AddAnyUserMask(string url, Image image)
+        {
+            InitUserMasks();
+            var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+            if (userMasks.ContainsKey(basename))
             {
-                try
+                lock (image)
                 {
-                    string fileName = StringHelper.GetLastUrlPathSegment(url,true);
-                    var maskUrls = SearchFiles(Options.UserMasksDirectory + "/", fileName + ".*");
-                    if (maskUrls.Count() != 0)
+                    if (!image.HasMask)
                     {
-                        if (image.HasMask)
+                        string maskUrl = userMasks[basename];
+                        try
                         {
-                            this.LogWarn("overwriting image mask with user generated mask for image {0}", fileName);
-                        }
-
-                        Image mask = null;
-                        string maskUrl = maskUrls.First();
-                        if (imageCache.ContainsKey(maskUrl))
-                        {
-                            mask = imageCache[maskUrl];
-                        }
-                        else
-                        {
-                            string f = GetImageFile(maskUrl);
-                            mask = Image.Load(f);
-                            imageCache[maskUrl] = mask;
-                        }
-
-                        if (mask != null)
-                        {
-                            if (mask.Width != image.Width ||
-                                mask.Height != image.Height)
+                            Image mask = Image.Load(GetImageFile(maskUrl));
+                            if (mask.Width != image.Width || mask.Height != image.Height)
                             {
-                                this.LogWarn("Skipping user generated mask for image {0} because resolution doesn't match", fileName);
+                                throw new Exception(string.Format("user mask {0} for image {1} should be {2}x{3} " +
+                                                                  "not {4}x{5}", maskUrl, url, image.Width,
+                                                                  image.Height, mask.Width, mask.Height));
                             }
-                            else
-                            {
-                                image.SetMask(mask,Options.UserMasksInverted);
-                            }
+                            bool inverted = Options.UserMasksInverted ||
+                                StringHelper.GetLastUrlPathSegment(maskUrl, stripExtension: true)
+                                .ToLower()
+                                .EndsWith("inverted");
+                            image.SetMask(mask, inverted);
+                            LogVerbose("added {0}user mask {1} to image {2}",
+                                       inverted ? "inverted " : "", maskUrl, url);
+                        }
+                        catch (Exception ex)
+                        {
+                            userMasks.TryRemove(basename, out string ignore); //don't try to load this one again
+                            imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
+                            throw new IOException(string.Format("error loading user mask {0} for image {1}: {2}",
+                                                                maskUrl, url, ex.Message),
+                                                  ex);
                         }
                     }
                 }
-                catch (Exception ex)
+            }
+        }
+
+        protected void InitUserMasks()
+        {
+            lock (userMasksInitLock)
+            {
+                if (userMasks == null)
                 {
-                    imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
-                    throw new IOException(string.Format("error loading user generated mask for {0}: {1}", url, ex.Message), ex);
+                    string dir = null;
+                    if (!string.IsNullOrEmpty(Options.UserMasksDirectory))
+                    {
+                        dir = StringHelper.NormalizeSlashes(Options.UserMasksDirectory);
+                    }
+                    else
+                    {
+                        dir = GetStorageUrl("masks");
+                    }
+                    StringHelper.EnsureTrailingSlash(dir);
+                    LogInfo("searching for user image masks in {0}", dir);
+                    userMasks = new ConcurrentDictionary<string, string>();
+                    string[] suffixes = new [] { "_inverted", "_mask" };
+                    foreach (var url in SearchFiles(dir))
+                    {
+                        var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                        //strip _mask, _inverted, and _mask_inverted
+                        foreach (var suffix in suffixes)
+                        {
+                            if (basename.ToLower().EndsWith(suffix))
+                            {
+                                basename = basename.Substring(0, basename.Length - suffix.Length);
+                            }
+                        }
+                        userMasks.AddOrUpdate(basename, _ => url, (_, __) => url);
+                    }
                 }
             }
-
-            return image;
         }
 
         public Exception GetImageLoadException(string url)
