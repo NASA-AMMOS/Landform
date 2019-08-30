@@ -108,14 +108,6 @@ namespace OPS.LandformUtil
             }
         }
 
-        Func<Vertex, DelaunayPoint> vertToDelaunay = v =>
-        {
-            DelaunayPoint p = new DelaunayPoint();
-            p.xy = new Vector2(v.Position.X, v.Position.Y);
-            p.height = v.Position.Z;
-            return p;
-        };
-
         private const long MAX_SINGLE_CHUNK_SIZE = 10000; //If input dem width x height is larger than this value squared, chunk the input and use SparseImage w/ cache to limit memory consumption   
 
         /// <summary>
@@ -138,7 +130,7 @@ namespace OPS.LandformUtil
         {
             //Mesh the current set of vertices
             var verts = rowCols.Select(rc => new Vertex(DemOperations.GetXYZ(dem, null, (int)rc.Y, (int)rc.X, scale).Value)).ToArray();
-            Mesh mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
+            Mesh mesh = Delaunay.Triangulate(verts);
 
             //Sample
             List<Vector2> newRowCols = new List<Vector2>();
@@ -391,7 +383,7 @@ namespace OPS.LandformUtil
                     v.UV = dem.PixelToUV(rc);
                     return v;
                     }).ToArray();
-                mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
+                mesh = Delaunay.Triangulate(verts);
             }
 
             Matrix siteDriveTransform = Matrix.Identity;

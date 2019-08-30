@@ -1,53 +1,51 @@
-﻿using Microsoft.Xna.Framework;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Geometry
 {
-    public struct DelaunayPoint
+    public static class Delaunay
     {
-        public Vector2 xy;
-        public double height;
-    }
-
-    public static class DelaunayTriangulation
-    {
-        public static Mesh Triangulate(IEnumerable<Vertex> Vertices, Func<Vertex, DelaunayPoint> projection, bool invertWinding = false)
+        public static Mesh Triangulate(IEnumerable<Vector2> vertices)
         {
-            Mesh ret = new Mesh();
-            ret.Vertices = Vertices.ToList();
-
-            TriangleNet.Meshing.Algorithm.SweepLine sweepLine = new TriangleNet.Meshing.Algorithm.SweepLine();
-
-            TriangleNet.Configuration config = new TriangleNet.Configuration();
-
-            List<TriangleNet.Geometry.Vertex> points = new List<TriangleNet.Geometry.Vertex>();
-            for(int i = 0; i < Vertices.Count(); i++)
+            return Triangulate(vertices.Select(v => new Vertex(v.X, v.Y, 0)));
+        }
+        
+        public static Mesh Triangulate(IEnumerable<Vertex> vertices, Func<Vertex, Vector2> projection = null)
+        {
+            if (projection == null)
             {
-                DelaunayPoint tmp = projection(Vertices.ElementAt(i));
-                TriangleNet.Geometry.Vertex p = new TriangleNet.Geometry.Vertex();
-                p.ID = i;
-                p.X = tmp.xy.X;
-                p.Y = tmp.xy.Y;
+                projection = v => new Vector2(v.Position.X, v.Position.Y);
+            }
+
+            var points = new List<TriangleNet.Geometry.Vertex>();
+            int i = 0;
+            foreach (var vert in vertices)
+            {
+                var p = new TriangleNet.Geometry.Vertex();
+                p.ID = i++;
+                var pv = projection(vert);
+                p.X = pv.X;
+                p.Y = pv.Y;
                 points.Add(p);
             }
 
-            TriangleNet.Mesh tnMesh = (TriangleNet.Mesh) sweepLine.Triangulate(points, config);
+            var sweepLine = new TriangleNet.Meshing.Algorithm.SweepLine();
+            var config = new TriangleNet.Configuration();
+            var tnMesh = (TriangleNet.Mesh) sweepLine.Triangulate(points, config);
+
+            Mesh ret = new Mesh();
+            ret.Vertices = vertices.ToList();
+
             foreach(TriangleNet.Topology.Triangle tnTri in tnMesh.Triangles)
             {
                 int id1 = tnTri.GetVertex(0).ID;
                 int id2 = tnTri.GetVertex(1).ID;
                 int id3 = tnTri.GetVertex(2).ID;
-                if (invertWinding)
-                {
-                    ret.Faces.Add(new Face(id2, id1, id3));
-                } else
-                {
-                    ret.Faces.Add(new Face(id1, id2, id3));
-                }
+                ret.Faces.Add(new Face(id1, id2, id3));
             }
 
             return ret;
