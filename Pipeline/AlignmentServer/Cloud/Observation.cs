@@ -51,6 +51,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid FeaturesGuid;
 
+        public Guid BlendedGuid;
+
         public string FrameName;
 
         public string ObservationType;
@@ -132,6 +134,8 @@ namespace OPS.Pipeline.AlignmentServer
             this.FrameName = frame.Name;
             this.Name = name;
             this.Url = url;
+            this.FeaturesGuid = Guid.Empty;
+            this.BlendedGuid = Guid.Empty;
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
             this.UseForReconstruction = useForReconstruction;
@@ -245,7 +249,8 @@ namespace OPS.Pipeline.AlignmentServer
                                  cm.Linear ? "linear" : "nonlinear",
                                  brief ? "" : string.Format("ForReconstruction={0}, ", UseForReconstruction),
                                  Width, Height, Bands, Bits, Day,
-                                 brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid));
+                                 brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid),
+                                 brief ? "" : string.Format(", BlendedGuid={0}", BlendedGuid));
         }
 
         public override string ToString()
