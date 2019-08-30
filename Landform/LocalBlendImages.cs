@@ -5,8 +5,10 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
+using ColorMine.ColorSpaces;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.RayTrace;
@@ -461,7 +463,134 @@ namespace OPS.Landform
 
         private void GenerateBlendedObservationImages()
         {
-            //TODO
+            pipeline.LogInfo("collecting backprojected pixels for each observation");
+
+            //obs index => (obsPixelCol, obsPixelRow) => (sumBlendedR, sumBlendedG, sumBlendedB, num)
+            var winners = new Dictionary<int, Dictionary<Vector2, Vector4>>();
+            
+            for (int r = 0; r < resolution; r++)
+            {
+                for (int c = 0; c < resolution; c++)
+                {
+                    int obsIndex = (int)shrinkwrapBackprojectIndex[0, r, c];
+                    if (!winners.ContainsKey(obsIndex))
+                    {
+                        winners[obsIndex] = new Dictionary<Vector2, Vector4>();
+                    }
+                    var winnersForObs = winners[obsIndex];
+
+                    int obsPixelRow = (int)shrinkwrapBackprojectIndex[1, r, c];
+                    int obsPixelCol = (int)shrinkwrapBackprojectIndex[2, r, c];
+                    Vector2 obsPixel = new Vector2(obsPixelCol, obsPixelRow);
+
+                    float blendedR = shrinkwrapBlendedTexture[0, r, c];
+                    float blendedG = shrinkwrapBlendedTexture[1, r, c];
+                    float blendedB = shrinkwrapBlendedTexture[2, r, c];
+
+                    if (!winnersForObs.ContainsKey(obsPixel))
+                    {
+                        winnersForObs[obsPixel] = new Vector4(blendedR, blendedG, blendedB, 1);
+                    }
+                    else
+                    {
+                        winnersForObs[obsPixel] += new Vector4(blendedR, blendedG, blendedB, 1);
+                    }
+                }
+            }
+
+            pipeline.LogInfo("creating blended observation images");
+
+            double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
+
+            int no = indexedObservations.Count;
+            int np = 0, nc = 0;
+            CoreLimitedParallel.ForEach(indexedObservations, entry => {
+
+                    Interlocked.Increment(ref np);
+
+                    int obsIndex = entry.Key;
+                    Observation obs = entry.Value;
+
+                    Image blendedImage = null;
+                    if (winners.ContainsKey(obsIndex))
+                    {
+                        pipeline.LogInfo("creating blended image for observation {0}, processing {1} in parallel, " +
+                                         "completed {2}/{3}", obs.Name, np, nc, no);
+
+                        if (obs.Bands != 3 && obs.Bands != 1)
+                        {
+                            pipeline.LogWarn("blending observation image {0} with {1} bands not supported",
+                                             obs.Name, obs.Bands);
+                            return;
+                        }
+
+                        Image img = pipeline.LoadImage(obs.Url);
+
+                        var diffImage = new Image(img.Bands, img.Width, img.Height);
+                        diffImage.CreateMask(true); //all pixels initially masked
+
+                        foreach (var entry2 in winners[obsIndex])
+                        {
+                            Vector2 obsPixel = entry2.Key;
+                            Vector4 blendedSum = entry2.Value;
+                            Vector3 blendedRGB = new Vector3(blendedSum.X, blendedSum.Y, blendedSum.Z) / blendedSum.W;
+
+                            int or = (int)obsPixel.Y;
+                            int oc = (int)obsPixel.X;
+
+                            float[] diff = null;
+                            if (obs.Bands == 3)
+                            {
+                                Vector3 d = blendedRGB - new Vector3(img[0, or, oc], img[1, or, oc], img[2, or, oc]);
+                                diff = new float[] { (float)d.X, (float)d.Y, (float)d.Z };
+                            }
+                            else
+                            {
+                                float br = (float)blendedRGB.X;
+                                float bg = (float)blendedRGB.Y;
+                                float bb = (float)blendedRGB.Z;
+                                double luminance = (new Rgb() { R = 255 * br, G = 255 * bg, B = 255 * bb }).To<Lab>().L;
+                                diff = new float[] { (float)(luminance / maxLuminance) - img[0, or, oc] };
+                            }
+                                 
+                            diffImage.SetBandValues(or, oc, diff);
+                            diffImage.SetMaskValue(or, oc, false);
+                        }
+
+                        Rasterizer.BarycentricInterpolate(diffImage);
+
+                        diffImage.Inpaint();
+
+                        for (int b = 0; b < img.Bands; b++)
+                        {
+                            for (int r = 0; r < img.Height; r++)
+                            {
+                                for (int c = 0; c < img.Width; c++)
+                                {
+                                    diffImage[b, r, c] += img[b, r, c];
+                                }
+                            }
+                        }
+
+                        blendedImage = diffImage;
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("no mesh points backprojected to observation {0}", obs.Name);
+                    }
+
+                    obs.BlendedGuid = Guid.Empty;
+                    if (blendedImage != null)
+                    {
+                        var imgProd = new PngDataProduct(blendedImage);
+                        pipeline.SaveDataProduct(project, imgProd);
+                        obs.BlendedGuid = imgProd.Guid;
+                    }
+                    obs.Save(pipeline);
+
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
+                });
         }
 
         private void SaveDebugImage(Image img, string name)
