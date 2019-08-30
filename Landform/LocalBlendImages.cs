@@ -28,23 +28,11 @@ namespace OPS.Landform
         [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
         public string MeshFrame { get; set; }
 
-        [Option(HelpText = "Resolution of backproject texture image", Default = 4096)]
+        [Option(HelpText = "Resolution of backproject texture image, preferably power of two", Default = 4096)]
         public int TextureResolution { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
-
-        [Option(HelpText = "Redo all", Default = false)]
-        public bool Redo { get; set; }
-
-        [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]
-        public bool RedoShrinkwrapMesh { get; set; }
-
-        [Option(HelpText = "Redo shrinkwrap texture", Default = false)]
-        public bool RedoShrinkwrapTexture { get; set; }
-
-        [Option(HelpText = "Redo blended shrinkwrap texture", Default = false)]
-        public bool RedoBlendedTexture { get; set; }
 
         [Option(HelpText = "Shrinkwrap mesh grid resolution", Default = 1024)]
         public int GridResolution { get; set; }
@@ -69,6 +57,18 @@ namespace OPS.Landform
 
         [Option(Required = false, HelpText = "higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
+
+        [Option(HelpText = "Redo all", Default = false)]
+        public bool Redo { get; set; }
+
+        [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]
+        public bool RedoShrinkwrapMesh { get; set; }
+
+        [Option(HelpText = "Redo shrinkwrap texture", Default = false)]
+        public bool RedoShrinkwrapTexture { get; set; }
+
+        [Option(HelpText = "Redo blended shrinkwrap texture", Default = false)]
+        public bool RedoBlendedTexture { get; set; }
 
         // observation filtering related (landform standard)
         [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
@@ -122,7 +122,7 @@ namespace OPS.Landform
 
         private FrameCache frameCache;
         private ObservationCache observationCache;
-        private Dictionary<int, RoverObservation> indexedObservations = new Dictionary<int, RoverObservation>();
+        private Dictionary<int, Observation> indexedObservations = new Dictionary<int, Observation>();
 
         private SceneMesh shrinkwrapSceneMesh;
 
@@ -181,7 +181,7 @@ namespace OPS.Landform
             var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
             var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
 
-            string dir = "meshing/BlendProducts";
+            string dir = "texturing/BlendProducts";
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
             outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, project.Name);
             //don't ensure outputPath exists here, we may never need it
@@ -223,7 +223,7 @@ namespace OPS.Landform
             {
                 if (obs.ObservationType == imageObs)
                 {
-                    indexedObservations[obs.Index] = (RoverObservation) obs;
+                    indexedObservations[obs.Index] = obs;
                 }
             }
 
@@ -244,7 +244,7 @@ namespace OPS.Landform
             }
             catch (Exception ex)
             {
-                pipeline.LogError("failed to load or generate {0} mesh: {1}", what, ex.Message);
+                pipeline.LogError("failed to load or generate {0}: {1}", what, ex.Message);
                 return 1;
             }
 
@@ -264,7 +264,7 @@ namespace OPS.Landform
 
             if (shrinkwrapSceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
             {
-                pipeline.LogInfo("loading shrinkwrap mesh in frame {0} from database", meshFrame);
+                pipeline.LogInfo("loading existing shrinkwrap mesh from database");
                 shrinkwrapMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, shrinkwrapSceneMesh.MeshGuid).Mesh;
                 return;
             }
@@ -280,7 +280,7 @@ namespace OPS.Landform
                 SceneMesh sm = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives, MeshVariant.Default);
                 if (sm != null && sm.MeshGuid != Guid.Empty)
                 {
-                    pipeline.LogInfo("loading scene mesh in frame {0} from database", meshFrame);
+                    pipeline.LogInfo("loading scene mesh from database");
                     inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sm.MeshGuid).Mesh;
                 }
                 else
@@ -410,6 +410,11 @@ namespace OPS.Landform
                                                   "re-run with --redoshrinkwraptexture", resolution, resolution));
             }
             
+            pipeline.LogInfo("stitching {0}x{0} image with LimberDMG, residual epsilon {1}, {2} relaxation steps, " +
+                             "{3} multigrid iterations, lambda {4}",
+                             resolution, options.ResidualEpsilon, options.NumRelaxationSteps,
+                             options.NumMultigridIterations, options.Lambda);
+
             Image index = new Image(1, resolution, resolution);
             Image flags = new Image(3, resolution, resolution);
             for (int r = 0; r < resolution; r++)
@@ -443,10 +448,6 @@ namespace OPS.Landform
                 }
             }
 
-            pipeline.LogInfo("stitching {0}x{0} image with LimberDMG, residual epsilon {1}, {2} relaxation steps, " +
-                             "{3} multigrid iterations, lambda {4}",
-                             resolution, options.ResidualEpsilon, options.NumRelaxationSteps,
-                             options.NumMultigridIterations, options.Lambda);
             var dmg = new LimberDMG(options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
                                     options.Lambda, LimberDMG.EdgeBehavior.Clamp, LimberDMG.ColorConversion.RGBToLAB,
                                     msg => pipeline.LogVerbose(msg));
