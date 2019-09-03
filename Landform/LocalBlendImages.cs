@@ -567,7 +567,10 @@ namespace OPS.Landform
                             diffImage.SetMaskValue(or, oc, false);
                         }
 
-                        Rasterizer.BarycentricInterpolate(diffImage);
+                        if (winners[obsIndex].Count >= 3)
+                        {
+                            Rasterizer.BarycentricInterpolate(diffImage);
+                        }
 
                         diffImage.Inpaint();
 

@@ -348,6 +348,11 @@ namespace OPS.Geometry
                 }
             }
 
+            if (seeds.Count < 3)
+            {
+                throw new ArgumentException("supplied image must have at least 3 unmasked pixels");
+            }
+
             var options = new BEVOptions() {
 
                 BlendMode = BlendMode.Under, //don't overwrite any already valid pixels
