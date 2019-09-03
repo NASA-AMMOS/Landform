@@ -53,6 +53,9 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Don't write observation images (and don't texture wedge meshes)", Default = false)]
         public bool NoImages { get; set; }
 
+        [Option(HelpText = "Use blended observation textures if available", Default = false)]
+        public bool UseBlendedTextures { get; set; }
+
         [Option(HelpText = "Mesh format, e.g. ply, obj, help for list", Default = "ply")]
         public string MeshFormat { get; set; }
 
@@ -426,7 +429,14 @@ namespace OPS.LandformUtil
                     try
                     {
                         imageFilename = obs.Name + imageExt;
-                        img = pipeline.LoadImage(obs.Texture.Url);
+                        if (options.UseBlendedTextures && obs.Texture.BlendedGuid != Guid.Empty)
+                        {
+                            img = pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid).Image;
+                        }
+                        else
+                        {
+                            img = pipeline.LoadImage(obs.Texture.Url);
+                        }
                         int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateImages,
                                                                 options.TargetImageResolution);
                         if (ibs > 1)
