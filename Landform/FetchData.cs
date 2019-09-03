@@ -39,11 +39,11 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "text file listing files (and/or product IDs) to include, one per line")]
         public string Include { get; set; }
 
-        [Option(Required = true, HelpText = "")]
-        public string InputAWSProfile { get; set; }
+        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
+        public string AWSProfile { get; set; }
 
-        [Option(Required = false, Default = "us-gov-west-1", HelpText = "")]
-        public string InputAWSRegion { get; set; }
+        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1")]
+        public string AWSRegion { get; set; }
        
         [Option(Required = false, Default = -1, HelpText = "Control the number of concurrent downloads")]
         public int ConcurrentDownloads { get; set; }
@@ -108,7 +108,7 @@ namespace OPS.Landform
                     retryCounter++;
                     try
                     {
-                        var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
+                        var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
                         success = inputStorageHelper.DownloadFile(s3Location, f);
                     }
                     catch (Exception e)
@@ -130,7 +130,7 @@ namespace OPS.Landform
             {
                 List<string> results = new List<string>();
                 logger.InfoFormat("searching \"{0}\"", searchDir);
-                var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
+                var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
                 // TODO: Limit folder depth as "tiles" directory can result in long indexing time
                 var paths = inputStorageHelper.SearchObjects(searchDir).ToList();
                 foreach (var path in paths)
@@ -201,7 +201,7 @@ namespace OPS.Landform
             {
                 return true;
             }
-            var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
+            var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
             var localPath = LocalPath(s3Location);
             return !inputStorageHelper.FileSizeMatches(s3Location, localPath);
         }
