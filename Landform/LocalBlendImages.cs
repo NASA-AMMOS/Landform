@@ -10,6 +10,7 @@ using CommandLine;
 using Microsoft.Xna.Framework;
 using ColorMine.ColorSpaces;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Imaging;
 using OPS.RayTrace;
 using OPS.Geometry;
@@ -568,7 +569,7 @@ namespace OPS.Landform
                             {
                                 for (int c = 0; c < img.Width; c++)
                                 {
-                                    diffImage[b, r, c] += img[b, r, c];
+                                    diffImage[b, r, c] = MathE.Clamp01(diffImage[b, r, c] + img[b, r, c]);
                                 }
                             }
                         }
