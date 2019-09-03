@@ -69,7 +69,10 @@ namespace OPS.Landform
         public bool RedoShrinkwrapTexture { get; set; }
 
         [Option(HelpText = "Redo blended shrinkwrap texture", Default = false)]
-        public bool RedoBlendedTexture { get; set; }
+        public bool RedoShrinkwrapBlendedTexture { get; set; }
+
+        [Option(HelpText = "Redo blended observation textures", Default = false)]
+        public bool RedoBlendedObservationTextures { get; set; }
 
         // observation filtering related (landform standard)
         [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
@@ -141,7 +144,8 @@ namespace OPS.Landform
             {
                 options.RedoShrinkwrapMesh = true;
                 options.RedoShrinkwrapTexture = true;
-                options.RedoBlendedTexture = true;
+                options.RedoShrinkwrapBlendedTexture = true;
+                options.RedoBlendedObservationTextures = true;
             }
         }
 
@@ -329,7 +333,7 @@ namespace OPS.Landform
         {
             if (shrinkwrapSceneMesh.TextureGuid != Guid.Empty &&
                 shrinkwrapSceneMesh.BackprojectIndexGuid != Guid.Empty &&
-                !options.RedoShrinkwrapTexture)
+                !options.RedoShrinkwrapBlendedTexture)
             {
                 pipeline.LogInfo("loading shrinkwrap texture from database");
                 var texGuid = shrinkwrapSceneMesh.TextureGuid;
@@ -396,7 +400,7 @@ namespace OPS.Landform
 
         private void LoadOrGenerateBlendedTexture()
         {
-            if (shrinkwrapSceneMesh.BlendedTextureGuid != Guid.Empty && !options.RedoBlendedTexture)
+            if (shrinkwrapSceneMesh.BlendedTextureGuid != Guid.Empty && !options.RedoShrinkwrapBlendedTexture)
             {
                 pipeline.LogInfo("loading shrinkwrap blended texture from database");
                 var texGuid = shrinkwrapSceneMesh.BlendedTextureGuid;
@@ -515,10 +519,16 @@ namespace OPS.Landform
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(indexedObservations, entry => {
 
-                    Interlocked.Increment(ref np);
-
                     int obsIndex = entry.Key;
                     Observation obs = entry.Value;
+
+                    if (!options.RedoBlendedObservationTextures && obs.BlendedGuid != Guid.Empty)
+                    {
+                        Interlocked.Increment(ref nc);
+                        return;
+                    }
+
+                    Interlocked.Increment(ref np);
 
                     Image blendedImage = null;
                     if (winners.ContainsKey(obsIndex))
