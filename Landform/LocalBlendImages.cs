@@ -456,6 +456,13 @@ namespace OPS.Landform
 
             pipeline.LogInfo("created {0}x{0} shrinkwrap blended texture ", resolution);
 
+            if (options.WriteDebug)
+            {
+                pipeline.LogInfo("saving shrinkwrap blended texture and textured mesh");
+                SaveDebugImage(shrinkwrapBlendedTexture, "shrinkwrapBlendedTexture");
+                SaveDebugMesh(shrinkwrapMesh, "shrinkwrapMeshBlendedTextured", "shrinkwrapBlendedTexture" + imageExt);
+            }
+
             var texProd = new PngDataProduct(shrinkwrapBlendedTexture);
             pipeline.SaveDataProduct(project, texProd);
             shrinkwrapSceneMesh.BlendedTextureGuid = texProd.Guid;
@@ -523,6 +530,7 @@ namespace OPS.Landform
                         {
                             pipeline.LogWarn("blending observation image {0} with {1} bands not supported",
                                              obs.Name, obs.Bands);
+                            Interlocked.Increment(ref nc);
                             return;
                         }
 
@@ -531,10 +539,10 @@ namespace OPS.Landform
                         var diffImage = new Image(img.Bands, img.Width, img.Height);
                         diffImage.CreateMask(true); //all pixels initially masked
 
-                        foreach (var entry2 in winners[obsIndex])
+                        foreach (var winner in winners[obsIndex])
                         {
-                            Vector2 obsPixel = entry2.Key;
-                            Vector4 blendedSum = entry2.Value;
+                            Vector2 obsPixel = winner.Key;
+                            Vector4 blendedSum = winner.Value;
                             Vector3 blendedRGB = new Vector3(blendedSum.X, blendedSum.Y, blendedSum.Z) / blendedSum.W;
 
                             int or = (int)obsPixel.Y;
@@ -563,6 +571,29 @@ namespace OPS.Landform
 
                         diffImage.Inpaint();
 
+                        void saveWithMarkedWinners(string suffix)
+                        {
+                            Image dbgImage = new Image(diffImage);
+                            if (dbgImage.Bands == 1)
+                            {
+                                dbgImage.AddBand();
+                                dbgImage.AddBand();
+                            }
+                            
+                            float[] winnerColor = new float[] { 0, 1, 0 };
+                            foreach (var pixel in winners[obsIndex].Keys)
+                            {
+                                dbgImage.SetBandValues((int)pixel.Y, (int)pixel.X, winnerColor);
+                            }
+                            
+                            SaveDebugImage(dbgImage, obs.Name + suffix);
+                        };
+
+                        if (options.WriteDebug)
+                        {
+                            saveWithMarkedWinners("_diff");
+                        }
+
                         for (int b = 0; b < img.Bands; b++)
                         {
                             for (int r = 0; r < img.Height; r++)
@@ -572,6 +603,11 @@ namespace OPS.Landform
                                     diffImage[b, r, c] = MathE.Clamp01(diffImage[b, r, c] + img[b, r, c]);
                                 }
                             }
+                        }
+
+                        if (options.WriteDebug)
+                        {
+                            saveWithMarkedWinners("_blended");
                         }
 
                         blendedImage = diffImage;
