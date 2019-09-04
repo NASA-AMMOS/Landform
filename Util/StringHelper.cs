@@ -59,9 +59,9 @@ namespace OPS.Util
             return url;
         }
 
-        public static string StripProtocol(string url, string protocol)
+        public static string StripProtocol(string url, string protocol = null)
         {
-            if (!protocol.EndsWith("://"))
+            if (protocol != null && !protocol.EndsWith("://"))
             {
                 protocol += "://";
             }
@@ -74,6 +74,11 @@ namespace OPS.Util
             if (!url.Contains("://"))
             {
                 return url;
+            }
+
+            if (protocol == null)
+            {
+                return url.Substring(url.IndexOf("://") + 3);
             }
             else if (url.ToLower().StartsWith(protocol))
             {

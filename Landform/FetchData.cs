@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Net;
 using System.Threading;
 using Microsoft.Xna.Framework;
 using CommandLine;
@@ -21,7 +22,7 @@ namespace OPS.Landform
     [Verb("fetch", HelpText = "Download data products from S3")]
     public class FetchDataOptions
     {
-        [Value(0, Required = true, Default = null, HelpText = "sol numbers to download, e.g. '27-32', '607,609', '27-32,607,609-611'; or a comma-separated list of raw S3 URLs if --raw is also specified")]
+        [Value(0, Required = true, Default = null, HelpText = "sol numbers to download, e.g. '27-32', '607,609', '27-32,607,609-611'; or a comma-separated list of raw s3 or http URLs if --raw is also specified")]
         public string Input { get; set; }
 
         [Value(1, Required = true, Default = null, HelpText = "output directory, e.g. c:/Users/$USERNAME/Downloads")]
@@ -32,6 +33,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = false, HelpText = "Treat input as raw S3 URLs, not sol numbers")]
         public bool Raw { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Suppress subdirs in output")]
+        public bool NoSubdirs { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "A set of comma delimited site drives to filter by, e.g. '0000100000,0003101330', wildcard 'xxxxx'")]
         public string SiteDrives { get; set; }
@@ -89,46 +93,6 @@ namespace OPS.Landform
             options.WithPNG |= options.WithOBJ;
             
             mission = MissionSpecific.GetInstance(options.Mission);
-        }
-
-        private string LocalPath(string s3Location)
-        {
-            string outputDir = Path.Combine(options.OutputDir, Path.GetDirectoryName(s3Location.Replace("s3://", "")));
-            string localPath = PathHelper.ChangeDirectory(s3Location, outputDir);
-            return localPath;
-        }
-
-        private void DownloadFile(string s3Location)
-        {
-            var localPath = LocalPath(s3Location);    
-            PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
-            TemporaryFile.GetAndMove(localPath, f =>
-            {
-                bool success = false;
-                int retryCounter = 0;
-                while (!success && retryCounter < 3)
-                {
-                    if (retryCounter > 0)
-                    {
-                        logger.InfoFormat("retrying download \"{0}\"", Path.GetFileName(s3Location));
-                    }
-                    retryCounter++;
-                    try
-                    {
-                        var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
-                        success = inputStorageHelper.DownloadFile(s3Location, f);
-                    }
-                    catch (Exception e)
-                    {
-                        logger.InfoFormat("error downloading \"{0}\": {1}", Path.GetFileName(s3Location), e.Message);
-                    }
-                    if (!success)
-                    {
-                        logger.InfoFormat("failed to download \"{0}\"", Path.GetFileName(s3Location));
-                    }
-                }
-            });
-
         }
 
         //TODO: this is public because it's also used by EmtToScene
@@ -207,19 +171,8 @@ namespace OPS.Landform
                               products.Count, result.Count,
                               acceptedSiteDrives.Count() > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
                               String.Join(",", acceptedExtensions.ToList()),
-                              acceptedProductIds != null ? acceptedProductIds.Count : -1);
+                              acceptedProductIds != null ? acceptedProductIds.Count.ToString() : "no");
             return result;
-        }
-
-        private bool ShouldDownload(string s3Location)
-        {
-            if (options.Overwrite == true)
-            {
-                return true;
-            }
-            var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
-            var localPath = LocalPath(s3Location);
-            return !inputStorageHelper.FileSizeMatches(s3Location, localPath);
         }
 
         private HashSet<string> ProductIDFilter()
@@ -263,6 +216,103 @@ namespace OPS.Landform
             return ((OPGSProductId)id).SiteDrive;
         }
 
+        private string LocalPath(string url)
+        {
+            string dir = ""; //Path.Combine() ignores zero length strings
+            if (!options.NoSubdirs)
+            {
+                dir = StringHelper.StripProtocol(StringHelper.StripLastUrlPathSegment(StringHelper.NormalizeUrl(url)));
+            }
+            return Path.Combine(options.OutputDir, dir, StringHelper.GetLastUrlPathSegment(url));
+        }
+
+        private void DownloadFile(string url)
+        {
+            var localPath = LocalPath(url);    
+            PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
+            bool s3 = url.ToLower().StartsWith("s3");
+            string filename = StringHelper.GetLastUrlPathSegment(url);
+            TemporaryFile.GetAndMove(localPath, f =>
+            {
+                bool success = false;
+                int retryCounter = 0;
+                while (!success && retryCounter < 3)
+                {
+                    if (retryCounter > 0)
+                    {
+                        logger.InfoFormat("retrying download \"{0}\"", filename);
+                    }
+                    retryCounter++;
+                    try
+                    {
+                        if (s3)
+                        {
+                            var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
+                            success = inputStorageHelper.DownloadFile(url, f);
+                        }
+                        else
+                        {
+                            using (var fs = new FileStream(localPath, FileMode.Create))
+                            {
+                                WebRequest.Create(url).GetResponse().GetResponseStream().CopyTo(fs);
+                                success = true;
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        logger.InfoFormat("error downloading \"{0}\": {1}", filename, e.Message);
+                    }
+                    if (!success)
+                    {
+                        logger.InfoFormat("failed to download \"{0}\"", filename);
+                    }
+                }
+            });
+        }
+
+        private bool ShouldDownload(string url)
+        {
+            if (options.Overwrite == true || !url.ToLower().StartsWith("s3://"))
+            {
+                return true;
+            }
+            var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
+            var localPath = LocalPath(url);
+            return !inputStorageHelper.FileSizeMatches(url, localPath);
+        }
+
+        private void DownloadFiles(List<string> files)
+        {
+            var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };
+
+            var totalFilesToDownload = files;
+            var remainingFilesToDownload = totalFilesToDownload;
+            if (!options.Overwrite)
+            {
+                ConcurrentBag<string> toDownload = new ConcurrentBag<string>();
+                CoreLimitedParallel.ForEach(totalFilesToDownload, po, f =>
+                {
+                    if (ShouldDownload(f))
+                    {
+                        toDownload.Add(f);
+                    }
+                });
+                remainingFilesToDownload = toDownload.Distinct().ToList();
+            }
+            int total = totalFilesToDownload.Count();
+            int remaining = remainingFilesToDownload.Count();
+            int downloaded = 0;
+            logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
+            CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
+            {
+                DownloadFile(f);
+                Interlocked.Increment(ref downloaded);
+                logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
+                                  downloaded, remaining, (downloaded * 100) / remaining);
+            });
+        }
+
         public int Run()
         {
             if (options.Raw)
@@ -295,37 +345,6 @@ namespace OPS.Landform
             }
 
             return 0;
-        }
-
-        private void DownloadFiles(List<string> files)
-        {
-            var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };
-
-            var totalFilesToDownload = files;
-            var remainingFilesToDownload = totalFilesToDownload;
-            if (!options.Overwrite)
-            {
-                ConcurrentBag<string> toDownload = new ConcurrentBag<string>();
-                CoreLimitedParallel.ForEach(totalFilesToDownload, po, f =>
-                {
-                    if (ShouldDownload(f))
-                    {
-                        toDownload.Add(f);
-                    }
-                });
-                remainingFilesToDownload = toDownload.Distinct().ToList();
-            }
-            int total = totalFilesToDownload.Count();
-            int remaining = remainingFilesToDownload.Count();
-            int downloaded = 0;
-            logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
-            CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
-            {
-                DownloadFile(f);
-                Interlocked.Increment(ref downloaded);
-                logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
-                                  downloaded, remaining, (downloaded * 100) / remaining);
-            });
         }
     }
 }
