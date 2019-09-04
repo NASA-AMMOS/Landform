@@ -78,21 +78,21 @@ namespace OPS.Landform
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
-            if(options.SearchLocations == null || options.SearchLocations.Count() == 0)
+            if (options.SearchLocations == null || options.SearchLocations.Count() == 0)
             {
                 options.SearchLocations = defaultSearchLocations;
             }
             mission = MissionSpecific.GetInstance(options.Mission);
         }
 
-        string LocalPath(string s3Location)
+        private string LocalPath(string s3Location)
         {
             string outputDir = Path.Combine(options.OutputDir, Path.GetDirectoryName(s3Location.Replace("s3://", "")));
             string localPath = PathHelper.ChangeDirectory(s3Location, outputDir);
             return localPath;
         }
 
-        void DownloadFile(string s3Location)
+        private void DownloadFile(string s3Location)
         {
             var localPath = LocalPath(s3Location);    
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
@@ -147,13 +147,13 @@ namespace OPS.Landform
             }
         }
 
-        string[] ExpandSolSpecifier(string solString)
+        private string[] ExpandSolSpecifier(string solString)
         {
             string[] parts = solString.Split(',');
             List<int> sols = new List<int>();
-            foreach(var part in parts)
+            foreach (var part in parts)
             {
-                if(part.Contains('-'))
+                if (part.Contains('-'))
                 {
                     var subparts = part.Split('-');
                     int startSol = int.Parse(subparts[0]);
@@ -168,10 +168,10 @@ namespace OPS.Landform
                     sols.Add(int.Parse(part));
                 }                       
             }
-            return sols.Distinct().OrderBy(x => x).Select(x=> x.ToString("00000")).ToArray();
+            return sols.Distinct().OrderBy(x => x).Select(x => x.ToString("00000")).ToArray();
         }
 
-        List<string> Filter(List<string> products)
+        private List<string> Filter(List<string> products)
         {
             List<string> result = new List<string>();
             var acceptedSiteDrives = GetSiteDriveFilters();
@@ -196,7 +196,7 @@ namespace OPS.Landform
             return result;
         }
 
-        public bool ShouldDownload(string s3Location)
+        private bool ShouldDownload(string s3Location)
         {
             if (options.Overwrite == true)
             {
