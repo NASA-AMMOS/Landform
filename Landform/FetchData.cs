@@ -33,11 +33,20 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Treat input as raw S3 URLs, not sol numbers")]
         public bool Raw { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "A set of comma delimited site drives to filter by `0000100000,0003101330`")]
+        [Option(Required = false, Default = null, HelpText = "A set of comma delimited site drives to filter by, e.g. '0000100000,0003101330', wildcard 'xxxxx'")]
         public string SiteDrives { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Text file listing filenames without extension (product IDs) to include, one per line")]
         public string Include { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Download PNG products")]
+        public bool WithPNG { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Download OBJ products, implies --withpng")]
+        public bool WithOBJ { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Don't download PDS products")]
+        public bool NoPDS { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
         public string AWSProfile { get; set; }
@@ -51,11 +60,8 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]
         public bool Overwrite { get; set; }
 
-        [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
+        [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
-
-        [Option(HelpText = "Disable filtering by mission-specific filename cretieria", Default = false)]
-        public bool DisableMissionSpecificFilenameFilter { get; set; }
     }
 
     public class FetchData
@@ -65,8 +71,6 @@ namespace OPS.Landform
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(FetchData));
 
-        string[] extensions = new string[] { ".OBJ", ".IMG", ".PNG", ".MTL" };
-        
         private string[] defaultSearchLocations = new string[]
         {
             "s3://red-product/ods/surface/sol/#####/soas/rdr", //mslice bucket on us-west-1 (malin images??)
@@ -82,6 +86,8 @@ namespace OPS.Landform
             {
                 options.SearchLocations = defaultSearchLocations;
             }
+            options.WithPNG |= options.WithOBJ;
+            
             mission = MissionSpecific.GetInstance(options.Mission);
         }
 
@@ -125,6 +131,8 @@ namespace OPS.Landform
 
         }
 
+        //TODO: this is public because it's also used by EmtToScene
+        //if/when that goes away consider making this private
         public IEnumerable<string> IndexFiles(string searchDir)
         {
             try
@@ -174,23 +182,25 @@ namespace OPS.Landform
         private List<string> Filter(List<string> products)
         {
             List<string> result = new List<string>();
-            var acceptedSiteDrives = GetSiteDriveFilters();
+            var acceptedSiteDrives = SiteDrive.ParseList(options.SiteDrives);
             var acceptedProductIds = ProductIDFilter();
+            var acceptedExtensions = GetExtensions();
             foreach (var p in products)
             {
-                string filename = Path.GetFileNameWithoutExtension(p);
                 string ext = Path.GetExtension(p).ToUpper();
-                var id = RoverProductId.ParseFromString(filename);
-                string sd =
-                    id != null && id.Producer == RoverProductProducer.OPGS ?
-                    ((OPGSProductId)id).SiteDrive.ToString() : null;
-                bool sdOkay = acceptedSiteDrives == null || acceptedSiteDrives.Contains(sd);
-                bool pidOkay = acceptedProductIds == null || acceptedProductIds.Contains(filename);
-                if (extensions.Contains(ext) &&
-                   (options.DisableMissionSpecificFilenameFilter || mission.CheckFilename(filename))
-                    && sdOkay && pidOkay)
+                if (acceptedExtensions.Contains(ext))
                 {
-                    result.Add(p);
+                    string filename = Path.GetFileNameWithoutExtension(p);
+                    if ((mission == null || mission.CheckFilename(filename)) &&
+                        (acceptedProductIds == null || acceptedProductIds.Contains(filename)))
+                    {
+                        SiteDrive? sd = GetSiteDrive(filename);
+                        if (acceptedSiteDrives.Length == 0 || !sd.HasValue ||
+                            acceptedSiteDrives.Any(asd => asd == sd.Value))
+                        {
+                            result.Add(p);
+                        }
+                    }
                 }
             }
             return result;
@@ -207,36 +217,45 @@ namespace OPS.Landform
             return !inputStorageHelper.FileSizeMatches(s3Location, localPath);
         }
 
-        HashSet<string> ProductIDFilter()
+        private HashSet<string> ProductIDFilter()
         {
-            if(options.Include == null)
+            if (options.Include == null)
             {
                 return null;
             }
-            return new HashSet<string>(File.ReadAllLines(options.Include).Where(s => !string.IsNullOrEmpty(s.Trim())).Select(s => Path.GetFileNameWithoutExtension(s)));
+            return new HashSet<string>(File.ReadAllLines(options.Include)
+                                       .Where(s => !string.IsNullOrEmpty(s.Trim()))
+                                       .Select(s => Path.GetFileNameWithoutExtension(s)));
         }
 
-        HashSet<string> GetSiteDriveFilters()
+        private HashSet<string> GetExtensions()
         {
-            if(options.SiteDrives == null)
+            var ret = new HashSet<string>();
+            if (!options.NoPDS)
+            {
+                ret.Add(".IMG");
+                ret.Add(".LBL");
+            }
+            if (options.WithPNG)
+            {
+                ret.Add(".PNG");
+            }
+            if (options.WithOBJ)
+            {
+                ret.Add(".OBJ");
+                ret.Add(".MTL");
+            }
+            return ret;
+        }
+
+        private SiteDrive? GetSiteDrive(string filename)
+        {
+            var id = RoverProductId.ParseFromString(filename);
+            if (id == null || id.Producer != RoverProductProducer.OPGS)
             {
                 return null;
             }
-            var results = new HashSet<string>();
-            foreach (var v in options.SiteDrives.Trim().Split(','))
-            {
-                try
-                {
-                    new SiteDrive(v);
-                    results.Add(v);
-                }
-                catch (ArgumentException)
-                {
-                    logger.ErrorFormat("invalid site drive argument \"{0}\"", v);
-                    throw;
-                }
-            }
-            return results;
+            return ((OPGSProductId)id).SiteDrive;
         }
 
         public int Run()
