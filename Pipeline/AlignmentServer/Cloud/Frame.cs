@@ -64,10 +64,15 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="projectName"></param>
         /// <param name="name"></param>
         /// <returns></returns>
-        public static Frame Create(PipelineCore pipeline, string projectName, string name = null, Frame parent = null)
+        public static Frame Create(PipelineCore pipeline, string projectName, string name = null, Frame parent = null, bool save = true)
         {
             Frame f = new Frame(projectName, name, parent);
-            f.Save(pipeline);
+
+            if (save)
+            {
+                f.Save(pipeline);
+            }
+
             return f;
         }
 
