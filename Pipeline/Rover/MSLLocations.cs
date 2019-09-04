@@ -44,6 +44,9 @@ namespace OPS.Pipeline
         public const string DEFAULT_FILENAME = "locations.xml";
         public const string DEFAULT_URL = "http://mars.jpl.nasa.gov/msl-raw-images/" + DEFAULT_FILENAME;
 
+        public const string BASEMAP_FILENAME = "out_deltaradii_smg_1m.tif";
+        public const string BASEMAP_URL = "s3://12landlords/TerrainSourceAssets/basemaps/" + BASEMAP_FILENAME;
+
         private ConcurrentDictionary<SiteDrive, MSLLocation> locations; 
       
         public static MSLLocations LoadFromUrl(string url = DEFAULT_URL)
@@ -119,9 +122,6 @@ namespace OPS.Pipeline
             }
             return null;
         }
-
-        public const string BASEMAP_FILENAME = "out_deltaradii_smg_1m.tif";
-        public const string BASEMAP_URL = "s3://12landlords/TerrainSourceAssets/basemaps/" + BASEMAP_FILENAME;
 
         private GDALDEM basemapDEM = null;
         private double? basemapDEMZ0 = null;

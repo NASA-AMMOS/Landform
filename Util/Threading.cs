@@ -82,7 +82,7 @@ namespace OPS.Util
             }
             else
             {
-                maxParallelism = Math.Max(GetAvailableCores()+ maxCores, 1);
+                maxParallelism = Math.Max(GetAvailableCores() + maxCores, 1);
             }
         }
 
