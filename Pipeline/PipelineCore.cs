@@ -297,6 +297,17 @@ namespace OPS.Pipeline
             return GetFileCached(url, "images");
         }
 
+        /// <summary>
+        /// handle PDS LBL files that refer to other IMG files containing the actual image data
+        /// </summary>
+        public string PDSDataPath(string lblUrl, string dataPath)
+        {
+            return dataPath != null ?
+                GetImageFile(StringHelper.StripLastUrlPathSegment(lblUrl) + "/" +
+                             StringHelper.NormalizeSlashes(dataPath))
+                : lblUrl;
+        }
+
         //****************** Storage API *****************
 
         protected void CheckStorageUrl(string url, bool withVenue = true)

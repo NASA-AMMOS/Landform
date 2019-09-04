@@ -26,7 +26,8 @@ namespace OPS.Pipeline
         /// </summary>
         public class Result
         {
-            public readonly string ImageUrl;
+            public readonly string Url;
+            public readonly string DataUrl; //if null then same as Url
             public readonly Status Status;
             public readonly Observation Observation;
             public readonly Frame ObservationFrame;
@@ -36,12 +37,18 @@ namespace OPS.Pipeline
                 Status = Status.Failed;
             }
 
-            public Result(string imageUrl, Status status, Observation obs = null, Frame obsFrame = null)
+            public Result(string url, string dataUrl, Status status, Observation obs = null, Frame obsFrame = null)
             {
-                this.ImageUrl = imageUrl;
+                this.Url = url;
+                this.DataUrl = dataUrl;
                 this.Status = status;
                 this.Observation = obs;
                 this.ObservationFrame = obsFrame;
+            }
+
+            public override string ToString()
+            {
+                return string.Format("{0}{1} ({2})", Url, DataUrl != null ? (":" + DataUrl) : "", Status);
             }
         }
 

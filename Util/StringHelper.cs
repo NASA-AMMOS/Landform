@@ -59,9 +59,9 @@ namespace OPS.Util
             return url;
         }
 
-        public static string StripProtocol(string url, string protocol)
+        public static string StripProtocol(string url, string protocol = null)
         {
-            if (!protocol.EndsWith("://"))
+            if (protocol != null && !protocol.EndsWith("://"))
             {
                 protocol += "://";
             }
@@ -74,6 +74,11 @@ namespace OPS.Util
             if (!url.Contains("://"))
             {
                 return url;
+            }
+
+            if (protocol == null)
+            {
+                return url.Substring(url.IndexOf("://") + 3);
             }
             else if (url.ToLower().StartsWith(protocol))
             {
@@ -117,6 +122,21 @@ namespace OPS.Util
                 int lastDot = ret.LastIndexOf('.');
                 return lastDot < 0 ? ret : ret.Substring(0, lastDot);
             }
+        }
+
+        public static string StripLastUrlPathSegment(string url)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                return url;
+            }
+            //be robust to the case that URL is actually a windows abomination, but without allocating
+            int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            if (lastSlash < 0)
+            {
+                return url;
+            }
+            return url.Substring(0, lastSlash);
         }
 
         public static string GetUrlExtension(string url)
