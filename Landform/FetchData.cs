@@ -30,13 +30,13 @@ namespace OPS.Landform
         [Value(2, Required = false, HelpText = "RDR search locations with sol replaced with ##### (ie s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr/")]
         public IEnumerable<string> SearchLocations { get; set; } = null;
 
-        [Option(Required = false, Default = false, HelpText = "treat input as raw S3 URLs, not sol numbers")]
+        [Option(Required = false, Default = false, HelpText = "Treat input as raw S3 URLs, not sol numbers")]
         public bool Raw { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "A set of comma delimited site drives to filter by `0000100000,0003101330`")]
         public string SiteDrives { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "text file listing files (and/or product IDs) to include, one per line")]
+        [Option(Required = false, Default = null, HelpText = "Text file listing filenames without extension (product IDs) to include, one per line")]
         public string Include { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
@@ -45,7 +45,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1")]
         public string AWSRegion { get; set; }
        
-        [Option(Required = false, Default = -1, HelpText = "Control the number of concurrent downloads")]
+        [Option(Required = false, Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]

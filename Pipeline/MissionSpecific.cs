@@ -8,11 +8,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission
-    {
-        MSL,
-        M2020
-    }
+    public enum Mission { None, MSL, M2020 }
 
     public abstract class MissionSpecific
     {
@@ -20,6 +16,7 @@ namespace OPS.Pipeline
         {
             switch (mission)
             {
+                case Mission.None: return null;
                 case Mission.MSL: return new MissionMSL();
                 case Mission.M2020: return new MissionM2020();
                 default: throw new NotImplementedException("unknown mission");
