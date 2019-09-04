@@ -22,6 +22,31 @@ namespace OPS.Pipeline
 {
     public class LocalPipeline : PipelineCore 
     {
+        public LocalPipeline(PipelineCoreOptions options, LocalPipelineConfig config, ILog logger = null, int lruCache = 100,
+                             bool quietInit = false, bool initQueues = true, bool initTables = true)
+            : base(options, config,
+                   StringHelper.NormalizeUrl(config.StorageDir, "file://"),
+                   config.Venue, logger, lruCache, quietInit,
+                   options.SingleThreaded ? 1 : config.MaxCores)
+        {
+            var localConfig = (LocalPipelineConfig)Config;
+
+            if (localConfig.RandomSeed >= 0)
+            {
+                NumberHelper.RandomSeed = localConfig.RandomSeed;
+            }
+
+            if (initQueues)
+            {
+                InitializeQueues();
+            }
+
+            if (initTables)
+            {
+                InitializeDatabase(quiet || quietInit);
+            }
+        }
+
         public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
                              bool quietInit = false, bool initQueues = true, bool initTables = true,
                              int? maxCores = null)
