@@ -67,11 +67,12 @@ namespace OPS.Landform
 
         string[] extensions = new string[] { ".OBJ", ".IMG", ".PNG", ".MTL" };
         
-        string[] defaultSearchLocations = new string[]
+        private string[] defaultSearchLocations = new string[]
         {
-            "s3://red-product/ods/surface/sol/#####/soas/rdr",
-            "s3://red-product/proj/msl/redops/ods/surface/sol/#####/opgs/rdr",
-            "s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr"
+            "s3://red-product/ods/surface/sol/#####/soas/rdr", //mslice bucket on us-west-1 (malin images??)
+            "s3://red-product/proj/msl/redops/ods/surface/sol/#####/opgs/rdr", //mslice bucket on us-west-1
+            "s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr" //M2020 bucket on us-gov-west-1
+            //see https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes
         };
         
         public FetchData(FetchDataOptions opts)
