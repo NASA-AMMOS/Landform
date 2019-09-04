@@ -101,8 +101,9 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// high level function that takes backproject results and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
+        /// project only needs to be supplied if useBlurredImages = true
         /// </summary>
-        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, bool inpaint = true)
+        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, bool inpaint = true, Project project = null, bool useBlurredImages = false)
         {
             if (outputImage.Bands != 3)
             {
@@ -125,7 +126,15 @@ namespace OPS.Pipeline
                     throw new InvalidDataException("invalid image index in backproject results");
                 }
 
-                Image sourceImage = pipeline.LoadImage(sourceObs.Url);
+                Image sourceImage = null;
+                if (sourceObs.BlurredGuid != Guid.Empty && useBlurredImages)
+                {
+                    sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
+                }
+                else
+                {
+                    sourceImage = pipeline.LoadImage(sourceObs.Url);
+                }
 
                 foreach (var pair in group)
                 {

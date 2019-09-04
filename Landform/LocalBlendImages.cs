@@ -35,6 +35,9 @@ namespace OPS.Landform
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
 
+        [Option(HelpText = "Inpaint blended observation diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
+        public int Inpaint { get; set; }
+
         [Option(HelpText = "Shrinkwrap mesh grid resolution", Default = 1024)]
         public int GridResolution { get; set; }
 
@@ -47,20 +50,26 @@ namespace OPS.Landform
         [Option(HelpText = "Shrinkwrap miss behaviour (None, Delaunay, Inpaint)", Default = Shrinkwrap.ProjectionMissResponse.Delaunay)]
         public Shrinkwrap.ProjectionMissResponse ShrinkwrapMiss { get; set; }
 
-        [Option(Required = false, HelpText = "acceptable error in solving the linear system", Default = LimberDMG.DEF_RESIDUAL_EPSILON)]
+        [Option(Required = false, HelpText = "Acceptable error in solving the linear system", Default = LimberDMG.DEF_RESIDUAL_EPSILON)]
         public double ResidualEpsilon { get; set; }
 
-        [Option(Required = false, HelpText = "number of iterations of relaxation to perform between multigrid iterations", Default = LimberDMG.DEF_NUM_RELAXATION_STEPS)]
+        [Option(Required = false, HelpText = "Number of iterations of relaxation to perform between multigrid iterations", Default = LimberDMG.DEF_NUM_RELAXATION_STEPS)]
         public int NumRelaxationSteps { get; set; }
 
-        [Option(Required = false, HelpText = "number of multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
+        [Option(Required = false, HelpText = "Number of multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
         public int NumMultigridIterations { get; set; }
 
-        [Option(Required = false, HelpText = "higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
+        [Option(Required = false, HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
+
+        [Option(Required = false, HelpText = "Blur radius", Default = 7)]
+        public int BlurRadius { get; set; }
 
         [Option(HelpText = "Redo all", Default = false)]
         public bool Redo { get; set; }
+
+        [Option(HelpText = "Redo blurred observation textures", Default = false)]
+        public bool RedoBlurredObservationTextures { get; set; }
 
         [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]
         public bool RedoShrinkwrapMesh { get; set; }
@@ -142,6 +151,7 @@ namespace OPS.Landform
 
             if (options.Redo) 
             {
+                options.RedoBlurredObservationTextures = true;
                 options.RedoShrinkwrapMesh = true;
                 options.RedoShrinkwrapTexture = true;
                 options.RedoShrinkwrapBlendedTexture = true;
@@ -235,6 +245,9 @@ namespace OPS.Landform
             string what = "";
             try
             {
+                what = "blurred observation images";
+                GenerateBlurredObservationImages();
+
                 what = "shrinkwrap mesh";
                 LoadOrGenerateShrinkwrapMesh();
 
@@ -257,6 +270,47 @@ namespace OPS.Landform
             pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
+        }
+
+        private void GenerateBlurredObservationImages()
+        {
+            pipeline.LogInfo("creating blurred observation images");
+
+            int no = indexedObservations.Count;
+            int np = 0, nc = 0;
+            CoreLimitedParallel.ForEach(indexedObservations.Values, obs => {
+
+                    if (!options.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
+                    {
+                        Interlocked.Increment(ref nc);
+                        return;
+                    }
+
+                    Interlocked.Increment(ref np);
+
+                    pipeline.LogInfo("creating blurred image for observation {0}, processing {1} in parallel, " +
+                                     "completed {2}/{3}", obs.Name, np, nc, no);
+
+                    Image img = pipeline.LoadImage(obs.Url);
+
+                    //notes from TerrainTools PDSImageRoutines.cs
+                    //"Used to do a guass blur 4 with photoshop"
+                    //the current code is: img.SmoothBlur(13, 13)
+                    Image blurredImage = img.GaussianBoxBlur(options.BlurRadius);
+
+                    if (options.WriteDebug)
+                    {
+                        SaveDebugImage(blurredImage, obs.Name + "_blurred");
+                    }
+
+                    var imgProd = new PngDataProduct();
+                    pipeline.SaveDataProduct(project, imgProd);
+                    obs.BlurredGuid = imgProd.Guid;
+                    obs.Save(pipeline);
+
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
+                });
         }
 
         private void LoadOrGenerateShrinkwrapMesh()
@@ -377,7 +431,9 @@ namespace OPS.Landform
             }
 
             shrinkwrapTexture = new Image(3, resolution, resolution);
-            Backproject.FillOutputTexture(pipeline, backprojectResults, shrinkwrapTexture);
+            Backproject.FillOutputTexture(pipeline, backprojectResults, shrinkwrapTexture,
+                                          inpaint: true, project: project, useBlurredImages: true);
+
             if (options.WriteDebug)
             {
                 pipeline.LogInfo("saving shrinkwrap backproject texture and textured mesh");
@@ -582,7 +638,7 @@ namespace OPS.Landform
                             Rasterizer.BarycentricInterpolate(diffImage);
                         }
 
-                        diffImage.Inpaint();
+                        diffImage.Inpaint(options.Inpaint);
 
                         void saveWithMarkedWinners(string suffix)
                         {

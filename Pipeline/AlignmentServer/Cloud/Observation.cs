@@ -51,6 +51,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid FeaturesGuid;
 
+        public Guid BlurredGuid;
+
         public Guid BlendedGuid;
 
         public string FrameName;

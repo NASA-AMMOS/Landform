@@ -103,7 +103,7 @@ namespace OPS.Landform
         [Option(HelpText = "Birds eye view decimation", Default = 2)]
         public int BEVDecimation { get; set; }
 
-        [Option(HelpText = "Inpaint birds eye view images by this many pixels", Default = 20)]
+        [Option(HelpText = "Inpaint birds eye view images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
         public int BEVInpaint { get; set; }
 
         [Option(HelpText = "Threshold BEV images at this level", Default = 0)]
