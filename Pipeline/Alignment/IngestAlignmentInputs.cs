@@ -120,8 +120,12 @@ namespace OPS.Pipeline
             ingester.Places = places;
             ingester.LegacyManifest = manifest;
 
-            //site drive -> observation type -> count
+            //site drive -> sensor type -> count
             var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
+
+            //sensor type -> count
+            var reconstructionStats = new ConcurrentDictionary<string, int>();
+
             var minSol = new ConcurrentDictionary<SiteDrive, int>();
             var maxSol = new ConcurrentDictionary<SiteDrive, int>();
 
@@ -131,11 +135,12 @@ namespace OPS.Pipeline
                 orphans.AddOrUpdate(obsName, _ => true, (_, __) => true);
             }
 
-            string imageObs = ObservationType.Image.ToString();
             double startTime = UTCTime.Now();
-            int nt = 0, nu = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, nr = 0, np = 0;
+            int nt = 0, nu = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, np = 0;
 
             ConcurrentDictionary<string, bool> done = new ConcurrentDictionary<string, bool>();
+
+            var mission = MissionSpecific.GetInstance(project.Mission);
 
             Action<string> ingestUrl = url => {
 
@@ -190,7 +195,8 @@ namespace OPS.Pipeline
                     
                     var sd = new SiteDrive(obs.Site, obs.Drive);
                     var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
-                    sds.AddOrUpdate(obs.ObservationType, _ => 1, (_, count) => count + 1);
+                    var statsKey = mission.ClassifyCamera(obs.Sensor) + " " + obs.ObservationType;
+                    sds.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
                     
                     minSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Min(sol, obs.Day));
                     maxSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Max(sol, obs.Day));
@@ -199,9 +205,9 @@ namespace OPS.Pipeline
                     
                     pipeline.LogVerbose("{0} -> observation {1}", res.ToString(), obs.ToString(brief: true));
                     
-                    if (obs.ObservationType == imageObs && obs.UseForReconstruction)
+                    if (obs.UseForReconstruction)
                     {
-                        Interlocked.Increment(ref nr);
+                        reconstructionStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
                     }
                     
                     if (func != null) func(res);
@@ -315,12 +321,12 @@ namespace OPS.Pipeline
                     totalStats[entry.Key] += entry.Value;
                 }
                 pipeline.LogInfo("sitedrive {0}, sol {1} to {2}: {3}", sd, minSol[sd], maxSol[sd],
-                                 string.Join(", ", sds.Select(s => s.Value + " " + s.Key + " observations").ToArray()));
+                                 string.Join(", ", sds.Select(s => s.Value + " " + s.Key).ToArray()));
             }
             foreach (var entry in totalStats)
             {
-                pipeline.LogInfo("total {0} {1} observations{2}", entry.Value, entry.Key,
-                                 entry.Key == imageObs ? (" (" + nr + " for reconstruction)") : "");
+                pipeline.LogInfo("total {0} {1}, {2} for reconstruction", entry.Value, entry.Key,
+                                 reconstructionStats.ContainsKey(entry.Key) ? reconstructionStats[entry.Key] : 0);
             }
 
             return na;

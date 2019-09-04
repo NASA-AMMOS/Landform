@@ -184,6 +184,31 @@ namespace OPS.Pipeline
             return cam;
         }
 
+        public virtual string ClassifyCamera(RoverProductCamera cam)
+        {
+            if (IsNavcam(cam))
+            {
+                return "navcam";
+            }
+            else if (IsMastcam(cam))
+            {
+                return "mastcam";
+            }
+            else if (IsHazcam(cam))
+            {
+                return "hazcam";
+            }
+            else
+            {
+                return cam.ToString();
+            }
+        }
+
+        public virtual string ClassifyCamera(string cam)
+        {
+            return ClassifyCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+        }
+
         /// <summary>
         /// whether to ingest OPGS images
         /// </summary>
