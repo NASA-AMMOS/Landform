@@ -82,6 +82,11 @@ namespace OPS.Pipeline
                     dataUrl = StringHelper.StripLastUrlPathSegment(url) + "/" +
                         StringHelper.NormalizeSlashes(metadata.DataPath);
                 }
+                else if (url.ToUpper().EndsWith(".LBL"))
+                {
+                    pipeline.LogDebug("rejected {0} as LBL file that does not refer to separate image data", url);
+                    return new Result(url, null, Status.Skipped);
+                }
 
                 var parser = new PDSParser(metadata);
                 if (!mission.CheckMetadata(parser))
