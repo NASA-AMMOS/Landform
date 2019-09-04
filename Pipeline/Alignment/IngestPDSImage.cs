@@ -59,9 +59,10 @@ namespace OPS.Pipeline
                 var filename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                 
                 // Parse the filename to quickly rule out data products we know we don't care about.
-                if (!mission.CheckFilename(filename))
+                string reason = "";
+                if (!mission.CheckFilename(filename, out reason))
                 {
-                    pipeline.LogDebug("rejected {0} by filename", url);
+                    pipeline.LogDebug("rejected {0} by filename: {1}", url, reason);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -89,9 +90,9 @@ namespace OPS.Pipeline
                 }
 
                 var parser = new PDSParser(metadata);
-                if (!mission.CheckMetadata(parser))
+                if (!mission.CheckMetadata(parser, out reason))
                 {
-                    pipeline.LogDebug("rejected {0} by metadata", url);
+                    pipeline.LogDebug("rejected {0} by metadata: {1}", url, reason);
                     return new Result(url, dataUrl, Status.Skipped);
                 }
                 
