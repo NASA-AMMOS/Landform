@@ -203,6 +203,11 @@ namespace OPS.Landform
                     }
                 }
             }
+            logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
+                              products.Count, result.Count,
+                              acceptedSiteDrives.Count() > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
+                              String.Join(",", acceptedExtensions.ToList()),
+                              acceptedProductIds != null ? acceptedProductIds.Count : -1);
             return result;
         }
 
@@ -280,9 +285,9 @@ namespace OPS.Landform
                             }
                             solToProducts.TryAdd(sol, prods);
                         });
-                logger.Info("filtering Files");
                 foreach (var sol in sols)
                 {
+                    logger.InfoFormat("filtering files for sol {0}", sol);
                     solToProducts[sol] = Filter(solToProducts[sol]);
                 }
                 
