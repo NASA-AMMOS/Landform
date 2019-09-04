@@ -17,6 +17,97 @@ namespace OPS.Pipeline
 {
     public class Backproject
     {
+        public struct ObsPixel
+        {
+            public Observation Obs;
+            public Vector2 Pixel; //col, row
+        }
+
+        static public void FillIndexImage(Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage)
+        {
+            if (outputImage.Bands != 3)
+                throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
+
+            foreach (var entry in backprojectResults)
+            {
+                var outputPixel = entry.Key;
+                var sourceImageIndex = entry.Value.Obs.Index;
+                var sourceImagePixel = entry.Value.Pixel;
+
+                if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
+                    outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
+                {
+                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
+                }
+
+                if(sourceImageIndex < Observation.MIN_INDEX)
+                {
+                    throw new InvalidDataException("invalid image index in backproject results");
+                }
+
+                outputImage.SetBandValues(outputPixel.Row, outputPixel.Col, new float[] { sourceImageIndex, (float)sourceImagePixel.Y, (float)sourceImagePixel.X });
+            }
+        }
+
+        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, bool inpaint)
+        {
+            if (outputImage.Bands != 3)
+            {
+                throw new NotImplementedException("Expecting a 3 band output image currently");
+            }
+
+            if(!outputImage.HasMask)
+            {
+                outputImage.CreateMask(true);
+            }
+
+            //group by source texture for perfomance (load the image once for all pixels needed from it)
+            var groupedByObs = backprojectResults.ToList().GroupBy(bpr => bpr.Value.Obs);
+            foreach (var group in groupedByObs)
+            {
+                var sourceObs = group.Key;
+                var sourceImageIndex = group.Key.Index;
+                if (sourceImageIndex < Observation.MIN_INDEX)
+                {
+                    throw new InvalidDataException("invalid image index in backproject results");
+                }
+
+                Image sourceImage = pipeline.LoadImage(sourceObs.Url);
+
+                foreach (var pair in group)
+                {
+                    var outputPixel = pair.Key;
+
+                    if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
+                        outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
+                    {
+                        throw new InvalidDataException("Backproject output pixel is located outside of output image");
+                    }
+
+                    var sourceImagePixel = pair.Value.Pixel;
+                    if (sourceImagePixel.X < 0 || sourceImagePixel.X >= sourceImage.Width ||
+                       sourceImagePixel.Y < 0 || sourceImagePixel.Y >= sourceImage.Height)
+                    {
+                        throw new InvalidDataException("Backproject source pixel is located outside of source image");
+                    }
+
+                    //copy src image data to dst image data
+                    float[] samples = sourceImage.SampleAsColor(sourceImagePixel);
+                    outputImage.SetAsColor(samples, (int)outputPixel.Row, (int)outputPixel.Col);
+
+                    //mark mask as valid
+                    outputImage.SetMaskValue((int)outputPixel.Row, (int)outputPixel.Col, false);
+                }
+            }
+            
+            if(inpaint)
+            {
+                //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+                // full inpaint needed for building parent tiles
+                outputImage.Inpaint(-1, preserveMask: false);
+            }
+        }
+
         /// <summary>
         /// pass a list of points to backproject
         /// returns a dictionary destination pixel -> source pixel for all successful backprojections
