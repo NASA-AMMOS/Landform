@@ -157,11 +157,15 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                          string observationType, string cameraModel, bool useForReconstruction,
-                                         int width, int height, int bands, int bits, int day, int index)
+                                         int width, int height, int bands, int bits, int day, int index, bool save=true)
         {
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction,
                                               width, height, bands, bits, day, index);
-            obs.Save(pipeline);
+            if (save)
+            {
+                obs.Save(pipeline);
+            }
+
             return obs;
         }
 

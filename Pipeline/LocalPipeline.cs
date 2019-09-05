@@ -20,15 +20,14 @@ using DBUtil = OPS.Cloud.DBUtil;
 
 namespace OPS.Pipeline
 {
-    public class LocalPipeline : PipelineCore 
+    public class LocalPipeline : PipelineCore
     {
-        public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
-                             bool quietInit = false, bool initQueues = true, bool initTables = true,
-                             int? maxCores = null)
-            : base(options, LocalPipelineConfig.Instance,
-                   StringHelper.NormalizeUrl(LocalPipelineConfig.Instance.StorageDir, "file://"),
-                   LocalPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
-                   options.SingleThreaded ? 1 : maxCores ?? LocalPipelineConfig.Instance.MaxCores)
+        public LocalPipeline(PipelineCoreOptions options, LocalPipelineConfig config, ILog logger = null, int lruCache = 100,
+                             bool quietInit = false, bool initQueues = true, bool initTables = true, int? maxCores = null)
+            : base(options, config,
+                   StringHelper.NormalizeUrl(config.StorageDir, "file://"),
+                   config.Venue, logger, lruCache, quietInit,
+                   options.SingleThreaded ? 1 : maxCores ?? config.MaxCores)
         {
             var localConfig = (LocalPipelineConfig)Config;
 
@@ -47,6 +46,12 @@ namespace OPS.Pipeline
                 InitializeDatabase(quiet || quietInit);
             }
         }
+
+        public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
+                             bool quietInit = false, bool initQueues = true, bool initTables = true,
+                             int? maxCores = null)
+            : this(options, LocalPipelineConfig.Instance, logger, lruCache, quietInit, initQueues, initTables, maxCores)
+        {}
 
         public override void DumpConfig()
         {

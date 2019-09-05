@@ -938,7 +938,7 @@ namespace OPS.Landform
                     if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 0.9)
                     {
                         // raycast the scene to test if the desired position is occluded by terrain
-                        if (!TextureSplitCriteria
+                        if (!Backproject
                             .IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, obsToMesh))
                         {
                             //copy src image data to dst image data

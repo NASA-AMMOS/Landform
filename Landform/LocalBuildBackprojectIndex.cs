@@ -80,14 +80,7 @@ namespace OPS.Landform
         private string outputPath;
         private string imageExt;
         private string meshExt;
-
-        struct ObservationIndex
-        {
-            public float Index;
-            public Vector2 SourcePixel;
-            public Vector2 DestPixel;
-        }
-
+     
         public LocalBuildBackprojectIndex(LocalBuildBackprojectIndexOptions options) : base(options)
         {
             this.options = options;
@@ -127,7 +120,6 @@ namespace OPS.Landform
             string dir = "meshing/TextureProducts";
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
             outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, options.ProjectName);
-            //don't ensure outputPath exists here, we may never need it
 
             if (options.WriteDebug)
             {
@@ -233,127 +225,16 @@ namespace OPS.Landform
             sc.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
             sc.Build();
 
-            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs);
+            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
 
-            var obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors,
-                                                         options.OnlyAligned, imageObservations);
-            if (options.WriteDebug)
-            {
-                pipeline.LogInfo("saving {0} observation hull meshes", obsToHull.Count);
-                foreach (var entry in obsToHull)
-                {
-                    SaveDebugMesh(entry.Value.Mesh, entry.Key + "_hull");
-                }
-            }
-            
-            imageObservations = imageObservations.Where(obs => obsToHull.ContainsKey(obs.Name));
-
-            //coarse frustum test: get all observations that intersect mesh hull
-            pipeline.LogInfo("performing coarse intersections");
-            var meshHull = new ConvexHull(inputMesh);
-            if (options.WriteDebug)
-            {
-                pipeline.LogInfo("saving full mesh hull");
-                SaveDebugMesh(meshHull.Mesh, "fullMeshHull");
-            }
-            var intersecting = new ConcurrentBag<string>();
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
-            {
-                if (meshHull.Intersects(obsToHull[obs.Name]))
-                {
-                    intersecting.Add(obs.Name);
-                }
-            });
-            var intersectingObservations = intersecting
-                .Distinct() //defensive and not zero-cost, and *prob* not required here, but also prob doesn't hurt
-                .Select(obsName => observationCache.GetObservation(obsName))
-                .ToList();
-            pipeline.LogInfo("found {0} observations intersecting mesh", intersectingObservations.Count());
-                
-            pipeline.LogInfo("collecting sampling points in destination texture");
-            int outRes = options.OutputTextureResolution; 
-            var meshOp = new MeshOperator(inputMesh);
-            List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outRes, outRes);
-            if (options.WriteDebug)
-            {
-                pipeline.LogInfo("saving backproject validity image");
-                Image validUV = new Image(1, outRes, outRes);
-                foreach (var pixelPt in pointsToBackproject)
-                {
-                    validUV[0, (int)pixelPt.Pixel.Y, (int)pixelPt.Pixel.X] = 1.0f;
-                }
-                SaveDebugImage(validUV, "backprojectValidUV");
-            }
-
-            pipeline.LogInfo("calculating spatial density");
-
-            //for each source image, sweep through all valid destination pixels (not atlas gutter pixels)
-            var projectedPixelDistances = ProjectedPixelDistances.Calculate(frameCache, sc, meshHull, obsToHull,
-                                                                            options.BackprojectGoodnessSamplingPct,
-                                                                            meshFrame, options.UsePriors,
-                                                                            options.OnlyAligned, pointsToBackproject,
-                                                                            intersectingObservations, pipeline);
-            //sort observations by decreasing goodness
-            intersectingObservations
-                .Sort((obs1, obs2) => projectedPixelDistances[obs1.Name].CompareTo(projectedPixelDistances[obs2.Name]));
-
-            //for each source image in order from good to bad
-            //try to backproject all valid destination pixels (not atlas gutter pixels)
-            //greedily remove points that successfully backprojected
             pipeline.LogInfo("backprojecting observations");
-            var indexEntries = new List<ObservationIndex>(pointsToBackproject.Count);
-            Image fullTex = options.WriteDebug ? new Image(3, outRes, outRes) : null;
-            int i = 0;
-            int np = pointsToBackproject.Count;
-            foreach (var obs in intersectingObservations)
-            {
-                if (pointsToBackproject.Count == 0)
-                {
-                    break;
-                }
+            var backprojectResults = Backproject.BackprojectObservations(pipeline, frameCache, observationCache,
+                                           inputMesh, options.OutputTextureResolution, sc, imageObservations, 
+                                           options.UsePriors, options.OnlyAligned, meshFrame, mission, options.BackprojectGoodnessSamplingPct);
 
-                pipeline.LogInfo("backprojecting observation {0} {1}/{2}, {3}/{4} remaining pixels",
-                                 obs.Name, ++i, intersectingObservations.Count, pointsToBackproject.Count, np);
-
-                //backproject the destination pixels to find which source pixels should be used
-                var hits = Backproject.BackprojectObservation(pipeline, frameCache, observationCache, sc,
-                                                              (RoverObservation)obs, obsToHull[obs.Name],
-                                                              meshFrame, options.UsePriors,
-                                                              options.OnlyAligned, masker, pointsToBackproject,
-                                                              fullTex);
-
-                pipeline.LogInfo("observation {0} backprojected to {1} pixels", obs.Name, hits.Count);
-
-                if (hits.Count > 0)
-                {
-                    foreach (var hit in hits)
-                    {
-                        indexEntries.Add(new ObservationIndex()
-                         {
-                            Index = obs.Index,
-                            SourcePixel = hit.Value,
-                            DestPixel = hit.Key
-                        });
-                    }
-
-                    pointsToBackproject = pointsToBackproject.Where(pt => !hits.ContainsKey(pt.Pixel)).ToList();
-                }
-            }
-            if (options.WriteDebug)
-            {
-                pipeline.LogInfo("saving backproject texture and textured mesh");
-                SaveDebugImage(fullTex, "backprojectTexture");
-                SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectTexture" + imageExt);
-            }
-
-            pipeline.LogInfo("populating output");
-            Image indexImage = new Image(3, outRes, outRes);
-            foreach (var entry in indexEntries)
-            {
-                indexImage.SetBandValues((int)entry.DestPixel.Y, (int)entry.DestPixel.X,
-                                         new float[] { entry.Index,
-                                                       (float)entry.SourcePixel.Y, (float)entry.SourcePixel.X });
-            }
+            pipeline.LogInfo("generating index texture");
+            Image indexImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
+            Backproject.FillIndexImage(backprojectResults, indexImage);
 
             if (options.WriteDebug)
             {
@@ -362,25 +243,11 @@ namespace OPS.Landform
                 indexImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
 
                 pipeline.LogInfo("generating false color image");
-                Image previewImg = new Image(3, outRes, outRes);
-                var colorsByIndex = new Dictionary<float, Vector3>();
-                Random rand = NumberHelper.MakeRandomGenerator();
-                for (int idxPixel = 0; idxPixel < outRes * outRes; idxPixel++)
-                {
-                    float index = indexImage.GetBandValues(idxPixel)[0];
-                    if (index < Observation.MIN_INDEX)
-                    {
-                        continue;
-                    }
-                    if (!colorsByIndex.ContainsKey(index))
-                    {
-                        colorsByIndex.Add(index, new Vector3(rand.NextDouble(), rand.NextDouble(), rand.NextDouble()));
-                    }
-                    previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
-                }
+                Image previewImg = GeneratePreviewImage(options.OutputTextureResolution, indexImage);
 
                 pipeline.LogInfo("saving false color image");
                 SaveDebugImage(previewImg, "backprojectIndexFalseColor");
+                SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectIndexFalseColor" + imageExt);
             }
 
             pipeline.LogInfo("saving backproject index to project storage");
@@ -400,6 +267,28 @@ namespace OPS.Landform
             pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
 
             return 0;
+        }
+
+        private static Image GeneratePreviewImage(int outRes, Image indexImage)
+        {
+            Image previewImg = new Image(3, outRes, outRes);
+            var colorsByIndex = new Dictionary<float, Vector3>();
+            Random rand = NumberHelper.MakeRandomGenerator();
+            for (int idxPixel = 0; idxPixel < outRes * outRes; idxPixel++)
+            {
+                float index = indexImage.GetBandValues(idxPixel)[0];
+                if (index < Observation.MIN_INDEX)
+                {
+                    continue;
+                }
+                if (!colorsByIndex.ContainsKey(index))
+                {
+                    colorsByIndex.Add(index, new Vector3(rand.NextDouble(), rand.NextDouble(), rand.NextDouble()));
+                }
+                previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
+            }
+
+            return previewImg;
         }
 
         private void SaveDebugImage(Image img, string name)

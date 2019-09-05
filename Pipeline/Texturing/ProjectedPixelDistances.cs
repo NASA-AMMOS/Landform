@@ -30,11 +30,11 @@ namespace OPS.Pipeline
             var samples = pointsToBackproject.Where((pt, index) => index % skip == 0).ToList();
 
             var ret = new Dictionary<string, double>();
-            double[] spreads = new double[samples.Count];
+            
             foreach (var obs in observations.Cast<RoverObservation>())
             {
                 if (!obsToHull.ContainsKey(obs.Name))
-                { 
+                {
                     continue;
                 }
                 ConvexHull obsHull = obsToHull[obs.Name];
@@ -45,8 +45,6 @@ namespace OPS.Pipeline
                     continue;
                 }
                 Matrix obsToOutput = xform.Mean;
-
-                CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
 
                 if (logger != null)
                 {
@@ -60,38 +58,51 @@ namespace OPS.Pipeline
                                       );
                 }
 
-                int i = -1;
-#if NO_PARALLEL_RAYCASTS
-                Serial.
-#else
-                CoreLimitedParallel.
-#endif
-                ForEach(samples, pt => {
-                
-                        int index = Interlocked.Increment(ref i);
+                double pixelSpread = CalculateForObs(sc, meshHull, samples, obs, obsHull, obsToOutput);
 
-                        if (obsHull.Contains(pt.Point)) //protect against bad ray calculations from camera model
-                        {
-                            //Issue #523: want median or average in case glancing angle?
-                            //want a term that looks for consistancy in spacing? implies dead on?
-                            spreads[index] =
-                                TextureSplitCriteria.
-                                GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, meshHull,
-                                                          pt.Pixel, pt.Point, obs.Width, obs.Height);
-                        }
-                        else
-                        {
-                            spreads[index] = -1;
-                        }
-                    });
-
-                //take median of valid spreads
-                var validSpreads = spreads.Where(spread => spread >= 0).ToList();
-                validSpreads.Sort();
-                ret[obs.Name] = validSpreads.Count > 0 ? validSpreads[validSpreads.Count / 2] : double.MaxValue;
+                ret[obs.Name] = pixelSpread;
             }
 
             return ret;
+        }
+
+        public static double CalculateForObs(SceneCaster sc, ConvexHull meshHull, List<PixelPoint> allSamples, Observation obs, ConvexHull obsHull, Matrix obsToOutput, double pctPtsToSample=1.0)
+        {
+            int numPoints = allSamples.Count();
+            int skip = numPoints / Math.Max(1, (int)(numPoints * pctPtsToSample));
+            var samples = allSamples.Where((pt, index) => index % skip == 0).ToList();
+
+            CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+            double[] spreads = new double[samples.Count];
+            int samplePointIndex = -1;
+#if NO_PARALLEL_RAYCASTS
+                Serial.
+#else
+            CoreLimitedParallel.
+#endif
+                ForEach(samples, pt =>
+                {
+
+                    int curSamplePointIndex = Interlocked.Increment(ref samplePointIndex);
+
+                    if (obsHull.Contains(pt.Point)) //protect against bad ray calculations from camera model
+                    {
+                        //Issue #523: want median or average in case glancing angle?
+                        //want a term that looks for consistancy in spacing? implies dead on?
+                        spreads[curSamplePointIndex] = TextureSplitCriteria.GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, meshHull,
+                                                      pt.Pixel, pt.Point, obs.Width, obs.Height);
+                    }
+                    else
+                    {
+                        spreads[curSamplePointIndex] = -1;
+                    }
+                });
+
+            //take median of valid spreads
+            var validSpreads = spreads.Where(spread => spread >= 0).ToList();
+            validSpreads.Sort();
+            double pixelSpread = validSpreads.Count > 0 ? validSpreads[validSpreads.Count / 2] : double.MaxValue;
+            return pixelSpread;
         }
     }
 }

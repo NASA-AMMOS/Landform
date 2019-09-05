@@ -192,8 +192,6 @@ namespace OPS.Pipeline
             return minSpread != double.MaxValue;
         }
 
-        private static readonly float RaycastNearMeters = 0.001f;
-
         private static readonly Vector2[] NeighborPixelsOffsets4Centered =
             {
                 new Vector2( -1.0,  0.0),
@@ -230,51 +228,6 @@ namespace OPS.Pipeline
             return area1 + area2;
         }
 
-        /// <summary>
-        /// test if there is another part of the mesh between the camera and the test point
-        /// </summary>
-        public static bool IsOccluded(CameraModel camera, Vector2 pixel, Vector3 meshPos, SceneCaster sc,
-                                       double rangeMeshToImage, Matrix obsToMesh)
-        {
-            Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
-            Ray rayMeshToCam = new Ray(meshPos, -rayCamToMesh.Direction);
-
-            //from embree docs:
-            //The implementation makes no guarantees that primitives whose hit distance is exactly at
-            //(or very close to) tnear or tfar are hit or missed. 
-            //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            HitData hit = sc.Raycast(rayMeshToCam, RaycastNearMeters);
-
-            //if hit something else before camera, occluded
-            return (hit != null) && (hit.Distance < rangeMeshToImage);
-        }
-
-        public static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
-        {
-            //get ray from camera through pixel associated with meshPos
-            Ray rayCamToMeshInObsFrame = camera.Unproject(pixel);
-
-            // convert from observation frame (typically rover_nav) to mesh (output frame, typically "root")
-            Ray rayCamToMesh = new Ray(Vector3.Transform(rayCamToMeshInObsFrame.Position, obsToMesh),
-                                       Vector3.TransformNormal(rayCamToMeshInObsFrame.Direction, obsToMesh));
-
-            return rayCamToMesh;
-        }
-
-        public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster sc)
-        {
-            Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
-
-            //from embree docs:
-            //The implementation makes no guarantees that primitives whose hit distance is exactly at
-            //(or very close to) tnear or tfar are hit or missed. 
-            //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            HitData hit = sc.Raycast(rayCamToMesh, RaycastNearMeters);
-
-            //return null if missed or the position if hit
-            return hit?.Position;
-        }
-
         public static Vector2[] GetPixelCorners(Vector2 srcPixel)
         {
             //maps subpixel address to integer pixel address (upper left corner)
@@ -308,7 +261,7 @@ namespace OPS.Pipeline
             foreach (var curPixel in srcPixels)
             {
                 //check if pixel ray hit the mesh
-                Vector3? curPos = RaycastMesh(camera, camToMesh, curPixel, sc);
+                Vector3? curPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sc);
                 if (!curPos.HasValue)
                     continue;
 
@@ -343,7 +296,7 @@ namespace OPS.Pipeline
             }
 
             // raycast the scene to test if the desired position is occluded by terrain
-            if (IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+            if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
             {
                 return null;
             }
