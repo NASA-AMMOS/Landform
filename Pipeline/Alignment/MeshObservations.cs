@@ -89,6 +89,8 @@ namespace OPS.Pipeline
 
         public string StereoFrameName { get { return RoverObs.StereoFrameName; } }
 
+        public RoverStereoEye StereoEye { get { return RoverObs.StereoEye; } }
+
         public RoverObservation RoverObs
         {
             get

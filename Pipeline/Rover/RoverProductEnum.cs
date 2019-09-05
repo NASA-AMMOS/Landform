@@ -65,6 +65,14 @@ namespace OPS.Pipeline
         MSSS
     }
 
+    public enum RoverStereoEye
+    {
+        Left,
+        Right,
+        Mono,
+        Any
+    }
+
     public static class RoverStereoPair
     {
         public static readonly RoverProductCamera[] LeftCams = new RoverProductCamera[]
@@ -113,6 +121,28 @@ namespace OPS.Pipeline
         public static bool IsStereoRight(RoverProductCamera cam)
         {
             return RightCams.Contains(cam);
+        }
+
+        public static bool IsStereoEye(RoverProductCamera cam, RoverStereoEye eye)
+        {
+            switch (eye)
+            {
+                case RoverStereoEye.Left: return IsStereoLeft(cam);
+                case RoverStereoEye.Right: return IsStereoRight(cam);
+                case RoverStereoEye.Mono: return !IsStereo(cam);
+                default: return true;
+            } 
+        }
+
+        public static RoverStereoEye OtherEye(RoverStereoEye eye)
+        {
+            switch (eye)
+            {
+                case RoverStereoEye.Left: return RoverStereoEye.Right;
+                case RoverStereoEye.Right: return RoverStereoEye.Left;
+                case RoverStereoEye.Mono: return RoverStereoEye.Mono;
+                default: return RoverStereoEye.Any;
+            } 
         }
 
         public static RoverProductCamera GetOtherEye(RoverProductCamera cam)
