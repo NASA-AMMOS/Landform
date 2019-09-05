@@ -297,7 +297,7 @@ namespace OPS.Pipeline
                         //raycast the scene to test if the desired position is occluded by terrain
                         if (!IsOccluded(camera, obsPixel, meshPos, occlusion, range, obsToMesh))
                         {
-                            if(false == backprojectedPoints.TryAdd(pixelPoint.Pixel, obsPixel))
+                            if(!backprojectedPoints.TryAdd(pixelPoint.Pixel, obsPixel))
                             {
                                 throw new InvalidOperationException("multiple writes to same output pixel");
                             }
