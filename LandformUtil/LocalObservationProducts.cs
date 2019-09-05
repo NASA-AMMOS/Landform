@@ -122,6 +122,9 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Write only merged site drive meshes", Default = false)]
         public bool OnlyMergedSiteDriveMeshes { get; set; }
 
+        [Option(HelpText = "Stereo eye to prefer for merged site drive meshes", Default = RoverStereoEye.Left)]
+        public RoverStereoEye MergedSiteDriveEye { get; set; }
+
         [Option(HelpText = "Write all the things", Default = false)]
         public bool AllTheThings { get; set; }
 
@@ -285,7 +288,17 @@ namespace OPS.LandformUtil
                 .OrderBy(obs => obs.Day)
                 .OrderBy(obs => obs.StereoFrameName)
                 .ToList();
-            
+
+            if (options.OnlyMergedSiteDriveMeshes && options.MergedSiteDriveEye != RoverStereoEye.Any)
+            {
+                observations = observations 
+                    .GroupBy(obs => obs.StereoFrameName)
+                    .Select(group => FilterForEye(group, options.MergedSiteDriveEye, obs => obs))
+                    .Where(obs => obs != null)
+                    .Where(obs => obs.Points != null || obs.Range != null)
+                    .ToList();
+            }
+
             int no = observations.Count();
             var siteDrives = observations.Select(obs => obs.SiteDrive).Distinct().OrderBy(sd => sd).ToArray();
             pipeline.LogInfo("computing observation products for {0} observation frames{1} under {2}",
@@ -679,6 +692,15 @@ namespace OPS.LandformUtil
                         .Distinct() //ConcurrentBag is not necessarily a set
                         .ToArray();
 
+                    if (options.MergedSiteDriveEye != RoverStereoEye.Any)
+                    {
+                        inputs = inputs
+                            .GroupBy(inp => inp.Item1.StereoFrameName)
+                            .Select(group => FilterForEye(group, options.MergedSiteDriveEye, inp => inp.Item1))
+                            .Where(inp => inp != null)
+                            .ToArray();
+                    }
+
                     int hasNormals = 0, hasTextures = 0;
                     var bands = new Dictionary<int, int>();
                     foreach (var input in inputs)
@@ -702,9 +724,9 @@ namespace OPS.LandformUtil
                         }
                     }
 
-                    pipeline.LogInfo("generating merged mesh for site drive {0} from {1} wedge meshes, " +
-                                     "{2} with normals, {3} with textures{4}",
-                                     siteDrive, inputs.Length, hasNormals, hasTextures,
+                    pipeline.LogInfo("generating merged mesh for site drive {0} from {1} {2} eye wedge meshes, " +
+                                     "{3} with normals, {4} with textures{5}",
+                                     siteDrive, inputs.Length, options.MergedSiteDriveEye, hasNormals, hasTextures,
                                      hasTextures > 0 ? 
                                      (": " + string.Join(", ", bands.Select(e => string.Format("{0} with {1} bands",
                                                                                                e.Value, e.Key))))
@@ -758,6 +780,18 @@ namespace OPS.LandformUtil
             pipeline.LogInfo("generated products for {0} observations ({1:F3}s)", no, totalSec);
 
             return 0;
+        }
+
+        private T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, MeshObservations> getObs)
+        {
+            foreach (var thing in group)
+            {
+                if (getObs(thing).StereoEye == eye)
+                {
+                    return thing;
+                }
+            }
+            return group.FirstOrDefault();
         }
 
         private Image StampLegend(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh,
