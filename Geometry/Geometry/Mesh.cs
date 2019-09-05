@@ -1111,13 +1111,14 @@ namespace OPS.Geometry
                 {
                     throw new ArgumentException("cannot merged textured meshes with untextured");
                 }
-                int maxWidth = textures.Select(t => t.Width).Max();
-                int maxHeight = textures.Select(t => t.Height).Max();
-                int maxBands = bands = textures.Select(t => t.Bands).Max();
-                int minBands = textures.Select(t => t.Bands).Min();
-                if (minBands != maxBands)
+                bands = textures.Select(t => t.Bands).Max();
+                foreach (var texture in textures)
                 {
-                    throw new ArgumentException("cannot merge textures with different numbers of bands");
+                    if (texture.Bands < bands && texture.Bands != 1)
+                    {
+                        throw new ArgumentException(string.Format("cannot merge {0} band texture and {1} band textures",
+                                                                  texture.Bands, bands));
+                    }
                 }
             }
 
@@ -1141,7 +1142,18 @@ namespace OPS.Geometry
                 {
                     int x = col * maxWidth, y = row * maxHeight;
 
-                    atlas.Blit(textures[i], x, y);
+                    Image texture = textures[i];
+                    if (texture.Bands < bands)
+                    {
+                        float[] intensity = texture.GetBandData(0);
+                        texture = new Image(texture);
+                        while (texture.Bands < bands)
+                        {
+                            Array.Copy(intensity, texture.GetBandData(texture.AddBand()), intensity.Length);
+                        }
+                    }
+
+                    atlas.Blit(texture, x, y);
 
                     var offset = atlas.PixelToUV(new Vector2(x, y + maxHeight - 1));
                     var mesh = meshes[i];
