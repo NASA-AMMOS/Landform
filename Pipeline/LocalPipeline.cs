@@ -366,6 +366,11 @@ namespace OPS.Pipeline
 
         private void InitializeDatabase(bool quiet = false)
         {
+            if (!quiet)
+            {
+                LogInfo("initializing {0} database tables...", tableTypes.Length);
+            }
+            double startSec = UTCTime.Now();
             int nt = 0, ni = 0;
             foreach (var t in tableTypes)
             {
@@ -405,7 +410,7 @@ namespace OPS.Pipeline
             }
             if (!quiet)
             {
-                LogVerbose("initialized {0} database tables, {1} total items", nt, ni);
+                LogInfo("initialized {0} database tables, {1} total items, {2:F3} sec", nt, ni, UTCTime.Now() - startSec);
             }
         }
 

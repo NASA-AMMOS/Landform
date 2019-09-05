@@ -8,11 +8,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission
-    {
-        MSL,
-        M2020
-    }
+    public enum Mission { None, MSL, M2020 }
 
     public abstract class MissionSpecific
     {
@@ -20,6 +16,7 @@ namespace OPS.Pipeline
         {
             switch (mission)
             {
+                case Mission.None: return null;
                 case Mission.MSL: return new MissionMSL();
                 case Mission.M2020: return new MissionM2020();
                 default: throw new NotImplementedException("unknown mission");
@@ -43,6 +40,16 @@ namespace OPS.Pipeline
 
         public virtual bool UseForReconstruction(PDSParser parser)
         {
+            if (parser.IsPartial)
+            {
+                return false;
+            }
+
+            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
+            {
+                return false;
+            }
+
             //we used to try to check here that the parser could supply rover articulation, and if not return false
             //articulation is needed for mask computation
             //however, I think the check was bogus, it was always returning true
@@ -52,7 +59,9 @@ namespace OPS.Pipeline
             //because it may not always be necessary to compute a mask
             //the mask may not be needed
             //or it may already be provided by the mission as its own product
+
             RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
+
             if (!UseHazcamForReconstruction() && IsHazcam(roverProdCam))
             {
                 return false;
@@ -187,6 +196,31 @@ namespace OPS.Pipeline
             return cam;
         }
 
+        public virtual string ClassifyCamera(RoverProductCamera cam)
+        {
+            if (IsNavcam(cam))
+            {
+                return "navcam";
+            }
+            else if (IsMastcam(cam))
+            {
+                return "mastcam";
+            }
+            else if (IsHazcam(cam))
+            {
+                return "hazcam";
+            }
+            else
+            {
+                return cam.ToString();
+            }
+        }
+
+        public virtual string ClassifyCamera(string cam)
+        {
+            return ClassifyCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+        }
+
         /// <summary>
         /// whether to ingest OPGS images
         /// </summary>
@@ -281,48 +315,58 @@ namespace OPS.Pipeline
         /// Check if we should even bother downloading or ingesting based on filename.
         /// uses the Allow*() APIs so missions can specialize by just overriding those
         /// </summary>
-        public virtual bool CheckFilename(string filename)
+        public virtual bool CheckFilename(string filename, out string reason)
         {
+            reason = "";
+
             RoverProductId id = RoverProductId.ParseFromString(filename);
 
             if (id == null)
             {
+                reason = "failed to parse product id";
                 return false;
             }
 
             if (id.Camera == RoverProductCamera.Unknown)
             {
+                reason = "unknown camera";
                 return false;
             }
 
             if (id.ProductType == RoverProductType.Unknown || !Observation.AllowedProductType(id.ProductType))
             {
+                reason = string.Format("product type {0} not allowed", id.ProductType.ToString());
                 return false;
             }
 
             if (!AllowOPGS() && id.Producer == RoverProductProducer.OPGS)
             {
+                reason = string.Format("producer {0} not allowed", id.Producer.ToString());
                 return false;
             }
 
             if (!AllowMSSS() && id.Producer == RoverProductProducer.MSSS)
             {
+                reason = string.Format("producer {0} not allowed", id.Producer.ToString());
                 return false;
             }
 
             if (!AllowThumbnails() && id.Producer == RoverProductProducer.OPGS &&
                 ((OPGSProductId)id).Size != RoverProductSize.Regular)
             {
+                reason = "thumbnails not allowed";
                 return false;
             }
 
             if (!AllowLinear() && id.Geometry == RoverProductGeometry.Linearized)
             {
+                reason = "linearized images not allowed";
                 return false;
             }
 
             if (!AllowNonlinear() && id.Geometry != RoverProductGeometry.Linearized)
             {
+                reason = "nonlinear images not allowed";
                 return false;
             }
 
@@ -332,16 +376,23 @@ namespace OPS.Pipeline
                 MSSSProductId msssId = (MSSSProductId)id;
                 if (!msssId.RadiometricallyCalibrated || !msssId.ColorCorrected || !msssId.Decompressed)
                 {
+                    reason = "MSSS non-DCX files not allowed";
                     return false;
                 }
                 // Filter for color or black and white jpegs that are not thumbnails
-                if(msssId.MSSSProductType == MSSSProductType.Unknown)
+                if (msssId.MSSSProductType == MSSSProductType.Unknown)
                 {
+                    reason = "MSSS product type unknown";
                     return false;
                 }
             }
 
             return true;
+        }
+
+        public bool CheckFilename(string filename)
+        {
+            return CheckFilename(filename, out string reason);
         }
 
         public virtual bool IsGeometricallyLinearlyCorrected(PDSParser parser)
@@ -354,55 +405,71 @@ namespace OPS.Pipeline
         /// but some things are only checked by one or the other
         /// uses the Allow*() APIs so missions can specialize by just overriding those
         /// </summary>
-        public virtual bool CheckMetadata(PDSParser parser)
+        public virtual bool CheckMetadata(PDSParser parser, out string reason)
         {
+            reason = "";
+
             if (GetRoverProductCamera(parser.InstrumentId) == RoverProductCamera.Unknown)
             {
+                reason = "unknown camera";
                 return false;
             }
 
             if (!AllowPartialDownloads() && parser.IsPartial)
             {
+                reason = "partial downloads not allowed";
                 return false;
             }
 
             var pt = parser.DerivedImageType;
             if (pt == RoverProductType.Unknown || !Observation.AllowedProductType(pt))
             {
+                reason = string.Format("product type {0} not allowed", pt.ToString());
                 return false;
             }
 
             if (!AllowOPGS() && parser.ProducingInstitution == RoverProductProducer.OPGS)
             {
+                reason = "OPGS images not allowed";
                 return false;
             }
 
             if (!AllowMSSS() && parser.ProducingInstitution == RoverProductProducer.MSSS)
             {
+                reason = "MSSS images not allowed";
                 return false;
             }
 
             if (!AllowThumbnails() && parser.ImageSizeType != RoverProductSize.Regular)
             {
+                reason = "thumbnail images not allowed";
                 return false;
             }
 
             if (!AllowLinear() && IsGeometricallyLinearlyCorrected(parser))
             {
+                reason = "linearized images not allowed";
                 return false;
             }
 
             if (!AllowNonlinear() && !IsGeometricallyLinearlyCorrected(parser))
             {
+                reason = "nonlinear images not allowed";
                 return false;
             }
 
             if (!AllowSunFinding() && parser.IsSunFinding)
             {
+                reason = "sun finding images not allowed";
                 return false;
             }
 
             return true;
+        }
+
+        public virtual bool CheckMetadata(PDSParser parser)
+        {
+            return CheckMetadata(parser, out string reason);
         }
 
         public abstract RoverProductCamera GetRoverProductCamera(string instrumentId);
@@ -462,33 +529,15 @@ namespace OPS.Pipeline
             }
 
             RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
-            // Low exposure hazcams
-            if (parser.DerivedImageType == RoverProductType.Image)
-            {
-                if (IsHazcam(roverProdCam) &&
-                    parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
-                {
-                    return false;
-                }
-            }
 
-            //we used to try to check here that the parser could supply rover articulation, and if not return false
-            //articulation is needed for mask computation
-            //however, I think the check was bogus, it was always returning true
-            //even if the parser could not supply the data
-            //
-            //and I don't think it's really appropriate to force the parser to have the articulation data
-            //because it may not always be necessary to compute a mask
-            //the mask may not be needed
-            //or it may already be provided by the mission as its own product
-
-            if (IsHazcam(roverProdCam))
+            if (roverProdCam == RoverProductCamera.MAHLI)
             {
                 return false;
             }
 
-            // Only use single and 3 band images
-            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
+            // Low exposure hazcams
+            if (IsHazcam(roverProdCam) && parser.DerivedImageType == RoverProductType.Image &&
+                parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
             {
                 return false;
             }
@@ -684,39 +733,6 @@ namespace OPS.Pipeline
         {
             return base.IsMastcam(camera) ||
                 camera == RoverProductCamera.MastcamZLeft || camera == RoverProductCamera.MastcamZRight;
-        }
-
-        public override bool UseForReconstruction(PDSParser parser)
-        {
-            // Partial downloads
-            if (parser.IsPartial)
-            {
-                return false;
-            }
-
-            //we used to try to check here that the parser could supply rover articulation, and if not return false
-            //articulation is needed for mask computation
-            //however, I think the check was bogus, it was always returning true
-            //even if the parser could not supply the data
-            //
-            //and I don't think it's really appropriate to force the parser to have the articulation data
-            //because it may not always be necessary to compute a mask
-            //the mask may not be needed
-            //or it may already be provided by the mission as its own product
-
-            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
-            if (IsHazcam(roverProdCam))
-            {
-                return false;
-            }
-
-            // Only use single and 3 band images
-            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
-            {
-                return false;
-            }
-            
-            return true;
         }
 
         // ROASTT: some images have invalid PLANET_DAY_NUMBER

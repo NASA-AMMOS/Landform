@@ -257,17 +257,39 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         /// <summary>
-        /// get transform from an observation frame to the corresponding rover, sitedrive, or root frame
-        /// also works to get a transform from an observationframe to any other observation frame
-        /// result is null if the transform could not be resolved
-        /// if usePriors = true then only prior transform sources will be used
-        /// if onlyAligned = true then the result will be null unless at least one transform in the chain is not a prior
+        /// Get a transform from an observation frame to the corresponding rover, sitedrive, or root frame.
+        ///
+        /// Also works to get a transform from an observation frame to any other observation or sitedrive frame.
+        ///
+        /// Note this requires an observation in order to identify an observation frame to start with.  Thus this is not
+        /// a general purpose function to get a transform between any two frames.  For that see GetRelativeTransform().
+        ///
+        /// The reason that an observation is required is to ensure that the "from" frame is really an observation
+        /// frame. Currently we have no other way to really know that.  We have a weak naming convention for
+        /// observation frames that is of the form <sensor name>_<rover motion counter> but it is not formal enough
+        /// that given such a string we can be sure that it identifies an observation frame.
+        ///
+        /// The reason this function requires an observation frame specifically is so that it can support the
+        /// meta-names "rover", "sitedrive", and "root" as the destination frame.  This is possible by relying on
+        /// the assumption that the frame tree is structured like this:
+        ///
+        /// root frame <-- sitedrive frame <-- observation/rover frame
+        ///
+        /// That is, an observation frame is always a rover frame, the parent of an observation frame is always a
+        /// sitedrive frame, and the parent of a sitedrive frame is always the root frame.
+        ///
+        /// Result is null if the transform could not be resolved.
+        ///
+        /// If usePriors = true then only prior transform sources will be used.
+        ///
+        /// If onlyAligned = true then the result is null unless at least one transform in the chain is not a prior.
         /// </summary>
-        public UncertainRigidTransform GetObservationTransform(Observation fromObs, string toFrame,
+        public UncertainRigidTransform GetObservationTransform(Observation fromObs, string toFrameName,
                                                                bool usePriors = false, bool onlyAligned = false)
         {
-            if (toFrame == "rover")
+            if (toFrameName == "rover" || fromObs.FrameName == toFrameName)
             {
+                //go from an observation frame to itself
                 return new UncertainRigidTransform(); //identity, no uncertainty
             }
 
@@ -277,25 +299,55 @@ namespace OPS.Pipeline.AlignmentServer
                 return null;
             }
 
-            if (toFrame == "sitedrive")
+            UncertainRigidTransform getTransformToSD(Frame obsFrame)
             {
-                var obsToSD = usePriors ? GetBestPrior(fromFrame) : GetBestTransform(fromFrame);
+                var obsToSD = usePriors ? GetBestPrior(obsFrame) : GetBestTransform(obsFrame);
                 return (obsToSD == null || (onlyAligned && obsToSD.IsPrior())) ? null : obsToSD.Transform;
             }
 
-            if (toFrame == "site")
+            if (toFrameName == "sitedrive" || toFrameName == fromFrame.ParentName)
+            {
+                //go from an observation frame to its parent sitedrive frame
+                return getTransformToSD(fromFrame);
+            }
+
+            if (toFrameName == "site")
             {
                 throw new NotImplementedException("transform to site frame not implemented");
             }
 
-            if (toFrame == "root" || string.IsNullOrEmpty(toFrame))
+            if (toFrameName == "root" || string.IsNullOrEmpty(toFrameName))
             {
                 return GetTransformToRoot(fromFrame, usePriors, onlyAligned);
             }
-            
-            var srcToRoot = GetTransformToRoot(fromFrame, usePriors, onlyAligned);
-            var dstToRoot = GetTransformToRoot(toFrame, usePriors, onlyAligned);
-            return (srcToRoot == null || dstToRoot == null) ? null : srcToRoot.TimesInverse(dstToRoot);
+
+            //get here iff destination is
+            //(a) a different observation frame than fromObs, either in the same sitedrive or another one
+            //(b) a sitedrive frame other than the sitedrive containing fromObs
+
+            Frame toFrame = GetFrame(toFrameName);
+            if (toFrame == null)
+            {
+                return null;
+            }
+
+            UncertainRigidTransform srcToLCA = null; //LCA = lowest (i.e. nearest) common ancestor
+            UncertainRigidTransform dstToLCA = null;
+
+            if (fromFrame.ParentName == toFrame.ParentName)
+            {
+                //short-circuit case of going from one observation frame to another in the same sitedrive
+                //otherwise we'd build up unnecessary uncertainty going down to root and back up
+                srcToLCA = getTransformToSD(fromFrame);
+                dstToLCA = getTransformToSD(toFrame);
+            }
+            else
+            {
+                srcToLCA = GetTransformToRoot(fromFrame, usePriors, onlyAligned);
+                dstToLCA = GetTransformToRoot(toFrame, usePriors, onlyAligned);
+            }
+
+            return (srcToLCA == null || dstToLCA == null) ? null : srcToLCA.TimesInverse(dstToLCA);
         }
 
         public UncertainRigidTransform GetObservationTransform(Observation fromObs, Observation toObs,
@@ -310,8 +362,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// if usePriors = true then only prior transform sources will be used
         /// if onlyAligned = true then the result will be null unless at least one transform in the chain is not a prior
         /// </summary>
-        public UncertainRigidTransform GetTransformToRoot(Frame frame, bool usePriors = false,
-                                                          bool onlyAligned = false)
+        public UncertainRigidTransform GetTransformToRoot(Frame frame, bool usePriors = false, bool onlyAligned = false)
         {
             var ret = new UncertainRigidTransform(); //identity, no uncertainty
 
@@ -334,6 +385,69 @@ namespace OPS.Pipeline.AlignmentServer
                                                           bool onlyAligned = false)
         {
             return GetTransformToRoot(GetFrame(frameName), usePriors, onlyAligned);
+        }
+
+        public UncertainRigidTransform GetRelativeTransform(Frame srcFrame, Frame dstFrame, bool usePriors = false,
+                                                            bool onlyAligned = false)
+        {
+            if (srcFrame == null)
+            {
+                return (new UncertainRigidTransform()).TimesInverse(GetTransformToRoot(dstFrame));
+            }
+
+            if (dstFrame == null)
+            {
+                return GetTransformToRoot(srcFrame);
+            }
+
+            var srcToRoot = new LinkedList<Frame>();
+            for (var f = srcFrame; f != null; f = !string.IsNullOrEmpty(f.ParentName) ? GetFrame(f.ParentName) : null)
+            {
+                srcToRoot.AddLast(f);
+            }
+
+            LinkedListNode<Frame> lca = null;
+            bool aligned = false;
+
+            UncertainRigidTransform getTransformToLCA(Frame f, Func<Frame, bool> reachedLCA)
+            {
+                var toLCA = new UncertainRigidTransform(); //identity, no uncertainty
+                for (; f != null; f = !string.IsNullOrEmpty(f.ParentName) ? GetFrame(f.ParentName) : null)
+                {
+                    if (reachedLCA(f))
+                    {
+                        break;
+                    }
+                    var toParent = usePriors ? GetBestPrior(f) : GetBestTransform(f);
+                    if (toParent == null)
+                    {
+                        return null;
+                    }
+                    aligned = aligned || !toParent.IsPrior();
+                    toLCA = toLCA * toParent.Transform; //row major transforms compose left to right
+                }
+                return toLCA;
+            }
+
+            var dstToLCA = getTransformToLCA(dstFrame, f => ((lca = srcToRoot.Find(f)) != null));
+            if (dstToLCA == null || lca == null)
+            {
+                return null;
+            }
+
+            var srcToLCA = getTransformToLCA(srcFrame, f => (f == lca.Value));
+            if (srcToLCA == null || (onlyAligned && !aligned))
+            {
+                return null;
+            }
+
+            return srcToLCA.TimesInverse(dstToLCA);
+        }
+
+        public UncertainRigidTransform GetRelativeTransform(string srcFrame, string dstFrame, bool usePriors = false,
+                                                            bool onlyAligned = false)
+        {
+            return GetRelativeTransform(GetFrame(srcFrame), GetFrame(dstFrame), usePriors, onlyAligned);
         }
     }
 }

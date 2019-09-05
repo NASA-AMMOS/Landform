@@ -64,6 +64,26 @@ namespace OPS.Pipeline.AlignmentServer
                 }
             }
         }
+
+        public RoverStereoEye StereoEye
+        {
+            get
+            {
+                var cam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), Sensor);
+                if (RoverStereoPair.IsStereoLeft(cam))
+                {
+                    return RoverStereoEye.Left;
+                }
+                else if (RoverStereoPair.IsStereoRight(cam))
+                {
+                    return RoverStereoEye.Right;
+                }
+                else
+                {
+                    return RoverStereoEye.Mono;
+                }
+            }
+        }
       
         protected void IsValidRoverOservation()
         {
