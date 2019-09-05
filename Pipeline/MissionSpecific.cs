@@ -72,11 +72,6 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (roverProdCam == RoverProductCamera.MAHLI)
-            {
-                return false;
-            }
-
             return true;
         }
 
@@ -534,6 +529,11 @@ namespace OPS.Pipeline
             }
 
             RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
+
+            if (roverProdCam == RoverProductCamera.MAHLI)
+            {
+                return false;
+            }
 
             // Low exposure hazcams
             if (IsHazcam(roverProdCam) && parser.DerivedImageType == RoverProductType.Image &&
