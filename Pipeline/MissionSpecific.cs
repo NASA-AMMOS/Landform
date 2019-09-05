@@ -40,6 +40,16 @@ namespace OPS.Pipeline
 
         public virtual bool UseForReconstruction(PDSParser parser)
         {
+            if (parser.IsPartial)
+            {
+                return false;
+            }
+
+            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
+            {
+                return false;
+            }
+
             //we used to try to check here that the parser could supply rover articulation, and if not return false
             //articulation is needed for mask computation
             //however, I think the check was bogus, it was always returning true
@@ -49,7 +59,9 @@ namespace OPS.Pipeline
             //because it may not always be necessary to compute a mask
             //the mask may not be needed
             //or it may already be provided by the mission as its own product
+
             RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
+
             if (!UseHazcamForReconstruction() && IsHazcam(roverProdCam))
             {
                 return false;
@@ -517,33 +529,15 @@ namespace OPS.Pipeline
             }
 
             RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
-            // Low exposure hazcams
-            if (parser.DerivedImageType == RoverProductType.Image)
-            {
-                if (IsHazcam(roverProdCam) &&
-                    parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
-                {
-                    return false;
-                }
-            }
 
-            //we used to try to check here that the parser could supply rover articulation, and if not return false
-            //articulation is needed for mask computation
-            //however, I think the check was bogus, it was always returning true
-            //even if the parser could not supply the data
-            //
-            //and I don't think it's really appropriate to force the parser to have the articulation data
-            //because it may not always be necessary to compute a mask
-            //the mask may not be needed
-            //or it may already be provided by the mission as its own product
-
-            if (IsHazcam(roverProdCam))
+            if (roverProdCam == RoverProductCamera.MAHLI)
             {
                 return false;
             }
 
-            // Only use single and 3 band images
-            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
+            // Low exposure hazcams
+            if (IsHazcam(roverProdCam) && parser.DerivedImageType == RoverProductType.Image &&
+                parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
             {
                 return false;
             }
@@ -739,39 +733,6 @@ namespace OPS.Pipeline
         {
             return base.IsMastcam(camera) ||
                 camera == RoverProductCamera.MastcamZLeft || camera == RoverProductCamera.MastcamZRight;
-        }
-
-        public override bool UseForReconstruction(PDSParser parser)
-        {
-            // Partial downloads
-            if (parser.IsPartial)
-            {
-                return false;
-            }
-
-            //we used to try to check here that the parser could supply rover articulation, and if not return false
-            //articulation is needed for mask computation
-            //however, I think the check was bogus, it was always returning true
-            //even if the parser could not supply the data
-            //
-            //and I don't think it's really appropriate to force the parser to have the articulation data
-            //because it may not always be necessary to compute a mask
-            //the mask may not be needed
-            //or it may already be provided by the mission as its own product
-
-            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
-            if (IsHazcam(roverProdCam))
-            {
-                return false;
-            }
-
-            // Only use single and 3 band images
-            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
-            {
-                return false;
-            }
-            
-            return true;
         }
 
         // ROASTT: some images have invalid PLANET_DAY_NUMBER
