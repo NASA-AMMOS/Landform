@@ -70,7 +70,7 @@ namespace OPS.Landform
                 LocalAgisoftOptions,
                 LocalBuildGeometryOptions,
                 LocalBuildTilesetOptions,
-                LocalBuildBackprojectIndexOptions,
+                LocalBuildTextureOptions,
                 LocalBuildLeavesOptions,
                 StartAlignMasterOptions >(args);
 
@@ -86,7 +86,7 @@ namespace OPS.Landform
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
                 (LocalBuildGeometryOptions opts) => new LocalBuildGeometry(opts).Run(),
                 (LocalBuildTilesetOptions opts) => new LocalBuildTileset(opts).Run(),
-                (LocalBuildBackprojectIndexOptions opts) => new LocalBuildBackprojectIndex(opts).Run(),
+                (LocalBuildTextureOptions opts) => new LocalBuildTexture(opts).Run(),
                 (LocalBuildLeavesOptions opts) => new LocalBuildLeaves(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);

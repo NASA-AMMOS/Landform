@@ -158,7 +158,7 @@
     <Compile Include="LandformCommand.cs" />
     <Compile Include="LocalAgisoft.cs" />
     <Compile Include="LocalBEVAligner.cs" />
-    <Compile Include="LocalBuildBackprojectIndex.cs" />
+    <Compile Include="LocalBuildTexture.cs" />
     <Compile Include="LocalBuildGeometry.cs" />
     <Compile Include="LocalBuildLeaves.cs" />
     <Compile Include="LocalBuildTileset.cs" />

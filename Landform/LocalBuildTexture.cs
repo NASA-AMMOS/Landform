@@ -17,8 +17,8 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-backprojectindex", HelpText = "builds an index of images to use for texturing a mesh")]
-    public class LocalBuildBackprojectIndexOptions : LandformCommandOptions
+    [Verb("local-build-texture", HelpText = "backproject a mesh texture and/or index image")]
+    public class LocalBuildTextureOptions : LandformCommandOptions
     {
         // input related
         [Value(1, Required = false, Default = null, HelpText = "Mesh to backproject, search project storage if omitted")]
@@ -36,6 +36,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
+
+        [Option(HelpText = "Don't generate texture image", Default = false)]
+        public bool NoTexture { get; set; }
+
+        [Option(HelpText = "Don't generate index image", Default = false)]
+        public bool NoIndex { get; set; }
 
         // observation filtering related (landform standard)
         [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
@@ -70,9 +76,9 @@ namespace OPS.Landform
         public string ImageFormat { get; set; }
     }
 
-    public class LocalBuildBackprojectIndex : LandformCommand
+    public class LocalBuildTexture : LandformCommand
     {
-        private LocalBuildBackprojectIndexOptions options;
+        private LocalBuildTextureOptions options;
 
         private MissionSpecific mission;
         private RoverMasker masker;
@@ -80,8 +86,8 @@ namespace OPS.Landform
         private string outputPath;
         private string imageExt;
         private string meshExt;
-     
-        public LocalBuildBackprojectIndex(LocalBuildBackprojectIndexOptions options) : base(options)
+
+        public LocalBuildTexture(LocalBuildTextureOptions options) : base(options)
         {
             this.options = options;
         }
@@ -232,35 +238,62 @@ namespace OPS.Landform
                                            inputMesh, options.OutputTextureResolution, sc, imageObservations, 
                                            options.UsePriors, options.OnlyAligned, meshFrame, mission, options.BackprojectGoodnessSamplingPct);
 
-            pipeline.LogInfo("generating index texture");
-            Image indexImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
-            Backproject.FillIndexImage(backprojectResults, indexImage);
-
-            if (options.WriteDebug)
+            Image indexImage = null;
+            if (!options.NoIndex)
             {
-                pipeline.LogInfo("saving backproject index image");
-                PathHelper.EnsureExists(outputPath);
-                indexImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
+                pipeline.LogInfo("creating backproject index");
+                indexImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
+                Backproject.FillIndexImage(backprojectResults, indexImage);
 
-                pipeline.LogInfo("generating false color image");
-                Image previewImg = GeneratePreviewImage(options.OutputTextureResolution, indexImage);
+                if (options.WriteDebug)
+                {
+                    pipeline.LogInfo("saving backproject index image");
+                    PathHelper.EnsureExists(outputPath);
+                    indexImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
 
-                pipeline.LogInfo("saving false color image");
-                SaveDebugImage(previewImg, "backprojectIndexFalseColor");
-                SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectIndexFalseColor" + imageExt);
+                    pipeline.LogInfo("generating false color image");
+                    Image previewImg = GeneratePreviewImage(options.OutputTextureResolution, indexImage);
+
+                    pipeline.LogInfo("saving backproject index false color image and textured mesh");
+                    SaveDebugImage(previewImg, "backprojectIndexFalseColor");
+                    SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectIndexFalseColor" + imageExt);
+                }
             }
 
-            pipeline.LogInfo("saving backproject index to project storage");
+            Image fullTex = null;
+            if (!options.NoTexture)
+            {
+                fullTex = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
+                bool inpaint = true;
+                Backproject.FillOutputTexture(pipeline, backprojectResults, fullTex, inpaint);
+                if (options.WriteDebug)
+                {
+                    pipeline.LogInfo("saving backproject texture and textured mesh");
+                    SaveDebugImage(fullTex, "backprojectTexture");
+                    SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectTexture" + imageExt);
+                }
+            }
+
+            pipeline.LogInfo("saving to project storage");
             if (sceneMesh != null)
             {
-                var indexProd = new TiffDataProduct(indexImage);
-                pipeline.SaveDataProduct(project, indexProd);
-                sceneMesh.BackprojectIndexGuid = indexProd.Guid;
+                if (indexImage != null)
+                {
+                    var indexProd = new TiffDataProduct(indexImage);
+                    pipeline.SaveDataProduct(project, indexProd);
+                    sceneMesh.BackprojectIndexGuid = indexProd.Guid;
+                }
+                if (fullTex != null)
+                {
+                    var texProd = new PngDataProduct(fullTex);
+                    pipeline.SaveDataProduct(project, texProd);
+                    sceneMesh.TextureGuid = texProd.Guid;
+                }
                 sceneMesh.Save(pipeline);
             }
             else
             {
-                SceneMesh.Create(pipeline, project, meshFrame, backprojectIndex: indexImage);
+                SceneMesh.Create(pipeline, project, meshFrame, texture: fullTex, backprojectIndex: indexImage);
             }
 
             stopwatch.Stop();

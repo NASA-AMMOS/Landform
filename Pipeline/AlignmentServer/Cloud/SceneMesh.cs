@@ -35,6 +35,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid BackprojectIndexGuid;
 
+        public Guid TextureGuid;
+
         protected void IsValid()
         {
             if (!(ProjectName != null && Name != null && Frame != null))
@@ -48,7 +50,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         protected SceneMesh(string projectName, string frame, SiteDrive[] siteDrives = null,
                             MeshVariant variant = MeshVariant.Default, Guid meshGuid = default(Guid),
-                            Guid backprojectIndexGuid = default(Guid))
+                            Guid backprojectIndexGuid = default(Guid), Guid textureGuid = default(Guid))
         {
             this.ProjectName = projectName;
             this.Name = MakeName(frame, siteDrives, variant);
@@ -60,6 +62,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.Variant = variant;
             this.MeshGuid = meshGuid;
             this.BackprojectIndexGuid = backprojectIndexGuid;
+            this.TextureGuid = textureGuid;
             IsValid();
         }
 
@@ -79,7 +82,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static SceneMesh Create(PipelineCore pipeline, Project project, string frame,
                                        SiteDrive[] siteDrives = null, MeshVariant variant = MeshVariant.Default,
-                                       Mesh mesh = null, Image backprojectIndex = null)
+                                       Mesh mesh = null, Image backprojectIndex = null, Image texture = null)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null)
@@ -93,9 +96,16 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.SaveDataProduct(project, indexProd);
             } 
 
+            PngDataProduct textureProd = texture != null ? new PngDataProduct(texture) : null;
+            if (textureProd != null)
+            {
+                pipeline.SaveDataProduct(project, textureProd);
+            } 
+
             var ret = new SceneMesh(project.Name, frame, siteDrives, variant,
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
-                                    indexProd != null ? indexProd.Guid : Guid.Empty);
+                                    indexProd != null ? indexProd.Guid : Guid.Empty,
+                                    textureProd != null ? textureProd.Guid : Guid.Empty);
             ret.Save(pipeline);
             return ret;
         }
