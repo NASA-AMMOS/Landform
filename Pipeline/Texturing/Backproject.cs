@@ -144,7 +144,8 @@ namespace OPS.Pipeline
         /// </summary>
         static public Dictionary<Pixel, ObsPixel> BackprojectObservations(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache,
                                         Mesh inputMesh, int outputResolution,  SceneCaster occlusionScene, List<Observation> observations, 
-                                        bool usePriors, bool onlyAligned, string outputMeshFrame, MissionSpecific mission, double quality, bool logging=true)
+                                        bool usePriors, bool onlyAligned, string outputMeshFrame, MissionSpecific mission, double quality, bool logging=true,
+                                        IDictionary<string, ConvexHull> obsHullsByName = null)
         {
             if(logging) pipeline.LogInfo("building input mesh data structures");
 
@@ -167,7 +168,10 @@ namespace OPS.Pipeline
             }
 
             //generate hulls
-            IDictionary<string, ConvexHull> obsHullsByName = BuildConvexHulls(pipeline, frameCache, outputMeshFrame, usePriors, onlyAligned, imageObservations);
+            if (obsHullsByName == null)
+            {
+                obsHullsByName = BuildConvexHulls(pipeline, frameCache, outputMeshFrame, usePriors, onlyAligned, imageObservations);
+            }
 
             //find the reduced set of observations that intersect the desired mesh
             if (logging) pipeline.LogInfo("Testing {0} image observations for intersection", imageObservations.Count());
