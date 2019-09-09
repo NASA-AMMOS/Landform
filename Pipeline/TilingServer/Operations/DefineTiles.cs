@@ -227,26 +227,39 @@ namespace OPS.Pipeline.TilingServer
             root.AddComponent(new NodeBounds(multiClipper.TotalBounds));
             Queue<SceneNode> queue = new Queue<SceneNode>();
             queue.Enqueue(root);
-            while(queue.Count > 0 )
+
+            int cores = CoreLimitedParallel.GetAvailableCores();
+            while (queue.Count > 0 )
             {
-                SceneNode cur = queue.Dequeue();
-                var curBounds = cur.GetComponent<NodeBounds>().Bounds;
-                if (splitCriteria.Any( splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
-                {
-                    var childBounds = tilingScheme.Split(null, curBounds);
-                    childBounds = multiClipper.FilterEmptyBounds(childBounds);
-                    //For quad trees, expand bounds in the non-split dimension
-                    //Otherwise, we clip high peaks/low valleys in the decimated mesh
-                    //that exceed the bounds of the original mesh
-                    int counter = 0;
-                    foreach (var childBound in childBounds)
-                    {
-                        SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
-                        child.AddComponent(new NodeBounds(childBound));
-                        queue.Enqueue(child);
-                        counter++;
-                    }
+                List<SceneNode> toProcess = new List<SceneNode>();
+                for(int idx=0; idx < cores && queue.Count() > 0; idx++)
+                {                
+                    toProcess.Add(queue.Dequeue());
                 }
+
+                CoreLimitedParallel.ForEach(toProcess, cur =>
+                {
+                    var curBounds = cur.GetComponent<NodeBounds>().Bounds;
+                    if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
+                    {
+                        var childBounds = tilingScheme.Split(null, curBounds);
+                        childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                        //For quad trees, expand bounds in the non-split dimension
+                        //Otherwise, we clip high peaks/low valleys in the decimated mesh
+                        //that exceed the bounds of the original mesh
+                        int counter = 0;
+                        foreach (var childBound in childBounds)
+                        {
+                            SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
+                            child.AddComponent(new NodeBounds(childBound));
+                            lock (queue)
+                            {
+                                queue.Enqueue(child);
+                            }
+                            counter++;
+                        }
+                    }
+                });
             }
             root.Name = "root";
             return root;
