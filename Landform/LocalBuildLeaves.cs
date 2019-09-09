@@ -31,6 +31,10 @@ namespace OPS.Landform
         [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
         public string MeshFrame { get; set; }
 
+        // output related
+        [Option(HelpText = "output directory, or omit to save to project storage", Default = null)]
+        public string OutputFolder { get; set; }
+
         // observation filtering related (landform standard)
         [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
@@ -73,12 +77,9 @@ namespace OPS.Landform
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
 
+        // debug related
         [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
         public bool DontInpaint { get; set; }
-
-        // debug related
-        [Option(HelpText = "Debug output directory, or omit to save to project storage", Default = null)]
-        public string DebugOutputFolder { get; set; }
 
         [Option(HelpText = "Debug function that skips all tiles except that one with this name", Default = null)]
         public string OnlyTileNamed { get; set; }
@@ -131,7 +132,7 @@ namespace OPS.Landform
 
             string dir = "meshing/LeafTiles";
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, options.ProjectName);
+            outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
             PathHelper.EnsureExists(outputPath);
            
             SiteDrive[] siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
