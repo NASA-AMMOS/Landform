@@ -144,25 +144,25 @@ namespace OPS.Pipeline
         /// </summary>
         static public Dictionary<Pixel, ObsPixel> BackprojectObservations(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache,
                                         Mesh inputMesh, int outputResolution,  SceneCaster occlusionScene, List<Observation> observations, 
-                                        bool usePriors, bool onlyAligned, string outputMeshFrame, MissionSpecific mission, double quality)
+                                        bool usePriors, bool onlyAligned, string outputMeshFrame, MissionSpecific mission, double quality, bool logging=true)
         {
-            pipeline.LogInfo("building input mesh data structures");
+            if(logging) pipeline.LogInfo("building input mesh data structures");
 
             ConvexHull meshHull = new ConvexHull(inputMesh);
             MeshOperator meshOp = new MeshOperator(inputMesh);
 
-            pipeline.LogInfo("collecting sampling points in destination texture");
+            if (logging) pipeline.LogInfo("collecting sampling points in destination texture");
             List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outputResolution, outputResolution);
 
             Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
-            pipeline.LogInfo("Backprojecting {0} observations", observations.Count());
+            if (logging) pipeline.LogInfo("Backprojecting {0} observations", observations.Count());
 
             //find image observations only
             string imageObsType = ObservationType.Image.ToString();
             List<Observation> imageObservations = obsCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType).ToList();
             if (imageObservations.Count() == 0)
             {
-                pipeline.LogWarn("Failed: no images observations found"); 
+                if (logging) pipeline.LogWarn("Failed: no images observations found"); 
                 return results;
             }
 
@@ -170,7 +170,7 @@ namespace OPS.Pipeline
             IDictionary<string, ConvexHull> obsHullsByName = BuildConvexHulls(pipeline, frameCache, outputMeshFrame, usePriors, onlyAligned, imageObservations);
 
             //find the reduced set of observations that intersect the desired mesh
-            pipeline.LogInfo("Testing {0} image observations for intersection", imageObservations.Count());
+            if (logging) pipeline.LogInfo("Testing {0} image observations for intersection", imageObservations.Count());
 
             List<Observation> intersectingObservations = new List<Observation>();
             CoreLimitedParallel.ForEach(imageObservations, obs =>
@@ -185,13 +185,14 @@ namespace OPS.Pipeline
             });
             if (intersectingObservations.Count() == 0)
             {
-                pipeline.LogWarn("Failed: no images intersected mesh");
+                if (logging) pipeline.LogWarn("Failed: no images intersected mesh");
                 return results;
             }
-            pipeline.LogInfo("Found {0} observations that intersect the mesh", intersectingObservations.Count());
+
+            if (logging) pipeline.LogInfo("Found {0} observations that intersect the mesh", intersectingObservations.Count());
 
             //build contexts and call backproject
-            pipeline.LogInfo("Building masks");
+            if (logging) pipeline.LogInfo("Building masks");
 
             List<BackprojectContext> ctxs = new List<BackprojectContext>();
             CoreLimitedParallel.ForEach(intersectingObservations, obs =>
@@ -199,7 +200,7 @@ namespace OPS.Pipeline
                 UncertainRigidTransform obsToMesh = frameCache.GetObservationTransform(obs, outputMeshFrame, usePriors, onlyAligned);
                 if (obsToMesh == null)
                 {
-                    pipeline.LogWarn("Failed to get transform for observation {0}", obs.Name);
+                    if (logging) pipeline.LogWarn("Failed to get transform for observation {0}", obs.Name);
                     return;
                 }
 
@@ -217,7 +218,7 @@ namespace OPS.Pipeline
                 }
             });
 
-            pipeline.LogInfo("Backprojecting");
+            if (logging) pipeline.LogInfo("Backprojecting");
             return BackprojectObservationContexts(ctxs, meshHull, occlusionScene, pointsToBackproject, quality);
         }
             
