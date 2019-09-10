@@ -83,6 +83,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Debug function that skips all tiles except that one with this name", Default = null)]
         public string OnlyTileNamed { get; set; }
+
+        [Option(HelpText = "delete existing output before running", Default = false)]
+        public bool Redo { get; set; }
     }
 
     public class LocalBuildLeaves : LandformCommand
@@ -133,6 +136,10 @@ namespace OPS.Landform
             string dir = "meshing/LeafTiles";
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
             outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
+            if(options.Redo && Directory.Exists(outputPath))
+            {
+                Directory.Delete(outputPath, true);
+            }
             PathHelper.EnsureExists(outputPath);
            
             SiteDrive[] siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
