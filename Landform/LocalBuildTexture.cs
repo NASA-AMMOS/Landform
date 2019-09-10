@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using OPS.Util;
@@ -17,11 +18,9 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-texture", HelpText = "backproject a mesh texture and/or index image")]
-    public class LocalBuildTextureOptions : LandformCommandOptions
+    public class TextureCommandOptionsBase : LandformCommandOptions
     {
-        // input related
-        [Value(1, Required = false, Default = null, HelpText = "Mesh to backproject, search project storage if omitted")]
+        [Value(1, Required = false, Default = null, HelpText = "Scene mesh, search project storage if omitted")]
         public string InputMesh { get; set; }
 
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
@@ -30,20 +29,21 @@ namespace OPS.Landform
         [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
         public string MeshFrame { get; set; }
 
-        // output related
-        [Option(HelpText = "Image resolution for output texture", Default = 4096)]
-        public int OutputTextureResolution { get; set; }
+        [Option(HelpText = "Backproject texture resolution, should be power of two", Default = 4096)]
+        public int TextureResolution { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
 
-        [Option(HelpText = "Don't generate texture image", Default = false)]
-        public bool NoTexture { get; set; }
+        [Option(Required = false, HelpText = "Blur radius", Default = 7)]
+        public int BlurRadius { get; set; }
 
-        [Option(HelpText = "Don't generate index image", Default = false)]
-        public bool NoIndex { get; set; }
+        [Option(HelpText = "Redo all", Default = false)]
+        public bool Redo { get; set; }
 
-        // observation filtering related (landform standard)
+        [Option(HelpText = "Redo blurred observation textures", Default = false)]
+        public bool RedoBlurredObservationTextures { get; set; }
+
         [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
         public string OnlyForCameras { get; set; }
 
@@ -62,7 +62,6 @@ namespace OPS.Landform
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public bool OnlyAligned { get; set; }
 
-        // debug related
         [Option(HelpText = "Output debug products", Default = false)]
         public bool WriteDebug { get; set; }
 
@@ -76,16 +75,271 @@ namespace OPS.Landform
         public string ImageFormat { get; set; }
     }
 
-    public class LocalBuildTexture : LandformCommand
+    [Verb("local-build-texture", HelpText = "backproject a mesh texture and/or index image")]
+    public class LocalBuildTextureOptions : TextureCommandOptionsBase
+    {
+        [Option(HelpText = "Don't generate texture image", Default = false)]
+        public bool NoTexture { get; set; }
+
+        [Option(HelpText = "Don't generate index image", Default = false)]
+        public bool NoIndex { get; set; }
+
+        [Option(HelpText = "Texture variant (Original, Blurred, Blended)", Default = Backproject.TextureVariant.Original)]
+        public Backproject.TextureVariant TextureVariant { get; set; }
+    }
+
+    public class TextureCommandBase : LandformCommand
+    {
+        private TextureCommandOptionsBase baseOptions;
+
+        protected Project project;
+        protected MissionSpecific mission;
+        protected RoverMasker masker;
+
+        protected string meshFrame;
+        protected int resolution;
+        protected SiteDrive[] siteDrives;
+
+        protected string outputPath;
+        protected string imageExt;
+        protected string meshExt;
+
+        protected FrameCache frameCache;
+        protected ObservationCache observationCache;
+        protected List<Observation> imageObservations;
+
+        protected SceneMesh sceneMesh;
+        protected Mesh mesh;
+        protected SceneCaster sceneCaster;
+        protected Dictionary<Pixel, Backproject.ObsPixel> backprojectResults;
+
+        protected TextureCommandBase(TextureCommandOptionsBase options) : base(options)
+        {
+            this.baseOptions = options;
+            options.RedoBlurredObservationTextures |= options.Redo;
+        }
+
+        protected virtual bool ParseArgumentsAndLoadCaches(string debugDir)
+        {
+            if (baseOptions.UsePriors && baseOptions.OnlyAligned)
+            {
+                throw new Exception("cannot specify both --usepriors and --onlyaligned");
+            }
+
+            project = Project.Find(pipeline, baseOptions.ProjectName);
+            if (project == null)
+            {
+                throw new Exception("project not found: " + baseOptions.ProjectName);
+            }
+            mission = MissionSpecific.GetInstance(project.Mission);
+            masker = mission.GetMasker();
+
+            meshFrame = baseOptions.MeshFrame;
+            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
+            if (!specificSiteDrive && meshFrame != "root")
+            {
+                throw new Exception("unsupported mesh frame: " + meshFrame);
+            }
+
+            resolution = baseOptions.TextureResolution;
+            if ((resolution & (resolution - 1)) != 0)
+            {
+                pipeline.LogWarn("resolution {0} not a power of two", resolution);
+            }
+
+            var adjustedSources = FrameTransform.ParseSources(baseOptions.AdjustedTransformSources);
+            var priorSources = FrameTransform.ParseSources(baseOptions.PriorTransformSources);
+
+            debugDir = FrameTransform.AppendSourcesPath(debugDir, adjustedSources, priorSources, baseOptions.UsePriors);
+            outputPath = pipeline.GetLocalDebugFolder(baseOptions.DebugOutputFolder, debugDir, baseOptions.ProjectName);
+
+            if (baseOptions.WriteDebug)
+            {
+                meshExt = MeshSerializers.Instance.CheckFormat(baseOptions.MeshFormat, pipeline);
+                if (meshExt == null)
+                {
+                    return false; //help
+                }
+                pipeline.LogInfo("writing {0} debug meshes to {1}", meshExt, outputPath);
+            
+                imageExt = ImageSerializers.Instance.CheckFormat(baseOptions.ImageFormat, pipeline);
+                if (imageExt == null)
+                {
+                    return false; //help
+                }
+                pipeline.LogInfo("writing {0} debug images to {1}", imageExt, outputPath);
+            }
+
+            siteDrives = SiteDrive.ParseList(baseOptions.OnlyForSiteDrives);
+
+            string[] cameras = StringHelper.ParseList(baseOptions.OnlyForCameras);
+            
+            frameCache = new FrameCache(pipeline, baseOptions.ProjectName);
+            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, baseOptions.UsePriors);
+            
+            string imageObs = ObservationType.Image.ToString();
+            string maskObs = ObservationType.RoverMask.ToString();
+            observationCache = new ObservationCache(pipeline, baseOptions.ProjectName);
+            observationCache.
+                Preload(obs => obs.UseForReconstruction &&
+                        (obs.ObservationType == imageObs || obs.ObservationType == maskObs) &&
+                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
+                        (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
+
+            imageObservations =
+                observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+
+            return true;
+        }
+
+        protected void GenerateBlurredObservationImages()
+        {
+            pipeline.LogInfo("creating blurred observation images");
+
+            int no = imageObservations.Count;
+            int np = 0, nc = 0;
+            CoreLimitedParallel.ForEach(imageObservations, obs => {
+
+                    if (!baseOptions.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
+                    {
+                        Interlocked.Increment(ref nc);
+                        return;
+                    }
+
+                    Interlocked.Increment(ref np);
+
+                    pipeline.LogInfo("creating blurred image for observation {0}, processing {1} in parallel, " +
+                                     "completed {2}/{3}", obs.Name, np, nc, no);
+
+                    Image img = pipeline.LoadImage(obs.Url);
+
+                    //notes from TerrainTools PDSImageRoutines.cs
+                    //"Used to do a guass blur 4 with photoshop"
+                    //the current code is: img.SmoothBlur(13, 13)
+                    Image blurredImage = img.GaussianBoxBlur(baseOptions.BlurRadius);
+
+                    if (baseOptions.WriteDebug)
+                    {
+                        SaveDebugImage(blurredImage, obs.Name + "_blurred");
+                    }
+
+                    var imgProd = new PngDataProduct();
+                    pipeline.SaveDataProduct(project, imgProd);
+                    obs.BlurredGuid = imgProd.Guid;
+                    obs.Save(pipeline);
+
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
+                });
+        }
+
+        protected void BuildSceneCaster()
+        {
+            Mesh occlusionMesh = null;
+            if (!string.IsNullOrEmpty(baseOptions.OcclusionMesh))
+            {
+                pipeline.LogInfo("loading occlusion mesh {0}", baseOptions.OcclusionMesh);
+                occlusionMesh = Mesh.Load(pipeline.GetFileCached(baseOptions.OcclusionMesh, "meshes"));
+                if (occlusionMesh == null)
+                {
+                    throw new Exception("failed to load occlusion mesh");
+                }
+                if (occlusionMesh.Faces.Count == 0)
+                {
+                    throw new Exception("occlusion mesh empty");
+                }
+            }
+            else
+            {
+                occlusionMesh = mesh;
+            }
+
+            pipeline.LogInfo("building occlusion data structures");
+            sceneCaster = new SceneCaster();
+            sceneCaster.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
+            sceneCaster.Build();
+        }
+
+        protected void BackprojectObservations()
+        {
+            pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
+            backprojectResults =
+                Backproject.BackprojectObservations(pipeline, frameCache, observationCache, mesh, resolution,
+                                                    sceneCaster, imageObservations, baseOptions.UsePriors,
+                                                    baseOptions.OnlyAligned, meshFrame, mission,
+                                                    baseOptions.BackprojectGoodnessSamplingPct);
+        }
+
+        protected Image GenerateBackprojectIndex()
+        {
+            pipeline.LogInfo("creating backproject index");
+            Image index = new Image(3, resolution, resolution);
+            Backproject.FillIndexImage(backprojectResults, index);
+            
+            pipeline.LogInfo("saving backproject index");
+            var indexProd = new TiffDataProduct(index);
+            pipeline.SaveDataProduct(project, indexProd);
+            sceneMesh.BackprojectIndexGuid = indexProd.Guid;
+            sceneMesh.Save(pipeline);
+            
+            if (baseOptions.WriteDebug)
+            {
+                pipeline.LogInfo("saving backproject index false color image and textured mesh");
+                Image previewImg = Backproject.GenerateIndexPreviewImage(index);
+                string name = sceneMesh.Name + "_backprojectIndexFalseColor";
+                SaveDebugImage(previewImg, name);
+                SaveDebugMesh(mesh, name, name + imageExt);
+            }
+
+            return index;
+        }
+
+        protected Image GenerateBackprojectTexture(Backproject.TextureVariant textureVariant)
+        {
+            pipeline.LogInfo("creating backproject texture");
+            Image texture = new Image(3, resolution, resolution);
+            Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant);
+            
+            pipeline.LogInfo("saving backproject texture");
+            var texProd = new PngDataProduct(texture);
+            pipeline.SaveDataProduct(project, texProd);
+            sceneMesh.Save(pipeline);
+            
+            switch (textureVariant)
+            {
+                case Backproject.TextureVariant.Original: sceneMesh.TextureGuid = texProd.Guid; break;
+                case Backproject.TextureVariant.Blurred: sceneMesh.BlurredTextureGuid = texProd.Guid; break;
+                case Backproject.TextureVariant.Blended: sceneMesh.BlendedTextureGuid = texProd.Guid; break;
+                default: throw new Exception("unknown texture variant " + textureVariant);
+            }
+            
+            if (baseOptions.WriteDebug)
+            {
+                pipeline.LogInfo("saving backproject texture and textured mesh");
+                string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
+                SaveDebugImage(texture, name);
+                SaveDebugMesh(mesh, name, name + imageExt);
+            }
+
+            return texture;
+        }
+
+        protected void SaveDebugImage(Image img, string name)
+        {
+            PathHelper.EnsureExists(outputPath);
+            img.Save<byte>(Path.Combine(outputPath, name + imageExt));
+        }
+
+        protected void SaveDebugMesh(Mesh mesh, string name, string texture = null)
+        {
+            PathHelper.EnsureExists(outputPath);
+            mesh.Save(Path.Combine(outputPath, name + meshExt), texture);
+        }
+    }
+
+    public class LocalBuildTexture : TextureCommandBase
     {
         private LocalBuildTextureOptions options;
-
-        private MissionSpecific mission;
-        private RoverMasker masker;
-
-        private string outputPath;
-        private string imageExt;
-        private string meshExt;
 
         public LocalBuildTexture(LocalBuildTextureOptions options) : base(options)
         {
@@ -97,202 +351,50 @@ namespace OPS.Landform
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
-            if (options.UsePriors && options.OnlyAligned)
+            try
             {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                if (!ParseArgumentsAndLoadCaches("meshing/TextureProducts"))
+                {
+                    return 0; //help
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogError(ex.Message);
                 return 1;
             }
 
-            var project = Project.Find(pipeline, options.ProjectName);
-            if (project == null)
+            string what = "";
+            try
             {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
+                what = "observation textures";
+                EnsureOrGenerateObservationTextures();
+
+                what = "input mesh";
+                LoadInputMesh();
+
+                what = "occlusion datastructures";
+                BuildSceneCaster();
+                
+                what = "backprojection";
+                BackprojectObservations();
+
+                if (!options.NoIndex)
+                {
+                    what = "backproject index";
+                    GenerateBackprojectIndex();
+                }
+
+                if (!options.NoTexture)
+                {
+                    what = "backproject texture";
+                    GenerateBackprojectTexture(options.TextureVariant);
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogError("failed to load or generate {0}: {1}", what, ex.Message);
                 return 1;
-            }
-            mission = MissionSpecific.GetInstance(project.Mission);
-            masker = mission.GetMasker();
-
-            var meshFrame = options.MeshFrame;
-            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
-            if (!specificSiteDrive && meshFrame != "root")
-            {
-                pipeline.LogError("unsupported mesh frame: " + meshFrame);
-                return 1;
-            }
-
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
-
-            string dir = "meshing/TextureProducts";
-            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, options.ProjectName);
-
-            if (options.WriteDebug)
-            {
-                meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
-                if (meshExt == null)
-                {
-                    return 0;
-                }
-                pipeline.LogInfo("writing {0} debug meshes to {1}", meshExt, outputPath);
-            
-                imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
-                if (imageExt == null)
-                {
-                    return 0;
-                }
-                pipeline.LogInfo("writing {0} debug images to {1}", imageExt, outputPath);
-            }
-
-            SiteDrive[] siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
-
-            string[] cameras = StringHelper.ParseList(options.OnlyForCameras);
-
-            var frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
-            string imageObs = ObservationType.Image.ToString();
-            string maskObs = ObservationType.RoverMask.ToString();
-            var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.
-                Preload(obs => obs.UseForReconstruction &&
-                        (obs.ObservationType == imageObs || obs.ObservationType == maskObs) &&
-                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
-                        (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
-
-            //try to load SceneMesh record from database even if options.InputMesh is going to override it
-            //because if it exists we will update it below with the generated backproject index image
-            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
-
-            Mesh inputMesh = null;
-            if (!string.IsNullOrEmpty(options.InputMesh))
-            {
-                pipeline.LogInfo("loading input mesh from {0}", options.InputMesh);
-                inputMesh = Mesh.Load(pipeline.GetFileCached(options.InputMesh, "meshes"));
-            }
-            else if (sceneMesh != null)
-            {
-                if (sceneMesh.MeshGuid != Guid.Empty)
-                {
-                    pipeline.LogInfo("loading scene mesh in frame {0} from database", meshFrame);
-                    inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                }
-                else
-                {
-                    pipeline.LogError("scene mesh in frame {0} in database but without mesh", meshFrame);
-                    return 1;
-                }
-            }
-            else
-            {
-                pipeline.LogError("no input mesh specified and no scene mesh in frame {0} in database", meshFrame);
-                return 1;
-            }
-
-            if (inputMesh == null)
-            {
-                pipeline.LogError("failed to load input mesh");
-                return 1;
-            }
-            if (inputMesh.Faces.Count == 0)
-            {
-                pipeline.LogError("input mesh empty");
-                return 1;
-            }
-            if (!inputMesh.HasUVs)
-            {
-                pipeline.LogError("input mesh needs UVs");
-                return 1;
-            }
-
-            Mesh occlusionMesh = null;
-            if (!string.IsNullOrEmpty(options.OcclusionMesh))
-            {
-                pipeline.LogInfo("loading occlusion mesh {0}", options.OcclusionMesh);
-                occlusionMesh = Mesh.Load(pipeline.GetFileCached(options.OcclusionMesh, "meshes"));
-                if (occlusionMesh == null)
-                {
-                    pipeline.LogError("failed to load occlusion mesh");
-                    return 1;
-                }
-                if (occlusionMesh.Faces.Count == 0)
-                {
-                    pipeline.LogError("occlusion mesh empty");
-                    return 1;
-                }
-            }
-            else
-            {
-                occlusionMesh = new Mesh(inputMesh);
-            }
-
-            pipeline.LogInfo("building occlusion data structures");
-            var sc = new SceneCaster();
-            sc.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
-            sc.Build();
-
-            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
-
-            pipeline.LogInfo("backprojecting observations");
-            var backprojectResults = Backproject.BackprojectObservations(pipeline, frameCache, observationCache,
-                                           inputMesh, options.OutputTextureResolution, sc, imageObservations, 
-                                           options.UsePriors, options.OnlyAligned, meshFrame, mission, options.BackprojectGoodnessSamplingPct);
-
-            Image indexImage = null;
-            if (!options.NoIndex)
-            {
-                pipeline.LogInfo("creating backproject index");
-                indexImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
-                Backproject.FillIndexImage(backprojectResults, indexImage);
-
-                if (options.WriteDebug)
-                {
-                    pipeline.LogInfo("saving backproject index image");
-                    PathHelper.EnsureExists(outputPath);
-                    indexImage.Save<float>(Path.Combine(outputPath, "backprojectIndex.tif"));
-
-                    pipeline.LogInfo("generating false color image");
-                    Image previewImg = Backproject.GenerateIndexPreviewImage(indexImage);
-
-                    pipeline.LogInfo("saving backproject index false color image and textured mesh");
-                    SaveDebugImage(previewImg, "backprojectIndexFalseColor");
-                    SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectIndexFalseColor" + imageExt);
-                }
-            }
-
-            Image fullTex = null;
-            if (!options.NoTexture)
-            {
-                fullTex = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
-                Backproject.FillOutputTexture(pipeline, backprojectResults, fullTex);
-                if (options.WriteDebug)
-                {
-                    pipeline.LogInfo("saving backproject texture and textured mesh");
-                    SaveDebugImage(fullTex, "backprojectTexture");
-                    SaveDebugMesh(inputMesh, "backprojectMesh", "backprojectTexture" + imageExt);
-                }
-            }
-
-            pipeline.LogInfo("saving to project storage");
-            if (sceneMesh != null)
-            {
-                if (indexImage != null)
-                {
-                    var indexProd = new TiffDataProduct(indexImage);
-                    pipeline.SaveDataProduct(project, indexProd);
-                    sceneMesh.BackprojectIndexGuid = indexProd.Guid;
-                }
-                if (fullTex != null)
-                {
-                    var texProd = new PngDataProduct(fullTex);
-                    pipeline.SaveDataProduct(project, texProd);
-                    sceneMesh.TextureGuid = texProd.Guid;
-                }
-                sceneMesh.Save(pipeline);
-            }
-            else
-            {
-                SceneMesh.Create(pipeline, project, meshFrame, texture: fullTex, backprojectIndex: indexImage);
             }
 
             stopwatch.Stop();
@@ -301,16 +403,83 @@ namespace OPS.Landform
             return 0;
         }
 
-        private void SaveDebugImage(Image img, string name)
+        private void EnsureOrGenerateObservationTextures()
         {
-            PathHelper.EnsureExists(outputPath);
-            img.Save<byte>(Path.Combine(outputPath, name + imageExt));
+            switch (options.TextureVariant)
+            {
+                case Backproject.TextureVariant.Original: break;
+                case Backproject.TextureVariant.Blurred: GenerateBlurredObservationImages(); break;
+                case Backproject.TextureVariant.Blended: EnsureBlendedObservationImages(); break;
+                default: throw new Exception("unknown texture variant " + options.TextureVariant);
+            }
         }
 
-        private void SaveDebugMesh(Mesh mesh, string name, string texture = null)
+        private void EnsureBlendedObservationImages()
         {
-            PathHelper.EnsureExists(outputPath);
-            mesh.Save(Path.Combine(outputPath, name + meshExt), texture);
+            foreach (var obs in imageObservations)
+            {
+                if (obs.BlendedGuid == Guid.Empty)
+                {
+                    throw new Exception(string.Format("no blended texture for observation {0}, run local-blend-images"));
+                }
+            }
+        }
+
+        protected override bool ParseArgumentsAndLoadCaches(string debugDir)
+        {
+            if (options.NoIndex && options.NoTexture)
+            {
+                throw new Exception("cannot specify both --noindex and --notexture");
+            }
+
+            return base.ParseArgumentsAndLoadCaches(debugDir);
+        }
+
+        private void LoadInputMesh()
+        {
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+
+            if (!string.IsNullOrEmpty(options.InputMesh))
+            {
+                pipeline.LogInfo("loading input mesh from {0}", options.InputMesh);
+                mesh = Mesh.Load(pipeline.GetFileCached(options.InputMesh, "meshes"));
+            }
+            else if (sceneMesh != null)
+            {
+                if (sceneMesh.MeshGuid != Guid.Empty)
+                {
+                    pipeline.LogInfo("loading scene mesh in frame {0} from database", meshFrame);
+                    mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                }
+                else
+                {
+                    throw new Exception("scene mesh in database but without mesh");
+                }
+            }
+            else
+            {
+                throw new Exception("no input mesh specified and no scene mesh in database");
+            }
+
+            if (mesh == null)
+            {
+                throw new Exception("failed to load input mesh");
+            }
+
+            if (mesh.Faces.Count == 0)
+            {
+                throw new Exception("input mesh empty");
+            }
+
+            if (!mesh.HasUVs)
+            {
+                throw new Exception("input mesh needs UVs");
+            }
+
+            if (sceneMesh == null)
+            {
+                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, siteDrives, MeshVariant.Default, mesh);
+            }
         }
     }
 }

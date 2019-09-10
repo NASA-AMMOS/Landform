@@ -99,11 +99,12 @@ namespace OPS.Pipeline
             return previewImg;
         }
 
+        public enum TextureVariant { Original, Blurred, Blended };
+
         /// <summary>
         /// high level function that takes backproject results and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
-        /// project only needs to be supplied if useBlurredImages = true
         /// </summary>
-        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, bool inpaint = true, Project project = null, bool useBlurredImages = false)
+        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, TextureVariant textureVariant = TextureVariant.Original, bool inpaint = true)
         {
             if (outputImage.Bands != 3)
             {
@@ -114,6 +115,8 @@ namespace OPS.Pipeline
             {
                 outputImage.CreateMask(true);
             }
+
+            Project project = null; //only needed if textureVariant != TextureVariant.Original
 
             //group by source texture for perfomance (load the image once for all pixels needed from it)
             var groupedByObs = backprojectResults.ToList().GroupBy(bpr => bpr.Value.Obs);
@@ -126,14 +129,49 @@ namespace OPS.Pipeline
                     throw new InvalidDataException("invalid image index in backproject results");
                 }
 
-                Image sourceImage = null;
-                if (sourceObs.BlurredGuid != Guid.Empty && useBlurredImages)
+                if (textureVariant != TextureVariant.Original)
                 {
-                    sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
+                    if (project == null)
+                    {
+                        project = Project.Find(pipeline, sourceObs.ProjectName);
+                        if (project == null)
+                        {
+                            throw new ArgumentException("error loading project " + sourceObs.ProjectName);
+                        }
+                    }
+                    else if (project.Name != sourceObs.ProjectName)
+                    {
+                        throw new ArgumentException("cannot load observations from multiple projects");
+                    }
                 }
-                else
+
+                Image sourceImage = null;
+                switch (textureVariant)
                 {
-                    sourceImage = pipeline.LoadImage(sourceObs.Url);
+                    case TextureVariant.Original:
+                        {
+                            sourceImage = pipeline.LoadImage(sourceObs.Url);
+                            break;
+                        }
+                    case TextureVariant.Blurred:
+                        {
+                            if (sourceObs.BlurredGuid == Guid.Empty)
+                            {
+                                throw new Exception("blurred texture not available for observation " + sourceObs.Name);
+                            }
+                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
+                            break;
+                        }
+                    case TextureVariant.Blended:
+                        {
+                            if (sourceObs.BlendedGuid == Guid.Empty)
+                            {
+                                throw new Exception("blended texture not available for observation " + sourceObs.Name);
+                            }
+                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlendedGuid).Image;
+                            break;
+                        }
+                    default: throw new Exception("unknown texture variant " + textureVariant);
                 }
 
                 foreach (var pair in group)

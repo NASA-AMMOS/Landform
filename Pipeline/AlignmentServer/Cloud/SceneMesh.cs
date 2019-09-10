@@ -37,6 +37,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid TextureGuid;
 
+        public Guid BlurredTextureGuid;
+
         public Guid BlendedTextureGuid;
 
         protected void IsValid()
@@ -52,8 +54,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         protected SceneMesh(string projectName, string frame, SiteDrive[] siteDrives = null,
                             MeshVariant variant = MeshVariant.Default, Guid meshGuid = default(Guid),
-                            Guid backprojectIndexGuid = default(Guid), Guid textureGuid = default(Guid),
-                            Guid blendedTextureGuid = default(Guid))
+                            Guid textureGuid = default(Guid))
         {
             this.ProjectName = projectName;
             this.Name = MakeName(frame, siteDrives, variant);
@@ -64,9 +65,10 @@ namespace OPS.Pipeline.AlignmentServer
             this.Frame = frame;
             this.Variant = variant;
             this.MeshGuid = meshGuid;
-            this.BackprojectIndexGuid = backprojectIndexGuid;
             this.TextureGuid = textureGuid;
-            this.BlendedTextureGuid = blendedTextureGuid;
+            this.BackprojectIndexGuid = Guid.Empty;
+            this.BlurredTextureGuid = Guid.Empty;
+            this.BlendedTextureGuid = Guid.Empty;
             IsValid();
         }
 
@@ -86,8 +88,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static SceneMesh Create(PipelineCore pipeline, Project project, string frame,
                                        SiteDrive[] siteDrives = null, MeshVariant variant = MeshVariant.Default,
-                                       Mesh mesh = null, Image backprojectIndex = null, Image texture = null,
-                                       Image blendedTexture = null)
+                                       Mesh mesh = null, Image texture = null)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null)
@@ -95,29 +96,15 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.SaveDataProduct(project, meshProd);
             }
 
-            TiffDataProduct indexProd = backprojectIndex != null ? new TiffDataProduct(backprojectIndex) : null;
-            if (indexProd != null)
-            {
-                pipeline.SaveDataProduct(project, indexProd);
-            } 
-
             PngDataProduct textureProd = texture != null ? new PngDataProduct(texture) : null;
             if (textureProd != null)
             {
                 pipeline.SaveDataProduct(project, textureProd);
             } 
 
-            PngDataProduct blendedTextureProd = blendedTexture != null ? new PngDataProduct(blendedTexture) : null;
-            if (blendedTextureProd != null)
-            {
-                pipeline.SaveDataProduct(project, blendedTextureProd);
-            } 
-
             var ret = new SceneMesh(project.Name, frame, siteDrives, variant,
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
-                                    indexProd != null ? indexProd.Guid : Guid.Empty,
-                                    textureProd != null ? textureProd.Guid : Guid.Empty,
-                                    blendedTextureProd != null ? blendedTextureProd.Guid : Guid.Empty);
+                                    textureProd != null ? textureProd.Guid : Guid.Empty);
             ret.Save(pipeline);
             return ret;
         }

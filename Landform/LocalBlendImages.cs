@@ -21,20 +21,8 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.Landform
 {
     [Verb("local-blend-imges", HelpText = "blend observation images")]
-    public class LocalBlendImagesOptions : LandformCommandOptions
+    public class LocalBlendImagesOptions : TextureCommandOptionsBase
     {
-        [Value(1, Required = false, Default = null, HelpText = "Scene mesh, search project storage if omitted")]
-        public string InputMesh { get; set; }
-
-        [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
-        public string MeshFrame { get; set; }
-
-        [Option(HelpText = "Resolution of backproject texture image, preferably power of two", Default = 4096)]
-        public int TextureResolution { get; set; }
-
-        [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
-        public double BackprojectGoodnessSamplingPct { get; set; }
-
         [Option(HelpText = "Inpaint blended observation diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
         public int Inpaint { get; set; }
 
@@ -62,15 +50,6 @@ namespace OPS.Landform
         [Option(Required = false, HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
 
-        [Option(Required = false, HelpText = "Blur radius", Default = 7)]
-        public int BlurRadius { get; set; }
-
-        [Option(HelpText = "Redo all", Default = false)]
-        public bool Redo { get; set; }
-
-        [Option(HelpText = "Redo blurred observation textures", Default = false)]
-        public bool RedoBlurredObservationTextures { get; set; }
-
         [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]
         public bool RedoShrinkwrapMesh { get; set; }
 
@@ -82,66 +61,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Redo blended observation textures", Default = false)]
         public bool RedoBlendedObservationTextures { get; set; }
-
-        // observation filtering related (landform standard)
-        [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
-        public string OnlyForCameras { get; set; }
-
-        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
-        public string OnlyForSiteDrives { get; set; }
-
-        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
-        public string AdjustedTransformSources { get; set; }
-
-        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
-        public string PriorTransformSources { get; set; }
-
-        [Option(HelpText = "Use transform priors only", Default = false)]
-        public bool UsePriors { get; set; }
-
-        [Option(HelpText = "Use adjusted transforms only", Default = false)]
-        public bool OnlyAligned { get; set; }
-
-        [Option(HelpText = "Output debug products", Default = false)]
-        public bool WriteDebug { get; set; }
-
-        [Option(HelpText = "Debug output directory, or omit to save to project storage", Default = null)]
-        public string DebugOutputFolder { get; set; }
-
-        [Option(HelpText = "Debug mesh format, e.g. ply, obj, help for list", Default = "ply")]
-        public string MeshFormat { get; set; }
-
-        [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
-        public string ImageFormat { get; set; }
     }
 
-    public class LocalBlendImages : LandformCommand
+    public class LocalBlendImages : TextureCommandBase
     {
         private LocalBlendImagesOptions options;
 
-        private Project project;
-        private MissionSpecific mission;
-        private RoverMasker masker;
+        private Dictionary<int, Observation> indexedObservations;
 
-        private string meshFrame;
-
-        private int resolution;
-
-        private SiteDrive[] siteDrives;
-
-        private string outputPath;
-        private string imageExt;
-        private string meshExt;
-
-        private FrameCache frameCache;
-        private ObservationCache observationCache;
-        private Dictionary<int, Observation> indexedObservations = new Dictionary<int, Observation>();
-
-        private SceneMesh shrinkwrapSceneMesh;
-
-        private Mesh shrinkwrapMesh;
-
-        private Image shrinkwrapTexture;
+        private Image shrinkwrapBlurredTexture;
         private Image shrinkwrapBackprojectIndex;
         private Image shrinkwrapBlendedTexture;
 
@@ -151,7 +79,6 @@ namespace OPS.Landform
 
             if (options.Redo) 
             {
-                options.RedoBlurredObservationTextures = true;
                 options.RedoShrinkwrapMesh = true;
                 options.RedoShrinkwrapTexture = true;
                 options.RedoShrinkwrapBlendedTexture = true;
@@ -164,82 +91,23 @@ namespace OPS.Landform
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
-            if (options.UsePriors && options.OnlyAligned)
+            try
             {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                if (!ParseArgumentsAndLoadCaches("texturing/BlendProducts"))
+                {
+                    return 0; //help
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogError(ex.Message);
                 return 1;
             }
 
-            project = Project.Find(pipeline, options.ProjectName);
-            if (project == null)
+            indexedObservations = new Dictionary<int, Observation>();
+            foreach (var obs in imageObservations)
             {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
-                return 1;
-            }
-            mission = MissionSpecific.GetInstance(project.Mission);
-            masker = mission.GetMasker();
-
-            meshFrame = options.MeshFrame;
-            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
-            if (!specificSiteDrive && meshFrame != "root")
-            {
-                pipeline.LogError("unsupported mesh frame: " + meshFrame);
-                return 1;
-            }
-
-            resolution = options.TextureResolution;
-            if ((resolution & (resolution - 1)) != 0)
-            {
-                pipeline.LogWarn("resolution {0} not a power of two", resolution);
-            }
-
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
-
-            string dir = "texturing/BlendProducts";
-            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            outputPath = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, dir, project.Name);
-            //don't ensure outputPath exists here, we may never need it
-
-            if (options.WriteDebug)
-            {
-                meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
-                if (meshExt == null)
-                {
-                    return 0;
-                }
-                pipeline.LogInfo("writing {0} debug meshes to {1}", meshExt, outputPath);
-            
-                imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
-                if (imageExt == null)
-                {
-                    return 0;
-                }
-                pipeline.LogInfo("writing {0} debug images to {1}", imageExt, outputPath);
-            }
-
-            siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
-
-            string[] cameras = StringHelper.ParseList(options.OnlyForCameras);
-
-            frameCache = new FrameCache(pipeline, project.Name);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
-            string imageObs = ObservationType.Image.ToString();
-            string maskObs = ObservationType.RoverMask.ToString();
-            observationCache = new ObservationCache(pipeline, project.Name);
-            observationCache.
-                Preload(obs => obs.UseForReconstruction &&
-                        (obs.ObservationType == imageObs || obs.ObservationType == maskObs) &&
-                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
-                        (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
-
-            foreach (var obs in observationCache.GetAllObservations())
-            {
-                if (obs.ObservationType == imageObs)
-                {
-                    indexedObservations[obs.Index] = obs;
-                }
+                indexedObservations[obs.Index] = obs;
             }
 
             string what = "";
@@ -250,13 +118,13 @@ namespace OPS.Landform
 
                 what = "shrinkwrap mesh";
                 LoadOrGenerateShrinkwrapMesh();
-
-                what = "shrinkwrap texture";
-                LoadOrGenerateShrinkwrapTexture();
-
+                
+                what = "shrinkwrap blurred texture";
+                LoadOrGenerateShrinkwrapBlurredTexture();
+                
                 what = "blended texture";
                 LoadOrGenerateBlendedTexture();
-
+                
                 what = "blended observation images";
                 GenerateBlendedObservationImages();
             }
@@ -272,59 +140,14 @@ namespace OPS.Landform
             return 0;
         }
 
-        private void GenerateBlurredObservationImages()
-        {
-            pipeline.LogInfo("creating blurred observation images");
-
-            int no = indexedObservations.Count;
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(indexedObservations.Values, obs => {
-
-                    if (!options.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
-                    {
-                        Interlocked.Increment(ref nc);
-                        return;
-                    }
-
-                    Interlocked.Increment(ref np);
-
-                    pipeline.LogInfo("creating blurred image for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}", obs.Name, np, nc, no);
-
-                    Image img = pipeline.LoadImage(obs.Url);
-
-                    //notes from TerrainTools PDSImageRoutines.cs
-                    //"Used to do a guass blur 4 with photoshop"
-                    //the current code is: img.SmoothBlur(13, 13)
-                    Image blurredImage = img.GaussianBoxBlur(options.BlurRadius);
-
-                    if (options.WriteDebug)
-                    {
-                        SaveDebugImage(blurredImage, obs.Name + "_blurred");
-                    }
-
-                    var imgProd = new PngDataProduct();
-                    pipeline.SaveDataProduct(project, imgProd);
-                    obs.BlurredGuid = imgProd.Guid;
-                    obs.Save(pipeline);
-
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
-                });
-        }
-
         private void LoadOrGenerateShrinkwrapMesh()
         {
-            shrinkwrapSceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives, MeshVariant.Shrinkwrap);
-            if (shrinkwrapSceneMesh == null)
-            {
-                shrinkwrapSceneMesh = SceneMesh.Create(pipeline, project, meshFrame, siteDrives,MeshVariant.Shrinkwrap);
-            }
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives, MeshVariant.Shrinkwrap);
 
-            if (shrinkwrapSceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
+            if (sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
             {
                 pipeline.LogInfo("loading existing shrinkwrap mesh from database");
-                shrinkwrapMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, shrinkwrapSceneMesh.MeshGuid).Mesh;
+                mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
                 return;
             }
 
@@ -361,116 +184,72 @@ namespace OPS.Landform
             Mesh gridMesh = Shrinkwrap.BuildGrid(inputMesh, options.GridResolution, options.GridResolution,
                                                  options.ProjectionAxis);
 
-            shrinkwrapMesh = Shrinkwrap.Wrap(inputMesh, gridMesh, options.ShrinkwrapMode, options.ProjectionAxis,
-                                             options.ShrinkwrapMiss);
+            mesh = Shrinkwrap.Wrap(inputMesh, gridMesh, options.ShrinkwrapMode, options.ProjectionAxis, options.ShrinkwrapMiss);
 
-            if (shrinkwrapMesh.Faces.Count == 0)
+            if (mesh.Faces.Count == 0)
             {
                 throw new Exception("shrinkwrap mesh empty");
             }
 
-            if (options.WriteDebug)
+            pipeline.LogInfo("created shrinkwrap mesh with {0} faces", mesh.Faces.Count);
+
+            if (sceneMesh == null)
             {
-                pipeline.LogInfo("saving shrinkwrap mesh");
-                SaveDebugMesh(shrinkwrapMesh, "shrinkwrapMesh");
+                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, siteDrives, MeshVariant.Shrinkwrap);
             }
 
-            pipeline.LogInfo("created shrinkwrap mesh with {0} faces", shrinkwrapMesh.Faces.Count);
-
-            var meshProd = new PlyGZDataProduct(shrinkwrapMesh);
+            pipeline.LogInfo("saving shrinkwrap mesh");
+            var meshProd = new PlyGZDataProduct(mesh);
             pipeline.SaveDataProduct(project, meshProd);
-            shrinkwrapSceneMesh.MeshGuid = meshProd.Guid;
-            shrinkwrapSceneMesh.Save(pipeline);
+            sceneMesh.MeshGuid = meshProd.Guid;
+            sceneMesh.Save(pipeline);
+
+            if (options.WriteDebug)
+            {
+                SaveDebugMesh(mesh, sceneMesh.Name);
+            }
         }
 
-        private void LoadOrGenerateShrinkwrapTexture()
+        private void LoadOrGenerateShrinkwrapBlurredTexture()
         {
-            if (shrinkwrapSceneMesh.TextureGuid != Guid.Empty &&
-                shrinkwrapSceneMesh.BackprojectIndexGuid != Guid.Empty &&
+            if (sceneMesh.BlurredTextureGuid != Guid.Empty && sceneMesh.BackprojectIndexGuid != Guid.Empty &&
                 !options.RedoShrinkwrapBlendedTexture)
             {
-                pipeline.LogInfo("loading shrinkwrap texture from database");
-                var texGuid = shrinkwrapSceneMesh.TextureGuid;
-                var indexGuid = shrinkwrapSceneMesh.BackprojectIndexGuid;
-                shrinkwrapTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                pipeline.LogInfo("loading shrinkwrap blurred texture from database");
+                var texGuid = sceneMesh.BlurredTextureGuid;
+                var indexGuid = sceneMesh.BackprojectIndexGuid;
+                shrinkwrapBlurredTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
                 shrinkwrapBackprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
+                if (shrinkwrapBlurredTexture.Width != resolution || shrinkwrapBlurredTexture.Height != resolution ||
+                    shrinkwrapBackprojectIndex.Width != resolution || shrinkwrapBackprojectIndex.Height != resolution)
+                {
+                    throw new Exception(string.Format("existing backproject texture or index not {0}x{0}, " +
+                                                      "re-run with --redoshrinkwraptexture", resolution, resolution));
+                }
                 return;
             }
 
-            pipeline.LogInfo("building occlusion data structures for shrinkwrap texture backproject");
-            var sc = new SceneCaster();
-            sc.AddMesh(shrinkwrapMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
-            sc.Build();
+            BuildSceneCaster();
 
-            string imageObs = ObservationType.Image.ToString();
-            var imageObservations =
-                observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+            BackprojectObservations();
 
-            var backprojectResults =
-                Backproject.BackprojectObservations(pipeline, frameCache, observationCache, shrinkwrapMesh, resolution,
-                                                    sc, imageObservations, options.UsePriors, options.OnlyAligned,
-                                                    meshFrame, mission, options.BackprojectGoodnessSamplingPct);
+            shrinkwrapBackprojectIndex = GenerateBackprojectIndex();
 
-            pipeline.LogInfo("creating backproject index");
-            shrinkwrapBackprojectIndex = new Image(3, resolution, resolution);
-            Backproject.FillIndexImage(backprojectResults, shrinkwrapBackprojectIndex);
-            
-            if (options.WriteDebug)
-            {
-                pipeline.LogInfo("saving backproject index image");
-                PathHelper.EnsureExists(outputPath);
-                shrinkwrapBackprojectIndex.Save<float>(Path.Combine(outputPath, "shrinkwrapBackprojectIndex.tif"));
-                
-                pipeline.LogInfo("generating false color image");
-                Image previewImg = Backproject.GenerateIndexPreviewImage(shrinkwrapBackprojectIndex);
-                
-                pipeline.LogInfo("saving backproject index false color image and textured mesh");
-                SaveDebugImage(previewImg, "shrinkwrapBackprojectIndexFalseColor");
-                SaveDebugMesh(shrinkwrapMesh, "shrinkwrapBackprojectMesh",
-                              "shrinkwrapBackprojectIndexFalseColor" + imageExt);
-            }
+            shrinkwrapBlurredTexture = GenerateBackprojectTexture(Backproject.TextureVariant.Blurred);
 
-            shrinkwrapTexture = new Image(3, resolution, resolution);
-            Backproject.FillOutputTexture(pipeline, backprojectResults, shrinkwrapTexture,
-                                          inpaint: true, project: project, useBlurredImages: true);
-
-            if (options.WriteDebug)
-            {
-                pipeline.LogInfo("saving shrinkwrap backproject texture and textured mesh");
-                SaveDebugImage(shrinkwrapTexture, "shrinkwrapBackprojectTexture");
-                SaveDebugMesh(shrinkwrapMesh, "shrinkwrapBackprojectMesh", "shrinkwrapBackprojectTexture" + imageExt);
-            }
-
-            pipeline.LogInfo("created {0}x{0} shrinkwrap texture ", resolution);
-
-            var texProd = new PngDataProduct(shrinkwrapTexture);
-            pipeline.SaveDataProduct(project, texProd);
-            shrinkwrapSceneMesh.TextureGuid = texProd.Guid;
-
-            var indexProd = new TiffDataProduct(shrinkwrapBackprojectIndex);
-            pipeline.SaveDataProduct(project, indexProd);
-            shrinkwrapSceneMesh.BackprojectIndexGuid = indexProd.Guid;
-
-            shrinkwrapSceneMesh.Save(pipeline);
+            pipeline.LogInfo("created {0}x{0} shrinkwrap texture", resolution);
         }
 
         private void LoadOrGenerateBlendedTexture()
         {
-            if (shrinkwrapSceneMesh.BlendedTextureGuid != Guid.Empty && !options.RedoShrinkwrapBlendedTexture)
+            if (sceneMesh.BlendedTextureGuid != Guid.Empty && !options.RedoShrinkwrapBlendedTexture)
             {
                 pipeline.LogInfo("loading shrinkwrap blended texture from database");
-                var texGuid = shrinkwrapSceneMesh.BlendedTextureGuid;
+                var texGuid = sceneMesh.BlendedTextureGuid;
                 shrinkwrapBlendedTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
                 return;
             }
 
-            if (shrinkwrapTexture.Width != resolution || shrinkwrapTexture.Height != resolution ||
-                shrinkwrapBackprojectIndex.Width != resolution || shrinkwrapBackprojectIndex.Height != resolution)
-            {
-                throw new Exception(string.Format("existing backproject texture or index not {0}x{0}, " +
-                                                  "re-run with --redoshrinkwraptexture", resolution, resolution));
-            }
-            
             pipeline.LogInfo("stitching {0}x{0} image with LimberDMG, residual epsilon {1}, {2} relaxation steps, " +
                              "{3} multigrid iterations, lambda {4}",
                              resolution, options.ResidualEpsilon, options.NumRelaxationSteps,
@@ -512,22 +291,23 @@ namespace OPS.Landform
             var dmg = new LimberDMG(options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
                                     options.Lambda, LimberDMG.EdgeBehavior.Clamp, LimberDMG.ColorConversion.RGBToLAB,
                                     msg => pipeline.LogVerbose(msg));
-            shrinkwrapBlendedTexture = dmg.StitchImage(shrinkwrapTexture, index, flags);
+            shrinkwrapBlendedTexture = dmg.StitchImage(shrinkwrapBlurredTexture, index, flags);
 
-            pipeline.LogInfo("created {0}x{0} shrinkwrap blended texture ", resolution);
+            pipeline.LogInfo("created {0}x{0} shrinkwrap blended texture", resolution);
+
+            pipeline.LogInfo("saving shrinkwrap blended texture");
+            var texProd = new PngDataProduct(shrinkwrapBlendedTexture);
+            pipeline.SaveDataProduct(project, texProd);
+            sceneMesh.BlendedTextureGuid = texProd.Guid;
+            sceneMesh.Save(pipeline);
 
             if (options.WriteDebug)
             {
                 pipeline.LogInfo("saving shrinkwrap blended texture and textured mesh");
-                SaveDebugImage(shrinkwrapBlendedTexture, "shrinkwrapBlendedTexture");
-                SaveDebugMesh(shrinkwrapMesh, "shrinkwrapMeshBlendedTextured", "shrinkwrapBlendedTexture" + imageExt);
+                string name = sceneMesh.Name + "_backprojectTexture_" + Backproject.TextureVariant.Blended;
+                SaveDebugImage(shrinkwrapBlendedTexture, name);
+                SaveDebugMesh(mesh, name, name + imageExt);
             }
-
-            var texProd = new PngDataProduct(shrinkwrapBlendedTexture);
-            pipeline.SaveDataProduct(project, texProd);
-            shrinkwrapSceneMesh.BlendedTextureGuid = texProd.Guid;
-
-            shrinkwrapSceneMesh.Save(pipeline);
         }
 
         private void GenerateBlendedObservationImages()
@@ -698,18 +478,6 @@ namespace OPS.Landform
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
-        }
-
-        private void SaveDebugImage(Image img, string name)
-        {
-            PathHelper.EnsureExists(outputPath);
-            img.Save<byte>(Path.Combine(outputPath, name + imageExt));
-        }
-
-        private void SaveDebugMesh(Mesh mesh, string name, string texture = null)
-        {
-            PathHelper.EnsureExists(outputPath);
-            mesh.Save(Path.Combine(outputPath, name + meshExt), texture);
         }
     }
 }

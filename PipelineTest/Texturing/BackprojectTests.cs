@@ -93,7 +93,7 @@ namespace PipelineTest
 
             //allocate output image
             Image outputImage = new Image(3, 128, 64);
-            Backproject.FillOutputTexture(pipeline, results, outputImage, false);
+            Backproject.FillOutputTexture(pipeline, results, outputImage, inpaint: false);
 
             Image img1 = pipeline.LoadImage(filename1);
             Image img2 = pipeline.LoadImage(filename2);
