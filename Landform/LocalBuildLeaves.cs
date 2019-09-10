@@ -22,7 +22,7 @@ namespace OPS.Landform
     public class LocalBuildLeavesOptions : LandformCommandOptions
     {
         // input related
-        [Value(1, Required = false, Default = null, HelpText = "Mesh to turn into leaf tiles, search project storage if omitted")]
+        [Option(Default = null, HelpText = "Mesh to turn into leaf tiles, search project storage if omitted")]
         public string InputMesh { get; set; }
 
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
