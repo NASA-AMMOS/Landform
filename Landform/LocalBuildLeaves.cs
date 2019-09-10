@@ -325,6 +325,7 @@ namespace OPS.Landform
                 pipeline.LogWarn("{0} tiles have failed to generate textures", failedTexturing);
             }
 
+            pipeline.LogInfo("{0} leaf tiles built successfully", curLeafNum - failedNodes.Count());
             return 0;
         }
 
