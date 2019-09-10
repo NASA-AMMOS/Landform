@@ -26,14 +26,12 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_PLACES_API_KEY")]
         public string APIKey { get; set; }
 
-        [ConfigEnvironmentVariable("LANDFORM_PLACES_VENUE")]
-        public string Venue { get; set; } = "msl-ops";
-
         [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
         public string View { get; set; } = "localized_interp"; // options: best_tactical, localized_pos, localized_interp 
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
-        public string Url { get; set; } = "https://mslplaces.jpl.nasa.gov:9443";
+        public string Url { get; set; } = "https://places-dev.m20-dev.jpl.nasa.gov"; //M2020 dev copy of MSL data
+        //"https://mslplaces.jpl.nasa.gov:9443/msl-ops/places"; //MSL mission server - don't use for dev
 
         protected override string ConfigFilename()
         {
@@ -82,7 +80,14 @@ namespace OPS.Pipeline
                     }
 
                     XmlDocument document = new XmlDocument();
-                    document.LoadXml(response.Content);
+                    try
+                    {
+                        document.LoadXml(response.Content);
+                    }
+                    catch (System.Xml.XmlException ex)
+                    {
+                        throw new Exception("Error parsing response from places DB: " + ex.Message);
+                    }
                     return document;
                 });
         }
@@ -108,7 +113,7 @@ namespace OPS.Pipeline
             {
                 var config = PlacesConfig.Instance;
 
-                string urlForRequest = string.Format("{0}/places/rmc/orbital(0)/metadata", config.Venue);
+                string urlForRequest = string.Format("rmc/orbital(0)/metadata");
                 XmlDocument document = GetXmlDoc(urlForRequest);
 
                 if (document != null)
@@ -140,7 +145,7 @@ namespace OPS.Pipeline
             latlon = Vector2.Zero;
 
             var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=orbital(0)", config.Venue, config.View, sd.Site, sd.Drive);
+            string urlForRequest = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)", config.View, sd.Site, sd.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
             if (document != null)
             {
@@ -167,7 +172,7 @@ namespace OPS.Pipeline
         {
             offset = Vector3.Zero;
             var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=rover({4},{5})", config.Venue, config.View, from.Site, from.Drive, to.Site, to.Drive);
+            string urlForRequest = string.Format("query/primary/{0}?from=rover({1},{2})&to=rover({3},{4})", config.View, from.Site, from.Drive, to.Site, to.Drive);
             XmlDocument document = GetXmlDoc(urlForRequest);
             if (document != null)
             {
@@ -187,7 +192,7 @@ namespace OPS.Pipeline
         {
             offset = Vector3.Zero;
             var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format("{0}/places/query/primary/{1}?from=rover({2},{3})&to=site({4})", config.Venue, config.View, from.Site, from.Drive, toSite);
+            string urlForRequest = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})", config.View, from.Site, from.Drive, toSite);
             XmlDocument document = GetXmlDoc(urlForRequest);
             if (document != null)
             {
