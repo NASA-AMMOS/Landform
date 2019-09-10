@@ -117,17 +117,33 @@ namespace OPS.Pipeline
             if (rover != null && articulation != null)
             {
                 var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetRoverProductCamera(parser.InstrumentId)));
-                
-                var sc = new SceneCaster();
-                sc.AddMesh(posedRover, null, Matrix.Identity);
-                sc.Build();
-                
-                for (int i = 0; i < res.Width; i++)
+
+                //coarse test to see if rover is in frame at all (raycasts are expensive)
+                ConvexHull roverHull = new ConvexHull(posedRover);
+                ConvexHull obsHull = ConvexHull.FromParams(metadata.CameraModel, metadata.Width, metadata.Height);
+                if (!obsHull.Intersects(roverHull))
                 {
-                    for (int j = 0; j < res.Height; j++)
+                    for (int i = 0; i < res.Width; i++)
                     {
-                        var ray = metadata.CameraModel.Unproject(new Vector2(i, j));
-                        res[0, j, i] = sc.Occludes(ray) ? 0 : 1;
+                        for (int j = 0; j < res.Height; j++)
+                        {
+                            res[0, j, i] = 1;
+                        }
+                    }
+                }
+                else
+                {
+                    var sc = new SceneCaster();
+                    sc.AddMesh(posedRover, null, Matrix.Identity);
+                    sc.Build();
+
+                    for (int i = 0; i < res.Width; i++)
+                    {
+                        for (int j = 0; j < res.Height; j++)
+                        {
+                            var ray = metadata.CameraModel.Unproject(new Vector2(i, j));
+                            res[0, j, i] = sc.Occludes(ray) ? 0 : 1;
+                        }
                     }
                 }
             }
