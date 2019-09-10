@@ -189,12 +189,7 @@ namespace OPS.Landform
                 pipeline.LogError("input mesh empty");
                 return 1;
             }
-            if (!inputMesh.HasUVs)
-            {
-                pipeline.LogError("input mesh needs UVs");
-                return 1;
-            }
-
+          
             //load or clone occlusion mesh
             Mesh occlusionMesh = null;
             if (!string.IsNullOrEmpty(options.OcclusionMesh))
