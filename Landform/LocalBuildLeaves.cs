@@ -307,32 +307,22 @@ namespace OPS.Landform
                 {
                     //add to mesh image pair
                     mp.Image = leafTexture;
+
+                    //save good mesh and texture
+                    leaf.SaveMesh(outputPath, "ply", "png");
                 }
                 else
                 {
                     failedNodes.Add(leaf);
                 }
+
+                leaf.RemoveComponent<MeshImagePair>(); //conserve memory
             }
 
             int failedTexturing = failedNodes.Count() - failedMeshing;
             if(failedTexturing > 0)
             {
                 pipeline.LogWarn("{0} tiles have failed to generate textures", failedTexturing);
-            }
-
-            //remove failed tiles
-            pipeline.LogInfo("removing {0} failed nodes from the tree", failedNodes.Count());
-            foreach (var node in failedNodes)
-            {
-                node.Parent = null;
-            }
-
-            //check for parents who have become leaves but have no valid children
-            RemoveLeavesWithNoMeshes(root);
-
-            foreach (var leaf in root.Leaves())
-            {
-                leaf.SaveMesh(outputPath, "ply", "png");
             }
 
             return 0;
@@ -423,37 +413,6 @@ namespace OPS.Landform
             }
 
             return leafImage;
-        }
-
-        private void RemoveLeavesWithNoMeshes(SceneNode root)
-        {
-            pipeline.LogInfo("leaves remanining {0}, tidying up parents with no children with meshes",
-                             root.Leaves().Count());
-            bool madeChanges = true;
-            int formerParentCount = 0;
-            while (madeChanges && root.Leaves().Any()) //TODO: parallize
-            {
-                madeChanges = false;
-                List<SceneNode> newLeavesNoMesh = new List<SceneNode>();
-                foreach (var node in root.Leaves())
-                {
-                    if (!node.HasComponent<MeshImagePair>())
-                    {
-                        newLeavesNoMesh.Add(node);
-                    }
-                }
-
-                madeChanges = newLeavesNoMesh.Any();
-                formerParentCount += newLeavesNoMesh.Count();
-                foreach (var node in newLeavesNoMesh)
-                {
-                    pipeline.LogInfo("removing former parent leaf node {0} with no mesh from the tree", node.Name);
-                    node.Parent = null;
-                }
-            }
-
-            pipeline.LogInfo("removed {0} former parent nodes. {1} leaves remain",
-                             formerParentCount, root.Leaves().Count());
         }
     }
 }
