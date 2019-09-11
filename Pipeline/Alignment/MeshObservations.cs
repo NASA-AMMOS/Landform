@@ -206,7 +206,7 @@ namespace OPS.Pipeline
                 .Where(obs => opts.AllowMastcam || !obs.IsMastcam)
                 .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
                 .Where(obs => opts.OnlyForFrames == null || opts.OnlyForFrames.Any(frm => frm == obs.FrameName))
-                .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => cam == obs.Sensor))
+                .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Sensor)))
                 .ToList();
 
             if (opts.Comparator != null)

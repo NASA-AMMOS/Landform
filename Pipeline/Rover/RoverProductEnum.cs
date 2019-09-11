@@ -10,6 +10,7 @@ namespace OPS.Pipeline
     {
         //common
         Unknown,
+        Hazcam,
         FrontHazcam, FrontHazcamLeft, FrontHazcamRight,
         RearHazcam, RearHazcamLeft, RearHazcamRight,
         Navcam, NavcamLeft, NavcamRight,
@@ -29,6 +30,57 @@ namespace OPS.Pipeline
         SHERLOCACI,
         SHERLOCWATSON, SHERLOCWATSONLeft, SHERLOCWATSONRight,
         SuperCamRMI
+    }
+
+    /// <summary>
+    /// Also See Mission.{IsHazcam,IsMastrcam,IsNavcam}()
+    /// </summary>
+    public static class RoverCamera
+    {
+        public static bool IsCamera(RoverProductCamera camType, RoverProductCamera cam)
+        {
+            switch (camType)
+            {
+                case RoverProductCamera.Hazcam:
+                    {
+                        return cam == RoverProductCamera.Hazcam || 
+                            cam == RoverProductCamera.FrontHazcam ||
+                            cam == RoverProductCamera.FrontHazcamLeft || cam == RoverProductCamera.FrontHazcamRight ||
+                            cam == RoverProductCamera.RearHazcam ||
+                            cam == RoverProductCamera.RearHazcamLeft || cam == RoverProductCamera.RearHazcamRight ||
+                            cam == RoverProductCamera.FrontHazcamB ||
+                            cam == RoverProductCamera.FrontHazcamLeftB || cam == RoverProductCamera.FrontHazcamRightB;
+                    }
+                case RoverProductCamera.FrontHazcam:
+                    {
+                        return cam == RoverProductCamera.FrontHazcam || cam == RoverProductCamera.FrontHazcamB ||
+                            cam == RoverProductCamera.FrontHazcamLeft || cam == RoverProductCamera.FrontHazcamRight ||
+                            cam == RoverProductCamera.FrontHazcamLeftB || cam == RoverProductCamera.FrontHazcamRightB;
+                    }
+                case RoverProductCamera.RearHazcam:
+                    {
+                        return cam == RoverProductCamera.RearHazcam ||
+                            cam == RoverProductCamera.RearHazcamLeft || cam == RoverProductCamera.RearHazcamRight;
+                    }
+                case RoverProductCamera.Mastcam:
+                    {
+                        return cam == RoverProductCamera.Mastcam ||
+                            cam == RoverProductCamera.MastcamLeft || cam == RoverProductCamera.MastcamRight;
+                    }
+                case RoverProductCamera.Navcam:
+                    {
+                        return cam == RoverProductCamera.Navcam ||
+                            cam == RoverProductCamera.NavcamLeft || cam == RoverProductCamera.NavcamRight;
+                    }
+                default: return camType == cam;
+            }
+        }
+
+        public static bool IsCamera(string camType, string cam)
+        {
+            return IsCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), camType, ignoreCase: true),
+                            (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+        }
     }
 
     public enum RoverProductGeometry

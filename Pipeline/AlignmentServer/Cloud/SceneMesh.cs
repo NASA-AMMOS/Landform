@@ -88,7 +88,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static SceneMesh Create(PipelineCore pipeline, Project project, string frame,
                                        SiteDrive[] siteDrives = null, MeshVariant variant = MeshVariant.Default,
-                                       Mesh mesh = null, Image texture = null)
+                                       Mesh mesh = null, Image texture = null, bool noSave = false)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null)
@@ -105,7 +105,12 @@ namespace OPS.Pipeline.AlignmentServer
             var ret = new SceneMesh(project.Name, frame, siteDrives, variant,
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
                                     textureProd != null ? textureProd.Guid : Guid.Empty);
-            ret.Save(pipeline);
+
+            if (!noSave)
+            {
+                ret.Save(pipeline);
+            }
+
             return ret;
         }
 

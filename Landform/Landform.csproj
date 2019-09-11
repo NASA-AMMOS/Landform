@@ -154,6 +154,7 @@
     <Compile Include="ConfigureLocal.cs" />
     <Compile Include="FetchData.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="GeometryCommand.cs" />
     <Compile Include="Landform.cs" />
     <Compile Include="LandformCommand.cs" />
     <Compile Include="LocalAgisoft.cs" />
@@ -168,6 +169,7 @@
     <Compile Include="LocalIngest.cs" />
     <Compile Include="LocalMatching.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="WedgeCommand.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">
