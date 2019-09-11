@@ -83,10 +83,11 @@ namespace OPS.Landform
 
             if (options.RedoTilingProject)
             {
-                if (null != TilingProject.Find(pipeline, options.ProjectName))
+                TilingProject existingProject = TilingProject.Find(pipeline, options.ProjectName);
+                if (null != existingProject)
                 {
                     pipeline.LogInfo("Deleting existing tiling project {0}",options.ProjectName);
-                    TilingProject.Delete(pipeline, options.ProjectName);
+                    existingProject.Delete(pipeline, true);
                 }
             }
 
