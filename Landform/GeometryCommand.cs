@@ -37,9 +37,10 @@ namespace OPS.Landform
         }
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
-                                                           bool onlyObsForReconstruction = false)
+                                                            bool onlyObsForReconstruction = false)
         {
             meshFrame = options.MeshFrame.ToLower();
+            var origMeshFrame = meshFrame;
             bool specificSiteDrive = false;
             if (meshFrame != "newest" && meshFrame != "oldest")
             {
@@ -57,20 +58,26 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            if (meshFrame != "newest" && meshFrame != "oldest")
+            if (meshFrame == "newest" || meshFrame == "oldest")
             {
-                if (siteDrives.Length == 0)
+                var sds = observationCache
+                    .GetAllObservations()
+                    .Select(obs => ((RoverObservation)obs).SiteDrive)
+                    .Distinct()
+                    .ToArray();
+
+                if (sds.Length == 0)
                 {
                     throw new Exception("no sitedrives");
                 }
 
                 if (meshFrame == "newest")
                 {
-                    meshFrame = siteDrives.OrderByDescending(sd => sd).First().ToString();
+                    meshFrame = sds.OrderByDescending(sd => sd).First().ToString();
                 }
                 else
                 {
-                    meshFrame = siteDrives.OrderBy(sd => sd).First().ToString();
+                    meshFrame = sds.OrderBy(sd => sd).First().ToString();
                 }
 
                 specificSiteDrive = true;
@@ -81,7 +88,8 @@ namespace OPS.Landform
                 throw new Exception("sitedrive output frame not found: " + meshFrame);
             }
 
-            pipeline.LogInfo("scene mesh frame: {0}", meshFrame);
+            pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
+                             origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
 
             return true;
         }
