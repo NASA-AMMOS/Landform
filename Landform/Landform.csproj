@@ -161,6 +161,7 @@
     <Compile Include="LocalBEVAligner.cs" />
     <Compile Include="LocalBuildBackprojectIndex.cs" />
     <Compile Include="LocalBuildGeometry.cs" />
+    <Compile Include="LocalBuildLeaves.cs" />
     <Compile Include="LocalBuildTilesetScene.cs" />
     <Compile Include="LocalBundleAdjust.cs" />
     <Compile Include="LocalFeatures.cs" />
