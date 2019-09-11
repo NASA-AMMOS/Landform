@@ -101,15 +101,6 @@ namespace OPS.Pipeline.TilingServer
             return project;
         }
 
-        public static void Delete(PipelineCore pipeline, string name)
-        {
-            TilingProject project = pipeline.LoadDatabaseItem<TilingProject>(name);
-            if (project != null)
-            {
-                pipeline.DeleteDatabaseItem<TilingProject>(project);
-            }
-        }
-
         public static IEnumerable<TilingProject> FindAll(PipelineCore pipeline, ILog logger = null)
         {
             return pipeline.ScanDatabase<TilingProject>();
