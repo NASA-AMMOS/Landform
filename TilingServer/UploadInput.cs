@@ -41,6 +41,11 @@ namespace OPS.TilingServer
             this.options = options;
         }
 
+        public UploadInput(PipelineCore pipeline, UploadInputOptions options) : base(pipeline, ExecutionMode.Immediate)
+        {
+            this.options = options;
+        }
+
         public int Run()
         {
             var project = TilingProject.Find(pipeline, options.ProjectName);
