@@ -169,6 +169,7 @@
     <Compile Include="LocalIngest.cs" />
     <Compile Include="LocalMatching.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TextureCommand.cs" />
     <Compile Include="WedgeCommand.cs" />
   </ItemGroup>
   <ItemGroup>
