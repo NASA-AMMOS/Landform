@@ -21,7 +21,7 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.Landform
 {
     [Verb("local-blend-imges", HelpText = "blend observation images")]
-    public class LocalBlendImagesOptions : TextureCommandOptionsBase
+    public class LocalBlendImagesOptions : TextureCommandOptions
     {
         [Option(HelpText = "Inpaint blended observation diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
         public int Inpaint { get; set; }
@@ -63,9 +63,9 @@ namespace OPS.Landform
         public bool RedoBlendedObservationTextures { get; set; }
     }
 
-    public class LocalBlendImages : TextureCommandBase
+    public class LocalBlendImages : TextureCommand
     {
-        private LocalBlendImagesOptions options;
+        protected new LocalBlendImagesOptions options;
 
         private Dictionary<int, Observation> indexedObservations;
 
@@ -195,18 +195,22 @@ namespace OPS.Landform
 
             if (sceneMesh == null)
             {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, siteDrives, MeshVariant.Shrinkwrap);
+                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, siteDrives, MeshVariant.Shrinkwrap,
+                                             noSave: options.NoSave);
             }
 
-            pipeline.LogInfo("saving shrinkwrap mesh");
-            var meshProd = new PlyGZDataProduct(mesh);
-            pipeline.SaveDataProduct(project, meshProd);
-            sceneMesh.MeshGuid = meshProd.Guid;
-            sceneMesh.Save(pipeline);
+            if (!options.NoSave)
+            {
+                pipeline.LogInfo("saving shrinkwrap mesh");
+                var meshProd = new PlyGZDataProduct(mesh);
+                pipeline.SaveDataProduct(project, meshProd);
+                sceneMesh.MeshGuid = meshProd.Guid;
+                sceneMesh.Save(pipeline);
+            }
 
             if (options.WriteDebug)
             {
-                SaveDebugMesh(mesh, sceneMesh.Name);
+                SaveMesh(mesh, sceneMesh.Name);
             }
         }
 
@@ -295,18 +299,21 @@ namespace OPS.Landform
 
             pipeline.LogInfo("created {0}x{0} shrinkwrap blended texture", resolution);
 
-            pipeline.LogInfo("saving shrinkwrap blended texture");
-            var texProd = new PngDataProduct(shrinkwrapBlendedTexture);
-            pipeline.SaveDataProduct(project, texProd);
-            sceneMesh.BlendedTextureGuid = texProd.Guid;
-            sceneMesh.Save(pipeline);
+            if (!options.NoSave)
+            {
+                pipeline.LogInfo("saving shrinkwrap blended texture");
+                var texProd = new PngDataProduct(shrinkwrapBlendedTexture);
+                pipeline.SaveDataProduct(project, texProd);
+                sceneMesh.BlendedTextureGuid = texProd.Guid;
+                sceneMesh.Save(pipeline);
+            }
 
             if (options.WriteDebug)
             {
                 pipeline.LogInfo("saving shrinkwrap blended texture and textured mesh");
                 string name = sceneMesh.Name + "_backprojectTexture_" + Backproject.TextureVariant.Blended;
-                SaveDebugImage(shrinkwrapBlendedTexture, name);
-                SaveDebugMesh(mesh, name, name + imageExt);
+                SaveImage(shrinkwrapBlendedTexture, name);
+                SaveMesh(mesh, name, name + imageExt);
             }
         }
 
@@ -435,7 +442,7 @@ namespace OPS.Landform
                                 dbgImage.SetBandValues((int)pixel.Y, (int)pixel.X, winnerColor);
                             }
                             
-                            SaveDebugImage(dbgImage, obs.Name + suffix);
+                            SaveImage(dbgImage, obs.Name + suffix);
                         };
 
                         if (options.WriteDebug)
@@ -466,14 +473,17 @@ namespace OPS.Landform
                         pipeline.LogInfo("no mesh points backprojected to observation {0}", obs.Name);
                     }
 
-                    obs.BlendedGuid = Guid.Empty;
-                    if (blendedImage != null)
+                    if (!options.NoSave)
                     {
-                        var imgProd = new PngDataProduct(blendedImage);
-                        pipeline.SaveDataProduct(project, imgProd);
-                        obs.BlendedGuid = imgProd.Guid;
+                        obs.BlendedGuid = Guid.Empty;
+                        if (blendedImage != null)
+                        {
+                            var imgProd = new PngDataProduct(blendedImage);
+                            pipeline.SaveDataProduct(project, imgProd);
+                            obs.BlendedGuid = imgProd.Guid;
+                        }
+                        obs.Save(pipeline);
                     }
-                    obs.Save(pipeline);
 
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
