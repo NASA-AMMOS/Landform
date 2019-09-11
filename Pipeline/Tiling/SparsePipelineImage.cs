@@ -81,6 +81,10 @@ namespace OPS.Pipeline
             {
                 return new SparsePipelineImage(this.pipeline, this.largeImage, this.chunkSize, this.chunkCache != null ? this.chunkCache.Capacity : 0, this.chunkCache != null ? this.chunkCache.DiskBacked : false);
             }
+            else if (!string.IsNullOrEmpty(this.basePath))
+            {
+                return new SparsePipelineImage(this.pipeline, this.Bands, this.Width, this.Height, this.basePath, this.extension,  this.chunkSize, this.chunkCache != null ? this.chunkCache.Capacity : 0, this.chunkCache != null ? this.chunkCache.DiskBacked : false);
+            }
             else
             {
                 return new SparsePipelineImage(this.pipeline, this.Bands, this.Width, this.Height, this.chunkSize, this.chunkCache != null ? this.chunkCache.Capacity : 0, this.chunkCache != null ? this.chunkCache.DiskBacked : false);
