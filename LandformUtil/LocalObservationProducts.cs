@@ -20,13 +20,16 @@ using OPS.Landform;
 namespace OPS.LandformUtil
 {
     [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
-    public class LocalObservationProductsOptions : WedgeCommandOptions
+    public class LocalObservationProductsOptions : GeometryCommandOptions
     {
+        [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
+        public override int TargetWedgeImageResolution { get; set; }
+
+        [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
+        public override int TargetWedgeMeshResolution { get; set; }
+
         [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]
         public string OnlyForFrames { get; set; }
-
-        [Option(HelpText = "Output coordinate frame: rover, sitedrive, a numeric sitedrive SSSSSDDDDD, or root", Default = "rover")]
-        public string OutputFrame { get; set; }
 
         //temporarily suppress mastcam point cloud data until validated
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
@@ -127,11 +130,10 @@ namespace OPS.LandformUtil
         public bool DeltaRangeImages { get; set;}
     } 
 
-    public class LocalObservationProducts : WedgeCommand
+    public class LocalObservationProducts : GeometryCommand
     {
         protected new LocalObservationProductsOptions options;
 
-        private string outputFrame;
         private bool withTextures;
         private bool buildWedgeMasks;
         private bool buildWedgeMeshes;
@@ -234,29 +236,17 @@ namespace OPS.LandformUtil
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
             buildWedgeImages = withTextures || !options.NoImages;
             
-            outputFrame = options.OutputFrame;
-            if (!FrameTransform.ParseFrameName(ref outputFrame, out bool specificSiteDrive))
+            if (options.MergedSiteDriveMeshes && options.MeshFrame == "rover")
             {
-                throw new Exception("unsupported output frame: " + outputFrame);
+                pipeline.LogWarn("cannot write merged sitedrive meshes in rover frame, using newest sitedrive");
+                options.MeshFrame = "newest";
             }
 
-            if (options.MergedSiteDriveMeshes && outputFrame == "rover")
-            {
-                throw new Exception("cannot write merged sitedrive meshes in rover frame");
-            }
-
-            string outDir = string.Format("alignment/ObservationProducts/{0}Frame", outputFrame);
-
-            if (!ParseArgumentsAndLoadCaches(outDir))
+            if (!ParseArgumentsAndLoadCaches("alignment/ObservationProducts"))
             {
                 return false; // help
             }
             
-            if (specificSiteDrive && !frameCache.ContainsFrame(outputFrame))
-            {
-                throw new Exception("sitedrive output frame not found: " + outputFrame);
-            }
-
             var opts = new MeshObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
                 {
@@ -266,7 +256,7 @@ namespace OPS.LandformUtil
                     RequireTextures = options.RequireTextures,
                     RequirePriorTransform = options.UsePriors,
                     RequireAdjustedTransform = options.OnlyAligned,
-                    TargetFrame = options.OutputFrame
+                    TargetFrame = meshFrame
                 }; 
 
             meshObservations =
@@ -312,7 +302,7 @@ namespace OPS.LandformUtil
 
             var meshOpts = new MeshObservations.MeshOptions()
                 {
-                    Frame = outputFrame,
+                    Frame = meshFrame,
                     UsePriors = options.UsePriors,
                     OnlyAligned = options.OnlyAligned,
                     Decimate = options.DecimateWedgeMeshes,
