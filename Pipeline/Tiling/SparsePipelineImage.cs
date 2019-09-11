@@ -47,6 +47,16 @@ namespace OPS.Pipeline
             InitFromLargeImage(largeImagePath, chunkSize, cacheSize, diskBackedCache);
         }
 
+        public SparsePipelineImage(SparsePipelineImage that) : base(that)
+        {
+            this.pipeline = that.pipeline;
+        }
+
+        public override object Clone()
+        {
+            return new SparsePipelineImage(this);
+        }
+
         protected override bool IsPersisted(string path)
         {
             return pipeline.FileExists(path);
