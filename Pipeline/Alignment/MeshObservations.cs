@@ -704,5 +704,30 @@ namespace OPS.Pipeline
 
             return Math.Max((int)Math.Round(maxDim / targetResolution), 1);
         }
+
+        /// <summary>
+        /// if group contains a MeshObservations for eye, return the first of those
+        /// otherwise just return the first thing in group
+        /// </summary>
+        public static T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, MeshObservations> getObs)
+        {
+            foreach (var thing in group)
+            {
+                if (getObs(thing).StereoEye == eye)
+                {
+                    return thing;
+                }
+            }
+            return group.FirstOrDefault();
+        }
+
+        public static IEnumerable<MeshObservations> FilterForEye(IEnumerable<MeshObservations> observations,
+                                                                 RoverStereoEye eye)
+        {
+            return observations 
+                .GroupBy(obs => obs.StereoFrameName)
+                .Select(group => FilterForEye(group, eye, obs => obs))
+                .Where(obs => obs != null);
+        }
     }
 }

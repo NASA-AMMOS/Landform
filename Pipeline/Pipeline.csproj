@@ -185,6 +185,7 @@
     <Compile Include="Alignment\BirdsEyeViewing.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
+    <Compile Include="Alignment\DeltaRangeImage.cs" />
     <Compile Include="Alignment\FeatureDetecting.cs" />
     <Compile Include="Alignment\ImageMatching.cs" />
     <Compile Include="Alignment\IngestAlignmentInputs.cs" />

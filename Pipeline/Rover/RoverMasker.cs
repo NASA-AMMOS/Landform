@@ -182,10 +182,13 @@ namespace OPS.Pipeline
         /// load or build a rover mask binary image which is 0 for masked pixels
         /// uses mask from maskObs if available and size matches imageObs
         /// otherwise builds from imageObs, but returns null if imageObs does not have PDS metadata
+        /// at least one of maskObs or imageObs must be non-null
         /// </summary>
         public Image LoadOrBuild(PipelineCore pipeline, Observation maskObs, Observation imageObs, bool clone = false)
         {
-            return LoadOrBuild(pipeline, maskObs, pipeline.LoadImage(imageObs.Url), imageObs.Name, clone);
+            Image refImage = imageObs != null ? pipeline.LoadImage(imageObs.Url) : null;
+            string observationName = maskObs != null ? maskObs.Name : imageObs.Name;
+            return LoadOrBuild(pipeline, maskObs, refImage, observationName, clone);
         }
 
         /// <summary>

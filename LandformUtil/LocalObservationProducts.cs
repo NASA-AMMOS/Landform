@@ -3,48 +3,40 @@ using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using CommandLine;
 using log4net;
-using Emgu.CV.Structure;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
-using OPS.Imaging.Emgu;
 using OPS.Landform;
 
 namespace OPS.LandformUtil
 {
     [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
-    public class LocalObservationProductsOptions : LandformCommandOptions
+    public class LocalObservationProductsOptions : WedgeCommandOptions
     {
-        [Option(HelpText = "Only generate products for specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
-        public string OnlyForSiteDrives { get; set; }
-
         [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]
         public string OnlyForFrames { get; set; }
-
-        [Option(HelpText = "Only generate products for specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
-        public string OnlyForCameras { get; set; }
-
-        [Option(HelpText = "Output directory, or omit to save to local project storage", Default = null)]
-        public string OutputFolder { get; set; }
 
         [Option(HelpText = "Output coordinate frame: rover, sitedrive, a numeric sitedrive SSSSSDDDDD, or root", Default = "rover")]
         public string OutputFrame { get; set; }
 
-        [Option(HelpText = "Don't reate meshes for mastcam observations", Default = false)]
-        public bool NoMastcam { get; set; }
+        //temporarily suppress mastcam point cloud data until validated
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+        [Option(HelpText = "Create products for mastcam observations", Default = false)]
+        public bool AllowMastcam { get; set; }
 
-        [Option(HelpText = "Only create meshes for observations with normals", Default = false)]
+        [Option(HelpText = "Only create products for observations with normals", Default = false)]
         public bool RequireNormals { get; set; }
 
-        [Option(HelpText = "Only create meshes for observations with textures", Default = false)]
+        [Option(HelpText = "Only create products for observations with textures", Default = false)]
         public bool RequireTextures { get; set; }
 
         [Option(HelpText = "Don't write wedge meshes", Default = false)]
@@ -56,47 +48,17 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Use blended observation textures if available", Default = false)]
         public bool UseBlendedTextures { get; set; }
 
-        [Option(HelpText = "Mesh format, e.g. ply, obj, help for list", Default = "ply")]
-        public string MeshFormat { get; set; }
+        [Option(HelpText = "Optimize color contrast", Default = false)]
+        public bool StretchContrast { get; set; }
 
-        [Option(HelpText = "Image format, e.g. png, jpg, help for list", Default = "jpg")]
-        public string ImageFormat { get; set; }
+        [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
+        public double StretchStdDev { get; set; }
 
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
 
         [Option(HelpText = "Triangle mesh reconstruction method (Organized, Poisson, or FSSR)", Default = ReconstructionMethod.Organized)]
         public ReconstructionMethod ReconstructionMethod { get; set; }
-
-        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
-        public string AdjustedTransformSources { get; set; }
-
-        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
-        public string PriorTransformSources { get; set; }
-
-        [Option(HelpText = "Use transform priors only", Default = false)]
-        public bool UsePriors { get; set; }
-
-        [Option(HelpText = "Use adjusted transforms only", Default = false)]
-        public bool OnlyAligned { get; set; }
-
-        [Option(HelpText = "Wedge mesh decimation blocksize, or -1 for auto", Default = -1)]
-        public int DecimateMeshes { get; set; }
-
-        [Option(HelpText = "Wedge image decimation blocksize, or -1 for auto", Default = -1)]
-        public int DecimateImages { get; set; }
-
-        [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
-        public int TargetImageResolution { get; set; }
-
-        [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
-        public int TargetMeshResolution { get; set; }
-
-        [Option(HelpText = "Optimize color contrast", Default = false)]
-        public bool StretchContrast { get; set; }
-
-        [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
-        public double StretchStdDev { get; set; }
 
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
         public double MaxTriangleAspect { get; set; }
@@ -161,122 +123,144 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Threshold tilt and elevation images at this level", Default = 0)]
         public double ThresholdImages { get; set; }
 
-        [Option(HelpText = "Hide progress", Default = false)]
-        public bool NoProgress { get; set; }
-
         [Option(HelpText = "Write delta range images: a visualization of the 3d distance between the points in one image projected into and compared to the points in another image", Default = false)]
         public bool DeltaRangeImages { get; set;}
     } 
 
-    public class LocalObservationProducts : LandformCommand
+    public class LocalObservationProducts : WedgeCommand
     {
-        private LocalObservationProductsOptions options;
+        protected new LocalObservationProductsOptions options;
 
-        private MissionSpecific mission;
-        private RoverMasker masker;
+        private string outputFrame;
+        private bool withTextures;
+        private bool buildWedgeMasks;
+        private bool buildWedgeMeshes;
+        private bool buildWedgeImages;
 
-        private string imageExt;
-        private string meshExt;
+        private List<MeshObservations> meshObservations;
 
+        //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
+        private ConcurrentDictionary<string, ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>> mergeInputs =
+            new ConcurrentDictionary<string, ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>>();
+        
         public LocalObservationProducts(LocalObservationProductsOptions options) : base(options)
         {
             this.options = options;
+
+            if (options.OnlyMergedSiteDriveMeshes)
+            {
+                options.MergedSiteDriveMeshes = true;
+                options.NoWedgeMeshes = true;
+                options.NoImages = true;
+                options.FrustumHullMeshes = false;
+                options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.NormalsImages = false;
+                options.CurvatureImages = false;
+                options.ElevationImages = false;
+                options.DeltaRangeImages = false;
+            }
+
+            if (options.AllTheThings)
+            {
+                options.MergedSiteDriveMeshes = true;
+                options.FrustumHullMeshes = true;
+                options.UncertaintyInflatedFrustumHullMeshes = true;
+                options.NormalsImages = true;
+                options.CurvatureImages = true;
+                options.ElevationImages = true;
+                options.DeltaRangeImages = true;
+            }
+
+            if (options.StatsOnly)
+            {
+                options.MergedSiteDriveMeshes = false;
+                options.NoWedgeMeshes = true;
+                options.NoImages = true;
+                options.FrustumHullMeshes = false;
+                options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.NormalsImages = false;
+                options.CurvatureImages = false;
+                options.ElevationImages = false;
+                options.DeltaRangeImages = false;
+            }
         }
 
         public int Run()
         {
-            options.FrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes && !options.StatsOnly;
-            options.UncertaintyInflatedFrustumHullMeshes &= !options.OnlyMergedSiteDriveMeshes && !options.StatsOnly;
-            options.MergedSiteDriveMeshes |= options.OnlyMergedSiteDriveMeshes;
-            options.MergedSiteDriveMeshes &= !options.StatsOnly;
-            options.NoWedgeMeshes |= options.OnlyMergedSiteDriveMeshes || options.StatsOnly;
-            options.NoImages |= options.StatsOnly;
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
 
-            options.FrustumHullMeshes |= options.AllTheThings;
-            options.UncertaintyInflatedFrustumHullMeshes |= options.AllTheThings;
-            options.MergedSiteDriveMeshes |= options.AllTheThings;
-            options.NormalsImages |= options.AllTheThings;
-            options.CurvatureImages |= options.AllTheThings;
-            options.ElevationImages |= options.AllTheThings;
-            options.DeltaRangeImages |= options.AllTheThings;
-
-            bool withTextures = !options.NoImages && options.ColorMeshesBy == MeshColor.Texture;
-
-            options.NoImages |= options.OnlyMergedSiteDriveMeshes && !withTextures;
-
-            if (options.UsePriors && options.OnlyAligned)
+            try
             {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
+                if (!ParseArgumentsAndLoadCaches())
+                {
+                    return 0; //help
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogError(ex.Message);
                 return 1;
             }
 
-            var project = Project.Find(pipeline, options.ProjectName);
-            if (project == null)
+            string what = "";
+            try
             {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
+                what = "generate observation products";
+                GenerateObservationProducts();
+
+                if (options.MergedSiteDriveMeshes)
+                {
+                    what = "generate merged site drive meshes";
+                    GenerateMergedSiteDriveMeshes();
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogError("failed to {0}: {1}", what, ex.Message);
                 return 1;
             }
-            mission = MissionSpecific.GetInstance(project.Mission);
-            masker = mission.GetMasker();
 
-            var outputFrame = options.OutputFrame;
-            if (!FrameTransform.ParseFrameName(ref outputFrame, out bool outputToSpecificSiteDrive))
+            stopwatch.Stop();
+            pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
+
+            return 0;
+        }
+
+        private bool ParseArgumentsAndLoadCaches()
+        {
+            buildWedgeMasks = options.NormalsImages || options.CurvatureImages || options.ElevationImages;
+            buildWedgeMeshes = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes || options.StatsOnly;
+            withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
+            buildWedgeImages = withTextures || !options.NoImages;
+            
+            outputFrame = options.OutputFrame;
+            if (!FrameTransform.ParseFrameName(ref outputFrame, out bool specificSiteDrive))
             {
-                pipeline.LogError("unsupported output frame: " + outputFrame);
-                return 1;
+                throw new Exception("unsupported output frame: " + outputFrame);
             }
 
             if (options.MergedSiteDriveMeshes && outputFrame == "rover")
             {
-                pipeline.LogError("cannot write merged sitedrive meshes in rover frame");
-                return 1;
+                throw new Exception("cannot write merged sitedrive meshes in rover frame");
             }
 
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
+            string outDir = string.Format("alignment/ObservationProducts/{0}Frame", outputFrame);
 
-            string dir = string.Format("alignment/ObservationProducts/{0}Frame", outputFrame);
-            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, project.Name);
-            //don't ensure outputPath exists here, we may never need it
-
-            if (!options.NoWedgeMeshes || options.FrustumHullMeshes ||
-                options.UncertaintyInflatedFrustumHullMeshes || options.MergedSiteDriveMeshes)
+            if (!ParseArgumentsAndLoadCaches(outDir))
             {
-                meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
-                if (meshExt == null)
-                {
-                    return 0;
-                }
-                pipeline.LogInfo("writing {0} meshes to {1}", meshExt, outputPath);
+                return false; // help
             }
-
-            if (!options.NoImages || options.NormalsImages || options.CurvatureImages || options.ElevationImages)
+            
+            if (specificSiteDrive && !frameCache.ContainsFrame(outputFrame))
             {
-                imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
-                if (imageExt == null)
-                {
-                    return 0;
-                }
-                pipeline.LogInfo("writing {0} images to {1}", imageExt, outputPath);
+                throw new Exception("sitedrive output frame not found: " + outputFrame);
             }
-
-            var frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
-            if (outputToSpecificSiteDrive && !frameCache.ContainsFrame(outputFrame))
-            {
-                pipeline.LogError("sitedrive output frame not found: " + outputFrame);
-                return 1;
-            }
-
-            var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.Preload();
 
             var opts = new MeshObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
                 {
-                    AllowMastcam = !options.NoMastcam,
+                    AllowMastcam = options.AllowMastcam,
                     RequirePoints = false,
                     RequireNormals = options.RequireNormals,
                     RequireTextures = options.RequireTextures,
@@ -284,7 +268,8 @@ namespace OPS.LandformUtil
                     RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = options.OutputFrame
                 }; 
-            var observations =
+
+            meshObservations =
                 MeshObservations.Collect(frameCache, observationCache, opts)
                 .Where(obs => !obs.Empty)
                 .OrderBy(obs => obs.FrameName)
@@ -294,25 +279,28 @@ namespace OPS.LandformUtil
 
             if (options.OnlyMergedSiteDriveMeshes && options.MergedSiteDriveEye != RoverStereoEye.Any)
             {
-                observations = observations 
+                meshObservations = meshObservations 
                     .GroupBy(obs => obs.StereoFrameName)
-                    .Select(group => FilterForEye(group, options.MergedSiteDriveEye, obs => obs))
+                    .Select(group => MeshObservations.FilterForEye(group, options.MergedSiteDriveEye, obs => obs))
                     .Where(obs => obs != null)
                     .Where(obs => obs.Points != null || obs.Range != null)
                     .ToList();
             }
 
-            int no = observations.Count();
-            var siteDrives = observations.Select(obs => obs.SiteDrive).Distinct().OrderBy(sd => sd).ToArray();
-            pipeline.LogInfo("computing observation products for {0} observation frames{1} under {2}",
-                             no,
-                             siteDrives.Length > 0 ? (" for site drive(s) " +
-                                                      String.Join(",", siteDrives.Select(sd => sd.ToString()).ToArray()))
-                             : "",
-                             outputPath);
+            return true;
+        }
 
-            //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
-            var mergeInputs = new ConcurrentDictionary<string, ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>>();
+        private void GenerateObservationProducts()
+        {
+            int no = meshObservations.Count;
+            var sds = meshObservations
+                .Select(obs => obs.SiteDrive)
+                .Distinct()
+                .OrderBy(sd => sd)
+                .Select(sd => sd.ToString())
+                .ToArray();
+            pipeline.LogInfo("computing observation products for {0} observation frames{1} under {2}", no,
+                             sds.Length > 0 ? (" for site drive(s) " + String.Join(",", sds)) : "", outputPath);
 
             //indexed by frame name
             var validPoints = new ConcurrentDictionary<string, int>();
@@ -322,14 +310,12 @@ namespace OPS.LandformUtil
             var generatedNormals = new ConcurrentDictionary<string, bool>();
             var wedgeDecimation = new ConcurrentDictionary<string, int>();
 
-            bool buildWedgeMeshes = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes || options.StatsOnly;
-            
             var meshOpts = new MeshObservations.MeshOptions()
                 {
                     Frame = outputFrame,
                     UsePriors = options.UsePriors,
                     OnlyAligned = options.OnlyAligned,
-                    Decimate = options.DecimateMeshes,
+                    Decimate = options.DecimateWedgeMeshes,
                     ScaleNormalsByConfidence = options.ScaleNormalsByConfidence,
                     ApplyTexture = withTextures,
                     MaxTriangleAspect = options.MaxTriangleAspect,
@@ -337,9 +323,8 @@ namespace OPS.LandformUtil
                     GenerateNormals = !options.NoGenerateNormals
                 };
 
-            double startSec = UTCTime.Now();
             int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(observations, obs => { 
+            CoreLimitedParallel.ForEach(meshObservations, obs => { 
 
                 Interlocked.Increment(ref np);
 
@@ -350,9 +335,13 @@ namespace OPS.LandformUtil
                 }
                 
                 string siteDrive = obs.SiteDrive.ToString();
+                string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
-                int mbs = MeshObservations.AutoDecimate(obs.Points, options.DecimateMeshes, options.TargetMeshResolution);
-                if (mbs > 1 && mbs != options.DecimateMeshes)
+                //mesh decimation blocksize
+                int mbs = MeshObservations.AutoDecimate(obs.Points != null ? obs.Points : obs.Normals,
+                                                        options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
+
+                if (mbs > 1 && mbs != options.DecimateWedgeMeshes)
                 {
                     pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
                 }
@@ -361,112 +350,42 @@ namespace OPS.LandformUtil
                 var mo = meshOpts.Clone();
                 mo.Decimate = mbs;
 
-                Mesh mesh = null;
-                int numPoints = 0, numNormals = 0, numTriangles = 0;
-
-                if (buildWedgeMeshes && obs.Points != null)
+                Image mask = null;
+                if (buildWedgeMasks && obs.Mask != null || obs.Points != null || obs.Normals != null)
                 {
-                    if (options.PointCloud)
-                    {
-                        pipeline.LogVerbose("building point cloud for {0}", obs.Name);
-                        mesh = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
-                        obs.CountValid(out numPoints, out numNormals);
-                    }
-                    else
-                    {
-                        pipeline.LogVerbose("building {0} triangle mesh for {1}",
-                                            options.ReconstructionMethod, obs.Name);
-                        Exception ex = null;
-                        try
-                        {
-                            mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, options.ReconstructionMethod);
-                        }
-                        catch (Exception e)
-                        {
-                            ex = e;
-                        }
-                        
-                        obs.CountValid(out numPoints, out numNormals);
-
-                        if (mesh == null)
-                        {
-                            pipeline.LogWarn("{0} reconstruction failed on observation {1} " +
-                                             "({2} valid points, {3} valid normals): {4}",
-                                             options.ReconstructionMethod, obs.Name,
-                                             numPoints, numNormals,
-                                             ex != null ? ex.Message : "insufficient data or unknown error");
-                            mesh = null;
-                        }
-                        else
-                        {
-                            pipeline.LogVerbose("collecting face stats for {0}", obs.Name);
-                            numTriangles = mesh.Faces.Count;
-                            faceStats[obs.FrameName] = mesh.CollectFaceStats();
-                        }
-                    }
+                    mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points != null ? obs.Points : obs.Normals);
                 }
 
-                if (numNormals == 0 && mesh != null && mesh.HasNormals)
+                int numPoints = 0, numNormals = 0, numTriangles = 0;
+                Mesh mesh = null;
+                if (buildWedgeMeshes && obs.Points != null)
                 {
-                    generatedNormals[obs.FrameName] = true;
+                    mesh = BuildWedgeMesh(obs, mo, out numPoints, out numNormals);
+                }
+
+                if (mesh != null)
+                {
+                    generatedNormals[obs.FrameName] = mesh.HasNormals && numNormals == 0;
+                    numTriangles = mesh.Faces.Count;
+                    pipeline.LogVerbose("collecting face stats for {0}", obs.Name);
+                    faceStats[obs.FrameName] = mesh.CollectFaceStats();
                 }
 
                 validPoints[obs.FrameName] = numPoints;
                 validNormals[obs.FrameName] = numNormals;
                 validTriangles[obs.FrameName] = numTriangles;
 
-                //we're running for multiple site drives in parallel so don't mutate outputPath
-                string tmpPath = outputPath;
-                if (!options.SuppressSiteDriveDirectories)
+                Image img = null;
+                if (buildWedgeImages && obs.Texture != null)
                 {
-                    tmpPath += siteDrive + "/";
+                    img = BuildWedgeImage(obs);
                 }
 
-                string imageFilename = null;
-                Image img = null;
-                if (!options.NoImages && obs.Texture != null)
+                if (!options.NoImages && img != null)
                 {
-                    try
-                    {
-                        imageFilename = obs.Name + imageExt;
-                        if (options.UseBlendedTextures && obs.Texture.BlendedGuid != Guid.Empty)
-                        {
-                            img = pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid).Image;
-                        }
-                        else
-                        {
-                            img = pipeline.LoadImage(obs.Texture.Url);
-                        }
-                        int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateImages,
-                                                                options.TargetImageResolution);
-                        if (ibs > 1)
-                        {
-                            if (ibs != options.DecimateImages)
-                            {
-                                pipeline.LogVerbose("auto decimating wedge image {0} with blocksize {1}", obs.Name, ibs);
-                            }
-                            img = img.Decimated(ibs);
-                        }
-                        var wedgeImg = img;
-                        if (options.StretchContrast)
-                        {
-                            wedgeImg.ApplyStdDevStretch();
-                        }
-                        if (!options.OnlyMergedSiteDriveMeshes)
-                        {
-                            string file = tmpPath + imageFilename;
-                            pipeline.LogVerbose("saving {0}x{1} wedge image {2}", wedgeImg.Width, wedgeImg.Height, file);
-                            PathHelper.EnsureExists(tmpPath);
-                            wedgeImg.Save<byte>(file);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        img = null;
-                        pipeline.LogWarn("error creating wedge image: " + ex.Message);
-                    }
+                    SaveImage(img, sdPrefix + obs.Name);
                 }
-                
+
                 if (options.MergedSiteDriveMeshes && mesh != null)
                 {
                     var input = new Tuple<MeshObservations, Mesh, Image>(obs, mesh, withTextures ? img : null);
@@ -476,6 +395,7 @@ namespace OPS.LandformUtil
                                  (_, bag) => { bag.Add(input); return bag; });
                 }
 
+                //save the wedge mesh now that we have both it and its texture
                 if (!options.NoWedgeMeshes && mesh != null)
                 {
                     if (options.ColorMeshesBy != MeshColor.None && options.ColorMeshesBy != MeshColor.Texture)
@@ -490,92 +410,23 @@ namespace OPS.LandformUtil
                                      options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
                                      stretch: options.StretchContrast, nStddev: options.StretchStdDev);
                     }
-                    string file = tmpPath + obs.Name + meshExt;
-                    pipeline.LogVerbose("saving mesh {0}", file);
-                    PathHelper.EnsureExists(tmpPath);
-                    //img can be null if there was an error loading it
-                    mesh.Save(file, withTextures && img != null ? imageFilename : null);
+                    SaveMesh(mesh, sdPrefix + obs.Name, img != null ? (obs.Name + imageExt) : null);
                 }
                 
                 if (options.NormalsImages && obs.Normals != null)
                 {
-                    try
-                    {
-                        var normals = pipeline.LoadImage(obs.Normals.Url);
-                        Image confidence = null;
-                        if (options.ScaleNormalsByConfidence)
-                        {
-                            confidence = new PDSImage(pipeline.LoadImage(obs.Points.Url)).GenerateConfidence();
-                        }
-                        normals = (new PDSImage(normals)).ConvertNormals(confidence);
-                        if (normals != null)
-                        {
-                            int nbs = mbs;
-                            if (obs.Points == null)
-                            {
-                                nbs = MeshObservations.AutoDecimate(obs.Normals, options.DecimateMeshes,
-                                                                    options.TargetMeshResolution);
-                            }
-                            var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Normals);
-                            normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, nbs, mask);
-                            string name = "Normals";
-                            if (options.ConvertNormalsToTilts)
-                            {
-                                name = "Tilts";
-                                normals = OrganizedPointCloud.NormalsToTilt(normals, options.TiltMode);
-                            }
-                            else
-                            {
-                                normals.ApplyInPlace(v => Math.Abs(v));
-                            }
-                            FinishImage(normals, mask, nbs, tmpPath, obs.Name, name);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogWarn("error creating normals image: " + ex.Message);
-                    }
+                    string kind = options.ConvertNormalsToTilts ? "Tilts" : "Normals";
+                    FinishImage(BuildNormalsImage(obs, mbs, mask), mask, mbs, sdPrefix + obs.Name, kind);
                 }
                 
                 if (options.CurvatureImages && obs.Points != null && obs.Normals != null)
                 {
-                    try
-                    {
-                        var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
-                        if (points != null)
-                        {
-                            var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
-                            var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
-                            points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
-                            normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
-                            var curvatures = OrganizedPointCloud.Curvatures(points, normals, !options.StretchContrast,
-                                                                            options.CurvatureNeighborhood);
-                            FinishImage(curvatures, mask, mbs, tmpPath, obs.Name, "Curvature");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogWarn("error creating curvature image: " + ex.Message);
-                    }
+                    FinishImage(BuildCurvaturesImage(obs, mbs, mask), mask, mbs, sdPrefix + obs.Name, "Curvature");
                 }
                 
                 if (options.ElevationImages && obs.Points != null)
                 {
-                    try
-                    {
-                        var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
-                        if (points != null)
-                        {
-                            var mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points);
-                            points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
-                            var elevations = OrganizedPointCloud.Elevations(points, normalize: !options.StretchContrast);
-                            FinishImage(elevations, mask, mbs, tmpPath, obs.Name, "Elevation");
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogWarn("error creating elevation image: " + ex.Message);
-                    }
+                    FinishImage(BuildElevationsImage(obs, mbs, mask), mask, mbs, sdPrefix + obs.Name, "Elevation");
                 }
                 
                 if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
@@ -583,11 +434,7 @@ namespace OPS.LandformUtil
                     try
                     {
                         var hull = obs.BuildFrustumHull(pipeline, frameCache, mo, uncertaintyInflated: false);
-                        string path = tmpPath + "Frusta/";
-                        string file = tmpPath + obs.Name + meshExt;
-                        pipeline.LogVerbose("saving hull mesh {0}", file);
-                        PathHelper.EnsureExists(path);
-                        hull.Mesh.Save(file);
+                        SaveMesh(hull.Mesh, sdPrefix + "Frusta/" + obs.Name);
                     }
                     catch (Exception ex)
                     {
@@ -595,16 +442,12 @@ namespace OPS.LandformUtil
                     }
                 }
                 
-                if (options.UncertaintyInflatedFrustumHullMeshes)
+                if (options.UncertaintyInflatedFrustumHullMeshes && (obs.Texture != null || obs.Points != null))
                 {
                     try
                     {
                         var hull = obs.BuildFrustumHull(pipeline, frameCache, mo, uncertaintyInflated: true);
-                        string path = tmpPath + "InflatedFrusta/";
-                        string file = path + obs.Name + meshExt;
-                        pipeline.LogVerbose("saving uncertainty inflated hull mesh {0}", file);
-                        PathHelper.EnsureExists(path);
-                        hull.Mesh.Save(file);
+                        SaveMesh(hull.Mesh, sdPrefix + "InflatedFrusta/" + obs.Name);
                     }
                     catch (Exception ex)
                     {
@@ -614,54 +457,23 @@ namespace OPS.LandformUtil
                 
                 if (options.DeltaRangeImages && obs.Points != null)
                 {
-                    string path = tmpPath + "DeltaRange/";
-                    PathHelper.EnsureExists(path);
-                    
-                    string pathPreview = tmpPath + "DeltaRange/Preview/";
-                    PathHelper.EnsureExists(pathPreview);
-                    
-                    float[] previewDistanceBuckets = new float[] { 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.25f, 1.5f };
-                    Vector3 [] colors = BrewerColors.GetColors("Blues", previewDistanceBuckets.Length + 1);
-                    
-                    foreach (var otherObs in observations)
+                    foreach (var otherObs in meshObservations)
                     {
-                        if (obs == otherObs || otherObs.Points == null)
+                        if (obs != otherObs && otherObs.Points != null &&
+                            Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name) != null)
                         {
-                            continue;
-                        }
-                        
-                        var overlap = Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name);
-                        if (overlap == null)
-                        {
-                            continue;
-                        }
-                        
-                        Image deltaRangeImage = null;
-                        try
-                        {
-                            deltaRangeImage = CreateDeltaRangeImage(otherObs, obs, frameCache,
-                                                                    options.UsePriors, options.OnlyAligned);
-                        }
-                        catch (Exception ex)
-                        {
-                            pipeline.LogWarn("error creating delta range image: " + ex.Message);
-                        }
-
-                        if (deltaRangeImage != null)
-                        {
-                            string imageName = otherObs.Name + "_in_" + obs.Name;
-                            deltaRangeImage.Save<float>(path + imageName + ".tif");
-                            
-                            Vector3 backgroundColor = new Vector3(0.9, 0.9, 0.9);
-                            Image deltaRangePreview =
-                                deltaRangeImage.Decimated(4).
-                                ColorizeScalarImage(previewDistanceBuckets,
-                                                    colors.Select(c => c.ToFloatArray()).ToArray(),
-                                                    backgroundColor.ToFloatArray());
-                            deltaRangePreview =
-                                StampLegend(deltaRangePreview, previewDistanceBuckets, colors, backgroundColor);
-                            deltaRangePreview.DeleteMask();
-                            deltaRangePreview.Save<byte>(pathPreview + imageName + ".png");
+                            try
+                            {
+                                Image deltaRange = DeltaRangeImage.Create(pipeline, masker, otherObs, obs, frameCache,
+                                                                          options.UsePriors, options.OnlyAligned);
+                                string name = sdPrefix + "DeltaRange/" + otherObs.Name + "_in_" + obs.Name;
+                                SaveFloatTIFF(deltaRange, name);
+                                SaveImage(DeltaRangeImage.CreatePreview(deltaRange), name + "_preview");
+                            }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogWarn("error creating delta range image: " + ex.Message);
+                            }
                         }
                     }
                 }
@@ -670,7 +482,7 @@ namespace OPS.LandformUtil
                 Interlocked.Increment(ref nc);
             });
 
-            foreach (var obs in observations)
+            foreach (var obs in meshObservations)
             {
                 if (buildWedgeMeshes)
                 {
@@ -691,290 +503,248 @@ namespace OPS.LandformUtil
                 }
             }
 
-            if (options.MergedSiteDriveMeshes)
+            pipeline.LogInfo("generated products for {0} observations", no);
+        }
+
+        private Mesh BuildWedgeMesh(MeshObservations obs, MeshObservations.MeshOptions mo, out int numPoints, out int numNormals)
+        {
+            Mesh mesh = null;
+            if (options.PointCloud)
             {
-                pipeline.LogInfo("generating merged meshes for {0} sitedrives", mergeInputs.Count);
-                foreach (var siteDrive in mergeInputs.Keys.OrderBy(name => name))
+                pipeline.LogVerbose("building point cloud for {0}", obs.Name);
+                mesh = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
+                obs.CountValid(out numPoints, out numNormals);
+                
+            }
+            else
+            {
+                pipeline.LogVerbose("building {0} triangle mesh for {1}", options.ReconstructionMethod, obs.Name);
+                Exception ex = null;
+                try
                 {
-                    //ensure inputs are in a canonical order
-                    var inputs = mergeInputs[siteDrive]
-                        .OrderBy(inp => inp.Item1.FrameName) //order by observation frame
-                        .Distinct() //ConcurrentBag is not necessarily a set
+                    mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, options.ReconstructionMethod);
+                }
+                catch (Exception e)
+                {
+                    ex = e;
+                }
+                
+                obs.CountValid(out numPoints, out numNormals);
+                
+                if (mesh == null)
+                {
+                    pipeline.LogWarn("{0} reconstruction failed on observation {1} ({2} valid points, {3} valid normals): {4}",
+                                     options.ReconstructionMethod, obs.Name, numPoints, numNormals,
+                                     ex != null ? ex.Message : "insufficient data or unknown error");
+                }
+            }
+            return mesh;
+        }
+
+        private Image BuildWedgeImage(MeshObservations obs)
+        {
+            Image img = null;
+            try
+            {
+                if (options.UseBlendedTextures && obs.Texture.BlendedGuid != Guid.Empty)
+                {
+                    img = pipeline.GetDataProduct<PngDataProduct>(project, obs.Texture.BlendedGuid).Image;
+                }
+                else
+                {
+                    img = pipeline.LoadImage(obs.Texture.Url);
+                }
+                int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages, options.TargetWedgeImageResolution);
+                if (ibs > 1)
+                {
+                    if (ibs != options.DecimateWedgeImages)
+                    {
+                        pipeline.LogVerbose("auto decimating wedge image {0} with blocksize {1}", obs.Name, ibs);
+                    }
+                    img = img.Decimated(ibs);
+                }
+                if (options.StretchContrast)
+                {
+                    img.ApplyStdDevStretch();
+                }
+            }
+            catch (Exception ex)
+            {
+                img = null;
+                pipeline.LogWarn("error creating wedge image: " + ex.Message);
+            }
+            return img;
+        }
+
+        private Image BuildNormalsImage(MeshObservations obs, int mbs, Image mask)
+        {
+            Image normals = null;
+            try
+            {
+                normals = pipeline.LoadImage(obs.Normals.Url);
+                Image confidence = null;
+                if (options.ScaleNormalsByConfidence)
+                {
+                    confidence = new PDSImage(pipeline.LoadImage(obs.Points.Url)).GenerateConfidence();
+                }
+                normals = (new PDSImage(normals)).ConvertNormals(confidence);
+                if (normals != null)
+                {
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    if (options.ConvertNormalsToTilts)
+                    {
+                        normals = OrganizedPointCloud.NormalsToTilt(normals, options.TiltMode);
+                    }
+                    else
+                    {
+                        normals.ApplyInPlace(v => Math.Abs(v));
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                normals = null;
+                pipeline.LogWarn("error creating normals image: " + ex.Message);
+            }
+            return normals;
+        }
+
+        private Image BuildCurvaturesImage(MeshObservations obs, int mbs, Image mask)
+        {
+            Image curvatures = null;
+            try
+            {
+                var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
+                if (points != null)
+                {
+                    var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
+                    points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
+                    normals = OrganizedPointCloud.MaskAndDecimateNormals(normals, mbs, mask);
+                    curvatures = OrganizedPointCloud.Curvatures(points, normals, !options.StretchContrast,
+                                                                options.CurvatureNeighborhood);
+                }
+            }
+            catch (Exception ex)
+            {
+                curvatures = null;
+                pipeline.LogWarn("error creating curvature image: " + ex.Message);
+            }
+            return curvatures;
+        }
+
+        private Image BuildElevationsImage(MeshObservations obs, int mbs, Image mask)
+        {
+            Image elevations = null;
+            try
+            {
+                var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
+                if (points != null)
+                {
+                    points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);
+                    elevations = OrganizedPointCloud.Elevations(points, normalize: !options.StretchContrast);
+                }
+            }
+            catch (Exception ex)
+            {
+                elevations = null;
+                pipeline.LogWarn("error creating elevation image: " + ex.Message);
+            }
+            return elevations;
+        }
+
+        private void GenerateMergedSiteDriveMeshes()
+        {
+            pipeline.LogInfo("generating merged meshes for {0} sitedrives", mergeInputs.Count);
+
+            foreach (var siteDrive in mergeInputs.Keys.OrderBy(name => name))
+            {
+                //ensure inputs are in a canonical order
+                var inputs = mergeInputs[siteDrive]
+                    .OrderBy(inp => inp.Item1.FrameName) //order by observation frame
+                    .Distinct() //ConcurrentBag is not necessarily a set
+                    .ToArray();
+                
+                if (options.MergedSiteDriveEye != RoverStereoEye.Any)
+                {
+                    inputs = inputs
+                        .GroupBy(inp => inp.Item1.StereoFrameName)
+                        .Select(group => MeshObservations.FilterForEye(group, options.MergedSiteDriveEye, inp => inp.Item1))
+                        .Where(inp => inp != null)
                         .ToArray();
-
-                    if (options.MergedSiteDriveEye != RoverStereoEye.Any)
+                }
+                
+                int hasNormals = 0, hasTextures = 0;
+                var bands = new Dictionary<int, int>();
+                foreach (var input in inputs)
+                {
+                    if (input.Item2.HasNormals)
                     {
-                        inputs = inputs
-                            .GroupBy(inp => inp.Item1.StereoFrameName)
-                            .Select(group => FilterForEye(group, options.MergedSiteDriveEye, inp => inp.Item1))
-                            .Where(inp => inp != null)
-                            .ToArray();
+                        hasNormals++;
                     }
-
-                    int hasNormals = 0, hasTextures = 0;
-                    var bands = new Dictionary<int, int>();
-                    foreach (var input in inputs)
+                    if (input.Item3 != null)
                     {
-                        if (input.Item2.HasNormals)
+                        hasTextures++;
+                        int nb = input.Item3.Bands;
+                        if (!bands.ContainsKey(nb))
                         {
-                            hasNormals++;
+                            bands[nb] = 1;
                         }
-                        if (input.Item3 != null)
+                        else
                         {
-                            hasTextures++;
-                            int nb = input.Item3.Bands;
-                            if (!bands.ContainsKey(nb))
-                            {
-                                bands[nb] = 1;
-                            }
-                            else
-                            {
-                                bands[nb] = bands[nb] + 1;
-                            }
+                            bands[nb] = bands[nb] + 1;
                         }
                     }
-
-                    pipeline.LogInfo("generating merged mesh for site drive {0} from {1} {2} eye wedge meshes, " +
-                                     "{3} with normals, {4} with textures{5}",
-                                     siteDrive, inputs.Length, options.MergedSiteDriveEye, hasNormals, hasTextures,
-                                     hasTextures > 0 ? 
-                                     (": " + string.Join(", ", bands.Select(e => string.Format("{0} with {1} bands",
-                                                                                               e.Value, e.Key))))
-                                     : "");
-                    
-                    Mesh mesh = null;
-                    Image img = null;
-                    try
-                    {
-                        var pair = Mesh.MergeMeshesAndTextures(inputs
-                                                               .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
-                                                               .ToArray());
-                        mesh = pair.Item1;
-                        img = pair.Item2;
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogWarn("error creating merged mesh for site drive {0}: {1}", siteDrive, ex.Message);
-                    }
-
-                    if (mesh != null &&
-                        options.ColorMeshesBy != MeshColor.None && options.ColorMeshesBy != MeshColor.Texture)
-                    {
-                        mesh.ColorBy(options.ColorMeshesBy,
-                                     options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
-                                     allowAdjustColors: true,
-                                     stretch: options.StretchContrast, nStddev: options.StretchStdDev);
-                    }
-                        
-                    string imageFilename = null;
+                }
+                
+                pipeline.LogInfo("generating merged mesh for site drive {0} from {1} {2} eye wedge meshes, " +
+                                 "{3} with normals, {4} with textures{5}",
+                                 siteDrive, inputs.Length, options.MergedSiteDriveEye, hasNormals, hasTextures,
+                                 hasTextures > 0 ? 
+                                 (": " + string.Join(", ", bands.Select(e => string.Format("{0} with {1} bands",
+                                                                                           e.Value, e.Key))))
+                                 : "");
+                
+                Mesh mesh = null;
+                Image img = null;
+                try
+                {
+                    var pair = Mesh.MergeMeshesAndTextures(inputs
+                                                           .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
+                                                           .ToArray());
+                    mesh = pair.Item1;
+                    img = pair.Item2;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error creating merged mesh for site drive {0}: {1}", siteDrive, ex.Message);
+                }
+                
+                if (mesh != null && options.ColorMeshesBy != MeshColor.None && options.ColorMeshesBy != MeshColor.Texture)
+                {
+                    mesh.ColorBy(options.ColorMeshesBy,
+                                 options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
+                                 allowAdjustColors: true,
+                                 stretch: options.StretchContrast, nStddev: options.StretchStdDev);
+                }
+                
+                if (mesh != null && mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
+                {
                     if (img != null)
                     {
-                        imageFilename = siteDrive + imageExt;
-                        string file = outputPath + imageFilename;
-                        pipeline.LogVerbose("saving merged sitedrive texure {0}", file);
-                        PathHelper.EnsureExists(outputPath);
-                        img.Save<byte>(file);
+                        SaveImage(img, siteDrive);
                     }
-
-                    if (mesh != null && mesh.HasVertices && (options.PointCloud || mesh.HasFaces))
-                    {
-                        string file = outputPath + siteDrive + meshExt;
-                        pipeline.LogVerbose("saving merged sitedrive mesh {0}", file);
-                        PathHelper.EnsureExists(outputPath);
-                        mesh.Save(file, withTextures ? imageFilename : null);
-                    }
+                    SaveMesh(mesh, siteDrive, img != null ? (siteDrive + imageExt) : null);
                 }
             }
-
-            double totalSec = UTCTime.Now() - startSec;
-            pipeline.LogInfo("generated products for {0} observations ({1:F3}s)", no, totalSec);
-
-            return 0;
         }
 
-        private T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, MeshObservations> getObs)
+        private void FinishImage(Image img, Image mask, int decimateBlocksize, string name, string kind)
         {
-            foreach (var thing in group)
+            if (img == null)
             {
-                if (getObs(thing).StereoEye == eye)
-                {
-                    return thing;
-                }
-            }
-            return group.FirstOrDefault();
-        }
-
-        private Image StampLegend(Image img, float[] previewDistanceBuckets, Vector3[] colorsLowToHigh,
-                                  Vector3 backgroundColor)
-        {
-            //formatting parameters
-            // if we need a more general layout api these can be exposed
-            int largeSpacing = 16;
-            int smallSpacing = 7;
-            int colorChipWidth = 10;
-            int frameWidth = 70;
-
-            int legendDimColor = 3;
-            Rgb textColor = new Rgb(40, 40, 40);
-            Rgb bgColor = OPS.Imaging.Emgu.Extensions.ToEmguColor(backgroundColor.ToFloatArray());
-            Rgb legendColor = new Rgb(Math.Max(0,bgColor.Red - legendDimColor),
-                                      Math.Max(0, bgColor.Green - legendDimColor),
-                                      Math.Max(0, bgColor.Blue - legendDimColor));
-
-            //allocate expanded image and clear to background color
-            System.Drawing.Size expandedImageSize = new System.Drawing.Size(frameWidth + img.Width, img.Height);
-            Emgu.CV.Image<Rgb, byte> emguImg = new Emgu.CV.Image<Rgb, byte>(expandedImageSize);
-            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(0, 0),
-                                                      new System.Drawing.Size(frameWidth, img.Height)),
-                         legendColor, -1);
-
-            //draw legend
-
-            System.Drawing.Point pt = new System.Drawing.Point(largeSpacing, largeSpacing);
-            
-            //catchall
-            emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X, pt.Y - (int)colorChipWidth / 2),
-                                                      new System.Drawing.Size(colorChipWidth, colorChipWidth)),
-                         OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh.Last().ToFloatArray()), -1);
-            emguImg.Draw("> " + previewDistanceBuckets[previewDistanceBuckets.Length - 1].ToString("F2") + "m",
-                         new System.Drawing.Point(pt.X + colorChipWidth + smallSpacing, pt.Y),
-                         Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
-            pt.Y += largeSpacing;
-
-            for (int idx = previewDistanceBuckets.Length-1; idx >= 0; idx--)
-            {
-                Rgb color = OPS.Imaging.Emgu.Extensions.ToEmguColor(colorsLowToHigh[idx].ToFloatArray());
-                emguImg.Draw(new System.Drawing.Rectangle(new System.Drawing.Point(pt.X,pt.Y - (int)colorChipWidth / 2),
-                                                          new System.Drawing.Size(colorChipWidth, colorChipWidth)),
-                             color, -1);
-                emguImg.Draw("< " + previewDistanceBuckets[idx].ToString("F2") + "m",
-                             new System.Drawing.Point(pt.X + colorChipWidth + smallSpacing, pt.Y),
-                             Emgu.CV.CvEnum.FontFace.HersheySimplex, 0.2, textColor, 1);
-                pt.Y += largeSpacing;
-            }
-            
-            Image result = emguImg.ToOPSImage();
-            emguImg.Dispose();
-
-            result.Blit(img, frameWidth, 0);
-
-            return result;
-        }
-
-        // fills a texture with the difference in the per-pixel range of a src point cloud and dst point cloud 
-        // designed to give an coarse visual estimate of how well cameras are aligned
-        private Image CreateDeltaRangeImage(MeshObservations srcObs, MeshObservations dstObs, FrameCache frameCache,
-                                            bool usePriors, bool noPriors)
-        {
-            //load images
-            var srcPointsRaw = pipeline.LoadImage(srcObs.Points.Url);
-            var srcPoints = (new PDSImage(srcPointsRaw)).ConvertPoints();
-
-            var dstPointsRaw = pipeline.LoadImage(dstObs.Points.Url);
-            var dstPoints = (new PDSImage(dstPointsRaw)).ConvertPoints();
-
-            if (srcPoints == null || dstPoints == null)
-            {
-                return null;
+                return;
             }
 
-            srcPoints.UnionMask(masker.LoadOrBuild(pipeline, srcObs.Mask, srcPointsRaw , srcObs.Name),
-                                new float[] { 0 });
-
-            dstPoints.UnionMask(masker.LoadOrBuild(pipeline, dstObs.Mask, dstPointsRaw , dstObs.Name),
-                                new float[] { 0 });
-
-            //get camera model
-            Image dstImg = pipeline.LoadImage(dstObs.Texture.Url);
-            PDSParser dstParser = new PDSParser((PDSMetadata)dstImg.Metadata);
-            CameraModel dstCamera = dstParser.metadata.CameraModel;
-
-            var srcToDst = frameCache.GetObservationTransform(srcObs.Points, dstObs.Points, usePriors, noPriors);
-            if (srcToDst == null)
-            {
-                return null;
-            }
-
-            var meshOpts = new MeshObservations.MeshOptions() { Frame = "rover", UsePriors = usePriors };
-            var dstHull = dstObs.BuildFrustumHull(pipeline, frameCache, meshOpts, uncertaintyInflated: false);
-
-            //project points of src texture into dst
-            Image deltaRangeImg = new Image(1, dstObs.Texture.Width, dstObs.Texture.Height);
-            deltaRangeImg.CreateMask(true);
-
-            bool anyValid = false;
-            for (int idxSrcRow = 0; idxSrcRow < srcObs.Texture.Height; idxSrcRow++)
-            {
-                for (int idxSrcCol = 0; idxSrcCol < srcObs.Texture.Width; idxSrcCol++)
-                {
-                    if (!srcPoints.IsValid(idxSrcRow, idxSrcCol))
-                    {
-                        continue;
-                    }
-
-                    Vector3 srcRoverPt = new Vector3(srcPoints[0, idxSrcRow, idxSrcCol],
-                                                     srcPoints[1, idxSrcRow, idxSrcCol],
-                                                     srcPoints[2, idxSrcRow, idxSrcCol]);
-                    Vector3 srcPtInDst = Vector3.Transform(srcRoverPt, srcToDst.Mean);
-
-                    //coarse test to ensure no errors at the far distant edges of camera models, or points behind the
-                    //camera projecting to valid screen positions.
-                    //NOTE: enforces the hull distance limit which may be too conservative
-                    //also accuracy is poor for nonlinear camera models
-                    if (!dstHull.Contains(srcPtInDst))
-                    {
-                        continue;
-                    }
-
-                    Vector2 dstPixel = dstCamera.Project(srcPtInDst, out double range);
-
-                    int dstPixelX = (int)Math.Round(dstPixel.X);
-                    int dstPixelY = (int)Math.Round(dstPixel.Y);
-
-                    if (dstPixelX < 0 || dstPixelX >= dstObs.Texture.Width ||
-                        dstPixelY < 0 || dstPixelY >= dstObs.Texture.Height)
-                    {
-                        continue;
-                    }
-
-                    //Issue #476: properly handle spreading data across fractional pixels (subpixel projection results) 
-                    //and properly handle blending with existing data (coverage channel)
-
-                    Vector3 dstRoverPt = new Vector3(dstPoints[0, dstPixelY, dstPixelX],
-                                                     dstPoints[1, dstPixelY, dstPixelX],
-                                                     dstPoints[2, dstPixelY, dstPixelX]);
-
-                    Vector2 refDstPixel = dstCamera.Project(dstRoverPt, out double refRange);
-                    int refDstPixelX = (int)Math.Round(refDstPixel.X);
-                    int refDstPixelY = (int)Math.Round(refDstPixel.Y);
-
-                    if (refDstPixelX < 0 || refDstPixelX >= dstObs.Texture.Width ||
-                        refDstPixelY < 0 || refDstPixelY >= dstObs.Texture.Height)
-                    {
-                        continue;
-                    }
-
-                    if (!dstPoints.IsValid((int)refDstPixelY, (int)refDstPixelX))
-                    {
-                        continue;
-                    }
-
-                    if ((int)refDstPixelX != (int)dstPixelX || (int)refDstPixelY != (int)dstPixelY)
-                    {
-                        throw new Exception("range product points should map back to the same pixel it was pulled from");
-                    }
-
-                    deltaRangeImg[0, (int)dstPixel.Y, (int)dstPixel.X] = (float)Vector3.Distance(dstRoverPt, srcPtInDst);
-                    deltaRangeImg.SetMaskValue((int)dstPixel.Y, (int)dstPixel.X, false);
-                    anyValid = true;
-                }
-            }
-
-            return anyValid ? deltaRangeImg : null;
-        }
-
-        private void FinishImage(Image img, Image mask, int decimateBlocksize, string dir, string basename, string name)
-        {
             if (options.StretchContrast)
             {
                 img = img.ApplyStdDevStretch(options.StretchStdDev);
@@ -999,10 +769,8 @@ namespace OPS.LandformUtil
             {
                 img.ApplyInPlace(v => v > options.ThresholdImages ? 1 : 0);
             }
-            string file = dir + basename + "_" + name + imageExt;
-            pipeline.LogVerbose("saving {0}x{1} {2} image {3}", img.Width, img.Height, name, file);
-            PathHelper.EnsureExists(dir);
-            img.Save<byte>(file);
+            pipeline.LogVerbose("saving {0}x{1} {2} image", img.Width, img.Height, kind);
+            SaveImage(img, name + "_" + kind);
         }
     }
 }
