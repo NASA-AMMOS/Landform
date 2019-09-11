@@ -36,5 +36,14 @@ namespace OPS.TilingServer
                 pipeline = new CloudPipeline(options, queuePrefix: "tiling");
             }
         }
+
+        protected TilingCommand(PipelineCore pipeline, ExecutionMode localExecutionMode = ExecutionMode.None)
+        {
+            this.pipeline = pipeline;
+            if (pipeline is LocalPipeline)
+            {
+                executive = PipelineExecutive.MakeExecutive(pipeline, localExecutionMode);
+            }
+        }
     }
 }
