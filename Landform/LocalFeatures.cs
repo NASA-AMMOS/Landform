@@ -56,20 +56,8 @@ namespace OPS.Landform
         [Option(HelpText = "Write feature images for debugging", Default = false)]
         public bool WriteFeatureImages { get; set; }
 
-        [Option(HelpText = "Output directory for debug images, or omit to save to project storage", Default = null)]
-        public string ImageOutputFolder { get; set; }
-
-        [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
-        public string ImageFormat { get; set; }
-
         [Option(HelpText = "Include existing products in histograms", Default = false)]
         public bool TallyExisting { get; set; }
-
-        [Option(HelpText = "Hide progress", Default = false)]
-        public bool NoProgress { get; set; }
-
-        [Option(HelpText = "Disable saving results to database", Default = false)]
-        public bool NoSave { get; set; }
 
         [Option(HelpText = "Comma separated list of observations to process, omit for all", Default = null)]
         public string OnlyForObservations { get; set; }
@@ -77,13 +65,7 @@ namespace OPS.Landform
 
     public class LocalFeatures : LandformCommand
     {
-        private LocalFeaturesOptions options;
-
-        private MissionSpecific mission;
-        private RoverMasker masker;
-
-        private string imageDir;
-        private string imageExt;
+        protected new LocalFeaturesOptions options;
 
         public LocalFeatures(LocalFeaturesOptions options) : base(options)
         {
@@ -102,8 +84,7 @@ namespace OPS.Landform
             mission = MissionSpecific.GetInstance(project.Mission);
             masker = mission.GetMasker();
 
-            imageDir =
-                pipeline.GetLocalDebugFolder(options.ImageOutputFolder, "alignment/FeatureProducts", project.Name);
+            outputPath = pipeline.GetLocalFolder(options.OutputFolder, "alignment/FeatureProducts", project.Name);
 
             if (options.WriteFeatureImages)
             {
@@ -112,7 +93,7 @@ namespace OPS.Landform
                 {
                     return 0;
                 }
-                pipeline.LogInfo("writing {0} feature images to {1}", imageExt, imageDir);
+                pipeline.LogInfo("writing {0} feature images to {1}", imageExt, outputPath);
             }
 
             var allowed = (options.OnlyForObservations ?? "")
@@ -288,8 +269,8 @@ namespace OPS.Landform
             var mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, imageObs.Name);
             img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
                                                 StringHelper.GetLastUrlPathSegment(imageObs.Url));
-            PathHelper.EnsureExists(imageDir);
-            img.Save<byte>(string.Format("{0}{1}_Features{2}", imageDir, imageObs.Name, imageExt));
+            PathHelper.EnsureExists(outputPath);
+            img.Save<byte>(string.Format("{0}{1}_Features{2}", outputPath, imageObs.Name, imageExt));
         }
     }
 }

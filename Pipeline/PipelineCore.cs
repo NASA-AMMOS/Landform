@@ -325,7 +325,7 @@ namespace OPS.Pipeline
             return StringHelper.NormalizeSlashes(Path.Combine(StorageUrlWithVenue, folder, project, file));
         }
 
-        public string GetLocalDebugFolder(string givenFolder, string defaultSubpath, string project)
+        public string GetLocalFolder(string givenFolder, string defaultSubpath, string project)
         {
             var ret = givenFolder;
             if (string.IsNullOrEmpty(givenFolder))

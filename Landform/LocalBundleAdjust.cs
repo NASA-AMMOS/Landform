@@ -21,17 +21,11 @@ namespace OPS.Landform
 
         [Option(HelpText = "Number of rounds of bundle adjustment", Default = 2)]
         public int BundleAdjustRounds { get; set; }
-
-        [Option(HelpText = "Write products for debugging", Default = false)]
-        public bool WriteDebug { get; set; }
-
-        [Option(HelpText = "Optional directory to save bundle adjuster debug files to", Default = null)]
-        public string DebugOutputFolder { get; set; }
     }
 
     public class LocalBundleAdjust : LandformCommand
     {
-        private LocalBundleAdjustOptions options;
+        protected new LocalBundleAdjustOptions options;
 
         private string dbgDir;
 
@@ -49,7 +43,7 @@ namespace OPS.Landform
                 return 1;
             }
 
-            dbgDir = pipeline.GetLocalDebugFolder(options.DebugOutputFolder, "alignment/AdjustProducts", project.Name);
+            dbgDir = pipeline.GetLocalFolder(options.OutputFolder, "alignment/AdjustProducts", project.Name);
             if (options.WriteDebug)
             {
                 pipeline.LogInfo("writing debug data to {0}", dbgDir);

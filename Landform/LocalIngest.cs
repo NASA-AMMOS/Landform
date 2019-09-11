@@ -48,12 +48,6 @@ namespace OPS.Landform
         [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
         public bool RedoPriors { get; set; }
 
-        [Option(HelpText = "Redo everything", Default = false)]
-        public bool Redo { get; set; }
-
-        [Option(HelpText = "Hide progress", Default = false)]
-        public bool NoProgress { get; set; }
-
         [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
         public string LegacyManifestURL { get; set; }
 
@@ -63,7 +57,7 @@ namespace OPS.Landform
 
     public class LocalIngest : LandformCommand
     {
-        private LocalIngestOptions options;
+        protected new LocalIngestOptions options;
 
         public LocalIngest(LocalIngestOptions options) : base(options)
         {

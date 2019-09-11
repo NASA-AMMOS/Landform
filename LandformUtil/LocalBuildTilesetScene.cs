@@ -40,9 +40,6 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Only build tiles that intersect these observations, comma separated", Default = null)]
         public string OnlyTilesForObs { get; set; }
 
-        [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
-
         [Option(HelpText = "Output coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
         public string OutputFrame { get; set; }
 
@@ -115,10 +112,7 @@ namespace OPS.LandformUtil
 
     public class LocalBuildTilesetScene : LandformCommand
     {
-        private LocalBuildTilesetSceneOptions options;
-
-        private MissionSpecific mission;
-        private RoverMasker masker;
+        protected new LocalBuildTilesetSceneOptions options;
 
         public LocalBuildTilesetScene(LocalBuildTilesetSceneOptions options) : base(options)
         {
@@ -171,7 +165,7 @@ namespace OPS.LandformUtil
 
             string dir = string.Format("tiling/TilesetProducts/{0}Frame", outputFrame);
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
+            string outputPath = pipeline.GetLocalFolder(options.OutputFolder, dir, options.ProjectName);
 
             string leafTilesPath = outputPath + "leafTiles/";
             PathHelper.EnsureExists(leafTilesPath);

@@ -36,10 +36,7 @@ namespace OPS.Landform
 
     public class LocalAgisoft : LandformCommand
     {
-        private LocalAgisoftOptions options;
-
-        private MissionSpecific mission;
-        private RoverMasker masker;
+        protected new LocalAgisoftOptions options;
 
         public LocalAgisoft(LocalAgisoftOptions options) : base(options)
         {

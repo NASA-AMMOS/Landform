@@ -25,9 +25,6 @@ namespace OPS.Landform
         [Option(HelpText = "Recreate matches that already exist", Default = false)]
         public bool RedoMatches { get; set; }
 
-        [Option(HelpText = "Redo everything", Default = false)]
-        public bool Redo { get; set; }
-
         [Option(HelpText = "Feature matching algorithm (EmguSIFT, KnownGeometry, BruteForce, CascadeHashing)", Default = ImageMatching.DEF_MATCHER_TYPE)]
         public ImageMatching.MatcherType MatcherType { get; set; }
 
@@ -67,23 +64,8 @@ namespace OPS.Landform
         [Option(HelpText = "Write match meshes (in root frame using transform priors) for debugging", Default = false)]
         public bool WriteMatchMeshes { get; set; }
 
-        [Option(HelpText = "Output directory for debug products, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
-
-        [Option(HelpText = "Debug image format, e.g. png, jpg, help for list", Default = "png")]
-        public string ImageFormat { get; set; }
-
-        [Option(HelpText = "Debug mesh format, e.g. ply, obj, help for list", Default = "ply")]
-        public string MeshFormat { get; set; }
-
         [Option(HelpText = "Include existing products in histograms", Default = false)]
         public bool TallyExisting { get; set; }
-
-        [Option(HelpText = "Hide progress", Default = false)]
-        public bool NoProgress { get; set; }
-
-        [Option(HelpText = "Disable saving results to database", Default = false)]
-        public bool NoSave { get; set; }
 
         [Option(HelpText = "Comma separated list of observation pairs (\"Name1-Name2\", order agnostic) to process, omit for all", Default = null)]
         public string OnlyForOverlaps { get; set; }
@@ -91,11 +73,7 @@ namespace OPS.Landform
 
     public class LocalMatching : LandformCommand
     {
-        private LocalMatchingOptions options;
-
-        private string dbgDir;
-        private string imageExt;
-        private string meshExt;
+        protected new LocalMatchingOptions options;
 
         private Histogram matchesPerImage = new Histogram(5, "image pairs", "matches after filtering");
         private Histogram matchesPerDistance = new Histogram(50, "feature matches", "distance after filtering");
@@ -120,7 +98,7 @@ namespace OPS.Landform
                 return 1;
             }
 
-            dbgDir = pipeline.GetLocalDebugFolder(options.OutputFolder, "alignment/MatchingProducts", project.Name);
+            outputPath = pipeline.GetLocalFolder(options.OutputFolder, "alignment/MatchingProducts", project.Name);
 
             if (options.WriteMatchImages)
             {
@@ -129,7 +107,7 @@ namespace OPS.Landform
                 {
                     return 0;
                 }
-                pipeline.LogInfo("writing {0} match images to {1}", imageExt, dbgDir);
+                pipeline.LogInfo("writing {0} match images to {1}", imageExt, outputPath);
             }
 
             if (options.WriteMatchMeshes)
@@ -139,7 +117,7 @@ namespace OPS.Landform
                 {
                     return 0;
                 }
-                pipeline.LogInfo("writing {0} match meshes to {1}", meshExt, dbgDir);
+                pipeline.LogInfo("writing {0} match meshes to {1}", meshExt, outputPath);
             }
 
             var allowed = (options.OnlyForOverlaps ?? "")
@@ -313,8 +291,8 @@ namespace OPS.Landform
             var modelFile = StringHelper.GetLastUrlPathSegment(modelObs.Url);
             var dataFile = StringHelper.GetLastUrlPathSegment(dataObs.Url);
             var ret = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat, dataFeat, d2m, modelFile, dataFile);
-            PathHelper.EnsureExists(dbgDir);
-            ret.Save<byte>(string.Format("{0}{1}_{2}_Matches{3}", dbgDir, modelObs.Name, dataObs.Name, imageExt));
+            PathHelper.EnsureExists(outputPath);
+            ret.Save<byte>(string.Format("{0}{1}_{2}_Matches{3}", outputPath, modelObs.Name, dataObs.Name, imageExt));
         }
 
         private void WriteMatchMesh(ComputedCorrespondence product, AlignmentScene scene,
@@ -332,7 +310,7 @@ namespace OPS.Landform
             var ret = ImageMatching.MakeMatchMesh(modelCam, dataCam, modelFeat, dataFeat, modelToRoot, dataToRoot, d2m);
             if (ret.HasFaces)
             {
-                var dir = dbgDir + "meshes/";
+                var dir = outputPath + "meshes/";
                 PathHelper.EnsureExists(dir);
                 ret.Save(string.Format("{0}{1}_{2}_PriorMatches{3}", dir, modelObs.Name, dataObs.Name, meshExt));
             }
