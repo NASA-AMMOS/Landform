@@ -78,7 +78,7 @@ namespace OPS.Pipeline
             dispatcher = MakeDispatcher();
         }
 
-        virtual public TypeDispatcher MakeDispatcher()
+        virtual protected TypeDispatcher MakeDispatcher()
         {
             var ret = new TypeDispatcher()
                 .Case((CreateProjectMessage m) => CreateProject(m))
