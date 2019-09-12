@@ -86,10 +86,10 @@ namespace OPS.TilingServer
 
             string meshUrl = pipeline.GetStorageUrl("input", options.ProjectName,
                                                     Path.GetFileName(options.MeshFilepath));
-            pipeline.LogInfo("uploading input mesh \"{0}\" for project \"{1}\"", options.MeshFilepath,
+            pipeline.LogDebug("uploading input mesh \"{0}\" for project \"{1}\"", options.MeshFilepath,
                              options.ProjectName);
             pipeline.SaveFile(options.MeshFilepath, meshUrl);
-            pipeline.LogInfo("upload input mesh \"{0}\" for project \"{1}\" complete",
+            pipeline.LogDebug("upload input mesh \"{0}\" for project \"{1}\" complete",
                              options.MeshFilepath, options.ProjectName);
 
             string imageUrl = null;
@@ -97,10 +97,10 @@ namespace OPS.TilingServer
             {
                 imageUrl = pipeline.GetStorageUrl("input", options.ProjectName,
                                                   Path.GetFileName(options.ImageFilepath));
-                pipeline.LogInfo("uploading input image \"{0}\" for project \"{1}\"", options.ImageFilepath,
+                pipeline.LogDebug("uploading input image \"{0}\" for project \"{1}\"", options.ImageFilepath,
                                  options.ProjectName);
                 pipeline.SaveFile(options.ImageFilepath, imageUrl);
-                pipeline.LogInfo("uploading input image \"{0}\" for project \"{1}\" complete", options.ImageFilepath,
+                pipeline.LogDebug("uploading input image \"{0}\" for project \"{1}\" complete", options.ImageFilepath,
                                  options.ProjectName);
             }
 
