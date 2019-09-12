@@ -46,8 +46,8 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "0 or unset to use all available cores, N to use up to N, -M to reserve M")]
         public string MaxCores { get; set; }
 
-        [Option(Default = -1, HelpText = "negative to use a time-dependent random seed")]
-        public int RandomSeed { get; set; }
+        [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
+        public string RandomSeed { get; set; }
 
         [Option(Default = null, HelpText = "legacy compatibility (read only) true/false")]
         public string LegacyCompat { get; set; }
