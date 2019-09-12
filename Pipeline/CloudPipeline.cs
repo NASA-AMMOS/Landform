@@ -87,12 +87,7 @@ namespace OPS.Pipeline
             if (enableDynamo)
             {
                 this.tablePrefix = makePrefix(tablePrefix);
-                string dynamoUrl = cloudConfig.DynamoUrl;
-                if (dynamoUrl == null || dynamoUrl == "null")
-                {
-                    dynamoUrl = "";
-                }
-                dynamoContext = DBUtil.MakeContext(this.tablePrefix, awsProfile, dynamoUrl);
+                dynamoContext = DBUtil.MakeContext(this.tablePrefix, awsProfile, awsRegion);
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
