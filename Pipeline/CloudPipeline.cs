@@ -347,9 +347,9 @@ namespace OPS.Pipeline
 
         private void InitializeQueues(bool quiet = false)
         {
-            MasterQueue = new MessageQueue(queuePrefix + "master", awsProfile, MASTER_QUEUE_TIMEOUT_SEC,
+            MasterQueue = new MessageQueue(queuePrefix + "master", awsProfile, awsRegion, MASTER_QUEUE_TIMEOUT_SEC,
                                            logger: Logger, quiet: quiet);
-            WorkerQueue = new MessageQueue(queuePrefix + "worker", awsProfile, WORKER_QUEUE_TIMEOUT_SEC,
+            WorkerQueue = new MessageQueue(queuePrefix + "worker", awsProfile, awsRegion, WORKER_QUEUE_TIMEOUT_SEC,
                                            logger: Logger, quiet: quiet);
             if (!quiet)
             {
@@ -359,7 +359,7 @@ namespace OPS.Pipeline
 
         public void DeleteQueues()
         {
-            var client = MessageQueue.GetClient(awsProfile);
+            var client = MessageQueue.GetClient(awsProfile, awsRegion);
             MessageQueue.DeleteQueue(client, queuePrefix + "master");
             MessageQueue.DeleteQueue(client, queuePrefix + "worker");
         }
