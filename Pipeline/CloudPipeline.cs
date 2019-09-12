@@ -24,8 +24,11 @@ namespace OPS.Pipeline
         public override bool LegacyCompat { get { return (Config as CloudPipelineConfig).LegacyCompat; } }
 
         private readonly string awsProfile;
+        private readonly string awsRegion;
+
         private readonly IAmazonDynamoDB dynamoClient;
         private readonly DynamoDBContext dynamoContext;
+
         private readonly string queuePrefix;
         private readonly string tablePrefix;
 
@@ -49,15 +52,14 @@ namespace OPS.Pipeline
                 NumberHelper.RandomSeed = cloudConfig.RandomSeed;
             }
 
-            awsProfile = cloudConfig.AWSProfile;
-            if (awsProfile == "" || awsProfile == "null")
-            {
-                awsProfile = null;
-            }
+            string convertNull(string s) { return s == "" || s == "null" ? null : s; }
+
+            awsProfile = convertNull(cloudConfig.AWSProfile);
+            awsRegion = convertNull(cloudConfig.AWSRegion);
 
             if (enableS3)
             {
-                defaultStorage = new StorageHelper(awsProfile, "us-west-1");
+                defaultStorage = new StorageHelper(awsProfile, awsRegion);
             }
 
             Func<string, string> makePrefix = (pfx) => {
@@ -109,14 +111,11 @@ namespace OPS.Pipeline
             }
 
             //TODO MSL specific
-            string msliceAWSProfile = cloudConfig.MSLICEAWSProfile;
-            if (msliceAWSProfile == "" || msliceAWSProfile == "null")
-            {
-                msliceAWSProfile = null;
-            }
+            string msliceAWSProfile = convertNull(cloudConfig.MSLICEAWSProfile);
+            string msliceAWSRegion = convertNull(cloudConfig.MSLICEAWSRegion);
             if (OPS.Cloud.Credentials.Exists(msliceAWSProfile) && !string.IsNullOrEmpty(cloudConfig.MSLICES3Url))
             {
-                storageSelect.Add(cloudConfig.MSLICES3Url, new StorageHelper(msliceAWSProfile));
+                storageSelect.Add(cloudConfig.MSLICES3Url, new StorageHelper(msliceAWSProfile, msliceAWSRegion));
             }
         }
 
@@ -128,17 +127,20 @@ namespace OPS.Pipeline
             Logger.Info("AWS region: " + cloudConfig.AWSRegion);
             Logger.Info("AWS profile: " + cloudConfig.AWSProfile);
             Logger.Info("MSLICE AWS profile: " + cloudConfig.MSLICEAWSProfile);
+            Logger.Info("MSLICE AWS region: " + cloudConfig.MSLICEAWSRegion);
             Logger.Info("MSLICE S3 URL: " + cloudConfig.MSLICES3Url);
         }
 
         private StorageHelper GetStorageHelper(string url) {
-            while (url != null && url.Length > 0)
+            if (url != null && url.Length > 0)
             {
-                if (storageSelect.ContainsKey(url))
+                foreach (var entry in storageSelect)
                 {
-                    return storageSelect[url];
+                    if (url.StartsWith(entry.Key, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return entry.Value;
+                    }
                 }
-                url = url.Substring(0, url.Length - 1);
             }
             return defaultStorage;
         }

@@ -37,6 +37,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "MSLICE profile")]
         public string MSLICEAWSProfile { get; set; }
 
+        [Option(Default = null, HelpText = "MSLICE region")]
+        public string MSLICEAWSRegion { get; set; }
+
         [Option(Default = null, HelpText = "MSLICE S3 url")]
         public string MSLICES3Url { get; set; }
 
@@ -86,6 +89,8 @@ namespace OPS.Landform
             config.AWSProfile = ConsoleHelper.Prompt("AWS profile", options.AWSProfile, config.AWSProfile);
             config.MSLICEAWSProfile = ConsoleHelper.Prompt("MSLICE AWS profile", options.MSLICEAWSProfile,
                                                            config.MSLICEAWSProfile);
+            config.MSLICEAWSRegion = ConsoleHelper.Prompt("MSLICE AWS region", options.MSLICEAWSRegion,
+                                                          config.MSLICEAWSRegion);
             config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url);
             config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
                                                    options.MaxCores, config.MaxCores);

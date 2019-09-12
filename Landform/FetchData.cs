@@ -75,6 +75,19 @@ namespace OPS.Landform
 
         private static readonly ILog logger = LogManager.GetLogger(typeof(FetchData));
 
+        private StorageHelper _storageHelper;
+        private StorageHelper storageHelper
+        {
+            get
+            {
+                if (_storageHelper == null)
+                {
+                    _storageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
+                }
+                return _storageHelper;
+            }
+        }
+
         private string[] defaultSearchLocations = new string[]
         {
             "s3://red-product/ods/surface/sol/#####/soas/rdr", //mslice bucket on us-west-1 (malin images??)
@@ -103,9 +116,8 @@ namespace OPS.Landform
             {
                 List<string> results = new List<string>();
                 logger.InfoFormat("searching \"{0}\"", searchDir);
-                var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
                 // TODO: Limit folder depth as "tiles" directory can result in long indexing time
-                var paths = inputStorageHelper.SearchObjects(searchDir).ToList();
+                var paths = storageHelper.SearchObjects(searchDir).ToList();
                 foreach (var path in paths)
                 {
                     results.Add(path);
@@ -247,8 +259,7 @@ namespace OPS.Landform
                     {
                         if (s3)
                         {
-                            var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
-                            success = inputStorageHelper.DownloadFile(url, f);
+                            success = storageHelper.DownloadFile(url, f);
                         }
                         else
                         {
@@ -277,9 +288,8 @@ namespace OPS.Landform
             {
                 return true;
             }
-            var inputStorageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
             var localPath = LocalPath(url);
-            return !inputStorageHelper.FileSizeMatches(url, localPath);
+            return !storageHelper.FileSizeMatches(url, localPath);
         }
 
         private void DownloadFiles(List<string> files)

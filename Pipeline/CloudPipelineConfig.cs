@@ -32,6 +32,10 @@ namespace OPS.Pipeline
         public string MSLICEAWSProfile;
 
         //TODO MSL specific
+        [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_REGION")]
+        public string MSLICEAWSRegion;
+
+        //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_S3_URL")]
         public string MSLICES3Url;
 
