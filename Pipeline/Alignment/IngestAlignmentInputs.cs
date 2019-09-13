@@ -35,6 +35,7 @@ namespace OPS.Pipeline
         public readonly List<BaseUrl> BaseUrls = new List<BaseUrl>();
 
         private Project project;
+        private MissionSpecific mission;
         private IngestPDSImage ingester;
         private bool noProgress;
         private ConcurrentDictionary<string, int> indices; //observation name -> observation index
@@ -46,6 +47,9 @@ namespace OPS.Pipeline
                                      bool noProgress = false)
             : base(pipeline)
         {
+            this.project = project;
+            this.mission = mission;
+
             if (string.IsNullOrEmpty(project.InputPath))
             {
                 throw new ArgumentException("input path not set for project " + project.Name);
@@ -78,8 +82,6 @@ namespace OPS.Pipeline
                 BaseUrls.Add(new BaseUrl(project.InputPath));
             }
 
-            this.project = project;
-
             SiteDrive[] siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
 
             string[] frames = StringHelper.ParseList(onlyForFrames);
@@ -110,12 +112,6 @@ namespace OPS.Pipeline
         public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest,
                           Action<IngestImage.Result> func = null)
         {
-            if (places != null && !places.CredentialsLoaded())
-            {
-                pipeline.LogWarn("credentials for PlacesDB priors not available, disabling PlacesDB");
-                places = null;
-            }
-
             ingester.Locations = locations;
             ingester.Places = places;
             ingester.LegacyManifest = manifest;
@@ -144,8 +140,6 @@ namespace OPS.Pipeline
             int nt = 0, nu = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, np = 0;
 
             ConcurrentDictionary<string, bool> done = new ConcurrentDictionary<string, bool>();
-
-            var mission = MissionSpecific.GetInstance(project.Mission);
 
             Action<string> ingestUrl = url => {
 

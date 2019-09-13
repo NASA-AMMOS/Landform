@@ -91,7 +91,7 @@ namespace OPS.LandformUtil
                 if (useSiteDriveFame)
                 {
                     MSLPlaces places = new MSLPlaces();
-                    places.GetEstimatedLatLon(new SiteDrive(site, drive), out Vector2 latlon);
+                    Vector2 latlon = places.GetEstimatedLatLon(new SiteDrive(site, drive));
                     GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
                     colRowOffset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
                     zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);

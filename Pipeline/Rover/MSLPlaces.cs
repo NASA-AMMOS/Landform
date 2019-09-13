@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
+using System.IO;
+using System.Net;
 using System.Threading.Tasks;
 using System.Xml;
 using Microsoft.Xna.Framework;
@@ -12,7 +14,6 @@ using RestSharp.Authenticators;
 
 namespace OPS.Pipeline
 {
-
     public class MSLPlacesException : Exception
     {
         public MSLPlacesException(string msg) : base(msg) { }
@@ -25,6 +26,15 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_API_KEY")]
         public string APIKey { get; set; }
+
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_NAME")]
+        public string AuthCookieName { get; set; } = "ssosession";
+
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_VALUE")]
+        public string AuthCookieValue { get; set; }
+
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_FILE")]
+        public string AuthCookieFile { get; set; } = "~/.cssotoken/ssosession";
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
         public string View { get; set; } = "localized_interp"; // options: best_tactical, localized_pos, localized_interp 
@@ -47,159 +57,180 @@ namespace OPS.Pipeline
     /// </summary>
     public class MSLPlaces
     {
+        private string view;
+        private string cookieValue;
 
-        private double? EllipsoidRadius = null;
-        private Dictionary<SiteDrive, Vector3> cachedOffsetFromRootRover = new Dictionary<SiteDrive, Vector3>();
-
-        public bool CredentialsLoaded()
-        {
-            return PlacesConfig.Instance.Username != null && PlacesConfig.Instance.APIKey != null;
-        }
+        private double ellipsoidRadius;
 
         //avoid hitting the upstream service too hard
-        ConcurrentDictionary<string, XmlDocument> cache = new ConcurrentDictionary<string, XmlDocument>();
-        private XmlDocument GetXmlDoc(string url)
-        {
-            return cache.GetOrAdd(url, _ => {
-                    var config = PlacesConfig.Instance;
-                    RestClient client = new RestClient();
-                    client.BaseUrl = new Uri(config.Url);
-                    client.Authenticator = new HttpBasicAuthenticator(config.Username, config.APIKey);
-                    var request = new RestRequest();
-                    
-                    request.Resource = url;
-                    IRestResponse response = client.Execute(request);
-                    if(response.ResponseStatus != ResponseStatus.Completed)
-                    {
-                        throw new Exception("Error connecting to places DB: " + response.StatusCode.ToString() + " " +
-                                            response.ErrorMessage);
-                    }
-                    if(response.StatusCode != System.Net.HttpStatusCode.OK)
-                    {
-                        return null;
-                    }
+        //important: this is explicitly *not* a ConcurrentDictionary
+        //we lock on it to serialize requests
+        //that handles the case of launching multiple initial requests for the same query in parallel
+        //query => response
+        Dictionary<string, XmlDocument> cache = new Dictionary<string, XmlDocument>();
 
-                    XmlDocument document = new XmlDocument();
-                    try
+        private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
+            new ConcurrentDictionary<SiteDrive, Vector3>();
+
+        public MSLPlaces()
+        {
+            var config = PlacesConfig.Instance;
+
+            if (!string.IsNullOrEmpty(config.AuthCookieValue))
+            {
+                cookieValue = config.AuthCookieValue;
+            }
+            else if (!string.IsNullOrEmpty(config.AuthCookieFile))
+            {
+                string path = config.AuthCookieFile;
+                if (path.StartsWith("~"))
+                {
+                    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    path = Path.Combine(home, path.Substring(2));
+                }
+                if (File.Exists(path))
+                {
+                    cookieValue = File.ReadAllText(path);
+                }
+            }
+                
+            view = config.View;
+
+            ellipsoidRadius = GetEllipsoidRadius(); //also serves as test query
+        }
+
+        private XmlDocument Fetch(string url)
+        {
+            lock (cache)
+            {
+                if (cache.ContainsKey(url))
+                {
+                    var doc = cache[url];
+                    if (doc == null)
                     {
-                        document.LoadXml(response.Content);
+                        throw new Exception(string.Format("Places DB request '{0}' failed, not retrying", url));
                     }
-                    catch (System.Xml.XmlException ex)
-                    {
-                        throw new Exception("Error parsing response from places DB: " + ex.Message);
-                    }
-                    return document;
-                });
+                    return doc;
+                }
+
+                var config = PlacesConfig.Instance;
+                
+                Uri uri = new Uri(config.Url);
+                
+                RestClient client = new RestClient();
+                client.BaseUrl = uri;
+                
+                if (!string.IsNullOrEmpty(config.Username) && !string.IsNullOrEmpty(config.APIKey))
+                {
+                    client.Authenticator = new HttpBasicAuthenticator(config.Username, config.APIKey);
+                }
+                
+                if (!string.IsNullOrEmpty(config.AuthCookieName) && !string.IsNullOrEmpty(cookieValue))
+                {
+                    client.CookieContainer = new CookieContainer();
+                    var cookie = new Cookie(config.AuthCookieName, cookieValue) { Domain = uri.Host };
+                    client.CookieContainer.Add(cookie);
+                }
+                
+                var request = new RestRequest();
+                request.Resource = url;
+                
+                IRestResponse response = client.Execute(request);
+                
+                if (response.ResponseStatus != ResponseStatus.Completed ||
+                    response.StatusCode != System.Net.HttpStatusCode.OK)
+                {
+                    cache[url] = null;
+                    throw new Exception(string.Format("{0} connecting to Places DB for request '{1}': {2}",
+                                                      response.StatusCode, url, response.ErrorMessage));
+                }
+                
+                XmlDocument document = new XmlDocument();
+                try
+                {
+                    document.LoadXml(response.Content);
+                }
+                catch (System.Xml.XmlException ex)
+                {
+                    cache[url] = null;
+                    throw new Exception(string.Format("Error parsing response from Places DB for request '{0}': {1}",
+                                                      url, ex.Message));
+                }
+                
+                cache[url] = document;
+
+                return document;
+            }
         }
                 
-        private Vector3 ReadOffsetFromDocument(XmlDocument doc)
+        private Vector3 GetOffset(XmlDocument doc)
         {
             XmlNodeList nodes = doc.GetElementsByTagName("offset");
             if (nodes.Count != 1)
             {
                 throw new MSLPlacesException("Unexpected number of offsets in places query");
             }
-            XmlNode offsetNode = nodes[0];
-            Vector3 v = new Vector3();
-            v.X = double.Parse(offsetNode.Attributes["x"].Value);
-            v.Y = double.Parse(offsetNode.Attributes["y"].Value);
-            v.Z = double.Parse(offsetNode.Attributes["z"].Value);
-            return v;
+            return new Vector3(double.Parse(nodes[0].Attributes["x"].Value),
+                               double.Parse(nodes[0].Attributes["y"].Value),
+                               double.Parse(nodes[0].Attributes["z"].Value));
         }
 
-        private double GetElipsoidRadius()
+        private double GetEllipsoidRadius()
         {
-            if (EllipsoidRadius == null)
+            string url = string.Format("rmc/orbital(0)/metadata");
+            XmlDocument document = Fetch(url);
+            if (document != null)
             {
-                var config = PlacesConfig.Instance;
-
-                string urlForRequest = string.Format("rmc/orbital(0)/metadata");
-                XmlDocument document = GetXmlDoc(urlForRequest);
-
-                if (document != null)
+                foreach (XmlElement itemNode in document.GetElementsByTagName("item"))
                 {
-                    foreach (XmlElement itemNode in document.GetElementsByTagName("item"))
+                    XmlNodeList elList = itemNode.GetElementsByTagName("key");
+                    if (elList.Count == 1 && elList[0].InnerText.Contains("ellipsoid_radius"))
                     {
-                        XmlNodeList elList = itemNode.GetElementsByTagName("key");
-                        if (elList.Count == 1 && elList[0].InnerText.Contains("ellipsoid_radius"))
-                        {
-                            EllipsoidRadius = double.Parse(itemNode.GetElementsByTagName("value")[0].InnerText);
-                        }
+                        return double.Parse(itemNode.GetElementsByTagName("value")[0].InnerText);
                     }
                 }
             }
-            if(!EllipsoidRadius.HasValue)
-            {
-                throw new Exception("Unexpected Places result, ellipsoid radius was null");
-            }
-            return EllipsoidRadius.Value;
+            throw new Exception("failed to get ellipsoid radius from PlacesDB");
         }
 
         /// <summary>
         /// Finds the estimated mars lat and lon for a given site drive
         /// </summary>
-        /// <param name="sd"></param>
-        /// <returns></returns>
-        public bool GetEstimatedLatLon(SiteDrive sd, out Vector2 latlon)
+        public Vector2 GetEstimatedLatLon(SiteDrive sd)
         {
-            latlon = Vector2.Zero;
-
-            var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)", config.View, sd.Site, sd.Drive);
-            XmlDocument document = GetXmlDoc(urlForRequest);
-            if (document != null)
-            {
-                Vector3 v = ReadOffsetFromDocument(document);
-                // x is northing
-                // y is easting
-                double ellipsoid_radius = GetElipsoidRadius();
-
-                double lat = MathHelper.ToDegrees(v.X / ellipsoid_radius);
-                double lon = MathHelper.ToDegrees(v.Y / ellipsoid_radius);
-                latlon = new Vector2(lat, lon);
-                return true;
-            }
-                return false;
+            string url = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)", view, sd.Site, sd.Drive);
+            Vector3 v = GetOffset(Fetch(url));
+            // x is northing, y is easting
+            double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius);
+            double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius);
+            return new Vector2(lat, lon);
         }
 
         /// <summary>
         /// Returns the Local_level frame offset between the "from" sitedrive to the "to" sitedrive
         /// </summary>
-        /// <param name="from"></param>
-        /// <param name="to"></param>
-        /// <returns></returns>
-        public bool GetEstimatedOffset(SiteDrive from, SiteDrive to, out Vector3 offset)
+        public Vector3 GetEstimatedOffset(SiteDrive fromSD, SiteDrive toSD)
         {
-            offset = Vector3.Zero;
-            var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format("query/primary/{0}?from=rover({1},{2})&to=rover({3},{4})", config.View, from.Site, from.Drive, to.Site, to.Drive);
-            XmlDocument document = GetXmlDoc(urlForRequest);
-            if (document != null)
-            {
-                offset = ReadOffsetFromDocument(document);
-                return true;
-            }
-            return false;
+            string url = string.Format("query/primary/{0}?from=rover({1},{2})&to=rover({3},{4})",
+                                       view, fromSD.Site, fromSD.Drive, toSD.Site, toSD.Drive);
+            return GetOffset(Fetch(url));
         }
 
         /// <summary>
         /// Returns the Local_level frame offset between the "from" sitedrive to the "to" site
         /// </summary>
-        /// <param name="from"></param>
-        /// <param name="to"></param>
-        /// <returns></returns>
-        public bool GetEstimatedOffsetFromSite(SiteDrive from, int toSite, out Vector3 offset)
+        public Vector3 GetEstimatedOffsetToSite(SiteDrive fromSD, int toSite)
         {
-            offset = Vector3.Zero;
-            var config = PlacesConfig.Instance;
-            string urlForRequest = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})", config.View, from.Site, from.Drive, toSite);
-            XmlDocument document = GetXmlDoc(urlForRequest);
-            if (document != null)
+            string url = null;
+            if (fromSD.Drive > 0)
             {
-                offset = ReadOffsetFromDocument(document);
-                return true;
+                url = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})", view, fromSD.Site, fromSD.Drive, toSite);
             }
-            return false;
+            else
+            {
+                url = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSite);
+            }
+            return GetOffset(Fetch(url));
         }
 
         /// <summary>
@@ -207,27 +238,9 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="sd"></param>
         /// <returns></returns>
-        public bool GetEstimatedOffsetFromStart(SiteDrive sd, out Vector3 offset)
+        public Vector3 GetEstimatedOffsetToStart(SiteDrive sd)
         {
-            offset = Vector3.Zero;
-
-            lock (cachedOffsetFromRootRover)
-            {
-                if (!cachedOffsetFromRootRover.Keys.Contains(sd))
-                {
-                    if(GetEstimatedOffsetFromSite(sd, 1, out offset))
-                    {
-                        cachedOffsetFromRootRover[sd] = offset;
-                        return true;
-                    }
-                }
-                else
-                {
-                    offset = cachedOffsetFromRootRover[sd];
-                    return true;
-                }
-            }
-            return false;
+            return cachedOffsetFromStart.GetOrAdd(sd, _ => GetEstimatedOffsetToSite(sd, 1));
         }
     }
 }

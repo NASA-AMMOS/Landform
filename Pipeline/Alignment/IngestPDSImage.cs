@@ -295,7 +295,12 @@ namespace OPS.Pipeline
         private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)
         {
             var siteDrive = new SiteDrive(parser.SiteDrive);
-            if(!Places.GetEstimatedOffsetFromStart(siteDrive, out Vector3 loc))
+            var loc = Vector3.Zero;
+            try
+            {
+                loc = Places.GetEstimatedOffsetToStart(siteDrive);
+            }
+            catch (Exception ex)
             {
                 pipeline.LogWarn("no MSL Places for site drive {0}", siteDrive);
                 return null;

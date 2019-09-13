@@ -109,7 +109,7 @@ namespace OPS.Landform
             MSLPlaces places = null;
             if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
             {
-                places = new MSLPlaces();
+                places = GetPlacesDB();
             }
             else
             {
@@ -210,6 +210,19 @@ namespace OPS.Landform
             }
 
             return locations;
+        }
+
+        private MSLPlaces GetPlacesDB()
+        {
+            try
+            {
+                return new MSLPlaces();
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("Error initializing PlacesDB, disabling: {0}", ex.Message);
+                return null;
+            }
         }
     }
 }
