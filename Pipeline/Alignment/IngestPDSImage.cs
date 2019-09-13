@@ -165,7 +165,7 @@ namespace OPS.Pipeline
                 if (siteDriveFrame == null)
                 {
                     //fallback to pds headers, site relative
-                    var xform = GetSiteDriveTransformFromPDS(parser);
+                    var xform = GetSiteDriveToSiteTransformFromPDS(parser);
                     siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PDS, xform);
                 }
                 
@@ -278,9 +278,9 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
         }
 
-        //this function returns local level to site
+        //this function returns local_level to site
         //TODO: after all sites are processed the matrices can be fixed up to provide current site to root (first site) by chaining
-        private UncertainRigidTransform GetSiteDriveTransformFromPDS(PDSParser parser)
+        private UncertainRigidTransform GetSiteDriveToSiteTransformFromPDS(PDSParser parser)
         {            
             var siteDrive = new SiteDrive(parser.SiteDrive);
             Vector3 siteToLocalLevel = parser.OriginOffset;
@@ -292,18 +292,39 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(siteToLocalLevel), covariance);
         }
 
+        private ConcurrentDictionary<string, bool> alreadyWarned = new ConcurrentDictionary<string, bool>();
+
         private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)
         {
+            void warn(string what, Exception ex)
+            {
+                string msg = string.Format("failed to get PlacesDB prior for {0}: {1}", what, ex.Message);
+                alreadyWarned.GetOrAdd(msg, _ => { pipeline.LogWarn(msg); return true; });
+            }
+
             var siteDrive = new SiteDrive(parser.SiteDrive);
-            var loc = Vector3.Zero;
+            Vector3 loc = Vector3.Zero;
             try
             {
                 loc = Places.GetEstimatedOffsetToStart(siteDrive);
             }
             catch (Exception ex)
             {
-                pipeline.LogWarn("no MSL Places for site drive {0}", siteDrive);
-                return null;
+                //if Places was not able get the offset for siteDrive it may still be able to get the site offset
+                //and then we can append the offset from the PDS header to get to local_level 
+                //the result is not necessarily identical to the siteDrive transform we might have gotten from Places
+                //but we have seen cases where this fallback is better than nothing
+                warn(string.Format("site drive {0}, trying site {1}", siteDrive, siteDrive.Site), ex);
+                try
+                {
+                    loc = Places.GetEstimatedOffsetToStart(new SiteDrive(siteDrive.Site, 0));
+                    loc += parser.OriginOffset; //local_level origin in site frame
+                }
+                catch (Exception ex2)
+                {
+                    warn("site " + siteDrive.Site, ex2);
+                    return null;
+                }
             }
 
             // TODO: examine values here
@@ -335,7 +356,7 @@ namespace OPS.Pipeline
         }
         /// <summary>
         /// Get transform from observation frame, which is rover frame at the time the observation was acquired, to the
-        /// corresponding site drive (aka local level) frame.
+        /// corresponding site drive (aka local_level) frame.
         /// </summary>
         private UncertainRigidTransform GetObservationTransform(PDSParser parser)
         {
