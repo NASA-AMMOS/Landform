@@ -242,34 +242,7 @@ namespace OPS.Pipeline
             CoreLimitedParallel.ForEach(urls, ingestUrl);
                                             
             //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
-            if (na > ne) //don't write to database if we didn't add any observations
-            {
-                pipeline.LogInfo("adding observations and transforms to frames...");
-                var observationCache = new ObservationCache(pipeline, project.Name);
-                observationCache.Preload();
-                var frameCache = new FrameCache(pipeline, project.Name);
-                frameCache.Preload();
-                foreach (var observation in observationCache.GetAllObservations())
-                {
-                    var frame = frameCache.GetFrame(observation.FrameName);
-                    lock (frame.ObservationNames)
-                    {
-                        frame.ObservationNames.Add(observation.Name);
-                    }
-                }
-                foreach (var transform in frameCache.GetAllTransforms())
-                {
-                    var frame = frameCache.GetFrame(transform.FrameName);
-                    lock (frame.Transforms)
-                    {
-                        frame.Transforms.Add(transform.Source);
-                    }
-                }
-                foreach (var frame in frameCache.GetAllFrames())
-                {
-                    frame.Save(pipeline);
-                }
-            }
+            CheckAndUpdateFrames();
 
             if (orphans.Count > 0)
             {
@@ -329,6 +302,94 @@ namespace OPS.Pipeline
             }
 
             return na;
+        }
+
+        private void CheckAndUpdateFrames()
+        {
+            pipeline.LogInfo("adding new observations and transforms to frames...");
+
+            var framesToSave = new HashSet<string>();
+
+            var frameCache = new FrameCache(pipeline, project.Name);
+            frameCache.Preload();
+
+
+            var observationCache = new ObservationCache(pipeline, project.Name);
+            observationCache.Preload();
+            foreach (var observation in observationCache.GetAllObservations())
+            {
+                var frame = frameCache.GetFrame(observation.FrameName);
+                lock (frame.ObservationNames)
+                {
+                    if (frame.ObservationNames.Add(observation.Name))
+                    {
+                        framesToSave.Add(frame.Name);
+                    }
+                }
+            }
+
+            foreach (var transform in frameCache.GetAllTransforms())
+            {
+                var frame = frameCache.GetFrame(transform.FrameName);
+                lock (frame.Transforms)
+                {
+                    if (frame.Transforms.Add(transform.Source))
+                    {
+                        framesToSave.Add(frame.Name);
+                    }
+                }
+            }
+
+            var sdFramesWithPDSPriors = new HashSet<string>();
+            var sdFramesWithGoodPriors = new HashSet<string>();
+            var sdFramesWithNoPriors = new HashSet<string>();
+            foreach (var frame in frameCache.GetAllFrames())
+            {
+                if (frame.ParentName == mission.RootFrameName())
+                {
+                    var xform = frameCache.GetBestPrior(frame);
+                    var group = xform == null ? sdFramesWithNoPriors :
+                        xform.Source == TransformSource.PDS ? sdFramesWithPDSPriors : sdFramesWithGoodPriors;
+                    
+                    group.Add(frame.Name);
+                }
+            }
+
+            if (sdFramesWithNoPriors.Count > 0)
+            {
+                pipeline.LogError("incomplete priors! sitedrives with no priors: {0}", string.Join(", ", sdFramesWithNoPriors));
+            }
+            else if (sdFramesWithPDSPriors.Count > 0)
+            {
+                pipeline.LogInfo("sitedrives with full priors: {0}", string.Join(", ", sdFramesWithGoodPriors));
+                pipeline.LogWarn("sitedrives with incomplete priors: {0}", string.Join(", ", sdFramesWithPDSPriors));
+                if (sdFramesWithGoodPriors.Count > 0)
+                {
+                    pipeline.LogError("incomplete priors! some sitedrives relative to root and some relative to site");
+                }
+                else
+                {
+                    var sites = new HashSet<int>();
+                    foreach (var sd in sdFramesWithPDSPriors)
+                    {
+                        sites.Add((new SiteDrive(sd)).Site);
+                    }
+                    if (sites.Count > 1)
+                    {
+                        pipeline.LogError("incomplete priors! sitedrives relative to different site frames");
+                    }
+                    else
+                    {
+                        pipeline.LogError("incomplete priors! sitedrives relative to site {0} frame, not root", sites.First());
+                    }
+                }
+            }
+
+            pipeline.LogInfo("saving {0} updated frames", framesToSave.Count);
+            foreach (var frame in framesToSave)
+            {
+                frameCache.GetFrame(frame).Save(pipeline);
+            }
         }
     }
 }
