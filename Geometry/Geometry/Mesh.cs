@@ -1022,7 +1022,7 @@ namespace OPS.Geometry
 
         public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
         {
-            return MergeWithCommonAttributes(meshesToCombine); //all params or this will be infinite recursion
+            return MergeWithCommonAttributes(meshesToCombine, true, true); //all params or this will be infinite recursion
         }
 
         /// <summary>
