@@ -123,7 +123,8 @@ namespace OPS.Landform
                 var runOptions = new RunProjectOptions()
                 {
                     ProjectName = project.Name,
-                    Local = true
+                    Local = true,
+                    Wait = true
                 };
 
                 int runResult = new RunProject(pipeline,runOptions,ExecutionMode.None).Run();
@@ -154,13 +155,13 @@ namespace OPS.Landform
                 ExportImageFormat = options.ImageExtension,
                 ExportMeshFormat = options.MeshExtension,
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
-                NoWait = true,
+                NoWait = false,
                 MaxLeafGroupSize = 32,
                 Local = true,
 
             };
 
-            var createProject = new CreateProject(pipeline,createOptions,ExecutionMode.Immediate);
+            var createProject = new CreateProject(pipeline,createOptions,ExecutionMode.Deferred);
             int createResult = createProject.Run();
             if (createResult == 1)
             {
@@ -196,7 +197,7 @@ namespace OPS.Landform
                    MeshFilepath = meshPath,
                    ImageFilepath = texturePath,
                    TileId = tileName,
-                   NoWait = true,
+                   NoWait = false,
                    Local = true
                };
                int runResult = new UploadInput(pipeline, uploadOptions, ExecutionMode.None).Run();
