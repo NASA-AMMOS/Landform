@@ -87,7 +87,7 @@ namespace OPS.Landform
                 if (null != existingProject)
                 {
                     pipeline.LogInfo("Deleting existing tiling project {0}",options.ProjectName);
-                    existingProject.Delete(pipeline, true);
+                    existingProject.Delete(pipeline);
                 }
             }
 
