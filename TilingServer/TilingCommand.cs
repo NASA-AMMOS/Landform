@@ -40,8 +40,12 @@ namespace OPS.TilingServer
         protected TilingCommand(PipelineCore pipeline, ExecutionMode localExecutionMode = ExecutionMode.None)
         {
             this.pipeline = pipeline;
-            if (pipeline is LocalPipeline)
+            if (pipeline is LocalPipeline && localExecutionMode != ExecutionMode.None)
             {
+                if (executive != null)
+                {
+                    pipeline.LogWarn("Overwriting shared pipeline executive.");
+                }
                 executive = PipelineExecutive.MakeExecutive(pipeline, localExecutionMode);
             }
         }

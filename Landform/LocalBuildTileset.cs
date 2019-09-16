@@ -126,7 +126,7 @@ namespace OPS.Landform
                     Local = true
                 };
 
-                int runResult = new RunProject(runOptions).Run();
+                int runResult = new RunProject(pipeline,runOptions,ExecutionMode.None).Run();
                 if(runResult != 0)
                 {
                     pipeline.LogError("build parents failed");
@@ -154,13 +154,13 @@ namespace OPS.Landform
                 ExportImageFormat = options.ImageExtension,
                 ExportMeshFormat = options.MeshExtension,
                 ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
-                NoWait = false,
+                NoWait = true,
                 MaxLeafGroupSize = 32,
                 Local = true,
 
             };
 
-            var createProject = new CreateProject(createOptions);
+            var createProject = new CreateProject(pipeline,createOptions,ExecutionMode.Immediate);
             int createResult = createProject.Run();
             if (createResult == 1)
             {
@@ -177,31 +177,39 @@ namespace OPS.Landform
         private int UploadLeafMeshPairs(string inputDir, string tilingProjectName)
         {
             int numMeshes = 0;
-            foreach (var meshPath in Directory.EnumerateFiles(inputDir, "*.ply"))
-            {
-                string tileName = Path.GetFileNameWithoutExtension(meshPath);
-                string texturePath = Path.ChangeExtension(meshPath, "png");
-                if(!File.Exists(texturePath))
-                {
-                    texturePath = null;
-                }
-                var uploadOptions = new UploadInputOptions()
-                {
-                    ProjectName = tilingProjectName,
-                    MeshFilepath = meshPath,
-                    ImageFilepath = texturePath,
-                    TileId = tileName,
-                    NoWait = false,
-                    Local = true
-                };
-                int runResult = new UploadInput(uploadOptions).Run();
-                if (runResult == 1)
-                {
-                    pipeline.LogWarn("failed to upload tile: " + tileName);
-                    continue;
-                }
-                numMeshes++;
-            }
+            var meshFiles = Directory.EnumerateFiles(inputDir, "*.ply").ToArray();
+            int totalMeshFiles = meshFiles.Count();
+
+          Serial.ForEach(meshFiles, meshPath =>
+           {
+               int curMeshIdx = Interlocked.Increment(ref numMeshes);
+
+               string tileName = Path.GetFileNameWithoutExtension(meshPath);
+               string texturePath = Path.ChangeExtension(meshPath, "png");
+               if (!File.Exists(texturePath))
+               {
+                   texturePath = null;
+               }
+               var uploadOptions = new UploadInputOptions()
+               {
+                   ProjectName = tilingProjectName,
+                   MeshFilepath = meshPath,
+                   ImageFilepath = texturePath,
+                   TileId = tileName,
+                   NoWait = true,
+                   Local = true
+               };
+               int runResult = new UploadInput(pipeline, uploadOptions, ExecutionMode.None).Run();
+               if (runResult == 1)
+               {
+                   pipeline.LogWarn("failed to upload tile: " + tileName);
+               }
+               else
+               {
+                   pipeline.LogInfo("Uploading input {0}: {1}/{2} ({3}%)", tileName, curMeshIdx, totalMeshFiles,
+                                (int)(100 * curMeshIdx / (float)totalMeshFiles));
+               }
+           });
 
             return numMeshes;
         }

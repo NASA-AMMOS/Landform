@@ -41,7 +41,7 @@ namespace OPS.TilingServer
             this.options = options;
         }
 
-        public UploadInput(PipelineCore pipeline, UploadInputOptions options) : base(pipeline, ExecutionMode.Immediate)
+        public UploadInput(PipelineCore pipeline, UploadInputOptions options, ExecutionMode exMode) : base(pipeline, exMode)
         {
             this.options = options;
         }
