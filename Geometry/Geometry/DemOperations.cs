@@ -160,28 +160,28 @@ namespace OPS.Geometry
         /// <param name="col"></param>
         /// <param name="filterValues"></param>
         /// <returns></returns>
-        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, bool filterValues = true, double minFilter=-1000000, double maxFilter=1000000)
+        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, double scale = 1, bool filterValues = true, double minFilter=-1000000, double maxFilter=1000000)
         {
             if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || !dem.IsValid(row, col)) //respect input image mask if it has one
             {
                 return null;
             }
 
-            var value = dem[0, row, col];
+            double value = dem[0, row, col];
             if (!filterValues || value >= minFilter && value <= maxFilter)
             {
                 if (mask != null && !mask.isValid(row, col))
                 {
                    return null;
                 }
-                return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value);
+                return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value * scale);
             }         
             return null;
         }
 
-        public static Vector3? GetXYZ(Image dem, int row, int col, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
+        public static Vector3? GetXYZ(Image dem, int row, int col, double scale = 1, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
         {
-            return GetXYZ(dem, null, row, col, filterValues, minFilter, maxFilter);
+            return GetXYZ(dem, null, row, col, scale, filterValues, minFilter, maxFilter);
         }
 
         public static Vector2? GetRowCol(Image dem, Vector3 xyz)

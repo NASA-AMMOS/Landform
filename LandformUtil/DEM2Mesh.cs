@@ -110,7 +110,7 @@ namespace OPS.LandformUtil
             return p;
         };
 
-        private const long MAX_SINGLE_CHUNK_SIZE = 100000; //If input dem width x height is larger than this value squared, chunk the input and use SparseImage w/ cache to limit memory consumption   
+        private const long MAX_SINGLE_CHUNK_SIZE = 10000; //If input dem width x height is larger than this value squared, chunk the input and use SparseImage w/ cache to limit memory consumption   
 
         /// <summary>
         /// Recursively subsample regions where geometric error is too large
@@ -128,10 +128,11 @@ namespace OPS.LandformUtil
         /// <param name="sampleScale"></param>
         /// <param name="rand"></param>
         /// <returns></returns>
-        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Mask mask, int sampleNum, int testNum, double sampleScale, Random rand)
+        List<Vector2> Split(List<Vector2> rowCols, double r, double c, double width, double height, double error, Image dem, Mask mask, double scale, int sampleNum, int testNum, double sampleScale, Random rand)
         {
             //Mesh the current set of vertices
-            Mesh mesh = DelaunayTriangulation.Triangulate(rowCols.Select(rc => new Vertex(DemOperations.GetXYZ(dem,null,(int)rc.Y,(int)rc.X).Value)).ToArray(), vertToDelaunay);
+            var verts = rowCols.Select(rc => new Vertex(DemOperations.GetXYZ(dem, null, (int)rc.Y, (int)rc.X, scale).Value)).ToArray();
+            Mesh mesh = DelaunayTriangulation.Triangulate(verts, vertToDelaunay);
 
             //Sample
             List<Vector2> newRowCols = new List<Vector2>();
@@ -141,14 +142,14 @@ namespace OPS.LandformUtil
             {
                 int testR = (int)(r + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * height);
                 int testC = (int)(c + (sampleScale * rand.NextDouble() - 0.5 * (sampleScale - 1)) * width);
-                Vector3? v = DemOperations.GetXYZ(dem, mask, testR, testC);
-                mask.setInvalid(testR, testC); //Prevent point from being resampled
+                Vector3? v = DemOperations.GetXYZ(dem, mask, testR, testC, scale);
                 if(v.HasValue)
                 {
+                    mask.setInvalid(testR, testC); //Prevent point from being resampled
                     newRowCols.Add(new Vector2(testC, testR));
                     
                     //Test error between mesh and samples
-                    if(tested < testNum && testR > r && testR < r + height && testC > c && testC < c + width)
+                    if(!shouldSplit && tested < testNum && testR > r && testR < r + height && testC > c && testC < c + width)
                     {
                         double dist = double.MaxValue;
                         List<Triangle> tris = mesh.Triangles();
@@ -160,7 +161,6 @@ namespace OPS.LandformUtil
                         if(dist > error)
                         {
                             shouldSplit = true;
-                            tested = testNum;
                         }
                         tested++;
                     }
@@ -175,17 +175,17 @@ namespace OPS.LandformUtil
 
             //Compute new child tile bounds
             Vector3? tl = DemOperations.Interpolate(c - Math.Floor(c), r - Math.Floor(r),
-                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Floor(c), false),
-                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Ceiling(c), false),
-                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Floor(c), false),
-                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Ceiling(c), false));
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Floor(c), scale, false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r), (int)Math.Ceiling(c), scale, false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Floor(c), scale, false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r), (int)Math.Ceiling(c), scale, false));
             double r1 = Math.Min(r + height, dem.Height - 1);
             double c1 = Math.Min(c + width, dem.Width - 1);
             Vector3? br = DemOperations.Interpolate(c1 - Math.Floor(c1), r1 - Math.Floor(r1),
-                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Floor(c1), false),
-                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Ceiling(c1), false),
-                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Floor(c1), false),
-                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Ceiling(c1), false));
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Floor(c1), scale, false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Floor(r1), (int)Math.Ceiling(c1), scale, false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Floor(c1), scale, false),
+                DemOperations.GetXYZ(dem, null, (int)Math.Ceiling(r1), (int)Math.Ceiling(c1), scale, false));
             if (!tl.HasValue || !br.HasValue)
             {
                 throw new Exception("Failed to get tile corner");
@@ -215,7 +215,7 @@ namespace OPS.LandformUtil
             //Partition our current set of vertices + new samples into children
             foreach (Vector2 rc in rowCols.Union(newRowCols))
             {
-                Vector3 v = DemOperations.GetXYZ(dem, null, (int)rc.Y, (int)rc.X).Value;
+                Vector3 v = DemOperations.GetXYZ(dem, null, (int)rc.Y, (int)rc.X, scale).Value;
                 if(v.X < umidX)
                 {
                     if(v.Y > lmidY)
@@ -241,10 +241,10 @@ namespace OPS.LandformUtil
             }
 
             //Recurse on children
-            newRowCols.AddRange(Split(vIdxs1, r, c, width/2.0, height/2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(Split(vIdxs2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(Split(vIdxs3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
-            newRowCols.AddRange(Split(vIdxs4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs1, r, c, width/2.0, height/2.0, error, dem, mask, scale, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs2, r + height/2.0, c, width / 2.0, height / 2.0, error, dem, mask, scale, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs3, r, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, scale, sampleNum, testNum, sampleScale, rand));
+            newRowCols.AddRange(Split(vIdxs4, r + height / 2.0, c + width / 2.0, width / 2.0, height / 2.0, error, dem, mask, scale, sampleNum, testNum, sampleScale, rand));
 
             return newRowCols;
         }       
@@ -299,11 +299,11 @@ namespace OPS.LandformUtil
             {
                 //TODO: Refactor building full mesh to make this easy to add (likely avoid ConvertRNG)
                 throw new NotImplementedException("Building full mesh in sitedrive frame not yet supported");
-            }
-            dem.ScaleValues(options.VerticalScale);
+            }     
 
             if (options.Error == 0 && options.Radius == -1)
             {
+                dem.ScaleValues(options.VerticalScale);
                 Image xyz = null;
                 Image mask = new Image(1, dem.Width, dem.Height);
 
@@ -342,6 +342,7 @@ namespace OPS.LandformUtil
                 List<Vector2> rowCols;
                 //This mask is only used to avoid resampling the same point. Invalid point data is masked out by the GetXYZ function (computed lazily)
                 Mask mask;
+                double squaredError = options.Error * options.Error;
                 if (options.Radius != -1)
                 {
                     if(!useSiteDriveFame)
@@ -360,8 +361,8 @@ namespace OPS.LandformUtil
                     mask = new Mask(dem.Width, dem.Height, true);             
                     if (options.Error != 0)
                     {
-                        rowCols = DemOperations.FindCorners(dem, baseR, baseC, pixelWidth-1, pixelHeight-1);
-                        rowCols.AddRange(Split(rowCols, baseR, baseC, pixelWidth, pixelHeight, options.Error, dem, mask, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                        rowCols = DemOperations.FindCorners(dem, baseR, baseC, pixelWidth - 1, pixelHeight - 1);
+                        rowCols.AddRange(Split(rowCols, baseR, baseC, pixelWidth, pixelHeight, squaredError, dem, mask, options.VerticalScale, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                         //Split allows sampling outside the bounds to smooth density transitions, so filter to our restricted bounds at the end
                         rowCols = rowCols.Where((rc) => rc.X >= baseC && rc.X < baseC + pixelWidth && rc.Y >= baseR && rc.Y < baseR + pixelHeight).ToList();
                     } else
@@ -381,11 +382,11 @@ namespace OPS.LandformUtil
                     //Mesh the full dem
                     mask = new Mask(dem.Width, dem.Height, useHashForMask);
                     rowCols = DemOperations.FindCorners(dem);
-                    rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, options.Error, dem, mask, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
+                    rowCols.AddRange(Split(rowCols, 0, 0, dem.Width, dem.Height, squaredError, dem, mask, options.VerticalScale, options.SampleNum, options.TestNum, options.SampleRegionScale, OPS.Util.NumberHelper.MakeRandomGenerator()));
                 }
                 //Construct vertices
                 var verts = rowCols.Select(rc => {
-                    var v = new Vertex(DemOperations.GetXYZ(dem, (int)rc.Y, (int)rc.X).Value);
+                    var v = new Vertex(DemOperations.GetXYZ(dem, (int)rc.Y, (int)rc.X, options.VerticalScale).Value);
                     v.UV = dem.PixelToUV(rc);
                     return v;
                     }).ToArray();
@@ -441,7 +442,7 @@ namespace OPS.LandformUtil
 
     public class SparseDEMImage : SparseImage
     {
-        public SparseDEMImage(string path) : base(path, chunkSize: 1024, cacheSize: 100, diskBackedCache: true)
+        public SparseDEMImage(string path) : base(path, chunkSize: 512, cacheSize: 400, diskBackedCache: true)
         {
         }
 

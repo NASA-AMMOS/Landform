@@ -294,11 +294,11 @@ namespace OPS.Imaging
                          save: (fn, img) => {
                             if (wc != null)
                             {
-                                img.Save<byte>(fn, wc);
+                                img.Save<float>(fn, wc);
                             }
                             else
                             {
-                                img.Save<byte>(fn);
+                                img.Save<float>(fn);
                             }
                          },
                          load: fn => rc != null ? Image.Load(fn, rc) : Image.Load(fn));
