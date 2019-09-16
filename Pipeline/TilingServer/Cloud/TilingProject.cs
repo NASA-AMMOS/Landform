@@ -140,7 +140,10 @@ namespace OPS.Pipeline.TilingServer
             pipeline.LogInfo("deleting {0} inputs", inputs.Count());
             foreach (var input in inputs)
             {
-                input.Delete(pipeline, ignoreErrors);
+                if (input != null)
+                {
+                    input.Delete(pipeline, ignoreErrors);
+                }
             }
 
             pipeline.DeleteProjectCache(Name);
