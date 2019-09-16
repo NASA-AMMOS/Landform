@@ -60,6 +60,11 @@ namespace OPS.Pipeline
             pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
+        protected void LogDebug(string msg, params Object[] args)
+        {
+            pipeline.LogDebug("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+        }
+
         protected void LogWarn(string msg, params Object[] args)
         {
             pipeline.LogWarn("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
@@ -152,7 +157,7 @@ namespace OPS.Pipeline
                 if (!project.StartedRunning)
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
-                    LogInfo("adding/updating input " + m.Name);
+                    LogDebug("adding/updating input " + m.Name);
                     TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
                 }
                 else
@@ -160,7 +165,6 @@ namespace OPS.Pipeline
                     //could get here if the project was run after the check in UploadInput.cs
                     LogError("cannot add/update input, already run");
                 }
-                
             }
             else
             {
