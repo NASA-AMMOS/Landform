@@ -137,10 +137,10 @@ namespace OPS.Pipeline
 
                 if (Places != null)
                 {
-                    var xform = GetSiteDriveTransformFromPlaces(parser);
+                    var xform = GetSiteDriveTransformFromPlaces(parser, out TransformSource source);
                     if (xform != null)
                     {
-                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PlacesDB, xform);
+                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, source, xform);
                     }
                 }
 
@@ -294,8 +294,10 @@ namespace OPS.Pipeline
 
         private ConcurrentDictionary<string, bool> alreadyWarned = new ConcurrentDictionary<string, bool>();
 
-        private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser)
+        private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser, out TransformSource source)
         {
+            source = TransformSource.PlacesDB;
+
             void warn(string what, Exception ex)
             {
                 string msg = string.Format("failed to get PlacesDB prior for {0}: {1}", what, ex.Message);
@@ -319,6 +321,7 @@ namespace OPS.Pipeline
                 {
                     loc = Places.GetEstimatedOffsetToStart(new SiteDrive(siteDrive.Site, 0));
                     loc += parser.OriginOffset; //local_level origin in site frame
+                    source = TransformSource.PlacesDBSitePDSLocal;
                 }
                 catch (Exception ex2)
                 {
