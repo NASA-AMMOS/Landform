@@ -291,7 +291,12 @@ namespace OPS.Pipeline
                 {
                     readyParents++;
                     pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = name});
-                    projectCache.MarkEnqueued(name);
+
+                    //  if using an immediate execution context, the tile is already completed here
+                    if (!projectCache.AlreadyCompleted(name))
+                    {
+                        projectCache.MarkEnqueued(name);
+                    }
                 }
             }
             LogInfo("building " + readyParents + " unprocessed but ready parents (" + totalParents + " total parents)");
