@@ -160,28 +160,28 @@ namespace OPS.Geometry
         /// <param name="col"></param>
         /// <param name="filterValues"></param>
         /// <returns></returns>
-        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, bool filterValues = true, double minFilter=-1000000, double maxFilter=1000000)
+        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, double scale = 1, bool filterValues = true, double minFilter=-1000000, double maxFilter=1000000)
         {
             if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || !dem.IsValid(row, col)) //respect input image mask if it has one
             {
                 return null;
             }
 
-            var value = dem[0, row, col];
+            double value = dem[0, row, col];
             if (!filterValues || value >= minFilter && value <= maxFilter)
             {
                 if (mask != null && !mask.isValid(row, col))
                 {
                    return null;
                 }
-                return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value);
+                return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value * scale);
             }         
             return null;
         }
 
-        public static Vector3? GetXYZ(Image dem, int row, int col, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
+        public static Vector3? GetXYZ(Image dem, int row, int col, double scale = 1, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
         {
-            return GetXYZ(dem, null, row, col, filterValues, minFilter, maxFilter);
+            return GetXYZ(dem, null, row, col, scale, filterValues, minFilter, maxFilter);
         }
 
         public static Vector2? GetRowCol(Image dem, Vector3 xyz)
@@ -224,10 +224,10 @@ namespace OPS.Geometry
             double sceneXCenter = demRowCenterDouble - demRowCenterInt - 0.5; //Correct fractional pixel offset to dem origin, and half pixel offset from projection
             double sceneYCenter = -1 * (demColCenterDouble - demColCenterInt) + 0.5;
 
-	    //TODO: Issue 645 - Currently setting new scene heightmap origin at fractional pixel offset to be pixel aligned with given dem. 
+	        //TODO: Issue 645 - Currently setting new scene heightmap origin at fractional pixel offset to be pixel aligned with given dem. 
 
             //Assume width/height are even and round down otherwise. This allows assuming even number of pixels to either side of origin.
-	    int rowRadiusPixels = (int)Math.Ceiling(height / 2.0);
+	        int rowRadiusPixels = (int)Math.Ceiling(height / 2.0);
             int xRadiusPixels = rowRadiusPixels;
             int colRadiusPixels = (int)Math.Ceiling(width / 2.0);
             int yRadiusPixels = colRadiusPixels;

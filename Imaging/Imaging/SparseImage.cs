@@ -291,16 +291,7 @@ namespace OPS.Imaging
                         new LRUCache<Vector2, Image>
                         (cacheSize,
                          keyToFilename: key => ChunkPath((int)key.X, (int)key.Y, "chunk", extension),
-                         save: (fn, img) => {
-                            if (wc != null)
-                            {
-                                img.Save<byte>(fn, wc);
-                            }
-                            else
-                            {
-                                img.Save<byte>(fn);
-                            }
-                         },
+                         save: (fn, img) => SaveCacheChunk(img, fn, wc),
                          load: fn => rc != null ? Image.Load(fn, rc) : Image.Load(fn));
                 }
                 else
@@ -348,6 +339,22 @@ namespace OPS.Imaging
         protected virtual bool IsPersisted(string path)
         {
             return File.Exists(path);
+        }
+
+        /// <summary>
+        /// persist a chunk image to disk cache  
+        /// default implementation saves as float
+        /// </summary>
+        protected virtual void SaveCacheChunk(Image img, string path, IImageConverter writeConverter)
+        {
+            if (writeConverter != null)
+            {
+                img.Save<float>(path, writeConverter);
+            }
+            else
+            {
+                img.Save<float>(path);
+            }
         }
 
         /// <summary>
