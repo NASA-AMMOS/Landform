@@ -133,7 +133,7 @@ namespace OPS.Landform
             var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
             var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
 
-            string dir = "meshing/LeafTiles";
+            string dir = string.Format("meshing/LeafTiles/{0}Frame", options.MeshFrame);
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
             outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
             if(options.Redo && Directory.Exists(outputPath))

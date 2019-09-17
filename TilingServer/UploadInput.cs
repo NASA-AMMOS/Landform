@@ -129,7 +129,7 @@ namespace OPS.TilingServer
                     }
                 }
                 while (!added);
-                pipeline.LogInfo("intput \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);
+                pipeline.LogInfo("input \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);
             }
 
             return 0;
