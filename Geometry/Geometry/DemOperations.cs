@@ -224,10 +224,10 @@ namespace OPS.Geometry
             double sceneXCenter = demRowCenterDouble - demRowCenterInt - 0.5; //Correct fractional pixel offset to dem origin, and half pixel offset from projection
             double sceneYCenter = -1 * (demColCenterDouble - demColCenterInt) + 0.5;
 
-	    //TODO: Issue 645 - Currently setting new scene heightmap origin at fractional pixel offset to be pixel aligned with given dem. 
+	        //TODO: Issue 645 - Currently setting new scene heightmap origin at fractional pixel offset to be pixel aligned with given dem. 
 
             //Assume width/height are even and round down otherwise. This allows assuming even number of pixels to either side of origin.
-	    int rowRadiusPixels = (int)Math.Ceiling(height / 2.0);
+	        int rowRadiusPixels = (int)Math.Ceiling(height / 2.0);
             int xRadiusPixels = rowRadiusPixels;
             int colRadiusPixels = (int)Math.Ceiling(width / 2.0);
             int yRadiusPixels = colRadiusPixels;

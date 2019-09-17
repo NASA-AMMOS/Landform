@@ -13,6 +13,12 @@ using OPS.Pipeline;
 
 namespace OPS.LandformUtil
 {
+    public static class CacheParams
+    {
+        public const int CHUNK_SIZE = 512;
+        public const int CACHE_SIZE = 2;
+    }
+
     [Verb("dem2mesh", HelpText = "Convert a dem and optional ortho image to a mesh.  X North (points toward top of dem image space), Y up (values from dem), Z East (points right in dem image space)")]
     public class DEM2MeshOptions
     {
@@ -294,12 +300,7 @@ namespace OPS.LandformUtil
             Mesh mesh = new Mesh();
             //No decimation:
             //  Convert the entire dem to xyz's with mask
-            //  Build the mesh by connecting neighboring points with a regular grid of tris
-            if(options.Error == 0 && options.Radius == -1 && useSiteDriveFame)
-            {
-                //TODO: Refactor building full mesh to make this easy to add (likely avoid ConvertRNG)
-                throw new NotImplementedException("Building full mesh in sitedrive frame not yet supported");
-            }     
+            //  Build the mesh by connecting neighboring points with a regular grid of tris  
 
             if (options.Error == 0 && options.Radius == -1)
             {
@@ -408,13 +409,6 @@ namespace OPS.LandformUtil
                 }
             }
 
-            //Clip out portions of the dem that are in scene footprint        
-            if (options.Error == 0)
-            {
-                List<Vertex> toClip = mesh.Vertices.Where(v => samples.Contains(v.Position)).ToList();
-                mesh.RemoveVertices(toClip);
-            }
-
             foreach (Vertex v in mesh.Vertices)
             {
                 v.Position = Vector3.Transform(v.Position, siteDriveTransform);
@@ -442,7 +436,7 @@ namespace OPS.LandformUtil
 
     public class SparseDEMImage : SparseImage
     {
-        public SparseDEMImage(string path) : base(path, chunkSize: 512, cacheSize: 400, diskBackedCache: true)
+        public SparseDEMImage(string path) : base(path, chunkSize: CacheParams.CHUNK_SIZE, cacheSize: CacheParams.CACHE_SIZE, diskBackedCache: true)
         {
         }
 
