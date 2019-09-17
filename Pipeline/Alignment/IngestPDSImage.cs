@@ -32,9 +32,12 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<string, int> indices;
         private int maxIndex;
 
+        private ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets;
+
         public IngestPDSImage(PipelineCore pipeline, Project project, bool recreateExistingObservations = false,
                               bool resetTransforms = false, Filter filter = null,
-                              ConcurrentDictionary<string, int> indices = null)
+                              ConcurrentDictionary<string, int> indices = null,
+                              ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets = null)
             : base(pipeline)
         {
             this.project = project;
@@ -42,7 +45,8 @@ namespace OPS.Pipeline
             this.resetTransforms = resetTransforms;
             this.filter = filter;
             this.mission = MissionSpecific.GetInstance(project.Mission);
-
+            this.pdsSiteOffsets = pdsSiteOffsets;
+            
             this.indices = indices ?? new ConcurrentDictionary<string, int>();
 
             maxIndex = Observation.MIN_INDEX - 1;
@@ -165,6 +169,7 @@ namespace OPS.Pipeline
                 if (siteDriveFrame == null)
                 {
                     //fallback to pds headers, site relative
+                    //IngestAlignmentInputs will later call FrameCache.ChainPriors()
                     var xform = GetSiteDriveToSiteTransformFromPDS(parser);
                     siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PDS, xform);
                 }
@@ -189,6 +194,25 @@ namespace OPS.Pipeline
                     indices.AddOrUpdate(observationName, _ => index, (_, __) => index);
                 }
 
+                if (pdsSiteOffsets != null)
+                {
+                    if (parser.HasSiteCoordinateSystem)
+                    {
+                        int site = parser.Site;
+                        var key = new Tuple<int, int>(site, site - 1);
+                        // TODO: examine values here
+                        var covariance = CreateMatrix
+                            .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
+                        var xform = new UncertainRigidTransform(Matrix.CreateTranslation(parser.OffsetToPreviousSite),
+                                                                covariance);
+                        pdsSiteOffsets.AddOrUpdate(key, _ => xform, (_, __) => xform);
+                    }
+                    else
+                    {
+                        pipeline.LogVerbose("PDS data product {0} missing SITE_COORDINATE_SYSTEM", url);
+                    }
+                }
+                
                 var observation = RoverObservation.Find(pipeline, project.Name, observationName);
                 if (observation != null)
                 {

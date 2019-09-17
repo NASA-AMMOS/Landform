@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using OPS.Util;
+using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
@@ -43,6 +44,9 @@ namespace OPS.Pipeline
 
         private FrameCache frameCache;
         private ObservationCache observationCache;
+
+        private ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets =
+            new ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform>();
 
         public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
                                      bool recreateObservations = false, bool resetTransforms = false,
@@ -109,7 +113,8 @@ namespace OPS.Pipeline
                 });
             pipeline.LogInfo("found {0} existing observations in project", preExistingObservations.Count);
 
-            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter, indices);
+            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter,
+                                          indices, pdsSiteOffsets);
         }
 
         public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest,
@@ -244,17 +249,26 @@ namespace OPS.Pipeline
             ni = 0;
             CoreLimitedParallel.ForEach(urls, ingestUrl);
                                             
-            //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
-
             frameCache = new FrameCache(pipeline, project.Name);
             frameCache.Preload();
 
             observationCache = new ObservationCache(pipeline, project.Name);
             observationCache.Preload();
 
+            //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
             UpdateFrames();
 
-            CheckPriors();
+            if (!frameCache.ChainPriors(pdsSiteOffsets))
+            {
+                pipeline.LogError("failed to chain all PDS priors");
+            }
+
+            if (!frameCache.CheckPriors(out string effectiveRoot))
+            {
+                pipeline.LogError("incomplete priors: not all sitedrives are connected");
+            }
+
+            pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, effectiveRoot);
 
             if (orphans.Count > 0)
             {
@@ -350,75 +364,6 @@ namespace OPS.Pipeline
             foreach (var frame in framesToSave)
             {
                 frameCache.GetFrame(frame).Save(pipeline);
-            }
-        }
-
-        private void CheckPriors()
-        {
-            pipeline.LogInfo("checking priors...");
-
-            var sdsWithNoPriors = new HashSet<string>();
-            var sdsWithPDSPriors = new HashSet<string>();
-            var sdsWithMixedPriors = new HashSet<string>();
-            var sdsWithGoodPriors = new HashSet<string>();
-            foreach (var frame in frameCache.GetAllFrames())
-            {
-                if (frame.ParentName == mission.RootFrameName())
-                {
-                    var xform = frameCache.GetBestPrior(frame);
-                    var group = xform == null ? sdsWithNoPriors :
-                        xform.Source == TransformSource.PDS ? sdsWithPDSPriors :
-                        xform.Source == TransformSource.PlacesDBSitePDSLocal ? sdsWithMixedPriors :
-                        sdsWithGoodPriors;
-                    
-                    group.Add(frame.Name);
-                }
-            }
-
-            pipeline.LogInfo("{0} sitedrives with no priors: {1}",
-                             sdsWithNoPriors.Count, string.Join(", ", sdsWithNoPriors));
-            pipeline.LogInfo("{0} sitedrives with only site-relative PDS priors: {1}",
-                             sdsWithPDSPriors.Count, string.Join(", ", sdsWithPDSPriors));
-            pipeline.LogInfo("{0} sitedrives with only PlacesDB site but PDS local_level priors: {1}",
-                             sdsWithMixedPriors.Count, string.Join(", ", sdsWithMixedPriors));
-            pipeline.LogInfo("{0} sitedrives with full priors: {1}",
-                             sdsWithGoodPriors.Count, string.Join(", ", sdsWithGoodPriors));
-
-            if (sdsWithNoPriors.Count > 0)
-            {
-                pipeline.LogError("incomplete priors! {0} sitedrives with no priors", sdsWithNoPriors.Count);
-            }
-            else if (sdsWithPDSPriors.Count > 0)
-            {
-                int toRoot = sdsWithGoodPriors.Count + sdsWithMixedPriors.Count;
-                if (toRoot > 0)
-                {
-                    pipeline.LogError("incomplete priors! {0} sitedrives relative to root and {1} relative to site",
-                                      toRoot, sdsWithPDSPriors.Count);
-                }
-                else
-                {
-                    var sites = new HashSet<int>();
-                    foreach (var sd in sdsWithPDSPriors)
-                    {
-                        sites.Add((new SiteDrive(sd)).Site);
-                    }
-                    if (sites.Count > 1)
-                    {
-                        pipeline.LogError("incomplete priors! sitedrives relative to {0} different site frames",
-                                          sites.Count);
-                    }
-                    else
-                    {
-                        pipeline.LogError("incomplete priors! all sitedrives relative to site {0} frame, not root",
-                                          sites.First());
-                    }
-                }
-            }
-            else if (sdsWithMixedPriors.Count > 0)
-            {
-                pipeline.LogWarn("mixed priors! {0} sitedrives with PlacesDB site offset but PDS local_level",
-                                 sdsWithMixedPriors.Count);
             }
         }
     }

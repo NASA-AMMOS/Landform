@@ -33,7 +33,8 @@ namespace OPS.Pipeline.AlignmentServer
         PlacesDB = 110, //prior from mission "places" databsae
         LocationsDB = 120, //prior from mission "locations" database
         PlacesDBSitePDSLocal = 125, //site to origin from places database, local_level to site from PDS header
-        PDS = 130 //site-relative prior from PDS header
+        PDSChained = 128, //prior relative to first site in project from chained PDS headers
+        PDS = 130 //prior relative to parent site from PDS header
     }
 
     /// <summary>
