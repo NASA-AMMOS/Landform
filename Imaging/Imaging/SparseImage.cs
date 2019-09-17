@@ -770,7 +770,6 @@ namespace OPS.Imaging
 
         public override float[] GetBandData(int band)
         {
-            Image img = null;
             if (CanDensify())
             {
                 return Densify().GetBandData(band);
