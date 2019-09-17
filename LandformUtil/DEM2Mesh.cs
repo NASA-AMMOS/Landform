@@ -16,7 +16,7 @@ namespace OPS.LandformUtil
     public static class CacheParams
     {
         public const int CHUNK_SIZE = 512;
-        public const int CACHE_SIZE = 2;
+        public const int CACHE_SIZE = 400;
     }
 
     [Verb("dem2mesh", HelpText = "Convert a dem and optional ortho image to a mesh.  X North (points toward top of dem image space), Y up (values from dem), Z East (points right in dem image space)")]
