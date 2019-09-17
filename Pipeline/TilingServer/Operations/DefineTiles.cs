@@ -271,6 +271,14 @@ namespace OPS.Pipeline.TilingServer
             if (input.ImageUrl != null)
             {
                 image = new SparsePipelineImage(pipeline, input.ImageUrl, ChunkInput.CHUNK_RESOLUTION);
+
+                if (image.Width < ChunkInput.CHUNK_RESOLUTION && image.Height < ChunkInput.CHUNK_RESOLUTION)
+                {
+                    //use sparse image to do partial read of metadata, but if sparse image is not a win 
+                    // because whole image is smaller than a chunk, then save on the overhead of all future bookkeeping
+                    image = pipeline.LoadImage(input.ImageUrl);
+                }
+
             }
             Mesh mesh = null;
             pipeline.GetFile(input.MeshUrl, f =>
