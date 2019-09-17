@@ -37,20 +37,33 @@ namespace OPS.Pipeline
 
     public class ImmediateExecutive : PipelineExecutive
     {
+        //project name -> state machine
+        private ConcurrentDictionary<string, PipelineStateMachine> stateMachines =
+            new ConcurrentDictionary<string, PipelineStateMachine>();
+
         public ImmediateExecutive(PipelineCore pipeline) : base(pipeline)
         {
             pipeline.EnqueuedToMaster += msg => {
-                var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
-                if (projectType.HasValue)
+
+                var stateMachine = stateMachines.GetOrAdd(msg.ProjectName, _ =>
                 {
-                    var sm = PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
-                    var masterDispatcher = sm.MakeDispatcher();
-                    masterDispatcher.Handle(msg);
-                }
-                else
+                    var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
+                    if (projectType.HasValue)
+                    {
+                        return PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("could not determine project type, discarding message: {0}", msg.Info());
+                        return null;
+                    }
+                });
+
+                if (stateMachine != null)
                 {
-                    pipeline.LogWarn("could not determine project type, discarding message: {0}", msg.Info());
+                    stateMachine.ProcessMessage(msg);
                 }
+
                 return false; //now discard message
             };
 

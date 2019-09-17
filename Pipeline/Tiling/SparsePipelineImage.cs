@@ -83,6 +83,6 @@ namespace OPS.Pipeline
         protected override void Progress(string msg, params Object[] args)
         {
             pipeline.LogVerbose(msg, args);
-        }
+        }     
     }
 }

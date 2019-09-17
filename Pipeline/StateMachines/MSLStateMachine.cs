@@ -14,7 +14,7 @@ namespace OPS.Pipeline
         {
         }
 
-        override public TypeDispatcher MakeDispatcher()
+        override protected TypeDispatcher MakeDispatcher()
         {
             return base.MakeDispatcher()
                 .Case((BuildTilingInputMessage m) => {

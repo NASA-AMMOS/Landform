@@ -66,6 +66,10 @@ namespace OPS.TilingServer
             this.options = options;
         }
 
+        public CreateProject(PipelineCore pipeline, CreateProjectOptions options, ExecutionMode exMode) : base(pipeline, exMode)
+        {
+            this.options = options;
+        }
         public int Run()
         {
             string exMeshFmt = null;

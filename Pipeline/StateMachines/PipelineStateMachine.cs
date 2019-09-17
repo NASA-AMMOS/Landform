@@ -60,6 +60,11 @@ namespace OPS.Pipeline
             pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
+        protected void LogDebug(string msg, params Object[] args)
+        {
+            pipeline.LogDebug("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+        }
+
         protected void LogWarn(string msg, params Object[] args)
         {
             pipeline.LogWarn("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
@@ -78,7 +83,7 @@ namespace OPS.Pipeline
             dispatcher = MakeDispatcher();
         }
 
-        virtual public TypeDispatcher MakeDispatcher()
+        virtual protected TypeDispatcher MakeDispatcher()
         {
             var ret = new TypeDispatcher()
                 .Case((CreateProjectMessage m) => CreateProject(m))
@@ -152,7 +157,7 @@ namespace OPS.Pipeline
                 if (!project.StartedRunning)
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
-                    LogInfo("adding/updating input " + m.Name);
+                    LogDebug("adding/updating input " + m.Name);
                     TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
                 }
                 else
@@ -160,7 +165,6 @@ namespace OPS.Pipeline
                     //could get here if the project was run after the check in UploadInput.cs
                     LogError("cannot add/update input, already run");
                 }
-                
             }
             else
             {
@@ -291,7 +295,12 @@ namespace OPS.Pipeline
                 {
                     readyParents++;
                     pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = name});
-                    projectCache.MarkEnqueued(name);
+
+                    //  if using an immediate execution context, the tile is already completed here
+                    if (!projectCache.AlreadyCompleted(name))
+                    {
+                        projectCache.MarkEnqueued(name);
+                    }
                 }
             }
             LogInfo("building " + readyParents + " unprocessed but ready parents (" + totalParents + " total parents)");

@@ -770,7 +770,14 @@ namespace OPS.Imaging
 
         public override float[] GetBandData(int band)
         {
-            throw new NotImplementedException();
+            if (CanDensify())
+            {
+                return Densify().GetBandData(band);
+            }
+            else
+            {
+                throw new NotImplementedException("returning band for non-densifiable image is not implemented");
+            }
         }
 
         public override int AddBand()
