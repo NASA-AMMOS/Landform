@@ -17,7 +17,6 @@ namespace OPS.Pipeline
     {
         public MSLLocations Locations;
         public MSLPlaces Places;
-        public MSLLegacyManifest LegacyManifest; 
 
         private Project project;
 
@@ -154,15 +153,6 @@ namespace OPS.Pipeline
                     if (xform != null)
                     {
                         siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.LocationsDB, xform);
-                    }
-                }
-                
-                if (LegacyManifest != null)
-                {
-                    var xform = GetSiteDriveTransformFromLegacyManifest(parser);
-                    if (xform != null)
-                    {
-                        siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.LegacyManifest, xform);
                     }
                 }
                 
@@ -361,26 +351,6 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc), covariance);
         }
 
-        private UncertainRigidTransform GetSiteDriveTransformFromLegacyManifest(PDSParser parser)
-        {
-            var siteDrive = new SiteDrive(parser.SiteDrive);
-
-            Matrix? mat = LegacyManifest.GetRelativeTransformPrimaryToSiteDrive(siteDrive);
-            if (!mat.HasValue)
-            {
-                pipeline.LogWarn("no MSL legacy manifest for site drive {0}", siteDrive);
-                return null;
-            }
-            else
-            {
-                Matrix siteDriveToPrimarySiteDrive = Matrix.Invert(mat.Value);
-                // TODO: examine values here
-                var covariance = CreateMatrix
-                    .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
-
-                return new UncertainRigidTransform(siteDriveToPrimarySiteDrive, covariance);
-            }
-        }
         /// <summary>
         /// Get transform from observation frame, which is rover frame at the time the observation was acquired, to the
         /// corresponding site drive (aka local_level) frame.
