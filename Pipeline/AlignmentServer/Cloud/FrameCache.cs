@@ -630,8 +630,8 @@ namespace OPS.Pipeline.AlignmentServer
             var sdsWithNoPriors = new HashSet<string>();
             var sdsWithPDSPriors = new HashSet<string>();
             var sdsWithChainedPriors = new HashSet<string>();
-            var sdsWithMixedPriors = new HashSet<string>();
-            var sdsWithGoodPriors = new HashSet<string>();
+            var sdsWithMixedPriors = new HashSet<string>(); //PlacesDB site offset but PDS local_level offset
+            var sdsWithRootPriors = new HashSet<string>();
             int firstSite = -1;
             foreach (var frame in GetAllFrames())
             {
@@ -643,7 +643,7 @@ namespace OPS.Pipeline.AlignmentServer
                         prior.Source == TransformSource.PDS ? sdsWithPDSPriors :
                         prior.Source == TransformSource.PDSChained ? sdsWithChainedPriors :
                         prior.Source == TransformSource.PlacesDBSitePDSLocal ? sdsWithMixedPriors :
-                        sdsWithGoodPriors;
+                        sdsWithRootPriors;
                     group.Add(frame.Name);
                     int site = (new SiteDrive(frame.Name)).Site;
                     if (firstSite < 0 || site < firstSite)
@@ -662,7 +662,7 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.LogInfo("{0} sitedrives with only PlacesDB site but PDS local_level priors: {1}",
                              sdsWithMixedPriors.Count, string.Join(", ", sdsWithMixedPriors));
             pipeline.LogInfo("{0} sitedrives with full priors: {1}",
-                             sdsWithGoodPriors.Count, string.Join(", ", sdsWithGoodPriors));
+                             sdsWithRootPriors.Count, string.Join(", ", sdsWithRootPriors));
 
             bool ok = true;
             effectiveRoot = (new SiteDrive(1, 0)).ToString();
@@ -674,7 +674,7 @@ namespace OPS.Pipeline.AlignmentServer
             }
             else if (sdsWithPDSPriors.Count > 0)
             {
-                int toRoot = sdsWithGoodPriors.Count + sdsWithMixedPriors.Count;
+                int toRoot = sdsWithRootPriors.Count + sdsWithMixedPriors.Count;
                 if (toRoot > 0)
                 {
                     pipeline.LogError("incomplete priors: {0} sitedrives relative to root and {1} relative to site",
