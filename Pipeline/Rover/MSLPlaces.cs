@@ -207,16 +207,6 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Returns the Local_level frame offset between the "from" sitedrive to the "to" sitedrive
-        /// </summary>
-        public Vector3 GetEstimatedOffset(SiteDrive fromSD, SiteDrive toSD)
-        {
-            string url = string.Format("query/primary/{0}?from=rover({1},{2})&to=rover({3},{4})",
-                                       view, fromSD.Site, fromSD.Drive, toSD.Site, toSD.Drive);
-            return GetOffset(Fetch(url));
-        }
-
-        /// <summary>
         /// Returns the Local_level frame offset between the "from" sitedrive to the "to" site
         /// </summary>
         public Vector3 GetEstimatedOffsetToSite(SiteDrive fromSD, int toSite)
