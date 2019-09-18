@@ -1,19 +1,19 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
+using System.IO;
 using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
 using Amazon.S3.IO;
 using Amazon.Runtime;
-using System.Text.RegularExpressions;
-using System.IO;
-using OPS.Util;
-using System.Collections.Concurrent;
 using log4net;
+using OPS.Util;
 
 namespace OPS.Cloud
 {
@@ -215,8 +215,8 @@ namespace OPS.Cloud
         }
 
         AWSCredentials awsCredentials;
-        Amazon.RegionEndpoint awsRegion;
-        ConcurrentDictionary<string, Amazon.RegionEndpoint> bucketToRegion = new ConcurrentDictionary<string, RegionEndpoint>();
+        RegionEndpoint awsRegion;
+        ConcurrentDictionary<string, RegionEndpoint> bucketToRegion = new ConcurrentDictionary<string, RegionEndpoint>();
 
         /// <summary>
         /// Use the given profile name to create a storage helper
@@ -227,15 +227,15 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="awsProfileName"></param>
         /// <param name="govCloud"></param>
-        public StorageHelper(string awsProfileName = null, string endpointName = null)
+        public StorageHelper(string awsProfileName = null, string awsRegionName = null)
         {
             if (awsProfileName != null)
             {
                 awsCredentials = Credentials.Get(awsProfileName);
             }
-            if (endpointName != null)
+            if (awsRegionName != null)
             {
-                awsRegion = RegionEndpoint.GetBySystemName(endpointName);
+                awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
             }
         }
 
@@ -243,23 +243,6 @@ namespace OPS.Cloud
         {
             //leave all the things null 
             //This works if there is a default profile (on a user machine) or an IAM role (an EC2 instance)
-        }
-
-        public static AmazonS3Client MakeClient(string profile = null, string url = null)
-        {
-            var cfg = new AmazonS3Config();
-            if (string.IsNullOrEmpty(url))
-            {
-                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            }
-            else
-            {
-                cfg.ServiceURL = url;
-                cfg.ForcePathStyle = true;
-                cfg.SignatureVersion = "2";
-            }
-            var creds = profile != null ? Credentials.Get(profile) : null;
-            return creds != null ? new AmazonS3Client(creds, cfg) : new AmazonS3Client(cfg);
         }
 
         //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
@@ -280,16 +263,36 @@ namespace OPS.Cloud
         /// <returns></returns>
         public RegionEndpoint GetRegion(string bucketName)
         {
-            // Use region USWest1 to lookup bucket regions
-            AmazonS3Client client = GetClient(RegionEndpoint.USWest1);
-            GetBucketLocationRequest request = new GetBucketLocationRequest
-            {
-                BucketName = bucketName
-            };
-            GetBucketLocationResponse response = client.GetBucketLocation(request);
-            return RegionEndpoint.GetBySystemName(response.Location);
+            return bucketToRegion.GetOrAdd(bucketName, _ =>
+                    {
+                        Exception ex = null;
+                        IEnumerable<RegionEndpoint> shortlist = new [] { RegionEndpoint.USWest1, RegionEndpoint.USGovCloudWest1 };
+                        //defaulting to try all regions works in theory but seems to be crazy slow in practice
+                        foreach (var regions in new [] { shortlist /*, RegionEndpoint.EnumerableAllRegions*/ })
+                        {
+                            foreach (var region in regions)
+                            {
+                                try
+                                {
+                                    //Console.WriteLine("attempting to get region for bucket {0} using region {1}", bucketName, region);
+                                    AmazonS3Client client = GetClient(region);
+                                    GetBucketLocationRequest request = new GetBucketLocationRequest
+                                    {
+                                        BucketName = bucketName
+                                    };
+                                    GetBucketLocationResponse response = client.GetBucketLocation(request);
+                                    return RegionEndpoint.GetBySystemName(response.Location);
+                                }
+                                catch (Exception e)
+                                {
+                                    //Console.WriteLine("failed to get region for bucket {0} using region {1}", bucketName, region);
+                                    ex = e;
+                                }
+                            }
+                        }
+                        throw ex;
+                    });
         }
-
 
         /// <summary>
         /// Returns a client for the given url.  Uses awsRegion if it was passed in in the constructor,
@@ -304,11 +307,7 @@ namespace OPS.Cloud
                 return GetClient(awsRegion);
             }
             S3Url location = new S3Url(s3url);
-            if (!bucketToRegion.ContainsKey(location.BucketName))
-            {
-                bucketToRegion.TryAdd(location.BucketName, GetRegion(location.BucketName));
-            }
-            return GetClient(bucketToRegion[location.BucketName]);
+            return GetClient(GetRegion(location.BucketName));
         }
 
         /// <summary>

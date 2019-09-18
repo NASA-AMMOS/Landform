@@ -1,14 +1,15 @@
 ﻿using System;
 using System.Text;
+using System.Reflection;
 using System.Linq;
 using System.Threading;
 using System.Diagnostics;
 using System.Collections.Generic;
+using Amazon;
+using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using Amazon.DynamoDBv2.Model;
-using System.Reflection;
-using Amazon.DynamoDBv2;
 using log4net;
 using OPS.Util;
 
@@ -509,16 +510,12 @@ namespace OPS.Cloud
         private static WeakDictionary<DynamoDBContext, string> prefixForContext =
             new WeakDictionary<DynamoDBContext, string>();
 
-        public static DynamoDBContext MakeContext(string prefix, string profile = null, string url = null)
+        public static DynamoDBContext MakeContext(string prefix, string profile = null, string region = null)
         {
             var cfg = new AmazonDynamoDBConfig();
-            if (string.IsNullOrEmpty(url))
+            if (!string.IsNullOrEmpty(region))
             {
-                cfg.RegionEndpoint = Amazon.RegionEndpoint.USWest1;
-            }
-            else
-            {
-                cfg.ServiceURL = url;
+                cfg.RegionEndpoint = RegionEndpoint.GetBySystemName(region);
             }
             var creds = profile != null ? Credentials.Get(profile) : null;
             var client = creds != null ? new AmazonDynamoDBClient(creds, cfg) : new AmazonDynamoDBClient(cfg);

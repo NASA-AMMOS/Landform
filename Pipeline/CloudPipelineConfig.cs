@@ -24,12 +24,13 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_S3_URL")]
         public string S3Url;
 
-        [ConfigEnvironmentVariable("LANDFORM_DYNAMO_URL")]
-        public string DynamoUrl;
-
         //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_PROFILE")]
         public string MSLICEAWSProfile;
+
+        //TODO MSL specific
+        [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_REGION")]
+        public string MSLICEAWSRegion;
 
         //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_S3_URL")]
