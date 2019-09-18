@@ -284,6 +284,34 @@ namespace OPS.Pipeline
             }
         }
 
+        public bool HasSiteCoordinateSystem
+        {
+            get
+            {
+                string scs = "SITE_COORDINATE_SYSTEM";
+                string csn = "COORDINATE_SYSTEM_NAME";
+                string csi = "COORDINATE_SYSTEM_INDEX"; 
+                string csin = "COORDINATE_SYSTEM_INDEX_NAME";
+                string rcsn = "REFERENCE_COORD_SYSTEM_NAME"; 
+                string rcsi = "REFERENCE_COORD_SYSTEM_INDEX";
+                return metadata.HasGroup(scs) &&
+                    metadata.HasKey(scs, csn) && metadata.ReadAsString(scs, csn) == "SITE_FRAME" &&
+                    metadata.HasKey(scs, csi) && metadata.ReadAsInt(scs, csi) == Site &&
+                    metadata.HasKey(scs, csin) && metadata.ReadAsString(scs, csin) == "SITE" &&
+                    metadata.HasKey(scs, "ORIGIN_OFFSET_VECTOR") &&
+                    metadata.HasKey(scs, rcsn) && metadata.ReadAsString(scs, rcsn) == "SITE_FRAME" &&
+                    metadata.HasKey(scs, rcsi) && metadata.ReadAsInt(scs, rcsi) == (Site - 1);
+            }
+        }
+
+        public Vector3 OffsetToPreviousSite
+        {
+            get
+            {
+                return new Vector3(metadata.ReadAsDoubleArray("SITE_COORDINATE_SYSTEM", "ORIGIN_OFFSET_VECTOR"));
+            }
+        }
+
         public int[] MotionCounter
         {
             get

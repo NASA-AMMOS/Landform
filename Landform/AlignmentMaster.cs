@@ -216,7 +216,14 @@ namespace OPS.Landform
             MSLPlaces places = null;
             if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
             {
-                places = new MSLPlaces();
+                try
+                {
+                    places = new MSLPlaces();
+                }
+                catch (Exception ex)
+                {
+                    LogWarn("error initializing PlacesDB, disabling: {0}", ex.Message);
+                }
             }
 
             MSLLegacyManifest manifest = null;
