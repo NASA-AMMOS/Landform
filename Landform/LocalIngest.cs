@@ -54,6 +54,9 @@ namespace OPS.Landform
         [Option(HelpText = "Hide progress", Default = false)]
         public bool NoProgress { get; set; }
 
+        [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
+        public string LegacyManifestURL { get; set; }
+
         [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
         public Mission Mission { get; set; }
     }
@@ -113,7 +116,17 @@ namespace OPS.Landform
                 pipeline.LogInfo("places DB priors disabled");
             }
 
-            ingester.Ingest(locations, places);
+            MSLLegacyManifest manifest = null;
+            if (options.LegacyManifestURL != null && mission.AllowLegacyManifestDB())
+            {
+                manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
+            }
+            else
+            {
+                pipeline.LogInfo("legacy manifest DB priors disabled");
+            }
+
+            ingester.Ingest(locations, places, manifest);
 
             return 0;
         }

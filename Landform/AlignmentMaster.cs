@@ -84,6 +84,9 @@ namespace OPS.Landform
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
 
+        [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
+        public string LegacyManifestURL { get; set; }
+
         [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
         public Mission Mission { get; set; }
     }
@@ -223,7 +226,13 @@ namespace OPS.Landform
                 }
             }
 
-            ingester.Ingest(locations, places,
+            MSLLegacyManifest manifest = null;
+            if (options.LegacyManifestURL != null && mission.AllowLegacyManifestDB())
+            {
+                manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
+            }
+
+            ingester.Ingest(locations, places, manifest,
                             res => obsForFrame
                             .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentBag<Observation>())
                             .Add(res.Observation));

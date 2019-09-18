@@ -117,14 +117,17 @@ namespace OPS.Pipeline
                                           indices, pdsSiteOffsets);
         }
 
-        public int Ingest(MSLLocations locations, MSLPlaces places, Action<IngestImage.Result> func = null)
+        public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest,
+                          Action<IngestImage.Result> func = null)
         {
             ingester.Locations = locations;
             ingester.Places = places;
+            ingester.LegacyManifest = manifest;
 
-            pipeline.LogInfo("locations db priors {0}, places db priors {1}",
+            pipeline.LogInfo("locations db priors {0}, places db priors {1}, legacy manifest db priors {2}",
                              locations != null ? "enabled" : "disabled",
-                             places != null ? "enabled" : "disabled");
+                             places != null ? "enabled" : "disabled",
+                             manifest != null ? "enabled" : "disabled");
 
             //site drive -> sensor type -> count
             var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
