@@ -164,6 +164,7 @@
     <Compile Include="LocalBuildLeaves.cs" />
     <Compile Include="LocalBuildTileset.cs" />
     <Compile Include="LocalBundleAdjust.cs" />
+    <Compile Include="LocalConvertToLegacyScene.cs" />
     <Compile Include="LocalFeatures.cs" />
     <Compile Include="LocalIngest.cs" />
     <Compile Include="LocalMatching.cs" />

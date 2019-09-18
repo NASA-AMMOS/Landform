@@ -73,6 +73,7 @@ namespace OPS.Landform
                 LocalBuildTilesetOptions,
                 LocalBuildBackprojectIndexOptions,
                 LocalBuildLeavesOptions,
+                LocalConvertToLegacySceneOptions,
                 StartAlignMasterOptions >(args);
 
             return parsed.MapResult(
@@ -90,6 +91,7 @@ namespace OPS.Landform
                 (LocalBuildTilesetOptions opts) => new LocalBuildTileset(opts).Run(),
                 (LocalBuildBackprojectIndexOptions opts) => new LocalBuildBackprojectIndex(opts).Run(),
                 (LocalBuildLeavesOptions opts) => new LocalBuildLeaves(opts).Run(),
+                (LocalConvertToLegacySceneOptions opts) => new LocalConvertToLegacyScene(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
         }
