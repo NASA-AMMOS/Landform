@@ -18,6 +18,10 @@ namespace OPS.Pipeline
     {
         protected PipelineCore pipeline;
 
+        //project name -> state machine
+        private ConcurrentDictionary<string, PipelineStateMachine> stateMachines =
+            new ConcurrentDictionary<string, PipelineStateMachine>();
+
         protected PipelineExecutive(PipelineCore pipeline)
         {
             this.pipeline = pipeline;
@@ -33,31 +37,38 @@ namespace OPS.Pipeline
                 default: throw new ArgumentException("unknown execution mode: " + mode);
             }
         }
+
+        protected PipelineStateMachine GetStateMachine(QueueMessage msg)
+        {
+            return stateMachines.GetOrAdd(msg.ProjectName, _ =>
+                    {
+                        var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
+                        if (projectType.HasValue)
+                        {
+                            return PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
+                        }
+                        else
+                        {
+                            //this can happen if we get a duplicate DeleteProject message 
+                            throw new Exception("could not determine project type"); //do not add to dictionary
+                        }
+                    });
+        }
     }
 
+    //single threaded executive - should be used for small workflows only
+    //use DeferredExecutive for larger workflows
+    //particularly those that involve a lot of back and forth messaging between master and workers
+    //because in that case ImmediateExecutive will build up large call stacks
+    //work is performed synchronously in the same call where a message is enqueued to the master
+    //https://github.jpl.nasa.gov/OnSight/Landform/issues/699
     public class ImmediateExecutive : PipelineExecutive
     {
-        //project name -> state machine
-        private ConcurrentDictionary<string, PipelineStateMachine> stateMachines =
-            new ConcurrentDictionary<string, PipelineStateMachine>();
-
         public ImmediateExecutive(PipelineCore pipeline) : base(pipeline)
         {
             pipeline.EnqueuedToMaster += msg => {
 
-                var stateMachine = stateMachines.GetOrAdd(msg.ProjectName, _ =>
-                {
-                    var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
-                    if (projectType.HasValue)
-                    {
-                        return PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("could not determine project type, discarding message: {0}", msg.Info());
-                        return null;
-                    }
-                });
+                var stateMachine = GetStateMachine(msg);
 
                 if (stateMachine != null)
                 {
@@ -75,6 +86,10 @@ namespace OPS.Pipeline
         }
     }
 
+    //multi threaded executive - use for large workflows'
+    //spins up one thread for the master and a pool of worker threads corresponding to number of available cores
+    //enqueuing a message to the master is a low cost constant time operation
+    //but the ensuing work will be performed asynchronously at a later point as messages are processed
     public class DeferredExecutive : PipelineExecutive
     {
         private ConcurrentQueue<QueueMessage> masterQueue;
@@ -181,26 +196,12 @@ namespace OPS.Pipeline
 
         protected void MasterLoop()
         {
-            void handler(QueueMessage m)
+            void handler(QueueMessage msg)
             {
-                if (!stateMachines.ContainsKey(m.ProjectName))
+                var stateMachines = GetStateMachine(msg);
+                if (stateMachine != null)
                 {
-                    PipelineStateMachine.ProjectType? pt = PipelineStateMachine.GetProjectType(pipeline, m);
-                    if (pt.HasValue)
-                    {
-                        stateMachines[m.ProjectName] =
-                            PipelineStateMachine.CreateInstance(pipeline, pt.Value, m.ProjectName);
-                    }
-                    else
-                    {
-                        //this can happen if we get a duplicate DeleteProject message 
-                        pipeline.LogWarn("could not determine project type, discarding message: {0}", m.Info());
-                    }
-                }
-                
-                if (stateMachines.ContainsKey(m.ProjectName))
-                {
-                    stateMachines[m.ProjectName].ProcessMessage(m);
+                    stateMachine.ProcessMessage(m);
                 }
             }
 
