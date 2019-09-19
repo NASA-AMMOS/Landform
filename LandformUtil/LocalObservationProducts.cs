@@ -22,6 +22,9 @@ namespace OPS.LandformUtil
     [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
     public class LocalObservationProductsOptions : GeometryCommandOptions
     {
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSave { get; set; }
+
         [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
         public override int TargetWedgeImageResolution { get; set; }
 
@@ -132,7 +135,7 @@ namespace OPS.LandformUtil
 
     public class LocalObservationProducts : GeometryCommand
     {
-        protected new LocalObservationProductsOptions options;
+        private LocalObservationProductsOptions options;
 
         private bool withTextures;
         private bool buildWedgeMasks;
@@ -189,14 +192,20 @@ namespace OPS.LandformUtil
 
         public int Run()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
+            StartStopwatch();
 
             try
             {
                 if (!ParseArgumentsAndLoadCaches())
                 {
                     return 0; //help
+                }
+
+                RunPhase("generate observation products",GenerateObservationProducts);
+
+                if (options.MergedSiteDriveMeshes)
+                {
+                    RunPhase("generate merged site drive meshes", GenerateMergedSiteDriveMeshes);
                 }
             }
             catch (Exception ex)
@@ -205,32 +214,18 @@ namespace OPS.LandformUtil
                 return 1;
             }
 
-            string what = "";
-            try
-            {
-                what = "generate observation products";
-                GenerateObservationProducts();
-
-                if (options.MergedSiteDriveMeshes)
-                {
-                    what = "generate merged site drive meshes";
-                    GenerateMergedSiteDriveMeshes();
-                }
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogError("failed to {0}: {1}", what, ex.Message);
-                return 1;
-            }
-
-            stopwatch.Stop();
-            pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
+            StopStopwatch();
 
             return 0;
         }
 
         private bool ParseArgumentsAndLoadCaches()
         {
+            if (options.NoSave)
+            {
+                throw new Exception("--nosave not implemented for this command");
+            }
+
             buildWedgeMasks = options.NormalsImages || options.CurvatureImages || options.ElevationImages;
             buildWedgeMeshes = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes || options.StatsOnly;
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
@@ -290,7 +285,7 @@ namespace OPS.LandformUtil
                 .Select(sd => sd.ToString())
                 .ToArray();
             pipeline.LogInfo("computing observation products for {0} observation frames{1} under {2}", no,
-                             sds.Length > 0 ? (" for site drive(s) " + String.Join(",", sds)) : "", outputPath);
+                             sds.Length > 0 ? (" for site drive(s) " + String.Join(",", sds)) : "", localOutputPath);
 
             //indexed by frame name
             var validPoints = new ConcurrentDictionary<string, int>();
