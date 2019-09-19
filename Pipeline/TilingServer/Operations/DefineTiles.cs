@@ -103,12 +103,6 @@ namespace OPS.Pipeline.TilingServer
                 CoreLimitedParallel.ForEach(inputs, input =>
                 {
                     MeshImagePair pair = DownloadInput(input);                  
-                    if (!pair.Mesh.HasNormals)
-                    {
-                        pair.Mesh.GenerateVertexNormals();
-                    }
-                    pair.Mesh.RemoveInvalidFaces();
-                    pair.Mesh.Clean();
                     var node = new SceneNode(input.TileId);
                     node.AddComponent(pair);
                     nodes.Add(node);   
@@ -283,6 +277,10 @@ namespace OPS.Pipeline.TilingServer
             pipeline.GetFile(input.MeshUrl, f =>
             {
                 mesh = Mesh.Load(f);
+                if (!mesh.HasNormals)
+                {
+                    mesh.GenerateVertexNormals();
+                }
                 mesh.RemoveInvalidFaces();
                 mesh.Clean();
             });
