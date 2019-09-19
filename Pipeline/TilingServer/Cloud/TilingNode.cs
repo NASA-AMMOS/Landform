@@ -156,16 +156,12 @@ namespace OPS.Pipeline.TilingServer
         /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, and GeometricError, and saves the node metadata back to DynamoDB.
         /// Also uploads the mesh and image (if any) to S3.
         /// Up to three copies of each are uploaded:
-        /// 1. in the tile folder for our internal use, in our internal formats (ply, tif)
+        /// 1. in the tile folder for our internal use, in our internal formats (ply, png)
         /// 2. in the www folder for runtime visualization use, in b3dm format
         //  3. optionally the mesh and/or image are also uploaded to www in the export formats
         /// </summary>
-        /// <param name="exportMeshFormat">if not null or empty then also save mesh to www dir in this format</param>
-        /// <param name="exportImageFormat">if not null or empty then also save image to www dir in this format</param>
-        /// <param name="skirtMode">if !SkirtMode.None add a skirt to the b3dm mesh (but not other formats)</param>
-        public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError = 0,
-                             string exportMeshFormat = null, string exportImageFormat = null,
-                             SkirtMode skirtMode = SkirtMode.None)
+        public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError,
+                             TilingProject project, bool enableInternal = true)
         {
             if (pair.Mesh == null)
             {
@@ -182,34 +178,42 @@ namespace OPS.Pipeline.TilingServer
                 throw new Exception("attempting to save tiling node mesh with image but no UVs");
             }
 
+            string exDir = project.ExportDir;
+
             string exMeshExt = null;
             string exMeshFile = null;
             string exMeshUrl = null;
             string exMeshMtlUrl = null;
             bool uploadedExMesh = false;
-            if (!string.IsNullOrEmpty(exportMeshFormat))
+            if (!string.IsNullOrEmpty(project.ExportDir) && !string.IsNullOrEmpty(project.ExportMeshFormat))
             {
-                exMeshExt = "." + exportMeshFormat.ToLower();
+                exMeshExt = TilingProject.ToExt(project.ExportMeshFormat);
                 exMeshFile = Id + exMeshExt;
-                exMeshUrl = pipeline.GetStorageUrl("www", ProjectName, exMeshFile);
-                exMeshMtlUrl = pipeline.GetStorageUrl("www", ProjectName, Id + ".mtl");
+                exMeshUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exMeshFile);
+                exMeshMtlUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, Id + ".mtl");
             }
 
             string exImageExt = null;
             string exImageFile = null;
             string exImageUrl = null;
             bool uploadedExImage = false;
-            if (!string.IsNullOrEmpty(exportImageFormat) && pair.Image != null)
+            if (!string.IsNullOrEmpty(project.ExportDir) && !string.IsNullOrEmpty(project.ExportImageFormat) &&
+                pair.Image != null)
             {
-                exImageExt = "." + exportImageFormat.ToLower();
+                exImageExt = TilingProject.ToExt(project.ExportImageFormat);
                 exImageFile = Id + exImageExt;
-                exImageUrl = pipeline.GetStorageUrl("www", ProjectName, exImageFile);
+                exImageUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exImageFile);
             }
 
+            var alreadyUploaded = new HashSet<string>();
             Action<string, string> upload = (file, url) =>
             {
-                pipeline.SaveFile(file, url);
-                pipeline.LogVerbose("uploaded {0}", url);
+                if (!alreadyUploaded.Contains(url))
+                {
+                    pipeline.SaveFile(file, url);
+                    pipeline.LogVerbose("uploaded {0}", url);
+                    alreadyUploaded.Add(url);
+                }
             };
 
             Action<string, string> uploadAndDeleteMtl = (mesh, img) => 
@@ -227,19 +231,19 @@ namespace OPS.Pipeline.TilingServer
             };
 
             //save node image to S3 for our internal use
-            //typical format is tiff, but png or jpg should work as well
+            //typical format is png, but jpg should work as well
             //do this first because we will want imageFile when we save the mesh below
             //also saves export image to S3 iff it is the same format as our internal format
-            string imageExt = ".tif";
+            string imageExt = TilingProject.ToExt(project.InternalImageFormat);
             string imageFile = Id + imageExt;
-            ImageUrl = pipeline.GetStorageUrl("tile", ProjectName, imageFile);
-            if (pair.Image != null)
+            if (enableInternal && !string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
             {
+                ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
                 TemporaryFile.GetAndDelete(imageExt, tmpImage => 
                 {
                     pair.Image.Save<byte>(tmpImage);
                     upload(tmpImage, ImageUrl);
-                    if (exImageExt == imageExt)
+                    if (exImageUrl != null && exImageExt == imageExt)
                     {
                         upload(tmpImage, exImageUrl);
                         uploadedExImage = true;
@@ -254,74 +258,84 @@ namespace OPS.Pipeline.TilingServer
             //save node mesh to S3 for our internal use
             //typical format is ply, but obj should work as well
             //also saves export mesh to S3 iff it and the export image are the same format as our internal formats
-            string meshExt = ".ply";
+            string meshExt = TilingProject.ToExt(project.InternalMeshFormat);
             string meshFile = Id + meshExt;
-            MeshUrl = pipeline.GetStorageUrl("tile", ProjectName, meshFile);
-            TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
+            if (enableInternal && !string.IsNullOrEmpty(project.InternalTileDir))
             {
-                //here imageFile is used to embed a reference to the texture image in the mesh file
-                //in ply format this is in a header comment
-                //in obj format this writes a sibling .mtl file which contains the image filename
-                //in no case will this actually attempt to read or embed the image data
-                //that data will only exist on s3, and only if there is actually an image
-                //if there is no image then imageFile is null, and that's ok
-                pair.Mesh.Save(tmpMesh, imageFile);
-                upload(tmpMesh, MeshUrl);
-                if (exMeshExt == meshExt && (imageFile == null || exImageExt == imageExt))
+                MeshUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, meshFile);
+                TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
                 {
-                    upload(tmpMesh, exMeshUrl);
-                    uploadAndDeleteMtl(tmpMesh, imageFile);
-                    uploadedExMesh = true;
-                }
-            });
+                    //here imageFile is used to embed a reference to the texture image in the mesh file
+                    //in ply format this is in a header comment
+                    //in obj format this writes a sibling .mtl file which contains the image filename
+                    //in no case will this actually attempt to read or embed the image data
+                    //that data will only exist on s3, and only if there is actually an image
+                    //if there is no image then imageFile is null, and that's ok
+                    pair.Mesh.Save(tmpMesh, imageFile);
+                    upload(tmpMesh, MeshUrl);
+                    if (exMeshUrl != null && exMeshExt == meshExt && (imageFile == null || exImageExt == imageExt))
+                    {
+                        upload(tmpMesh, exMeshUrl);
+                        uploadAndDeleteMtl(tmpMesh, imageFile);
+                        uploadedExMesh = true;
+                    }
+                });
+            }
+            else
+            {
+                MeshUrl = null;
+            }
 
             //save combined mesh and image as a 3D Tiles b3dm (batched 3D model) file for runtime visualization
             //or, if the mesh is not triangulated, then just save the point cloud as a pnts file
             //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
-            string tileMeshExt = pair.Mesh.HasFaces ? ".b3dm" : ".pnts";
-            string tileImageExt = ".jpg"; //could be jpg or png, will be embedded in the b3dm file
-            string tileUrl = pipeline.GetStorageUrl("www", ProjectName, Id + tileMeshExt);
-            TemporaryFile.GetAndDelete(tileMeshExt, tmpMesh =>
+            string tileMeshExt = pair.Mesh.HasFaces ? TilingProject.ToExt(project.TilesetMeshFormat) : ".pnts";
+            string tileImageExt = TilingProject.ToExt(project.TilesetImageFormat);
+            if (!string.IsNullOrEmpty(project.TilesetDir))
             {
-                TemporaryFile.GetAndDelete(tileImageExt, tmpImage =>
+                string tileUrl = pipeline.GetStorageUrl(project.TilesetDir, ProjectName, Id + tileMeshExt);
+                TemporaryFile.GetAndDelete(tileMeshExt, tmpMesh =>
                 {
-                    if (pair.Image != null)
+                    TemporaryFile.GetAndDelete(tileImageExt, tmpImage =>
                     {
-                        pair.Image.Save<byte>(tmpImage);
-                        if (exImageExt == tileImageExt && !uploadedExImage)
+                        if (pair.Image != null)
                         {
-                            upload(tmpImage, exImageUrl);
-                            uploadedExImage = true;
+                            pair.Image.Save<byte>(tmpImage);
+                            if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
+                            {
+                                upload(tmpImage, exImageUrl);
+                                uploadedExImage = true;
+                            }
                         }
-                    }
-                    else
-                    {
-                        tmpImage =  null;
-                    }
-                    var mesh = pair.Mesh;
-                    if (mesh.HasFaces && skirtMode != SkirtMode.None)
-                    {
-                        mesh = new Mesh(mesh);
-                        mesh.AddSkirt(skirtMode);
-                        BoundsWithSkirt = JsonHelper.ToJson(BoundingBoxExtensions.Union(GetBounds(), mesh.Bounds()));
-                    }
-                    else
-                    {
-                        BoundsWithSkirt = "";
-                    }
-                    //for b3dm this reads the image data if any and embeds it into the mesh file
-                    //for pnts the image data is ignored
-                    mesh.Save(tmpMesh, tmpImage);
-                    upload(tmpMesh, tileUrl);
-                    if (tileMeshExt == exMeshExt)
-                    {
-                        uploadedExMesh = true;
-                    }
+                        else
+                        {
+                            tmpImage =  null;
+                        }
+                        var mesh = pair.Mesh;
+                        if (mesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
+                        {
+                            mesh = new Mesh(mesh);
+                            mesh.AddSkirt(project.GetSkirtMode());
+                            BoundsWithSkirt = JsonHelper.ToJson(BoundingBoxExtensions.Union(GetBounds(), mesh.Bounds()));
+                        }
+                        else
+                        {
+                            BoundsWithSkirt = "";
+                        }
+                        //for b3dm this reads the image data if any and embeds it into the mesh file
+                        //for pnts the image data is ignored
+                        mesh.Save(tmpMesh, tmpImage);
+                        upload(tmpMesh, tileUrl);
+                        if (tileMeshExt == exMeshExt)
+                        {
+                            uploadedExMesh = true;
+                        }
+                    });
                 });
-            });
+            }
 
             //save export image to S3 iff we haven't already
-            if (exImageExt != null && !uploadedExImage)
+            if (exImageUrl != null && exImageExt != null && !uploadedExImage)
             {
                 TemporaryFile.GetAndDelete(exImageExt, tmpImage => 
                 {
@@ -332,7 +346,7 @@ namespace OPS.Pipeline.TilingServer
             }
 
             //save export mesh to S3 iff we haven't already
-            if (exMeshExt != null && !uploadedExMesh)
+            if (exMeshUrl != null && exMeshExt != null && !uploadedExMesh)
             {
                 TemporaryFile.GetAndDelete(exMeshExt, tmpMesh =>
                 {

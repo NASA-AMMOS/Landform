@@ -44,12 +44,12 @@ namespace OPS.Pipeline.TilingServer
                 n.AddComponent<MeshImagePair>();
             }
             var builder = new Tile3DBuilder(root);
-            builder.BuildTileset(n => n.Name + ".b3dm");
+            builder.BuildTileset(n => n.Name + project.TilesetMeshFormat);
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             TemporaryFile.GetAndDelete(".json", f =>
             {
                 File.WriteAllText(f, jsonData);
-                string url = pipeline.GetStorageUrl("www", projectName, "tileset.json");
+                string url = pipeline.GetStorageUrl(project.TilesetDir, projectName, "tileset.json");
                 pipeline.SaveFile(f, url);
             });
             pipeline.EnqueueToMaster(this.message);

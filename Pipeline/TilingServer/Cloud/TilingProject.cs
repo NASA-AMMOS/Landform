@@ -46,11 +46,34 @@ namespace OPS.Pipeline.TilingServer
 
         public string NodeIdsUrl;
 
-        public string ExportMeshFormat;
-
-        public string ExportImageFormat;
-
         public int MaxLeafGroupSize;
+
+        public string ExportDir = "www"; //disable exporting meshes and images if null or empty
+
+        public string ExportMeshFormat = null; //disable exporting meshes if null or empty
+
+        public string ExportImageFormat = null; //disable exporting images if null or empty
+
+        public string InternalTileDir = "tiles"; //disable saving internal tile meshes and images if null or empty
+
+        public string InternalMeshFormat = "ply";
+
+        public string InternalImageFormat = "png";
+
+        public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
+
+        public string TilesetMeshFormat = "b3dm"; //but pointclouds will be saved as pnts
+
+        public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
+
+        public static string ToExt(string fmt)
+        {
+            if (!fmt.StartsWith("."))
+            {
+                fmt = "." + fmt;
+            }
+            return fmt.ToLower();
+        }
 
         //This constructor must be public for DynamoDB but should not be used
         public TilingProject() { }
@@ -148,7 +171,15 @@ namespace OPS.Pipeline.TilingServer
 
             pipeline.DeleteProjectCache(Name);
 
-            pipeline.DeleteFiles(pipeline.GetStorageUrl("www", Name), "*", ignoreErrors);
+            if (!string.IsNullOrEmpty(ExportDir))
+            {
+                pipeline.DeleteFiles(pipeline.GetStorageUrl(ExportDir, Name), "*", ignoreErrors);
+            }
+
+            if (!string.IsNullOrEmpty(TilesetDir) && TilesetDir != ExportDir)
+            {
+                pipeline.DeleteFiles(pipeline.GetStorageUrl(TilesetDir, Name), "*", ignoreErrors);
+            }
 
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {

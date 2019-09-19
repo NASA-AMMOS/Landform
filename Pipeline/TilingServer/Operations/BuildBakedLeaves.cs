@@ -128,8 +128,8 @@ namespace OPS.Pipeline.TilingServer
                 {
                     pair = bakeClipper.BakeTexture(m, project.TileResolution);
                 }
-                leaf.SaveMesh(pair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
-                              project.GetSkirtMode());
+                double geometricError = 0;
+                leaf.SaveMesh(pair, pipeline, geometricError, project);
                 processed.Add(leaf);
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
                 pipeline.LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
