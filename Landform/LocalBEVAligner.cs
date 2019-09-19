@@ -41,8 +41,14 @@ namespace OPS.Landform
         [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = "Navcam")]
         public override string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Use transform priors only", Default = true)]
+        [Option(HelpText = "Option disabled for this command - always loads priors", Default = true)]
         public override bool UsePriors { get; set; }
+
+        [Option(HelpText = "Option disabled for this command - always loads priors", Default = false)]
+        public override bool OnlyAligned { get; set; }
+
+        [Option(HelpText = "Option disabled for this command - always loads priors", Default = null)]
+        public override string AdjustedTransformSources { get; set; }
 
         [Option(HelpText = "Stereo eye to prefer", Default = RoverStereoEye.Left)]
         public RoverStereoEye StereoEye { get; set; }
@@ -178,10 +184,14 @@ namespace OPS.Landform
 
     public class LocalBEVAligner : WedgeCommand
     {
-        protected new LocalBEVAlignerOptions options;
+        private const string OUT_DIR = "alignment/AdjustProducts";
+
+        private LocalBEVAlignerOptions options;
 
         private List<MeshObservations> meshObservations;
 
+        //WedgeCommand.siteDrives is an array of SiteDrive corresponding to the OnlyForSiteDrives option
+        //LocalBEVAligner.siteDrives is a sorted array of the sitedrives to be aligned
         protected new string[] siteDrives;
 
         //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
@@ -286,8 +296,7 @@ namespace OPS.Landform
 
         public int Run()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
+            StartStopwatch();
 
             try
             {
@@ -295,21 +304,11 @@ namespace OPS.Landform
                 {
                     return 0; //help
                 }
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogError(ex.Message);
-                return 1;
-            }
 
-            string what = "";
-            try
-            {
                 pipeline.LogInfo("computing birds eye view alignment for {0} observations, {1} site drives",
-                                 meshObservations.Count, siteDrives.Length);
+                             meshObservations.Count, siteDrives.Length);
 
-                what = "load or render birds eye views";
-                LoadOrRenderBEVs(); //observations -> bevs, dems
+                RunPhase("load or render birds eye views", LoadOrRenderBEVs); //observations -> bevs, dems
 
                 if (options.OnlyRenderBEVs)
                 {
@@ -318,8 +317,7 @@ namespace OPS.Landform
                     return 0;
                 }
 
-                what = "load or detect features";
-                LoadOrDetectFeatures(); //bevs -> features
+                RunPhase("load or detect features", LoadOrDetectFeatures); //bevs -> features
 
                 if (options.OnlyDetectFeatures)
                 {
@@ -328,14 +326,15 @@ namespace OPS.Landform
                     return 0;
                 }
 
-                what ="compute site drive pairs";
-                ComputePairs(); //siteDrives -> siteDrivePairs
+                RunPhase("compute site drive pairs", ComputePairs); //siteDrives -> siteDrivePairs
 
-                what = "load or match feature pairs";
-                int nm = LoadOrMatchPairs(); //siteDrivePairs, features -> spatialMatches
+                int nm = 0, na = 0;
 
-                what = "compute alignment";
-                int na = Align(); //spatialMatches -> LandformBEV aligned FrameTransforms
+                //siteDrivePairs, features -> spatialMatches
+                RunPhase("load or match feature pairs", () => { nm = LoadOrMatchPairs(); });
+
+                //spatialMatches -> LandformBEV aligned FrameTransforms
+                RunPhase("compute alignment", () => { na = Align(); });
                 
                 bool matchOnly = options.AlignmentMode == AlignmentMode.None;
                 pipeline.LogInfo("matched {0}{1} site drives from {2} birds eye views",
@@ -343,12 +342,11 @@ namespace OPS.Landform
             }
             catch (Exception ex)
             {
-                pipeline.LogError("failed to {0}: {1}", what, ex.Message);
+                pipeline.LogError(ex.Message);
                 return 1;
             }
 
-            stopwatch.Stop();
-            pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
+            StopStopwatch();
 
             return 0;
         }
@@ -370,7 +368,7 @@ namespace OPS.Landform
                 throw new Exception("--adjustedtransformsources not supported for this command");
             } 
 
-            if (!ParseArgumentsAndLoadCaches("alignment/AdjustProducts", onlyObsForReconstruction: true))
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR, onlyObsForReconstruction: true))
             {
                 return false; //help
             }
@@ -410,6 +408,12 @@ namespace OPS.Landform
             }
 
             return true;
+        }
+
+        protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes,
+                                                            bool onlyObsForReconstruction)
+        {
+            throw new NotImplementedException();
         }
 
         /// <summary>
@@ -879,7 +883,6 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                PathHelper.EnsureExists(outputPath);
                 double startSec = UTCTime.Now();
                 int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
@@ -1364,8 +1367,6 @@ namespace OPS.Landform
                     SaveImage(img.ToOPSImage(), pair + "_BEV_RANSAC" + suffix);
                 }
                 
-                PathHelper.EnsureExists(outputPath);
-
                 writeImage("_0_priors", pt => pt);
                 writeImage("_1_rotation", pt => bestTransform.Rotate(pt));
                 writeImage("_2_solved", pt => bestTransform.Transform(pt));
@@ -1531,7 +1532,6 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                PathHelper.EnsureExists(outputPath);
                 double startSec = UTCTime.Now();
                 int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
