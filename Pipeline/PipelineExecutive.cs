@@ -72,7 +72,18 @@ namespace OPS.Pipeline
 
                 if (stateMachine != null)
                 {
-                    stateMachine.ProcessMessage(msg);
+                    try
+                    {
+                        stateMachine.ProcessMessage(msg);
+                        pipeline.LogPrefix = "";
+                    }
+                    catch (Exception e)
+                    {
+                        pipeline.LogPrefix = "";
+                        pipeline.LogError("{0}: master task error ({1}): {2}",
+                                          msg.Info(), e.GetType().FullName, e.Message);
+                        pipeline.LogError(e.StackTrace);
+                    }
                 }
 
                 return false; //now discard message
@@ -80,7 +91,17 @@ namespace OPS.Pipeline
 
             var workerDispatcher = StartWorker.MakeDispatcher(pipeline);
             pipeline.EnqueuedToWorkers += msg => {
-                workerDispatcher.Handle(msg);
+                try
+                {
+                    workerDispatcher.Handle(msg);
+                    pipeline.LogPrefix = "";
+                }
+                catch (Exception e)
+                {
+                    pipeline.LogPrefix = "";
+                    pipeline.LogError("{0}: worker task error ({1}): {2}", msg.Info(), e.GetType().FullName, e.Message);
+                    pipeline.LogError(e.StackTrace);
+                }
                 return false; //now discard message
             };
         }
@@ -172,16 +193,18 @@ namespace OPS.Pipeline
                 //only take one message at a time when we are ready to process it
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
-                if (queue.TryDequeue(out QueueMessage m))
+                if (queue.TryDequeue(out QueueMessage msg))
                 {
                     try
                     {
-                        handler(m);
+                        handler(msg);
+                        pipeline.LogPrefix = "";
                     }
                     catch (Exception e)
                     {
+                        pipeline.LogPrefix = "";
                         pipeline.LogError("{0}: {1} task error ({2}): {3}",
-                                          m.Info(), what, e.GetType().FullName, e.Message);
+                                          msg.Info(), what, e.GetType().FullName, e.Message);
                         pipeline.LogError(e.StackTrace);
                     }
                 }
@@ -198,10 +221,10 @@ namespace OPS.Pipeline
         {
             void handler(QueueMessage msg)
             {
-                var stateMachines = GetStateMachine(msg);
+                var stateMachine = GetStateMachine(msg);
                 if (stateMachine != null)
                 {
-                    stateMachine.ProcessMessage(m);
+                    stateMachine.ProcessMessage(msg);
                 }
             }
 
