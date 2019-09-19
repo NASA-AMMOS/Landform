@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using System.Collections;
+using System.Collections.Generic;
+using System.Diagnostics;
 using CommandLine;
 using OPS.Util;
 using OPS.Pipeline;
@@ -21,10 +24,10 @@ namespace OPS.Landform
         public bool Redo { get; set; }
 
         [Option(HelpText = "Disable saving results to database", Default = false)]
-        public bool NoSave { get; set; }
+        public virtual bool NoSave { get; set; }
 
         [Option(HelpText = "Hide progress", Default = false)]
-        public bool NoProgress { get; set; }
+        public virtual bool NoProgress { get; set; }
 
         [Option(HelpText = "Output debug products", Default = false)]
         public bool WriteDebug { get; set; }
@@ -41,83 +44,160 @@ namespace OPS.Landform
 
     public class LandformCommand
     {
-        protected LandformCommandOptions options;
+        protected LandformCommandOptions lcopts;
 
         protected PipelineCore pipeline;
+
+        protected Stopwatch stopwatch;
+        protected Dictionary<string, long> msPerPhase = new Dictionary<string, long>();
 
         protected Project project;
         protected MissionSpecific mission;
         protected RoverMasker masker;
 
-        protected string outputPath;
+        protected string outputFolder; //use like: pipeline.GetStorageUrl(outputFolder, project.Name, file)
+
+        protected string localOutputPath; //<LocalPipelineConfig.StorageDir>/<venue>/<outputFolder>/<project.Name>
+
         protected string imageExt;
         protected string meshExt;
 
-        protected LandformCommand(LandformCommandOptions options)
+        protected LandformCommand(LandformCommandOptions lcopts)
         {
-            this.options = options;
+            this.lcopts = lcopts;
 
-            if (options.Cloud)
+            if (lcopts.Cloud)
             {
-                pipeline = new CloudPipeline(options, initQueues: false);
+                pipeline = new CloudPipeline(lcopts, initQueues: false);
             }
             else
             {
-                pipeline = new LocalPipeline(options);
+                pipeline = new LocalPipeline(lcopts);
             }
             PDSSerializer.DataPath = pipeline.PDSDataPath;
         }
 
-        protected virtual bool ParseArguments(string outDir)
+        protected void StartStopwatch()
         {
-            project = Project.Find(pipeline, options.ProjectName);
+            stopwatch = new Stopwatch();
+            stopwatch.Start();
+        }
+
+        protected void StopStopwatch()
+        {
+            stopwatch.Stop();
+            foreach (var entry in msPerPhase)
+            {
+                pipeline.LogInfo("{0}: {1:F3}s", entry.Key, 0.001 * entry.Value);
+            }
+            pipeline.LogInfo("total {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
+        }
+
+        protected void RunPhase(string phase, Action func)
+        {
+            pipeline.LogInfo(phase);
+            try
+            {
+                var msStart = stopwatch.ElapsedMilliseconds;
+                func();
+                var msEnd = stopwatch.ElapsedMilliseconds;
+                var ms = msPerPhase[phase] = msEnd - msStart;
+                pipeline.LogInfo("{0}: {1:F3}s, total {2:F3}s", phase, 0.001 * ms, 0.001 * msEnd);
+            }
+            catch
+            {
+                pipeline.LogError("{0} failed", phase);
+                throw;
+            }
+        }
+
+        protected virtual Project GetProject()
+        {
+            var project = Project.Find(pipeline, lcopts.ProjectName);
             if (project == null)
             {
-                throw new Exception("project not found: " + options.ProjectName);
+                throw new Exception("project not found: " + lcopts.ProjectName);
             }
-            mission = MissionSpecific.GetInstance(project.Mission);
-            masker = mission.GetMasker();
+            return project;
+        }
 
-            outputPath = pipeline.GetLocalFolder(options.OutputFolder, outDir, options.ProjectName);
+        protected virtual MissionSpecific GetMission()
+        {
+            return MissionSpecific.GetInstance(project.Mission);
+        }
 
-            meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, pipeline);
+        protected virtual RoverMasker GetMasker()
+        {
+            return mission.GetMasker();
+        }
+
+        protected virtual void SetOutDir(string outDir)
+        {
+            outputFolder = outDir;
+            localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, lcopts.ProjectName);
+            if (lcopts.Redo && Directory.Exists(localOutputPath))
+            {
+                pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
+                Directory.Delete(localOutputPath, true);
+            }
+        }
+         
+        protected virtual bool ParseArguments(string outDir)
+        {
+            project = GetProject();
+            mission = GetMission();
+            masker = GetMasker();
+
+            if (outDir != null)
+            {
+                SetOutDir(outDir);
+            }
+
+            meshExt = MeshSerializers.Instance.CheckFormat(lcopts.MeshFormat, pipeline);
             if (meshExt == null)
             {
                 return false; //help
             }
-            pipeline.LogInfo("writing {0} meshes to {1}", meshExt, outputPath);
             
-            imageExt = ImageSerializers.Instance.CheckFormat(options.ImageFormat, pipeline);
+            imageExt = ImageSerializers.Instance.CheckFormat(lcopts.ImageFormat, pipeline);
             if (imageExt == null)
             {
                 return false; //help
             }
-            pipeline.LogInfo("writing {0} images to {1}", imageExt, outputPath);
 
             return true;
         }
 
         protected void SaveFloatTIFF(Image img, string name)
         {
-            string imageFile = Path.Combine(outputPath, name + ".tif");
+            string imageFile = Path.Combine(localOutputPath, name + ".tif");
             PathHelper.EnsureExists(Path.GetDirectoryName(imageFile)); //name could have a subpath in it
-            pipeline.LogVerbose("saving float TIFF {0}", name);
+            if (!lcopts.NoProgress)
+            {
+                pipeline.LogVerbose("saving float TIFF {0}", name);
+            }
             img.Save<float>(imageFile);
         }
 
         protected void SaveImage(Image img, string name)
         {
-            string imageFile = Path.Combine(outputPath, name + imageExt);
+            string imageFile = Path.Combine(localOutputPath, name + imageExt);
             PathHelper.EnsureExists(Path.GetDirectoryName(imageFile)); //name could have a subpath in it
-            pipeline.LogVerbose("saving image {0}", name);
+            if (!lcopts.NoProgress)
+            {
+                pipeline.LogVerbose("saving image {0}", name);
+            }
             img.Save<byte>(imageFile);
         }
 
         protected void SaveMesh(Mesh mesh, string name, string texture = null)
         {
-            string meshFile = Path.Combine(outputPath, name + meshExt);
+            string meshFile = Path.Combine(localOutputPath, name + meshExt);
             PathHelper.EnsureExists(Path.GetDirectoryName(meshFile)); //name could have a subpath in it
-            pipeline.LogVerbose("saving mesh {0}", name);
+            if (!lcopts.NoProgress)
+            {
+                pipeline.LogVerbose("saving mesh {0}", name);
+            }
             mesh.Save(meshFile, texture);
         }
     }

@@ -65,11 +65,16 @@ namespace OPS.Landform
 
     public class LocalFeatures : LandformCommand
     {
-        protected new LocalFeaturesOptions options;
+        private LocalFeaturesOptions options;
 
         public LocalFeatures(LocalFeaturesOptions options) : base(options)
         {
             this.options = options;
+
+            if (options.Redo)
+            {
+                options.RedoFeatures = true;
+            }
         }
 
         public int Run()
@@ -84,7 +89,7 @@ namespace OPS.Landform
             mission = MissionSpecific.GetInstance(project.Mission);
             masker = mission.GetMasker();
 
-            outputPath = pipeline.GetLocalFolder(options.OutputFolder, "alignment/FeatureProducts", project.Name);
+            localOutputPath = pipeline.GetLocalFolder(options.OutputFolder, "alignment/FeatureProducts", project.Name);
 
             if (options.WriteFeatureImages)
             {
@@ -93,7 +98,7 @@ namespace OPS.Landform
                 {
                     return 0;
                 }
-                pipeline.LogInfo("writing {0} feature images to {1}", imageExt, outputPath);
+                pipeline.LogInfo("writing {0} feature images to {1}", imageExt, localOutputPath);
             }
 
             var allowed = (options.OnlyForObservations ?? "")
@@ -269,8 +274,8 @@ namespace OPS.Landform
             var mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, imageObs.Name);
             img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
                                                 StringHelper.GetLastUrlPathSegment(imageObs.Url));
-            PathHelper.EnsureExists(outputPath);
-            img.Save<byte>(string.Format("{0}{1}_Features{2}", outputPath, imageObs.Name, imageExt));
+            PathHelper.EnsureExists(localOutputPath);
+            img.Save<byte>(string.Format("{0}{1}_Features{2}", localOutputPath, imageObs.Name, imageExt));
         }
     }
 }

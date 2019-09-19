@@ -25,7 +25,7 @@ namespace OPS.Landform
 
     public class LocalBundleAdjust : LandformCommand
     {
-        protected new LocalBundleAdjustOptions options;
+        private LocalBundleAdjustOptions options;
 
         private string dbgDir;
 

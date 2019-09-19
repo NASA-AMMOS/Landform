@@ -112,7 +112,7 @@ namespace OPS.LandformUtil
 
     public class LocalBuildTilesetScene : LandformCommand
     {
-        protected new LocalBuildTilesetSceneOptions options;
+        private LocalBuildTilesetSceneOptions options;
 
         public LocalBuildTilesetScene(LocalBuildTilesetSceneOptions options) : base(options)
         {
@@ -165,12 +165,12 @@ namespace OPS.LandformUtil
 
             string dir = string.Format("tiling/TilesetProducts/{0}Frame", outputFrame);
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            string outputPath = pipeline.GetLocalFolder(options.OutputFolder, dir, options.ProjectName);
+            string localOutputPath = pipeline.GetLocalFolder(options.OutputFolder, dir, options.ProjectName);
 
-            string leafTilesPath = outputPath + "leafTiles/";
+            string leafTilesPath = localOutputPath + "leafTiles/";
             PathHelper.EnsureExists(leafTilesPath);
 
-            string astroOutputPath = outputPath + "astro/";
+            string astroOutputPath = localOutputPath + "astro/";
             PathHelper.EnsureExists(astroOutputPath);
 
             SceneNode root = null;
@@ -254,7 +254,7 @@ namespace OPS.LandformUtil
                 return 1;
             }
 
-            string processedMeshFilePath = Path.Combine(outputPath, "processedFullMesh.ply");
+            string processedMeshFilePath = Path.Combine(localOutputPath, "processedFullMesh.ply");
             pipeline.LogInfo("Saving processed mesh to: {0}", processedMeshFilePath);
             processedFullMesh.Save(processedMeshFilePath);
 

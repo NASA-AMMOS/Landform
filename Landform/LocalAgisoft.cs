@@ -36,11 +36,16 @@ namespace OPS.Landform
 
     public class LocalAgisoft : LandformCommand
     {
-        protected new LocalAgisoftOptions options;
+        private LocalAgisoftOptions options;
 
         public LocalAgisoft(LocalAgisoftOptions options) : base(options)
         {
             this.options = options;
+            if (options.Redo)
+            {
+                options.RedoImages = true;
+                options.RedoAlignment = true;
+            }
         }
 
         public int Run()

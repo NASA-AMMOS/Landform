@@ -22,25 +22,33 @@ namespace OPS.Landform
     public class GeometryCommandOptions : WedgeCommandOptions
     {
         [Option(HelpText = "Scene mesh coordinate frame: numeric sitedrive SSSSSDDDDD, root, newest, or oldest", Default = "newest")]
-        public string MeshFrame { get; set; }
+        public virtual string MeshFrame { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
     {
-        protected new GeometryCommandOptions options;
+        protected GeometryCommandOptions gcopts;
 
         protected string meshFrame;
 
-        public GeometryCommand(GeometryCommandOptions options) : base(options)
+        protected Mesh mesh;
+        protected SceneMesh sceneMesh;
+
+        public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {
-            this.options = options;
+            this.gcopts = gcopts;
+        }
+
+        protected virtual string GetMeshFrame()
+        {
+            return gcopts.MeshFrame;
         }
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
                                                             bool onlyObsForReconstruction = false)
         {
-            meshFrame = options.MeshFrame.ToLower();
-            var origMeshFrame = meshFrame;
+            meshFrame = GetMeshFrame().ToLower();
+
             bool specificSiteDrive = false;
             if (meshFrame != "newest" && meshFrame != "oldest")
             {
@@ -51,15 +59,19 @@ namespace OPS.Landform
                 }
             }
 
-            outDir = string.Format("{0}/{1}Frame", outDir, meshFrame);
-
-            if (!base.ParseArgumentsAndLoadCaches(outDir, obsTypes, onlyObsForReconstruction))
+            if (!base.ParseArgumentsAndLoadCaches(null, obsTypes, onlyObsForReconstruction))
             {
                 return false; //help
             }
 
+            var origMeshFrame = meshFrame;
             if (meshFrame == "newest" || meshFrame == "oldest")
             {
+                if (observationCache == null)
+                {
+                    throw new Exception(string.Format("cannot determine {0} sitedrive frame: no observations", meshFrame));
+                }
+                                              
                 var sds = observationCache
                     .GetAllObservations()
                     .Select(obs => ((RoverObservation)obs).SiteDrive)
@@ -83,13 +95,17 @@ namespace OPS.Landform
                 specificSiteDrive = true;
             }
 
-            if (specificSiteDrive && !frameCache.ContainsFrame(meshFrame))
+            if (specificSiteDrive && frameCache != null && !frameCache.ContainsFrame(meshFrame))
             {
                 throw new Exception("sitedrive output frame not found: " + meshFrame);
             }
 
             pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
                              origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
+
+            outDir = string.Format("{0}/{1}Frame", outDir, meshFrame);
+            outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, gcopts.UsePriors);
+            SetOutDir(outDir);
 
             return true;
         }

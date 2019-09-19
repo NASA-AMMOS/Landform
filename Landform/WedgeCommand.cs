@@ -39,10 +39,10 @@ namespace OPS.Landform
         [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public virtual string OnlyForSiteDrives { get; set; }
 
-        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
+        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted, Manual, Landform, LandformBEV, LandformBEVRoot, LandformBEVCalf, Agisoft)", Default = null)]
         public virtual string AdjustedTransformSources { get; set; }
 
-        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
+        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior, LegacyManifest, PlacesDB, LocationsDB, PDS)", Default = null)]
         public virtual string PriorTransformSources { get; set; }
 
         [Option(HelpText = "Use transform priors only", Default = false)]
@@ -54,53 +54,64 @@ namespace OPS.Landform
 
     public class WedgeCommand : LandformCommand
     {
-        protected new WedgeCommandOptions options;
+        protected WedgeCommandOptions wcopts;
 
         protected SiteDrive[] siteDrives;
+        protected TransformSource[] priorSources;
+        protected TransformSource[] adjustedSources;
 
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
 
-        protected SceneMesh sceneMesh;
-        protected Mesh mesh;
-
-        protected WedgeCommand(WedgeCommandOptions options) : base(options)
+        protected WedgeCommand(WedgeCommandOptions wcopts) : base(wcopts)
         {
-            this.options = options;
+            this.wcopts = wcopts;
         }
 
         protected virtual bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
                                                            bool onlyObsForReconstruction = false)
         {
-            if (options.UsePriors && options.OnlyAligned)
+            if (wcopts.UsePriors && wcopts.OnlyAligned)
             {
                 throw new Exception("cannot specify both --usepriors and --onlyaligned");
             }
 
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
+            siteDrives = SiteDrive.ParseList(wcopts.OnlyForSiteDrives);
+            priorSources = FrameTransform.ParseSources(wcopts.PriorTransformSources);
+            adjustedSources = FrameTransform.ParseSources(wcopts.AdjustedTransformSources);
 
-            outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, options.UsePriors);
-
-            if (!base.ParseArguments(outDir))
+            if (outDir != null)
             {
-                return false; //help
+                outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, wcopts.UsePriors);
             }
 
-            frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
+            LoadFrameCache();
+            LoadObservationCache(obsTypes, onlyObsForReconstruction);
 
-            siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
-            string[] cameras = StringHelper.ParseList(options.OnlyForCameras);
+            return base.ParseArguments(outDir);
+        }
+
+        protected override bool ParseArguments(string outDir)
+        {
+            throw new NotImplementedException();
+        }
+
+        protected virtual void LoadFrameCache()
+        {
+            frameCache = new FrameCache(pipeline, wcopts.ProjectName);
+            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
+        }
+
+        protected virtual void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        {
+            string[] cameras = StringHelper.ParseList(wcopts.OnlyForCameras);
             string[] obsFilter = (obsTypes ?? new ObservationType[] {}).Select(ot => ot.ToString()).ToArray();
-            observationCache = new ObservationCache(pipeline, options.ProjectName);
+            observationCache = new ObservationCache(pipeline, wcopts.ProjectName);
             observationCache.
                 Preload(obs => (!onlyObsForReconstruction || obs.UseForReconstruction) &&
                         (obsFilter.Length == 0 || obsFilter.Any(ot => obs.ObservationType == ot)) &&
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
                         (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
-
-            return true;
         }
     }
 }
