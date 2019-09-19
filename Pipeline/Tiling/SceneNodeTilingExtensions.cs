@@ -236,6 +236,14 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Given a list of nodes, connect them in a tree based on name prefix convention and return the root
+        ///
+        /// each node name is of the form ABCDE... where
+        /// A is the index of a child of the root
+        /// B is the index of a child of the node corresponding to A, etc
+        /// thus each node name encodes a full path from the root to the node
+        /// and the collection of all leaf names encodes the full tree topology
+        ///
+        /// as long as all the leaves are provided this function will reconstitute any missing parent nodes
         /// </summary>
         /// <param name="nodes"></param>
         /// <returns></returns>

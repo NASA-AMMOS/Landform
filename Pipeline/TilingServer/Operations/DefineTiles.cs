@@ -214,6 +214,11 @@ namespace OPS.Pipeline.TilingServer
             return root;
         }
 
+        //each node name is of the form ABCDE... where
+        //A is the index of a child of the root
+        //B is the index of a child of the node corresponding to A, etc
+        //thus each node name encodes a full path from the root to the node
+        //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme,
                                                 ITileSplitCriteria[] splitCriteria)
         {
@@ -238,10 +243,14 @@ namespace OPS.Pipeline.TilingServer
                     {
                         var childBounds = tilingScheme.Split(null, curBounds);
                         childBounds = multiClipper.FilterEmptyBounds(childBounds);
+
                         //For quad trees, expand bounds in the non-split dimension
                         //Otherwise, we clip high peaks/low valleys in the decimated mesh
                         //that exceed the bounds of the original mesh
-                        int counter = 0;
+                        //childBounds = childBounds.Select(box => tilingScheme.ExpandBounds(box, null));
+                        //disabled - see https://github.jpl.nasa.gov/OnSight/Landform/pull/656
+
+                        int counter = 0; //note this is always exactly one decimal digit
                         foreach (var childBound in childBounds)
                         {
                             SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
