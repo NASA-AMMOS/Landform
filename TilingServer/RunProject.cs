@@ -15,13 +15,13 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("runproject", HelpText = "Runs a tiling workflow")]
-    public class RunProjectOptions : TilingCommandOptions
+    public class RunProjectOptions : TilingServerCommandOptions
     {
         [Option(Default = false, HelpText = "wait until project has finished running")]
         public bool Wait { get; set; }
     }
 
-    public class RunProject : TilingCommand
+    public class RunProject : TilingServerCommand
     {
         const int MAX_WAIT_SEC = 60 * 60 * 10; //10h
         const int SLEEP_MS = 500;

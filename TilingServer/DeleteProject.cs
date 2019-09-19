@@ -14,13 +14,13 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("deleteproject", HelpText = "Delete project")]
-    public class DeleteProjectOptions : TilingCommandOptions
+    public class DeleteProjectOptions : TilingServerCommandOptions
     {       
         [Option(Default = false, HelpText = "Do not wait until project has been deleted")]
         public bool NoWait { get; set; }
     }
 
-    public class DeleteProject : TilingCommand
+    public class DeleteProject : TilingServerCommand
     {
         const int MAX_WAIT_MS = 30 * 60 * 1000; //it can take a while to delete a big project
         const int SLEEP_MS = 500;
