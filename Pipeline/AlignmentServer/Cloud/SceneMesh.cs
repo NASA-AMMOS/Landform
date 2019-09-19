@@ -41,6 +41,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid BlendedTextureGuid;
 
+        public Guid LeafListGuid;
+
         protected void IsValid()
         {
             if (!(ProjectName != null && Name != null && Frame != null))
@@ -69,6 +71,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.BackprojectIndexGuid = Guid.Empty;
             this.BlurredTextureGuid = Guid.Empty;
             this.BlendedTextureGuid = Guid.Empty;
+            this.LeafListGuid = Guid.Empty;
             IsValid();
         }
 

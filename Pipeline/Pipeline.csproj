@@ -197,6 +197,7 @@
     <Compile Include="Alignment\NodeObservation.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
+    <Compile Include="DataProducts\LeafList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
     <Compile Include="PipelineOperation.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
