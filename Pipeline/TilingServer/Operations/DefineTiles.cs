@@ -79,6 +79,7 @@ namespace OPS.Pipeline.TilingServer
         public void Process()
         {
             pipeline.LogInfo("started");
+
             var project = TilingProject.Find(pipeline, projectName);
             if(project == null)
             {
@@ -93,12 +94,24 @@ namespace OPS.Pipeline.TilingServer
                 return;
             }
 
+            DownloadInputsAndBuildTree(project);
+
+            pipeline.EnqueueToMaster(message);
+
+            pipeline.LogInfo("complete");
+        }
+
+        public void DownloadInputsAndBuildTree(TilingProject project, bool progress = true,
+                                               bool skipSavingInternalTileMeshesForUserDefinedNodes = false)
+        {
+            bool userDefined = project.GetTilingScheme() == TilingScheme.UserDefined;
+
             SceneNode root = null;
-            if (project.GetTilingScheme() == TilingScheme.UserDefined)
+            if (userDefined)
             {
                 // Build a tree based on existing tile ids
                 var inputs = TilingInput.Find(pipeline, project).ToList();
-                pipeline.LogInfo("user-defined tiling scheme, " + inputs.Count + " inputs");
+                pipeline.LogInfo("user-defined tiling scheme, {0} inputs", inputs.Count);
                 ConcurrentBag<SceneNode> nodes = new ConcurrentBag<SceneNode>();
                 CoreLimitedParallel.ForEach(inputs, input =>
                 {
@@ -114,7 +127,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 // Buid a tree using input datasets
                 var inputs = TilingInput.Find(pipeline, project).ToList();
-                pipeline.LogInfo(inputs.Count + " inputs");
+                pipeline.LogInfo("tiling scheme {0}, {1} inputs", project.TilingScheme, inputs.Count);
 
                 List<OPS.Pipeline.MeshImagePair> pairs = new List<MeshImagePair>();
                 foreach (var input in inputs)
@@ -139,7 +152,7 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
-            pipeline.LogInfo("saving tile tree, " + nn + " nodes");
+            pipeline.LogInfo("saving tile tree, {0} nodes", nn);
             List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -151,25 +164,47 @@ namespace OPS.Pipeline.TilingServer
                                                    dependencies.DependsOn(node.Name),
                                                    dependencies.DependedOnBy(node.Name),
                                                    node.GetComponent<NodeBounds>().Bounds);
-                if (node.IsLeaf && node.HasComponent<MeshImagePair>())
+
+                //save user supplied tile meshes to project storage
+                //this both saves them in our internal formats, typically ply / png
+                //as well as the final output tileset format, typically b3dm / jpg
+                if (node.HasComponent<MeshImagePair>())
                 {
-                    tilingNode.SaveMesh(node.GetComponent<MeshImagePair>(), pipeline, 0,
-                                        project.ExportMeshFormat, project.ExportImageFormat);
+                    var mp = node.GetComponent<MeshImagePair>();
+
+                    //when we're called from LocalBuildTileset we just read the leaf tiles from InternalTileDir
+                    //so no need to re-save them right back there
+                    //though we do want to save corresponding b3dm files to TilesetDir
+                    bool saveInternal = !skipSavingInternalTileMeshesForUserDefinedNodes;
+                    if (!saveInternal && !string.IsNullOrEmpty(project.InternalTileDir))
+                    {
+                        string meshFile = node.Name + TilingProject.ToExt(project.InternalMeshFormat);
+                        string imageFile = node.Name + TilingProject.ToExt(project.InternalImageFormat);
+                        tilingNode.MeshUrl = pipeline.GetStorageUrl(project.InternalTileDir, project.Name, meshFile);
+                        tilingNode.ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, project.Name, imageFile);
+                    }
+
+                    double geometricError = 0;
+
+                    tilingNode.SaveMesh(mp, pipeline, geometricError, project, saveInternal);
                 }
-                Thread.Sleep(10); //throttle to reduce chance of exponential backoff
-                if (++n % 500 == 0)
+
+                if (pipeline is CloudPipeline)
                 {
-                    pipeline.LogInfo("created " + n + " nodes");
+                    Thread.Sleep(10); //throttle to reduce chance of exponential backoff
+                }
+
+                if (progress && ++n % 500 == 0)
+                {
+                    pipeline.LogInfo("created {0} nodes", n);
                 }
             }
+
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);
-            pipeline.EnqueueToMaster(message);
-            pipeline.LogInfo("complete");
         }
 
-        
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
                                                         int facesPerTile, List<MeshImagePair> pairs,
                                                         SplitByTextureOpts texOpts = null )
