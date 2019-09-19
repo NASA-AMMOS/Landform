@@ -219,6 +219,7 @@
     <Compile Include="StartWorker.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
+    <Compile Include="StateMachines\ParentTilingStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
     <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="Texturing\Backproject.cs" />

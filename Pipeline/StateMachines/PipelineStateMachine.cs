@@ -13,12 +13,13 @@ namespace OPS.Pipeline
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
     public abstract class PipelineStateMachine
     {
-        public enum ProjectType { GenericTiling, MSL };
+        public enum ProjectType { GenericTiling, MSL, ParentTiling };
 
         public static Dictionary<ProjectType, Type> StateMachines = new Dictionary<ProjectType, Type>()
         {
             { ProjectType.GenericTiling, typeof(GenericTilingStateMachine) },
             { ProjectType.MSL, typeof(MSLStateMachine) },
+            { ProjectType.ParentTiling, typeof(ParentTilingStateMachine) },
         };
 
         public static PipelineStateMachine CreateInstance(PipelineCore pipeline, ProjectType projectType,
@@ -92,9 +93,10 @@ namespace OPS.Pipeline
                 .Case((RunProjectMessage m) => RunProject())
                 .Case((DefineTilesMessage m) => TilesDefined())
                 .Case((ChunkInputMessage m) => InputChunked(m.InputName))
+                .Case((BuildParentsMessage m) => BuildParents())
                 .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
                 .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
-            ret.Unhandled = (t, x) => pipeline.LogError("unknown message type: " + t);
+            ret.Unhandled = (t, x) => pipeline.LogError("unknown message type: {0}", t);
             return ret;
         }
 
@@ -157,7 +159,7 @@ namespace OPS.Pipeline
                 if (!project.StartedRunning)
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
-                    LogDebug("adding/updating input " + m.Name);
+                    LogDebug("adding/updating input {0}", m.Name);
                     TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
                 }
                 else
@@ -201,7 +203,7 @@ namespace OPS.Pipeline
         {
             LogInfo("tiles defined");
             var project = TilingProject.Find(pipeline, projectName);
-            if (SkipChunking(project))
+            if (project.TilingScheme == TilingScheme.UserDefined.ToString())
             {
                 LogInfo("input chunking skipped");
                 BuildNodes(project);
@@ -217,11 +219,6 @@ namespace OPS.Pipeline
             }
         }
 
-        virtual protected bool SkipChunking(TilingProject project)
-        {
-            return false;
-        }
-
         /// <summary>
         /// </summary>
         /// <returns>true iff all inputs have already been chunked</returns>
@@ -234,13 +231,13 @@ namespace OPS.Pipeline
                 if (!input.Chunked)
                 {
                     allChunked = false;
-                    LogInfo("chunking input " + inputName);
+                    LogInfo("chunking input {0}", inputName);
                     projectCache.AddInputToChunk(inputName);
                     pipeline.EnqueueToWorkers(new ChunkInputMessage(projectName) { InputName = inputName });
                 }
                 else
                 {
-                    LogInfo("input " + inputName + " already chunked");
+                    LogInfo("input {0} already chunked", inputName);
                 }
             }
             return allChunked;
@@ -248,13 +245,12 @@ namespace OPS.Pipeline
 
         virtual protected void InputChunked(string inputName)
         {
-            LogInfo("input " + inputName + " chunked");
+            LogInfo("input {0} chunked", inputName);
             bool allChunked = projectCache.InputChunked(inputName);
             if (allChunked)
             {
                 LogInfo("all inputs chunked");
-                var project = TilingProject.Find(pipeline, projectName);
-                BuildNodes(project);
+                BuildNodes(TilingProject.Find(pipeline, projectName));
             }
         }
 
@@ -262,11 +258,24 @@ namespace OPS.Pipeline
 
         virtual protected void BuildNodes(TilingProject project)
         {
+            LogInfo("building tile tree from database");
             SceneNode root = TilingNode.BuildTreeFromDatabase(pipeline, project);
+            BuildLeaves(project, root);
+            BuildParents(project, root);
+        }
 
+        virtual protected void BuildLeaves(TilingProject project, SceneNode root = null)
+        {
+            if (root == null)
+            {
+                LogInfo("building tile tree from database");
+                root = TilingNode.BuildTreeFromDatabase(pipeline, project);
+            }
+
+            LogInfo("enqueueing leaf jobs");
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
             CollectLeafGroupsByChunkDependency(root, leafGroups, project.MaxLeafGroupSize);
-            int totalLeaves = 0, leafJobs = 0, unprocessedLeaves = 0;
+            int totalLeaves = 0, leafJobs = 0, toGo = 0;
             foreach (var group in leafGroups)
             {
                 totalLeaves += group.Count;
@@ -274,17 +283,29 @@ namespace OPS.Pipeline
                 if (names.Count > 0)
                 {
                     leafJobs++;
+                    toGo += names.Count;
+                    names.ForEach(name => projectCache.MarkEnqueued(name));
                     pipeline.EnqueueToWorkers(MakeLeafJobMessage(names));
-                    foreach (var name in names)
-                    {
-                        unprocessedLeaves++;
-                        projectCache.MarkEnqueued(name);
-                    }
                 }
             }
-            LogInfo("building " + unprocessedLeaves + " uprocessed leaves" +
-                    " (" + leafJobs + " jobs, " + totalLeaves + " total leaves)");
 
+            LogInfo("building {0} uprocessed leaves ({1} jobs, {2} total leaves)", toGo, leafJobs, totalLeaves);
+        }
+
+        protected void BuildParents()
+        {
+            BuildParents(TilingProject.Find(pipeline, projectName));
+        }
+            
+        virtual protected void BuildParents(TilingProject project, SceneNode root = null)
+        {
+            if (root == null)
+            {
+                LogInfo("building tile tree from database");
+                root = TilingNode.BuildTreeFromDatabase(pipeline, project);
+            }
+
+            LogInfo("enqueueing parent jobs");
             var parents = root.NonLeaves();
             int totalParents = 0, readyParents = 0;
             foreach (var parent in parents)
@@ -294,16 +315,11 @@ namespace OPS.Pipeline
                 if (projectCache.ShouldRun(name))
                 {
                     readyParents++;
-                    pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = name});
-
-                    //  if using an immediate execution context, the tile is already completed here
-                    if (!projectCache.AlreadyCompleted(name))
-                    {
-                        projectCache.MarkEnqueued(name);
-                    }
+                    projectCache.MarkEnqueued(name);
+                    pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = name}); 
                 }
             }
-            LogInfo("building " + readyParents + " unprocessed but ready parents (" + totalParents + " total parents)");
+            LogInfo("building {0} unprocessed but ready parents ({1} total parents)", readyParents, totalParents);
 
             if (projectCache.AlreadyCompleted(root.Name))
             {
@@ -362,8 +378,7 @@ namespace OPS.Pipeline
         /// <param name="root">The root node of the tree whose leaves should be grouped</param>
         /// <param name="groups">the output list of scene node groups 'collected' by this function</param>
         /// <param name="maxGroupSize">the maximum size of any given group</param>
-        virtual protected void CollectLeafGroupsByChunkDependency(SceneNode root, List<List<SceneNode>> groups,
-                                                     int maxGroupSize)
+        virtual protected void CollectLeafGroupsByChunkDependency(SceneNode root, List<List<SceneNode>> groups, int maxGroupSize)
         {
             // make sure group size is positive
             if (maxGroupSize < 1)
@@ -475,11 +490,11 @@ namespace OPS.Pipeline
                 foreach (var pid in projectCache.GetDependentTilesToRun(tileId))
                 {
                     n++;
-                    LogInfo("building parent " + pid);
-                    pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = pid });
+                    LogInfo("building parent {0}", pid);
                     projectCache.MarkEnqueued(pid);
+                    pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = pid });
                 }
-                LogInfo("tile " + tileId + " completed, enqueued " + n + " parents");
+                LogInfo("tile {0} completed, enqueued {1} parents", tileId, n);
             }
         }
 
@@ -535,6 +550,12 @@ namespace OPS.Pipeline
     {
         public RunProjectMessage() { }
         public RunProjectMessage(string projectName) : base(projectName) { }
+    }
+
+    public class BuildParentsMessage : QueueMessage
+    {
+        public BuildParentsMessage() { }
+        public BuildParentsMessage(string projectName) : base(projectName) { }
     }
 
     public class TileCompletedMessage : QueueMessage

@@ -11,8 +11,7 @@ namespace OPS.Pipeline
     class MSLStateMachine : PipelineStateMachine
     {
         public MSLStateMachine(PipelineCore pipeline, string projectName) : base(pipeline, projectName)
-        {
-        }
+        { }
 
         override protected TypeDispatcher MakeDispatcher()
         {

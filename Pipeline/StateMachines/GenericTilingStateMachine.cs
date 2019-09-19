@@ -10,13 +10,7 @@ namespace OPS.Pipeline
     class GenericTilingStateMachine : PipelineStateMachine
     {
         public GenericTilingStateMachine(PipelineCore pipeline, string projectName) : base(pipeline, projectName)
-        {
-        }
-
-        protected override bool SkipChunking(TilingProject project)
-        {
-            return project.TilingScheme == TilingScheme.UserDefined.ToString();
-        }
+        { }
 
         protected override QueueMessage MakeLeafJobMessage(List<string> leaves)
         {
