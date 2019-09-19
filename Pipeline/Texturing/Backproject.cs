@@ -104,7 +104,9 @@ namespace OPS.Pipeline
         /// <summary>
         /// high level function that takes backproject results and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
         /// </summary>
-        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage, TextureVariant textureVariant = TextureVariant.Original, bool inpaint = true)
+        static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults,
+                                             Image outputImage, TextureVariant textureVariant = TextureVariant.Original,
+                                             bool inpaint = true, bool fallbackToOriginal = true)
         {
             if (outputImage.Bands != 3)
             {
@@ -129,7 +131,14 @@ namespace OPS.Pipeline
                     throw new InvalidDataException("invalid image index in backproject results");
                 }
 
-                if (textureVariant != TextureVariant.Original)
+                var tex = textureVariant;
+                if (fallbackToOriginal && ((tex == TextureVariant.Blended && sourceObs.BlendedGuid == Guid.Empty) ||
+                                           (tex == TextureVariant.Blurred && sourceObs.BlurredGuid == Guid.Empty)))
+                {
+                    tex = TextureVariant.Original;
+                }
+
+                if (tex != TextureVariant.Original)
                 {
                     if (project == null)
                     {
@@ -146,7 +155,7 @@ namespace OPS.Pipeline
                 }
 
                 Image sourceImage = null;
-                switch (textureVariant)
+                switch (tex)
                 {
                     case TextureVariant.Original:
                         {
@@ -171,7 +180,7 @@ namespace OPS.Pipeline
                             sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlendedGuid).Image;
                             break;
                         }
-                    default: throw new Exception("unknown texture variant " + textureVariant);
+                    default: throw new Exception("unknown texture variant " + tex);
                 }
 
                 foreach (var pair in group)
