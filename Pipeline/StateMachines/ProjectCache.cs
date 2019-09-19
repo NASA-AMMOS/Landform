@@ -20,7 +20,7 @@ namespace OPS.Pipeline
         private Dictionary<string, IEnumerable<string>> dependedOnBy;
         private Dictionary<string, IEnumerable<string>> dependsOn;
         private HashSet<string> completed;
-        private HashSet<string> enqued;
+        private HashSet<string> enqueued;
         private HashSet<string> inputsToChunk;
 
         public ProjectCache(PipelineCore pipeline, string projectName, ILog logger)
@@ -39,7 +39,7 @@ namespace OPS.Pipeline
             dependedOnBy = new Dictionary<string, IEnumerable<string>>();
             dependsOn = new Dictionary<string, IEnumerable<string>>();
             completed = new HashSet<string>();
-            enqued = new HashSet<string>();
+            enqueued = new HashSet<string>();
             inputsToChunk = new HashSet<string>();
         }
                 
@@ -108,7 +108,7 @@ namespace OPS.Pipeline
         public void MarkEnqueued(string id)
         {
             EnsureInitialized();
-            enqued.Add(id);
+            enqueued.Add(id);
         }
 
         public void MarkDone(string id)
@@ -120,7 +120,7 @@ namespace OPS.Pipeline
         public bool AlreadyProcessed(string id)
         {
             EnsureInitialized();
-            return enqued.Contains(id) || completed.Contains(id);
+            return enqueued.Contains(id) || completed.Contains(id);
         }
 
         public bool AlreadyCompleted(string id)
