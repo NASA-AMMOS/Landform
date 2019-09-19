@@ -44,11 +44,13 @@ namespace OPS.Landform
 
     public class LocalBuildGeometry : GeometryCommand
     {
-        protected new LocalBuildGeometryOptions options;
+        private const string OUT_DIR = "meshing/GeometryProducts";
 
-        private BoundingBox meshBounds;
+        private LocalBuildGeometryOptions options;
 
         private Observation[] onlyForObs;
+
+        private BoundingBox meshBounds;
 
         public LocalBuildGeometry(LocalBuildGeometryOptions options) : base(options)
         {
@@ -57,14 +59,31 @@ namespace OPS.Landform
 
         public int Run()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
+            StartStopwatch();
 
             try
             {
                 if (!ParseArgumentsAndLoadCaches())
                 {
                     return 0; //help
+                }
+
+                RunPhase("build mesh", BuildMesh);
+                RunPhase("clip mesh", ClipMesh);
+                RunPhase("clean mesh", CleanMesh);
+
+                if (options.TargetSceneMeshFaces > 0)
+                {
+                    RunPhase("decimate mesh", DecimateMesh);
+                }
+
+                if (onlyForObs.Length > 0)
+                {
+                    RunPhase("filter mesh", FilterMesh);
+                }
+                else if (!options.NoSave)
+                {
+                    RunPhase("save mesh", SaveMesh);
                 }
             }
             catch (Exception ex)
@@ -73,50 +92,14 @@ namespace OPS.Landform
                 return 1;
             }
 
-            string what = "";
-            try
-            {
-                what = "build";
-                BuildMesh();
-
-                what = "clip";
-                ClipMesh();
-
-                what = "clean";
-                CleanMesh();
-
-                if (options.TargetSceneMeshFaces > 0)
-                {
-                    what = "decimate";
-                    DecimateMesh();
-                }
-
-                if (onlyForObs.Length > 0)
-                {
-                    what = "filter";
-                    FilterMesh();
-                }
-                else if (!options.NoSave)
-                {
-                    what = "save";
-                    SaveMesh();
-                }
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogError("failed to {0} mesh: {1}", what, ex.Message);
-                return 1;
-            }
-
-            stopwatch.Stop();
-            pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
+            StopStopwatch();
 
             return 0;
         }
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (!ParseArgumentsAndLoadCaches("meshing/GeometryProducts", onlyObsForReconstruction: true))
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR, onlyObsForReconstruction: true))
             {
                 return false; //help
             }
@@ -124,6 +107,12 @@ namespace OPS.Landform
             onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
 
             return true;
+        }
+
+        protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes,
+                                                            bool onlyObsForReconstruction)
+        {
+            throw new NotImplementedException();
         }
 
         private void BuildMesh()
@@ -231,7 +220,7 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
 
-            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives);
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives);
             if (sceneMesh != null)
             {
                 var meshProd = new PlyGZDataProduct(mesh);
