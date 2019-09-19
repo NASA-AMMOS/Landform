@@ -23,6 +23,9 @@ namespace OPS.Landform
     [Verb("local-blend-imges", HelpText = "blend observation images")]
     public class LocalBlendImagesOptions : TextureCommandOptions
     {
+        [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = Backproject.TextureVariant.Blurred)]
+        public override Backproject.TextureVariant TextureVariant { get; set; }
+
         [Option(HelpText = "Inpaint blended observation diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
         public int Inpaint { get; set; }
 
@@ -65,7 +68,9 @@ namespace OPS.Landform
 
     public class LocalBlendImages : TextureCommand
     {
-        protected new LocalBlendImagesOptions options;
+        private const string OUT_DIR = "texturing/BlendProducts";
+
+        private LocalBlendImagesOptions options;
 
         private Dictionary<int, Observation> indexedObservations;
 
@@ -88,20 +93,42 @@ namespace OPS.Landform
 
         public int Run()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
+            StartStopwatch();
 
             try
             {
-                if (!ParseArgumentsAndLoadCaches("texturing/BlendProducts"))
+                if (!ParseArgumentsAndLoadCaches())
                 {
                     return 0; //help
                 }
+
+                RunPhase("generate blurred observation images", GenerateBlurredObservationImages);
+                RunPhase("load or generate shrinkwrap mesh", LoadOrGenerateShrinkwrapMesh);
+                RunPhase("load or generate shrinkwrap blurred texture", LoadOrGenerateShrinkwrapBlurredTexture);
+                RunPhase("load or generate blended texture", LoadOrGenerateBlendedTexture);
+                RunPhase("generate blended observation images", GenerateBlendedObservationImages);
             }
             catch (Exception ex)
             {
                 pipeline.LogError(ex.Message);
                 return 1;
+            }
+
+            StopStopwatch();
+
+            return 0;
+        }
+
+        private bool ParseArgumentsAndLoadCaches()
+        {
+            if (options.TextureVariant != Backproject.TextureVariant.Blurred)
+            {
+                throw new Exception("this command only supports --texturevariant=Blurred");
+            }
+
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+            {
+                return false; //help
             }
 
             indexedObservations = new Dictionary<int, Observation>();
@@ -110,34 +137,12 @@ namespace OPS.Landform
                 indexedObservations[obs.Index] = obs;
             }
 
-            string what = "";
-            try
-            {
-                what = "blurred observation images";
-                GenerateBlurredObservationImages();
+            return true;
+        }
 
-                what = "shrinkwrap mesh";
-                LoadOrGenerateShrinkwrapMesh();
-                
-                what = "shrinkwrap blurred texture";
-                LoadOrGenerateShrinkwrapBlurredTexture();
-                
-                what = "blended texture";
-                LoadOrGenerateBlendedTexture();
-                
-                what = "blended observation images";
-                GenerateBlendedObservationImages();
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogError("failed to load or generate {0}: {1}", what, ex.Message);
-                return 1;
-            }
-
-            stopwatch.Stop();
-            pipeline.LogInfo("elapsed time {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
-
-            return 0;
+        protected override bool ParseArgumentsAndLoadCaches(string outDir)
+        {
+            throw new NotImplementedException();
         }
 
         private void LoadOrGenerateShrinkwrapMesh()
@@ -376,8 +381,11 @@ namespace OPS.Landform
                     Image blendedImage = null;
                     if (winners.ContainsKey(obsIndex))
                     {
-                        pipeline.LogInfo("creating blended image for observation {0}, processing {1} in parallel, " +
-                                         "completed {2}/{3}", obs.Name, np, nc, no);
+                        if (!options.NoProgress)
+                        {
+                            pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
+                                             "completed {2}/{3}", obs.Name, np, nc, no);
+                        }
 
                         if (obs.Bands != 3 && obs.Bands != 1)
                         {
@@ -470,7 +478,8 @@ namespace OPS.Landform
                     }
                     else
                     {
-                        pipeline.LogInfo("no mesh points backprojected to observation {0}", obs.Name);
+                        pipeline.LogWarn("cannot blend image for observation {0}, " +
+                                         "no shrinkwrap mesh points backprojected to it", obs.Name);
                     }
 
                     if (!options.NoSave)
