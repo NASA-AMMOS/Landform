@@ -91,7 +91,7 @@ namespace OPS.Pipeline
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
-                    InitializeDatabase(quiet || quietInit);
+                    InitPhase("initialize database", () => InitializeDatabase(quiet || quietInit));
                 }
             }
 
@@ -102,7 +102,7 @@ namespace OPS.Pipeline
                     throw new NotImplementedException("legacy compat SQS messaging not implemented");
                 }
                 this.queuePrefix = makePrefix(queuePrefix);
-                InitializeQueues(quiet || quietInit);
+                InitPhase("initialize message queues", () => InitializeQueues(quiet || quietInit));
             }
 
             //TODO MSL specific

@@ -86,11 +86,14 @@ namespace OPS.Landform
         protected void StopStopwatch()
         {
             stopwatch.Stop();
-            foreach (var entry in msPerPhase)
+            pipeline.LogInfo("{0:F3}s total elapsed time", 0.001 * stopwatch.ElapsedMilliseconds);
+            foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
             {
-                pipeline.LogInfo("{0}: {1:F3}s", entry.Key, 0.001 * entry.Value);
+                foreach (var entry in table)
+                {
+                    pipeline.LogInfo("{0:F3}s {1}", 0.001 * entry.Value, entry.Key);
+                }
             }
-            pipeline.LogInfo("total {0:F3}s", 0.001 * stopwatch.ElapsedMilliseconds);
         }
 
         protected void RunPhase(string phase, Action func)

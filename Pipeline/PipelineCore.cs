@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using log4net;
 using CommandLine;
@@ -87,6 +88,8 @@ namespace OPS.Pipeline
 
         private LRUCache<string, Image> imageCache; //indexed by URL
 
+        public Dictionary<string, long> InitMSPerPhase = new Dictionary<string, long>();
+
         //these are generally used to initialize the database
         //
         //though what that involves depends on what database implementation is in use (cloud vs local)
@@ -155,7 +158,7 @@ namespace OPS.Pipeline
 
             if (options.ClearCache)
             {
-                DeleteDownloadCache();
+                InitPhase("delete download cache", DeleteDownloadCache);
                 PathHelper.EnsureExists(Path.GetFullPath(DownloadCache));
             }
 
@@ -167,6 +170,26 @@ namespace OPS.Pipeline
             {
                 LogInfo("using {0} of {1} CPU cores",
                         CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
+            }
+        }
+
+        protected void InitPhase(string phase, Action func)
+        {
+            LogInfo(phase);
+            try
+            {
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                var msStart = stopwatch.ElapsedMilliseconds;
+                func();
+                var msEnd = stopwatch.ElapsedMilliseconds;
+                var ms = InitMSPerPhase[phase] = msEnd - msStart;
+                LogInfo("{0}: {1:F3}s, total {2:F3}s", phase, 0.001 * ms, 0.001 * msEnd);
+            }
+            catch
+            {
+                LogError("{0} failed", phase);
+                throw;
             }
         }
 

@@ -38,12 +38,12 @@ namespace OPS.Pipeline
 
             if (initQueues)
             {
-                InitializeQueues();
+                InitPhase("initialize message queues", InitializeQueues);
             }
 
             if (initTables)
             {
-                InitializeDatabase(quiet || quietInit);
+                InitPhase("initialize database", () => InitializeDatabase(quiet || quietInit));
             }
         }
 
