@@ -63,6 +63,8 @@ namespace OPS.Landform
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
 
+        protected string effectiveRootFrame;
+
         protected WedgeCommand(WedgeCommandOptions wcopts) : base(wcopts)
         {
             this.wcopts = wcopts;
@@ -100,6 +102,14 @@ namespace OPS.Landform
         {
             frameCache = new FrameCache(pipeline, wcopts.ProjectName);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
+            if (!frameCache.CheckPriors(out effectiveRootFrame))
+            {
+                pipeline.LogError("incomplete priors: not all sitedrives are connected");
+            }
+            else
+            {
+                pipeline.LogInfo("effective root frame for project: {0}", effectiveRootFrame);
+            }
         }
 
         protected virtual void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)

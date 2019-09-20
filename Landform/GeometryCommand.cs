@@ -64,12 +64,33 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            HandleSpecialMeshFrames(specificSiteDrive);
+
+            outDir = string.Format("{0}/{1}Frame", outDir, meshFrame);
+            outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, gcopts.UsePriors);
+            SetOutDir(outDir);
+
+            return true;
+        }
+
+        private void HandleSpecialMeshFrames(bool specificSiteDrive)
+        {
             var origMeshFrame = meshFrame;
-            if (meshFrame == "newest" || meshFrame == "oldest")
+            if (meshFrame == "root")
+            {
+                string missionRoot = mission.RootFrameName();
+                if (effectiveRootFrame != missionRoot)
+                {
+                    throw new Exception(string.Format("mission root output \"{0}\" requested but effective root is {1}",
+                                                      missionRoot, effectiveRootFrame));
+                }
+                meshFrame = missionRoot;
+            }
+            else if (meshFrame == "newest" || meshFrame == "oldest")
             {
                 if (observationCache == null)
                 {
-                    throw new Exception(string.Format("cannot determine {0} sitedrive frame: no observations", meshFrame));
+                    throw new Exception(string.Format("cannot resolve {0} sitedrive frame: no observations", meshFrame));
                 }
                                               
                 var sds = observationCache
@@ -102,12 +123,6 @@ namespace OPS.Landform
 
             pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
                              origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
-
-            outDir = string.Format("{0}/{1}Frame", outDir, meshFrame);
-            outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, gcopts.UsePriors);
-            SetOutDir(outDir);
-
-            return true;
         }
     }
 }
