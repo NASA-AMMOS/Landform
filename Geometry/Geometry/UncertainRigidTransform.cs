@@ -77,9 +77,13 @@ namespace OPS.Geometry
         /// </summary>
         public static UncertainRigidTransform operator *(UncertainRigidTransform lhs, UncertainRigidTransform rhs)
         {
-            // These two cases would produce the same results using UnscentedTransform, but are
+            // These cases would produce the same results using UnscentedTransform, but are
             // short-circuited here for performance.
-            if (!rhs.Uncertain)
+            if (!lhs.Uncertain && !rhs.Uncertain)
+            {
+                return new UncertainRigidTransform(lhs.Mean * rhs.Mean);
+            }
+            else if (!rhs.Uncertain)
             {
                 return lhs * rhs.Mean;
             }
@@ -183,6 +187,24 @@ namespace OPS.Geometry
             get
             {
                 return ToMatrix(Distribution.Mean);
+            }
+        }
+
+        public Vector3 MeanTranslation
+        {
+            get
+            {
+                var vec6 = Distribution.Mean;
+                return new Vector3(vec6[0], vec6[1], vec6[2]);
+            }
+        }
+
+        public Quaternion MeanRotation
+        {
+            get
+            {
+                var vec6 = Distribution.Mean;
+                return new AxisAngleVector(vec6[3], vec6[4], vec6[5]).ToQuaternion();
             }
         }
 

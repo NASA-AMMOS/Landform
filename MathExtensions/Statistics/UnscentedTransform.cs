@@ -13,6 +13,7 @@ namespace OPS.MathExtensions
     {
         /// <summary>
         /// Compute a set of 2n points with mean and covariance equal to <paramref name="distrib"/>
+        /// Note: if the distribution is not uncertain, only returns one point at the mean
         /// </summary>
         public static IEnumerable<Vector<double>> SigmaPoints(GaussianND distrib, double lambda = 0)
         {
@@ -69,17 +70,24 @@ namespace OPS.MathExtensions
             List<double> meanWeights = new List<double>(sigmaPoints.Count);
             List<double> covarianceWeights = new List<double>(sigmaPoints.Count);
 
-            List<double[]> sigmaPointArrs = sigmaPoints.Select(pt => pt.ToArray()).ToList();
-
-            double firstMeanWeight = lambda / (x.N + lambda);
-            meanWeights.Add(firstMeanWeight);
-            covarianceWeights.Add(firstMeanWeight + (1 - a * a + 2));
-            for (int i = 1; i < sigmaPoints.Count; i++)
+            if (sigmaPoints.Count > 1)
             {
+                double firstMeanWeight = lambda / (x.N + lambda);
+                meanWeights.Add(firstMeanWeight);
+                covarianceWeights.Add(firstMeanWeight + (1 - a * a + 2));
+                for (int i = 1; i < sigmaPoints.Count; i++)
+                {
                 double weight = 1 / (2 * (x.N + lambda));
                 meanWeights.Add(weight);
                 covarianceWeights.Add(weight);
+                }
             }
+            else //just one sigma point => x was not uncertain
+            {
+                meanWeights.Add(1);
+                covarianceWeights.Add(1);
+            }
+
             return new GaussianND(sigmaPoints, meanWeights, covarianceWeights);
         }
 
