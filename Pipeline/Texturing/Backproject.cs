@@ -160,7 +160,7 @@ namespace OPS.Pipeline
 
             //find image observations only
             string imageObsType = ObservationType.Image.ToString();
-            List<Observation> imageObservations = obsCache.GetAllObservations().Where(obs => obs.ObservationType == imageObsType).ToList();
+            List<Observation> imageObservations = observations.Where(obs => obs.ObservationType == imageObsType).ToList();
             if (imageObservations.Count() == 0)
             {
                 if (logging) pipeline.LogWarn("Failed: no images observations found"); 
