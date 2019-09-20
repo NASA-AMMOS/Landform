@@ -336,11 +336,11 @@ namespace OPS.Landform
                 bakeClipper.InitTextureBaker();
             }
 
-            foreach (var leaf in leavesToTexture)
+            CoreLimitedParallel.ForEach(leavesToTexture, leaf =>
             {
-                curLeafNum++;
-                pipeline.LogInfo("Texturing tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, leafCount,
-                    (int)(100 * curLeafNum / (float)leafCount));
+                int leafNum = Interlocked.Increment(ref curLeafNum);
+                pipeline.LogInfo("Texturing tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, leafNum, leafCount,
+                    (int)(100 * leafNum / (float)leafCount));
 
                 MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
                 if (backprojectTextures)
@@ -365,7 +365,7 @@ namespace OPS.Landform
                 }
 
                 leaf.RemoveComponent<MeshImagePair>(); //conserve memory
-            }
+            });
 
             int failedTexturing = failedNodes.Count() - failedMeshing;
             if(failedTexturing > 0)
