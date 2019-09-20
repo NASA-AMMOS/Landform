@@ -269,7 +269,7 @@ namespace OPS.Landform
         {
             try
             {
-                return new MSLPlaces();
+                return new MSLPlaces(pipeline);
             }
             catch (Exception ex)
             {
