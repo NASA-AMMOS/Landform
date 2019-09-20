@@ -113,7 +113,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="b"></param>
         /// <returns></returns>
-        List<double> BoundsToBox(BoundingBox b)
+        static public List<double> BoundsToBox(BoundingBox b)
         {
             // "description" : "An array of 12 numbers that define an oriented bounding box.  
             // The first three elements define the x, y, and z values for the center of the box.  
@@ -129,6 +129,16 @@ namespace OPS.Pipeline
             return new List<double>(box);
         }
 
+        static public BoundingBox BoxToBounds(List<double> box)
+        {
+            Vector3 center = new Vector3(box[0], box[1], box[2]);
+            Vector3 halfX = new Vector3(box[3], box[4], box[5]);
+            Vector3 halfY = new Vector3(box[6], box[7], box[8]);
+            Vector3 halfZ = new Vector3(box[9], box[10], box[11]);
+            Vector3 min = center - halfX - halfY - halfZ;
+            Vector3 max = center + halfX + halfY + halfZ;
+            return new BoundingBox(min, max);
+        }
         /// <summary>
         /// Create a 3DTile for a node
         /// </summary>

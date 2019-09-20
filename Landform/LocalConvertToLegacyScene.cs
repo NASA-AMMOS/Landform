@@ -18,6 +18,7 @@ using System.Threading;
 using Newtonsoft.Json;
 using System.Xml;
 using System.Text;
+using OPS.Pipeline.Tile3D;
 
 namespace OPS.Landform
 {
@@ -31,8 +32,14 @@ namespace OPS.Landform
         [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD and primary sitedrive in scene", Default = null)]
         public string MeshFrame { get; set; }
 
-        [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
-        public string MeshExtension { get; set; }
+        [Option(Required = false, Default = "ply", HelpText = "input mesh Extension")]
+        public string InputMeshExtension { get; set; }
+
+        [Option(Required = false, Default = "jpg", HelpText = "input mesh Extension")]
+        public string InputImageExtension { get; set; }
+
+        [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")]
+        public string OutputMeshExtension { get; set; }
 
         // output related
         [Option(HelpText = "output local directory, or omit to save to project storage", Default = null)]
@@ -110,7 +117,7 @@ namespace OPS.Landform
             var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
             var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
 
-            string dir = string.Format("www/{0}", options.ProjectName);
+            string dir = string.Format("www");
             string inputDir = pipeline.GetLocalDebugFolder(Path.GetDirectoryName(options.InputTileset), dir, options.ProjectName);
             if (!Directory.Exists(inputDir))
             {
@@ -152,27 +159,45 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("rotating meshes to ASTTRO frame");
-            CoreLimitedParallel.ForEach(Directory.EnumerateFiles(inputDir, options.MeshExtension), inputFilePath =>
+            string tilesetDir = EmtToScene.GetTilesetDir(outputPath, options.MeshFrame);
+
+            CoreLimitedParallel.ForEach(Directory.EnumerateFiles(inputDir, "*." + options.InputMeshExtension), inputFilePath =>
             {
                 // read every mesh in and convert to asttro coordinate frame
                 pipeline.LogInfo("Transforming data: {0}", inputFilePath);
                 Mesh mesh = Mesh.Load(inputFilePath);
                 EmtToScene.ConvertMeshToYUp(mesh);
-                string outputFilePath = Path.Combine(outputPath, Path.GetFileName(inputFilePath));
-                mesh.Save(outputPath);
+                string outputFilePath = Path.Combine(tilesetDir, Path.ChangeExtension(Path.GetFileName(inputFilePath),options.OutputMeshExtension));
+                string inputImagePath = Path.Combine(inputDir, Path.ChangeExtension(Path.GetFileName(inputFilePath), options.InputImageExtension));
+                mesh.Save(outputFilePath, File.Exists(inputImagePath) ? inputImagePath : null);
             }
             );
 
             pipeline.LogInfo("modifying tileset json");
             {
-                string jsonData = File.ReadAllText(options.InputTileset);
-                string outputJsonPath = Path.Combine(outputPath, Path.GetFileName(options.InputTileset));
+                string inputTilesetJSONPath = Path.Combine(inputDir, "tileset.json");
+                string jsonData = File.ReadAllText(inputTilesetJSONPath);
+                Pipeline.Tile3D.Tileset tileset = JsonConvert.DeserializeObject<Pipeline.Tile3D.Tileset>(jsonData);
+
+                //convert all bounds to y up
+                List<Tile> toProcess = new List<Tile>();
+                toProcess.Add(tileset.Root);
+                while (toProcess.Any())
+                {
+                    Tile curTile = toProcess.First();
+                    toProcess.RemoveAt(0);
+
+                    curTile.BoundingVolume.Box = ConvertBoundingBoxToYUp(curTile.BoundingVolume.Box);
+                    toProcess.AddRange(curTile.Children);
+                }
+
+                jsonData = JsonConvert.SerializeObject(tileset, Newtonsoft.Json.Formatting.None);
+
                 //HACK: Issue #602: to emulate the previous version of tilest.json that asttro uses
                 jsonData = jsonData.Replace("uri", "url");
 
-                //TODO: rotate all bounds 
-
-                File.WriteAllText(outputJsonPath, jsonData);
+                string outputJSONPath = Path.Combine(tilesetDir, "tileset.json");
+                File.WriteAllText(outputJSONPath, jsonData);
             }
 
             // create master manifest
@@ -183,6 +208,14 @@ namespace OPS.Landform
 
             // TODO: upload to s3
             return 0;
+        }
+
+        private List<double> ConvertBoundingBoxToYUp(List<double> box)
+        {
+            BoundingBox bb = Tile3DBuilder.BoxToBounds(box);
+            EmtToScene.ConvertVectorToYUp(ref bb.Min);
+            EmtToScene.ConvertVectorToYUp(ref bb.Max);
+            return Tile3DBuilder.BoundsToBox(bb);
         }
 
         private void CreateMasterManifest(string outputFrame, string astroOutputPath, string manifestPath,
