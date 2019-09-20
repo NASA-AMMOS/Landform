@@ -25,6 +25,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Mesh to turn into leaf tiles, search project storage if omitted")]
         public string InputMesh { get; set; }
 
+        [Option(Default = null, HelpText = "texture associated with the mesh's texture coordinates, generate textures from observations if omitted")]
+        public string InputTexture { get; set; }
+
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
@@ -141,7 +144,7 @@ namespace OPS.Landform
                 Directory.Delete(outputPath, true);
             }
             PathHelper.EnsureExists(outputPath);
-           
+
             SiteDrive[] siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
 
             string[] cameras = StringHelper.ParseList(options.OnlyForCameras);
@@ -196,58 +199,89 @@ namespace OPS.Landform
                 pipeline.LogError("input mesh empty");
                 return 1;
             }
-          
-            //load or clone occlusion mesh
-            Mesh occlusionMesh = null;
-            if (!string.IsNullOrEmpty(options.OcclusionMesh))
+
+            //handle prebuilt texture associated with mesh
+            bool backprojectTextures = string.IsNullOrEmpty(options.InputTexture);
+            Image inputImage = null;
+            if (backprojectTextures)
             {
-                pipeline.LogInfo("loading occlusion mesh {0}", options.OcclusionMesh);
-                occlusionMesh = Mesh.Load(pipeline.GetFileCached(options.OcclusionMesh, "meshes"));
-                if (occlusionMesh == null)
-                {
-                    pipeline.LogError("failed to load occlusion mesh");
-                    return 1;
-                }
-                if (occlusionMesh.Faces.Count == 0)
-                {
-                    pipeline.LogError("occlusion mesh empty");
-                    return 1;
-                }
+                pipeline.LogInfo("no input image provided, textures for meshes will be generated from observations");
             }
             else
             {
-                pipeline.LogInfo("building occlusion mesh from input mesh");
-                occlusionMesh = new Mesh(inputMesh);
-            }
-
-            pipeline.LogInfo("building occlusion data structures");
-            var occlusionScene = new SceneCaster();
-            occlusionScene.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
-            occlusionScene.Build();
-
-            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
-
-            //build convex hulls
-            var obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, options.MeshFrame, options.UsePriors, options.OnlyAligned, imageObservations);
-
-            //build tile bounds
-            pipeline.LogInfo("Building tile tree bounds from fullmesh");
-            SplitByTextureOpts texSplitOpts = null;
-            if (options.SplitByTexturePctToTest > 0)
-            {
-                texSplitOpts = new SplitByTextureOpts()
+                pipeline.LogInfo("input image provided, that textures will be used for meshes");
+                inputImage = Image.Load(options.InputTexture);
+                if(!inputMesh.HasUVs)
                 {
-                    pctPixelsToTest = options.SplitByTexturePctToTest,
-                    pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                    subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio,
-                    tileResolution = options.OutputTextureResolution,
-                    scInMesh = occlusionScene,
-                    cameraInstances =
-                    imageObservations
-                    .Select(obs => ToCameraInstance((RoverObservation)obs, obsToHull, options.MeshFrame, frameCache))
-                    .ToArray(),
-                };
+                    pipeline.LogError("expecting a uv set on mesh data if an input image was provided");
+                    return 1;
+                }
             }
+
+            //load or clone occlusion mesh
+            SceneCaster occlusionScene = null;
+            if (backprojectTextures)
+            {
+                Mesh occlusionMesh = null;
+                if (!string.IsNullOrEmpty(options.OcclusionMesh))
+                {
+                    pipeline.LogInfo("loading occlusion mesh {0}", options.OcclusionMesh);
+                    occlusionMesh = Mesh.Load(pipeline.GetFileCached(options.OcclusionMesh, "meshes"));
+                    if (occlusionMesh == null)
+                    {
+                        pipeline.LogError("failed to load occlusion mesh");
+                        return 1;
+                    }
+                    if (occlusionMesh.Faces.Count == 0)
+                    {
+                        pipeline.LogError("occlusion mesh empty");
+                        return 1;
+                    }
+                }
+                else
+                {
+                    pipeline.LogInfo("building occlusion mesh from input mesh");
+                    occlusionMesh = new Mesh(inputMesh);
+                }
+
+                pipeline.LogInfo("building occlusion data structures");
+                occlusionScene = new SceneCaster();
+                occlusionScene.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
+                occlusionScene.Build();
+            }
+
+            List<Observation> imageObservations = null;
+            IDictionary<string, ConvexHull> obsToHull = null;
+            SplitByTextureOpts texSplitOpts = null;
+
+            if (backprojectTextures)
+            {
+                imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+
+                //build convex hulls
+                obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, options.MeshFrame, options.UsePriors, options.OnlyAligned, imageObservations);
+          
+                //build tile bounds
+                pipeline.LogInfo("Building tile tree bounds from fullmesh");
+            
+                //only need to split tiles based on observations if backprojecting new textures
+                if (options.SplitByTexturePctToTest > 0)
+                {
+                    texSplitOpts = new SplitByTextureOpts()
+                    {
+                        pctPixelsToTest = options.SplitByTexturePctToTest,
+                        pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
+                        subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio,
+                        tileResolution = options.OutputTextureResolution,
+                        scInMesh = occlusionScene,
+                        cameraInstances =
+                        imageObservations
+                        .Select(obs => ToCameraInstance((RoverObservation)obs, obsToHull, options.MeshFrame, frameCache))
+                        .ToArray(),
+                    };
+                }
+            }
+
             SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
                                                     new List<MeshImagePair>() { new MeshImagePair(inputMesh) },
                                                     texSplitOpts);
@@ -259,19 +293,18 @@ namespace OPS.Landform
             int curLeafNum = 0;
             pipeline.LogInfo("creating leaf meshes");
             int leafCount = root.Leaves().Count();
-
             CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
 
-                //debug functionality to only generate a single tile
-                if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
+            //debug functionality to only generate a single tile
+            if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
                     return;
-               
+
                 pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, leafCount,
                                 (int)(100 * curLeafNum / (float)leafCount));
 
-                Mesh leafMesh = MakeLeafMesh(leaf, meshOp);
+                Mesh leafMesh = MakeLeafMesh(leaf, meshOp, backprojectTextures);
                 if (leafMesh != null)
                 {
                     leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, null));
@@ -282,18 +315,27 @@ namespace OPS.Landform
                     failedNodes.Add(leaf);
                 }
             });
-
+            
             int failedMeshing = failedNodes.Count();
             if (failedMeshing > 0)
             {
                 pipeline.LogWarn("{0} tiles have failed to generate meshes", failedMeshing);
             }
-
+            
             //build textures for each leaf. parallelization is happening in the building of each individual texture
             curLeafNum = 0;
             var leavesToTexture = root.Leaves().Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null);
             leafCount = leavesToTexture.Count();
             pipeline.LogInfo("texturing leaf meshes");
+
+            MultiMeshClipper bakeClipper = null;
+            if (!backprojectTextures)
+            {
+                bakeClipper = new MultiMeshClipper();
+                bakeClipper.AddInput(new MultiMeshClipperInput(inputMesh, inputImage));
+                bakeClipper.InitTextureBaker();
+            }
+
             foreach (var leaf in leavesToTexture)
             {
                 curLeafNum++;
@@ -301,13 +343,19 @@ namespace OPS.Landform
                     (int)(100 * curLeafNum / (float)leafCount));
 
                 MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
-
-                Image leafTexture = MakeLeafTexture(frameCache, observationCache, occlusionScene, imageObservations, obsToHull, mp.Mesh, mission);
-                if (leafTexture != null)
+                if (backprojectTextures)
                 {
-                    //add to mesh image pair
-                    mp.Image = leafTexture;
+                    mp.Image = MakeLeafTexture(frameCache, observationCache, occlusionScene, imageObservations, obsToHull, mp.Mesh, mission);
+                }
+                else
+                {
+                    var newPair = bakeClipper.BakeTexture(mp.Mesh, options.OutputTextureResolution);
+                    mp.Mesh = newPair.Mesh;
+                    mp.Image = newPair.Image;
+                }
 
+                if (mp.Image != null)
+                {
                     //save good mesh and texture
                     leaf.SaveMesh(outputPath, "ply", "png");
                 }
@@ -347,7 +395,7 @@ namespace OPS.Landform
             return camInst;
         }
 
-        private Mesh MakeLeafMesh(SceneNode leaf, MeshOperator meshOp)
+        private Mesh MakeLeafMesh(SceneNode leaf, MeshOperator meshOp,bool generateUVs)
         {
             Mesh leafMesh = null;
            
@@ -372,7 +420,7 @@ namespace OPS.Landform
             }
 
             //if texturing is requested, attach uv's to the mesh vertices
-            if (options.OutputTextureResolution > 0)
+            if (options.OutputTextureResolution > 0 && generateUVs)
             {
                 try
                 {
