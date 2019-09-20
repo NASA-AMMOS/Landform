@@ -41,7 +41,9 @@ namespace OPS.Pipeline
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
         public string Url { get; set; } = "https://places-dev.m20-dev.jpl.nasa.gov"; //M2020 dev copy of MSL data
-        //"https://mslplaces.jpl.nasa.gov:9443/msl-ops/places"; //MSL mission server - don't use for dev
+        //https://mslplaces.jpl.nasa.gov:9443/msl-ops/places //MSL mission server - don't use for dev
+        //https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places //ROASTT
+        //https://places-sstage.m20.jpl.nasa.gov //TT4 - requires m2020-prod-gov credentials
 
         protected override string ConfigFilename()
         {
