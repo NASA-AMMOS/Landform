@@ -42,7 +42,7 @@ namespace OPS.Landform
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted, Manual, Landform, LandformBEV, LandformBEVRoot, LandformBEVCalf, Agisoft)", Default = null)]
         public virtual string AdjustedTransformSources { get; set; }
 
-        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior, LegacyManifest, PlacesDB, LocationsDB, PDS)", Default = null)]
+        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior, LegacyManifest, PlacesDB, LocationsDB, PlacesDBSitePDSLocal, PDSChained, PDS)", Default = null)]
         public virtual string PriorTransformSources { get; set; }
 
         [Option(HelpText = "Use transform priors only", Default = false)]
