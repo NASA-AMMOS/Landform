@@ -533,14 +533,11 @@ namespace OPS.Pipeline
 
         //****************** Logging API *****************
 
-        private string _logPrefix = "";
-        public string LogPrefix { get { return _logPrefix; } set { _logPrefix = value; } }
-
         public void LogInfo(string msg, params Object[] args)
         {
             if (!quiet)
             {
-                Logger.InfoFormat(LogPrefix + msg, args);
+                Logger.InfoFormat(msg, args);
             }
         }
 
@@ -548,7 +545,7 @@ namespace OPS.Pipeline
         {
             if (verbose && !quiet)
             {
-                Logger.InfoFormat(LogPrefix + msg, args);
+                Logger.InfoFormat(msg, args);
             }
         }
 
@@ -556,18 +553,18 @@ namespace OPS.Pipeline
         {
             if (debug && !quiet)
             {
-                Logger.DebugFormat(LogPrefix + msg, args);
+                Logger.DebugFormat(msg, args);
             }
         }
 
         public void LogWarn(string msg, params Object[] args)
         {
-            Logger.WarnFormat(LogPrefix + msg, args);
+            Logger.WarnFormat(msg, args);
         }
 
         public void LogError(string msg, params Object[] args)
         {
-            Logger.ErrorFormat(LogPrefix + msg, args);
+            Logger.ErrorFormat(msg, args);
         }
 
         //****************** Disk Cache API *****************

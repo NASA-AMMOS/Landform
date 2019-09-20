@@ -36,12 +36,12 @@ namespace OPS.Pipeline.TilingServer
         
         public void Process()
         {
-            pipeline.LogInfo("started building parent " + message.TileId);
+            LogInfo("started building parent " + message.TileId);
             var project = TilingProject.Find(pipeline, projectName);
             TilingNode parent = TilingNode.Find(pipeline, projectName, message.TileId);
             if (parent.MeshUrl != null)
             {
-                pipeline.LogInfo("parent " + parent.Id + " already complete, skipping");
+                LogInfo("parent " + parent.Id + " already complete, skipping");
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
                 return;
             }
@@ -61,18 +61,18 @@ namespace OPS.Pipeline.TilingServer
             {
                 if (!idToNode.ContainsKey(childId))
                 {
-                    pipeline.LogError(parent.Id + "missing input data");
+                    LogError(parent.Id + "missing input data");
                     return;
                 }                
                 idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
-            pipeline.LogInfo("generating parent {0} from {1} tiles", message.TileId, parent.DependsOn.Count);
+            LogInfo("generating parent {0} from {1} tiles", message.TileId, parent.DependsOn.Count);
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
                                                       project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
             parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error, project);
             pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
-            pipeline.LogInfo("completed building parent " + message.TileId);
+            LogInfo("completed building parent " + message.TileId);
         }
     }
 }

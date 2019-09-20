@@ -38,7 +38,7 @@ namespace OPS.Pipeline.TilingServer
 
         public int Process()
         {
-            pipeline.LogInfo("started");
+            LogInfo("started");
 
             //load transforms, by filtering by allowed transform sources or allowing all
             var frameCache = new FrameCache(pipeline, projectName);
@@ -55,7 +55,7 @@ namespace OPS.Pipeline.TilingServer
                                           onlyForCameras: null, useCleverCombine: false, allowMastcam: false);
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
-                pipeline.LogError("point cloud failed to reconstruct");
+                LogError("point cloud failed to reconstruct");
                 return 1;
             }
 
@@ -64,7 +64,7 @@ namespace OPS.Pipeline.TilingServer
             string meshOutputUrl = pipeline.GetStorageUrl("input", projectName, meshName + ".ply");
             TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
-                pipeline.LogInfo("uploading mesh " + meshOutputUrl);
+                LogInfo("uploading mesh " + meshOutputUrl);
                 surfacedMesh.Save(tempFile);
                 pipeline.SaveFile(tempFile, meshOutputUrl);
             });
@@ -76,7 +76,7 @@ namespace OPS.Pipeline.TilingServer
             //indicate successs to the tiling server master
             pipeline.EnqueueToMaster(new BuildTilingInputMessage(projectName));
 
-            pipeline.LogInfo("complete");
+            LogInfo("complete");
 
             return 0;
         }

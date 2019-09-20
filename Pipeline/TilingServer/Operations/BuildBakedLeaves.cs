@@ -42,7 +42,7 @@ namespace OPS.Pipeline.TilingServer
 
         public void Process()
         {
-            pipeline.LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
             var project = TilingProject.Find(pipeline, projectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
@@ -55,7 +55,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 if (n.MeshUrl != null)
                 {
-                    pipeline.LogInfo("leaf " + n.Id + " already complete, skipping");
+                    LogInfo("leaf " + n.Id + " already complete, skipping");
                     pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }
@@ -63,7 +63,7 @@ namespace OPS.Pipeline.TilingServer
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
             if (leaves.Count == 0)
             {
-                pipeline.LogInfo("all leaves in job already generated");
+                LogInfo("all leaves in job already generated");
                 return;
             }
 
@@ -132,11 +132,11 @@ namespace OPS.Pipeline.TilingServer
                 leaf.SaveMesh(pair, pipeline, geometricError, project);
                 processed.Add(leaf);
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
-                pipeline.LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
-                                 leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
+                LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
+                        leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
             });
 
-            pipeline.LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
+            LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
         }
     }
 }

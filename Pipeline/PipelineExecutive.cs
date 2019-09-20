@@ -75,11 +75,9 @@ namespace OPS.Pipeline
                     try
                     {
                         stateMachine.ProcessMessage(msg);
-                        pipeline.LogPrefix = "";
                     }
                     catch (Exception e)
                     {
-                        pipeline.LogPrefix = "";
                         pipeline.LogError("{0}: master task error ({1}): {2}",
                                           msg.Info(), e.GetType().FullName, e.Message);
                         pipeline.LogError(e.StackTrace);
@@ -94,11 +92,9 @@ namespace OPS.Pipeline
                 try
                 {
                     workerDispatcher.Handle(msg);
-                    pipeline.LogPrefix = "";
                 }
                 catch (Exception e)
                 {
-                    pipeline.LogPrefix = "";
                     pipeline.LogError("{0}: worker task error ({1}): {2}", msg.Info(), e.GetType().FullName, e.Message);
                     pipeline.LogError(e.StackTrace);
                 }
@@ -198,11 +194,9 @@ namespace OPS.Pipeline
                     try
                     {
                         handler(msg);
-                        pipeline.LogPrefix = "";
                     }
                     catch (Exception e)
                     {
-                        pipeline.LogPrefix = "";
                         pipeline.LogError("{0}: {1} task error ({2}): {3}",
                                           msg.Info(), what, e.GetType().FullName, e.Message);
                         pipeline.LogError(e.StackTrace);

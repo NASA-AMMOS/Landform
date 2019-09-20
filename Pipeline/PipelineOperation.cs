@@ -11,6 +11,8 @@ namespace OPS.Pipeline
     {
         protected readonly PipelineCore pipeline;
         protected readonly string projectName;
+        protected readonly string messageId;
+        protected readonly string logPrefix;
 
         //intentionally not adding "message" field here so that subclasses can add their own type-specific one
 
@@ -18,7 +20,28 @@ namespace OPS.Pipeline
         {
             this.pipeline = pipeline;
             this.projectName = msg.ProjectName;
-            pipeline.LogPrefix = string.Format("[{0}] {1} {2}: ", msg.ProjectName, GetType().Name, msg.MessageId);
+            this.messageId = msg.MessageId;
+            this.logPrefix = string.Format("[{0}] {1} {2}", projectName, GetType().Name, messageId);
+        }
+
+        protected void LogInfo(string msg, params Object[] args)
+        {
+            pipeline.LogInfo("{0} {1}", logPrefix, string.Format(msg, args));
+        }
+
+        protected void LogDebug(string msg, params Object[] args)
+        {
+            pipeline.LogDebug("{0} {1}", logPrefix, string.Format(msg, args));
+        }
+
+        protected void LogWarn(string msg, params Object[] args)
+        {
+            pipeline.LogWarn("{0} {1}", logPrefix, string.Format(msg, args));
+        }
+
+        protected void LogError(string msg, params Object[] args)
+        {
+            pipeline.LogError("{0} {1}", logPrefix, string.Format(msg, args));
         }
     }
 }

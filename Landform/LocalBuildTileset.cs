@@ -213,7 +213,6 @@ namespace OPS.Landform
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
             dt.DownloadInputsAndBuildTree(tilingProject, !options.NoProgress,
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
-            pipeline.LogPrefix = "";
         }
 
         private void BuildParentTiles()
