@@ -103,14 +103,6 @@ namespace OPS.Landform
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
                 RunPhase("build leaf meshes", BuildLeafMeshes);
 
-                //if we don't delete any existing tiling project corresponding to this alignment project right here
-                //then the default behavior in local-build-tilest will be to delete it
-                //but that will also delete the new leaves we are just about to write
-                if (!options.UseExistingTilingProject)
-                {
-                    RunPhase("delete existing tiling project", () => { GetOrDeleteTilingProject(); });
-                }
-
                 RunPhase(string.Format("{0}save leaves", textureLeaves ? "build leaf textures and " : ""),
                          BuildLeafTexturesAndSaveLeaves);
             }

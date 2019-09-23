@@ -124,6 +124,11 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override bool DeleteLocalProductsBeforeRedo()
+        {
+            return false;
+        }
+            
         protected override bool PassthroughMeshFrameAllowed()
         {
             return true;
@@ -147,7 +152,9 @@ namespace OPS.Landform
 
         private void CreateTilingProject()
         {
-            tilingProject = GetOrDeleteTilingProject();
+            var keepMeshes = new HashSet<string>();
+            keepMeshes.UnionWith(leafList.LeafNames);
+            tilingProject = GetOrDeleteTilingProject(keepMeshes);
 
             if (tilingProject == null)
             {

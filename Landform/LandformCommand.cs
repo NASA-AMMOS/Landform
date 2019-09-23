@@ -140,11 +140,16 @@ namespace OPS.Landform
             return mission.GetMasker();
         }
 
+        protected virtual bool DeleteLocalProductsBeforeRedo()
+        {
+            return true;
+        }
+
         protected virtual void SetOutDir(string outDir)
         {
             outputFolder = outDir;
             localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project.Name);
-            if (lcopts.Redo && Directory.Exists(localOutputPath))
+            if (lcopts.Redo && Directory.Exists(localOutputPath) && DeleteLocalProductsBeforeRedo())
             {
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
                 Directory.Delete(localOutputPath, true);

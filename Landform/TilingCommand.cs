@@ -76,14 +76,16 @@ namespace OPS.Landform
             throw new NotImplementedException();
         }
 
-        protected TilingProject GetOrDeleteTilingProject()
+        protected TilingProject GetOrDeleteTilingProject(ISet<string> keepMeshes = null)
         {
             var tilingProject = TilingProject.Find(pipeline, project.Name);
 
             if (!tilingOpts.UseExistingTilingProject && tilingProject != null)
             {
                 pipeline.LogInfo("deleting existing tiling project {0}", project.Name);
-                tilingProject.Delete(pipeline); //deletes all generated db and storage entries - this can take a while
+                //deletes all db and storage entries - this can take a while
+                bool ignoreErrors = true;
+                tilingProject.Delete(pipeline, ignoreErrors, keepMeshes);
                 tilingProject = null;
             }
 

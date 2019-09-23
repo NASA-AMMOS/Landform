@@ -136,7 +136,7 @@ namespace OPS.Pipeline.TilingServer
         }
 
         public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null)
         {
             if (StartedRunning)
             {
@@ -146,8 +146,11 @@ namespace OPS.Pipeline.TilingServer
                 pipeline.LogInfo("deleting {0} nodes", nn);
                 foreach (var node in nodes)
                 {
-                    node.Delete(pipeline, ignoreErrors);
-                    Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
+                    node.Delete(pipeline, ignoreErrors, keepMeshes);
+                    if (pipeline is CloudPipeline)
+                    {
+                        Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
+                    }
                     if (++n % 500 == 0)
                     {
                         pipeline.LogInfo("deleted {0} nodes", n);
@@ -165,7 +168,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 if (input != null)
                 {
-                    input.Delete(pipeline, ignoreErrors);
+                    input.Delete(pipeline, ignoreErrors, keepMeshes);
                 }
             }
 
@@ -173,16 +176,21 @@ namespace OPS.Pipeline.TilingServer
 
             if (!string.IsNullOrEmpty(ExportDir))
             {
-                pipeline.DeleteFiles(pipeline.GetStorageUrl(ExportDir, Name), "*", ignoreErrors);
+                var baseUrl = pipeline.GetStorageUrl(ExportDir, Name);
+                pipeline.LogInfo("deleting tileset exports under {0}", baseUrl);
+                pipeline.DeleteFiles(baseUrl, "*", ignoreErrors);
             }
 
-            if (!string.IsNullOrEmpty(TilesetDir) && TilesetDir != ExportDir)
+            if (!string.IsNullOrEmpty(TilesetDir) && TilesetDir != ExportDir && TilesetDir != InternalTileDir)
             {
-                pipeline.DeleteFiles(pipeline.GetStorageUrl(TilesetDir, Name), "*", ignoreErrors);
+                var baseUrl = pipeline.GetStorageUrl(TilesetDir, Name);
+                pipeline.LogInfo("deleting tileset under {0}", baseUrl);
+                pipeline.DeleteFiles(baseUrl, "*", ignoreErrors);
             }
 
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {
+                pipeline.LogInfo("deleting node ids");
                 pipeline.DeleteFile(NodeIdsUrl, ignoreErrors);
             }
 

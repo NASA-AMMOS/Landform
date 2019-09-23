@@ -121,16 +121,19 @@ namespace OPS.Pipeline.TilingServer
             DBUtil.ExponentialBackoff(() => pipeline.SaveDatabaseItem(this));
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null)
         {
-            if (!string.IsNullOrEmpty(MeshUrl))
+            if (keepMeshes == null || !keepMeshes.Contains(Id))
             {
-                pipeline.DeleteFile(MeshUrl, ignoreErrors);
-            }
-
-            if (!string.IsNullOrEmpty(ImageUrl))
-            {
-                pipeline.DeleteFile(ImageUrl, ignoreErrors);
+                if (!string.IsNullOrEmpty(MeshUrl))
+                {
+                    pipeline.DeleteFile(MeshUrl, ignoreErrors);
+                }
+                
+                if (!string.IsNullOrEmpty(ImageUrl))
+                {
+                    pipeline.DeleteFile(ImageUrl, ignoreErrors);
+                }
             }
 
             pipeline.DeleteDatabaseItem(this, ignoreErrors);
