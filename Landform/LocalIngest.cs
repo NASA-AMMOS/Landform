@@ -64,8 +64,6 @@ namespace OPS.Landform
 
         private LocalIngestOptions options;
 
-        private string inputUrl;
-
         private IngestAlignmentInputs ingester;
         private List<string> baseUrls;
 
@@ -113,13 +111,13 @@ namespace OPS.Landform
         
         protected override Project GetProject()
         {
-            inputUrl = options.InputPath;
+            string inputUrl = options.InputPath;
             if (!string.IsNullOrEmpty(inputUrl))
             {
                 inputUrl = StringHelper.NormalizeUrl(options.InputPath, options.Cloud ? "s3://" : "file://");
             }
 
-            var productUrl = pipeline.GetStorageUrl(OUT_DIR, options.ProjectName);
+            string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
 
             var init = new InitializeAlignmentProject(pipeline);
             return init.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission, options.RedoProject);

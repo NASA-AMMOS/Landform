@@ -207,6 +207,11 @@ namespace OPS.Pipeline
             }
         }
 
+        protected override bool EnableDataProductCache()
+        {
+            return false;
+        }
+
         private static readonly char[] invalidChars = new char[] {'/', '\\' };
 
         private class DBKey

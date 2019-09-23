@@ -425,6 +425,11 @@ namespace OPS.Pipeline
 
         private static object dataCacheLock = new object();
 
+        protected virtual bool EnableDataProductCache()
+        {
+            return true;
+        }
+
         /// <summary>
         /// Fetch a data product given a project name and product GUID.
         /// </summary>
@@ -438,24 +443,27 @@ namespace OPS.Pipeline
             CheckStorageUrl(url);
             
             T res = null;
-            if (!string.IsNullOrEmpty(cacheFolder))
+            if (EnableDataProductCache() && !string.IsNullOrEmpty(cacheFolder))
             {
-                var file = DownloadCachePath(cacheFolder, guid);
-                if (!File.Exists(file))
+                var cacheFile = DownloadCachePath(cacheFolder, guid);
+                if (!File.Exists(cacheFile))
                 {
-                    GetFile(url, tmpFile => {
+                    GetFile(url, file => {
                             lock (dataCacheLock)
                             {
-                                if (!File.Exists(file))
+                                if (!File.Exists(cacheFile))
                                 {
                                     //OK if exists, creates parents
-                                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file)));
-                                    File.Move(tmpFile, file);
+                                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cacheFile)));
+                                    File.Copy(file, cacheFile);
+                                    //not using File.Move() here GetFile() is not guaranteed to return a temp file
+                                    //in practice currently it does not only for LocalPipeline
+                                    //but in that case EnableDataProductCache() is false
                                 }
                             }
                         });
                 }
-                res = DataProduct.Load<T>(File.ReadAllBytes(file));
+                res = DataProduct.Load<T>(File.ReadAllBytes(cacheFile));
             }
             else
             {
@@ -497,7 +505,7 @@ namespace OPS.Pipeline
                 SaveFile(file, url);
             };
 
-            if (cacheFolder != null)
+            if (EnableDataProductCache() && cacheFolder != null)
             {
                 var file = DownloadCachePath(cacheFolder, guid);
                 if (!File.Exists(file))
