@@ -35,7 +35,7 @@ namespace OPS.Landform
         [Option(HelpText = "Output texture resolution, should be power of two", Default = 4096)]
         public virtual int TextureResolution { get; set; }
 
-        [Option(HelpText = "Texture variant (Original, Blurred, Blended)", Default = Backproject.TextureVariant.Original)]
+        [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = Backproject.TextureVariant.Original)]
         public virtual Backproject.TextureVariant TextureVariant { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
