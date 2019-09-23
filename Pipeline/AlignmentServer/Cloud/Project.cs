@@ -26,6 +26,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Mission;
 
+        public HashSet<string> SceneMeshes = new HashSet<string>(); //MT safety: lock before accessing
+
         private void IsValid()
         {
             if (!(Name != null && Mission != null))
@@ -111,6 +113,16 @@ namespace OPS.Pipeline.AlignmentServer
                 project.IsValid();
             }
             return project;
+        }
+
+        public IEnumerable<string> GetSceneMeshes()
+        {
+            IEnumerable<string> ret = null;
+            lock (SceneMeshes)
+            {
+                ret = SceneMeshes.ToArray();
+            }
+            return ret;
         }
     }
 }

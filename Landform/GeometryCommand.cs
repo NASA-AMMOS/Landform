@@ -43,6 +43,7 @@ namespace OPS.Landform
         protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
                                                             bool onlyObsForReconstruction = false)
         {
+            //pass null as outDir because we'll be setting it ourselves below
             if (!base.ParseArgumentsAndLoadCaches(null, obsTypes, onlyObsForReconstruction))
             {
                 return false; //help

@@ -147,7 +147,7 @@ namespace OPS.Landform
 
         private void LoadOrGenerateShrinkwrapMesh()
         {
-            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives, MeshVariant.Shrinkwrap);
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
 
             if (sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
             {
@@ -164,7 +164,7 @@ namespace OPS.Landform
             }
             else
             {
-                SceneMesh sm = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives, MeshVariant.Default);
+                SceneMesh sm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
                 if (sm != null && sm.MeshGuid != Guid.Empty)
                 {
                     pipeline.LogInfo("loading scene mesh from database");
@@ -200,7 +200,7 @@ namespace OPS.Landform
 
             if (sceneMesh == null)
             {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, siteDrives, MeshVariant.Shrinkwrap,
+                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
                                              noSave: options.NoSave);
             }
 

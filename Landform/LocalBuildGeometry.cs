@@ -210,17 +210,15 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("kept {0} faces visible in specified observations", mesh.Faces.Count);
-
-            string name = SceneMesh.MakeName(meshFrame, siteDrives, MeshVariant.Default);
-            name += "_" + string.Join("_", onlyForObs.Select(obs => obs.Name).ToArray());
-            SaveMesh(mesh, name);
         }
 
         private void SaveMesh()
         {
             pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
 
-            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, siteDrives);
+            string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
+
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives, obsNames);
             if (sceneMesh != null)
             {
                 var meshProd = new PlyGZDataProduct(mesh);
@@ -230,7 +228,8 @@ namespace OPS.Landform
             }
             else
             {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, mesh: mesh);
+                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Default, siteDrives, obsNames,
+                                             mesh: mesh);
             }
 
             if (options.WriteDebug)

@@ -91,7 +91,11 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+            if (sceneMesh == null) //might have already been loaded in GetProject()
+            {
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+            }
+
             if (sceneMesh == null)
             {
                 throw new Exception(string.Format("no scene mesh for project {0} in frame {1}", project.Name, meshFrame));
