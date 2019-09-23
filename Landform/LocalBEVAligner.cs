@@ -373,9 +373,6 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.Preload();
-
             var opts = new MeshObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
             {
