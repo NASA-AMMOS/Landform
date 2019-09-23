@@ -87,10 +87,15 @@ namespace OPS.Landform
                 outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, wcopts.UsePriors);
             }
 
+            if (!base.ParseArguments(outDir))
+            {
+                return false; //help
+            }
+
             LoadFrameCache();
             LoadObservationCache(obsTypes, onlyObsForReconstruction);
 
-            return base.ParseArguments(outDir);
+            return true;
         }
 
         protected override bool ParseArguments(string outDir)
@@ -100,7 +105,7 @@ namespace OPS.Landform
 
         protected virtual void LoadFrameCache()
         {
-            frameCache = new FrameCache(pipeline, wcopts.ProjectName);
+            frameCache = new FrameCache(pipeline, project.Name);
             frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
             if (!frameCache.CheckPriors(out effectiveRootFrame))
             {
@@ -116,7 +121,7 @@ namespace OPS.Landform
         {
             string[] cameras = StringHelper.ParseList(wcopts.OnlyForCameras);
             string[] obsFilter = (obsTypes ?? new ObservationType[] {}).Select(ot => ot.ToString()).ToArray();
-            observationCache = new ObservationCache(pipeline, wcopts.ProjectName);
+            observationCache = new ObservationCache(pipeline, project.Name);
             observationCache.
                 Preload(obs => (!onlyObsForReconstruction || obs.UseForReconstruction) &&
                         (obsFilter.Length == 0 || obsFilter.Any(ot => obs.ObservationType == ot)) &&

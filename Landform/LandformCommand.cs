@@ -15,7 +15,7 @@ namespace OPS.Landform
     public class LandformCommandOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "project name", Default = null)]
-        public string ProjectName { get; set; }
+        public virtual string ProjectName { get; set; }
 
         [Option(HelpText = "Operate on cloud data", Default = false)]
         public bool Cloud { get; set; }
@@ -142,7 +142,7 @@ namespace OPS.Landform
         protected virtual void SetOutDir(string outDir)
         {
             outputFolder = outDir;
-            localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, lcopts.ProjectName);
+            localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project.Name);
             if (lcopts.Redo && Directory.Exists(localOutputPath))
             {
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
@@ -152,15 +152,6 @@ namespace OPS.Landform
          
         protected virtual bool ParseArguments(string outDir)
         {
-            project = GetProject();
-            mission = GetMission();
-            masker = GetMasker();
-
-            if (outDir != null)
-            {
-                SetOutDir(outDir);
-            }
-
             meshExt = MeshSerializers.Instance.CheckFormat(lcopts.MeshFormat, pipeline);
             if (meshExt == null)
             {
@@ -171,6 +162,15 @@ namespace OPS.Landform
             if (imageExt == null)
             {
                 return false; //help
+            }
+
+            project = GetProject(); //might create project
+            mission = GetMission();
+            masker = GetMasker();
+
+            if (outDir != null)
+            {
+                SetOutDir(outDir);
             }
 
             return true;

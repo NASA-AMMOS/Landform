@@ -119,7 +119,7 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("buidling mesh");
 
-            mesh = BuildTilingInput.BuildMesh(pipeline, options.ProjectName, out meshBounds,
+            mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
                                               frameCache, observationCache, meshFrame, options.UsePriors,
                                               options.OnlyAligned, options.OnlyForCameras,
                                               !options.NoCleverCombine, options.AllowMastcam,
