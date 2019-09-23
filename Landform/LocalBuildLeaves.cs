@@ -147,7 +147,8 @@ namespace OPS.Landform
                 {
                     throw new Exception("cannot create project: mission must be specified");
                 }
-                string productUrl = null, inputUrl = null;
+                string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, projectName);
+                string inputUrl = null;
                 bool recreateIfExists = false;
                 var init = new InitializeAlignmentProject(pipeline);
                 return init.Initialize(projectName, productUrl, inputUrl, options.Mission, recreateIfExists);
