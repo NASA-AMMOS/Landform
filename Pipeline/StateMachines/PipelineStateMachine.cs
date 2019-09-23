@@ -93,7 +93,6 @@ namespace OPS.Pipeline
                 .Case((RunProjectMessage m) => RunProject())
                 .Case((DefineTilesMessage m) => TilesDefined())
                 .Case((ChunkInputMessage m) => InputChunked(m.InputName))
-                .Case((BuildParentsMessage m) => BuildParents())
                 .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
                 .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
             ret.Unhandled = (t, x) => pipeline.LogError("unknown master message type: {0}", t);
@@ -177,20 +176,19 @@ namespace OPS.Pipeline
 
         virtual protected void RunProject()
         {
-            LogInfo("defining tiles");
-            RunProject(new DefineTilesMessage(projectName));
+            LogInfo("running project");
+            RunProject(() => pipeline.EnqueueToWorkers(new DefineTilesMessage(projectName)));
         }
 
-        virtual protected void RunProject(QueueMessage nextMessage)
+        virtual protected void RunProject(Action next)
         {
             projectCache.Reset();
             var project = TilingProject.Find(pipeline, projectName);
             if (project != null)
             {
-                LogInfo("running project");
                 project.StartedRunning = true;
                 project.Save(pipeline);
-                pipeline.EnqueueToWorkers(nextMessage);
+                next();
             }
             else
             {
@@ -550,12 +548,6 @@ namespace OPS.Pipeline
     {
         public RunProjectMessage() { }
         public RunProjectMessage(string projectName) : base(projectName) { }
-    }
-
-    public class BuildParentsMessage : QueueMessage
-    {
-        public BuildParentsMessage() { }
-        public BuildParentsMessage(string projectName) : base(projectName) { }
     }
 
     public class TileCompletedMessage : QueueMessage

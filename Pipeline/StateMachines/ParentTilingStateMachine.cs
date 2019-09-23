@@ -14,8 +14,7 @@ namespace OPS.Pipeline
 
         protected override void RunProject()
         {
-            LogInfo("building parents");
-            RunProject(new BuildParentsMessage(projectName));
+            RunProject(BuildParents);
         }
 
         protected override QueueMessage MakeLeafJobMessage(List<string> leaves)
