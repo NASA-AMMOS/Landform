@@ -238,13 +238,6 @@ namespace OPS.Pipeline.AlignmentServer
                 .Cast<TransformSource>()
                 .ToArray();
         }
-
-        public static bool ParseFrameName(ref string frameName, out bool specificSiteDrive)
-        {
-            frameName = frameName.ToLower().Trim();
-            specificSiteDrive = (new Regex("\\d{10}")).IsMatch(frameName);
-            return specificSiteDrive || frameName == "rover" || frameName == "sitedrive" || frameName == "root";
-        }
     }
 }
 

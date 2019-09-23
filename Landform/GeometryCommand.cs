@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -21,7 +22,7 @@ namespace OPS.Landform
 {
     public class GeometryCommandOptions : WedgeCommandOptions
     {
-        [Option(HelpText = "Scene mesh coordinate frame: numeric sitedrive SSSSSDDDDD, root, newest, or oldest", Default = "newest")]
+        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSSSDDDDD", Default = "auto")]
         public virtual string MeshFrame { get; set; }
     }
 
@@ -39,32 +40,15 @@ namespace OPS.Landform
             this.gcopts = gcopts;
         }
 
-        protected virtual string GetMeshFrame()
-        {
-            return gcopts.MeshFrame;
-        }
-
         protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
                                                             bool onlyObsForReconstruction = false)
         {
-            meshFrame = GetMeshFrame().ToLower();
-
-            bool specificSiteDrive = false;
-            if (meshFrame != "newest" && meshFrame != "oldest")
-            {
-                FrameTransform.ParseFrameName(ref meshFrame, out specificSiteDrive);
-                if (!specificSiteDrive && meshFrame != "root")
-                {
-                    throw new Exception("unsupported mesh frame: " + meshFrame);
-                }
-            }
-
             if (!base.ParseArgumentsAndLoadCaches(null, obsTypes, onlyObsForReconstruction))
             {
                 return false; //help
             }
 
-            HandleSpecialMeshFrames(specificSiteDrive);
+            HandleSpecialMeshFrames();
 
             outDir = string.Format("{0}/{1}Frame", outDir, meshFrame);
             outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, gcopts.UsePriors);
@@ -73,24 +57,90 @@ namespace OPS.Landform
             return true;
         }
 
-        private void HandleSpecialMeshFrames(bool specificSiteDrive)
+        protected virtual string GetMeshFrame()
         {
-            var origMeshFrame = meshFrame;
-            if (meshFrame == "root")
+            return gcopts.MeshFrame;
+        }
+
+        protected virtual string GetAutoMeshFrame()
+        {
+            return "newest";
+        }
+
+        protected virtual bool PassthroughMeshFrameAllowed()
+        {
+            return false;
+        }
+
+        protected virtual bool NonPassthroughMeshFrameAllowed()
+        {
+            return true;
+        }
+
+        private void HandleSpecialMeshFrames()
+        {
+            meshFrame = GetMeshFrame().ToLower().Trim();
+
+            string missionRoot = mission.RootFrameName();
+
+            var specials =
+                new string[] { "auto", "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
+
+            bool isSiteDrive = (new Regex("\\d{10}")).IsMatch(meshFrame);
+            bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
+
+            if (!isSiteDrive && !isSpecial)
             {
-                string missionRoot = mission.RootFrameName();
+                throw new Exception("unsupported mesh frame: " + meshFrame);
+            }
+
+            if (meshFrame == "auto")
+            {
+                meshFrame = GetAutoMeshFrame();
+            }
+                
+            var origMeshFrame = meshFrame;
+            if (meshFrame == "passthrough")
+            {
+                if (!PassthroughMeshFrameAllowed())
+                {
+                    throw new Exception("--meshframe=passthrough not allowed");
+                }
+            }
+            else if (!NonPassthroughMeshFrameAllowed())
+            {
+                throw new Exception("only --meshframe=passthrough allowed");
+            }
+
+            if (meshFrame == "mission_root" || meshFrame == missionRoot)
+            {
+                if (string.IsNullOrEmpty(effectiveRootFrame))
+                {
+                    //this can happen if there were no frames to load or the frame cache was not loaded
+                    throw new Exception("mission root output requested but no frames or frame cache not loaded");
+                }
+
                 if (effectiveRootFrame != missionRoot)
                 {
-                    throw new Exception(string.Format("mission root output \"{0}\" requested but effective root is {1}",
+                    throw new Exception(string.Format("mission root output {0} requested but effective root is {1}",
                                                       missionRoot, effectiveRootFrame));
                 }
                 meshFrame = missionRoot;
+            }
+            else if (meshFrame == "project_root")
+            {
+                if (string.IsNullOrEmpty(effectiveRootFrame))
+                {
+                    //this can happen if there were no frames to load or the frame cache was not loaded
+                    throw new Exception("project root output requested but effective root unknown");
+                }
+                meshFrame = effectiveRootFrame;
             }
             else if (meshFrame == "newest" || meshFrame == "oldest")
             {
                 if (observationCache == null)
                 {
-                    throw new Exception(string.Format("cannot resolve {0} sitedrive frame: no observations", meshFrame));
+                    throw new Exception("observation cache not loaded, cannot resolve special frame: " + meshFrame);
                 }
                                               
                 var sds = observationCache
@@ -113,12 +163,19 @@ namespace OPS.Landform
                     meshFrame = sds.OrderBy(sd => sd).First().ToString();
                 }
 
-                specificSiteDrive = true;
+                isSiteDrive = true;
             }
 
-            if (specificSiteDrive && frameCache != null && !frameCache.ContainsFrame(meshFrame))
+            if (isSiteDrive)
             {
-                throw new Exception("sitedrive output frame not found: " + meshFrame);
+                if (frameCache == null)
+                {
+                    throw new Exception("frame cache not loaded, cannot resolve frame: " + meshFrame);
+                }
+                if (!frameCache.ContainsFrame(meshFrame))
+                {
+                    throw new Exception("sitedrive frame not found: " + meshFrame);
+                }
             }
 
             pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,

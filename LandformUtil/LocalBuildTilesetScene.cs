@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -153,8 +154,8 @@ namespace OPS.LandformUtil
             masker = mission.GetMasker();
 
             var outputFrame = options.OutputFrame;
-            FrameTransform.ParseFrameName(ref outputFrame, out bool specificSiteDrive);
-            if (!specificSiteDrive && outputFrame != "root")
+            bool isSiteDrive = (new Regex("\\d{10}")).IsMatch(outputFrame);
+            if (!isSiteDrive && outputFrame != "root")
             {
                 pipeline.LogError("unsupported output frame: " + outputFrame);
                 return 1;
