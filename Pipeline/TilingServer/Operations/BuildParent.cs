@@ -36,16 +36,20 @@ namespace OPS.Pipeline.TilingServer
         
         public void Process()
         {
-            LogInfo("started building parent " + message.TileId);
+            LogInfo("started building parent {0}", message.TileId);
+
             var project = TilingProject.Find(pipeline, projectName);
+
             TilingNode parent = TilingNode.Find(pipeline, projectName, message.TileId);
-            if (parent.MeshUrl != null)
+
+            if (parent.MeshUrl != null && parent.GeometricError.HasValue)
             {
-                LogInfo("parent " + parent.Id + " already complete, skipping");
+                LogInfo("parent {0} already complete, skipping", parent.Id);
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
                 return;
             }
-            ConcurrentDictionary<string, SceneNode> idToNode = new ConcurrentDictionary<string, SceneNode>();
+
+            var idToNode = new ConcurrentDictionary<string, SceneNode>();
             var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline, projectName, cid));
             Serial.ForEach(dependsOnTilingNodes, n =>
             {
@@ -61,19 +65,32 @@ namespace OPS.Pipeline.TilingServer
             {
                 if (!idToNode.ContainsKey(childId))
                 {
-                    LogError(parent.Id + "missing input data");
+                    LogError("parent {0} missing input data", parent.Id);
                     return;
                 }                
                 idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
-            LogInfo("generating parent {0} from {1} tiles", message.TileId, parent.DependsOn.Count);
-            parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
-                                                      project.TileResolution, project.GetSkirtMode());
-            var pair = parentSceneNode.GetComponent<MeshImagePair>();
-            parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
-            parent.SaveMesh(pair, pipeline, project); //will save parent back to DB including updated GeometricError
+
+            if (parent.MeshUrl == null)
+            {
+                LogInfo("generating parent {0} mesh and geometric error from {1} tiles",
+                        message.TileId, parent.DependsOn.Count);
+                parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
+                                                          project.FacesPerTile, project.TileResolution,
+                                                          project.GetSkirtMode());
+                var pair = parentSceneNode.GetComponent<MeshImagePair>();
+                parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
+                parent.SaveMesh(pair, pipeline, project); //will save parent back to DB including updated GeometricError
+            }
+            else
+            {
+                LogInfo("generating parent {0} geometric error from {1} tiles", message.TileId, parent.DependsOn.Count);
+                parent.GeometricError = parentSceneNode.CalculateGeometricError();
+                parent.Save(pipeline);
+            }
+
             pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
-            LogInfo("completed building parent " + message.TileId);
+            LogInfo("completed building parent {0}", message.TileId);
         }
     }
 }

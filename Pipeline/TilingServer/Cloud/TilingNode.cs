@@ -371,7 +371,7 @@ namespace OPS.Pipeline.TilingServer
         {
             SceneNode node = new SceneNode(Id);
             node.AddComponent(new NodeBounds(GetBounds()));
-            if(GeometricError.HasValue)
+            if (GeometricError.HasValue)
             {
                 node.AddComponent(new NodeGeometricError(GeometricError.Value));
             }

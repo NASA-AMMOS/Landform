@@ -104,10 +104,9 @@ namespace OPS.Pipeline.TilingServer
         public void DownloadInputsAndBuildTree(TilingProject project, bool progress = true,
                                                bool skipSavingInternalTileMeshesForUserDefinedNodes = false)
         {
-            bool userDefined = project.GetTilingScheme() == TilingScheme.UserDefined;
-
+            int numUserDefinedNodes = 0;
             SceneNode root = null;
-            if (userDefined)
+            if (project.GetTilingScheme() == TilingScheme.UserDefined)
             {
                 // Build a tree based on existing tile ids
                 var inputs = TilingInput.Find(pipeline, project).ToList();
@@ -123,7 +122,9 @@ namespace OPS.Pipeline.TilingServer
                         nodes.Add(node);   
                     }
                 });
-                LogInfo("loaded inputs, connecting nodes by name");
+                numUserDefinedNodes = nodes.Count;
+                LogInfo("loaded inputs, connecting {0} user defined nodes by name and adding mising parent nodes",
+                        numUserDefinedNodes);
                 root = SceneNodeTilingExtensions.ConnectNodesByName(nodes);
                 LogInfo("computing bounds");
                 SceneNodeTilingExtensions.ComputeBounds(root);
@@ -160,7 +161,9 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
-            LogInfo("saving tile tree, {0} nodes", nn);
+            LogInfo("saving tile tree{0}, {1} nodes",
+                    numUserDefinedNodes > 0 ? " and converting user defined nodes" : "", nn);
+
             List<string> ids = new List<string>();
             foreach (var node in root.DepthFirstTraverse())
             {
@@ -173,11 +176,12 @@ namespace OPS.Pipeline.TilingServer
                                                    dependencies.DependedOnBy(node.Name),
                                                    node.GetComponent<NodeBounds>().Bounds);
 
-                //save user supplied tile meshes to project storage
-                //this both saves them in our internal formats, typically ply / png
-                //as well as the final output tileset format, typically b3dm / jpg
-                if (node.HasComponent<MeshImagePair>())
+                if (node.HasComponent<MeshImagePair>()) //user defined tile
                 {
+                    //save user supplied tile meshes to project storage
+                    //this both saves them in our internal formats, typically ply / png
+                    //as well as the final output tileset format, typically b3dm / jpg
+
                     var mp = node.GetComponent<MeshImagePair>();
 
                     //when we're called from LocalBuildTileset we just read the leaf tiles from InternalTileDir
@@ -204,6 +208,15 @@ namespace OPS.Pipeline.TilingServer
                         }
                     }
 
+                    //geometric error is zero for user defined leaves
+                    if (node.Transform.ChildCount == 0)
+                    {
+                        tilingNode.GeometricError = 0;
+                        node.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
+                    }
+                    //for user defined parent nodes geometric error will be computed in BuildParent
+
+                    //will save tilingNode back to database including geometric error
                     tilingNode.SaveMesh(mp, pipeline, project, saveInternal);
                 }
 
