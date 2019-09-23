@@ -316,7 +316,7 @@ namespace OPS.Pipeline.TilingServer
             Image image = null;
             if (input.ImageUrl != null)
             {
-                if (image.Width < ChunkInput.CHUNK_RESOLUTION && image.Height < ChunkInput.CHUNK_RESOLUTION)
+                if (input.ImageWidth < ChunkInput.CHUNK_RESOLUTION && input.ImageHeight < ChunkInput.CHUNK_RESOLUTION)
                 {
                     image = pipeline.LoadImage(input.ImageUrl);
                 }
