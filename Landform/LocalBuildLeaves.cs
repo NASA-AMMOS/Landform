@@ -20,6 +20,9 @@ namespace OPS.Landform
     [Verb("local-build-leaves", HelpText = "builds textured leaf tiles from a full scene mesh")]
     public class LocalBuildLeavesOptions : TilingCommandOptions
     {
+        [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
+        public override string ProjectName { get; set; }
+
         [Value(1, Required = false, Default = null, HelpText = "Scene mesh texture image to bake into leaves, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
@@ -49,6 +52,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Debug function that skips all tiles except the one with this name", Default = null)]
         public string OnlyTileNamed { get; set; }
+
+        [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
+        public Mission Mission { get; set; }
     }
 
     public class LocalBuildLeaves : TilingCommand
@@ -96,6 +102,15 @@ namespace OPS.Landform
                 RunPhase("build tile tree", BuildTileTree);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
                 RunPhase("build leaf meshes", BuildLeafMeshes);
+
+                //if we don't delete any existing tiling project corresponding to this alignment project right here
+                //then the default behavior in local-build-tilest will be to delete it
+                //but that will also delete the new leaves we are just about to write
+                if (!options.UseExistingTilingProject)
+                {
+                    RunPhase("delete existing tiling project", () => { GetOrDeleteTilingProject(); });
+                }
+
                 RunPhase(string.Format("{0}save leaves", textureLeaves ? "build leaf textures and " : ""),
                          BuildLeafTexturesAndSaveLeaves);
             }
@@ -116,6 +131,76 @@ namespace OPS.Landform
             bakeTextures = textureLeaves && !string.IsNullOrEmpty(options.InputTexture);
             backprojectTextures = textureLeaves && !bakeTextures;
             return base.ParseArgumentsAndLoadCaches();
+        }
+
+        private bool BakingInputMesh()
+        {
+            return !string.IsNullOrEmpty(options.InputMesh) && !string.IsNullOrEmpty(options.InputTexture);
+        }
+
+        protected override Project GetProject()
+        {
+            if (BakingInputMesh())
+            {
+                string projectName = options.ProjectName;
+                if (string.IsNullOrEmpty(projectName))
+                {
+                    projectName = StringHelper.GetLastUrlPathSegment(options.InputMesh, stripExtension: true);
+                    pipeline.LogInfo("inferred project name \"{0}\"", projectName);
+                }
+                var project = Project.Find(pipeline, projectName);
+                if (project != null)
+                {
+                    return project;
+                } 
+                if (options.Mission == Mission.None)
+                {
+                    throw new Exception("cannot create project: mission must be specified");
+                }
+                string productUrl = null, inputUrl = null;
+                bool recreateIfExists = false;
+                var init = new InitializeAlignmentProject(pipeline);
+                return init.Initialize(projectName, productUrl, inputUrl, options.Mission, recreateIfExists);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(options.ProjectName))
+                {
+                    throw new Exception("--projectname must be specified");
+                }
+                return base.GetProject();
+            }
+        }
+
+        protected override string GetAutoMeshFrame()
+        {
+            return BakingInputMesh() ? "passthrough" : "newest";
+        }
+
+        protected override bool PassthroughMeshFrameAllowed()
+        {
+            return BakingInputMesh();
+        }
+
+        protected override bool NonPassthroughMeshFrameAllowed()
+        {
+            return !BakingInputMesh();
+        }
+
+        protected override void LoadFrameCache()
+        {
+            if (!BakingInputMesh())
+            {
+                base.LoadFrameCache();
+            }
+        }
+
+        protected override void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        {
+            if (!BakingInputMesh())
+            {
+                base.LoadObservationCache(obsTypes, onlyObsForReconstruction);
+            }
         }
 
         private void BuildObsHulls()

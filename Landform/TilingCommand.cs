@@ -21,6 +21,9 @@ namespace OPS.Landform
     {
         [Option(HelpText = "Target maximum faces per tile", Default = 2000)]
         public int FacesPerTile { get; set; }
+
+        [Option(HelpText = "Don't delete tiling project if it already exists", Default = false)]
+        public bool UseExistingTilingProject { get; set; }
     }
 
     public class TilingCommand : TextureCommand
@@ -37,6 +40,10 @@ namespace OPS.Landform
         protected TilingCommand(TilingCommandOptions tilingOpts) : base(tilingOpts)
         {
             this.tilingOpts = tilingOpts;
+            if (tilingOpts.Redo)
+            {
+                tilingOpts.UseExistingTilingProject = false;
+            }
         }
 
         protected virtual bool ParseArgumentsAndLoadCaches()
@@ -67,6 +74,20 @@ namespace OPS.Landform
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
             throw new NotImplementedException();
+        }
+
+        protected TilingProject GetOrDeleteTilingProject()
+        {
+            var tilingProject = TilingProject.Find(pipeline, project.Name);
+
+            if (!tilingOpts.UseExistingTilingProject && tilingProject != null)
+            {
+                pipeline.LogInfo("deleting existing tiling project {0}", project.Name);
+                tilingProject.Delete(pipeline); //deletes all generated db and storage entries - this can take a while
+                tilingProject = null;
+            }
+
+            return tilingProject;
         }
     }
 }

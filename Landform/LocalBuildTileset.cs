@@ -33,9 +33,6 @@ namespace OPS.Landform
         [Option(Default = MeshReconMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
         public MeshReconMethod ReconMethod { get; set; }
 
-        [Option(HelpText = "Don't delete tiling project if it already exists", Default = false)]
-        public bool UseExistingTilingProject { get; set; }
-
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
         public double MaxTime { get; set; }
     }
@@ -53,10 +50,6 @@ namespace OPS.Landform
         public LocalBuildTileset(LocalBuildTilesetOptions options) : base(options)
         {
             this.options = options;
-            if (options.Redo)
-            {
-                options.UseExistingTilingProject = false;
-            }
         }
 
         public int Run()
@@ -93,12 +86,6 @@ namespace OPS.Landform
                 throw new Exception("--nosave not implemented for this command");
             }
 
-            //its unfortunate but for now we load the frame and observation caches
-            //only for the purpose of parsing the --meshframe command line option
-            //the default is "newest" which is convenient because that enables a general case all-defaults flow like
-            //Landform.exe local-build-leaves <project>
-            //Landform.exe local-build-tileset <project>
-
             if (!base.ParseArgumentsAndLoadCaches())
             {
                 return false; //help
@@ -133,16 +120,30 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override bool PassthroughMeshFrameAllowed()
+        {
+            return true;
+        }
+
+        protected override void LoadFrameCache()
+        {
+            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            {
+                base.LoadFrameCache();
+            }
+        }
+
+        protected override void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        {
+            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            {
+                base.LoadObservationCache(obsTypes, onlyObsForReconstruction);
+            }
+        }
+
         private void CreateTilingProject()
         {
-            tilingProject = TilingProject.Find(pipeline, project.Name);
-
-            if (!options.UseExistingTilingProject && tilingProject != null)
-            {
-                pipeline.LogInfo("deleting existing tiling project {0}", project.Name);
-                tilingProject.Delete(pipeline); //deletes all generated db and storage entries - this can take a while
-                tilingProject = null;
-            }
+            tilingProject = GetOrDeleteTilingProject();
 
             if (tilingProject == null)
             {
