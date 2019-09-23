@@ -37,7 +37,7 @@ namespace OPS.Pipeline
         public string AuthCookieFile { get; set; } = "~/.cssotoken/ssosession";
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
-        public string View { get; set; } = "localized_interp"; // options: best_tactical, localized_pos, localized_interp 
+        public string View { get; set; } = "localized_interp"; //MSL: best_tactical, localized_pos, localized_interp 
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
         public string Url { get; set; } = "https://places-dev.m20-dev.jpl.nasa.gov"; //M2020 dev copy of MSL data
