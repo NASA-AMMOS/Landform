@@ -119,6 +119,8 @@ namespace OPS.Landform
                 throw new Exception("leaf list is empty");
             }
 
+            withTextures &= !string.IsNullOrEmpty(leafList.ImageExt);
+
             tilesetFolder = DecorateOutDir(OUT_DIR + "Set");
 
             return true;
@@ -208,6 +210,8 @@ namespace OPS.Landform
 
         private void AddLeafMeshes()
         {
+            pipeline.LogInfo("adding {0} leaf meshes{1}", leafList.LeafNames.Count,
+                             withTextures ? " and textures" : "");
             foreach (var leaf in leafList.LeafNames)
             {
                 if (!options.NoProgress)
@@ -215,9 +219,9 @@ namespace OPS.Landform
                     pipeline.LogVerbose("adding/updating leaf mesh {0}", leaf);
                 }
                 var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.MeshExt);
-                var imgUrl = !string.IsNullOrEmpty(leafList.ImageExt) ?
-                    pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.ImageExt) : null;
-                TilingInput.Create(pipeline, project.Name, tilingProject, meshUrl, imgUrl, leaf);
+                var imgUrl =
+                    withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.ImageExt) : null;
+                TilingInput.Create(pipeline, leaf, tilingProject, meshUrl, imgUrl, leaf);
             }
         }
 

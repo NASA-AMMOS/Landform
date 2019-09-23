@@ -38,12 +38,6 @@ namespace OPS.Landform
         [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 256)]
-        public override int TextureResolution { get; set; }
-
-        [Option(HelpText = "Disable texturing", Default = false)]
-        public bool NoTextures { get; set; }
-
         [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = Backproject.TextureVariant.Blended)]
         public override Backproject.TextureVariant TextureVariant { get; set; }
 
@@ -61,9 +55,8 @@ namespace OPS.Landform
     {
         private LocalBuildLeavesOptions options;
 
-        bool textureLeaves;
-        bool bakeTextures;
-        bool backprojectTextures;
+        private bool bakeTextures;
+        private bool backprojectTextures;
 
         private Image sceneTexture;
         private IDictionary<string, ConvexHull> obsToHull;
@@ -103,7 +96,7 @@ namespace OPS.Landform
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
                 RunPhase("build leaf meshes", BuildLeafMeshes);
 
-                RunPhase(string.Format("{0}save leaves", textureLeaves ? "build leaf textures and " : ""),
+                RunPhase(string.Format("{0}save leaves", withTextures ? "build leaf textures and " : ""),
                          BuildLeafTexturesAndSaveLeaves);
             }
             catch (Exception ex)
@@ -119,10 +112,15 @@ namespace OPS.Landform
 
         protected override bool ParseArgumentsAndLoadCaches()
         {
-            textureLeaves = !options.NoTextures && resolution > 0;
-            bakeTextures = textureLeaves && !string.IsNullOrEmpty(options.InputTexture);
-            backprojectTextures = textureLeaves && !bakeTextures;
-            return base.ParseArgumentsAndLoadCaches();
+            if (!base.ParseArgumentsAndLoadCaches())
+            {
+                return false; //help
+            }
+            bakeTextures = withTextures && !string.IsNullOrEmpty(options.InputTexture);
+            backprojectTextures = withTextures && !bakeTextures;
+            pipeline.LogInfo("{0} leaf textures",
+                             withTextures ? (bakeTextures ? "baking" : "backprojecting") : "not making");
+            return true;
         }
 
         private bool BakingInputMesh()
@@ -287,7 +285,7 @@ namespace OPS.Landform
             leafList = new LeafList()
                 {
                     MeshExt = meshExt,
-                    ImageExt = textureLeaves ? imageExt : null,
+                    ImageExt = withTextures ? imageExt : null,
                     MeshFrame = meshFrame,
                     TilingScheme = options.TilingScheme,
                     LeafNames = new List<string>()
@@ -336,7 +334,7 @@ namespace OPS.Landform
                     mp.Image = BackprojectLeafTexture(leaf, mp.Mesh);
                 }
 
-                if (!textureLeaves || mp.Image != null)
+                if (!withTextures || mp.Image != null)
                 {
                     SaveLeaf(leaf.Name, mp.Mesh, mp.Image, localSave, cloudSave);
                     Interlocked.Increment(ref numSucceded);
@@ -349,7 +347,7 @@ namespace OPS.Landform
                 leaf.RemoveComponent<MeshImagePair>(); //conserve memory
             });
 
-            if (textureLeaves && numFailed > 0)
+            if (withTextures && numFailed > 0)
             {
                 pipeline.LogWarn("failed to generate textures for {0} leaves", numFailed);
             }

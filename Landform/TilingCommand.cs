@@ -19,6 +19,12 @@ namespace OPS.Landform
 {
     public class TilingCommandOptions : TextureCommandOptions
     {
+        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 256)]
+        public override int TextureResolution { get; set; }
+
+        [Option(HelpText = "Disable texturing", Default = false)]
+        public bool NoTextures { get; set; }
+
         [Option(HelpText = "Target maximum faces per tile", Default = 2000)]
         public int FacesPerTile { get; set; }
 
@@ -32,6 +38,7 @@ namespace OPS.Landform
 
         protected TilingCommandOptions tilingOpts;
 
+        protected bool withTextures;
         protected bool localSave;
         protected bool cloudSave;
 
@@ -53,19 +60,20 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            withTextures = !tilingOpts.NoTextures && resolution > 0;
+
             localSave = tilingOpts.WriteDebug || (!tilingOpts.NoSave && pipeline is LocalPipeline);
             cloudSave = !tilingOpts.NoSave && pipeline is CloudPipeline;
 
+            string texMsg = withTextures ? (" and " + tilingOpts.ImageFormat + " textures") : "";
             if (localSave)
             {
-                pipeline.LogInfo("saving {0} tile meshes and {1} textures to {2}",
-                                 tilingOpts.MeshFormat, tilingOpts.ImageFormat, localOutputPath);
+                pipeline.LogInfo("saving {0} tile meshes{1} to {2}", tilingOpts.MeshFormat, texMsg, localOutputPath);
             }
             if (cloudSave)
             {
                 var storageUrl = pipeline.GetStorageUrl(outputFolder, project.Name);
-                pipeline.LogInfo("uploading {0} tile meshes and {1} leaf textures to {2}",
-                                 tilingOpts.MeshFormat, tilingOpts.ImageFormat, storageUrl);
+                pipeline.LogInfo("uploading {0} tile meshes{1} to {2}", tilingOpts.MeshFormat, texMsg, storageUrl);
             }
 
             return true;
