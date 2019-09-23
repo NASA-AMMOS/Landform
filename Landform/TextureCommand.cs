@@ -90,9 +90,12 @@ namespace OPS.Landform
                 pipeline.LogWarn("resolution {0} not a power of two", resolution);
             }
 
-            string imageObs = ObservationType.Image.ToString();
-            imageObservations =
-                observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+            if (observationCache != null)
+            {
+                string imageObs = ObservationType.Image.ToString();
+                imageObservations =
+                    observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+            }
 
             return true;
         }
