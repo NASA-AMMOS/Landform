@@ -20,6 +20,9 @@ namespace OPS.Landform
     [Verb("local-build-leaves", HelpText = "builds textured leaf tiles from a full scene mesh")]
     public class LocalBuildLeavesOptions : TilingCommandOptions
     {
+        [Value(1, Required = false, Default = null, HelpText = "Scene mesh texture image to bake into leaves, backproject observations instead if omitted")]
+        public string InputTexture { get; set; }
+
         [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.1)]
         public double SplitByTexturePctToTest { get; set; }
 
@@ -32,10 +35,13 @@ namespace OPS.Landform
         [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(HelpText = "Image resolution for output texture for each tile", Default = 256)]
+        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 256)]
         public override int TextureResolution { get; set; }
 
-        [Option(HelpText = "Preferred texture variant (Original, Blurred, Blended), falls back to Original", Default = Backproject.TextureVariant.Blended)]
+        [Option(HelpText = "Disable texturing", Default = false)]
+        public bool NoTextures { get; set; }
+
+        [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = Backproject.TextureVariant.Blended)]
         public override Backproject.TextureVariant TextureVariant { get; set; }
 
         [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
@@ -49,6 +55,11 @@ namespace OPS.Landform
     {
         private LocalBuildLeavesOptions options;
 
+        bool textureLeaves;
+        bool bakeTextures;
+        bool backprojectTextures;
+
+        private Image sceneTexture;
         private IDictionary<string, ConvexHull> obsToHull;
         private SceneNode tileTree;
         private MeshOperator meshOp;
@@ -69,13 +80,24 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: false));
-                RunPhase("build occlusion datastructures", BuildSceneCaster);
-                RunPhase("build observation frustum hulls", BuildObsHulls);
+                if (bakeTextures)
+                {
+                    RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
+                }
+
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: bakeTextures));
+
+                if (backprojectTextures)
+                {
+                    RunPhase("build occlusion datastructures", BuildSceneCaster);
+                    RunPhase("build observation frustum hulls", BuildObsHulls);
+                }
+
                 RunPhase("build tile tree", BuildTileTree);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
                 RunPhase("build leaf meshes", BuildLeafMeshes);
-                RunPhase("build leaf textures and save leaves", BuildLeafTexturesAndSaveLeaves);
+                RunPhase(string.Format("{0}save leaves", textureLeaves ? "build leaf textures and " : ""),
+                         BuildLeafTexturesAndSaveLeaves);
             }
             catch (Exception ex)
             {
@@ -88,6 +110,14 @@ namespace OPS.Landform
             return 0;
         }
 
+        protected override bool ParseArgumentsAndLoadCaches()
+        {
+            textureLeaves = !options.NoTextures && resolution > 0;
+            bakeTextures = textureLeaves && !string.IsNullOrEmpty(options.InputTexture);
+            backprojectTextures = textureLeaves && !bakeTextures;
+            return base.ParseArgumentsAndLoadCaches();
+        }
+
         private void BuildObsHulls()
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors,
@@ -97,7 +127,7 @@ namespace OPS.Landform
         private void BuildTileTree()
         {
             SplitByTextureOpts texSplitOpts = null;
-            if (options.SplitByTexturePctToTest > 0)
+            if (backprojectTextures && options.SplitByTexturePctToTest > 0)
             {
                 texSplitOpts = new SplitByTextureOpts()
                 {
@@ -146,8 +176,7 @@ namespace OPS.Landform
             {
                 Interlocked.Increment(ref curLeafNum);
 
-                //debug functionality to only generate a single tile
-                if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
+                if (!string.IsNullOrEmpty(options.OnlyTileNamed) && options.OnlyTileNamed != leaf.Name)
                 {
                     return;
                 }
@@ -181,7 +210,7 @@ namespace OPS.Landform
             leafList = new LeafList()
                 {
                     MeshExt = meshExt,
-                    ImageExt = imageExt,
+                    ImageExt = textureLeaves ? imageExt : null,
                     MeshFrame = meshFrame,
                     TilingScheme = options.TilingScheme,
                     LeafNames = new List<string>()
@@ -189,6 +218,14 @@ namespace OPS.Landform
             
             var leavesToTexture = tileTree.Leaves()
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null);
+
+            MultiMeshClipper bakeClipper = null;
+            if (backprojectTextures)
+            {
+                bakeClipper = new MultiMeshClipper();
+                bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
+                bakeClipper.InitTextureBaker();
+            }
 
             //yes, parallelization is happening in the building of each individual leaf texture
             //but still OK to let the OS scheduler deal with the combinatorial number of tasks
@@ -211,9 +248,18 @@ namespace OPS.Landform
 
                 MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
 
-                mp.Image = MakeLeafTexture(leaf, mp.Mesh);
+                if (bakeTextures)
+                {
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution);
+                    mp.Mesh = newMP.Mesh;
+                    mp.Image = newMP.Image;
+                }
+                else if (backprojectTextures)
+                {
+                    mp.Image = BackprojectLeafTexture(leaf, mp.Mesh);
+                }
 
-                if (mp.Image != null)
+                if (!textureLeaves || mp.Image != null)
                 {
                     SaveLeaf(leaf.Name, mp.Mesh, mp.Image, localSave, cloudSave);
                     Interlocked.Increment(ref numSucceded);
@@ -226,7 +272,7 @@ namespace OPS.Landform
                 leaf.RemoveComponent<MeshImagePair>(); //conserve memory
             });
 
-            if (numFailed > 0)
+            if (textureLeaves && numFailed > 0)
             {
                 pipeline.LogWarn("failed to generate textures for {0} leaves", numFailed);
             }
@@ -244,21 +290,27 @@ namespace OPS.Landform
 
         private void SaveLeaf(string name, Mesh mesh, Image image, bool local, bool cloud)
         {
-            string imgName = name + imageExt;
+            string imgName = image != null ? name + imageExt : null;
             
             if (local)
             {
-                SaveImage(image, name);
+                if (image != null)
+                {
+                    SaveImage(image, name);
+                }
                 SaveMesh(mesh, name, imgName);
             }
 
             if (cloud)
             {
-                TemporaryFile.GetAndDelete(imageExt, tmpFile => {
-                        image.Save<byte>(tmpFile);
-                        string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
-                        pipeline.SaveFile(tmpFile, imgUrl);
-                    });
+                if (image != null)
+                {
+                    TemporaryFile.GetAndDelete(imageExt, tmpFile => {
+                            image.Save<byte>(tmpFile);
+                            string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
+                            pipeline.SaveFile(tmpFile, imgUrl);
+                        });
+                }
                 
                 TemporaryFile.GetAndDelete(meshExt, tmpFile => {
                         
@@ -266,14 +318,17 @@ namespace OPS.Landform
                         string meshName = name + meshExt;
                         string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
                         pipeline.SaveFile(tmpFile, meshUrl);
-                        
-                        string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
-                        if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
+
+                        if (image != null)
                         {
-                            string mtlName = name + ".mtl";
-                            string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
-                            pipeline.SaveFile(mtlFile, mtlUrl);
-                            PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
+                            string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
+                            if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
+                            {
+                                string mtlName = name + ".mtl";
+                                string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
+                                pipeline.SaveFile(mtlFile, mtlUrl);
+                                PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
+                            }
                         }
                     });
             }
@@ -315,8 +370,8 @@ namespace OPS.Landform
                 return null;
             }
 
-            //if texturing is requested, attach uv's to the mesh vertices
-            if (resolution > 0)
+            //assign UVs to the leaf vertices iff backproject (not baked) texturing is requested
+            if (backprojectTextures)
             {
                 try
                 {
@@ -332,7 +387,7 @@ namespace OPS.Landform
             return leafMesh;
         }
 
-        private Image MakeLeafTexture(SceneNode leaf, Mesh leafMesh)
+        private Image BackprojectLeafTexture(SceneNode leaf, Mesh leafMesh)
         {
             Image leafImage = null;
 

@@ -85,7 +85,7 @@ namespace OPS.Landform
             }
 
             resolution = tcopts.TextureResolution;
-            if ((resolution & (resolution - 1)) != 0)
+            if (resolution > 0 && (resolution & (resolution - 1)) != 0)
             {
                 pipeline.LogWarn("resolution {0} not a power of two", resolution);
             }

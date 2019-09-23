@@ -203,7 +203,8 @@ namespace OPS.Landform
                     pipeline.LogVerbose("adding/updating leaf mesh {0}", leaf);
                 }
                 var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.MeshExt);
-                var imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.ImageExt);
+                var imgUrl = !string.IsNullOrEmpty(leafList.ImageExt) ?
+                    pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.ImageExt) : null;
                 TilingInput.Create(pipeline, project.Name, tilingProject, meshUrl, imgUrl, leaf);
             }
         }
