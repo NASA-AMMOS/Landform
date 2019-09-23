@@ -96,7 +96,7 @@ namespace OPS.Pipeline
                 .Case((BuildParentsMessage m) => BuildParents())
                 .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
                 .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
-            ret.Unhandled = (t, x) => pipeline.LogError("unknown message type: {0}", t);
+            ret.Unhandled = (t, x) => pipeline.LogError("unknown master message type: {0}", t);
             return ret;
         }
 

@@ -210,7 +210,7 @@ namespace OPS.LandformUtil
             }
             catch (Exception ex)
             {
-                pipeline.LogError(ex.Message);
+                pipeline.LogException(ex);
                 return 1;
             }
 

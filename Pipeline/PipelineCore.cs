@@ -590,6 +590,40 @@ namespace OPS.Pipeline
             Logger.ErrorFormat(msg, args);
         }
 
+        /// <summary>
+        /// for a non aggregate exception, default is to just spew its message
+        /// because that is commonly going to be enough and may be user visible (e.g. invalid command line args)
+        /// for an aggregate we spew the message and stack trace of the first inner exception
+        /// because that is most likely an unexpected error that needs to be debugged
+        /// </summary>
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                                 bool aggregateStackTrace = true)
+        {
+            LogError(ex.Message);
+            if (stackTrace)
+            {
+                LogError("{0}{1}:\n{1}", !string.IsNullOrEmpty(msg) ? (msg + " ") : "",
+                         ex.GetType().Name, ex.StackTrace);
+            }
+            if (maxAggregateSpew > 0 && ex is AggregateException)
+            {
+                var aggregateExceptions = (ex as AggregateException).InnerExceptions;
+                int i = 0;
+                foreach (var ex2 in aggregateExceptions)
+                {
+                    LogError(ex2.Message);
+                    if (aggregateStackTrace)
+                    {
+                        LogError("{0}:\n{1}", ex2.GetType().Name, ex2.StackTrace);
+                    }
+                    if (++i >= maxAggregateSpew)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+
         //****************** Disk Cache API *****************
 
         public bool EnableCleanupTempDir = true;

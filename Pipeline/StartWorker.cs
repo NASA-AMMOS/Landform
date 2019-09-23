@@ -73,7 +73,7 @@ namespace OPS.Pipeline
                 .Case((CreateMaskMessage m) => new CreateMask(pipeline, m).Process())
                 .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
                 .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
-            ret.Unhandled = (t, x) => pipeline.LogError("Unknown message type: " + t);
+            ret.Unhandled = (t, x) => pipeline.LogError("unknown worker message type: " + t);
             return ret;
         }
 

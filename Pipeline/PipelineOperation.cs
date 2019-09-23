@@ -21,7 +21,8 @@ namespace OPS.Pipeline
             this.pipeline = pipeline;
             this.projectName = msg.ProjectName;
             this.messageId = msg.MessageId;
-            this.logPrefix = string.Format("[{0}] {1} {2}", projectName, GetType().Name, messageId);
+            this.logPrefix = string.Format("[{0}] {1}{2}", projectName, GetType().Name,
+                                           !string.IsNullOrEmpty(messageId) ? (" " + messageId) : "");
         }
 
         protected void LogInfo(string msg, params Object[] args)

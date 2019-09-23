@@ -88,7 +88,7 @@ namespace OPS.Landform
             }
             catch (Exception ex)
             {
-                pipeline.LogError(ex.Message);
+                pipeline.LogException(ex);
                 return 1;
             }
 

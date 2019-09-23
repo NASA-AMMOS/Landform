@@ -76,11 +76,9 @@ namespace OPS.Pipeline
                     {
                         stateMachine.ProcessMessage(msg);
                     }
-                    catch (Exception e)
+                    catch (Exception ex)
                     {
-                        pipeline.LogError("{0}: master task error ({1}): {2}",
-                                          msg.Info(), e.GetType().FullName, e.Message);
-                        pipeline.LogError(e.StackTrace);
+                        pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
                     }
                 }
 
@@ -93,10 +91,9 @@ namespace OPS.Pipeline
                 {
                     workerDispatcher.Handle(msg);
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    pipeline.LogError("{0}: worker task error ({1}): {2}", msg.Info(), e.GetType().FullName, e.Message);
-                    pipeline.LogError(e.StackTrace);
+                    pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
                 }
                 return false; //now discard message
             };
@@ -140,10 +137,9 @@ namespace OPS.Pipeline
                         {
                             MasterLoop();
                         }
-                        catch (Exception e)
+                        catch (Exception ex)
                         {
-                            pipeline.LogError("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
-                            pipeline.LogError(e.StackTrace);
+                            pipeline.LogException(ex, "master task error", stackTrace: true);
                         }
                     });
 
@@ -158,10 +154,9 @@ namespace OPS.Pipeline
                             {
                                 WorkerLoop();
                             }
-                            catch (Exception e)
+                            catch (Exception ex)
                             {
-                                pipeline.LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                                pipeline.LogError(e.StackTrace);
+                                pipeline.LogException(ex, "worker task error", stackTrace: true);
                             }
                         });
             }
@@ -195,11 +190,9 @@ namespace OPS.Pipeline
                     {
                         handler(msg);
                     }
-                    catch (Exception e)
+                    catch (Exception ex)
                     {
-                        pipeline.LogError("{0}: {1} task error ({2}): {3}",
-                                          msg.Info(), what, e.GetType().FullName, e.Message);
-                        pipeline.LogError(e.StackTrace);
+                        pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
                     }
                 }
 
