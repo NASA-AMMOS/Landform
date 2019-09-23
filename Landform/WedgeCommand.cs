@@ -84,7 +84,7 @@ namespace OPS.Landform
 
             if (outDir != null)
             {
-                outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, wcopts.UsePriors);
+                outDir = DecorateOutDir(outDir);
             }
 
             if (!base.ParseArguments(outDir))
@@ -96,6 +96,11 @@ namespace OPS.Landform
             LoadObservationCache(obsTypes, onlyObsForReconstruction);
 
             return true;
+        }
+
+        protected virtual string DecorateOutDir(string outDir)
+        {
+            return FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, wcopts.UsePriors);
         }
 
         protected override bool ParseArguments(string outDir)

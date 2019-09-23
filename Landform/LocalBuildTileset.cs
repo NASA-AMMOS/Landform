@@ -119,7 +119,7 @@ namespace OPS.Landform
                 throw new Exception("leaf list is empty");
             }
 
-            tilesetFolder = outputFolder + "Set";
+            tilesetFolder = DecorateOutDir(OUT_DIR + "Set");
 
             return true;
         }

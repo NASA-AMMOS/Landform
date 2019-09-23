@@ -51,11 +51,14 @@ namespace OPS.Landform
 
             HandleSpecialMeshFrames();
 
-            outDir = string.Format("{0}/{1}Frame", outDir, meshFrame);
-            outDir = FrameTransform.AppendSourcesPath(outDir, adjustedSources, priorSources, gcopts.UsePriors);
-            SetOutDir(outDir);
+            SetOutDir(DecorateOutDir(outDir));
 
             return true;
+        }
+
+        protected override string DecorateOutDir(string outDir)
+        {
+            return base.DecorateOutDir(string.Format("{0}/{1}Frame", outDir, meshFrame));
         }
 
         protected virtual string GetMeshFrame()
