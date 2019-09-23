@@ -92,8 +92,8 @@ namespace OPS.Pipeline
 
             if (logger != null)
             {
-                logger.InfoFormat("[{0}] initialized project cache in {1}s",
-                                  projectName, 0.001 * sw.ElapsedMilliseconds);
+                logger.InfoFormat("[{0}] initialized project cache in {1:F3}s, {2} nodes already completed",
+                                  projectName, 0.001 * sw.ElapsedMilliseconds, completed.Count);
             }
 
             initialized = true;

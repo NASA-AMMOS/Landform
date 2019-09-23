@@ -257,8 +257,8 @@ namespace OPS.Landform
                 }
                 else if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("building leaf mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, leafCount,
-                                     (int)(100 * curLeafNum / (float)leafCount));
+                    pipeline.LogInfo("building leaf mesh {0}/{1} ({2}%): {3}", curLeafNum, leafCount,
+                                     (int)(100 * curLeafNum / (float)leafCount), leaf.Name);
                 }
 
                 Mesh leafMesh = MakeLeafMesh(leaf, meshOp);
@@ -317,8 +317,8 @@ namespace OPS.Landform
 
                 if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("texturing leaf {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, leafCount,
-                                     (int)(100 * curLeafNum / (float)leafCount));
+                    pipeline.LogInfo("{0}saving leaf {1}/{2} ({3}%): {4}", withTextures ? "texturing and " : "",
+                                     curLeafNum, leafCount, (int)(100 * curLeafNum / (float)leafCount), leaf.Name);
                 }
 
                 MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
