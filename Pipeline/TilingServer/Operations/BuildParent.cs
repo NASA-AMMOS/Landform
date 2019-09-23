@@ -70,7 +70,8 @@ namespace OPS.Pipeline.TilingServer
             parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(), project.FacesPerTile,
                                                       project.TileResolution, project.GetSkirtMode());
             var pair = parentSceneNode.GetComponent<MeshImagePair>();
-            parent.SaveMesh(pair, pipeline, parentSceneNode.GetComponent<NodeGeometricError>().Error, project);
+            parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
+            parent.SaveMesh(pair, pipeline, project); //will save parent back to DB including updated GeometricError
             pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
             LogInfo("completed building parent " + message.TileId);
         }

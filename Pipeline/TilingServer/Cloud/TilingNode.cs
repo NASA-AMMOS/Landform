@@ -156,15 +156,15 @@ namespace OPS.Pipeline.TilingServer
 
         /// <summary>
         /// Assigns a mesh and possibly a corresponding texture image to this node.
-        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, and GeometricError, and saves the node metadata back to DynamoDB.
+        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt and and saves the node metadata back to DynamoDB.
         /// Also uploads the mesh and image (if any) to S3.
         /// Up to three copies of each are uploaded:
         /// 1. in the tile folder for our internal use, in our internal formats (ply, png)
         /// 2. in the www folder for runtime visualization use, in b3dm format
         //  3. optionally the mesh and/or image are also uploaded to www in the export formats
         /// </summary>
-        public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, double geometricError,
-                             TilingProject project, bool enableInternal = true)
+        public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, TilingProject project,
+                             bool enableInternal = true)
         {
             if (pair.Mesh == null)
             {
@@ -233,60 +233,64 @@ namespace OPS.Pipeline.TilingServer
                 }
             };
 
-            //save node image to S3 for our internal use
-            //typical format is png, but jpg should work as well
-            //do this first because we will want imageFile when we save the mesh below
-            //also saves export image to S3 iff it is the same format as our internal format
-            string imageExt = TilingProject.ToExt(project.InternalImageFormat);
-            string imageFile = Id + imageExt;
-            if (enableInternal && !string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
+            if (enableInternal)
             {
-                ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
-                TemporaryFile.GetAndDelete(imageExt, tmpImage => 
+                //save node image to S3 for our internal use
+                //typical format is png, but jpg should work as well
+                //do this first because we will want imageFile when we save the mesh below
+                //also saves export image to S3 iff it is the same format as our internal format
+                string imageExt = TilingProject.ToExt(project.InternalImageFormat);
+                string imageFile = Id + imageExt;
+                if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
                 {
-                    pair.Image.Save<byte>(tmpImage);
-                    upload(tmpImage, ImageUrl);
-                    if (exImageUrl != null && exImageExt == imageExt)
-                    {
-                        upload(tmpImage, exImageUrl);
-                        uploadedExImage = true;
-                    }
-                });
-            }
-            else
-            {
-                ImageUrl = imageFile = null;
-            }
-
-            //save node mesh to S3 for our internal use
-            //typical format is ply, but obj should work as well
-            //also saves export mesh to S3 iff it and the export image are the same format as our internal formats
-            string meshExt = TilingProject.ToExt(project.InternalMeshFormat);
-            string meshFile = Id + meshExt;
-            if (enableInternal && !string.IsNullOrEmpty(project.InternalTileDir))
-            {
-                MeshUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, meshFile);
-                TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
+                    ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
+                    TemporaryFile.GetAndDelete(imageExt, tmpImage => 
+                            {
+                                pair.Image.Save<byte>(tmpImage);
+                                upload(tmpImage, ImageUrl);
+                                if (exImageUrl != null && exImageExt == imageExt)
+                                {
+                                    upload(tmpImage, exImageUrl);
+                                    uploadedExImage = true;
+                                }
+                            });
+                }
+                else
                 {
-                    //here imageFile is used to embed a reference to the texture image in the mesh file
-                    //in ply format this is in a header comment
-                    //in obj format this writes a sibling .mtl file which contains the image filename
-                    //in no case will this actually attempt to read or embed the image data
-                    //that data will only exist on s3, and only if there is actually an image
-                    //if there is no image then imageFile is null, and that's ok
-                    pair.Mesh.Save(tmpMesh, imageFile);
-                    upload(tmpMesh, MeshUrl);
-                    if (exMeshUrl != null && exMeshExt == meshExt && (imageFile == null || exImageExt == imageExt))
-                    {
-                        upload(tmpMesh, exMeshUrl);
-                        uploadAndDeleteMtl(tmpMesh, imageFile);
-                        uploadedExMesh = true;
-                    }
-                });
-            }
-            else
-            {
-                MeshUrl = null;
+                    ImageUrl = imageFile = null;
+                }
+                
+                //save node mesh to S3 for our internal use
+                //typical format is ply, but obj should work as well
+                //also saves export mesh to S3 iff it and the export image are the same format as our internal formats
+                string meshExt = TilingProject.ToExt(project.InternalMeshFormat);
+                string meshFile = Id + meshExt;
+                if (!string.IsNullOrEmpty(project.InternalTileDir))
+                {
+                    MeshUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, meshFile);
+                    TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
+                            {
+                                //here imageFile is used to embed a reference to the texture image in the mesh file
+                                //in ply format this is in a header comment
+                                //in obj format this writes a sibling .mtl file which contains the image filename
+                                //in no case will this actually attempt to read or embed the image data
+                                //that data will only exist on s3, and only if there is actually an image
+                                //if there is no image then imageFile is null, and that's ok
+                                pair.Mesh.Save(tmpMesh, imageFile);
+                                upload(tmpMesh, MeshUrl);
+                                if (exMeshUrl != null && exMeshExt == meshExt &&
+                                    (imageFile == null || exImageExt == imageExt))
+                                {
+                                    upload(tmpMesh, exMeshUrl);
+                                    uploadAndDeleteMtl(tmpMesh, imageFile);
+                                    uploadedExMesh = true;
+                                }
+                            });
+                }
+                else
+                {
+                    MeshUrl = null;
+                }
             }
 
             //save combined mesh and image as a 3D Tiles b3dm (batched 3D model) file for runtime visualization
@@ -359,8 +363,6 @@ namespace OPS.Pipeline.TilingServer
                     uploadedExMesh = true;
                 });
             }
-
-            GeometricError = geometricError;
 
             Save(pipeline);
         }

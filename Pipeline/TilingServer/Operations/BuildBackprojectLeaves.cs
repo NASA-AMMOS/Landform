@@ -102,8 +102,7 @@ namespace OPS.Pipeline.TilingServer
 
                 //upload the mesh/texture pair and update the tiling node
                 var node = TilingNode.Find(pipeline, projectName, leaf.Id);
-                double geometricError = 0;
-                node.SaveMesh(leafPair, pipeline, geometricError, project);
+                node.SaveMesh(leafPair, pipeline, project);
 
                 //notify the tiling server that a tile is ready for building into parent tiles
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id});                
