@@ -126,6 +126,7 @@ namespace OPS.Landform
             {
                 throw new Exception("project not found: " + lcopts.ProjectName);
             }
+            pipeline.LogInfo("loaded project {0}", project.Name);
             return project;
         }
 

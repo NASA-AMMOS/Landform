@@ -106,7 +106,8 @@ namespace OPS.Landform
         protected virtual void LoadFrameCache()
         {
             frameCache = new FrameCache(pipeline, project.Name);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
+            int num = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
+            pipeline.LogInfo("loaded {0} frames in project {1}", num, project.Name);
             if (!frameCache.CheckPriors(out effectiveRootFrame))
             {
                 pipeline.LogError("incomplete priors: not all sitedrives are connected");
@@ -122,11 +123,17 @@ namespace OPS.Landform
             string[] cameras = StringHelper.ParseList(wcopts.OnlyForCameras);
             string[] obsFilter = (obsTypes ?? new ObservationType[] {}).Select(ot => ot.ToString()).ToArray();
             observationCache = new ObservationCache(pipeline, project.Name);
-            observationCache.
+            int num = observationCache.
                 Preload(obs => (!onlyObsForReconstruction || obs.UseForReconstruction) &&
                         (obsFilter.Length == 0 || obsFilter.Any(ot => obs.ObservationType == ot)) &&
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
-                        (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
+                        (cameras.Length == 0 ||
+                         cameras.Any(cam => RoverCamera.IsCamera(cam, ((RoverObservation)obs).Sensor))));
+            pipeline.LogInfo("loaded {0} observations in project {1}{2}{3}{4}{5}", num, project.Name,
+                             onlyObsForReconstruction ? " for reconstruction" : "",
+                             obsFilter.Length > 0 ? (" for obs types " + string.Join(", ", obsFilter)) : "",
+                             siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
+                             cameras.Length > 0 ? (" for cameras " + string.Join(", ", cameras)) : "");
         }
     }
 }
