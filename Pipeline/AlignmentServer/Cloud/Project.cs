@@ -28,7 +28,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         private void IsValid()
         {
-            if (!(Name != null && ProductPath != null && InputPath != null && Mission != null))
+            if (!(Name != null && Mission != null))
             {
                 throw new Exception("Project is missing a required field");
             }
