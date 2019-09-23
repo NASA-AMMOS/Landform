@@ -94,6 +94,11 @@ namespace OPS.Landform
                     pipeline.LogInfo("{0:F3}s {1}", 0.001 * entry.Value, entry.Key);
                 }
             }
+            pipeline.LogInfo("local output path: {0}", localOutputPath);
+            if (pipeline is CloudPipeline)
+            {
+                pipeline.LogInfo("cloud output path: {0}", pipeline.GetStorageUrl(outputFolder, project.Name));
+            }
         }
 
         protected void RunPhase(string phase, Action func)
