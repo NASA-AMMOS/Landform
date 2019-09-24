@@ -91,7 +91,7 @@ namespace OPS.Pipeline
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
-                    InitPhase("initialize database", () => InitializeDatabase(quiet || quietInit));
+                    InitPhase("initialize database", () => InitializeDatabase(Quiet || quietInit));
                 }
             }
 
@@ -102,7 +102,7 @@ namespace OPS.Pipeline
                     throw new NotImplementedException("legacy compat SQS messaging not implemented");
                 }
                 this.queuePrefix = makePrefix(queuePrefix);
-                InitPhase("initialize message queues", () => InitializeQueues(quiet || quietInit));
+                InitPhase("initialize message queues", () => InitializeQueues(Quiet || quietInit));
             }
 
             //TODO MSL specific
@@ -118,7 +118,7 @@ namespace OPS.Pipeline
         {
             base.DumpConfig();
             var cloudConfig = (CloudPipelineConfig)Config;
-            //not using LogInfo() to print even if quiet = true
+            //not using LogInfo() to print even if Quiet = true
             Logger.Info("AWS region: " + cloudConfig.AWSRegion);
             Logger.Info("AWS profile: " + cloudConfig.AWSProfile);
             Logger.Info("MSLICE AWS profile: " + cloudConfig.MSLICEAWSProfile);

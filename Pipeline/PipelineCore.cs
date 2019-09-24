@@ -32,6 +32,9 @@ namespace OPS.Pipeline
         [Option(Default = false, HelpText = "Log debug info")]
         public bool Debug { get; set; }
 
+        [Option(Default = false, HelpText = "Log full stack traces")]
+        public bool StackTraces { get; set; }
+
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
 
@@ -84,7 +87,7 @@ namespace OPS.Pipeline
 
         public virtual bool LegacyCompat { get { return false; } }
 
-        protected bool quiet, verbose, debug;
+        public readonly bool Quiet, Verbose, Debug, StackTraces;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
 
@@ -127,9 +130,10 @@ namespace OPS.Pipeline
             this.Options = options;
             this.Config = config;
 
-            this.quiet = options.Quiet;
-            this.verbose = options.Verbose;
-            this.debug = options.Debug;
+            this.Quiet = options.Quiet;
+            this.Verbose = options.Verbose;
+            this.Debug = options.Debug;
+            this.StackTraces = options.StackTraces;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
             this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
@@ -145,7 +149,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                Logging.ConfigureLogging(quiet || quietInit, options.Debug, options.LogFile);
+                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, options.LogFile);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 
@@ -195,7 +199,7 @@ namespace OPS.Pipeline
 
         public virtual void DumpConfig()
         {
-            //not using LogInfo() to print even if quiet = true
+            //not using LogInfo() to print even if Quiet = true
             Logger.Info("Architecture: " + (IntPtr.Size == 4 ? "x86" : "x64"));
             Logger.Info("Venue: " + Venue);
             Logger.Info("Storage URL: " + StorageUrl);
@@ -566,7 +570,7 @@ namespace OPS.Pipeline
 
         public void LogInfo(string msg, params Object[] args)
         {
-            if (!quiet)
+            if (!Quiet)
             {
                 Logger.InfoFormat(msg, args);
             }
@@ -574,7 +578,7 @@ namespace OPS.Pipeline
 
         public void LogVerbose(string msg, params Object[] args)
         {
-            if (verbose && !quiet)
+            if (Verbose && !Quiet)
             {
                 Logger.InfoFormat(msg, args);
             }
@@ -582,7 +586,7 @@ namespace OPS.Pipeline
 
         public void LogDebug(string msg, params Object[] args)
         {
-            if (debug && !quiet)
+            if (Debug && !Quiet)
             {
                 Logger.DebugFormat(msg, args);
             }
@@ -609,23 +613,23 @@ namespace OPS.Pipeline
         {
             LogError("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + " ") : "", ex.Message);
 
-            if (stackTrace)
+            if (stackTrace || Debug || StackTraces)
             {
                 LogError("{0}:\n{1}", ex.GetType().Name, ex.StackTrace);
             }
 
-            if (maxAggregateSpew > 0 && ex is AggregateException)
+            if ((maxAggregateSpew > 0 || Debug || StackTraces) && ex is AggregateException)
             {
                 var aggregateExceptions = (ex as AggregateException).InnerExceptions;
                 int i = 0;
                 foreach (var ex2 in aggregateExceptions)
                 {
                     LogError(ex2.Message);
-                    if (aggregateStackTrace)
+                    if (aggregateStackTrace || Debug || StackTraces)
                     {
                         LogError("{0}:\n{1}", ex2.GetType().Name, ex2.StackTrace);
                     }
-                    if (++i >= maxAggregateSpew)
+                    if (!(Debug || StackTraces) && ++i >= maxAggregateSpew)
                     {
                         break;
                     }

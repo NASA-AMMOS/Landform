@@ -43,7 +43,7 @@ namespace OPS.Pipeline
 
             if (initTables)
             {
-                InitPhase("initialize database", () => InitializeDatabase(quiet || quietInit));
+                InitPhase("initialize database", () => InitializeDatabase(Quiet || quietInit));
             }
         }
 
@@ -57,7 +57,7 @@ namespace OPS.Pipeline
         {
             base.DumpConfig();
             var localConfig = (LocalPipelineConfig)Config;
-            //not using LogInfo() to print even if quiet = true
+            //not using LogInfo() to print even if Quiet = true
             Logger.Info("storage directory: " + localConfig.StorageDir);
         }
 
