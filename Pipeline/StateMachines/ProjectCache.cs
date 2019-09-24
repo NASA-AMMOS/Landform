@@ -23,6 +23,23 @@ namespace OPS.Pipeline
         private HashSet<string> enqueued;
         private HashSet<string> inputsToChunk;
 
+        private int numNodes;
+        public int NumNodes
+        {
+            get
+            {
+                return numNodes;
+            }
+        }
+
+        public int NumCompleted
+        {
+            get
+            {
+                return completed.Count;
+            }
+        }
+
         public ProjectCache(PipelineCore pipeline, string projectName, ILog logger)
         {
             this.pipeline = pipeline;
@@ -65,6 +82,7 @@ namespace OPS.Pipeline
                                            ": project not found or tiles not defined yet");
             }
 
+            numNodes = 0;
             var nodes = TilingNode.Find(pipeline, project).ToList();
             foreach (var n in nodes)
             {
@@ -88,6 +106,8 @@ namespace OPS.Pipeline
                 {
                     rootId = n.Id;
                 }
+
+                numNodes++;
             }
 
             if (logger != null)

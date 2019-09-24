@@ -484,15 +484,17 @@ namespace OPS.Pipeline
             }
             else
             {
-                int n = 0;
+                int numEnqueued = 0;
                 foreach (var pid in projectCache.GetDependentTilesToRun(tileId))
                 {
-                    n++;
+                    numEnqueued++;
                     LogInfo("building parent {0}", pid);
                     projectCache.MarkEnqueued(pid);
                     pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = pid });
                 }
-                LogInfo("tile {0} completed, enqueued {1} parents", tileId, n);
+                int nc = projectCache.NumCompleted, nn = projectCache.NumNodes;
+                LogInfo("{0}/{1} nodes done ({2:F2}%): tile {3} completed, enqueued {4} parents",
+                        nc, nn, 100 * nc / (float)nn, tileId, numEnqueued);
             }
         }
 

@@ -86,12 +86,12 @@ namespace OPS.Landform
         protected void StopStopwatch()
         {
             stopwatch.Stop();
-            pipeline.LogInfo("{0:F3}s total elapsed time", 0.001 * stopwatch.ElapsedMilliseconds);
+            pipeline.LogInfo("{0} total elapsed time", FormatTime(stopwatch.ElapsedMilliseconds));
             foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
             {
                 foreach (var entry in table)
                 {
-                    pipeline.LogInfo("{0:F3}s {1}", 0.001 * entry.Value, entry.Key);
+                    pipeline.LogInfo("{0} {1}", FormatTime(entry.Value), entry.Key);
                 }
             }
             pipeline.LogInfo("local output path: {0}", localOutputPath);
@@ -110,12 +110,35 @@ namespace OPS.Landform
                 func();
                 var msEnd = stopwatch.ElapsedMilliseconds;
                 var ms = msPerPhase[phase] = msEnd - msStart;
-                pipeline.LogInfo("{0}: {1:F3}s, total {2:F3}s", phase, 0.001 * ms, 0.001 * msEnd);
+                pipeline.LogInfo("{0}: {1}, total {2}", phase, FormatTime(ms), FormatTime(msEnd));
             }
             catch
             {
                 pipeline.LogError("{0} failed", phase);
                 throw;
+            }
+        }
+
+        protected string FormatTime(double ms)
+        {
+            if (ms < 1e3)
+            {
+                return string.Format("{0}ms", (int)ms);
+            }
+            else if (ms < 60 * 1e3)
+            {
+                double s = 1e-3 * ms;
+                return string.Format("{0:F3}s", s);
+            }
+            else if (ms < 60 * 60 * 1e3)
+            {
+                int s = (int)(1e-3 * ms);
+                return string.Format("{0}m{1}s", s / 60, s % 60);
+            }
+            else
+            {
+                int s = (int)(1e-3 * ms);
+                return string.Format("{0}h{1}m{2}s", s / (60 * 60), (s / 60) % 60, s % 60);
             }
         }
 

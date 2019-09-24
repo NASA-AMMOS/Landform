@@ -607,12 +607,13 @@ namespace OPS.Pipeline
         public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
                                  bool aggregateStackTrace = true)
         {
-            LogError(ex.Message);
+            LogError("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + " ") : "", ex.Message);
+
             if (stackTrace)
             {
-                LogError("{0}{1}:\n{1}", !string.IsNullOrEmpty(msg) ? (msg + " ") : "",
-                         ex.GetType().Name, ex.StackTrace);
+                LogError("{0}:\n{1}", ex.GetType().Name, ex.StackTrace);
             }
+
             if (maxAggregateSpew > 0 && ex is AggregateException)
             {
                 var aggregateExceptions = (ex as AggregateException).InnerExceptions;
