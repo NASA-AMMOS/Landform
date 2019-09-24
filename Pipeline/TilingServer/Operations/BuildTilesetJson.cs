@@ -44,7 +44,7 @@ namespace OPS.Pipeline.TilingServer
                 n.AddComponent<MeshImagePair>();
             }
             var builder = new Tile3DBuilder(root);
-            builder.BuildTileset(n => n.Name + project.TilesetMeshFormat);
+            builder.BuildTileset(n => n.Name + TilingProject.ToExt(project.TilesetMeshFormat));
             string jsonData = JsonConvert.SerializeObject(builder.Tileset, Formatting.None);
             TemporaryFile.GetAndDelete(".json", f =>
             {
