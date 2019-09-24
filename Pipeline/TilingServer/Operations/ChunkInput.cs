@@ -52,16 +52,15 @@ namespace OPS.Pipeline.TilingServer
 
         public void Process()
         {
-            LogInfo("started chunking input " + message.InputName);
             var input = TilingInput.Find(pipeline, projectName, message.InputName);
             if (input.Chunked)
             {
-                LogInfo("input " + message.InputName + " has already been chunked, skipping");
+                LogInfo("input {0} has already been chunked, skipping", message.InputName);
                 pipeline.EnqueueToMaster(message);
                 return;
             }
 
-            LogInfo("downloading " + input.MeshUrl);
+            LogInfo("downloading and cleaning input mesh {0}", input.MeshUrl);
             Mesh mesh = null;
             pipeline.GetFile(input.MeshUrl, f =>
             {
@@ -82,16 +81,17 @@ namespace OPS.Pipeline.TilingServer
                 input.ImageWidth = sparseImage.Width;
                 input.ImageHeight = sparseImage.Height;
             }
-            LogInfo("building acceleration structures to chunk input " + message.InputName);
+            LogInfo("building acceleration structures to chunk input {0}", message.InputName);
             var multiClipper = new MultiMeshClipper();
             var dataset = new MultiMeshClipperInput(mesh, sparseImage);
             multiClipper.AddInput(dataset);
 
-            LogInfo("building mesh chunks for input " + message.InputName);
+            LogInfo("building bounds tree to chunk input {0}", message.InputName);
             var tilingScheme = new BinaryTreeTilingScheme();
             var root = DefineTiles.BuildBoundsTree(multiClipper, tilingScheme,
                                                    new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
-            
+
+            LogInfo("building mesh chunks for input {0}", message.InputName);
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
             var leaves = root.Leaves().ToList();
             Serial.ForEach(leaves, (leaf, pls, i) =>
@@ -109,6 +109,8 @@ namespace OPS.Pipeline.TilingServer
                     LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
                 });
             });
+
+            LogInfo("saving chunk IDs");
             lock (input.ChunkIds)
             {
                 input.ChunkIds.UnionWith(chunkIds);
@@ -116,7 +118,6 @@ namespace OPS.Pipeline.TilingServer
             input.Chunked = true;
             input.Save(pipeline);
             pipeline.EnqueueToMaster(message);
-            LogInfo("completed chunking input " + message.InputName);
         }
     }
 }

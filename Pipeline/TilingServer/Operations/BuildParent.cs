@@ -36,8 +36,6 @@ namespace OPS.Pipeline.TilingServer
         
         public void Process()
         {
-            LogInfo("started building parent {0}", message.TileId);
-
             var project = TilingProject.Find(pipeline, projectName);
 
             TilingNode parent = TilingNode.Find(pipeline, projectName, message.TileId);
@@ -49,6 +47,7 @@ namespace OPS.Pipeline.TilingServer
                 return;
             }
 
+            LogInfo("collecting dependencies to build parent {0}", parent.Id);
             var idToNode = new ConcurrentDictionary<string, SceneNode>();
             var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline, projectName, cid));
             Serial.ForEach(dependsOnTilingNodes, n =>
@@ -65,8 +64,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 if (!idToNode.ContainsKey(childId))
                 {
-                    LogError("parent {0} missing input data", parent.Id);
-                    return;
+                    throw new Exception(string.Format("parent {0} missing input data", parent.Id));
                 }                
                 idToNode[childId].Transform.SetParent(parentSceneNode.Transform);
             }
@@ -77,7 +75,8 @@ namespace OPS.Pipeline.TilingServer
                         message.TileId, parent.DependsOn.Count);
                 parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
                                                           project.FacesPerTile, project.TileResolution,
-                                                          project.GetSkirtMode());
+                                                          project.GetSkirtMode(), info: msg => LogInfo(msg),
+                                                          error: msg => { throw new Exception(msg); });
                 var pair = parentSceneNode.GetComponent<MeshImagePair>();
                 parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
                 parent.SaveMesh(pair, pipeline, project); //will save parent back to DB including updated GeometricError
@@ -90,7 +89,6 @@ namespace OPS.Pipeline.TilingServer
             }
 
             pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
-            LogInfo("completed building parent {0}", message.TileId);
         }
     }
 }

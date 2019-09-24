@@ -78,13 +78,10 @@ namespace OPS.Pipeline.TilingServer
 
         public void Process()
         {
-            LogInfo("started");
-
             var project = TilingProject.Find(pipeline, projectName);
             if(project == null)
             {
-                LogError("project not found");
-                return;
+                throw new Exception("project not found");
             }
 
             if (project.TilesDefined)
@@ -97,8 +94,6 @@ namespace OPS.Pipeline.TilingServer
             DownloadInputsAndBuildTree(project);
 
             pipeline.EnqueueToMaster(message);
-
-            LogInfo("complete");
         }
 
         public void DownloadInputsAndBuildTree(TilingProject project, bool progress = true,
@@ -112,6 +107,7 @@ namespace OPS.Pipeline.TilingServer
                 var inputs = TilingInput.Find(pipeline, project).ToList();
                 LogInfo("user-defined tiling scheme, {0} inputs", inputs.Count);
                 var nodes = new List<SceneNode>();
+                int nd = 0;
                 CoreLimitedParallel.ForEach(inputs, input =>
                 {
                     MeshImagePair pair = DownloadInput(input);                  
@@ -120,6 +116,20 @@ namespace OPS.Pipeline.TilingServer
                     lock (nodes)
                     {
                         nodes.Add(node);   
+                    }
+
+                    Interlocked.Increment(ref nd);
+                    if (nd % 50 == 0)
+                    {
+                        var msg = string.Format("downloaded {0} inputs", nd);
+                        if (progress)
+                        {
+                            LogInfo(msg);
+                        }
+                        else
+                        {
+                            SendStatusToMaster(msg);
+                        }
                     }
                 });
                 numUserDefinedNodes = nodes.Count;
@@ -225,12 +235,21 @@ namespace OPS.Pipeline.TilingServer
                     Thread.Sleep(10); //throttle to reduce chance of exponential backoff
                 }
 
-                if (progress && ++n % 500 == 0)
+                if (++n % 500 == 0)
                 {
-                    LogInfo("created {0} nodes", n);
+                    var msg = string.Format("created {0} nodes", n);
+                    if (progress)
+                    {
+                        LogInfo(msg);
+                    }
+                    else
+                    {
+                        SendStatusToMaster(msg);
+                    }
                 }
             }
 
+            LogInfo("saving node IDs and projecgt");
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);

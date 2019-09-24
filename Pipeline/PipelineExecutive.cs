@@ -16,11 +16,13 @@ namespace OPS.Pipeline
 
     public class PipelineExecutive
     {
+        public const double STATUS_SPEW_SEC = 15;
+        public const double LONG_TASK_WARN_SEC = 5 * 60;
+
         protected PipelineCore pipeline;
 
         //project name -> state machine
-        private ConcurrentDictionary<string, PipelineStateMachine> stateMachines =
-            new ConcurrentDictionary<string, PipelineStateMachine>();
+        protected Dictionary<string, PipelineStateMachine> stateMachines = new Dictionary<string, PipelineStateMachine>();
 
         protected PipelineExecutive(PipelineCore pipeline)
         {
@@ -40,19 +42,21 @@ namespace OPS.Pipeline
 
         protected PipelineStateMachine GetStateMachine(QueueMessage msg)
         {
-            return stateMachines.GetOrAdd(msg.ProjectName, _ =>
-                    {
-                        var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
-                        if (projectType.HasValue)
-                        {
-                            return PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
-                        }
-                        else
-                        {
-                            //this can happen if we get a duplicate DeleteProject message 
-                            throw new Exception("could not determine project type"); //do not add to dictionary
-                        }
-                    });
+            if (!stateMachines.ContainsKey(msg.ProjectName))
+            {
+                var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
+                if (projectType.HasValue)
+                {
+                    stateMachines[msg.ProjectName] =
+                        PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
+                }
+                else
+                {
+                    //this can happen if we get a duplicate DeleteProject message 
+                    throw new Exception("could not determine project type");
+                }
+            }
+            return stateMachines[msg.ProjectName];
         }
     }
 
@@ -109,8 +113,6 @@ namespace OPS.Pipeline
         private ConcurrentQueue<QueueMessage> masterQueue;
         private ConcurrentQueue<QueueMessage> workerQueue;
 
-        private Dictionary<string, PipelineStateMachine> stateMachines = new Dictionary<string, PipelineStateMachine>();
-
         private TypeDispatcher workerDispatcher;
 
         private Task masterTask;
@@ -131,34 +133,14 @@ namespace OPS.Pipeline
             masterQueue = ((LocalPipeline)pipeline).MasterQueue;
             workerQueue = ((LocalPipeline)pipeline).WorkerQueue;
 
-            masterTask = Task.Run(() =>
-                    {
-                        try
-                        {
-                            MasterLoop();
-                        }
-                        catch (Exception ex)
-                        {
-                            pipeline.LogException(ex, "master task error", stackTrace: true);
-                        }
-                    });
+            masterTask = Task.Run(() => MasterLoop()); //lambda needed to compile
 
             workerDispatcher = StartWorker.MakeDispatcher(pipeline);
 
             workerTasks = new Task[CoreLimitedParallel.GetMaxCores()];
             for (int i = 0; i < workerTasks.Length; i++)
             {
-                workerTasks[i] = Task.Run(() =>
-                        {
-                            try
-                            {
-                                WorkerLoop();
-                            }
-                            catch (Exception ex)
-                            {
-                                pipeline.LogException(ex, "worker task error", stackTrace: true);
-                            }
-                        });
+                workerTasks[i] = Task.Run(() => WorkerLoop()); //lambda needed to compile
             }
         }
 
@@ -177,7 +159,8 @@ namespace OPS.Pipeline
             }
         }
 
-        protected void MessageLoop(ConcurrentQueue<QueueMessage> queue, Action<QueueMessage> handler, string what)
+        protected void MessageLoop(ConcurrentQueue<QueueMessage> queue, Action<QueueMessage> handler, string what,
+                                   Action periodic = null)
         {
             while (!quit)
             {
@@ -192,7 +175,8 @@ namespace OPS.Pipeline
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
+                        string err = string.Format("{0}: {1} task error", msg.Info(), what);
+                        pipeline.LogException(ex, err, stackTrace: true);
                     }
                 }
 
@@ -201,6 +185,11 @@ namespace OPS.Pipeline
                 {
                     Thread.Sleep(sleepMS);
                 }
+
+                if (periodic != null)
+                {
+                    periodic();
+                }
             }
         }
 
@@ -208,19 +197,61 @@ namespace OPS.Pipeline
         {
             void handler(QueueMessage msg)
             {
-                var stateMachine = GetStateMachine(msg);
-                if (stateMachine != null)
+                try
                 {
-                    stateMachine.ProcessMessage(msg);
+                    var stateMachine = GetStateMachine(msg);
+                    if (stateMachine != null)
+                    {
+                        stateMachine.ProcessMessage(msg);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
                 }
             }
 
-            MessageLoop(masterQueue, handler, "master");
+            double lastSpew = UTCTime.Now();
+            void periodic()
+            {
+                double now = UTCTime.Now();
+                if (now - lastSpew > STATUS_SPEW_SEC)
+                {
+                    lastSpew = now;
+                    foreach (var sm in stateMachines.Values)
+                    {
+                        sm.SpewStatus(LONG_TASK_WARN_SEC);
+                    }
+                }
+            }
+
+            MessageLoop(masterQueue, handler, "master", periodic);
         }
 
         protected void WorkerLoop()
         {
-            MessageLoop(workerQueue, m => workerDispatcher.Handle(m), "worker");
+            void handler(QueueMessage msg)
+            {
+                void sendStatus(string status, bool done = false)
+                {
+                    pipeline.EnqueueToMaster(new StatusMessage(msg.ProjectName, msg.MessageId, msg.GetType().Name,
+                                                               status, done));
+                }
+
+                try
+                {
+                    sendStatus("started");
+                    workerDispatcher.Handle(msg); 
+                    sendStatus("complete", done: true);
+                }
+                catch (Exception ex)
+                {
+                    sendStatus("error: " + ex.Message, done: true);
+                    pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
+                }
+            }
+            
+            MessageLoop(workerQueue, handler, "worker");
         }
     }
 }

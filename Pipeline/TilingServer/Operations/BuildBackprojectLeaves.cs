@@ -49,7 +49,7 @@ namespace OPS.Pipeline.TilingServer
         /// <returns></returns>
         public int Process()
         {
-            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            LogInfo("started batch of {0} leaf tiles to backproject", message.TileIds.Count); 
 
             TilingProject project = TilingProject.Find(pipeline, projectName);
 
@@ -89,18 +89,23 @@ namespace OPS.Pipeline.TilingServer
                     throw new Exception("invalid tile contains less than 3 verts");
                 }
 
-                leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
-                ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
 
+                LogInfo(string.Format("atlasing leaf tile mesh with UVAtlas, resolution {0}", project.TileResolution));
+                leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
+
+                LogInfo("backprojecting leaf tile mesh");
                 // backproject
+                ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
                 List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull, mission);
-                //...backproject will take place here...
+
+                //TODO ...backproject will take place here...
 
                 // placeholder solid texture simulating backproject results 
                 leafPair.Image = new Image(3, project.TileResolution, project.TileResolution);
                 leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                 //upload the mesh/texture pair and update the tiling node
+                LogInfo("saving leaf tile mesh");
                 var node = TilingNode.Find(pipeline, projectName, leaf.Id);
                 node.SaveMesh(leafPair, pipeline, project);
 
@@ -108,7 +113,7 @@ namespace OPS.Pipeline.TilingServer
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id});                
             });
 
-            LogInfo("batch completed, generated " + tiledMeshes + " leaf tiles");
+            LogInfo("batch completed, backprojected {0} leaf tiles", tiledMeshes);
                         
             return 0;
         }

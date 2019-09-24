@@ -42,7 +42,8 @@ namespace OPS.Pipeline.TilingServer
 
         public void Process()
         {
-            LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            LogInfo("starting batch of {0} leaf tiles", message.TileIds.Count);
+
             var project = TilingProject.Find(pipeline, projectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
@@ -50,15 +51,17 @@ namespace OPS.Pipeline.TilingServer
             {
                 leaves.Add(TilingNode.Find(pipeline, projectName, id));
             }
+
             // Send completion messages for leaves that are already done
             foreach (var n in leaves)
             {
                 if (n.MeshUrl != null)
                 {
-                    LogInfo("leaf " + n.Id + " already complete, skipping");
+                    LogInfo("leaf {0} already complete, skipping", n.Id);
                     pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }
+
             // Filter any completed leaves
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
             if (leaves.Count == 0)
@@ -68,6 +71,7 @@ namespace OPS.Pipeline.TilingServer
             }
 
             // Get a list of all chunks that overlap with a leaf tile
+            LogInfo("collecting input chunks per leaf");
             var inputs = TilingInput.Find(pipeline, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
             foreach (var input in inputs)
@@ -94,6 +98,7 @@ namespace OPS.Pipeline.TilingServer
             }
 
             // Reconstruct a mesh for each input using only the chunks that overlap with leaves that we are building
+            LogInfo("building acceleration datastructures");
             bool hasImages = false;
             var bakeClipper = new MultiMeshClipper();
             foreach (var group in inputGroups)
@@ -119,23 +124,28 @@ namespace OPS.Pipeline.TilingServer
             }
             bakeClipper.InitTextureBaker();
 
-            ConcurrentBag<TilingNode> processed = new ConcurrentBag<TilingNode>();
+            LogInfo("baking leaves");
+            int nl = 0;
             Serial.ForEach(leaves, leaf =>
             {              
+                LogInfo("baking leaf {0} from {1} chunks ({2}/{3})",
+                        leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), ++nl, leaves.Count);
+
                 var m = bakeClipper.Clip(leaf.GetBounds());
+
                 var pair = new MeshImagePair(m, null);
                 if (hasImages)
                 {
-                    pair = bakeClipper.BakeTexture(m, project.TileResolution);
+                    pair = bakeClipper.BakeTexture(m, project.TileResolution, msg => LogInfo(msg));
                 }
+
+                LogInfo("saving leaf tile mesh");
                 leaf.SaveMesh(pair, pipeline, project);
-                processed.Add(leaf);
+
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
-                LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
-                        leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
             });
 
-            LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
+            LogInfo("batch completed, generated {0} leaf tiles", nl);
         }
     }
 }

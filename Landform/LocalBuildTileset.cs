@@ -178,7 +178,7 @@ namespace OPS.Landform
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      options.SkirtMode, options.ReconMethod, options.FacesPerTile,
-                                                     options.TextureResolution, projectType.ToString(),
+                                                     resolution, projectType.ToString(),
                                                      exportMeshFormat, exportImageFormat, maxLeafGroupSize);
 
                 tilingProject.ExportDir = null;
@@ -239,6 +239,8 @@ namespace OPS.Landform
             {
                 executive = PipelineExecutive.MakeExecutive(pipeline as LocalPipeline, ExecutionMode.Deferred);
             }
+
+            PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
 
             pipeline.EnqueueToMaster(new RunProjectMessage(project.Name));
 

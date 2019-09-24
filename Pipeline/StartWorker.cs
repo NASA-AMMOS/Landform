@@ -385,6 +385,11 @@ namespace OPS.Pipeline
 
             var dispatcher = MakeDispatcher(pipeline);
 
+            void sendStatus(QueueMessage m, string status, bool done = false)
+            {
+                pipeline.EnqueueToMaster(new StatusMessage(m.ProjectName, m.MessageId, m.GetType().Name, status, done));
+            }
+
             while (true)
             {
                 //only take one message at a time when we are ready to process it
@@ -400,11 +405,14 @@ namespace OPS.Pipeline
                             bool handled = false;
                             try
                             {
+                                sendStatus(m, "started");
                                 dispatcher.Handle(m);
+                                sendStatus(m, "complete", done: true);
                                 handled = true;
                             }
                             catch (Exception e)
                             {
+                                sendStatus(m, "error: " + e.Message, done: true);
                                 LogError("{0}: processing error ({1}): {2}",
                                           m.Info(), e.GetType().FullName, e.Message);
                                 LogError(e.StackTrace);

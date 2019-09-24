@@ -38,7 +38,7 @@ namespace OPS.Pipeline.TilingServer
 
         public int Process()
         {
-            LogInfo("started");
+            LogInfo("loading transform and observation caches");
 
             //load transforms, by filtering by allowed transform sources or allowing all
             var frameCache = new FrameCache(pipeline, projectName);
@@ -48,11 +48,13 @@ namespace OPS.Pipeline.TilingServer
             var observationCache = new ObservationCache(pipeline, projectName);
             observationCache.Preload(obs => obs.UseForReconstruction);
 
+            LogInfo("building mesh");
             //temporarily suppress mastcam point cloud data until validated
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
-                                          onlyForCameras: null, useCleverCombine: false, allowMastcam: false);
+                                          onlyForCameras: null, useCleverCombine: false, allowMastcam: false,
+                                          info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); });
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
                 LogError("point cloud failed to reconstruct");
@@ -62,12 +64,14 @@ namespace OPS.Pipeline.TilingServer
             //upload mesh
             string meshName = "FullMesh";
             string meshOutputUrl = pipeline.GetStorageUrl("input", projectName, meshName + ".ply");
+            LogInfo("uploading mesh {0}", meshOutputUrl);
             TemporaryFile.GetAndDelete(".ply", tempFile =>
             {
-                LogInfo("uploading mesh " + meshOutputUrl);
                 surfacedMesh.Save(tempFile);
                 pipeline.SaveFile(tempFile, meshOutputUrl);
             });
+
+            LogInfo("creating tiling input");
 
             //create a tiling input
             TilingProject tilingProject = TilingProject.Find(pipeline, projectName);
@@ -76,8 +80,6 @@ namespace OPS.Pipeline.TilingServer
             //indicate successs to the tiling server master
             pipeline.EnqueueToMaster(new BuildTilingInputMessage(projectName));
 
-            LogInfo("complete");
-
             return 0;
         }
 
@@ -85,10 +87,19 @@ namespace OPS.Pipeline.TilingServer
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
                                      bool usePriors, bool noPriors, string onlyForCameras = null,
                                      bool useCleverCombine = false, bool allowMastcam = false, int decimate = 1,
-                                     int targetPointCloudResolution = 1024)
+                                     int targetPointCloudResolution = 1024, Action<string> info = null,
+                                     Action<string> verbose = null, Action<string> warn = null,
+                                     Action<string> error = null)
         {
             pointBounds = new BoundingBox();
-           
+
+            info = info ?? (msg => pipeline.LogInfo(msg));
+            verbose = verbose ?? (msg => pipeline.LogVerbose(msg));
+            warn = warn ?? (msg => pipeline.LogWarn(msg));
+            error = error ?? (msg => pipeline.LogError(msg));
+
+            info("collecting wedges");
+
             //this is a bit tricky
             //sadly, we currently have "alignment" projects (type Project)
             //and "tiling" projects (type TilingProject)
@@ -118,12 +129,13 @@ namespace OPS.Pipeline.TilingServer
             var observations = MeshObservations.Collect(frameCache, observationCache, opts);
             if (observations.Count == 0)
             {
-                pipeline.LogError("no observations were found to build a point cloud");
+                error("no observations were found to build a point cloud");
                 return null;
             }
 
             var meshOpts = new MeshObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
+            info("building wedge meshes");
             var obsToMesh = new ConcurrentDictionary<string, Mesh>();
             int no = observations.Count;
             int np = 0, nc = 0, nf = 0;
@@ -131,29 +143,29 @@ namespace OPS.Pipeline.TilingServer
 
                     Interlocked.Increment(ref np);
 
-                    pipeline.LogInfo("building {0} observation point clouds in parallel, completed {1}/{2}, {3} failed",
-                                     np, nc, no, nf);
+                    info(string.Format("building {0} wedge point clouds in parallel, completed {1}/{2}, {3} failed",
+                                       np, nc, no, nf));
 
                     var mo = meshOpts.Clone();
                     mo.Decimate = MeshObservations.AutoDecimate(obs.Points, decimate, targetPointCloudResolution);
                     if (mo.Decimate > 1 && mo.Decimate != decimate)
                     {
-                        pipeline.LogVerbose("auto decimating point cloud for observation {0} with blocksize {1}",
-                                            obs.Name, mo.Decimate);
+                        verbose(string.Format("auto decimating point cloud for observation {0} with blocksize {1}",
+                                              obs.Name, mo.Decimate));
                     }
                     
                     var mesh = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
 
                     if (mesh == null)
                     {
-                        pipeline.LogError("failed to build pointcloud for observation {0}", obs.Name);
+                        warn(string.Format("failed to build pointcloud for observation {0}", obs.Name));
                         Interlocked.Increment(ref nf);
                         return;
                     }
                     
                     if (mesh.ContainsZeroLengthNormals())
                     {
-                        pipeline.LogError("pointcloud for observation {0} has zero length normals", obs.Name);
+                        warn(string.Format("pointcloud for observation {0} has zero length normals", obs.Name));
                         Interlocked.Increment(ref nf);
                         return;
                     }
@@ -166,6 +178,7 @@ namespace OPS.Pipeline.TilingServer
             Mesh aggregatePointCloud = new Mesh(hasNormals: true);
             if (useCleverCombine)
             {
+                info("clever combine point cloud");
                 var meshes = new List<Mesh>();
                 var origins = new List<Vector3>();
                 foreach (var entry in obsToMesh)
@@ -174,7 +187,7 @@ namespace OPS.Pipeline.TilingServer
                     var obsToOutput = frameCache.GetObservationTransform(pointsObs, outputFrame, usePriors, noPriors);
                     if (obsToOutput == null)
                     {
-                        pipeline.LogError("failed to get transform to {0} for observation {1}", outputFrame, entry.Key);
+                        error(string.Format("failed to get transform to {0} for observation {1}", outputFrame, entry.Key));
                         continue;
                     }
 
@@ -187,14 +200,16 @@ namespace OPS.Pipeline.TilingServer
                     meshes.Add(entry.Value);
                 }
                 int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
-                pipeline.LogInfo("combining {0} point clouds with clever combine, total {1} points", meshes.Count, nv);
+                pipeline.LogInfo("combining {0} point clouds with clever combine, total {1} points",
+                                 meshes.Count, FMT.KMG(nv));
                 aggregatePointCloud = CleverCombinePointClouds.Combine(origins.ToArray(), meshes.ToArray());
             }
             else
             {
+                info("merging point clouds");
                 var meshes = obsToMesh.Values.ToArray();
                 int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
-                pipeline.LogInfo("merging {0} point clouds, total {1} points", meshes.Length, nv);
+                info(string.Format("merging {0} point clouds, total {1} points", meshes.Length, FMT.KMG(nv)));
                 aggregatePointCloud.MergeWith(meshes, normalize: false, removeDuplicateVerts: false);
             }
 
@@ -204,13 +219,14 @@ namespace OPS.Pipeline.TilingServer
             // build the large mesh from the aggregate point cloud using poisson reconstruction
             if (aggregatePointCloud.Vertices.Count == 0)
             {
-                pipeline.LogError("aggregate point cloud contains no points");
+                error("aggregate point cloud contains no points");
                 return null;
             }
 
             pointBounds = aggregatePointCloud.Bounds();
 
-            pipeline.LogInfo("Poisson reconstructing mesh from {0} points", aggregatePointCloud.Vertices.Count);
+            info(string.Format("Poisson reconstructing mesh from {0} points",
+                               FMT.KMG(aggregatePointCloud.Vertices.Count)));
             PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
             {
                 //extrapolates the edges of the mesh
@@ -233,7 +249,7 @@ namespace OPS.Pipeline.TilingServer
 
             var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
 
-            pipeline.LogInfo("Poisson reconstructed mesh with {0} faces", ret.Faces.Count);
+            info(string.Format("Poisson reconstructed mesh with {0} faces", FMT.KMG(ret.Faces.Count)));
 
             return ret;
         }

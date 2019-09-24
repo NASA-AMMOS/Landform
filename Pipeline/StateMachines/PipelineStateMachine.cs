@@ -13,6 +13,10 @@ namespace OPS.Pipeline
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
     public abstract class PipelineStateMachine
     {
+        public static bool LessSpew;
+
+        public const double DEF_LONG_TASK_WARN_SEC = 5 * 60;
+
         public enum ProjectType { GenericTiling, MSL, ParentTiling };
 
         public static Dictionary<ProjectType, Type> StateMachines = new Dictionary<ProjectType, Type>()
@@ -56,9 +60,41 @@ namespace OPS.Pipeline
         protected string projectName;
         protected TypeDispatcher dispatcher;
 
+        protected class Status
+        {
+            public double StartSec;
+            public string LatestOperation;
+            public string LatestStatus;
+            public Status(StatusMessage m)
+            {
+                StartSec = UTCTime.Now();
+                LatestOperation = m.Operation;
+                LatestStatus = m.Status;
+            }
+        }
+
+        protected Dictionary<string, Status> status = new Dictionary<string, Status>();
+
+        protected void LogLess(string msg, params Object[] args)
+        {
+            if (LessSpew)
+            {
+                pipeline.LogVerbose("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+            }
+            else
+            {
+                pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+            }
+        }
+
         protected void LogInfo(string msg, params Object[] args)
         {
             pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+        }
+
+        protected void LogVerbose(string msg, params Object[] args)
+        {
+            pipeline.LogVerbose("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
         }
 
         protected void LogDebug(string msg, params Object[] args)
@@ -94,7 +130,8 @@ namespace OPS.Pipeline
                 .Case((DefineTilesMessage m) => TilesDefined())
                 .Case((ChunkInputMessage m) => InputChunked(m.InputName))
                 .Case((TileCompletedMessage m) => TileCompleted(m.TileId))
-                .Case((BuildTilesetJsonMessage m) => TilesetCompleted());
+                .Case((BuildTilesetJsonMessage m) => TilesetCompleted())
+                .Case((StatusMessage m) => UpdateStatus(m));
             ret.Unhandled = (t, x) => pipeline.LogError("unknown master message type: {0}", t);
             return ret;
         }
@@ -108,7 +145,51 @@ namespace OPS.Pipeline
             }
             dispatcher.Handle(m);
         }
-        
+
+        virtual protected void UpdateStatus(StatusMessage m)
+        {
+            string id = m.TaskId;
+            if (id != null)
+            {
+                if (!status.ContainsKey(id))
+                {
+                    status[id] = new Status(m);
+                }
+                else if (m.Done)
+                {
+                    status.Remove(id);
+                }
+                else
+                {
+                    var s = status[id];
+                    s.LatestOperation = m.Operation;
+                    s.LatestStatus = m.Status;
+                }
+            }
+        }
+
+        virtual public void SpewStatus(double warnSec = DEF_LONG_TASK_WARN_SEC, bool verbose = false)
+        {
+            LogInfo("{0} messages in flight", status.Count);
+            var now = UTCTime.Now();
+            foreach (var entry in status)
+            {
+                var id = entry.Key;
+                var st = entry.Value;
+                var sec = now - st.StartSec;
+                var msg = string.Format("[{0}] {1} {2}: {3}, running for {4}",
+                                        projectName, st.LatestOperation, id, st.LatestStatus, FMT.HMS(sec * 1e3));
+                if (sec > warnSec)
+                {
+                    LogWarn(msg + " > {0}", FMT.HMS(warnSec * 1e3));
+                }
+                else if (verbose)
+                {
+                    LogVerbose(msg);
+                }
+            }
+        }
+
         virtual protected void CreateProject(CreateProjectMessage m)
         {
             var project = TilingProject.Find(pipeline, projectName);
@@ -158,7 +239,7 @@ namespace OPS.Pipeline
                 if (!project.StartedRunning)
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
-                    LogDebug("adding/updating input {0}", m.Name);
+                    LogLess("adding/updating input {0}", m.Name);
                     TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
                 }
                 else
@@ -229,13 +310,13 @@ namespace OPS.Pipeline
                 if (!input.Chunked)
                 {
                     allChunked = false;
-                    LogInfo("chunking input {0}", inputName);
+                    LogLess("chunking input {0}", inputName);
                     projectCache.AddInputToChunk(inputName);
                     pipeline.EnqueueToWorkers(new ChunkInputMessage(projectName) { InputName = inputName });
                 }
                 else
                 {
-                    LogInfo("input {0} already chunked", inputName);
+                    LogLess("input {0} already chunked", inputName);
                 }
             }
             return allChunked;
@@ -243,7 +324,7 @@ namespace OPS.Pipeline
 
         virtual protected void InputChunked(string inputName)
         {
-            LogInfo("input {0} chunked", inputName);
+            LogLess("input {0} chunked", inputName);
             bool allChunked = projectCache.InputChunked(inputName);
             if (allChunked)
             {
@@ -299,7 +380,7 @@ namespace OPS.Pipeline
         {
             if (root == null)
             {
-                LogInfo("building tile tree from database");
+                LogInfo("build parents: building tile tree from database");
                 root = TilingNode.BuildTreeFromDatabase(pipeline, project);
             }
 
@@ -488,7 +569,7 @@ namespace OPS.Pipeline
                 foreach (var pid in projectCache.GetDependentTilesToRun(tileId))
                 {
                     numEnqueued++;
-                    LogInfo("building parent {0}", pid);
+                    LogLess("building parent {0}", pid);
                     projectCache.MarkEnqueued(pid);
                     pipeline.EnqueueToWorkers(new BuildParentMessage(projectName) { TileId = pid });
                 }
@@ -556,5 +637,21 @@ namespace OPS.Pipeline
     {
         public string TileId;
         public TileCompletedMessage(string projectName) : base(projectName) { }
+    }
+
+    public class StatusMessage : QueueMessage
+    {
+        public string Operation;
+        public string TaskId;
+        public string Status;
+        public bool Done;
+        public StatusMessage(string projectName, string taskId, string operation, string status, bool done = false)
+            : base(projectName)
+        {
+            this.TaskId = taskId;
+            this.Operation = operation;
+            this.Status = status;
+            this.Done = done;
+        }
     }
 }

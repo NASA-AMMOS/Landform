@@ -326,7 +326,7 @@ namespace OPS.Landform
 
                 if (bakeTextures)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution);
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogInfo(msg));
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }

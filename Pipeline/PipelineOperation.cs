@@ -9,6 +9,8 @@ namespace OPS.Pipeline
 {
     public class PipelineOperation
     {
+        public static bool LessSpew;
+
         protected readonly PipelineCore pipeline;
         protected readonly string projectName;
         protected readonly string messageId;
@@ -27,7 +29,21 @@ namespace OPS.Pipeline
 
         protected void LogInfo(string msg, params Object[] args)
         {
-            pipeline.LogInfo("{0} {1}", logPrefix, string.Format(msg, args));
+            msg = string.Format(msg, args);
+            if (LessSpew)
+            {
+                pipeline.LogVerbose("{0} {1}", logPrefix, msg);
+            }
+            else
+            {
+                pipeline.LogInfo("{0} {1}", logPrefix, msg);
+            }
+            SendStatusToMaster(msg);
+        }
+
+        protected void LogVerbose(string msg, params Object[] args)
+        {
+            pipeline.LogVerbose("{0} {1}", logPrefix, string.Format(msg, args));
         }
 
         protected void LogDebug(string msg, params Object[] args)
@@ -42,7 +58,14 @@ namespace OPS.Pipeline
 
         protected void LogError(string msg, params Object[] args)
         {
-            pipeline.LogError("{0} {1}", logPrefix, string.Format(msg, args));
+            msg = string.Format(msg, args);
+            pipeline.LogError("{0} {1}", logPrefix, msg);
+            SendStatusToMaster("error: " + msg);
+        }
+
+        protected void SendStatusToMaster(string status, bool done = false)
+        {
+            pipeline.EnqueueToMaster(new StatusMessage(projectName, messageId, GetType().Name, status, done));
         }
     }
 }

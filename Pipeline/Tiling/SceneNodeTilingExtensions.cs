@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
@@ -136,8 +137,17 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root, MeshReconMethod reconstructionMethod, int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root,
+                                                     MeshReconMethod reconstructionMethod, int maxFaceCountTarget,
+                                                     int maxTextureSize, SkirtMode? skirtAxis,
+                                                     double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
+                                                     Action<string> info = null, Action<string> error = null)
         {
+            info = info ?? (msg => {});
+            error = error ?? (msg => {});
+
+            info("merging child meshes");
+
             BoundingBox searchBounds;
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
             var pairs = childNodes.Where(n => n.HasComponent<MeshImagePair>()).Select(n => n.GetComponent<MeshImagePair>());
@@ -159,14 +169,15 @@ namespace OPS.Pipeline
             Mesh combinedDecimated = null;
             Mesh fullClipped = Mesh.Clip(combinedFull, minimumBounds);
             
-            if(fullClipped.Vertices.Count == 0)
+            if (fullClipped.Vertices.Count == 0)
             {
-                //failed
+                error("parent tile mesh empty");
                 return false;
             }
 
             // If the combined mesh is already less than the target face count we can skip the ResampleDecimation
-            // This also has the added benifit of avoiding calls to ResampleDecimation on very low face count meshes which can sometimes fail
+            // This also has the added benifit of avoiding calls to ResampleDecimation
+            // on very low face count meshes which can sometimes fail
             if (fullClipped.Faces.Count <= maxFaceCountTarget)
             {
                 combinedDecimated = fullClipped;
@@ -189,22 +200,32 @@ namespace OPS.Pipeline
                         cornerDirection = Vector3.UnitZ;
                     }
                 }
+                info("decimating parent tile mesh");
                 combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget,
                                                                     clippingBounds: minimumBounds,
                                                                     cornerDirection: cornerDirection);
             }
+
+            info("cleaning parent tile mesh");
             combinedDecimated.Clean();
+
+            info("computing parent tile geometric error and resolution");
             NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
             double accuracy = combinedDecimated.Bounds().MaxDimension() * 0.005; // 0.5 percent of max bounds 
             double geometricError = combinedDecimated.HausdorffDistance(accuracy, fullClipped);
             geoError.Error = Math.Max(geoError.Error, geometricError);
 
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
+
             Image img = null;
             if (size != 0)
             {               
+                info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
+
+                info("baking parent tile texture");
                 img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
+
                 // Estimate the size of a pixel for this texture
                 // If this is greater than the geometric error use it instead
                 var ext = minimumBounds.Extent();
@@ -214,9 +235,11 @@ namespace OPS.Pipeline
 
             if (!combinedDecimated.HasNormals)
             {
+                info("generating parent tile mesh vertex normals");
                 combinedDecimated.GenerateVertexNormals();
             }
 
+            info("completing parent");
             // We need to combine bounds here because decimated bounds may be smaller than the child bounds
             var bounds = BoundingBox.CreateMerged(combinedDecimated.Bounds(), minimumBounds);
             node.GetComponent<NodeBounds>().Bounds = bounds;
@@ -227,8 +250,7 @@ namespace OPS.Pipeline
             // Ensure geo error is at least as large as children
             foreach (var child in node.Children)
             {
-                var error = child.GetComponent<NodeGeometricError>().Error;
-                geoError.Error = Math.Max(error, geoError.Error);
+                geoError.Error = Math.Max(child.GetComponent<NodeGeometricError>().Error, geoError.Error);
             }
 
             return true;
