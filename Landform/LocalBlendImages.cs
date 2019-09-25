@@ -20,7 +20,7 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-blend-imges", HelpText = "blend observation images")]
+    [Verb("local-blend-images", HelpText = "blend observation images")]
     public class LocalBlendImagesOptions : TextureCommandOptions
     {
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = Backproject.TextureVariant.Blurred)]
@@ -38,7 +38,7 @@ namespace OPS.Landform
         [Option(HelpText = "Shrinkwrap mode (Project, NearestPoint)", Default = Shrinkwrap.ShrinkwrapMode.Project)]
         public Shrinkwrap.ShrinkwrapMode ShrinkwrapMode { get; set; }
 
-        [Option(HelpText = "Shrinkwrap miss behaviour (None, Delaunay, Inpaint)", Default = Shrinkwrap.ProjectionMissResponse.Delaunay)]
+        [Option(HelpText = "Shrinkwrap Project miss behaviour (None, Delaunay, Inpaint)", Default = Shrinkwrap.ProjectionMissResponse.Delaunay)]
         public Shrinkwrap.ProjectionMissResponse ShrinkwrapMiss { get; set; }
 
         [Option(Required = false, HelpText = "Acceptable error in solving the linear system", Default = LimberDMG.DEF_RESIDUAL_EPSILON)]
@@ -149,7 +149,7 @@ namespace OPS.Landform
         {
             sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
 
-            if (sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
+            if (sceneMesh != null && sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
             {
                 pipeline.LogInfo("loading existing shrinkwrap mesh from database");
                 mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
@@ -181,22 +181,27 @@ namespace OPS.Landform
                 throw new Exception("failed to load input mesh or input mesh empty");
             }
 
-            pipeline.LogInfo("generating shrinkwrap mesh in frame {0}, grid resolution {1}, " +
-                             "projection axis {2}, mode {3}, miss behavior {4}",
-                             meshFrame, options.GridResolution, options.ProjectionAxis, options.ShrinkwrapMode,
-                             options.ShrinkwrapMiss);
+            pipeline.LogInfo("generating shrinkwrap mesh in frame {0} from input mesh with {1} faces" +
+                             ": grid resolution {2}, projection axis {3}, mode {4}, miss behavior {5}",
+                             meshFrame, FMT.KMG(inputMesh.Faces.Count), options.GridResolution, options.ProjectionAxis,
+                             options.ShrinkwrapMode, options.ShrinkwrapMiss);
 
             Mesh gridMesh = Shrinkwrap.BuildGrid(inputMesh, options.GridResolution, options.GridResolution,
                                                  options.ProjectionAxis);
 
-            mesh = Shrinkwrap.Wrap(inputMesh, gridMesh, options.ShrinkwrapMode, options.ProjectionAxis, options.ShrinkwrapMiss);
+            mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis, options.ShrinkwrapMiss);
+
+            pipeline.LogInfo("built shrinkwrap mesh with {0} faces", FMT.KMG(mesh.Faces.Count));
 
             if (mesh.Faces.Count == 0)
             {
                 throw new Exception("shrinkwrap mesh empty");
             }
 
-            pipeline.LogInfo("created shrinkwrap mesh with {0} faces", mesh.Faces.Count);
+            if (!mesh.HasUVs)
+            {
+                throw new Exception("shrinkwrap mesh needs UVs");
+            }
 
             if (sceneMesh == null)
             {
@@ -222,7 +227,7 @@ namespace OPS.Landform
         private void LoadOrGenerateShrinkwrapBlurredTexture()
         {
             if (sceneMesh.BlurredTextureGuid != Guid.Empty && sceneMesh.BackprojectIndexGuid != Guid.Empty &&
-                !options.RedoShrinkwrapBlendedTexture)
+                !options.RedoShrinkwrapTexture)
             {
                 pipeline.LogInfo("loading shrinkwrap blurred texture from database");
                 var texGuid = sceneMesh.BlurredTextureGuid;
@@ -274,10 +279,10 @@ namespace OPS.Landform
 
                     index[0, r, c] = obsIndex;
 
-                    var obs = indexedObservations[obsIndex];
+                    var obs = obsIndex >= Observation.MIN_INDEX ? indexedObservations[obsIndex] : null;
 
                     bool hasGray = true;
-                    bool hasColor = obs.Bands == 3;
+                    bool hasColor = obs != null && obs.Bands == 3;
                     bool orbital = false; //TODO
 
                     byte lumaFlag = (byte)(hasGray ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);

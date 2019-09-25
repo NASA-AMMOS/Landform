@@ -192,7 +192,7 @@ namespace OPS.Landform
 
                     if (!tcopts.NoSave)
                     {
-                        var imgProd = new PngDataProduct();
+                        var imgProd = new PngDataProduct(blurredImage);
                         pipeline.SaveDataProduct(project, imgProd);
                         obs.BlurredGuid = imgProd.Guid;
                         obs.Save(pipeline);
@@ -288,7 +288,8 @@ namespace OPS.Landform
             backprojectResults = BackprojectObservations(mesh, logging: true, obsToHull: null);
         }
 
-        protected Dictionary<Pixel, Backproject.ObsPixel> BackprojectObservations(Mesh mesh, bool logging, IDictionary<string, ConvexHull> obsToHull)
+        protected Dictionary<Pixel, Backproject.ObsPixel>
+            BackprojectObservations(Mesh mesh, bool logging, IDictionary<string, ConvexHull> obsToHull)
         {
             return Backproject.BackprojectObservations(pipeline, frameCache, observationCache, mesh, resolution,
                                                        sceneCaster, imageObservations, tcopts.UsePriors,
