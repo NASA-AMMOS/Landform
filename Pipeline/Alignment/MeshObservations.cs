@@ -430,7 +430,7 @@ namespace OPS.Pipeline
             MaskImage = null;
             if (masker != null)
             {
-                MaskImage = masker.LoadOrBuild(pipeline, Mask.Url, pointsRaw.Metadata as PDSMetadata);
+                MaskImage = masker.LoadOrBuild(pipeline, Mask != null ? Mask.Url : null, pointsRaw.Metadata as PDSMetadata);
             }
 
             bool appliedMask = false;
