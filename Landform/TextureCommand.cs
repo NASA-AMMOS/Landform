@@ -314,13 +314,7 @@ namespace OPS.Landform
             
             if (tcopts.WriteDebug)
             {
-                pipeline.LogInfo("saving backproject index image and textured mesh");
-                string name = sceneMesh.Name + "_backprojectIndex";
-                SaveFloatTIFF(index, name);
-                Image previewImg = Backproject.GenerateIndexPreviewImage(index);
-                name += "FalseColor";
-                SaveImage(previewImg, name);
-                SaveMesh(mesh, name, name + imageExt);
+                SaveBackprojectIndexDebug(index);
             }
 
             return index;
@@ -350,13 +344,29 @@ namespace OPS.Landform
             
             if (tcopts.WriteDebug)
             {
-                pipeline.LogInfo("saving backproject texture and textured mesh");
-                string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
-                SaveImage(texture, name);
-                SaveMesh(mesh, name, name + imageExt);
+                SaveBackprojectTextureDebug(texture, textureVariant);
             }
 
             return texture;
+        }
+
+        protected void SaveBackprojectIndexDebug(Image index)
+        {
+            pipeline.LogInfo("saving backproject index false color textured mesh");
+            string name = sceneMesh.Name + "_backprojectIndex";
+            //SaveFloatTIFF(index, name); //is this really useful?
+            Image previewImg = Backproject.GenerateIndexPreviewImage(index);
+            name += "FalseColor";
+            SaveImage(previewImg, name);
+            SaveMesh(mesh, name, name + imageExt);
+        }
+
+        protected void SaveBackprojectTextureDebug(Image texture, Backproject.TextureVariant textureVariant)
+        {
+            pipeline.LogInfo("saving backproject {0} textured mesh", textureVariant);
+            string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
+            SaveImage(texture, name);
+            SaveMesh(mesh, name, name + imageExt);
         }
     }
 }
