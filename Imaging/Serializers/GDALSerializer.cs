@@ -1,4 +1,5 @@
-﻿using System;
+﻿#define ENABLE_GDAL_MT
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -31,7 +32,9 @@ namespace OPS.Imaging
 
         static GDALSerializer()
         {
+#if !ENABLE_GDAL_MT
             lock(gdalLockObj)
+#endif
             {
                 GdalConfiguration.ConfigureGdal();
                 GdalConfiguration.ConfigureOgr();
@@ -82,7 +85,9 @@ namespace OPS.Imaging
         /// <returns></returns>
         public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {            
+#if !ENABLE_GDAL_MT
             lock (gdalLockObj)
+#endif
             {
                 using (Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly))
                 {
@@ -209,7 +214,9 @@ namespace OPS.Imaging
         public Image PartialRead(string filename, int xOffset, int yOffset, int xSize, int ySize,
                                  IImageConverter converter = null, float[] fillValue = null)
         {
+#if !ENABLE_GDAL_MT
             lock (gdalLockObj)
+#endif
             {
                 if (converter == null)
                 {
@@ -372,7 +379,9 @@ namespace OPS.Imaging
                 bands = 3;
             }
 
+#if !ENABLE_GDAL_MT
             lock (gdalLockObj)
+#endif
             {
                 using (Dataset dataset = driver.Create(filename, convertedImage.Width, convertedImage.Height, bands,
                                                        systemTypeToGdalType[typeof(T)], driverOptions))
