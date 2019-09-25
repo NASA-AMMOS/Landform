@@ -495,6 +495,15 @@ namespace OPS.Pipeline
             project.FinishedRunning = true;
             project.Save(pipeline);
             LogInfo("finished running");
+
+            TilingNode root = TilingNode.Find(pipeline, projectName, projectCache.RootId());
+            if (root != null)
+            {
+                Microsoft.Xna.Framework.BoundingBox Bounds = root.GetBounds();
+                Microsoft.Xna.Framework.Vector3 boundsSize = Bounds.Size();
+                LogInfo("Scene Bounds (meters): {0}, {1}, {2}", boundsSize.X, boundsSize.Y, boundsSize.Z);
+            }
+
             projectCache.Reset();
             pipeline.CleanupTempDir();
         }
