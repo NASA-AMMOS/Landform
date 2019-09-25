@@ -134,7 +134,7 @@ namespace OPS.Landform
                         maskUrl = maskObs.Url;
                     }
 
-                    Image mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, obs.Name);
+                    Image mask = ImageMasker.GetOrCreateMask(pipeline, project, obs, masker, maskUrl, img);
                     mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
                 }
 

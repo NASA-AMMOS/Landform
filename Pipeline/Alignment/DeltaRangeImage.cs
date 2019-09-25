@@ -32,10 +32,12 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            srcPoints.UnionMask(masker.LoadOrBuild(pipeline, srcObs.Mask, srcPointsRaw , srcObs.Name),
+            srcPoints.UnionMask(masker.LoadOrBuild(pipeline, srcObs.Mask != null ? srcObs.Mask.Url : null,
+                                                   srcPointsRaw.Metadata as PDSMetadata),
                                 new float[] { 0 });
 
-            dstPoints.UnionMask(masker.LoadOrBuild(pipeline, dstObs.Mask, dstPointsRaw , dstObs.Name),
+            dstPoints.UnionMask(masker.LoadOrBuild(pipeline, dstObs.Mask != null ? dstObs.Mask.Url : null,
+                                                   dstPointsRaw.Metadata as PDSMetadata),
                                 new float[] { 0 });
 
             //get camera model

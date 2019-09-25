@@ -138,7 +138,6 @@ namespace OPS.LandformUtil
         private LocalObservationProductsOptions options;
 
         private bool withTextures;
-        private bool buildWedgeMasks;
         private bool buildWedgeMeshes;
         private bool buildWedgeImages;
 
@@ -226,7 +225,6 @@ namespace OPS.LandformUtil
                 throw new Exception("--nosave not implemented for this command");
             }
 
-            buildWedgeMasks = options.NormalsImages || options.CurvatureImages || options.ElevationImages;
             buildWedgeMeshes = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes || options.StatsOnly;
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
             buildWedgeImages = withTextures || !options.NoImages;
@@ -335,12 +333,6 @@ namespace OPS.LandformUtil
                 var mo = meshOpts.Clone();
                 mo.Decimate = mbs;
 
-                Image mask = null;
-                if (buildWedgeMasks && obs.Mask != null || obs.Points != null || obs.Normals != null)
-                {
-                    mask = masker.LoadOrBuild(pipeline, obs.Mask, obs.Points != null ? obs.Points : obs.Normals);
-                }
-
                 int numPoints = 0, numNormals = 0, numTriangles = 0;
                 Mesh mesh = null;
                 if (buildWedgeMeshes && obs.Points != null)
@@ -398,20 +390,22 @@ namespace OPS.LandformUtil
                     SaveMesh(mesh, sdPrefix + obs.Name, img != null ? (obs.Name + imageExt) : null);
                 }
                 
+                Image mask = null;
+
                 if (options.NormalsImages && obs.Normals != null)
                 {
                     string kind = options.ConvertNormalsToTilts ? "Tilts" : "Normals";
-                    FinishImage(BuildNormalsImage(obs, mbs, mask), mask, mbs, sdPrefix + obs.Name, kind);
+                    FinishImage(BuildNormalsImage(obs, mbs, ref mask), mask, mbs, sdPrefix + obs.Name, kind);
                 }
                 
                 if (options.CurvatureImages && obs.Points != null && obs.Normals != null)
                 {
-                    FinishImage(BuildCurvaturesImage(obs, mbs, mask), mask, mbs, sdPrefix + obs.Name, "Curvature");
+                    FinishImage(BuildCurvaturesImage(obs, mbs, ref mask), mask, mbs, sdPrefix + obs.Name, "Curvature");
                 }
                 
                 if (options.ElevationImages && obs.Points != null)
                 {
-                    FinishImage(BuildElevationsImage(obs, mbs, mask), mask, mbs, sdPrefix + obs.Name, "Elevation");
+                    FinishImage(BuildElevationsImage(obs, mbs, ref mask), mask, mbs, sdPrefix + obs.Name, "Elevation");
                 }
                 
                 if (options.FrustumHullMeshes && (obs.Texture != null || obs.Points != null))
@@ -561,12 +555,17 @@ namespace OPS.LandformUtil
             return img;
         }
 
-        private Image BuildNormalsImage(MeshObservations obs, int mbs, Image mask)
+        private Image BuildNormalsImage(MeshObservations obs, int mbs, ref Image mask)
         {
             Image normals = null;
             try
             {
                 normals = pipeline.LoadImage(obs.Normals.Url);
+                if (mask == null)
+                {
+                    var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
+                    mask = masker.LoadOrBuild(pipeline, maskUrl, normals.Metadata as PDSMetadata);
+                }
                 Image confidence = null;
                 if (options.ScaleNormalsByConfidence)
                 {
@@ -594,12 +593,18 @@ namespace OPS.LandformUtil
             return normals;
         }
 
-        private Image BuildCurvaturesImage(MeshObservations obs, int mbs, Image mask)
+        private Image BuildCurvaturesImage(MeshObservations obs, int mbs, ref Image mask)
         {
             Image curvatures = null;
             try
             {
-                var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
+                var pointsRaw = pipeline.LoadImage(obs.Points.Url);
+                if (mask == null)
+                {
+                    var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
+                    mask = masker.LoadOrBuild(pipeline, maskUrl, pointsRaw.Metadata as PDSMetadata);
+                }
+                var points = (new PDSImage(pointsRaw)).ConvertPoints();
                 if (points != null)
                 {
                     var normals = (new PDSImage(pipeline.LoadImage(obs.Normals.Url))).ConvertNormals();
@@ -617,12 +622,18 @@ namespace OPS.LandformUtil
             return curvatures;
         }
 
-        private Image BuildElevationsImage(MeshObservations obs, int mbs, Image mask)
+        private Image BuildElevationsImage(MeshObservations obs, int mbs, ref Image mask)
         {
             Image elevations = null;
             try
             {
-                var points = (new PDSImage(pipeline.LoadImage(obs.Points.Url))).ConvertPoints();
+                var pointsRaw = pipeline.LoadImage(obs.Points.Url);
+                if (mask == null)
+                {
+                    var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
+                    mask = masker.LoadOrBuild(pipeline, maskUrl, pointsRaw.Metadata as PDSMetadata);
+                }
+                var points = (new PDSImage(pointsRaw)).ConvertPoints();
                 if (points != null)
                 {
                     points = OrganizedPointCloud.MaskAndDecimatePoints(points, mbs, mask);

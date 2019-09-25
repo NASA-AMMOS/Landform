@@ -220,13 +220,17 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// high level api with database helpers. this is for when you want to just call with all the observations you have and see what lands on the mesh
-        /// quality is a value > 0 and <= 1.0 to indicate how much time can be spent to make the best decisions (1.0 is the best quality, slowest)
+        /// high level api with database helpers
+        /// this is for when you want to just call with all the observations you have and see what lands on the mesh
+        /// quality is a value > 0 and <= 1.0 to indicate how much time can be spent to make the best decisions
+        /// 1.0 is the best quality, slowest
         /// </summary>
-        static public Dictionary<Pixel, ObsPixel> BackprojectObservations(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache,
-                                        Mesh inputMesh, int outputResolution,  SceneCaster occlusionScene, List<Observation> observations, 
-                                        bool usePriors, bool onlyAligned, string outputMeshFrame, MissionSpecific mission, double quality, bool logging=true,
-                                        IDictionary<string, ConvexHull> obsHullsByName = null)
+        static public Dictionary<Pixel, ObsPixel>
+            BackprojectObservations(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache,
+                                    Mesh inputMesh, int outputResolution,  SceneCaster occlusionScene,
+                                    List<Observation> observations, bool usePriors, bool onlyAligned,
+                                    string outputMeshFrame, MissionSpecific mission, double quality,
+                                    bool logging = true, IDictionary<string, ConvexHull> obsHullsByName = null)
         {
             Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
 
@@ -277,10 +281,29 @@ namespace OPS.Pipeline
             //build contexts and call backproject
             if (logging) pipeline.LogInfo("Building masks");
 
+            Project project = null;
+            foreach (var obs in imageObservations)
+            {
+                if (project == null)
+                {
+                    project = Project.Find(pipeline, obs.ProjectName);
+                    if (project == null)
+                    {
+                        throw new ArgumentException("error loading project " + obs.ProjectName);
+                    }
+                }
+                else if (project.Name != obs.ProjectName)
+                {
+                    throw new ArgumentException("cannot load observations from multiple projects");
+                }
+            }
+
+            var masker = mission.GetMasker();
+
             List<BackprojectContext> ctxs = new List<BackprojectContext>();
             CoreLimitedParallel.ForEach(intersectingObservations, obs =>
             {
-                UncertainRigidTransform obsToMesh = frameCache.GetObservationTransform(obs, outputMeshFrame, usePriors, onlyAligned);
+                var obsToMesh = frameCache.GetObservationTransform(obs, outputMeshFrame, usePriors, onlyAligned);
                 if (obsToMesh == null)
                 {
                     if (logging) pipeline.LogWarn("Failed to get transform for observation {0}", obs.Name);
@@ -292,9 +315,10 @@ namespace OPS.Pipeline
                 var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
                     .Where(o => o.ObservationType == maskType)
                     .FirstOrDefault();
-                Image mask = FeatureDetecting.MakeMask(pipeline, mission.GetMasker(), maskObs == null ? null : maskObs.Url, pipeline.LoadImage(obs.Url), obs.Name);
+                Image mask = ImageMasker.GetOrCreateMask(pipeline, project, obs, masker, maskObs); //maybe expensive
 
                 ConvexHull obsHull = obsHullsByName[obs.Name];
+
                 lock (ctxs)
                 {
                     ctxs.Add(new BackprojectContext(obs, obsHull, obsToMesh, mask));

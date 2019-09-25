@@ -179,7 +179,6 @@
     <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
     <Compile Include="AlignmentServer\Cloud\Vector3Converter.cs" />
     <Compile Include="AlignmentServer\Cloud\VectorNConverter.cs" />
-    <Compile Include="AlignmentServer\Operations\CreateMask.cs" />
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BirdsEyeViewing.cs" />
@@ -187,6 +186,7 @@
     <Compile Include="Alignment\BundleAdjusting.cs" />
     <Compile Include="Alignment\DeltaRangeImage.cs" />
     <Compile Include="Alignment\FeatureDetecting.cs" />
+    <Compile Include="Alignment\ImageMasker.cs" />
     <Compile Include="Alignment\ImageMatching.cs" />
     <Compile Include="Alignment\IngestAlignmentInputs.cs" />
     <Compile Include="Alignment\IngestImage.cs" />

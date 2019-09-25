@@ -70,7 +70,6 @@ namespace OPS.Pipeline
                 .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(pipeline, m).Process())
                 .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
                 .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
-                .Case((CreateMaskMessage m) => new CreateMask(pipeline, m).Process())
                 .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
                 .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
             ret.Unhandled = (t, x) => pipeline.LogError("unknown worker message type: " + t);

@@ -903,8 +903,7 @@ namespace OPS.LandformUtil
                 .GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
                 .Where(o => o.ObservationType == maskType)
                 .FirstOrDefault(); ;
-            Image mask =
-                FeatureDetecting.MakeMask(pipeline, masker, maskObs == null ? null : maskObs.Url, img, obs.Name);
+            Image mask = ImageMasker.GetOrCreateMask(pipeline, project, obs, masker, maskObs, img);
             int pointsToBackprojectCount = pointsToBackproject.Count();
             List<PixelPoint> failedToBackproject = new List<PixelPoint>();
             while (pointsToBackproject.Count() > 0)

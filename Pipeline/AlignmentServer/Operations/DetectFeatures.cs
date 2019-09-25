@@ -46,7 +46,7 @@ namespace OPS.Pipeline.AlignmentServer
             var detector = new FeatureDetector(pipeline, MissionSpecific.GetInstance(project.Mission).GetMasker());
             var shortUrl = StringHelper.GetLastUrlPathSegment(message.ImageUrl);
             LogInfo("detecting features for image {0} in project {1}", shortUrl, project.Name);
-            var res = detector.Detect(message.ImageUrl, message.MaskUrl, projectName, project.ProductPath);
+            var res = detector.Detect(message.ImageUrl, message.MaskUrl, project);
             if (res != null)
             {
                 pipeline.SaveDataProduct(project.ProductPath, res, projectName);

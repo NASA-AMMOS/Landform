@@ -58,46 +58,6 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// build a rover mask binary image which is 0 for masked pixels
-        /// returns null if image does not have PDS metadata
-        /// </summary>
-        public Image Build(Image image)
-        {
-            return Build(image.Metadata);
-        }
-
-        /// <summary>
-        /// build a rover mask binary image which is 0 for masked pixels
-        /// </summary>
-        public Image Build(ImageMetadata metadata)
-        {
-            return metadata is PDSMetadata ? Build(metadata as PDSMetadata) : null;
-        }
-
-        /// <summary>
-        /// build a rover mask binary image which is 0 for masked pixels
-        /// returns null if image does not have PDS metadata
-        /// </summary>
-        public Image Build(Image image, string observationName, ILogger logger = null)
-        {
-            {
-                if (!(image.Metadata is PDSMetadata))
-                {
-                    if (logger != null)
-                        logger.LogWarn("no rover mask product available for observation {0} " +
-                                       "and cannot generate a synthetic rover mask because metadata is not PDS",
-                                       observationName);
-                    return null;
-                }
-                if (logger != null)
-                {
-                    logger.LogVerbose("generating synthetic rover mask for {0}", observationName);
-                }
-                return Build(image.Metadata as PDSMetadata);
-            }
-        }
-
-        /// <summary>
-        /// build a rover mask binary image which is 0 for masked pixels
         /// </summary>
         public Image Build(PDSMetadata metadata)
         {
@@ -163,85 +123,23 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// load a rover mask binary image which is 0 for masked pixels
-        /// if refImage is supplied then verify that the dimensions are the same
         /// </summary>
-        public Image Load(PipelineCore pipeline, string maskUrl, Image refImage = null, bool clone = false)
+        public Image Load(PipelineCore pipeline, string maskUrl, bool clone = false)
         {
             var mask = pipeline.LoadImage(maskUrl);
-            if (refImage == null || (mask.Width == refImage.Width && mask.Height == refImage.Height))
-            {
-                return clone ? new Image(mask) : mask;
-            } 
-            else
-            {
-                throw new Exception(string.Format("mismatched image size {0}x{1}", mask.Width, mask.Height));
-            }
-        }
+            return clone ? new Image(mask) : mask;
+        } 
 
-        /// <summary>
-        /// load or build a rover mask binary image which is 0 for masked pixels
-        /// uses mask from maskObs if available and size matches imageObs
-        /// otherwise builds from imageObs, but returns null if imageObs does not have PDS metadata
-        /// at least one of maskObs or imageObs must be non-null
-        /// </summary>
-        public Image LoadOrBuild(PipelineCore pipeline, Observation maskObs, Observation imageObs, bool clone = false)
-        {
-            Image refImage = imageObs != null ? pipeline.LoadImage(imageObs.Url) : null;
-            string observationName = maskObs != null ? maskObs.Name : imageObs.Name;
-            return LoadOrBuild(pipeline, maskObs, refImage, observationName, clone);
-        }
-
-        /// <summary>
-        /// load or build a rover mask binary image which is 0 for masked pixels
-        /// uses mask from maskObs if available and size matches refImage
-        /// otherwise builds from refImage, but returns null if refImage does not have PDS metadata
-        /// </summary>
-        public Image LoadOrBuild(PipelineCore pipeline, Observation maskObs, Image refImage, string observationName,
-                                 bool clone = false)
-        {
-            if (maskObs != null)
-            {
-                if (refImage == null || (maskObs.Width == refImage.Width && maskObs.Height == refImage.Height))
-                {
-                    try
-                    {
-                        return Load(pipeline, maskObs.Url, refImage, clone);
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogWarn("error loading rover mask {0}, generating: {1}", maskObs.Url, ex.Message);
-                    }
-                } 
-                else
-                {
-                    pipeline.LogWarn("not using rover mask {0}, mismatched image size {1}x{2}, generating",
-                                     maskObs.Url, maskObs.Width, maskObs.Height);
-                }
-            }
-
-            return refImage != null ? Build(refImage, observationName, pipeline) : null;
-        }
-
-        /// <summary>
-        /// load or build a rover mask binary image which is 0 for masked pixels
-        /// uses mask from maskUrl if available and size matches refImage
-        /// otherwise builds from refImage, but returns null if refImage does not have PDS metadata
-        /// </summary>
-        public Image LoadOrBuild(PipelineCore pipeline, string maskUrl, Image refImage, string observationName,
-                                 bool clone = false)
+        public Image LoadOrBuild(PipelineCore pipeline, string maskUrl, PDSMetadata metadata, bool clone = false)
         {
             if (!string.IsNullOrEmpty(maskUrl))
             {
-                try
-                {
-                    return Load(pipeline, maskUrl, refImage, clone);
-                }
-                catch (Exception ex)
-                {
-                    pipeline.LogWarn("error loading rover mask {0}, generating: {1}", maskUrl, ex.Message);
-                }
+                return Load(pipeline, maskUrl, clone);
             }
-            return refImage != null ? Build(refImage, observationName, pipeline) : null;
+            else
+            {
+                return Build(metadata);
+            }
         }
     }
 

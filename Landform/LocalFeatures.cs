@@ -210,7 +210,7 @@ namespace OPS.Landform
                                              np, nc, no);
                         }
 
-                        var result = detector.Detect(imageObs.Url, maskUrl, project.Name, project.ProductPath);
+                        var result = detector.Detect(imageObs.Url, maskUrl, project);
                         if (result != null)
                         {
                             Interlocked.Add(ref tf, result.Features.Length);
@@ -271,7 +271,7 @@ namespace OPS.Landform
             //avoid using product.ImageUrl here for legacy compat reasons
             //fortunately we can use imageObs.Url instead
             var img = new Image(pipeline.LoadImage(imageObs.Url)); //don't mutate original image
-            var mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, imageObs.Name);
+            var mask = ImageMasker.GetOrCreateMask(pipeline, project, imageObs, masker, maskUrl, img);
             img = FeatureDetecting.DrawFeatures(img, mask, product.Features,
                                                 StringHelper.GetLastUrlPathSegment(imageObs.Url));
             PathHelper.EnsureExists(localOutputPath);

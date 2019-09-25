@@ -49,6 +49,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Url;
 
+        public Guid MaskGuid; //combines rover mask, user mask, invalid/missing pixels, and border
+
         public Guid FeaturesGuid;
 
         public Guid BlurredGuid;
@@ -78,12 +80,6 @@ namespace OPS.Pipeline.AlignmentServer
         public int Day;
 
         public int Index;
-
-        //DEPRECATED - for legacy compat only
-        public string MaskGuid;
-
-        //DEPRECATED - for legacy compat only
-        public string FeatureUrl;
 
         /// Add required fields here 
         protected void IsValid()
@@ -136,7 +132,9 @@ namespace OPS.Pipeline.AlignmentServer
             this.FrameName = frame.Name;
             this.Name = name;
             this.Url = url;
+            this.MaskGuid = Guid.Empty;
             this.FeaturesGuid = Guid.Empty;
+            this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
