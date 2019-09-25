@@ -46,6 +46,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Redo blurred observation textures", Default = false)]
         public bool RedoBlurredObservationTextures { get; set; }
+
+        [Option(HelpText = "Redo observation image masks", Default = false)]
+        public bool RedoObservationMasks { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -63,7 +66,11 @@ namespace OPS.Landform
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
             this.tcopts = tcopts;
-            tcopts.RedoBlurredObservationTextures |= tcopts.Redo;
+            if (tcopts.Redo)
+            {
+                tcopts.RedoBlurredObservationTextures = true;
+                tcopts.RedoObservationMasks = true;
+            }
         }
 
         protected virtual bool ParseArgumentsAndLoadCaches(string outDir)
@@ -134,12 +141,12 @@ namespace OPS.Landform
             return project;
         }
 
-        protected void EnsureOrGenerateObservationTextures()
+        protected void EnsureOrBuildObservationTextures()
         {
             switch (tcopts.TextureVariant)
             {
                 case Backproject.TextureVariant.Original: break;
-                case Backproject.TextureVariant.Blurred: GenerateBlurredObservationImages(); break;
+                case Backproject.TextureVariant.Blurred: BuildBlurredObservationImages(); break;
                 case Backproject.TextureVariant.Blended: EnsureBlendedObservationImages(); break;
                 default: throw new Exception("unknown texture variant " + tcopts.TextureVariant);
             }
@@ -156,10 +163,8 @@ namespace OPS.Landform
             }
         }
 
-        protected void GenerateBlurredObservationImages()
+        protected void BuildBlurredObservationImages()
         {
-            pipeline.LogInfo("creating blurred observation images");
-
             int no = imageObservations.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(imageObservations, obs => {
@@ -195,6 +200,48 @@ namespace OPS.Landform
                         var imgProd = new PngDataProduct(blurredImage);
                         pipeline.SaveDataProduct(project, imgProd);
                         obs.BlurredGuid = imgProd.Guid;
+                        obs.Save(pipeline);
+                    }
+
+                    Interlocked.Decrement(ref np);
+                    Interlocked.Increment(ref nc);
+                });
+        }
+
+        protected void BuildObservationImageMasks()
+        {
+            string maskType = ObservationType.RoverMask.ToString();
+            int no = imageObservations.Count;
+            int np = 0, nc = 0;
+            CoreLimitedParallel.ForEach(imageObservations, obs => {
+
+                    if (!tcopts.RedoObservationMasks && obs.MaskGuid != Guid.Empty)
+                    {
+                        Interlocked.Increment(ref nc);
+                        return;
+                    }
+
+                    Interlocked.Increment(ref np);
+
+                    if (!tcopts.NoProgress)
+                    {
+                        pipeline.LogInfo("creating mask for observation {0}, processing {1} in parallel, " +
+                                         "completed {2}/{3}", obs.Name, np, nc, no);
+                    }
+                    
+                    Image img = pipeline.LoadImage(obs.Url);
+
+                    var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                        .Where(o => o.ObservationType == maskType)
+                        .FirstOrDefault();
+
+                    Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
+
+                    if (!tcopts.NoSave)
+                    {
+                        var maskProd = new PngDataProduct(maskImage);
+                        pipeline.SaveDataProduct(project, maskProd);
+                        obs.MaskGuid = maskProd.Guid;
                         obs.Save(pipeline);
                     }
 
@@ -297,7 +344,7 @@ namespace OPS.Landform
                                                        tcopts.BackprojectGoodnessSamplingPct, logging, obsToHull);
         }
 
-        protected Image GenerateBackprojectIndex()
+        protected Image BuildBackprojectIndex()
         {
             pipeline.LogInfo("creating backproject index");
             Image index = new Image(3, resolution, resolution);
@@ -320,7 +367,7 @@ namespace OPS.Landform
             return index;
         }
 
-        protected Image GenerateBackprojectTexture(Backproject.TextureVariant textureVariant)
+        protected Image BuildBackprojectTexture(Backproject.TextureVariant textureVariant)
         {
             pipeline.LogInfo("creating backproject texture");
             Image texture = new Image(3, resolution, resolution);

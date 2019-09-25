@@ -88,6 +88,7 @@ namespace OPS.Landform
 
                 if (backprojectTextures)
                 {
+                    RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
                     RunPhase("build observation frustum hulls", BuildObsHulls);
                 }

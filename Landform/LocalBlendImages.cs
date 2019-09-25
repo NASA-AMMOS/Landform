@@ -105,11 +105,12 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("generate blurred observation images", GenerateBlurredObservationImages);
-                RunPhase("load or generate shrinkwrap mesh", LoadOrGenerateShrinkwrapMesh);
-                RunPhase("load or generate shrinkwrap blurred texture", LoadOrGenerateShrinkwrapBlurredTexture);
-                RunPhase("load or generate blended texture", LoadOrGenerateBlendedTexture);
-                RunPhase("generate blended observation images", GenerateBlendedObservationImages);
+                RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
+                RunPhase("check/generate observation image masks", BuildObservationImageMasks);
+                RunPhase("load or generate shrinkwrap mesh", LoadOrBuildShrinkwrapMesh);
+                RunPhase("load or generate shrinkwrap blurred texture", LoadOrBuildShrinkwrapBlurredTexture);
+                RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
+                RunPhase("generate blended observation images", BuildBlendedObservationImages);
             }
             catch (Exception ex)
             {
@@ -148,7 +149,7 @@ namespace OPS.Landform
             throw new NotImplementedException();
         }
 
-        private void LoadOrGenerateShrinkwrapMesh()
+        private void LoadOrBuildShrinkwrapMesh()
         {
             void writeDebug()
             {
@@ -233,7 +234,7 @@ namespace OPS.Landform
             writeDebug();
         }
 
-        private void LoadOrGenerateShrinkwrapBlurredTexture()
+        private void LoadOrBuildShrinkwrapBlurredTexture()
         {
             if (sceneMesh.BlurredTextureGuid != Guid.Empty && sceneMesh.BackprojectIndexGuid != Guid.Empty &&
                 !options.RedoShrinkwrapTexture)
@@ -261,14 +262,14 @@ namespace OPS.Landform
 
             BackprojectObservations();
 
-            shrinkwrapBackprojectIndex = GenerateBackprojectIndex();
+            shrinkwrapBackprojectIndex = BuildBackprojectIndex();
 
-            shrinkwrapBlurredTexture = GenerateBackprojectTexture(Backproject.TextureVariant.Blurred);
+            shrinkwrapBlurredTexture = BuildBackprojectTexture(Backproject.TextureVariant.Blurred);
 
             pipeline.LogInfo("created {0}x{0} shrinkwrap texture", resolution);
         }
 
-        private void LoadOrGenerateBlendedTexture()
+        private void LoadOrBuildBlendedTexture()
         {
             void writeDebug()
             {
@@ -347,7 +348,7 @@ namespace OPS.Landform
             writeDebug();
         }
 
-        private void GenerateBlendedObservationImages()
+        private void BuildBlendedObservationImages()
         {
             pipeline.LogInfo("collecting backprojected pixels for each observation");
 

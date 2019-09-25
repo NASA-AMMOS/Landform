@@ -51,7 +51,7 @@ namespace OPS.Landform
                 }
 
                 RunPhase(string.Format("checking/generating {0} observation textures", options.TextureVariant),
-                         EnsureOrGenerateObservationTextures);
+                         EnsureOrBuildObservationTextures);
 
                 RunPhase("loading input mesh", () => LoadInputMesh(requireUVs: true));
                 RunPhase("build occlusion datastructures", BuildSceneCaster);
@@ -59,13 +59,14 @@ namespace OPS.Landform
 
                 if (!options.NoIndex)
                 {
-                    RunPhase("generate backproject index", () => { GenerateBackprojectIndex(); });
+                    RunPhase("generate backproject index", () => { BuildBackprojectIndex(); });
                 }
 
                 if (!options.NoTexture)
                 {
+                    RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                     RunPhase(string.Format("generate {0} backproject texture", options.TextureVariant),
-                             () => { GenerateBackprojectTexture(options.TextureVariant); });
+                             () => { BuildBackprojectTexture(options.TextureVariant); });
                 }
             }
             catch (Exception ex)
