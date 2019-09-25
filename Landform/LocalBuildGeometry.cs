@@ -134,21 +134,17 @@ namespace OPS.Landform
 
         private void ClipMesh()
         {
-            BoundingBox clipBounds = meshBounds;
+            pipeline.LogInfo("clipping mesh to source point cloud bounds");
+            mesh = Mesh.Clip(mesh, meshBounds);
+
             if (options.ClipExtent > 0)
             {
                 pipeline.LogInfo("clipping mesh to {0} meter box around origin in XY plane", options.ClipExtent);
                 double halfExtent = options.ClipExtent * 0.5;
                 Vector3 min = new Vector3(-halfExtent, -halfExtent, meshBounds.Min.Z);
                 Vector3 max = new Vector3(halfExtent, halfExtent, meshBounds.Max.Z);
-                clipBounds = new BoundingBox(min, max);
+                mesh = Mesh.Clip(mesh, new BoundingBox(min, max));
             }
-            else
-            {
-                pipeline.LogInfo("clipping mesh to source point cloud bounds");
-            }
-
-            mesh = Mesh.Clip(mesh, clipBounds);
 
             if (mesh.Faces.Count == 0)
             {
