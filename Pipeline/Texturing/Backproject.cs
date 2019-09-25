@@ -1,4 +1,5 @@
 //#define NO_PARALLEL_RAYCASTS
+//#define BACKPROJECT_TIMING
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -6,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.IO;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Imaging;
@@ -67,7 +69,7 @@ namespace OPS.Pipeline
                     throw new InvalidDataException("Backproject output pixel is located outside of output image");
                 }
 
-                if(sourceImageIndex < Observation.MIN_INDEX)
+                if (sourceImageIndex < Observation.MIN_INDEX)
                 {
                     throw new InvalidDataException("invalid image index in backproject results");
                 }
@@ -226,16 +228,7 @@ namespace OPS.Pipeline
                                         bool usePriors, bool onlyAligned, string outputMeshFrame, MissionSpecific mission, double quality, bool logging=true,
                                         IDictionary<string, ConvexHull> obsHullsByName = null)
         {
-            if(logging) pipeline.LogInfo("building input mesh data structures");
-
-            ConvexHull meshHull = new ConvexHull(inputMesh);
-            MeshOperator meshOp = new MeshOperator(inputMesh);
-
-            if (logging) pipeline.LogInfo("collecting sampling points in destination texture");
-            List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outputResolution, outputResolution);
-
             Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
-            if (logging) pipeline.LogInfo("Backprojecting {0} observations", observations.Count());
 
             //find image observations only
             string imageObsType = ObservationType.Image.ToString();
@@ -245,6 +238,13 @@ namespace OPS.Pipeline
                 if (logging) pipeline.LogWarn("Failed: no images observations found"); 
                 return results;
             }
+
+            if (logging) pipeline.LogInfo("building input mesh data structures");
+            ConvexHull meshHull = new ConvexHull(inputMesh);
+            MeshOperator meshOp = new MeshOperator(inputMesh);
+
+            if (logging) pipeline.LogInfo("collecting sample points in {0}x{0} destination texture", outputResolution);
+            List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outputResolution, outputResolution);
 
             //generate hulls
             if (obsHullsByName == null)
@@ -301,42 +301,102 @@ namespace OPS.Pipeline
                 }
             });
 
-            if (logging) pipeline.LogInfo("Backprojecting");
-            return BackprojectObservationContexts(ctxs, meshHull, occlusionScene, pointsToBackproject, quality);
+            return BackprojectObservationContexts(ctxs, meshHull, occlusionScene, pointsToBackproject, quality,
+                                                  msg => { if (logging) pipeline.LogInfo(msg); });
         }
             
         // lower level function that returns backproject results: each observation and source pixel selected for each output pixel taken from a set of observations known to intersect the output mesh
         // expects you have filtered your observations down to the subset of observations that intersect the mesh and have been tested for validity
         // uses the current best approach for calculating which texture should win when there are multiple choices
-        static protected Dictionary<Pixel, ObsPixel> BackprojectObservationContexts(List<BackprojectContext> backprojectContexts, ConvexHull meshHull,
-            SceneCaster occlusionScene, List<PixelPoint> pointsToBackproject, double quality)
+        static protected Dictionary<Pixel, ObsPixel>
+            BackprojectObservationContexts(List<BackprojectContext> backprojectContexts, ConvexHull meshHull,
+                                           SceneCaster occlusionScene, List<PixelPoint> pointsToBackproject,
+                                           double quality, Action<string> info = null)
         {
+            info = info ?? (msg => {});
+
+            int np = pointsToBackproject.Count, nc = backprojectContexts.Count; 
+            info(string.Format("backprojecting {0} points into {1} images, quality {2}", FMT.KMG(np), nc, quality));
+
             //calculate goodness: median distance between source pixels in meters on the terrain: smaller distance == better texture
-            Dictionary<string, double> pixelDistancesByObs = new Dictionary<string, double>();
-            foreach (var ctx in backprojectContexts)
-            {
-                pixelDistancesByObs.Add(ctx.Obs.Name, ProjectedPixelDistances.CalculateForObs(occlusionScene, meshHull, pointsToBackproject, ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh.Mean, quality));
-            }
+            info("calculating image goodness");
+            var pixelDistancesByObs = new ConcurrentDictionary<string, double>();
+            CoreLimitedParallel.ForEach(backprojectContexts, ctx =>
+                    {
+                        var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, meshHull, pointsToBackproject, ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh.Mean, quality);
+                        pixelDistancesByObs.AddOrUpdate(ctx.Obs.Name, _ => dist, (_, __) => dist);
+                    });
 
             //sort contexts by quality
             backprojectContexts.Sort((ctx0, ctx1) => pixelDistancesByObs[ctx0.Obs.Name].CompareTo(pixelDistancesByObs[ctx1.Obs.Name]));
 
+
+#if BACKPROJECT_TIMING            
+            void timing(string msg, params Object[] args)
+            {
+                info(string.Format(msg, args));
+            }
+#else
+            void timing(string msg, params Object[] args) { }
+#endif
+
             //greedily fill output pixels from the best source textures to the worst
-            Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
+            Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>(np);
+            int n = 0;
+            var remaining = new List<PixelPoint>(np);
             foreach(var ctx in backprojectContexts)
             {
-                IDictionary<Vector2, Vector2> pixelsSucceeded = CoreBackproject(ctx.ObsToMesh.Mean, ctx.FrustumHull,
-                    (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), ctx.Mask,
-                    pointsToBackproject, ctx.Obs.Width, ctx.Obs.Height, occlusionScene);
+                int nr = pointsToBackproject.Count;
+                info(string.Format("backprojecting into image {0}/{1} ({2}%), {3} sample points remaining",
+                                   ++n, nc, (int)(100 * ((float)n - 1) / nc), FMT.KMG(nr)));
 
-                if(pixelsSucceeded.Any())
+                Stopwatch sw = Stopwatch.StartNew();
+                var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh.Mean, ctx.FrustumHull,
+                                                      (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), ctx.Mask,
+                                                      pointsToBackproject, ctx.Obs.Width, ctx.Obs.Height,
+                                                      occlusionScene);
+                timing(string.Format("backprojected {0} points to image {1} in {2}", FMT.KMG(nr), n, FMT.HMS(sw)));
+
+                if (pixelsSucceeded.Any())
                 {
-                    foreach( var pixelPair in pixelsSucceeded)
+                    int ns = pixelsSucceeded.Count;
+                    timing(string.Format("{0} sample points backprojected to image {1}", FMT.KMG(ns), n));
+
+                    sw.Restart();
+#if BACKPROJECT_TIMING
+                    long lastSpew = 0;
+                    int i = 0;
+#endif
+                    foreach (var pixelPair in pixelsSucceeded)
                     {
                         results.Add(SubpixelToPixel(pixelPair.Key), new ObsPixel(ctx.Obs, pixelPair.Value));
+#if BACKPROJECT_TIMING
+                        i++;
+                        var ms = sw.ElapsedMilliseconds;
+                        if (ms - lastSpew > 5000)
+                        {
+                            lastSpew = ms;
+                            timing(string.Format("recorded {0}/{1} results, {2}/s",
+                                                 FMT.KMG(i), FMT.KMG(ns), FMT.KMG(i / (ms * 1e-3))));
+                        }
+#endif
                     }
+                    timing(string.Format("recorded {0} results in {1}", FMT.KMG(ns), FMT.HMS(sw)));
 
-                    pointsToBackproject = pointsToBackproject.Where(pt => !pixelsSucceeded.ContainsKey(pt.Pixel)).ToList();
+                    sw.Restart();
+                    remaining.Clear();
+                    foreach (var pt in pointsToBackproject)
+                    {
+                        if (!pixelsSucceeded.ContainsKey(pt.Pixel))
+                        {
+                            remaining.Add(pt);
+                        }
+                    }
+                    var tmp = pointsToBackproject;
+                    pointsToBackproject = remaining;
+                    remaining = tmp;
+                    timing(string.Format("filtered {0} remaining points in {1}",
+                                         FMT.KMG(pointsToBackproject.Count), FMT.HMS(sw)));
                 }
             }
 

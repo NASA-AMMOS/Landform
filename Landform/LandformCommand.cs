@@ -79,8 +79,7 @@ namespace OPS.Landform
 
         protected void StartStopwatch()
         {
-            stopwatch = new Stopwatch();
-            stopwatch.Start();
+            stopwatch = Stopwatch.StartNew();
         }
 
         protected void StopStopwatch()

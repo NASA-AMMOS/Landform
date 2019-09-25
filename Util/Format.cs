@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace OPS.Util
 {
@@ -27,6 +28,11 @@ namespace OPS.Util
                 int s = (int)(1e-3 * ms);
                 return string.Format("{0}h{1}m{2}s", s / (60 * 60), (s / 60) % 60, s % 60);
             }
+        }
+
+        public static string HMS(Stopwatch sw)
+        {
+            return HMS(sw.ElapsedMilliseconds);
         }
 
         public static string KMG(double b, double k = 1e3f)
