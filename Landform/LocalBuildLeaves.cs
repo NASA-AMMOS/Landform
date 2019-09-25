@@ -294,7 +294,9 @@ namespace OPS.Landform
                 };
             
             var leavesToTexture = tileTree.Leaves()
-                .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null);
+                .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
+                .ToList();
+            int leafCount = leavesToTexture.Count;
 
             MultiMeshClipper bakeClipper = null;
             if (backprojectTextures)
@@ -304,23 +306,24 @@ namespace OPS.Landform
                 bakeClipper.InitTextureBaker();
             }
 
-            //yes, parallelization is happening in the building of each individual leaf texture
-            //but still OK to let the OS scheduler deal with the combinatorial number of tasks
-            //at worst we're going to try to launch something like numCores^2 parallel tasks
-            //but in cases where there are few observations but many leaves
-            //or if the overall time is dominated by saving files (which can include upload in cloud case)
-            //then it is probably still a win to parallize on the leaves as well 
-            //(also we don't use many coarse locks here so scheduling more tasks than cores should be relatively easy)
+            var texMsg = resolution + "x" + resolution + " textures";
+            pipeline.LogInfo("processing {0} leaves{1}", leafCount, 
+                             bakeTextures ? ", baking " + texMsg :
+                             backprojectTextures ? ", backprojecting " + texMsg : "");
 
-            int curLeafNum = 0, numFailed = 0, numSucceded = 0, leafCount = leavesToTexture.Count();
-            CoreLimitedParallel.ForEach(leavesToTexture, leaf =>
+            //it's actually a significant win to build the leaves serially when backprojecting
+            int np = 0, curLeafNum = 0, numFailed = 0, numSucceded = 0;
+            void buildLeaf(SceneNode leaf)
             {
                 Interlocked.Increment(ref curLeafNum);
+                Interlocked.Increment(ref np);
 
                 if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("{0}saving leaf {1}/{2} ({3}%): {4}", withTextures ? "texturing and " : "",
-                                     curLeafNum, leafCount, (int)(100 * curLeafNum / (float)leafCount), leaf.Name);
+                    pipeline.LogInfo("{0}saving leaf {1}/{2} ({3}%){4}: {5}",
+                                     withTextures ? "texturing and " : "", curLeafNum, leafCount,
+                                     (int)(100 * curLeafNum / (float)leafCount),
+                                     np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
                 }
 
                 MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
@@ -347,7 +350,23 @@ namespace OPS.Landform
                 }
 
                 leaf.RemoveComponent<MeshImagePair>(); //conserve memory
-            });
+
+                Interlocked.Decrement(ref np);
+            }
+
+            if (backprojectTextures)
+            {
+                //when backprojecting each leaf will need to load a subset of observation and mask images in memory
+                //PipelineCore maintains LRU caches for those
+                //but if we launch a whole bunch of leaves in parallel they will find the caches empty
+                //and all try to load the images in parallel, which is very slow
+                //there is parallelization within each leaf build, so in this case just let that do its thing
+                Serial.ForEach(leavesToTexture, buildLeaf);
+            }
+            else
+            {
+                CoreLimitedParallel.ForEach(leavesToTexture, buildLeaf);
+            }
 
             if (withTextures && numFailed > 0)
             {
@@ -470,7 +489,7 @@ namespace OPS.Landform
 
             try
             {
-                bool logging = false;
+                bool logging = pipeline.Verbose || pipeline.Debug;
                 var backprojectResults = BackprojectObservations(leafMesh, logging, obsToHull);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
