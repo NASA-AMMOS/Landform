@@ -32,7 +32,8 @@ namespace OPS.Pipeline
         public const int MAX_PROCESSING_SEC = 6 * 60 * 60; //6h
         public const double HEARTBEAT_PERIOD_REL = 0.333;
         const int DEQUEUE_THROTTLE_MS = 500;
-        const int IMAGE_CACHE_SIZE = 5;
+        const int IMAGE_CACHE = 5;
+        const int DATA_PRODUCT_CACHE = 5;
 
         private class MessageRec
         {
@@ -379,7 +380,8 @@ namespace OPS.Pipeline
             //each worker thread has its own pipeline instance
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
-            var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE, quietInit: true,
+            var pipeline = new CloudPipeline(options, logger: Logger, quietInit: true,
+                                             lruImageCache: IMAGE_CACHE, lruDataProductCache: DATA_PRODUCT_CACHE,
                                              initQueues: true, initTables: false, queuePrefix: queuePrefix);
 
             var dispatcher = MakeDispatcher(pipeline);

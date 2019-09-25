@@ -75,6 +75,9 @@ namespace OPS.Pipeline
     public abstract class PipelineCore
         : IImageLoader, OPS.Util.ILogger //Microsoft.Extensions.Logging and log4net.Core also have ILogger interfaces
     {
+        public const int DEF_IMAGE_MEM_CACHE = 100;
+        public const int DEF_DATA_PRODUCT_MEM_CACHE = 100;
+
         public readonly PipelineCoreOptions Options;
         public readonly Config Config;
 
@@ -90,6 +93,7 @@ namespace OPS.Pipeline
         public readonly bool Quiet, Verbose, Debug, StackTraces;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
+        private LRUCache<Guid, DataProduct> dataProductCache;
 
         public Dictionary<string, long> InitMSPerPhase = new Dictionary<string, long>();
 
@@ -125,7 +129,8 @@ namespace OPS.Pipeline
             };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
-                            ILog logger = null, int lruCache = 100, bool quietInit = false, int? maxCores = null)
+                            ILog logger = null, bool quietInit = false,
+                            int? lruImageCache = null, int? lruDataProductCache = null, int? maxCores = null)
         {
             this.Options = options;
             this.Config = config;
@@ -166,8 +171,8 @@ namespace OPS.Pipeline
                 PathHelper.EnsureExists(Path.GetFullPath(DownloadCache));
             }
 
-            //in memory cache is configurable
-            imageCache = new LRUCache<string, Image>(lruCache);
+            imageCache = new LRUCache<string, Image>(lruImageCache ?? DEF_IMAGE_MEM_CACHE);
+            dataProductCache = new LRUCache<Guid, DataProduct>(lruDataProductCache ?? DEF_DATA_PRODUCT_MEM_CACHE);
 
             CoreLimitedParallel.SetMaxCores(maxCores ?? (options.SingleThreaded ? 1 : 0));
             if (!quietInit)
@@ -429,7 +434,7 @@ namespace OPS.Pipeline
 
         private static object dataCacheLock = new object();
 
-        protected virtual bool EnableDataProductCache()
+        protected virtual bool EnableDataProductDiskCache()
         {
             return true;
         }
@@ -443,11 +448,17 @@ namespace OPS.Pipeline
         /// <param name="cacheFolder">if nonempty then use local disk cache</param>
         public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
         {
+            var cached = dataProductCache[new Guid(guid)];
+            if (cached != null && cached is T)
+            {
+                return (T) cached;
+            }
+
             string url = Path.Combine(path, guid).Replace('\\','/');
             CheckStorageUrl(url);
             
-            T res = null;
-            if (EnableDataProductCache() && !string.IsNullOrEmpty(cacheFolder))
+            T product = null;
+            if (EnableDataProductDiskCache() && !string.IsNullOrEmpty(cacheFolder))
             {
                 var cacheFile = DownloadCachePath(cacheFolder, guid);
                 if (!File.Exists(cacheFile))
@@ -462,18 +473,21 @@ namespace OPS.Pipeline
                                     File.Copy(file, cacheFile);
                                     //not using File.Move() here GetFile() is not guaranteed to return a temp file
                                     //in practice currently it does not only for LocalPipeline
-                                    //but in that case EnableDataProductCache() is false
+                                    //but in that case EnableDataProductDiskCache() is false
                                 }
                             }
                         });
                 }
-                res = DataProduct.Load<T>(File.ReadAllBytes(cacheFile));
+                product = DataProduct.Load<T>(File.ReadAllBytes(cacheFile));
             }
             else
             {
-                GetFile(url, f => res = DataProduct.Load<T>(File.ReadAllBytes(f)));
+                GetFile(url, f => product = DataProduct.Load<T>(File.ReadAllBytes(f)));
             }
-            return res;
+
+            dataProductCache[product.Guid] = product;
+
+            return product;
         }
 
         public T GetDataProduct<T>(string path, Guid guid, string cacheFolder = null) where T : DataProduct, new()
@@ -509,7 +523,7 @@ namespace OPS.Pipeline
                 SaveFile(file, url);
             };
 
-            if (EnableDataProductCache() && cacheFolder != null)
+            if (EnableDataProductDiskCache() && cacheFolder != null)
             {
                 var file = DownloadCachePath(cacheFolder, guid);
                 if (!File.Exists(file))
@@ -525,6 +539,8 @@ namespace OPS.Pipeline
             {
                 TemporaryFile.GetAndDelete("", writeAndUpload);
             }
+
+            dataProductCache[product.Guid] = product;
         }
 
         public void SaveDataProduct(Project project, DataProduct product)

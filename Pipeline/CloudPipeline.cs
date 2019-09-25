@@ -35,14 +35,16 @@ namespace OPS.Pipeline
         private readonly StorageHelper defaultStorage;
         private readonly Dictionary<string, StorageHelper> storageSelect = new Dictionary<string, StorageHelper>();
 
-        public CloudPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
-                             bool quietInit = false,
+        public CloudPipeline(PipelineCoreOptions options, ILog logger = null, bool quietInit = false,
+                             int? lruImageCache = null, int? lruDataProductCache = null, 
                              bool enableS3 = true, bool enableDynamo = true,
                              bool initQueues = true, bool initTables = true,
                              string queuePrefix = null, string tablePrefix = null, int? maxCores = null)
             : base(options, CloudPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
-                   CloudPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
+                   CloudPipelineConfig.Instance.Venue, logger, quietInit,
+                   lruImageCache.HasValue ? lruImageCache : CloudPipelineConfig.Instance.ImageMemCache,
+                   lruDataProductCache.HasValue ? lruDataProductCache : CloudPipelineConfig.Instance.DataProductMemCache,
                    options.SingleThreaded ? 1 : maxCores ?? CloudPipelineConfig.Instance.MaxCores)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
