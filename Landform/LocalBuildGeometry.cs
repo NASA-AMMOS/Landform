@@ -243,6 +243,9 @@ namespace OPS.Landform
             {
                 SaveMesh(mesh, sceneMesh.Name);
             }
+
+            var bounds = mesh.Bounds().Size();
+            pipeline.LogInfo("scene bounds (meters): {0:F3}x{1:F3}x{2:F3}", bounds.X, bounds.Y, bounds.Z);
         }
     }
 }
