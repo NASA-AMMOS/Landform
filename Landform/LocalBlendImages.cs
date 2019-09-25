@@ -183,7 +183,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("generating shrinkwrap mesh in frame {0} from input mesh with {1} faces" +
                              ": grid resolution {2}, projection axis {3}, mode {4}, miss behavior {5}",
-                             meshFrame, FMT.KMG(inputMesh.Faces.Count), options.GridResolution, options.ProjectionAxis,
+                             meshFrame, Fmt.KMG(inputMesh.Faces.Count), options.GridResolution, options.ProjectionAxis,
                              options.ShrinkwrapMode, options.ShrinkwrapMiss);
 
             Mesh gridMesh = Shrinkwrap.BuildGrid(inputMesh, options.GridResolution, options.GridResolution,
@@ -191,7 +191,7 @@ namespace OPS.Landform
 
             mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis, options.ShrinkwrapMiss);
 
-            pipeline.LogInfo("built shrinkwrap mesh with {0} faces", FMT.KMG(mesh.Faces.Count));
+            pipeline.LogInfo("built shrinkwrap mesh with {0} faces", Fmt.KMG(mesh.Faces.Count));
 
             if (mesh.Faces.Count == 0)
             {

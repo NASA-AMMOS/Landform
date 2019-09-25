@@ -201,7 +201,7 @@ namespace OPS.Pipeline.TilingServer
                 }
                 int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
                 pipeline.LogInfo("combining {0} point clouds with clever combine, total {1} points",
-                                 meshes.Count, FMT.KMG(nv));
+                                 meshes.Count, Fmt.KMG(nv));
                 aggregatePointCloud = CleverCombinePointClouds.Combine(origins.ToArray(), meshes.ToArray());
             }
             else
@@ -209,7 +209,7 @@ namespace OPS.Pipeline.TilingServer
                 info("merging point clouds");
                 var meshes = obsToMesh.Values.ToArray();
                 int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
-                info(string.Format("merging {0} point clouds, total {1} points", meshes.Length, FMT.KMG(nv)));
+                info(string.Format("merging {0} point clouds, total {1} points", meshes.Length, Fmt.KMG(nv)));
                 aggregatePointCloud.MergeWith(meshes, normalize: false, removeDuplicateVerts: false);
             }
 
@@ -226,7 +226,7 @@ namespace OPS.Pipeline.TilingServer
             pointBounds = aggregatePointCloud.Bounds();
 
             info(string.Format("Poisson reconstructing mesh from {0} points",
-                               FMT.KMG(aggregatePointCloud.Vertices.Count)));
+                               Fmt.KMG(aggregatePointCloud.Vertices.Count)));
             PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
             {
                 //extrapolates the edges of the mesh
@@ -249,7 +249,7 @@ namespace OPS.Pipeline.TilingServer
 
             var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
 
-            info(string.Format("Poisson reconstructed mesh with {0} faces", FMT.KMG(ret.Faces.Count)));
+            info(string.Format("Poisson reconstructed mesh with {0} faces", Fmt.KMG(ret.Faces.Count)));
 
             return ret;
         }

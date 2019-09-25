@@ -178,10 +178,10 @@ namespace OPS.Pipeline
                 var st = entry.Value;
                 var sec = now - st.StartSec;
                 var msg = string.Format("[{0}] {1} {2}: {3}, running for {4}",
-                                        projectName, st.LatestOperation, id, st.LatestStatus, FMT.HMS(sec * 1e3));
+                                        projectName, st.LatestOperation, id, st.LatestStatus, Fmt.HMS(sec * 1e3));
                 if (sec > warnSec)
                 {
-                    LogWarn(msg + " > {0}", FMT.HMS(warnSec * 1e3));
+                    LogWarn(msg + " > {0}", Fmt.HMS(warnSec * 1e3));
                 }
                 else if (verbose)
                 {

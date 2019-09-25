@@ -316,7 +316,7 @@ namespace OPS.Pipeline
             info = info ?? (msg => {});
 
             int np = pointsToBackproject.Count, nc = backprojectContexts.Count; 
-            info(string.Format("backprojecting {0} points into {1} images, quality {2}", FMT.KMG(np), nc, quality));
+            info(string.Format("backprojecting {0} points into {1} images, quality {2}", Fmt.KMG(np), nc, quality));
 
             //calculate goodness: median distance between source pixels in meters on the terrain: smaller distance == better texture
             info("calculating image goodness");
@@ -348,19 +348,19 @@ namespace OPS.Pipeline
             {
                 int nr = pointsToBackproject.Count;
                 info(string.Format("backprojecting into image {0}/{1} ({2}%), {3} sample points remaining",
-                                   ++n, nc, (int)(100 * ((float)n - 1) / nc), FMT.KMG(nr)));
+                                   ++n, nc, (int)(100 * ((float)n - 1) / nc), Fmt.KMG(nr)));
 
                 Stopwatch sw = Stopwatch.StartNew();
                 var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh.Mean, ctx.FrustumHull,
                                                       (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), ctx.Mask,
                                                       pointsToBackproject, ctx.Obs.Width, ctx.Obs.Height,
                                                       occlusionScene);
-                timing(string.Format("backprojected {0} points to image {1} in {2}", FMT.KMG(nr), n, FMT.HMS(sw)));
+                timing(string.Format("backprojected {0} points to image {1} in {2}", Fmt.KMG(nr), n, Fmt.HMS(sw)));
 
                 if (pixelsSucceeded.Any())
                 {
                     int ns = pixelsSucceeded.Count;
-                    timing(string.Format("{0} sample points backprojected to image {1}", FMT.KMG(ns), n));
+                    timing(string.Format("{0} sample points backprojected to image {1}", Fmt.KMG(ns), n));
 
                     sw.Restart();
 #if BACKPROJECT_TIMING
@@ -381,7 +381,7 @@ namespace OPS.Pipeline
                         }
 #endif
                     }
-                    timing(string.Format("recorded {0} results in {1}", FMT.KMG(ns), FMT.HMS(sw)));
+                    timing(string.Format("recorded {0} results in {1}", Fmt.KMG(ns), Fmt.HMS(sw)));
 
                     sw.Restart();
                     remaining.Clear();
@@ -396,7 +396,7 @@ namespace OPS.Pipeline
                     pointsToBackproject = remaining;
                     remaining = tmp;
                     timing(string.Format("filtered {0} remaining points in {1}",
-                                         FMT.KMG(pointsToBackproject.Count), FMT.HMS(sw)));
+                                         Fmt.KMG(pointsToBackproject.Count), Fmt.HMS(sw)));
                 }
             }
 

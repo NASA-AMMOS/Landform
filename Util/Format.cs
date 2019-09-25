@@ -5,7 +5,7 @@ using System.Diagnostics;
 
 namespace OPS.Util
 {
-    public class FMT
+    public class Fmt
     {
         public static string HMS(double ms)
         {

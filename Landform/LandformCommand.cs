@@ -87,12 +87,12 @@ namespace OPS.Landform
         {
             stopwatch.Stop();
             var totalMS = stopwatch.ElapsedMilliseconds + pipeline.InitMSPerPhase.Values.Sum();
-            pipeline.LogInfo("-- {0} total elapsed time --", FMT.HMS(totalMS));
+            pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(totalMS));
             foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
             {
                 foreach (var entry in table)
                 {
-                    pipeline.LogInfo("{0} {1}", FMT.HMS(entry.Value), entry.Key);
+                    pipeline.LogInfo("{0} {1}", Fmt.HMS(entry.Value), entry.Key);
                 }
             }
             pipeline.LogInfo("local output path: {0}", localOutputPath);
@@ -111,7 +111,7 @@ namespace OPS.Landform
                 func();
                 var msEnd = stopwatch.ElapsedMilliseconds;
                 var ms = msPerPhase[phase] = msEnd - msStart;
-                pipeline.LogInfo("{0}: {1}, total {2}", phase, FMT.HMS(ms), FMT.HMS(msEnd));
+                pipeline.LogInfo("{0}: {1}, total {2}", phase, Fmt.HMS(ms), Fmt.HMS(msEnd));
             }
             catch
             {
