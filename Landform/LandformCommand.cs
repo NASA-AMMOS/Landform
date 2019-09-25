@@ -3,6 +3,7 @@ using System.IO;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using CommandLine;
 using OPS.Util;
 using OPS.Pipeline;
@@ -85,7 +86,8 @@ namespace OPS.Landform
         protected void StopStopwatch()
         {
             stopwatch.Stop();
-            pipeline.LogInfo("-- {0} total elapsed time --", FMT.HMS(stopwatch.ElapsedMilliseconds));
+            var totalMS = stopwatch.ElapsedMilliseconds + pipeline.InitMSPerPhase.Values.Sum();
+            pipeline.LogInfo("-- {0} total elapsed time --", FMT.HMS(totalMS));
             foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
             {
                 foreach (var entry in table)
