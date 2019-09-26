@@ -19,6 +19,8 @@ namespace OPS.Pipeline.AlignmentServer
         RoverMask
     }
 
+    public enum TextureVariant { Original, Blurred, Blended };
+
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
     /// Can be connected to Frames and aligned with other observations through FrameTransforms

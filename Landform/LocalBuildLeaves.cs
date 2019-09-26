@@ -38,8 +38,8 @@ namespace OPS.Landform
         [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = Backproject.TextureVariant.Blended)]
-        public override Backproject.TextureVariant TextureVariant { get; set; }
+        [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = TextureVariant.Blended)]
+        public override TextureVariant TextureVariant { get; set; }
 
         [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
         public bool DontInpaint { get; set; }
@@ -306,7 +306,8 @@ namespace OPS.Landform
                 bakeClipper.InitTextureBaker();
             }
 
-            var texMsg = resolution + "x" + resolution + " textures";
+            var texMsg = string.Format("{0}x{0} {1} textures (falling back to {2})",
+                                       resolution, options.TextureVariant, TextureVariant.Original);
             pipeline.LogInfo("processing {0} leaves{1}", leafCount, 
                              bakeTextures ? ", baking " + texMsg :
                              backprojectTextures ? ", backprojecting " + texMsg : "");

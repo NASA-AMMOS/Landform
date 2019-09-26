@@ -35,8 +35,8 @@ namespace OPS.Landform
         [Option(HelpText = "Output texture resolution, should be power of two", Default = 4096)]
         public virtual int TextureResolution { get; set; }
 
-        [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = Backproject.TextureVariant.Original)]
-        public virtual Backproject.TextureVariant TextureVariant { get; set; }
+        [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
+        public virtual TextureVariant TextureVariant { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
@@ -145,9 +145,9 @@ namespace OPS.Landform
         {
             switch (tcopts.TextureVariant)
             {
-                case Backproject.TextureVariant.Original: break;
-                case Backproject.TextureVariant.Blurred: BuildBlurredObservationImages(); break;
-                case Backproject.TextureVariant.Blended: EnsureBlendedObservationImages(); break;
+                case TextureVariant.Original: break;
+                case TextureVariant.Blurred: BuildBlurredObservationImages(); break;
+                case TextureVariant.Blended: EnsureBlendedObservationImages(); break;
                 default: throw new Exception("unknown texture variant " + tcopts.TextureVariant);
             }
         }
@@ -367,7 +367,7 @@ namespace OPS.Landform
             return index;
         }
 
-        protected Image BuildBackprojectTexture(Backproject.TextureVariant textureVariant)
+        protected Image BuildBackprojectTexture(TextureVariant textureVariant)
         {
             pipeline.LogInfo("creating backproject texture");
             Image texture = new Image(3, resolution, resolution);
@@ -381,9 +381,9 @@ namespace OPS.Landform
                 pipeline.SaveDataProduct(project, texProd);
                 switch (textureVariant)
                 {
-                    case Backproject.TextureVariant.Original: sceneMesh.TextureGuid = texProd.Guid; break;
-                    case Backproject.TextureVariant.Blurred: sceneMesh.BlurredTextureGuid = texProd.Guid; break;
-                    case Backproject.TextureVariant.Blended: sceneMesh.BlendedTextureGuid = texProd.Guid; break;
+                    case TextureVariant.Original: sceneMesh.TextureGuid = texProd.Guid; break;
+                    case TextureVariant.Blurred: sceneMesh.BlurredTextureGuid = texProd.Guid; break;
+                    case TextureVariant.Blended: sceneMesh.BlendedTextureGuid = texProd.Guid; break;
                     default: throw new Exception("unknown texture variant " + textureVariant);
                 }
                 sceneMesh.Save(pipeline);
@@ -408,7 +408,7 @@ namespace OPS.Landform
             SaveMesh(mesh, name, name + imageExt);
         }
 
-        protected void SaveBackprojectTextureDebug(Image texture, Backproject.TextureVariant textureVariant)
+        protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
         {
             pipeline.LogInfo("saving backproject {0} textured mesh", textureVariant);
             string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();

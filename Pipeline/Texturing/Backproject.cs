@@ -101,8 +101,6 @@ namespace OPS.Pipeline
             return previewImg;
         }
 
-        public enum TextureVariant { Original, Blurred, Blended };
-
         /// <summary>
         /// high level function that takes backproject results and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
         /// </summary>

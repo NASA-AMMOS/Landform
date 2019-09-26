@@ -23,8 +23,8 @@ namespace OPS.Landform
     [Verb("local-blend-images", HelpText = "blend observation images")]
     public class LocalBlendImagesOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = Backproject.TextureVariant.Blurred)]
-        public override Backproject.TextureVariant TextureVariant { get; set; }
+        [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
+        public override TextureVariant TextureVariant { get; set; }
 
         [Option(HelpText = "Inpaint blended observation diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
         public int Inpaint { get; set; }
@@ -125,7 +125,7 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (options.TextureVariant != Backproject.TextureVariant.Blurred)
+            if (options.TextureVariant != TextureVariant.Blurred)
             {
                 throw new Exception("this command only supports --texturevariant=Blurred");
             }
@@ -253,7 +253,7 @@ namespace OPS.Landform
                 if (options.WriteDebug)
                 {
                     SaveBackprojectIndexDebug(shrinkwrapBackprojectIndex);
-                    SaveBackprojectTextureDebug(shrinkwrapBlurredTexture, Backproject.TextureVariant.Blurred);
+                    SaveBackprojectTextureDebug(shrinkwrapBlurredTexture, TextureVariant.Blurred);
                 }
                 return;
             }
@@ -264,7 +264,7 @@ namespace OPS.Landform
 
             shrinkwrapBackprojectIndex = BuildBackprojectIndex();
 
-            shrinkwrapBlurredTexture = BuildBackprojectTexture(Backproject.TextureVariant.Blurred);
+            shrinkwrapBlurredTexture = BuildBackprojectTexture(TextureVariant.Blurred);
 
             pipeline.LogInfo("created {0}x{0} shrinkwrap texture", resolution);
         }
@@ -276,7 +276,7 @@ namespace OPS.Landform
                 if (options.WriteDebug)
                 {
                     pipeline.LogInfo("saving shrinkwrap blended texture and textured mesh");
-                    string name = sceneMesh.Name + "_backprojectTexture_" + Backproject.TextureVariant.Blended;
+                    string name = sceneMesh.Name + "_backprojectTexture_" + TextureVariant.Blended;
                     SaveImage(shrinkwrapBlendedTexture, name);
                     SaveMesh(mesh, name, name + imageExt);
                 }
@@ -437,6 +437,7 @@ namespace OPS.Landform
                     {
                         if (options.WriteDebug)
                         {
+                            writeDebug(pipeline.LoadImage(obs.Url), obs, "");
                             var dbg = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlendedGuid).Image;
                             //not generating _diff debug image here, run with --redoblendedobservationtextures for that
                             writeDebug(dbg, obs, "_blended");
@@ -475,6 +476,7 @@ namespace OPS.Landform
                     }
                     
                     Image img = pipeline.LoadImage(obs.Url);
+                    writeDebug(img, obs, "");
                     
                     var diffImage = new Image(img.Bands, img.Width, img.Height);
                     diffImage.CreateMask(true); //all pixels initially masked
