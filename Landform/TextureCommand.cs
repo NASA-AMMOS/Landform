@@ -401,7 +401,7 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("saving backproject index false color textured mesh");
             string name = sceneMesh.Name + "_backprojectIndex";
-            //SaveFloatTIFF(index, name); //is this really useful?
+            SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
             name += "FalseColor";
             SaveImage(previewImg, name);
