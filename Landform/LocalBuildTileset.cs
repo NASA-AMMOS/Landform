@@ -39,6 +39,8 @@ namespace OPS.Landform
 
     public class LocalBuildTileset : TilingCommand
     {
+        private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
+        private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
         private const int MAX_LEAF_GROUP_SIZE = 32;
         private const int SLEEP_MS = 500;
 
@@ -225,6 +227,7 @@ namespace OPS.Landform
 
         private void BuildLeavesAndDefineParents()
         {
+            TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE);
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
             dt.DownloadInputsAndBuildTree(tilingProject, !options.NoProgress,
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
@@ -262,6 +265,8 @@ namespace OPS.Landform
             {
                 (executive as DeferredExecutive).Quit();
             }
+
+            TilingNode.DumpLRUCacheStats(pipeline);
         }
     }
 }

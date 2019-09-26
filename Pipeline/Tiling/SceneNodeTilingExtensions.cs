@@ -269,7 +269,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="nodes"></param>
         /// <returns></returns>
-        public static SceneNode ConnectNodesByName(List<SceneNode> nodes)
+        public static SceneNode ConnectNodesByName(IEnumerable<SceneNode> nodes)
         {
             Dictionary<string, SceneNode> lookup = new Dictionary<string, SceneNode>();
             foreach(var node in nodes)
@@ -306,13 +306,16 @@ namespace OPS.Pipeline
         /// meshes will also be enclosed by the calculated bounds.
         /// </summary>
         /// <param name="root"></param>
-        public static void ComputeBounds(SceneNode root)
+        public static void ComputeBounds(SceneNode root, bool useExistingLeafBounds = false)
         {
             HashSet<SceneNode> curParents = new HashSet<SceneNode>();
             foreach (var leaf in root.Leaves())
             {
-                var pair = leaf.GetComponent<MeshImagePair>();
-                leaf.GetOrAddComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
+                if (!useExistingLeafBounds || !leaf.HasComponent<NodeBounds>())
+                {
+                    var pair = leaf.GetComponent<MeshImagePair>();
+                    leaf.GetOrAddComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
+                }
                 if (leaf.Parent != null)
                 {
                     curParents.Add(leaf.Parent);

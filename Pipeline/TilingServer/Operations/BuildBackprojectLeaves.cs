@@ -108,6 +108,7 @@ namespace OPS.Pipeline.TilingServer
                 LogInfo("saving leaf tile mesh");
                 var node = TilingNode.Find(pipeline, projectName, leaf.Id);
                 node.SaveMesh(leafPair, pipeline, project);
+                node.Save(pipeline);
 
                 //notify the tiling server that a tile is ready for building into parent tiles
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id});                

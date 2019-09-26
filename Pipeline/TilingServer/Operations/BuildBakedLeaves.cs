@@ -141,6 +141,7 @@ namespace OPS.Pipeline.TilingServer
 
                 LogInfo("saving leaf tile mesh");
                 leaf.SaveMesh(pair, pipeline, project);
+                leaf.Save(pipeline);
 
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
             });

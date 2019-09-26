@@ -49,18 +49,20 @@ namespace OPS.Pipeline.TilingServer
 
             LogInfo("collecting dependencies to build parent {0}", parent.Id);
             var idToNode = new ConcurrentDictionary<string, SceneNode>();
-            var dependsOnTilingNodes = parent.DependsOn.Select(cid => TilingNode.Find(pipeline, projectName, cid));
-            Serial.ForEach(dependsOnTilingNodes, n =>
+            var dependsOnTilingNodes = parent.DependsOn.Select(id => TilingNode.Find(pipeline, projectName, id));
+            CoreLimitedParallel.ForEach(dependsOnTilingNodes, tilingNode =>
             {
-                SceneNode node = n.GetSceneNode();
-                if (n.LoadMeshImagePair(node, pipeline))
+                var sceneNode = tilingNode.MakeSceneNode();
+                var pair = tilingNode.LoadMeshImagePair(pipeline);
+                if (pair != null)
                 {
-                    idToNode.TryAdd(n.Id, node);
+                    sceneNode.AddComponent(pair);
+                    idToNode.TryAdd(tilingNode.Id, sceneNode);
                 }
             });
 
-            SceneNode parentSceneNode = parent.GetSceneNode();
-            foreach (var childId in parent.DependsOn)
+            SceneNode parentSceneNode = parent.MakeSceneNode();
+            foreach (var childId in parent.GetDependsOn())
             {
                 if (!idToNode.ContainsKey(childId))
                 {
@@ -79,7 +81,8 @@ namespace OPS.Pipeline.TilingServer
                                                           error: msg => { throw new Exception(msg); });
                 var pair = parentSceneNode.GetComponent<MeshImagePair>();
                 parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
-                parent.SaveMesh(pair, pipeline, project); //will save parent back to DB including updated GeometricError
+                parent.SaveMesh(pair, pipeline, project);
+                parent.Save(pipeline);
             }
             else
             {

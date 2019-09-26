@@ -99,145 +99,11 @@ namespace OPS.Pipeline.TilingServer
         public void DownloadInputsAndBuildTree(TilingProject project, bool progress = true,
                                                bool skipSavingInternalTileMeshesForUserDefinedNodes = false)
         {
-            int numUserDefinedNodes = 0;
-            SceneNode root = null;
-            if (project.GetTilingScheme() == TilingScheme.UserDefined)
+            void spew(string what, int n, int chunk)
             {
-                // Build a tree based on existing tile ids
-                var inputs = TilingInput.Find(pipeline, project).ToList();
-                LogInfo("user-defined tiling scheme, {0} inputs", inputs.Count);
-                var nodes = new List<SceneNode>();
-                int nd = 0;
-                CoreLimitedParallel.ForEach(inputs, input =>
+                if (n % chunk == 0)
                 {
-                    MeshImagePair pair = DownloadInput(input);                  
-                    var node = new SceneNode(input.TileId);
-                    node.AddComponent(pair);
-                    lock (nodes)
-                    {
-                        nodes.Add(node);   
-                    }
-
-                    Interlocked.Increment(ref nd);
-                    if (nd % 50 == 0)
-                    {
-                        var msg = string.Format("downloaded {0} inputs", nd);
-                        if (progress)
-                        {
-                            LogInfo(msg);
-                        }
-                        else
-                        {
-                            SendStatusToMaster(msg);
-                        }
-                    }
-                });
-                numUserDefinedNodes = nodes.Count;
-                LogInfo("loaded inputs, connecting {0} user defined nodes by name and adding mising parent nodes",
-                        numUserDefinedNodes);
-                root = SceneNodeTilingExtensions.ConnectNodesByName(nodes);
-                LogInfo("computing bounds");
-                SceneNodeTilingExtensions.ComputeBounds(root);
-            }
-            else
-            {
-                // Buid a tree using input datasets
-                var inputs = TilingInput.Find(pipeline, project).ToList();
-                LogInfo("tiling scheme {0}, {1} inputs", project.TilingScheme, inputs.Count);
-
-                List<OPS.Pipeline.MeshImagePair> pairs = new List<MeshImagePair>();
-                foreach (var input in inputs)
-                {
-                    pairs.Add(DownloadInput(input));
-                }
-
-                LogInfo("loaded inputs, building tree");
-                root = BuildTileTreeFromInputs(pipeline, project.GetTilingScheme(), project.FacesPerTile, pairs, null,
-                                               logPrefix);
-            }
-
-            LogInfo("computing node dependencies");
-            var dependencies = new TileDependencyMapping();
-            int nn = 0, n = 0;
-            foreach (var node in root.DepthFirstTraverse())
-            {
-                nn++;
-                if (!node.IsLeaf)
-                {
-                    foreach (var d in node.FindNodesRequiredForParent(root))
-                    {
-                        dependencies.AddDependency(node.Name, d.Name);
-                    }
-                }
-            }
-
-            LogInfo("saving tile tree{0}, {1} nodes",
-                    numUserDefinedNodes > 0 ? " and converting user defined nodes" : "", nn);
-
-            List<string> ids = new List<string>();
-            foreach (var node in root.DepthFirstTraverse())
-            {
-                ids.Add(node.Name);
-                string parentId = node.Parent == null ? null : node.Parent.Name;
-                var tilingNode = TilingNode.Create(pipeline, node.Name, projectName,
-                                                   null /* meshUrl */, null /* imageUrl */,
-                                                   parentId,
-                                                   dependencies.DependsOn(node.Name),
-                                                   dependencies.DependedOnBy(node.Name),
-                                                   node.GetComponent<NodeBounds>().Bounds);
-
-                if (node.HasComponent<MeshImagePair>()) //user defined tile
-                {
-                    //save user supplied tile meshes to project storage
-                    //this both saves them in our internal formats, typically ply / png
-                    //as well as the final output tileset format, typically b3dm / jpg
-
-                    var mp = node.GetComponent<MeshImagePair>();
-
-                    //when we're called from LocalBuildTileset we just read the leaf tiles from InternalTileDir
-                    //so no need to re-save them right back there
-                    //though we do want to save corresponding b3dm files to TilesetDir
-                    bool saveInternal = !skipSavingInternalTileMeshesForUserDefinedNodes;
-                    if (!saveInternal && !string.IsNullOrEmpty(project.InternalTileDir))
-                    {
-                        if (mp.Mesh != null)
-                        {
-                            string file = node.Name + TilingProject.ToExt(project.InternalMeshFormat);
-                            tilingNode.MeshUrl = pipeline.GetStorageUrl(project.InternalTileDir, project.Name, file);
-                        }
-
-                        if (mp.Image != null)
-                        {
-                            string file = node.Name + TilingProject.ToExt(project.InternalImageFormat);
-                            tilingNode.ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, project.Name, file);
-                        }
-
-                        if (mp.Mesh != null || mp.Image != null)
-                        {
-                            tilingNode.Save(pipeline);
-                        }
-                    }
-
-                    //geometric error is zero for user defined leaves
-                    if (node.Transform.ChildCount == 0)
-                    {
-                        tilingNode.GeometricError = 0;
-                        node.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
-                    }
-                    //for user defined parent nodes geometric error will be computed in BuildParent
-
-                    //will save tilingNode back to database including geometric error
-                    tilingNode.SaveMesh(mp, pipeline, project, saveInternal);
-                }
-
-                if (pipeline is CloudPipeline)
-                {
-                    Thread.Sleep(10); //throttle to reduce chance of exponential backoff
-                }
-
-                if (++n % 500 == 0)
-                {
-                    var msg = string.Format("created {0} nodes", n);
+                    var msg = string.Format("{0} {1} nodes", what, n);
                     if (progress)
                     {
                         LogInfo(msg);
@@ -247,6 +113,139 @@ namespace OPS.Pipeline.TilingServer
                         SendStatusToMaster(msg);
                     }
                 }
+            }
+
+            SceneNode root = null;
+
+            var tilingScheme = project.GetTilingScheme();
+            bool userDefined = tilingScheme == TilingScheme.UserDefined;
+
+            var idToSceneNode = new Dictionary<string, SceneNode>();
+            var idToTilingNode = new ConcurrentDictionary<string, TilingNode>();
+
+            int numUserTiles = 0;
+            if (userDefined) // build a tree based on user supplied leaf tiles
+            {
+                // (user may or may not also have supplied some parent tiles)
+
+                var inputs = TilingInput.Find(pipeline, project).ToList();
+                LogInfo("user defined tiling scheme, {0} inputs", inputs.Count);
+
+                foreach (var input in inputs)
+                {
+                    var id = input.TileId;
+                    idToSceneNode[id] = new SceneNode(id); 
+                }
+
+                numUserTiles = idToSceneNode.Count;
+
+                LogInfo("connecting {0} user defined nodes by name and adding mising parent nodes", numUserTiles);
+
+                root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
+
+                int n = 0;
+                LogInfo("converting {0} user defined tiles", numUserTiles);
+                CoreLimitedParallel.ForEach(inputs, input =>
+                {
+                    var id = input.TileId;
+                    var sceneNode = idToSceneNode[id];
+
+                    string parentId = sceneNode.Parent == null ? null : sceneNode.Parent.Name;
+                    var tilingNode = TilingNode.Create(pipeline, id, project.Name, parentId, save: false);
+                    idToTilingNode[id] = tilingNode;
+
+                    //geometric error is zero for user defined leaves
+                    if (sceneNode.IsLeaf)
+                    {
+                        sceneNode.AddComponent(new NodeGeometricError(0)); //will be propagated to tilingNode below
+                        //for user defined parent nodes geometric error will be computed in BuildParent
+                    }
+
+                    sceneNode.AddComponent<NodeBounds>();
+
+                    tilingNode.MeshUrl = input.MeshUrl;
+                    tilingNode.ImageUrl = input.ImageUrl;
+
+                    //don't add pair to sceneNode, would be a memory leak
+                    var pair = tilingNode.LoadMeshImagePair(pipeline, cleanMesh: true);
+                    if (pair != null)
+                    {
+                        sceneNode.GetComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
+                        bool saveInternal = !skipSavingInternalTileMeshesForUserDefinedNodes;
+                        tilingNode.SaveMesh(pair, pipeline, project, saveInternal);
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("failed to load mesh for user defined tile {0}", id);
+                    }
+
+                    Interlocked.Increment(ref n);
+                    spew("converted", n, 50);
+                });
+                LogInfo("computing tile tree bounds");
+                SceneNodeTilingExtensions.ComputeBounds(root, useExistingLeafBounds: true);
+            }
+            else // automatically build all leaves and parents from one or more input meshes
+            {
+                var inputs = TilingInput.Find(pipeline, project).ToList();
+                LogInfo("tiling scheme {0}, {1} inputs", project.TilingScheme, inputs.Count);
+                var pairs = new List<MeshImagePair>();
+                foreach (var input in inputs)
+                {
+                    pairs.Add(DownloadInput(input));
+                }
+                LogInfo("loaded {0} input meshes, building tree", inputs.Count);
+                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, pairs, null, logPrefix);
+            }
+
+            LogInfo("computing tiling node dependencies");
+            var dependencies = new TileDependencyMapping();
+            foreach (var sceneNode in root.DepthFirstTraverse())
+            {
+                var id = sceneNode.Name;
+                idToSceneNode[id] = sceneNode;
+                if (!sceneNode.IsLeaf)
+                {
+                    foreach (var d in sceneNode.FindNodesRequiredForParent(root))
+                    {
+                        dependencies.AddDependency(id, d.Name);
+                    }
+                }
+            }
+
+            LogInfo("saving {0} tiling nodes to database", idToSceneNode.Count);
+
+            var ids = new List<string>();
+            int numSaved = 0;
+            foreach (var sceneNode in root.DepthFirstTraverse())
+            {
+                var id = sceneNode.Name;
+                ids.Add(id);
+
+                string parentId = sceneNode.Parent == null ? null : sceneNode.Parent.Name;
+                var tilingNode = idToTilingNode.ContainsKey(id) ? idToTilingNode[id] :
+                    TilingNode.Create(pipeline, id, projectName, parentId);
+
+                tilingNode.AddToDependsOn(dependencies.DependsOn(id));
+                tilingNode.AddToDependedOnBy(dependencies.DependedOnBy(id));
+                if (sceneNode.HasComponent<NodeBounds>())
+                {
+                    tilingNode.SetBounds(sceneNode.GetComponent<NodeBounds>().Bounds);
+                }
+
+                if (sceneNode.HasComponent<NodeGeometricError>())
+                {
+                    tilingNode.GeometricError = sceneNode.GetComponent<NodeGeometricError>().Error;
+                }
+
+                tilingNode.Save(pipeline);
+
+                if (pipeline is CloudPipeline)
+                {
+                    Thread.Sleep(10); //throttle to reduce chance of exponential backoff
+                }
+
+                spew("saved", ++numSaved, 500);
             }
 
             LogInfo("saving node IDs and project");

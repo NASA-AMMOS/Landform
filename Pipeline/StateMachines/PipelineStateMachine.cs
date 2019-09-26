@@ -171,6 +171,7 @@ namespace OPS.Pipeline
         virtual public void SpewStatus(double warnSec = DEF_LONG_TASK_WARN_SEC, bool verbose = false)
         {
             LogInfo("{0} tasks in flight", status.Count);
+            TilingNode.DumpLRUCacheStats(pipeline);
             int ndr = PathHelper.NumDeleteRetries;
             if (ndr > 0)
             {

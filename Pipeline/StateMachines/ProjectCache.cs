@@ -88,20 +88,15 @@ namespace OPS.Pipeline
             {
                 ids.Add(n.Id);
 
-                lock (n.DependedOnBy)
-                { 
-                    dependedOnBy.Add(n.Id, n.DependedOnBy.ToArray());
-                }
+                dependedOnBy.Add(n.Id, n.GetDependedOnBy());
 
-                lock (n.DependsOn)
-                {
-                    dependsOn.Add(n.Id, n.DependsOn.ToArray());
-                }
+                dependsOn.Add(n.Id, n.GetDependsOn());
 
                 if (n.MeshUrl != null)
                 {
                     completed.Add(n.Id);
                 }
+
                 if (n.ParentId == null)
                 {
                     rootId = n.Id;

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.IO;
@@ -28,11 +29,11 @@ namespace OPS.Pipeline.TilingServer
         [DynamoDBRangeKey]
         public string ProjectName;
 
+        public string ParentId;
+
         public string MeshUrl;
 
         public string ImageUrl;
-
-        public string ParentId;
 
         public HashSet<string> DependsOn = new HashSet<string>(); //MT safety: lock before accessing
 
@@ -47,50 +48,28 @@ namespace OPS.Pipeline.TilingServer
         //This constructor must be public for DynamoDB but should not be used
         public TilingNode() { }
 
-        /// <summary>
-        /// Creates Project object locally.  
-        /// </summary>
-        /// <param name="name">Project names in the database must be unique</param>
-        protected TilingNode(string id, string projectName, string meshUrl, string imageUrl, string parentId,
-                             IEnumerable<string> dependsOn, IEnumerable<String> dependedOnBy,
-                             BoundingBox bounds, BoundingBox? boundsWithSkirt = null)
-            : this()
+        protected TilingNode(string id, string projectName, string parentId)
         {
             Id = id;
             ProjectName = projectName;
-            MeshUrl = meshUrl;
-            ImageUrl = imageUrl;
             ParentId = parentId;
-            lock (DependsOn)
-            {
-                DependsOn.UnionWith(dependsOn);
-            }
-            lock (DependedOnBy)
-            {
-                DependedOnBy.UnionWith(dependedOnBy);
-            }
-            Bounds = JsonHelper.ToJson(bounds);
-            BoundsWithSkirt = boundsWithSkirt.HasValue ? JsonHelper.ToJson(boundsWithSkirt) : "";
         }
 
-
-        public static TilingNode Create(PipelineCore pipeline, string id, string projectName,
-                                        string meshUrl, string imageUrl, string parentId,
-                                        IEnumerable<string> dependsOn, IEnumerable<String> dependedOnBy,
-                                        BoundingBox bounds)
+        public static TilingNode Create(PipelineCore pipeline, string id, string projectName, string parentId,
+                                        bool save = true)
         {
-            TilingNode node = new TilingNode(id, projectName, meshUrl, imageUrl, parentId, dependsOn, dependedOnBy,
-                                             bounds);
-            node.Save(pipeline);
+            var node = new TilingNode(id, projectName, parentId);
+            if (save)
+            {
+                node.Save(pipeline);
+            }
             return node;
         }
-
 
         public static TilingNode Find(PipelineCore pipeline, string projectName, string id)
         {
             return pipeline.LoadDatabaseItem<TilingNode>(id, projectName);
         }
-
 
         public static IEnumerable<TilingNode> Find(PipelineCore pipeline, TilingProject project, ILog logger = null,
                                                    bool ignoreErrors = false)
@@ -156,9 +135,50 @@ namespace OPS.Pipeline.TilingServer
             pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
+        public IEnumerable<string> GetDependsOn()
+        {
+            List<string> ids = null;
+            lock (DependsOn)
+            {
+                ids = DependsOn.ToList();
+            }
+            return ids;
+        }
+
+        public void AddToDependsOn(IEnumerable<string> ids)
+        {
+            lock (DependsOn)
+            {
+                DependsOn.UnionWith(ids);
+            }
+        }
+
+        public IEnumerable<string> GetDependedOnBy()
+        {
+            List<string> ids = null;
+            lock (DependedOnBy)
+            {
+                ids = DependedOnBy.ToList();
+            }
+            return ids;
+        }
+
+        public void AddToDependedOnBy(IEnumerable<string> ids)
+        {
+            lock (DependedOnBy)
+            {
+                DependedOnBy.UnionWith(ids);
+            }
+        }
+
         public BoundingBox GetBounds()
         {
             return (BoundingBox)JsonHelper.FromJson(Bounds);
+        }
+
+        public void SetBounds(BoundingBox bounds)
+        {
+            Bounds = JsonHelper.ToJson(bounds);
         }
 
         public BoundingBox? GetBoundsWithSkirt()
@@ -171,9 +191,14 @@ namespace OPS.Pipeline.TilingServer
             return ret;
         }
 
+        public void SetBoundsWithSkirt(BoundingBox bounds)
+        {
+            BoundsWithSkirt = JsonHelper.ToJson(bounds);
+        }
+
         /// <summary>
         /// Assigns a mesh and possibly a corresponding texture image to this node.
-        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt and and saves the node metadata back to DynamoDB.
+        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, but up to caller to save this node itself back to database.
         /// Also uploads the mesh and image (if any) to S3.
         /// Up to three copies of each are uploaded:
         /// 1. in the tile folder for our internal use, in our internal formats (ply, png)
@@ -261,16 +286,19 @@ namespace OPS.Pipeline.TilingServer
                 if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
                 {
                     ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
-                    TemporaryFile.GetAndDelete(imageExt, tmpImage => 
+                    lock (imageReadWriteLock)
+                    {
+                        TemporaryFile.GetAndDelete(imageExt, tmpImage => 
+                        {
+                            pair.Image.Save<byte>(tmpImage);
+                            upload(tmpImage, ImageUrl);
+                            if (exImageUrl != null && exImageExt == imageExt)
                             {
-                                pair.Image.Save<byte>(tmpImage);
-                                upload(tmpImage, ImageUrl);
-                                if (exImageUrl != null && exImageExt == imageExt)
-                                {
-                                    upload(tmpImage, exImageUrl);
-                                    uploadedExImage = true;
-                                }
-                            });
+                                upload(tmpImage, exImageUrl);
+                                uploadedExImage = true;
+                            }
+                        });
+                    }
                 }
                 else
                 {
@@ -282,27 +310,30 @@ namespace OPS.Pipeline.TilingServer
                 //also saves export mesh to S3 iff it and the export image are the same format as our internal formats
                 string meshExt = TilingProject.ToExt(project.InternalMeshFormat);
                 string meshFile = Id + meshExt;
-                if (!string.IsNullOrEmpty(project.InternalTileDir))
+                if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Mesh != null)
                 {
                     MeshUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, meshFile);
-                    TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
+                    lock (meshReadWriteLock)
+                    {
+                        TemporaryFile.GetAndDelete(meshExt, tmpMesh =>
+                        {
+                            //here imageFile is used to embed a reference to the texture image in the mesh file
+                            //in ply format this is in a header comment
+                            //in obj format this writes a sibling .mtl file which contains the image filename
+                            //in no case will this actually attempt to read or embed the image data
+                            //that data will only exist on s3, and only if there is actually an image
+                            //if there is no image then imageFile is null, and that's ok
+                            pair.Mesh.Save(tmpMesh, imageFile);
+                            upload(tmpMesh, MeshUrl);
+                            if (exMeshUrl != null && exMeshExt == meshExt &&
+                                (imageFile == null || exImageExt == imageExt))
                             {
-                                //here imageFile is used to embed a reference to the texture image in the mesh file
-                                //in ply format this is in a header comment
-                                //in obj format this writes a sibling .mtl file which contains the image filename
-                                //in no case will this actually attempt to read or embed the image data
-                                //that data will only exist on s3, and only if there is actually an image
-                                //if there is no image then imageFile is null, and that's ok
-                                pair.Mesh.Save(tmpMesh, imageFile);
-                                upload(tmpMesh, MeshUrl);
-                                if (exMeshUrl != null && exMeshExt == meshExt &&
-                                    (imageFile == null || exImageExt == imageExt))
-                                {
-                                    upload(tmpMesh, exMeshUrl);
-                                    uploadAndDeleteMtl(tmpMesh, imageFile);
-                                    uploadedExMesh = true;
-                                }
-                            });
+                                upload(tmpMesh, exMeshUrl);
+                                uploadAndDeleteMtl(tmpMesh, imageFile);
+                                uploadedExMesh = true;
+                            }
+                        });
+                    }
                 }
                 else
                 {
@@ -335,31 +366,36 @@ namespace OPS.Pipeline.TilingServer
                         {
                             tmpImage =  null;
                         }
-                        var mesh = pair.Mesh;
-                        if (mesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
+
+                        if (pair.Mesh != null)
                         {
-                            mesh = new Mesh(mesh);
-                            mesh.AddSkirt(project.GetSkirtMode());
-                            BoundsWithSkirt = JsonHelper.ToJson(BoundingBoxExtensions.Union(GetBounds(), mesh.Bounds()));
-                        }
-                        else
-                        {
-                            BoundsWithSkirt = "";
-                        }
-                        //for b3dm this reads the image data if any and embeds it into the mesh file
-                        //for pnts the image data is ignored
-                        mesh.Save(tmpMesh, tmpImage);
-                        upload(tmpMesh, tileUrl);
-                        if (tileMeshExt == exMeshExt)
-                        {
-                            uploadedExMesh = true;
+                            Mesh tilesetMesh = pair.Mesh;
+                            if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
+                            {
+                                tilesetMesh = new Mesh(tilesetMesh);
+                                tilesetMesh.AddSkirt(project.GetSkirtMode());
+                                SetBoundsWithSkirt(BoundingBoxExtensions.Union(GetBounds(), tilesetMesh.Bounds()));
+                            }
+                            else
+                            {
+                                BoundsWithSkirt = "";
+                            }
+                            
+                            //for b3dm this reads the image data if any and embeds it into the mesh file
+                            //for pnts the image data is ignored
+                            tilesetMesh.Save(tmpMesh, tmpImage);
+                            upload(tmpMesh, tileUrl);
+                            if (tileMeshExt == exMeshExt)
+                            {
+                                uploadedExMesh = true;
+                            }
                         }
                     });
                 });
             }
 
             //save export image to S3 iff we haven't already
-            if (exImageUrl != null && exImageExt != null && !uploadedExImage)
+            if (pair.Image != null && exImageUrl != null && exImageExt != null && !uploadedExImage)
             {
                 TemporaryFile.GetAndDelete(exImageExt, tmpImage => 
                 {
@@ -370,7 +406,7 @@ namespace OPS.Pipeline.TilingServer
             }
 
             //save export mesh to S3 iff we haven't already
-            if (exMeshUrl != null && exMeshExt != null && !uploadedExMesh)
+            if (pair.Mesh != null && exMeshUrl != null && exMeshExt != null && !uploadedExMesh)
             {
                 TemporaryFile.GetAndDelete(exMeshExt, tmpMesh =>
                 {
@@ -381,10 +417,153 @@ namespace OPS.Pipeline.TilingServer
                 });
             }
 
-            Save(pipeline);
+            //save to LRU cache
+            if (pair.Mesh != null && meshCache != null)
+            {
+                meshCache[MeshUrl] = pair.Mesh;
+            }
+            if (pair.Image != null && imageCache != null)
+            {
+                imageCache[ImageUrl] = pair.Image;
+            }
         }
 
-        public SceneNode GetSceneNode()
+        
+        private static LRUCache<string, Mesh> meshCache;
+        private static LRUCache<string, Image> imageCache;
+
+        public static void SetLRUCacheCapacity(int meshCapacity, int imageCapacity)
+        {
+            if (meshCapacity > 0)
+            {
+                if (meshCache == null)
+                {
+                    meshCache = new LRUCache<string, Mesh>(meshCapacity);
+                }
+                else
+                {
+                    meshCache.Capacity = meshCapacity;
+                }
+            }
+            else
+            {
+                meshCache = null;
+            }
+
+            if (imageCapacity > 0)
+            {
+                if (imageCache == null)
+                {
+                    imageCache = new LRUCache<string, Image>(imageCapacity);
+                }
+                else
+                {
+                    imageCache.Capacity = imageCapacity;
+                }
+            }
+            else
+            {
+                imageCache = null;
+            }
+        }
+
+        public static void DumpLRUCacheStats(PipelineCore pipeline)
+        {
+            if (meshCache != null)
+            {
+                pipeline.LogInfo("tiling node mesh cache (capacity {0}): {1}",
+                                 meshCache.Capacity, meshCache.GetStats());
+            }
+            if (imageCache != null)
+            {
+                pipeline.LogInfo("tiling node image cache (capacity {0}): {1}",
+                                 imageCache.Capacity, imageCache.GetStats());
+            }
+        }
+
+        private Object meshReadWriteLock = new Object();
+        private Object imageReadWriteLock = new Object();
+
+        public MeshImagePair LoadMeshImagePair(PipelineCore pipeline, bool loadImage = true, bool cleanMesh = false)
+        {
+            if (MeshUrl == null)
+            {
+                return null;
+            }
+
+            Mesh mesh = null;
+            if (meshCache != null)
+            {
+                mesh = meshCache[MeshUrl];
+            }
+            if (mesh == null)
+            {
+                lock (meshReadWriteLock)
+                {
+                    if (meshCache != null)
+                    {
+                        mesh = meshCache[MeshUrl];
+                    }
+                    if (mesh == null)
+                    {
+                        pipeline.GetFile(MeshUrl, f => mesh = Mesh.Load(f));
+                        if (cleanMesh)
+                        {
+                            if (!mesh.HasNormals)
+                            {
+                                mesh.GenerateVertexNormals();
+                            }
+                            mesh.RemoveInvalidFaces();
+                            mesh.Clean();
+                        }
+                        else if (!mesh.HasNormals)
+                        {
+                            throw new Exception("no normals on mesh for tiling node " + Id);
+                        }
+                        
+                        if (meshCache != null)
+                        {
+                            meshCache[MeshUrl] = mesh;
+                        }
+                    }
+                }
+            }
+            
+            Image img = null;
+            if (loadImage && ImageUrl != null)
+            {
+                if (!mesh.HasUVs)
+                {
+                    throw new Exception("tiling node has image but no texture coordinates " + Id);
+                }
+                if (imageCache != null)
+                {
+                    img = imageCache[ImageUrl];
+                }
+                if (img == null)
+                {
+                    lock (imageReadWriteLock)
+                    {
+                        if (imageCache != null)
+                        {
+                            img = imageCache[ImageUrl];
+                        }
+                        if (img == null)
+                        {
+                            img = pipeline.LoadImage(ImageUrl);
+                            if (imageCache != null)
+                            {
+                                imageCache[ImageUrl] = img;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return new MeshImagePair(mesh, img);
+        }
+
+        public SceneNode MakeSceneNode()
         {
             SceneNode node = new SceneNode(Id);
             node.AddComponent(new NodeBounds(GetBounds()));
@@ -395,39 +574,6 @@ namespace OPS.Pipeline.TilingServer
             return node;
         }
 
-        public bool LoadMeshImagePair(SceneNode node, PipelineCore pipeline)
-        {
-            if (MeshUrl != null)
-            {
-                Mesh m = null;
-                pipeline.GetFile(MeshUrl, f => m = Mesh.Load(f));
-                Image img = null;
-                if (ImageUrl != null)
-                {
-                    pipeline.GetFile(ImageUrl, f => img = Image.Load(f));
-                }
-                if(m == null)
-                {
-                    throw new Exception("Error loading tiling node mesh");
-                }
-                if (ImageUrl != null && img == null)
-                {
-                    throw new Exception("Error loading tiling node image");
-                }
-                if (img != null && !m.HasUVs)
-                {
-                    throw new Exception("Attempting to load tiling node mesh with image but no UVs");
-                }
-                if (!m.HasNormals)
-                {
-                    throw new Exception("Attempting to load tiling node mesh without normals");
-                }
-                node.AddComponent(new MeshImagePair(m, img));
-                return true;
-            }
-            return false;
-        }
-
         public static SceneNode BuildTreeFromDatabase(PipelineCore pipeline, TilingProject project,
                                                       bool useBoundsWithSkirt = false)
         {
@@ -436,7 +582,7 @@ namespace OPS.Pipeline.TilingServer
             // Create all nodes
             foreach (var n in nodes)
             {
-                var sn = n.GetSceneNode();
+                var sn = n.MakeSceneNode();
                 var sb = n.GetBoundsWithSkirt();
                 if (useBoundsWithSkirt && sb.HasValue)
                 {
