@@ -51,7 +51,8 @@ namespace OPS.Pipeline
         private static readonly float RaycastNearMeters = 0.001f;
 
         /// <summary>
-        /// high level function that takes backproject results and emits an image with observations indices and source pixel locations as the pixel colors (consumed by the image blending stage)
+        /// high level function that takes backproject results
+        /// and emits an image with observations indices and source pixel locations as the pixel colors
         /// </summary>
         static public void FillIndexImage(Dictionary<Pixel, ObsPixel> backprojectResults, Image outputImage)
         {
@@ -62,7 +63,7 @@ namespace OPS.Pipeline
             {
                 var outputPixel = entry.Key;
                 var sourceImageIndex = entry.Value.Obs.Index;
-                var sourceImagePixel = entry.Value.Pixel;
+                var sourcePixel = entry.Value.Pixel;
 
                 if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
                     outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
@@ -75,7 +76,8 @@ namespace OPS.Pipeline
                     throw new InvalidDataException("invalid image index in backproject results");
                 }
 
-                outputImage.SetBandValues(outputPixel.Row, outputPixel.Col, new float[] { sourceImageIndex, (float)sourceImagePixel.Y, (float)sourceImagePixel.X });
+                outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
+                                          new float[] { sourceImageIndex, (float)sourcePixel.Y, (float)sourcePixel.X });
             }
         }
 
@@ -103,7 +105,8 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// high level function that takes backproject results and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
+        /// high level function that takes backproject results
+        /// and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
         /// </summary>
         static public void FillOutputTexture(PipelineCore pipeline, Dictionary<Pixel, ObsPixel> backprojectResults,
                                              Image outputImage, TextureVariant textureVariant = TextureVariant.Original,
@@ -114,7 +117,7 @@ namespace OPS.Pipeline
                 throw new NotImplementedException("Expecting a 3 band output image currently");
             }
 
-            if(!outputImage.HasMask)
+            if (!outputImage.HasMask)
             {
                 outputImage.CreateMask(true);
             }
@@ -235,7 +238,7 @@ namespace OPS.Pipeline
 
             //find image observations only
             string imageObsType = ObservationType.Image.ToString();
-            List<Observation> imageObservations = observations.Where(obs => obs.ObservationType == imageObsType).ToList();
+            var imageObservations = observations.Where(obs => obs.ObservationType == imageObsType).ToList();
             if (imageObservations.Count() == 0)
             {
                 if (logging) pipeline.LogWarn("Failed: no images observations found"); 
@@ -275,7 +278,7 @@ namespace OPS.Pipeline
                 return results;
             }
 
-            if (logging) pipeline.LogInfo("Found {0} observations that intersect the mesh", intersectingObservations.Count());
+            if (logging) pipeline.LogInfo("{0} observations intersect mesh", intersectingObservations.Count());
 
             //build contexts and call backproject
             string maskType = ObservationType.RoverMask.ToString();
@@ -301,8 +304,9 @@ namespace OPS.Pipeline
                                                   quality, masker, msg => { if (logging) pipeline.LogInfo(msg); });
         }
             
-        // lower level function that returns backproject results: each observation and source pixel selected for each output pixel taken from a set of observations known to intersect the output mesh
-        // expects you have filtered your observations down to the subset of observations that intersect the mesh and have been tested for validity
+        // lower level function that returns backproject results
+        // for each each output pixel selects observation and source pixel
+        // taken from a set of observations known to intersect the output mesh
         // uses the current best approach for calculating which texture should win when there are multiple choices
         static protected Dictionary<Pixel, ObsPixel>
             BackprojectObservationContexts(PipelineCore pipeline, List<BackprojectContext> backprojectContexts,
@@ -315,17 +319,22 @@ namespace OPS.Pipeline
             int np = pointsToBackproject.Count, nc = backprojectContexts.Count; 
             info(string.Format("backprojecting {0} points into {1} images, quality {2}", Fmt.KMG(np), nc, quality));
 
-            //calculate goodness: median distance between source pixels in meters on the terrain: smaller distance == better texture
+            //calculate goodness: median distance between source pixels in meters on the terrain
+            //smaller distance == better texture
             info("calculating image goodness");
             var pixelDistancesByObs = new ConcurrentDictionary<string, double>();
             CoreLimitedParallel.ForEach(backprojectContexts, ctx =>
-                    {
-                        var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, meshHull, pointsToBackproject, ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh.Mean, quality);
-                        pixelDistancesByObs.AddOrUpdate(ctx.Obs.Name, _ => dist, (_, __) => dist);
-                    });
+            {
+                var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, meshHull, pointsToBackproject,
+                                                                   ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh.Mean,
+                                                                   quality);
+                pixelDistancesByObs.AddOrUpdate(ctx.Obs.Name, _ => dist, (_, __) => dist);
+            });
+            
+            //sort contexts by decreasing quality
+            backprojectContexts
+                .Sort((ctx0, ctx1) => pixelDistancesByObs[ctx0.Obs.Name].CompareTo(pixelDistancesByObs[ctx1.Obs.Name]));
 
-            //sort contexts by quality
-            backprojectContexts.Sort((ctx0, ctx1) => pixelDistancesByObs[ctx0.Obs.Name].CompareTo(pixelDistancesByObs[ctx1.Obs.Name]));
 
             Project project = null;
             foreach (var ctx in backprojectContexts)
@@ -422,9 +431,11 @@ namespace OPS.Pipeline
             return results;
         }
         
-        //lowest level function that takes a set of points to backproject and returns a dictionary of key:destination image pixel, value:source observation pixel
-        static protected IDictionary<Vector2, Vector2> CoreBackproject(Matrix obsToMesh, ConvexHull obsHullInMesh, CameraModel camera, 
-            Image mask, List<PixelPoint> pointsToBackproject, int obsWidth, int obsHeight, SceneCaster occlusion)
+        //lowest level function that takes a set of points to backproject
+        //and returns a dictionary of key:destination image pixel, value:source observation pixel
+        static protected IDictionary<Vector2, Vector2>
+            CoreBackproject(Matrix obsToMesh, ConvexHull obsHullInMesh, CameraModel camera, Image mask,
+                            List<PixelPoint> pointsToBackproject, int obsWidth, int obsHeight, SceneCaster occlusion)
         {
             ConcurrentDictionary<Vector2, Vector2> backprojectedPoints = new ConcurrentDictionary<Vector2, Vector2>();
             Matrix meshToObs = Matrix.Invert(obsToMesh);
