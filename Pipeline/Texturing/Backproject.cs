@@ -34,16 +34,17 @@ namespace OPS.Pipeline
         protected struct BackprojectContext
         {
             public Observation Obs;                     //observation to backproject
+            public Observation MaskObs;                 //mission rover mask obs corresponding to Obs if any
             public ConvexHull FrustumHull;              //frustum hull for observation in mesh space
             public UncertainRigidTransform ObsToMesh;   //transform from observation to mesh
-            public Image Mask;                          //mask of all invalid pixels, spacecraft self occlusions, border pixels, invalid or missing data for observation
 
-            public BackprojectContext(Observation obs, ConvexHull frustumHull, UncertainRigidTransform obsToMesh, Image mask)
+            public BackprojectContext(Observation obs, Observation maskObs, ConvexHull frustumHull,
+                                      UncertainRigidTransform obsToMesh)
             {
                 Obs = obs;
+                MaskObs = maskObs;
                 FrustumHull = frustumHull;
                 ObsToMesh = obsToMesh;
-                Mask = mask;
             }
         }
 
@@ -227,8 +228,8 @@ namespace OPS.Pipeline
             BackprojectObservations(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache,
                                     Mesh inputMesh, int outputResolution,  SceneCaster occlusionScene,
                                     List<Observation> observations, bool usePriors, bool onlyAligned,
-                                    string outputMeshFrame, MissionSpecific mission, double quality,
-                                    bool logging = true, IDictionary<string, ConvexHull> obsHullsByName = null)
+                                    string meshFrame, MissionSpecific mission, double quality,
+                                    bool logging = true, IDictionary<string, ConvexHull> obsHulls = null)
         {
             Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
 
@@ -249,18 +250,18 @@ namespace OPS.Pipeline
             List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outputResolution, outputResolution);
 
             //generate hulls
-            if (obsHullsByName == null)
+            if (obsHulls == null)
             {
-                obsHullsByName = BuildConvexHulls(pipeline, frameCache, outputMeshFrame, usePriors, onlyAligned, imageObservations);
+                obsHulls = BuildConvexHulls(pipeline, frameCache, meshFrame, usePriors, onlyAligned, imageObservations);
             }
 
             //find the reduced set of observations that intersect the desired mesh
-            if (logging) pipeline.LogInfo("Testing {0} image observations for intersection", imageObservations.Count());
+            if (logging) pipeline.LogInfo("testing {0} image observations for intersection", imageObservations.Count());
 
             List<Observation> intersectingObservations = new List<Observation>();
             CoreLimitedParallel.ForEach(imageObservations, obs =>
             {
-                if (obsHullsByName.ContainsKey(obs.Name) && meshHull.Intersects(obsHullsByName[obs.Name]))
+                if (obsHulls.ContainsKey(obs.Name) && meshHull.Intersects(obsHulls[obs.Name]))
                 {
                     lock (intersectingObservations)
                     {
@@ -277,63 +278,37 @@ namespace OPS.Pipeline
             if (logging) pipeline.LogInfo("Found {0} observations that intersect the mesh", intersectingObservations.Count());
 
             //build contexts and call backproject
-            if (logging) pipeline.LogInfo("Building masks");
-
-            Project project = null;
-            foreach (var obs in imageObservations)
+            string maskType = ObservationType.RoverMask.ToString();
+            var ctxs = new List<BackprojectContext>();
+            foreach (var obs in intersectingObservations)
             {
-                if (project == null)
-                {
-                    project = Project.Find(pipeline, obs.ProjectName);
-                    if (project == null)
-                    {
-                        throw new ArgumentException("error loading project " + obs.ProjectName);
-                    }
-                }
-                else if (project.Name != obs.ProjectName)
-                {
-                    throw new ArgumentException("cannot load observations from multiple projects");
-                }
-            }
-
-            var masker = mission.GetMasker();
-
-            List<BackprojectContext> ctxs = new List<BackprojectContext>();
-            CoreLimitedParallel.ForEach(intersectingObservations, obs =>
-            {
-                var obsToMesh = frameCache.GetObservationTransform(obs, outputMeshFrame, usePriors, onlyAligned);
+                var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, usePriors, onlyAligned);
                 if (obsToMesh == null)
                 {
-                    if (logging) pipeline.LogWarn("Failed to get transform for observation {0}", obs.Name);
-                    return;
+                    if (logging) pipeline.LogWarn("failed to get transform for observation {0}", obs.Name);
+                    continue;
                 }
 
-                //want the version with border pixels and invalid pixels
-                string maskType = ObservationType.RoverMask.ToString();
                 var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
                     .Where(o => o.ObservationType == maskType)
                     .FirstOrDefault();
-                Image mask = ImageMasker.GetOrCreateMask(pipeline, project, obs, masker, maskObs); //maybe expensive
 
-                ConvexHull obsHull = obsHullsByName[obs.Name];
+                ctxs.Add(new BackprojectContext(obs, maskObs, obsHulls[obs.Name], obsToMesh));
+            }
 
-                lock (ctxs)
-                {
-                    ctxs.Add(new BackprojectContext(obs, obsHull, obsToMesh, mask));
-                }
-            });
-
-            return BackprojectObservationContexts(ctxs, meshHull, occlusionScene, pointsToBackproject, quality,
-                                                  msg => { if (logging) pipeline.LogInfo(msg); });
+            var masker = mission.GetMasker();
+            return BackprojectObservationContexts(pipeline, ctxs, meshHull, occlusionScene, pointsToBackproject,
+                                                  quality, masker, msg => { if (logging) pipeline.LogInfo(msg); });
         }
             
         // lower level function that returns backproject results: each observation and source pixel selected for each output pixel taken from a set of observations known to intersect the output mesh
         // expects you have filtered your observations down to the subset of observations that intersect the mesh and have been tested for validity
         // uses the current best approach for calculating which texture should win when there are multiple choices
         static protected Dictionary<Pixel, ObsPixel>
-            BackprojectObservationContexts(List<BackprojectContext> backprojectContexts, ConvexHull meshHull,
-                                           SceneCaster occlusionScene, List<PixelPoint> pointsToBackproject,
-                                           double quality, Action<string> info = null)
+            BackprojectObservationContexts(PipelineCore pipeline, List<BackprojectContext> backprojectContexts,
+                                           ConvexHull meshHull, SceneCaster occlusionScene,
+                                           List<PixelPoint> pointsToBackproject, double quality, RoverMasker masker,
+                                           Action<string> info = null)
         {
             info = info ?? (msg => {});
 
@@ -352,6 +327,22 @@ namespace OPS.Pipeline
             //sort contexts by quality
             backprojectContexts.Sort((ctx0, ctx1) => pixelDistancesByObs[ctx0.Obs.Name].CompareTo(pixelDistancesByObs[ctx1.Obs.Name]));
 
+            Project project = null;
+            foreach (var ctx in backprojectContexts)
+            {
+                if (project == null)
+                {
+                    project = Project.Find(pipeline, ctx.Obs.ProjectName);
+                    if (project == null)
+                    {
+                        throw new ArgumentException("error loading project " + ctx.Obs.ProjectName);
+                    }
+                }
+                else if (project.Name != ctx.Obs.ProjectName)
+                {
+                    throw new ArgumentException("cannot load observations from multiple projects");
+                }
+            }
 
 #if BACKPROJECT_TIMING            
             void timing(string msg, params Object[] args)
@@ -373,8 +364,14 @@ namespace OPS.Pipeline
                                    ++n, nc, (int)(100 * ((float)n - 1) / nc), Fmt.KMG(nr)));
 
                 Stopwatch sw = Stopwatch.StartNew();
+
+                //includes user mask, invalid/missing data in orig image, spacecraft self occlusions, border pixels
+                Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
+                timing(string.Format("fetched or created image mask in {0}", Fmt.HMS(sw)));
+
+                sw.Restart();
                 var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh.Mean, ctx.FrustumHull,
-                                                      (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), ctx.Mask,
+                                                      (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), mask,
                                                       pointsToBackproject, ctx.Obs.Width, ctx.Obs.Height,
                                                       occlusionScene);
                 timing(string.Format("backprojected {0} points to image {1} in {2}", Fmt.KMG(nr), n, Fmt.HMS(sw)));
