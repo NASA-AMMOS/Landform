@@ -84,10 +84,7 @@ namespace OPS.Landform
                 {
                     RunPhase("filter mesh", FilterMesh);
                 }
-                else if (!options.NoSave)
-                {
-                    RunPhase("save mesh", SaveMesh);
-                }
+                RunPhase("save mesh", SaveMesh);
             }
             catch (Exception ex)
             {
@@ -221,24 +218,26 @@ namespace OPS.Landform
 
         private void SaveMesh()
         {
-            pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
-
-            string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
-
-            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives, obsNames);
-            if (sceneMesh != null)
+            if (!options.NoSave)
             {
-                var meshProd = new PlyGZDataProduct(mesh);
-                pipeline.SaveDataProduct(project, meshProd);
-                sceneMesh.MeshGuid = meshProd.Guid;
-                sceneMesh.Save(pipeline);
+                pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
+                string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
+                var variant = MeshVariant.Default;
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
+                if (sceneMesh != null)
+                {
+                    var meshProd = new PlyGZDataProduct(mesh);
+                    pipeline.SaveDataProduct(project, meshProd);
+                    sceneMesh.MeshGuid = meshProd.Guid;
+                    sceneMesh.Save(pipeline);
+                }
+                else
+                {
+                    sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames,
+                                                 mesh: mesh);
+                }
             }
-            else
-            {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Default, siteDrives, obsNames,
-                                             mesh: mesh);
-            }
-
+                
             if (options.WriteDebug)
             {
                 SaveMesh(mesh, sceneMesh.Name);
