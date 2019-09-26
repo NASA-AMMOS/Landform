@@ -183,12 +183,12 @@ namespace OPS.Landform
                                          "completed {2}/{3}", obs.Name, np, nc, no);
                     }
 
-                    Image img = pipeline.LoadImage(obs.Url);
+                    Image orig = pipeline.LoadImage(obs.Url);
 
                     //notes from TerrainTools PDSImageRoutines.cs
                     //"Used to do a guass blur 4 with photoshop"
                     //the current code is: img.SmoothBlur(13, 13)
-                    Image blurredImage = img.GaussianBoxBlur(tcopts.BlurRadius);
+                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.BlurRadius);
 
                     if (tcopts.WriteDebug)
                     {
