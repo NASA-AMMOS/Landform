@@ -121,11 +121,11 @@ namespace OPS.Pipeline
             Project project = null; //only needed if textureVariant != TextureVariant.Original
 
             //group by source texture for perfomance (load the image once for all pixels needed from it)
-            var groupedByObs = backprojectResults.ToList().GroupBy(bpr => bpr.Value.Obs);
-            foreach (var group in groupedByObs)
+            var groupedByObsName = backprojectResults.ToList().GroupBy(bpr => bpr.Value.Obs.Name);
+            foreach (var group in groupedByObsName)
             {
-                var sourceObs = group.Key;
-                var sourceImageIndex = group.Key.Index;
+                var sourceObs = group.First().Value.Obs;
+                var sourceImageIndex = sourceObs.Index;
                 if (sourceImageIndex < Observation.MIN_INDEX)
                 {
                     throw new InvalidDataException("invalid image index in backproject results");
