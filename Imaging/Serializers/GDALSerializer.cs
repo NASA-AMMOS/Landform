@@ -1,4 +1,4 @@
-﻿#define ENABLE_GDAL_MT
+﻿//#define ENABLE_GDAL_MT
 using System;
 using System.Collections.Generic;
 using System.Linq;
