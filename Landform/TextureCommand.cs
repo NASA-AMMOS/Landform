@@ -26,6 +26,9 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = 0)]
         public override int DecimateWedgeImages { get; set; }
 
+        [Option(HelpText = "Wedge debug image decimation blocksize, 0 to disable, -1 for auto", Default = -1)]
+        public virtual int DecimateDebugWedgeImages { get; set; }
+
         [Value(1, Required = false, Default = null, HelpText = "Scene mesh, search project storage if omitted")]
         public string InputMesh { get; set; }
 
@@ -192,7 +195,7 @@ namespace OPS.Landform
 
                     if (tcopts.WriteDebug)
                     {
-                        SaveImage(blurredImage, obs.Name + "_blurred");
+                        SaveDebugWedgeImage(blurredImage, obs, "_blurred");
                     }
 
                     if (!tcopts.NoSave)
@@ -414,6 +417,17 @@ namespace OPS.Landform
             string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
             SaveImage(texture, name);
             SaveMesh(mesh, name, name + imageExt);
+        }
+
+        protected void SaveDebugWedgeImage(Image img, Observation obs, string suffix)
+        {
+            int bs = MeshObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages, tcopts.TargetWedgeImageResolution);
+            if (bs > 1)
+            {
+                img = img.Decimated(bs);
+            }
+            
+            SaveImage(img, obs.Name + suffix);
         }
     }
 }

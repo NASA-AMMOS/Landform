@@ -64,9 +64,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Redo blended observation textures", Default = false)]
         public bool RedoBlendedObservationTextures { get; set; }
-
-        [Option(HelpText = "Wedge debug image decimation blocksize, 0 to disable, -1 for auto", Default = -1)]
-        public virtual int DecimateDebugWedgeImages { get; set; }
     }
 
     public class LocalBlendImages : TextureCommand
@@ -410,15 +407,8 @@ namespace OPS.Landform
                             img.SetBandValues((int)pixel.Y, (int)pixel.X, winnerColor);
                         }
                     }
-                
-                    int bs = MeshObservations.AutoDecimate(obs, options.DecimateDebugWedgeImages,
-                                                           options.TargetWedgeImageResolution);
-                    if (bs > 1)
-                    {
-                        img = img.Decimated(bs);
-                    }
 
-                    SaveImage(img, obs.Name + suffix);
+                    SaveDebugWedgeImage(img, obs, suffix);
                 }
             }
             
