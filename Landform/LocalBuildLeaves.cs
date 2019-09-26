@@ -355,19 +355,11 @@ namespace OPS.Landform
                 Interlocked.Decrement(ref np);
             }
 
-            if (backprojectTextures)
-            {
-                //when backprojecting each leaf will need to load a subset of observation and mask images in memory
-                //PipelineCore maintains LRU caches for those
-                //but if we launch a whole bunch of leaves in parallel they will find the caches empty
-                //and all try to load the images in parallel, which is very slow
-                //there is parallelization within each leaf build, so in this case just let that do its thing
-                Serial.ForEach(leavesToTexture, buildLeaf);
-            }
-            else
-            {
-                CoreLimitedParallel.ForEach(leavesToTexture, buildLeaf);
-            }
+            //it used to be the case that it was a perf win to build the leaves serially at least when backprojecting
+            //but probably not anymore
+            //now that PipelineCore implements locking to prevent multiple threads from trying to load the same image
+            //Serial.ForEach(leavesToTexture, buildLeaf);
+            CoreLimitedParallel.ForEach(leavesToTexture, buildLeaf);
 
             if (withTextures && numFailed > 0)
             {
