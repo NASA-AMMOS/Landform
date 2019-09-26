@@ -41,7 +41,7 @@ namespace OPS.Landform
         [Option(HelpText = "Use mastcam observations", Default = false)]
         public bool AllowMastcam { get; set; }
 
-        [Option(HelpText = "Clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 64)]
+        [Option(HelpText = "Clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
     }
 
