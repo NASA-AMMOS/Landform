@@ -138,28 +138,21 @@ namespace OPS.Pipeline.TilingServer
         public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
         public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null)
         {
-            if (StartedRunning)
+            var nodes = TilingNode.Find(pipeline, this, pipeline.Logger, ignoreErrors);
+            int nn = nodes.Count();
+            int n = 0; 
+            pipeline.LogInfo("deleting {0} nodes", nn);
+            foreach (var node in nodes)
             {
-                var nodes = TilingNode.Find(pipeline, this, pipeline.Logger, ignoreErrors);
-                int nn = nodes.Count();
-                int n = 0; 
-                pipeline.LogInfo("deleting {0} nodes", nn);
-                foreach (var node in nodes)
+                node.Delete(pipeline, ignoreErrors, keepMeshes);
+                if (pipeline is CloudPipeline)
                 {
-                    node.Delete(pipeline, ignoreErrors, keepMeshes);
-                    if (pipeline is CloudPipeline)
-                    {
-                        Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
-                    }
-                    if (++n % 500 == 0)
-                    {
-                        pipeline.LogInfo("deleted {0} nodes", n);
-                    }
+                    Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
                 }
-            }
-            else
-            {
-                pipeline.LogInfo("deleting 0 nodes - project never run");
+                if (++n % 500 == 0)
+                {
+                    pipeline.LogInfo("deleted {0} nodes", n);
+                }
             }
 
             var inputs = TilingInput.Find(pipeline, this, pipeline.Logger);

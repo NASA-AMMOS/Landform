@@ -102,7 +102,7 @@ namespace OPS.Pipeline.TilingServer
             }
             catch (Exception)
             {
-                if (!ignoreErrors)
+                if (project.StartedRunning && !ignoreErrors)
                 {
                     throw;
                 }
