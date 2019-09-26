@@ -180,8 +180,8 @@ namespace OPS.Util
                     else
                     {
                         node = values.AddFirst(new Entry(key, value));
-                        Trim();
                         keyToNode.AddOrUpdate(key, _ => node, (_, __) => node);
+                        Trim();
                     }
                 }
             }
