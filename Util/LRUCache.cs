@@ -144,20 +144,21 @@ namespace OPS.Util
         
         public TValue this[TKey key]
         {
-            //returns null if key not found
-            get
+            get //returns null if key not found
             {
                 if (keyToNode.TryGetValue(key, out LinkedListNode<Entry> node))
                 {
                     Interlocked.Increment(ref hits);
-                    return node.Value.value;
+                    var value = node.Value.value;
+                    this[key] = value; //mark as most recently used
+                    return value;
                 }
                 else if (DiskBacked && File.Exists(Path.Combine(tempdir, keyToFilename(key))))
                 {
                     Interlocked.Increment(ref misses);
                     Interlocked.Increment(ref diskHits);
                     var value = load(Path.Combine(tempdir, keyToFilename(key)));
-                    this[key] = value;
+                    this[key] = value; //add to cache and mark as most recently used
                     return value;
                 }
                 else
