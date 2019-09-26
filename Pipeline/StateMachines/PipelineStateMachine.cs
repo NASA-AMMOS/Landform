@@ -170,7 +170,12 @@ namespace OPS.Pipeline
 
         virtual public void SpewStatus(double warnSec = DEF_LONG_TASK_WARN_SEC, bool verbose = false)
         {
-            LogInfo("{0} messages in flight", status.Count);
+            LogInfo("{0} tasks in flight", status.Count);
+            int ndr = PathHelper.NumDeleteRetries;
+            if (ndr > 0)
+            {
+                pipeline.LogWarn("{0} file delete retries", ndr);
+            }
             var now = UTCTime.Now();
             foreach (var entry in status)
             {

@@ -96,6 +96,11 @@ namespace OPS.Landform
                 }
             }
             pipeline.DumpStats();
+            int ndr = PathHelper.NumDeleteRetries;
+            if (ndr > 0)
+            {
+                pipeline.LogWarn("{0} file delete retries", ndr);
+            }
             pipeline.LogInfo("local output path: {0}", localOutputPath);
             if (pipeline is CloudPipeline)
             {
