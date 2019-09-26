@@ -176,14 +176,16 @@ namespace OPS.Pipeline.TilingServer
 
             if (!string.IsNullOrEmpty(ExportDir))
             {
-                var baseUrl = pipeline.GetStorageUrl(ExportDir, Name);
+                //trailing slash is necessary to make sure we don't delete foo_bar/* in addition to foo/*
+                var baseUrl = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(ExportDir, Name));
                 pipeline.LogInfo("deleting tileset exports under {0}", baseUrl);
                 pipeline.DeleteFiles(baseUrl, "*", ignoreErrors);
             }
 
             if (!string.IsNullOrEmpty(TilesetDir) && TilesetDir != ExportDir && TilesetDir != InternalTileDir)
             {
-                var baseUrl = pipeline.GetStorageUrl(TilesetDir, Name);
+                //trailing slash is necessary to make sure we don't delete foo_bar/* in addition to foo/*
+                var baseUrl = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(TilesetDir, Name));
                 pipeline.LogInfo("deleting tileset under {0}", baseUrl);
                 pipeline.DeleteFiles(baseUrl, "*", ignoreErrors);
             }
