@@ -249,7 +249,7 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
-            LogInfo("saving node IDs and projecgt");
+            LogInfo("saving node IDs and project");
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);

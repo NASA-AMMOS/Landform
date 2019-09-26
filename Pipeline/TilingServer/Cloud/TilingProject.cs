@@ -140,7 +140,7 @@ namespace OPS.Pipeline.TilingServer
         {
             if (StartedRunning)
             {
-                var nodes = TilingNode.Find(pipeline, this, pipeline.Logger);
+                var nodes = TilingNode.Find(pipeline, this, pipeline.Logger, ignoreErrors);
                 int nn = nodes.Count();
                 int n = 0; 
                 pipeline.LogInfo("deleting {0} nodes", nn);
@@ -237,7 +237,7 @@ namespace OPS.Pipeline.TilingServer
 
         public string SaveNodeIds(List<string> ids, PipelineCore pipeline)
         {
-            var url = pipeline.GetStorageUrl("tile", Name, "nodeids.json");
+            var url = pipeline.GetStorageUrl(InternalTileDir, Name, "nodeids.json");
             TemporaryFile.GetAndDelete(".json", tmpJson =>
             {
                 var json = JsonHelper.ToJson(ids, autoTypes: false);

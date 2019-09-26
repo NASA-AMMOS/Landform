@@ -184,7 +184,6 @@ namespace OPS.Landform
                 tilingProject.ExportDir = null;
 
                 //our own internal representation of the tile meshes are stored here
-                //typically <LocalPipelineConfig.StorageDir>/<venue>/meshing/Tile/<project.Name>
                 //typically in ply / png formats
                 //note this is the same folder and formats that local-build-leaves used to save the leaf meshes
                 tilingProject.InternalTileDir = outputFolder;
@@ -192,7 +191,6 @@ namespace OPS.Landform
                 tilingProject.InternalImageFormat = options.ImageFormat;
 
                 //acutal output tileset is saved here
-                //typically <LocalPipelineConfig.StorageDir>/<venue>/meshing/TileSet/<project.Name>
                 //typically in b3dm / jpg formats
                 tilingProject.TilesetDir = tilesetFolder;
 

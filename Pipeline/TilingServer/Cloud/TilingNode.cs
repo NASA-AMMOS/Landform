@@ -92,9 +92,26 @@ namespace OPS.Pipeline.TilingServer
         }
 
 
-        public static IEnumerable<TilingNode> Find(PipelineCore pipeline, TilingProject project, ILog logger = null)
+        public static IEnumerable<TilingNode> Find(PipelineCore pipeline, TilingProject project, ILog logger = null,
+                                                   bool ignoreErrors = false)
         {
-            List<string> ids = project.LoadNodeIds(pipeline);
+            List<string> ids = null;
+            try
+            {
+                ids = project.LoadNodeIds(pipeline);
+            }
+            catch (Exception)
+            {
+                if (!ignoreErrors)
+                {
+                    throw;
+                }
+                else
+                {
+                    return new List<TilingNode>();
+                }
+            }
+
             if (ids != null)
             {
                 //DynamoDB Scan() can cause throughput exceptions
