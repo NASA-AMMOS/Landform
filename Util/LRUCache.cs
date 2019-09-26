@@ -62,7 +62,8 @@ namespace OPS.Util
 
         public string GetStats()
         {
-            int hitRate = (int)(100 * ((float)hits) / (hits + misses));
+            int total = hits + misses;
+            int hitRate = (int)(100 * ((float)hits) / (total > 0 ? total : 1));
             var stats = string.Format("{0} hits ({1}%), {2} misses, {3} bumped",
                                       Fmt.KMG(hits), hitRate, Fmt.KMG(misses), Fmt.KMG(bumped));
             if (DiskBacked)
