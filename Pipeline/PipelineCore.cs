@@ -179,6 +179,8 @@ namespace OPS.Pipeline
             {
                 DumpConfig();
             }
+
+            InitPhase("scan for user image masks", InitUserMasks);
         }
 
         protected void InitPhase(string phase, Action func)
@@ -248,11 +250,9 @@ namespace OPS.Pipeline
         }
 
         private ConcurrentDictionary<string, string> userMasks = null; //image basename -> user mask URL
-        private object userMasksInitLock = new object();
 
         protected void AddAnyUserMask(string url, Image image)
         {
-            InitUserMasks();
             var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
             if (userMasks.ContainsKey(basename))
             {
@@ -291,40 +291,34 @@ namespace OPS.Pipeline
             }
         }
 
-        protected void InitUserMasks()
+        public void InitUserMasks()
         {
-            lock (userMasksInitLock)
+            string dir = null;
+            if (!string.IsNullOrEmpty(Options.UserMasksDirectory))
             {
-                if (userMasks == null)
+                dir = StringHelper.NormalizeSlashes(Options.UserMasksDirectory);
+            }
+            else
+            {
+                dir = GetStorageUrl("masks");
+            }
+            StringHelper.EnsureTrailingSlash(dir);
+            userMasks = new ConcurrentDictionary<string, string>();
+            string[] suffixes = new [] { "_inverted", "_mask" };
+            foreach (var url in SearchFiles(dir))
+            {
+                var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                //strip _mask, _inverted, and _mask_inverted
+                foreach (var suffix in suffixes)
                 {
-                    string dir = null;
-                    if (!string.IsNullOrEmpty(Options.UserMasksDirectory))
+                    if (basename.ToLower().EndsWith(suffix))
                     {
-                        dir = StringHelper.NormalizeSlashes(Options.UserMasksDirectory);
-                    }
-                    else
-                    {
-                        dir = GetStorageUrl("masks");
-                    }
-                    StringHelper.EnsureTrailingSlash(dir);
-                    LogInfo("searching for user image masks in {0}", dir);
-                    userMasks = new ConcurrentDictionary<string, string>();
-                    string[] suffixes = new [] { "_inverted", "_mask" };
-                    foreach (var url in SearchFiles(dir))
-                    {
-                        var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                        //strip _mask, _inverted, and _mask_inverted
-                        foreach (var suffix in suffixes)
-                        {
-                            if (basename.ToLower().EndsWith(suffix))
-                            {
-                                basename = basename.Substring(0, basename.Length - suffix.Length);
-                            }
-                        }
-                        userMasks.AddOrUpdate(basename, _ => url, (_, __) => url);
+                        basename = basename.Substring(0, basename.Length - suffix.Length);
                     }
                 }
+                userMasks.AddOrUpdate(basename, _ => url, (_, __) => url);
             }
+            LogInfo("found {0} user image masks in {1}", userMasks.Count, dir);
         }
 
         public Exception GetImageLoadException(string url)
