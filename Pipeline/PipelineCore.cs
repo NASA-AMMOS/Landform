@@ -227,6 +227,9 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<string, Exception> imageLoadExceptions =
             new ConcurrentDictionary<string, Exception>();
 
+        private ConcurrentDictionary<string, Object> imageLoadLocks =
+            new ConcurrentDictionary<string, Object>();
+
         public Image LoadImage(string url, IImageConverter converter = null)
         {
             Image image = imageCache[url];
@@ -234,19 +237,28 @@ namespace OPS.Pipeline
             {
                 return image;
             }
-            try
+            var lockObj = imageLoadLocks.GetOrAdd(url, _ => new Object());
+            lock (lockObj) //prevent multiple threads from trying to load the same image simultaneously
             {
-                string f = GetImageFile(url);
-                image = converter != null ? Image.Load(f, converter) : Image.Load(f);
-                AddAnyUserMask(url, image);
-                imageCache[url] = image;
-                return image;
+                image = imageCache[url];
+                if (image == null)
+                {
+                    try
+                    {
+                        string f = GetImageFile(url);
+                        image = converter != null ? Image.Load(f, converter) : Image.Load(f);
+                        AddAnyUserMask(url, image);
+                        imageCache[url] = image;
+                    }
+                    catch (Exception ex)
+                    {
+                        imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
+                        throw new IOException(string.Format("error loading {0}: {1}", url, ex.Message), ex);
+                    }
+                }
             }
-            catch (Exception ex)
-            {
-                imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
-                throw new IOException(string.Format("error loading {0}: {1}", url, ex.Message), ex);
-            }
+            imageLoadLocks.TryRemove(url, out Object ignore);
+            return image;
         }
 
         private ConcurrentDictionary<string, string> userMasks = null; //image basename -> user mask URL
@@ -438,6 +450,9 @@ namespace OPS.Pipeline
 
         private static object dataCacheLock = new object();
 
+        private ConcurrentDictionary<string, Object> dataProductLoadLocks =
+            new ConcurrentDictionary<string, Object>();
+
         protected virtual bool EnableDataProductDiskCache()
         {
             return true;
@@ -452,46 +467,56 @@ namespace OPS.Pipeline
         /// <param name="cacheFolder">if nonempty then use local disk cache</param>
         public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
         {
-            var cached = dataProductCache[new Guid(guid)];
-            if (cached != null && cached is T)
+            DataProduct product = dataProductCache[new Guid(guid)];
+            if (product != null && product is T)
             {
-                return (T) cached;
+                return (T) product;
             }
 
-            string url = Path.Combine(path, guid).Replace('\\','/');
-            CheckStorageUrl(url);
-            
-            T product = null;
-            if (EnableDataProductDiskCache() && !string.IsNullOrEmpty(cacheFolder))
+            var lockObj = dataProductLoadLocks.GetOrAdd(guid, _ => new Object());
+            lock (lockObj) //prevent multiple threads from trying to load the same product simultaneously
             {
-                var cacheFile = DownloadCachePath(cacheFolder, guid);
-                if (!File.Exists(cacheFile))
+                product = dataProductCache[new Guid(guid)];
+                if (product == null || !(product is T))
                 {
-                    GetFile(url, file => {
-                            lock (dataCacheLock)
+                    product = null;
+
+                    string url = Path.Combine(path, guid).Replace('\\','/');
+                    CheckStorageUrl(url);
+                    
+                    if (EnableDataProductDiskCache() && !string.IsNullOrEmpty(cacheFolder))
+                    {
+                        var cacheFile = DownloadCachePath(cacheFolder, guid);
+                        if (!File.Exists(cacheFile))
+                        {
+                            GetFile(url, file =>
                             {
-                                if (!File.Exists(cacheFile))
+                                lock (dataCacheLock)
                                 {
-                                    //OK if exists, creates parents
-                                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cacheFile)));
-                                    File.Copy(file, cacheFile);
-                                    //not using File.Move() here GetFile() is not guaranteed to return a temp file
-                                    //in practice currently it does not only for LocalPipeline
-                                    //but in that case EnableDataProductDiskCache() is false
+                                    if (!File.Exists(cacheFile))
+                                    {
+                                        //OK if exists, creates parents
+                                        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cacheFile)));
+                                        File.Copy(file, cacheFile);
+                                        //not using File.Move() here GetFile() is not guaranteed to return a temp file
+                                        //in practice currently it does not only for LocalPipeline
+                                        //but in that case EnableDataProductDiskCache() is false
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
+                        product = DataProduct.Load<T>(File.ReadAllBytes(cacheFile));
+                    }
+                    else
+                    {
+                        GetFile(url, f => product = DataProduct.Load<T>(File.ReadAllBytes(f)));
+                    }
+
+                    dataProductCache[product.Guid] = product;
                 }
-                product = DataProduct.Load<T>(File.ReadAllBytes(cacheFile));
             }
-            else
-            {
-                GetFile(url, f => product = DataProduct.Load<T>(File.ReadAllBytes(f)));
-            }
-
-            dataProductCache[product.Guid] = product;
-
-            return product;
+            dataProductLoadLocks.TryRemove(guid, out Object ignore);
+            return (T) product;
         }
 
         public T GetDataProduct<T>(string path, Guid guid, string cacheFolder = null) where T : DataProduct, new()
