@@ -58,14 +58,6 @@ namespace OPS.Pipeline
                    initQueues, initTables, maxCores)
         {}
 
-        public override void DumpConfig()
-        {
-            base.DumpConfig();
-            var localConfig = (LocalPipelineConfig)Config;
-            //not using LogInfo() to print even if Quiet = true
-            Logger.Info("storage directory: " + localConfig.StorageDir);
-        }
-
         private string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
         {
             url = StringHelper.NormalizeUrl(url, "file://", preserveTrailingSlash);

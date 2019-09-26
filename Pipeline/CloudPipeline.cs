@@ -121,11 +121,11 @@ namespace OPS.Pipeline
             base.DumpConfig();
             var cloudConfig = (CloudPipelineConfig)Config;
             //not using LogInfo() to print even if Quiet = true
-            Logger.Info("AWS region: " + cloudConfig.AWSRegion);
-            Logger.Info("AWS profile: " + cloudConfig.AWSProfile);
-            Logger.Info("MSLICE AWS profile: " + cloudConfig.MSLICEAWSProfile);
-            Logger.Info("MSLICE AWS region: " + cloudConfig.MSLICEAWSRegion);
-            Logger.Info("MSLICE S3 URL: " + cloudConfig.MSLICES3Url);
+            Logger.InfoFormat("AWS region: {0}", cloudConfig.AWSRegion);
+            Logger.InfoFormat("AWS profile: {0}", cloudConfig.AWSProfile);
+            Logger.InfoFormat("MSLICE AWS profile: {0}", cloudConfig.MSLICEAWSProfile);
+            Logger.InfoFormat("MSLICE AWS region: {0}", cloudConfig.MSLICEAWSRegion);
+            Logger.InfoFormat("MSLICE S3 URL: {0}", cloudConfig.MSLICES3Url);
         }
 
         private StorageHelper GetStorageHelper(string url) {
