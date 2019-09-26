@@ -95,6 +95,7 @@ namespace OPS.Landform
                     pipeline.LogInfo("{0} {1}", Fmt.HMS(entry.Value), entry.Key);
                 }
             }
+            pipeline.DumpStats();
             pipeline.LogInfo("local output path: {0}", localOutputPath);
             if (pipeline is CloudPipeline)
             {

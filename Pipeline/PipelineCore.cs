@@ -177,8 +177,7 @@ namespace OPS.Pipeline
             CoreLimitedParallel.SetMaxCores(maxCores ?? (options.SingleThreaded ? 1 : 0));
             if (!quietInit)
             {
-                LogInfo("using {0} of {1} CPU cores",
-                        CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
+                DumpConfig();
             }
         }
 
@@ -205,9 +204,20 @@ namespace OPS.Pipeline
         public virtual void DumpConfig()
         {
             //not using LogInfo() to print even if Quiet = true
-            Logger.Info("Architecture: " + (IntPtr.Size == 4 ? "x86" : "x64"));
-            Logger.Info("Venue: " + Venue);
-            Logger.Info("Storage URL: " + StorageUrl);
+            Logger.InfoFormat("Architecture: {0}", (IntPtr.Size == 4 ? "x86" : "x64"));
+            Logger.InfoFormat("Venue: {0}", Venue);
+            Logger.InfoFormat("Storage URL: {0}", StorageUrl);
+            Logger.InfoFormat("using {0} of {1} CPU cores",
+                              CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
+            Logger.InfoFormat("LRU image cache capacity {0}, LRU data product cache capacity {1}",
+                              imageCache.Capacity, dataProductCache.Capacity);
+        }
+
+        public virtual void DumpStats()
+        {
+            Logger.InfoFormat("image cache (capacity {0}): {1}", imageCache.Capacity, imageCache.GetStats());
+            Logger.InfoFormat("data product cache (capacity {0}): {1}",
+                              dataProductCache.Capacity, dataProductCache.GetStats());
         }
 
         //****************** Image Fetch API *****************

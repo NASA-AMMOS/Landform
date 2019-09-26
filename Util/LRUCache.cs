@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace OPS.Util
@@ -56,6 +57,20 @@ namespace OPS.Util
         }
         private LinkedList<Entry> values;
         private ConcurrentDictionary<TKey, LinkedListNode<Entry>> keyToNode;
+
+        private int hits, misses, bumped, diskHits, diskBumped;
+
+        public string GetStats()
+        {
+            int hitRate = (int)(100 * ((float)hits) / (hits + misses));
+            var stats = string.Format("{0} hits ({1}%), {2} misses, {3} bumped",
+                                      Fmt.KMG(hits), hitRate, Fmt.KMG(misses), Fmt.KMG(bumped));
+            if (DiskBacked)
+            {
+                stats += string.Format(", {0} disk hits, {1} disk bumped", Fmt.KMG(diskHits), Fmt.KMG(diskBumped));
+            }
+            return stats;
+        }
 
         /// <summary>
         /// creates an in-memory LRU cache
@@ -133,16 +148,20 @@ namespace OPS.Util
             {
                 if (keyToNode.TryGetValue(key, out LinkedListNode<Entry> node))
                 {
+                    Interlocked.Increment(ref hits);
                     return node.Value.value;
                 }
                 else if (DiskBacked && File.Exists(Path.Combine(tempdir, keyToFilename(key))))
                 {
+                    Interlocked.Increment(ref misses);
+                    Interlocked.Increment(ref diskHits);
                     var value = load(Path.Combine(tempdir, keyToFilename(key)));
                     this[key] = value;
                     return value;
                 }
                 else
                 {
+                    Interlocked.Increment(ref misses);
                     return default(TValue);
                 }
             }
@@ -167,7 +186,7 @@ namespace OPS.Util
                 }
             }
         }
-        
+
         /// <summary>
         /// Trim cache to be no greater than Capacity elements.
         /// </summary>
@@ -181,6 +200,7 @@ namespace OPS.Util
                     SaveIfDiskBacked(last.Value.key, last.Value.value);
                     keyToNode.TryRemove(last.Value.key, out var junk);
                     values.RemoveLast();
+                    Interlocked.Increment(ref bumped);
                 }
             }
         }
@@ -189,6 +209,7 @@ namespace OPS.Util
         {
             if (save != null)
             {
+                Interlocked.Increment(ref diskBumped);
                 save(Path.Combine(tempdir, keyToFilename(key)), obj);
             } 
         }
