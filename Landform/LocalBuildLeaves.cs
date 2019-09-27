@@ -23,6 +23,9 @@ namespace OPS.Landform
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
         public override string ProjectName { get; set; }
 
+        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
+        public override double BackprojectBatchGridSize { get; set; }
+
         [Value(1, Required = false, Default = null, HelpText = "Scene mesh texture image to bake into leaves, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
@@ -59,7 +62,6 @@ namespace OPS.Landform
         private bool backprojectTextures;
 
         private Image sceneTexture;
-        private IDictionary<string, ConvexHull> obsToHull;
         private SceneNode tileTree;
         private MeshOperator meshOp;
 
@@ -193,12 +195,6 @@ namespace OPS.Landform
             {
                 base.LoadObservationCache(obsTypes, onlyObsForReconstruction);
             }
-        }
-
-        private void BuildObsHulls()
-        {
-            obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors,
-                                                     options.OnlyAligned, imageObservations);
         }
 
         private void BuildTileTree()
@@ -483,7 +479,7 @@ namespace OPS.Landform
             try
             {
                 bool logging = pipeline.Verbose || pipeline.Debug;
-                var backprojectResults = BackprojectObservations(leafMesh, logging, obsToHull);
+                var backprojectResults = BackprojectObservations(leafMesh, logging);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)

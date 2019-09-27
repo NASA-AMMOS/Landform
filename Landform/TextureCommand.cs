@@ -42,7 +42,10 @@ namespace OPS.Landform
         public virtual TextureVariant TextureVariant { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
-        public double BackprojectGoodnessSamplingPct { get; set; }
+        public virtual double BackprojectGoodnessSamplingPct { get; set; }
+
+        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
+        public virtual double BackprojectBatchGridSize { get; set; }
 
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
@@ -59,12 +62,10 @@ namespace OPS.Landform
         protected TextureCommandOptions tcopts;
 
         protected int resolution;
-
+        protected IDictionary<string, ConvexHull> obsToHull;
         protected List<Observation> imageObservations;
-
         protected SceneCaster sceneCaster;
-
-        protected Dictionary<Pixel, Backproject.ObsPixel> backprojectResults;
+        protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -328,19 +329,40 @@ namespace OPS.Landform
 
             pipeline.LogInfo("building occlusion data structures");
             sceneCaster = new SceneCaster();
-            sceneCaster.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
+            sceneCaster.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after this
             sceneCaster.Build();
         }
 
-        protected void BackprojectObservations()
+        protected void BuildObsHulls()
         {
-            pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            backprojectResults = BackprojectObservations(mesh, logging: true, obsToHull: null);
+            obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
+                                                     tcopts.OnlyAligned, imageObservations);
+            if (tcopts.WriteDebug)
+            {
+                foreach (var entry in obsToHull)
+                {
+                    SaveMesh(entry.Value.Mesh, "Frusta/" + entry.Key);
+                }
+            }
         }
 
-        protected Dictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, IDictionary<string, ConvexHull> obsToHull)
+        //not using arg default to simplify higher level calls to RunPhase()
+        protected void BackprojectObservations()
         {
+            BackprojectObservations(logging: true);
+        }
+
+        protected void BackprojectObservations(bool logging, bool verbose = false)
+        {
+            pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
+            backprojectResults = BackprojectObservations(mesh, logging, verbose);
+        }
+
+        protected IDictionary<Pixel, Backproject.ObsPixel>
+            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false)
+        {
+            verbose |= pipeline.Verbose || pipeline.Debug;
+            logging |= verbose;
             var opts = new Backproject.BackprojectOptions()
             {
                 pipeline = pipeline,
@@ -348,16 +370,18 @@ namespace OPS.Landform
                 mission = mission,
                 frameCache = frameCache,
                 observationCache = observationCache,
+                observations = imageObservations,
                 mesh = mesh,
                 meshFrame = meshFrame,
                 resolution = resolution,
+                batchGridSize = tcopts.BackprojectBatchGridSize,
                 sceneCaster = sceneCaster,
-                observations = imageObservations,
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
                 quality = tcopts.BackprojectGoodnessSamplingPct,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
+                progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };

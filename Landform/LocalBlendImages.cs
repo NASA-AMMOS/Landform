@@ -120,6 +120,7 @@ namespace OPS.Landform
 
                 RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
                 RunPhase("check/generate observation image masks", BuildObservationImageMasks);
+                RunPhase("build observation frustum hulls", BuildObsHulls);
                 RunPhase("load or generate shrinkwrap mesh", LoadOrBuildShrinkwrapMesh);
                 RunPhase("load or generate shrinkwrap blurred texture", LoadOrBuildShrinkwrapBlurredTexture);
                 RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
