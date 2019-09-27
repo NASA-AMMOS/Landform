@@ -154,7 +154,7 @@ namespace OPS.Geometry
 
         public bool Intersects(Triangle tri)
         {
-            return this.Intersects(new ConvexHull(tri.Vertices().Select(v => v.Position)));
+            return !IsEmpty && GJKIntersection.Intersects(Mesh, new Mesh((new[] { tri }).ToList()));
         }
 
         /// <summary>
