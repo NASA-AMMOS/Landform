@@ -151,7 +151,8 @@ namespace OPS.Pipeline.TilingServer
                     var sceneNode = idToSceneNode[id];
 
                     string parentId = sceneNode.Parent == null ? null : sceneNode.Parent.Name;
-                    var tilingNode = TilingNode.Create(pipeline, id, project.Name, parentId, save: false);
+                    bool isLeaf = sceneNode.IsLeaf;
+                    var tilingNode = TilingNode.Create(pipeline, id, project.Name, parentId, isLeaf, save: false);
                     idToTilingNode[id] = tilingNode;
 
                     //geometric error is zero for user defined leaves
@@ -222,12 +223,20 @@ namespace OPS.Pipeline.TilingServer
                 var id = sceneNode.Name;
                 ids.Add(id);
 
-                string parentId = sceneNode.Parent == null ? null : sceneNode.Parent.Name;
-                var tilingNode = idToTilingNode.ContainsKey(id) ? idToTilingNode[id] :
-                    TilingNode.Create(pipeline, id, projectName, parentId);
-
-                tilingNode.AddToDependsOn(dependencies.DependsOn(id));
-                tilingNode.AddToDependedOnBy(dependencies.DependedOnBy(id));
+                TilingNode tilingNode = null;
+                if (!idToTilingNode.ContainsKey(id))
+                {
+                    string parentId = sceneNode.Parent == null ? null : sceneNode.Parent.Name;
+                    bool isLeaf = sceneNode.IsLeaf;
+                    tilingNode = TilingNode.Create(pipeline, id, projectName, parentId, isLeaf, save: false);
+                }
+                else
+                {
+                    tilingNode = idToTilingNode[id];
+                }
+                    
+                tilingNode.SetDependsOn(dependencies.DependsOn(id));
+                tilingNode.SetDependedOnBy(dependencies.DependedOnBy(id));
                 if (sceneNode.HasComponent<NodeBounds>())
                 {
                     tilingNode.SetBounds(sceneNode.GetComponent<NodeBounds>().Bounds);

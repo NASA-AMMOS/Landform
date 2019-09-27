@@ -31,6 +31,8 @@ namespace OPS.Pipeline.TilingServer
 
         public string ParentId;
 
+        public bool IsLeaf;
+
         public string MeshUrl;
 
         public string ImageUrl;
@@ -48,17 +50,18 @@ namespace OPS.Pipeline.TilingServer
         //This constructor must be public for DynamoDB but should not be used
         public TilingNode() { }
 
-        protected TilingNode(string id, string projectName, string parentId)
+        protected TilingNode(string id, string projectName, string parentId, bool isLeaf)
         {
             Id = id;
+            IsLeaf = isLeaf;
             ProjectName = projectName;
             ParentId = parentId;
         }
 
         public static TilingNode Create(PipelineCore pipeline, string id, string projectName, string parentId,
-                                        bool save = true)
+                                        bool isLeaf, bool save = true)
         {
-            var node = new TilingNode(id, projectName, parentId);
+            var node = new TilingNode(id, projectName, parentId, isLeaf);
             if (save)
             {
                 node.Save(pipeline);
@@ -145,10 +148,11 @@ namespace OPS.Pipeline.TilingServer
             return ids;
         }
 
-        public void AddToDependsOn(IEnumerable<string> ids)
+        public void SetDependsOn(IEnumerable<string> ids)
         {
             lock (DependsOn)
             {
+                DependsOn.Clear();
                 DependsOn.UnionWith(ids);
             }
         }
@@ -163,10 +167,11 @@ namespace OPS.Pipeline.TilingServer
             return ids;
         }
 
-        public void AddToDependedOnBy(IEnumerable<string> ids)
+        public void SetDependedOnBy(IEnumerable<string> ids)
         {
             lock (DependedOnBy)
             {
+                DependedOnBy.Clear();
                 DependedOnBy.UnionWith(ids);
             }
         }
@@ -418,11 +423,11 @@ namespace OPS.Pipeline.TilingServer
             }
 
             //save to LRU cache
-            if (pair.Mesh != null && meshCache != null)
+            if (pair.Mesh != null && !string.IsNullOrEmpty(MeshUrl) && meshCache != null)
             {
                 meshCache[MeshUrl] = pair.Mesh;
             }
-            if (pair.Image != null && imageCache != null)
+            if (pair.Image != null && !string.IsNullOrEmpty(ImageUrl) && imageCache != null)
             {
                 imageCache[ImageUrl] = pair.Image;
             }

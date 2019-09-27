@@ -52,12 +52,20 @@ namespace OPS.Pipeline.TilingServer
             var dependsOnTilingNodes = parent.DependsOn.Select(id => TilingNode.Find(pipeline, projectName, id));
             CoreLimitedParallel.ForEach(dependsOnTilingNodes, tilingNode =>
             {
-                var sceneNode = tilingNode.MakeSceneNode();
-                var pair = tilingNode.LoadMeshImagePair(pipeline);
-                if (pair != null)
+                try
                 {
-                    sceneNode.AddComponent(pair);
-                    idToNode.TryAdd(tilingNode.Id, sceneNode);
+                    var sceneNode = tilingNode.MakeSceneNode();
+                    var pair = tilingNode.LoadMeshImagePair(pipeline);
+                    if (pair != null)
+                    {
+                        sceneNode.AddComponent(pair);
+                        idToNode.TryAdd(tilingNode.Id, sceneNode);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception(string.Format("error loading dependency {0} for parent {1}: {2}",
+                                                      tilingNode.Id, parent.Id, ex.Message));
                 }
             });
 
