@@ -341,10 +341,27 @@ namespace OPS.Landform
         protected Dictionary<Pixel, Backproject.ObsPixel>
             BackprojectObservations(Mesh mesh, bool logging, IDictionary<string, ConvexHull> obsToHull)
         {
-            return Backproject.BackprojectObservations(pipeline, frameCache, observationCache, mesh, resolution,
-                                                       sceneCaster, imageObservations, tcopts.UsePriors,
-                                                       tcopts.OnlyAligned, meshFrame, mission,
-                                                       tcopts.BackprojectGoodnessSamplingPct, logging, obsToHull);
+            var opts = new Backproject.BackprojectOptions()
+            {
+                pipeline = pipeline,
+                project = project,
+                mission = mission,
+                frameCache = frameCache,
+                observationCache = observationCache,
+                mesh = mesh,
+                meshFrame = meshFrame,
+                resolution = resolution,
+                sceneCaster = sceneCaster,
+                observations = imageObservations,
+                usePriors = tcopts.UsePriors,
+                onlyAligned = tcopts.OnlyAligned,
+                quality = tcopts.BackprojectGoodnessSamplingPct,
+                obsToHull = obsToHull,
+                info = msg => { if (logging) pipeline.LogInfo(msg); },
+                warn = msg => pipeline.LogWarn(msg),
+                error = msg => pipeline.LogError(msg)
+            };
+            return Backproject.BackprojectObservations(opts);
         }
 
         protected Image BuildBackprojectIndex()

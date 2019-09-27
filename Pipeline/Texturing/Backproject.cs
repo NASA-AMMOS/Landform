@@ -221,50 +221,70 @@ namespace OPS.Pipeline
             }
         }
 
+        public class BackprojectOptions
+        {
+            public PipelineCore pipeline;
+            public Project project;
+            public MissionSpecific mission;
+            public FrameCache frameCache;
+            public ObservationCache observationCache; //for collecting rover mask observations (if any)
+            public Mesh mesh; //mesh from which to collect sample points to backproject
+            public string meshFrame;
+            public int resolution; //output texture resolution
+            public SceneCaster sceneCaster; //for checking occlusion of backproject rays
+            public IEnumerable<Observation> observations; //set of observations to backproject
+            public bool usePriors;
+            public bool onlyAligned;
+            public double quality; //0 < quality <= 1 (best, slowest)
+            public IDictionary<string, ConvexHull> obsToHull = null; //observation name -> hull, computed if null
+            public Action<string> info = null;
+            public Action<string> warn = null;
+            public Action<string> error = null;
+        }
+
         /// <summary>
         /// high level api with database helpers
         /// this is for when you want to just call with all the observations you have and see what lands on the mesh
-        /// quality is a value > 0 and <= 1.0 to indicate how much time can be spent to make the best decisions
-        /// 1.0 is the best quality, slowest
         /// </summary>
-        static public Dictionary<Pixel, ObsPixel>
-            BackprojectObservations(PipelineCore pipeline, FrameCache frameCache, ObservationCache obsCache,
-                                    Mesh inputMesh, int outputResolution,  SceneCaster occlusionScene,
-                                    List<Observation> observations, bool usePriors, bool onlyAligned,
-                                    string meshFrame, MissionSpecific mission, double quality,
-                                    bool logging = true, IDictionary<string, ConvexHull> obsHulls = null)
+        static public Dictionary<Pixel, ObsPixel> BackprojectObservations(BackprojectOptions opts)
         {
-            Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
+            var info = opts.info ?? (msg => {});
+            var warn = opts.warn ?? (msg => {});
+            var error = opts.error ?? (msg => {});
+
+            var results = new Dictionary<Pixel, ObsPixel>();
 
             //find image observations only
             string imageObsType = ObservationType.Image.ToString();
-            var imageObservations = observations.Where(obs => obs.ObservationType == imageObsType).ToList();
+            var imageObservations = opts.observations.Where(obs => obs.ObservationType == imageObsType).ToList();
             if (imageObservations.Count() == 0)
             {
-                if (logging) pipeline.LogWarn("Failed: no images observations found"); 
+                error("no image observations found"); 
                 return results;
             }
 
-            if (logging) pipeline.LogInfo("building input mesh data structures");
-            ConvexHull meshHull = new ConvexHull(inputMesh);
-            MeshOperator meshOp = new MeshOperator(inputMesh);
+            info("building input mesh data structures");
+            ConvexHull meshHull = new ConvexHull(opts.mesh);
+            MeshOperator meshOp = new MeshOperator(opts.mesh);
 
-            if (logging) pipeline.LogInfo("collecting sample points in {0}x{0} destination texture", outputResolution);
-            List<PixelPoint> pointsToBackproject = meshOp.SampleUVSpace(outputResolution, outputResolution);
+            info(string.Format("collecting sample points in {0}x{0} destination texture", opts.resolution));
+            List<PixelPoint> samplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
 
             //generate hulls
-            if (obsHulls == null)
+            var obsToHull = opts.obsToHull;
+            if (obsToHull == null)
             {
-                obsHulls = BuildConvexHulls(pipeline, frameCache, meshFrame, usePriors, onlyAligned, imageObservations);
+                obsToHull = BuildConvexHulls(opts.pipeline, opts.frameCache, opts.meshFrame, opts.usePriors,
+                                             opts.onlyAligned, imageObservations);
             }
 
             //find the reduced set of observations that intersect the desired mesh
-            if (logging) pipeline.LogInfo("testing {0} image observations for intersection", imageObservations.Count());
+            info(string.Format("testing {0} image observations for intersection", imageObservations.Count()));
 
-            List<Observation> intersectingObservations = new List<Observation>();
+            var intersectingObservations = new List<Observation>();
             CoreLimitedParallel.ForEach(imageObservations, obs =>
             {
-                if (obsHulls.ContainsKey(obs.Name) && meshHull.Intersects(obsHulls[obs.Name]))
+                if (obsToHull.ContainsKey(obs.Name) && meshHull.Intersects(obsToHull[obs.Name]))
                 {
                     lock (intersectingObservations)
                     {
@@ -274,34 +294,35 @@ namespace OPS.Pipeline
             });
             if (intersectingObservations.Count() == 0)
             {
-                if (logging) pipeline.LogWarn("Failed: no images intersected mesh");
+                error("no images intersected mesh");
                 return results;
             }
 
-            if (logging) pipeline.LogInfo("{0} observations intersect mesh", intersectingObservations.Count());
+            info(string.Format("{0} observations intersect mesh", intersectingObservations.Count()));
 
             //build contexts and call backproject
             string maskType = ObservationType.RoverMask.ToString();
             var ctxs = new List<BackprojectContext>();
             foreach (var obs in intersectingObservations)
             {
-                var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, usePriors, onlyAligned);
+                var obsToMesh =
+                    opts.frameCache.GetObservationTransform(obs, opts.meshFrame, opts.usePriors, opts.onlyAligned);
                 if (obsToMesh == null)
                 {
-                    if (logging) pipeline.LogWarn("failed to get transform for observation {0}", obs.Name);
+                    warn(string.Format("failed to get transform for observation {0}", obs.Name));
                     continue;
                 }
 
-                var maskObs = obsCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                var maskObs = opts.observationCache.GetAllObservationsForFrame(opts.frameCache.GetFrame(obs.FrameName))
                     .Where(o => o.ObservationType == maskType)
                     .FirstOrDefault();
 
-                ctxs.Add(new BackprojectContext(obs, maskObs, obsHulls[obs.Name], obsToMesh));
+                ctxs.Add(new BackprojectContext(obs, maskObs, obsToHull[obs.Name], obsToMesh));
             }
 
-            var masker = mission.GetMasker();
-            return BackprojectObservationContexts(pipeline, ctxs, meshHull, occlusionScene, pointsToBackproject,
-                                                  quality, masker, msg => { if (logging) pipeline.LogInfo(msg); });
+            var masker = opts.mission.GetMasker();
+            return BackprojectObservationContexts(opts.pipeline, opts.project, masker, ctxs, meshHull, opts.sceneCaster,
+                                                  samplePoints, opts.quality, info);
         }
             
         // lower level function that returns backproject results
@@ -309,49 +330,30 @@ namespace OPS.Pipeline
         // taken from a set of observations known to intersect the output mesh
         // uses the current best approach for calculating which texture should win when there are multiple choices
         static protected Dictionary<Pixel, ObsPixel>
-            BackprojectObservationContexts(PipelineCore pipeline, List<BackprojectContext> backprojectContexts,
-                                           ConvexHull meshHull, SceneCaster occlusionScene,
-                                           List<PixelPoint> pointsToBackproject, double quality, RoverMasker masker,
+            BackprojectObservationContexts(PipelineCore pipeline, Project project, RoverMasker masker,
+                                           List<BackprojectContext> contexts, ConvexHull meshHull,
+                                           SceneCaster sceneCaster, List<PixelPoint> samplePoints, double quality,
                                            Action<string> info = null)
         {
             info = info ?? (msg => {});
 
-            int np = pointsToBackproject.Count, nc = backprojectContexts.Count; 
+            int np = samplePoints.Count, nc = contexts.Count; 
             info(string.Format("backprojecting {0} points into {1} images, quality {2}", Fmt.KMG(np), nc, quality));
 
             //calculate goodness: median distance between source pixels in meters on the terrain
             //smaller distance == better texture
             info("calculating image goodness");
-            var pixelDistancesByObs = new ConcurrentDictionary<string, double>();
-            CoreLimitedParallel.ForEach(backprojectContexts, ctx =>
+            var obsToPixelDist = new ConcurrentDictionary<string, double>();
+            CoreLimitedParallel.ForEach(contexts, ctx =>
             {
-                var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, meshHull, pointsToBackproject,
+                var dist = ProjectedPixelDistances.CalculateForObs(sceneCaster, meshHull, samplePoints,
                                                                    ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh.Mean,
                                                                    quality);
-                pixelDistancesByObs.AddOrUpdate(ctx.Obs.Name, _ => dist, (_, __) => dist);
+                obsToPixelDist.AddOrUpdate(ctx.Obs.Name, _ => dist, (_, __) => dist);
             });
             
             //sort contexts by decreasing quality
-            backprojectContexts
-                .Sort((ctx0, ctx1) => pixelDistancesByObs[ctx0.Obs.Name].CompareTo(pixelDistancesByObs[ctx1.Obs.Name]));
-
-
-            Project project = null;
-            foreach (var ctx in backprojectContexts)
-            {
-                if (project == null)
-                {
-                    project = Project.Find(pipeline, ctx.Obs.ProjectName);
-                    if (project == null)
-                    {
-                        throw new ArgumentException("error loading project " + ctx.Obs.ProjectName);
-                    }
-                }
-                else if (project.Name != ctx.Obs.ProjectName)
-                {
-                    throw new ArgumentException("cannot load observations from multiple projects");
-                }
-            }
+            contexts.Sort((ctx0, ctx1) => obsToPixelDist[ctx0.Obs.Name].CompareTo(obsToPixelDist[ctx1.Obs.Name]));
 
 #if BACKPROJECT_TIMING            
             void timing(string msg, params Object[] args)
@@ -366,9 +368,9 @@ namespace OPS.Pipeline
             Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>(np);
             int n = 0;
             var remaining = new List<PixelPoint>(np);
-            foreach(var ctx in backprojectContexts)
+            foreach(var ctx in contexts)
             {
-                int nr = pointsToBackproject.Count;
+                int nr = samplePoints.Count;
                 info(string.Format("backprojecting into image {0}/{1} ({2}%), {3} sample points remaining",
                                    ++n, nc, (int)(100 * ((float)n - 1) / nc), Fmt.KMG(nr)));
 
@@ -381,8 +383,7 @@ namespace OPS.Pipeline
                 sw.Restart();
                 var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh.Mean, ctx.FrustumHull,
                                                       (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), mask,
-                                                      pointsToBackproject, ctx.Obs.Width, ctx.Obs.Height,
-                                                      occlusionScene);
+                                                      samplePoints, ctx.Obs.Width, ctx.Obs.Height, sceneCaster);
                 timing(string.Format("backprojected {0} points to image {1} in {2}", Fmt.KMG(nr), n, Fmt.HMS(sw)));
 
                 if (pixelsSucceeded.Any())
@@ -413,18 +414,17 @@ namespace OPS.Pipeline
 
                     sw.Restart();
                     remaining.Clear();
-                    foreach (var pt in pointsToBackproject)
+                    foreach (var pt in samplePoints)
                     {
                         if (!pixelsSucceeded.ContainsKey(pt.Pixel))
                         {
                             remaining.Add(pt);
                         }
                     }
-                    var tmp = pointsToBackproject;
-                    pointsToBackproject = remaining;
+                    var tmp = samplePoints;
+                    samplePoints = remaining;
                     remaining = tmp;
-                    timing(string.Format("filtered {0} remaining points in {1}",
-                                         Fmt.KMG(pointsToBackproject.Count), Fmt.HMS(sw)));
+                    timing(string.Format("filtered {0} remaining points in {1}", Fmt.KMG(samplePoints.Count), Fmt.HMS(sw)));
                 }
             }
 
@@ -435,7 +435,7 @@ namespace OPS.Pipeline
         //and returns a dictionary of key:destination image pixel, value:source observation pixel
         static protected IDictionary<Vector2, Vector2>
             CoreBackproject(Matrix obsToMesh, ConvexHull obsHullInMesh, CameraModel camera, Image mask,
-                            List<PixelPoint> pointsToBackproject, int obsWidth, int obsHeight, SceneCaster occlusion)
+                            List<PixelPoint> samplePoints, int obsWidth, int obsHeight, SceneCaster occlusion)
         {
             ConcurrentDictionary<Vector2, Vector2> backprojectedPoints = new ConcurrentDictionary<Vector2, Vector2>();
             Matrix meshToObs = Matrix.Invert(obsToMesh);
@@ -445,7 +445,7 @@ namespace OPS.Pipeline
 #else
             CoreLimitedParallel.
 #endif
-            ForEach(pointsToBackproject, pixelPoint => {
+            ForEach(samplePoints, pixelPoint => {
 
                 // validate surface point is in the frustum to avoid camera model issues with offscreen points
                 Vector3 meshPos = pixelPoint.Point;
