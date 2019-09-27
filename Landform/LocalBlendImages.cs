@@ -20,23 +20,28 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
+    public enum BlendStrategy { None, Barycentric, Inpaint };
+
     [Verb("local-blend-images", HelpText = "blend observation images")]
     public class LocalBlendImagesOptions : TextureCommandOptions
     {
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
         public override TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "Inpaint backprojected pixels in diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
+        [Option(HelpText = "Canned blend strategy (None, Barycentric, Inpaint)", Default = BlendStrategy.None)]
+        public BlendStrategy BlendStrategy { get; set; }
+
+        [Option(HelpText = "Inpaint backprojected pixels in diff images by this many pixels, 0 to disable, negative for unlimited", Default = 0)]
         public int InpaintWinners { get; set; }
 
-        [Option(HelpText = "Inpaint final diff images by this many pixels, 0 to disable, negative for unlimited", Default = 0)]
+        [Option(HelpText = "Don't barycentric interpolate backprojected pixels in diff images", Default = false)]
+        public bool NoBarycentricInterpolateWinners { get; set; }
+
+        [Option(HelpText = "Inpaint final diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
         public int InpaintDiff { get; set; }
 
         [Option(Required = false, HelpText = "Diff image blur radius, 0 to disable", Default = 7)]
         public int BlurDiff { get; set; }
-
-        [Option(HelpText = "Barycentric interpolate backprojected pixels in diff images by this many pixels", Default = false)]
-        public bool BarycentricInterpolateWinners { get; set; }
 
         [Option(HelpText = "Don't fill unknown areas in blended images with average diff", Default = false)]
         public bool NoFillBlendWithAverageDiff { get; set; }
@@ -133,6 +138,30 @@ namespace OPS.Landform
             if (options.TextureVariant != TextureVariant.Blurred)
             {
                 throw new Exception("this command only supports --texturevariant=Blurred");
+            }
+
+            switch (options.BlendStrategy)
+            {
+                case BlendStrategy.None: break;
+                case BlendStrategy.Barycentric:
+                    {
+                        options.InpaintWinners = 0;
+                        options.NoBarycentricInterpolateWinners = false;
+                        options.InpaintDiff = 20;
+                        options.BlurDiff = 7;
+                        options.NoFillBlendWithAverageDiff = false;
+                        break;
+                    }
+                case BlendStrategy.Inpaint:
+                    {
+                        options.InpaintWinners = 20;
+                        options.NoBarycentricInterpolateWinners = true;
+                        options.InpaintDiff = 0;
+                        options.BlurDiff = 7;
+                        options.NoFillBlendWithAverageDiff = false;
+                        break;
+                    }
+                default: throw new Exception("unknown blend strategy: " + options.BlendStrategy);
             }
 
             if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
@@ -421,9 +450,11 @@ namespace OPS.Landform
             }
             
             int no = indexedObservations.Count;
-            pipeline.LogInfo("creating blended images for {0} observations", no);
+            var strat = options.BlendStrategy;
+            pipeline.LogInfo("creating blended images for {0} observations{1}",
+                             no, strat != BlendStrategy.None ? (", strategy " + strat) : "");
             pipeline.LogInfo("inpaint winners: {0}, barycentric interp: {1}, inpaint diff: {2}, blur diff: {3}, " +
-                             "fill avg: {4}", options.InpaintWinners, options.BarycentricInterpolateWinners,
+                             "fill avg: {4}", options.InpaintWinners, !options.NoBarycentricInterpolateWinners,
                              options.InpaintDiff, options.BlurDiff, !options.NoFillBlendWithAverageDiff);
 
             double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
@@ -530,7 +561,7 @@ namespace OPS.Landform
                             diffImage.Inpaint(options.InpaintWinners);
                         }
                         
-                        if (options.BarycentricInterpolateWinners && numWinners >= 3)
+                        if (!options.NoBarycentricInterpolateWinners && numWinners >= 3)
                         {
                             Rasterizer.BarycentricInterpolate(diffImage);
                         }
