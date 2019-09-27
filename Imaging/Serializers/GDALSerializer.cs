@@ -1,5 +1,5 @@
-﻿#define ENABLE_GDAL_READ_MT
-#define ENABLE_GDAL_WRITE_MT
+﻿//#define ENABLE_GDAL_READ_MT
+//#define ENABLE_GDAL_WRITE_MT
 using System;
 using System.Collections.Generic;
 using System.Linq;
