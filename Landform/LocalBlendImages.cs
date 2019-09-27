@@ -468,6 +468,8 @@ namespace OPS.Landform
                     Image img = pipeline.LoadImage(obs.Url);
                     writeDebug(img, obs, "");
                     
+                    Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image;
+
                     var diffImage = new Image(img.Bands, img.Width, img.Height);
                     diffImage.CreateMask(true); //all pixels initially masked
                     
@@ -483,7 +485,7 @@ namespace OPS.Landform
                         float[] diff = null;
                         if (obs.Bands == 3)
                         {
-                            Vector3 d = blendedRGB - new Vector3(img[0, or, oc], img[1, or, oc], img[2, or, oc]);
+                            Vector3 d = blendedRGB - new Vector3(blr[0, or, oc], blr[1, or, oc], blr[2, or, oc]);
                             diff = new float[] { (float)d.X, (float)d.Y, (float)d.Z };
                         }
                         else
@@ -492,7 +494,7 @@ namespace OPS.Landform
                             float bg = (float)blendedRGB.Y;
                             float bb = (float)blendedRGB.Z;
                             double luminance = (new Rgb() { R = 255 * br, G = 255 * bg, B = 255 * bb }).To<Lab>().L;
-                            diff = new float[] { (float)(luminance / maxLuminance) - img[0, or, oc] };
+                            diff = new float[] { (float)(luminance / maxLuminance) - blr[0, or, oc] };
                         }
                         
                         diffImage.SetBandValues(or, oc, diff);
