@@ -102,6 +102,9 @@ namespace OPS.Landform
                 options.RedoShrinkwrapTexture = true;
                 options.RedoShrinkwrapBlendedTexture = true;
             }
+
+            options.RedoShrinkwrapTexture |= options.RedoShrinkwrapMesh;
+            options.RedoShrinkwrapBlendedTexture |= options.RedoShrinkwrapTexture;
         }
 
         public int Run()
