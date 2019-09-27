@@ -157,6 +157,11 @@ namespace OPS.Geometry
             return !IsEmpty && GJKIntersection.Intersects(Mesh, new Mesh((new[] { tri }).ToList()));
         }
 
+        public bool Intersects(BoundingBox box)
+        {
+            return !IsEmpty && GJKIntersection.Intersects(Mesh, box.ToMesh());
+        }
+
         /// <summary>
         /// Return true if <paramref name="ray"/> intersects this hull betwen <paramref name="minT"/> and <paramref name="maxT"/>.
         /// </summary>
