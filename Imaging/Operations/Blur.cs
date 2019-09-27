@@ -16,13 +16,13 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="img">image to blur</param>
         /// <param name="r">radius of blur</param>
-        public static Image GaussianBoxBlur(this Image img, int r)
+        public static Image GaussianBoxBlur(this Image img, int r, bool blendMasked = false)
         {
             int[] boxes = BoxesForGauss(r, 3);
             Image tmp = img.Instantiate(img.Bands, img.Width, img.Height);
-            BoxBlur(img, tmp, (boxes[0] - 1) / 2);
-            BoxBlur(img, tmp, (boxes[1] - 1) / 2);
-            BoxBlur(img, tmp, (boxes[2] - 1) / 2);
+            BoxBlur(img, tmp, (boxes[0] - 1) / 2, blendMasked);
+            BoxBlur(img, tmp, (boxes[1] - 1) / 2, blendMasked);
+            BoxBlur(img, tmp, (boxes[2] - 1) / 2, blendMasked);
             return img;
         }
 
@@ -59,7 +59,7 @@ namespace OPS.Imaging
         /// <param name="src">The image to blur</param>
         /// <param name="tmp">Temporary image same size as src used to store intermediate computations</param>
         /// <param name="r">radius of blur</param>
-        public static void BoxBlur(this Image src, Image tmp, int r)
+        public static void BoxBlur(this Image src, Image tmp, int r, bool blendMasked = false)
         {
             // First compute the horizontal blur 
             for(int row = 0; row < src.Height; row++)
@@ -71,7 +71,7 @@ namespace OPS.Imaging
                 // First initiate cur and sum
                 for (int col = 0; col < Math.Min(r, src.Width); col++)
                 {
-                    if(src.IsValid(row, col))
+                    if (blendMasked || src.IsValid(row, col))
                     {
                         for (int b = 0; b < src.Bands; b++)
                         {
@@ -85,7 +85,7 @@ namespace OPS.Imaging
                 {
                     // If radius - 1 is in bounds and not masked out, remove it from our running sum of values
                     int colToRemove = col - r - 1;
-                    if(colToRemove >= 0 && src.IsValid(row, colToRemove))
+                    if(colToRemove >= 0 && (blendMasked || src.IsValid(row, colToRemove)))
                     {
                         for (int b = 0; b < src.Bands; b++)
                         {
@@ -95,7 +95,7 @@ namespace OPS.Imaging
                     }
                     // If radius ahead is in bounds and not masked out, add it to our running sum of values
                     int colToAdd = col + r;
-                    if(colToAdd < src.Width && src.IsValid(row, colToAdd))
+                    if(colToAdd < src.Width && (blendMasked || src.IsValid(row, colToAdd)))
                     {
                         for (int b = 0; b < src.Bands; b++)
                         {
@@ -107,7 +107,7 @@ namespace OPS.Imaging
                     for (int b = 0; b < src.Bands; b++)
                     {
                         // Don't change this pixel if it is masked out or if we had zero values to include in the average
-                        if (curCount > 0 && src.IsValid(row, col))
+                        if (curCount > 0 && (blendMasked || src.IsValid(row, col)))
                         {
                             tmp[b, row, col] = (float)(curSum[b] / curCount);
                         }
@@ -128,7 +128,7 @@ namespace OPS.Imaging
                 // from tmp since it contains the results of the horizontal blur. 
                 for (int row = 0; row < Math.Min(r, src.Height); row++)
                 {
-                    if (src.IsValid(row, col))
+                    if (blendMasked || src.IsValid(row, col))
                     {
                         for (int b = 0; b < src.Bands; b++)
                         {
@@ -142,7 +142,7 @@ namespace OPS.Imaging
                 {
                     // If radius - 1 is in bounds and not masked out, remove it from our running sum of values
                     int rowToRemove = row - r - 1;
-                    if (rowToRemove >= 0 && src.IsValid(rowToRemove, col))
+                    if (rowToRemove >= 0 && (blendMasked || src.IsValid(rowToRemove, col)))
                     {
                         for (int b = 0; b < src.Bands; b++)
                         {
@@ -152,7 +152,7 @@ namespace OPS.Imaging
                     }
                     // If radius ahead is in bounds and not masked out, add it to our running sum of values
                     int rowToAdd = row + r;
-                    if (rowToAdd < src.Height && src.IsValid(rowToAdd, col))
+                    if (rowToAdd < src.Height && (blendMasked || src.IsValid(rowToAdd, col)))
                     {
                         for (int b = 0; b < src.Bands; b++)
                         {
@@ -164,9 +164,13 @@ namespace OPS.Imaging
                     // Don't modify the value if this pixel is masked out or if we didn't have any valid values in the average
                     for (int b = 0; b < src.Bands; b++)
                     {
-                        if (curCount > 0 && src.IsValid(row, col))
+                        if (curCount > 0 && (blendMasked || src.IsValid(row, col)))
                         {
                             src[b, row, col] = (float)(curSum[b] / curCount);
+                            if (blendMasked && src.HasMask)
+                            {
+                                src.SetMaskValue(row, col, false);
+                            }
                         }
                         else
                         {

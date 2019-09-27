@@ -44,8 +44,8 @@ namespace OPS.Landform
         [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
         public double BackprojectGoodnessSamplingPct { get; set; }
 
-        [Option(Required = false, HelpText = "Blur radius", Default = 7)]
-        public int BlurRadius { get; set; }
+        [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
+        public int ObservationBlurRadius { get; set; }
 
         [Option(HelpText = "Redo blurred observation textures", Default = false)]
         public bool RedoBlurredObservationTextures { get; set; }
@@ -191,7 +191,7 @@ namespace OPS.Landform
                     //notes from TerrainTools PDSImageRoutines.cs
                     //"Used to do a guass blur 4 with photoshop"
                     //the current code is: img.SmoothBlur(13, 13)
-                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.BlurRadius);
+                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
 
                     if (tcopts.WriteDebug)
                     {
