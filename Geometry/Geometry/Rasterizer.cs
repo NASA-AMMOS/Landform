@@ -40,6 +40,35 @@ namespace OPS.Geometry
             {
                 return (BEVOptions) MemberwiseClone();
             }
+
+            public static BEVOptions DirectToImage(Image img)
+            {
+                return new BEVOptions() {
+
+                    BlendMode = BlendMode.Under, //don't overwrite any already valid pixels
+                        
+                    CCW = true,
+                        
+                    Greyscale = img.Bands == 1,
+                        
+                    //disable extra stuff
+                    SparseBlockSize = 0,
+                    Inpaint = 0,
+                    Blur = 0,
+                    Decimate = 0,
+                    MaxRadiusMeters = 0,
+                        
+                    //mesh coordinates are already in image pixel space
+                    MetersPerPixel = 1,
+                    WidthPixels = img.Width,
+                    HeightPixels = img.Height,
+                    MeshOffset = new Vector2(0, 0),
+                        
+                    ImageFactory = (b, w, h) => img, //rasterize into supplied image
+
+                    MaskFactory = (w, h) => new Image(1, w, h) //otherwise MaskFactory would default to ImageFactory
+                };
+            }
         }
 
         /// <summary>
@@ -364,31 +393,7 @@ namespace OPS.Geometry
                 throw new ArgumentException("supplied image must have at least 3 unmasked pixels");
             }
 
-            var options = new BEVOptions() {
-
-                BlendMode = BlendMode.Under, //don't overwrite any already valid pixels
-
-                CCW = true,
-
-                Greyscale = img.Bands == 1,
-
-                //disable extra stuff
-                SparseBlockSize = 0,
-                Inpaint = 0,
-                Blur = 0,
-                Decimate = 0,
-                MaxRadiusMeters = 0,
-
-                //mesh coordinates are already in image pixel space
-                MetersPerPixel = 1,
-                WidthPixels = img.Width,
-                HeightPixels = img.Height,
-                MeshOffset = new Vector2(0, 0),
-
-                ImageFactory = (b, w, h) => img //rasterize into supplied image
-            };
-
-            return RenderBirdsEyeView(Delaunay.Triangulate(seeds), null, options);
+            return RenderBirdsEyeView(Delaunay.Triangulate(seeds), null, BEVOptions.DirectToImage(img));
         }
     }
 }
