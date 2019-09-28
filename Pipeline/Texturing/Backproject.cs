@@ -53,6 +53,9 @@ namespace OPS.Pipeline
         /// <summary>
         /// high level function that takes backproject results
         /// and emits an image with observations indices and source pixel locations as the pixel colors
+        /// output band 0: observation index
+        /// output band 1: observation pixel row
+        /// output band 2: observation column
         /// </summary>
         static public void FillIndexImage(IDictionary<Pixel, ObsPixel> backprojectResults, Image outputImage)
         {
