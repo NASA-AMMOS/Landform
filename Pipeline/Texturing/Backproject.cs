@@ -224,6 +224,28 @@ namespace OPS.Pipeline
             }
         }
 
+        public static IDictionary<Pixel, Backproject.ObsPixel>
+            BuildResultsFromIndex(Image index, IDictionary<int, Observation> indexedObservations)
+        {
+            var results = new Dictionary<Pixel, Backproject.ObsPixel>();
+            for (int r = 0; r < index.Height; r++)
+            {
+                for (int c = 0; c < index.Width; c++)
+                {
+                    int obsIndex = (int)index[0, r, c];
+                    if (obsIndex >= Observation.MIN_INDEX)
+                    {
+                        var obs = indexedObservations[obsIndex];
+                        int obsRow = (int)index[1, r, c];
+                        int obsCol = (int)index[2, r, c];
+                        var obsPixel = new Vector2(obsCol, obsRow);
+                        results[new Pixel(r, c)] = new Backproject.ObsPixel(obs, obsPixel);
+                    }
+                }
+            }
+            return results;
+        }
+
         public class BackprojectOptions
         {
             public PipelineCore pipeline;

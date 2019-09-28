@@ -20,18 +20,21 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
-    public enum BlendStrategy { None, Barycentric, Inpaint };
+    public enum BlendStrategy { None, Auto, Barycentric, Inpaint };
 
     [Verb("local-blend-images", HelpText = "blend observation images")]
     public class LocalBlendImagesOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Use existing leaves to build backproject index", Default = false)]
-        public bool UseExistingLeaves { get; set; }
+        [Option(HelpText = "Don't uexisting leaves to build backproject index", Default = false)]
+        public bool NoUseExistingLeaves { get; set; }
 
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
         public override TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "Canned blend strategy (None, Barycentric, Inpaint)", Default = BlendStrategy.None)]
+        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0.5)]
+        public override double BackprojectBatchGridSize { get; set; }
+
+        [Option(HelpText = "Canned blend strategy (Default, Barycentric, Inpaint)", Default = BlendStrategy.Auto)]
         public BlendStrategy BlendStrategy { get; set; }
 
         [Option(HelpText = "Inpaint backprojected pixels in diff images by this many pixels, 0 to disable, negative for unlimited", Default = 0)]
@@ -92,6 +95,7 @@ namespace OPS.Landform
 
         private LocalBlendImagesOptions options;
 
+        private bool useExistingLeaves;
         private Image blurredTexture;
         private Image blendedTexture;
 
@@ -122,7 +126,7 @@ namespace OPS.Landform
                 }
 
                 RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
-                if (!options.UseExistingLeaves)
+                if (!useExistingLeaves)
                 {
                     RunPhase("check/generate observation image masks", BuildObservationImageMasks);
                     RunPhase("build observation frustum hulls", BuildObsHulls);
@@ -131,6 +135,10 @@ namespace OPS.Landform
                 RunPhase("load or generate blurred texture", LoadOrBuildBlurredTexture);
                 RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
                 RunPhase("generate blended observation images", BuildBlendedObservationImages);
+                if (useExistingLeaves && !string.IsNullOrEmpty(leafList.ImageExt) && !options.NoSave)
+                {
+                    RunPhase("generate blended leaf textures", BuildBlendedLeafTextures);
+                }
             }
             catch (Exception ex)
             {
@@ -148,6 +156,39 @@ namespace OPS.Landform
             if (options.TextureVariant != TextureVariant.Blurred)
             {
                 throw new Exception("this command only supports --texturevariant=Blurred");
+            }
+
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+            {
+                return false; //help
+            }
+
+            useExistingLeaves = false;
+            if (!options.NoUseExistingLeaves)
+            {
+                var dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+                if (dsm != null && dsm.LeafListGuid != Guid.Empty)
+                {
+                    sceneMesh = dsm;
+                    useExistingLeaves = true;
+                    pipeline.LogInfo("using existing leaves");
+                    LoadLeafList();
+                }
+            }
+
+            if (!useExistingLeaves)
+            {
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
+                if (sceneMesh == null)
+                {
+                    sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
+                                                 noSave: options.NoSave);
+                }
+            }
+
+            if (options.BlendStrategy == BlendStrategy.Auto)
+            {
+                options.BlendStrategy = useExistingLeaves ? BlendStrategy.Inpaint : BlendStrategy.Barycentric;
             }
 
             switch (options.BlendStrategy)
@@ -174,17 +215,22 @@ namespace OPS.Landform
                 default: throw new Exception("unknown blend strategy: " + options.BlendStrategy);
             }
 
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
-            {
-                return false; //help
-            }
-
             return true;
         }
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
             throw new NotImplementedException();
+        }
+
+        protected override void LoadLeafList()
+        {
+            base.LoadLeafList();
+
+            if (!leafList.HasIndexImages)
+            {
+                throw new Exception("leaf list missing index images, run local-build-leaves");
+            }
         }
 
         private void LoadOrBuildShrinkwrapMesh()
@@ -197,9 +243,7 @@ namespace OPS.Landform
                 }
             }
 
-            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
-
-            if (sceneMesh != null && sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
+            if (sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
             {
                 pipeline.LogInfo("loading existing shrinkwrap mesh from database");
                 mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
@@ -215,11 +259,11 @@ namespace OPS.Landform
             }
             else
             {
-                SceneMesh sm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
-                if (sm != null && sm.MeshGuid != Guid.Empty)
+                SceneMesh dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+                if (dsm != null && dsm.MeshGuid != Guid.Empty)
                 {
                     pipeline.LogInfo("loading scene mesh from database");
-                    inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sm.MeshGuid).Mesh;
+                    inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, dsm.MeshGuid).Mesh;
                 }
                 else
                 {
@@ -240,7 +284,8 @@ namespace OPS.Landform
             Mesh gridMesh = Shrinkwrap.BuildGrid(inputMesh, options.GridResolution, options.GridResolution,
                                                  options.ProjectionAxis);
 
-            mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis, options.ShrinkwrapMiss);
+            mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis,
+                                   options.ShrinkwrapMiss);
 
             pipeline.LogInfo("built shrinkwrap mesh with {0} faces", Fmt.KMG(mesh.Faces.Count));
 
@@ -252,12 +297,6 @@ namespace OPS.Landform
             if (!mesh.HasUVs)
             {
                 throw new Exception("shrinkwrap mesh needs UVs");
-            }
-
-            if (sceneMesh == null)
-            {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
-                                             noSave: options.NoSave);
             }
 
             if (!options.NoSave)
@@ -273,24 +312,8 @@ namespace OPS.Landform
             writeDebug();
         }
 
-        private void EnsureSceneMesh()
-        {
-            var meshVariant = options.UseExistingLeaves ? MeshVariant.Default : MeshVariant.Shrinkwrap;
-            if (sceneMesh == null)
-            {
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, meshVariant, siteDrives);
-            }
-            if (sceneMesh == null)
-            {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, meshVariant, siteDrives,
-                                             noSave: options.NoSave);
-            }
-        }
-
         private void LoadOrBuildBlurredTexture()
         {
-            EnsureSceneMesh();
-
             if (sceneMesh.BlurredTextureGuid != Guid.Empty && sceneMesh.BackprojectIndexGuid != Guid.Empty &&
                 !options.RedoBlurredTexture)
             {
@@ -313,13 +336,15 @@ namespace OPS.Landform
                 return;
             }
 
-            if (options.UseExistingLeaves)
+            if (useExistingLeaves)
             {
+                pipeline.LogInfo("creating blurred texture from existing leaves");
                 BuildBackprojectIndexFromLeaves();
                 BuildBackprojectResultsFromIndex();
             }
             else
             {
+                pipeline.LogInfo("creating blurred texture from shrinkwrap mesh");
                 BuildSceneCaster();
                 BackprojectObservations();
                 BuildBackprojectIndex();
@@ -332,13 +357,10 @@ namespace OPS.Landform
 
         private void LoadOrBuildBlendedTexture()
         {
-            EnsureSceneMesh();
-
             void writeDebug()
             {
                 if (options.WriteDebug)
                 {
-                    pipeline.LogInfo("saving blended texture and textured mesh");
                     string name = sceneMesh.Name + "_backprojectTexture_" + TextureVariant.Blended;
                     SaveImage(blendedTexture, name);
                     if (mesh != null)
@@ -404,7 +426,6 @@ namespace OPS.Landform
 
             if (!options.NoSave)
             {
-                pipeline.LogInfo("saving blended texture");
                 var texProd = new PngDataProduct(blendedTexture);
                 pipeline.SaveDataProduct(project, texProd);
                 sceneMesh.BlendedTextureGuid = texProd.Guid;
@@ -685,8 +706,6 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("building backproject index from leaves");
 
-            EnsureSceneMesh();
-
             BoundingBox? bounds = null;
             if (!string.IsNullOrEmpty(options.InputMesh))
             {
@@ -704,14 +723,6 @@ namespace OPS.Landform
             var boundsSize = bounds.Value.Size();
             pipeline.LogInfo("scene mesh XY plane bounds: {0:F3}x{1:F3}", boundsSize.X, boundsSize.Y);
 
-            LoadLeafList();
-
-            if (!leafList.HasIndexImages)
-            {
-                throw new Exception("leaf list missing index images, " +
-                                    "run local-build-leaves with --savebackprojectindeximages");
-            }
-
             backprojectIndex = new Image(3, resolution, resolution);
 
             var opts = Rasterizer.BEVOptions.DirectToImage(backprojectIndex);
@@ -728,9 +739,16 @@ namespace OPS.Landform
             CoreLimitedParallel.ForEach(leafList.LeafNames, leaf =>
             {
                 string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + leafList.MeshExt);
-                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + indexSuffix + ".tif");
                 var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
+
+                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + indexSuffix + ".tif");
                 var leafIndex = pipeline.LoadImage(indexUrl);
+
+                //only rasterize winning pixels from the leaf
+                //any pixels in backprojectIndex that didn't get rasterized then remain masked
+                //it seems common that there are some losing pixels right around the leaf boundary
+                //(not sure why, mb that is a bug)
+                //if we leave those masked then below we can inpaint them
                 leafIndex.CreateMask();
                 for (int r = 0; r < leafIndex.Height; r++)
                 {
@@ -742,6 +760,7 @@ namespace OPS.Landform
                         }
                     }
                 }
+
                 Rasterizer.RenderBirdsEyeView(leafMesh, leafIndex, opts);
             });
 
@@ -752,6 +771,31 @@ namespace OPS.Landform
             {
                 SaveBackprojectIndexDebug(backprojectIndex);
             }
+        }
+
+        private void BuildBlendedLeafTextures()
+        {
+            pipeline.LogInfo("blending leaf textures");
+            string indexSuffix = LocalBuildLeaves.LEAF_INDEX_FILE_SUFFIX;
+            string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+            int curLeafNum = 0, leafCount = leafList.LeafNames.Count;
+            CoreLimitedParallel.ForEach(leafList.LeafNames, leaf =>
+            {
+                Interlocked.Increment(ref curLeafNum);
+                pipeline.LogInfo("blending leaf texture {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
+                                 100 * curLeafNum / (float)leafCount, leaf);
+                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + indexSuffix + ".tif");
+                var index = pipeline.LoadImage(indexUrl);
+                var results = Backproject.BuildResultsFromIndex(index, indexedObservations);
+                var texture = new Image(3, index.Width, index.Height);
+                Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
+                                              fallbackToOriginal: true);
+                TemporaryFile.GetAndDelete(leafList.ImageExt, tmpFile => {
+                        texture.Save<byte>(tmpFile);
+                        string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + leafList.ImageExt);
+                        pipeline.SaveFile(tmpFile, textureUrl);
+                    });
+            });
         }
     }
 }

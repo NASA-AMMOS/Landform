@@ -314,7 +314,7 @@ namespace OPS.Landform
             }
         }
 
-        protected void LoadLeafList()
+        protected virtual void LoadLeafList()
         {
             if (sceneMesh.LeafListGuid == Guid.Empty)
             {
@@ -442,23 +442,9 @@ namespace OPS.Landform
         protected void BuildBackprojectResultsFromIndex()
         {
             pipeline.LogInfo("building backproject results from index");
-            backprojectResults = new Dictionary<Pixel, Backproject.ObsPixel>();
-            for (int r = 0; r < backprojectIndex.Height; r++)
-            {
-                for (int c = 0; c < backprojectIndex.Width; c++)
-                {
-                    int obsIndex = (int)backprojectIndex[0, r, c];
-                    if (obsIndex >= Observation.MIN_INDEX)
-                    {
-                        var obs = indexedObservations[obsIndex];
-                        int obsRow = (int)backprojectIndex[1, r, c];
-                        int obsCol = (int)backprojectIndex[2, r, c];
-                        var obsPixel = new Vector2(obsCol, obsRow);
-                        backprojectResults[new Pixel(r, c)] = new Backproject.ObsPixel(obs, obsPixel);
-                    }
-                }
-            }
+            backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedObservations);
         }
+
         protected Image BuildBackprojectTexture(TextureVariant textureVariant)
         {
             pipeline.LogInfo("creating backproject texture");
