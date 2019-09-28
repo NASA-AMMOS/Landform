@@ -83,7 +83,7 @@ namespace OPS.Pipeline.TilingServer
                 MeshImagePair leafPair = new MeshImagePair();
 
                 // make the leaf tile mesh
-                leafPair.Mesh = op.Clip(leaf.GetBounds());
+                leafPair.Mesh = op.Clip(leaf.GetBoundsChecked());
                 if (leafPair.Mesh.Vertices.Count < 3)
                 {
                     throw new Exception("invalid tile contains less than 3 verts");

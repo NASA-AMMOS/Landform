@@ -85,7 +85,7 @@ namespace OPS.Pipeline.TilingServer
                 foreach (var chunkId in chunks)
                 {
                     TilingInputChunk chunk = TilingInputChunk.Find(pipeline, chunkId);
-                    bool anyIntersect = leaves.Any(leaf => leaf.GetBounds().Intersects(chunk.GetBounds()));
+                    bool anyIntersect = leaves.Any(leaf => leaf.GetBoundsChecked().Intersects(chunk.GetBounds()));
                     if (anyIntersect)
                     {
                         group.Chunks.Add(chunk);
@@ -131,7 +131,7 @@ namespace OPS.Pipeline.TilingServer
                 LogInfo("baking leaf {0} from {1} chunks ({2}/{3})",
                         leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), ++nl, leaves.Count);
 
-                var m = bakeClipper.Clip(leaf.GetBounds());
+                var m = bakeClipper.Clip(leaf.GetBoundsChecked());
 
                 var pair = new MeshImagePair(m, null);
                 if (hasImages)

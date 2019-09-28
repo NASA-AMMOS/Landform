@@ -513,7 +513,7 @@ namespace OPS.Pipeline
                     var chunkGroupKey = string.Empty;
                     foreach (var chunk in chunks)
                     {
-                        if (leafTile.GetBounds().Intersects(chunk.GetBounds()))
+                        if (leafTile.GetBoundsChecked().Intersects(chunk.GetBounds()))
                         {
                             chunkGroupKey += chunk.Id;
                         }
@@ -600,8 +600,16 @@ namespace OPS.Pipeline
             var root = TilingNode.Find(pipeline, projectName, projectCache.RootId());
             if (root != null)
             {
-                var bounds = root.GetBounds().Size();
-                LogInfo("scene bounds (meters): {0:F3}x{1:F3}x{2:F3}", bounds.X, bounds.Y, bounds.Z);
+                var bounds = root.GetBounds();
+                if (bounds.HasValue)
+                {
+                    var size = bounds.Value.Size();
+                    LogInfo("scene bounds (meters): {0:F3}x{1:F3}x{2:F3}", size.X, size.Y, size.Z);
+                }
+                else
+                {
+                    LogError("root node missing bounds");
+                }
             }
             projectCache.Reset();
             pipeline.CleanupTempDir();

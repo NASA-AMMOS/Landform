@@ -176,9 +176,23 @@ namespace OPS.Pipeline.TilingServer
             }
         }
 
-        public BoundingBox GetBounds()
+        public BoundingBox? GetBounds()
         {
-            return (BoundingBox)JsonHelper.FromJson(Bounds);
+            if ( !string.IsNullOrEmpty(Bounds))
+            {
+                return (BoundingBox)JsonHelper.FromJson(Bounds);
+            }
+            return null;
+        }
+
+        public BoundingBox GetBoundsChecked()
+        {
+            var bounds = GetBounds();
+            if (!bounds.HasValue)
+            {
+                throw new Exception(string.Format("leaf tile {0} missing bounds", Id));
+            }
+            return bounds.Value;
         }
 
         public void SetBounds(BoundingBox bounds)
@@ -188,12 +202,11 @@ namespace OPS.Pipeline.TilingServer
 
         public BoundingBox? GetBoundsWithSkirt()
         {
-            BoundingBox? ret = null;
             if (!string.IsNullOrEmpty(BoundsWithSkirt))
             {
-                ret = (BoundingBox)JsonHelper.FromJson(BoundsWithSkirt);
+                return (BoundingBox)JsonHelper.FromJson(BoundsWithSkirt);
             }
-            return ret;
+            return null;
         }
 
         public void SetBoundsWithSkirt(BoundingBox bounds)
@@ -377,9 +390,21 @@ namespace OPS.Pipeline.TilingServer
                             Mesh tilesetMesh = pair.Mesh;
                             if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
                             {
+                                var bounds = GetBounds();
+                                if (!bounds.HasValue)
+                                {
+                                    bounds = tilesetMesh.Bounds();
+                                    SetBounds(bounds.Value);
+                                }
+                                else
+                                {
+                                    SetBounds(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
+                                }
+
                                 tilesetMesh = new Mesh(tilesetMesh);
                                 tilesetMesh.AddSkirt(project.GetSkirtMode());
-                                SetBoundsWithSkirt(BoundingBoxExtensions.Union(GetBounds(), tilesetMesh.Bounds()));
+
+                                SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
                             }
                             else
                             {
@@ -571,7 +596,7 @@ namespace OPS.Pipeline.TilingServer
         public SceneNode MakeSceneNode()
         {
             SceneNode node = new SceneNode(Id);
-            node.AddComponent(new NodeBounds(GetBounds()));
+            node.AddComponent(new NodeBounds(GetBoundsChecked()));
             if (GeometricError.HasValue)
             {
                 node.AddComponent(new NodeGeometricError(GeometricError.Value));
