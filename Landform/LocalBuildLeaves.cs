@@ -52,10 +52,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
         public Mission Mission { get; set; }
+
+        [Option(HelpText = "Also save leaf backproject index images", Default = false)]
+        public bool SaveBackprojectIndexImages { get; set; }
     }
 
     public class LocalBuildLeaves : TilingCommand
     {
+        public const string LEAF_INDEX_FILE_SUFFIX = "_index";
+
         private LocalBuildLeavesOptions options;
 
         private bool bakeTextures;
@@ -121,6 +126,10 @@ namespace OPS.Landform
             }
             bakeTextures = withTextures && !string.IsNullOrEmpty(options.InputTexture);
             backprojectTextures = withTextures && !bakeTextures;
+            if (options.SaveBackprojectIndexImages && !backprojectTextures)
+            {
+                throw new Exception("not backprojecting textures, cannot save backproject index images");
+            }
             pipeline.LogInfo("{0} leaf textures",
                              withTextures ? (bakeTextures ? "baking" : "backprojecting") : "not making");
             return true;
@@ -255,8 +264,8 @@ namespace OPS.Landform
                 }
                 else if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("building leaf mesh {0}/{1} ({2}%): {3}", curLeafNum, leafCount,
-                                     (int)(100 * curLeafNum / (float)leafCount), leaf.Name);
+                    pipeline.LogInfo("building leaf mesh {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
+                                     100 * curLeafNum / (float)leafCount, leaf.Name);
                 }
 
                 Mesh leafMesh = MakeLeafMesh(leaf, meshOp);
@@ -285,6 +294,7 @@ namespace OPS.Landform
                     MeshExt = meshExt,
                     ImageExt = withTextures ? imageExt : null,
                     MeshFrame = meshFrame,
+                    HasIndexImages = options.SaveBackprojectIndexImages,
                     TilingScheme = options.TilingScheme,
                     LeafNames = new List<string>()
                 };
@@ -307,6 +317,10 @@ namespace OPS.Landform
             pipeline.LogInfo("processing {0} leaves{1}", leafCount, 
                              bakeTextures ? ", baking " + texMsg :
                              backprojectTextures ? ", backprojecting " + texMsg : "");
+            if (backprojectTextures && options.SaveBackprojectIndexImages)
+            {
+                pipeline.LogInfo("saving leaf backproject index images");
+            }
 
             //it's actually a significant win to build the leaves serially when backprojecting
             int np = 0, curLeafNum = 0, numFailed = 0, numSucceded = 0;
@@ -317,14 +331,15 @@ namespace OPS.Landform
 
                 if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("{0}saving leaf {1}/{2} ({3}%){4}: {5}",
+                    pipeline.LogInfo("{0}saving leaf {1}/{2} ({3:F2}%){4}: {5}",
                                      withTextures ? "texturing and " : "", curLeafNum, leafCount,
-                                     (int)(100 * curLeafNum / (float)leafCount),
+                                     100 * curLeafNum / (float)leafCount,
                                      np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
                 }
 
                 MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
 
+                Image index = null;
                 if (bakeTextures)
                 {
                     var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogInfo(msg));
@@ -333,12 +348,13 @@ namespace OPS.Landform
                 }
                 else if (backprojectTextures)
                 {
-                    mp.Image = BackprojectLeafTexture(leaf, mp.Mesh);
+                    index = options.SaveBackprojectIndexImages ? new Image(3, resolution, resolution) : null;
+                    mp.Image = BackprojectLeaf(leaf, mp.Mesh, index);
                 }
 
                 if (!withTextures || mp.Image != null)
                 {
-                    SaveLeaf(leaf.Name, mp.Mesh, mp.Image, localSave, cloudSave);
+                    SaveLeaf(leaf.Name, mp.Mesh, mp.Image, index, localSave, cloudSave);
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -373,7 +389,7 @@ namespace OPS.Landform
             }
         }
 
-        private void SaveLeaf(string name, Mesh mesh, Image image, bool local, bool cloud)
+        private void SaveLeaf(string name, Mesh mesh, Image image, Image index, bool local, bool cloud)
         {
             string imgName = image != null ? name + imageExt : null;
             
@@ -382,6 +398,10 @@ namespace OPS.Landform
                 if (image != null)
                 {
                     SaveImage(image, name);
+                }
+                if (index != null)
+                {
+                    SaveFloatTIFF(index, name + LEAF_INDEX_FILE_SUFFIX);
                 }
                 SaveMesh(mesh, name, imgName);
             }
@@ -472,10 +492,8 @@ namespace OPS.Landform
             return leafMesh;
         }
 
-        private Image BackprojectLeafTexture(SceneNode leaf, Mesh leafMesh)
+        private Image BackprojectLeaf(SceneNode leaf, Mesh leafMesh, Image index = null)
         {
-            Image leafImage = null;
-
             try
             {
                 bool logging = pipeline.Verbose || pipeline.Debug;
@@ -487,17 +505,21 @@ namespace OPS.Landform
                     return null;
                 }
 
-                leafImage = new Image(3, resolution, resolution);
+                if (index != null)
+                {
+                    Backproject.FillIndexImage(backprojectResults, index);
+                }
+
+                Image leafImage = new Image(3, resolution, resolution);
                 Backproject.FillOutputTexture(pipeline, backprojectResults, leafImage, options.TextureVariant,
                                               !options.DontInpaint, fallbackToOriginal: true);
+                return leafImage;
             }
             catch (Exception ex)
             {
                 pipeline.LogError("error building leaf mesh {0}: {1}", leaf.Name, ex.Message);
                 return null;
             }
-
-            return leafImage;
         }
     }
 }
