@@ -536,7 +536,7 @@ namespace OPS.Pipeline.TilingServer
                     }
                     if (mesh == null)
                     {
-                        pipeline.GetFile(MeshUrl, f => mesh = Mesh.Load(f));
+                        mesh = Mesh.Load(pipeline.GetFileCached(MeshUrl, "meshes"));
                         if (cleanMesh)
                         {
                             if (!mesh.HasNormals)
