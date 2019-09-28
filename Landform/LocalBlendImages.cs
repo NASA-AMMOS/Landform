@@ -510,6 +510,12 @@ namespace OPS.Landform
                              "fill avg: {4}", options.InpaintWinners, !options.NoBarycentricInterpolateWinners,
                              options.InpaintDiff, options.BlurDiff, !options.NoFillBlendWithAverageDiff);
 
+            if (!options.NoBarycentricInterpolateWinners && options.BarycentricInterpolateMaxTriangleSideLengthPixels > 0)
+            {
+                pipeline.LogInfo("barycentric interpolate max triangle side {0}px",
+                                 options.BarycentricInterpolateMaxTriangleSideLengthPixels);
+            }
+
             double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
 
             int np = 0, nc = 0;
@@ -634,7 +640,6 @@ namespace OPS.Landform
                                     if (d2 > ms2) return false;
                                     return true;
                                 };
-
                             }
                             Rasterizer.BarycentricInterpolate(diffImage, filter);
                         }
