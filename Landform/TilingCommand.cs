@@ -34,15 +34,13 @@ namespace OPS.Landform
 
     public class TilingCommand : TextureCommand
     {
-        protected const string OUT_DIR = "tiling/Tile";
+        public const string OUT_DIR = "tiling/Tile";
 
         protected TilingCommandOptions tilingOpts;
 
         protected bool withTextures;
         protected bool localSave;
         protected bool cloudSave;
-
-        protected LeafList leafList;
 
         protected TilingCommand(TilingCommandOptions tilingOpts) : base(tilingOpts)
         {

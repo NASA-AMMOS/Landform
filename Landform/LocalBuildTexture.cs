@@ -59,7 +59,7 @@ namespace OPS.Landform
 
                 if (!options.NoIndex)
                 {
-                    RunPhase("generate backproject index", () => { BuildBackprojectIndex(); });
+                    RunPhase("generate backproject index", BuildBackprojectIndex);
                 }
 
                 if (!options.NoTexture)

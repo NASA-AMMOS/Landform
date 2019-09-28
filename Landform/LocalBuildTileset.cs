@@ -103,23 +103,7 @@ namespace OPS.Landform
                 throw new Exception(string.Format("no scene mesh for project {0} in frame {1}", project.Name, meshFrame));
             }
 
-            if (sceneMesh.LeafListGuid == Guid.Empty)
-            {
-                throw new Exception(string.Format("scene mesh for project {0} in frame {1} has no leaf list, run local-build-leaves", project.Name, meshFrame));
-            }
-
-            pipeline.LogInfo("loading leaf list from database");
-            leafList = pipeline.GetDataProduct<LeafList>(project, sceneMesh.LeafListGuid);
-
-            if (leafList.MeshFrame != meshFrame)
-            {
-                throw new Exception(string.Format("leaf list is in frame {0}, expected {1}", leafList.MeshFrame, meshFrame));
-            }
-
-            if (leafList.LeafNames == null || leafList.LeafNames.Count == 0)
-            {
-                throw new Exception("leaf list is empty");
-            }
+            LoadLeafList();
 
             withTextures &= !string.IsNullOrEmpty(leafList.ImageExt);
 

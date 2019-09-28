@@ -64,8 +64,11 @@ namespace OPS.Landform
         protected int resolution;
         protected IDictionary<string, ConvexHull> obsToHull;
         protected List<Observation> imageObservations;
+        protected Dictionary<int, Observation> indexedObservations;
         protected SceneCaster sceneCaster;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
+        protected Image backprojectIndex;
+        protected LeafList leafList;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -106,6 +109,11 @@ namespace OPS.Landform
                 string imageObs = ObservationType.Image.ToString();
                 imageObservations =
                     observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+                indexedObservations = new Dictionary<int, Observation>();
+                foreach (var obs in imageObservations)
+                {
+                    indexedObservations[obs.Index] = obs;
+                }
             }
 
             return true;
@@ -306,6 +314,28 @@ namespace OPS.Landform
             }
         }
 
+        protected void LoadLeafList()
+        {
+            if (sceneMesh.LeafListGuid == Guid.Empty)
+            {
+                throw new Exception(string.Format("scene mesh {0} has no leaf list, run local-build-leaves",
+                                                  sceneMesh.Name));
+            }
+
+            leafList = pipeline.GetDataProduct<LeafList>(project, sceneMesh.LeafListGuid);
+
+            if (leafList.MeshFrame != meshFrame)
+            {
+                throw new Exception(string.Format("leaf list is in frame {0}, expected {1}",
+                                                  leafList.MeshFrame, meshFrame));
+            }
+
+            if (leafList.LeafNames == null || leafList.LeafNames.Count == 0)
+            {
+                throw new Exception("leaf list is empty");
+            }
+        }
+
         protected void BuildSceneCaster()
         {
             Mesh occlusionMesh = null;
@@ -388,16 +418,16 @@ namespace OPS.Landform
             return Backproject.BackprojectObservations(opts);
         }
 
-        protected Image BuildBackprojectIndex()
+        protected void BuildBackprojectIndex()
         {
             pipeline.LogInfo("creating backproject index");
-            Image index = new Image(3, resolution, resolution);
-            Backproject.FillIndexImage(backprojectResults, index);
+            backprojectIndex = new Image(3, resolution, resolution);
+            Backproject.FillIndexImage(backprojectResults, backprojectIndex);
 
             if (!tcopts.NoSave)
             {
                 pipeline.LogInfo("saving backproject index");
-                var indexProd = new TiffDataProduct(index);
+                var indexProd = new TiffDataProduct(backprojectIndex);
                 pipeline.SaveDataProduct(project, indexProd);
                 sceneMesh.BackprojectIndexGuid = indexProd.Guid;
                 sceneMesh.Save(pipeline);
@@ -405,12 +435,30 @@ namespace OPS.Landform
             
             if (tcopts.WriteDebug)
             {
-                SaveBackprojectIndexDebug(index);
+                SaveBackprojectIndexDebug(backprojectIndex);
             }
-
-            return index;
         }
 
+        protected void BuildBackprojectResultsFromIndex()
+        {
+            pipeline.LogInfo("building backproject results from index");
+            backprojectResults = new Dictionary<Pixel, Backproject.ObsPixel>();
+            for (int r = 0; r < backprojectIndex.Height; r++)
+            {
+                for (int c = 0; c < backprojectIndex.Width; c++)
+                {
+                    int obsIndex = (int)backprojectIndex[0, r, c];
+                    if (obsIndex >= Observation.MIN_INDEX)
+                    {
+                        var obs = indexedObservations[obsIndex];
+                        int obsRow = (int)backprojectIndex[1, r, c];
+                        int obsCol = (int)backprojectIndex[2, r, c];
+                        var obsPixel = new Vector2(obsCol, obsRow);
+                        backprojectResults[new Pixel(r, c)] = new Backproject.ObsPixel(obs, obsPixel);
+                    }
+                }
+            }
+        }
         protected Image BuildBackprojectTexture(TextureVariant textureVariant)
         {
             pipeline.LogInfo("creating backproject texture");
@@ -449,7 +497,10 @@ namespace OPS.Landform
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
             name += "FalseColor";
             SaveImage(previewImg, name);
-            SaveMesh(mesh, name, name + imageExt);
+            if (mesh != null)
+            {
+                SaveMesh(mesh, name, name + imageExt);
+            }
         }
 
         protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
@@ -457,7 +508,10 @@ namespace OPS.Landform
             pipeline.LogInfo("saving backproject {0} textured mesh", textureVariant);
             string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
             SaveImage(texture, name);
-            SaveMesh(mesh, name, name + imageExt);
+            if (mesh != null)
+            {
+                SaveMesh(mesh, name, name + imageExt);
+            }
         }
 
         protected void SaveDebugWedgeImage(Image img, Observation obs, string suffix)

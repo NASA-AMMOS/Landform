@@ -17,14 +17,15 @@ namespace OPS.Imaging
         /// </summary>
         /// <param name="border"></param>
         /// <param name="preserveMask">inpainting usually destroys the mask where pixels were inpainted, setting to true will preserve the original mask</param>
-        public static Image Inpaint(this Image img, int border = -1, bool preserveMask = false)
+        public static Image Inpaint(this Image img, int border = -1, bool preserveMask = false,
+                                    bool useAnyNeighbor = false)
         {
             if (img.HasMask && preserveMask)
             {
                 img.SaveMask();
             }
 
-            Apply(img, border);
+            Apply(img, border, useAnyNeighbor);
 
             if (img.HasMask && preserveMask)
             {
@@ -95,12 +96,29 @@ namespace OPS.Imaging
             image.SetBandValues(r, c, average);
         }
 
+        private static void FillWithAnyNeighbor(int r, int c, Image image)
+        {
+            float[] any = null;
+            for (int r2 = Math.Max(0, r - 1); any == null && r2 <= Math.Min(image.Height - 1, r + 1); r2++)
+            {
+                for (int d2 = Math.Max(0, c - 1); any == null && d2 <= Math.Min(image.Width - 1, c + 1); d2++)
+                { 
+                    if (image.IsValid(r2, d2))
+                    {
+                        any = image.GetBandValues(r2, d2);
+                    }
+                }
+            }
+            // This method should only be called when at least one neighbor is valid so any should never be null
+            image.SetBandValues(r, c, any);
+        }
+
         /// <summary>
         /// Inpaint masked reagions of an image by the amount specified by pad width
         /// </summary>
         /// <param name="image"></param>
         /// <param name="padWidth"></param>
-        private static void Apply(Image image, int padWidth = -1)
+        private static void Apply(Image image, int padWidth = -1, bool useAnyNeighbor = false)
         {
             if(!image.HasMask)
             {
@@ -135,7 +153,14 @@ namespace OPS.Imaging
                 }
                 foreach (Vector2 edge in edgePoints)
                 {
-                    FillWithNeighborAverage((int)edge.X, (int)edge.Y, image);
+                    if (useAnyNeighbor)
+                    {
+                        FillWithAnyNeighbor((int)edge.X, (int)edge.Y, image);
+                    }
+                    else
+                    {
+                        FillWithNeighborAverage((int)edge.X, (int)edge.Y, image);
+                    }
                 }   
                 foreach (Vector2 edge in edgePoints)
                 {
