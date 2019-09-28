@@ -226,6 +226,7 @@ namespace OPS.Landform
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
                 if (sceneMesh != null)
                 {
+                    sceneMesh.SetBounds(mesh.Bounds());
                     var meshProd = new PlyGZDataProduct(mesh);
                     pipeline.SaveDataProduct(project, meshProd);
                     sceneMesh.MeshGuid = meshProd.Guid;

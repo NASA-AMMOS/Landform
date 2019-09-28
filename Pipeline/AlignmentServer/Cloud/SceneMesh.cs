@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
+using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -32,6 +33,8 @@ namespace OPS.Pipeline.AlignmentServer
         public String Frame;
 
         public MeshVariant Variant;
+
+        public string Bounds;
 
         public Guid MeshGuid;
 
@@ -120,6 +123,11 @@ namespace OPS.Pipeline.AlignmentServer
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
                                     textureProd != null ? textureProd.Guid : Guid.Empty);
 
+            if (mesh != null)
+            {
+                ret.SetBounds(mesh.Bounds());
+            }
+
             bool addedToProject = false;
             lock (project.SceneMeshes)
             {
@@ -137,6 +145,20 @@ namespace OPS.Pipeline.AlignmentServer
             }
 
             return ret;
+        }
+
+        public BoundingBox? GetBounds()
+        {
+            if (!string.IsNullOrEmpty(Bounds))
+            {
+                return (BoundingBox)JsonHelper.FromJson(Bounds);
+            }
+            return null;
+        }
+
+        public void SetBounds(BoundingBox bounds)
+        {
+            Bounds = JsonHelper.ToJson(bounds);
         }
 
         public void Delete(PipelineCore pipeline, Project project, bool ignoreErrors = true)
