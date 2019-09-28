@@ -53,8 +53,8 @@ namespace OPS.Landform
         [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
         public Mission Mission { get; set; }
 
-        [Option(HelpText = "Also save leaf backproject index images", Default = false)]
-        public bool SaveBackprojectIndexImages { get; set; }
+        [Option(HelpText = "Don't save leaf backproject index images", Default = false)]
+        public bool NoBackprojectIndexImages { get; set; }
     }
 
     public class LocalBuildLeaves : TilingCommand
@@ -124,12 +124,15 @@ namespace OPS.Landform
             {
                 return false; //help
             }
+
             bakeTextures = withTextures && !string.IsNullOrEmpty(options.InputTexture);
             backprojectTextures = withTextures && !bakeTextures;
-            if (options.SaveBackprojectIndexImages && !backprojectTextures)
+
+            if (!options.NoBackprojectIndexImages && !backprojectTextures)
             {
                 throw new Exception("not backprojecting textures, cannot save backproject index images");
             }
+
             pipeline.LogInfo("{0} leaf textures",
                              withTextures ? (bakeTextures ? "baking" : "backprojecting") : "not making");
             return true;
@@ -294,7 +297,7 @@ namespace OPS.Landform
                     MeshExt = meshExt,
                     ImageExt = withTextures ? imageExt : null,
                     MeshFrame = meshFrame,
-                    HasIndexImages = options.SaveBackprojectIndexImages,
+                    HasIndexImages = !options.NoBackprojectIndexImages,
                     TilingScheme = options.TilingScheme,
                     LeafNames = new List<string>()
                 };
@@ -317,7 +320,7 @@ namespace OPS.Landform
             pipeline.LogInfo("processing {0} leaves{1}", leafCount, 
                              bakeTextures ? ", baking " + texMsg :
                              backprojectTextures ? ", backprojecting " + texMsg : "");
-            if (backprojectTextures && options.SaveBackprojectIndexImages)
+            if (backprojectTextures && !options.NoBackprojectIndexImages)
             {
                 pipeline.LogInfo("saving leaf backproject index images");
             }
@@ -348,7 +351,7 @@ namespace OPS.Landform
                 }
                 else if (backprojectTextures)
                 {
-                    index = options.SaveBackprojectIndexImages ? new Image(3, resolution, resolution) : null;
+                    index = !options.NoBackprojectIndexImages ? new Image(3, resolution, resolution) : null;
                     mp.Image = BackprojectLeaf(leaf, mp.Mesh, index);
                 }
 
