@@ -192,11 +192,16 @@ namespace OPS.Geometry
                 if (mesh.HasUVs && img != null)
                 {
                     var src = img.UVToPixel(Vector2.Clamp(v0.UV * alpha + v1.UV * beta + v2.UV * gamma, zero, one));
-                    blend(0, r, c, img[0, (int)src.Y, (int)src.X], overdraw);
-                    if (bands == 3)
+                    int sr = (int)src.Y, sc = (int)src.X;
+                    if (img.IsValid(sr, sc))
                     {
-                        blend(1, r, c, img[1, (int)src.Y, (int)src.X], overdraw);
-                        blend(2, r, c, img[2, (int)src.Y, (int)src.X], overdraw);
+                        blend(0, r, c, img[0, sr, sc], overdraw);
+                        if (bands == 3)
+                        {
+                            blend(1, r, c, img[1, sr, sc], overdraw);
+                            blend(2, r, c, img[2, sr, sc], overdraw);
+                        }
+                        ret.SetMaskValue(r, c, false);
                     }
                 }
                 else
@@ -207,8 +212,8 @@ namespace OPS.Geometry
                         blend(1, r, c, (float)(v0.Color.Y * alpha + v1.Color.Y * beta + v2.Color.Y * gamma), overdraw);
                         blend(2, r, c, (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma), overdraw);
                     }
+                    ret.SetMaskValue(r, c, false);
                 }
-                ret.SetMaskValue(r, c, false);
             }
 
             foreach (var t in mesh.Faces)
