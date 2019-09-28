@@ -135,7 +135,7 @@ namespace OPS.Pipeline.TilingServer
 
             var meshOpts = new MeshObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
-            info("building wedge meshes");
+            info("building wedge point clouds");
             var obsToMesh = new ConcurrentDictionary<string, Mesh>();
             int no = observations.Count;
             int np = 0, nc = 0, nf = 0;
