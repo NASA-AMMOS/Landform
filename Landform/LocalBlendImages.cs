@@ -40,6 +40,9 @@ namespace OPS.Landform
         [Option(HelpText = "Don't barycentric interpolate backprojected pixels in diff images", Default = false)]
         public bool NoBarycentricInterpolateWinners { get; set; }
 
+        [Option(HelpText = "Barycentric interpolate max triangle side length in pixels", Default = 100)]
+        public double BarycentricInterpolateMaxTriangleSideLengthPixels { get; set; }
+
         [Option(HelpText = "Inpaint final diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
         public int InpaintDiff { get; set; }
 
@@ -592,7 +595,27 @@ namespace OPS.Landform
                         
                         if (!options.NoBarycentricInterpolateWinners && numWinners >= 3)
                         {
-                            Rasterizer.BarycentricInterpolate(diffImage);
+                            Func<Mesh, Face, bool> filter = null;
+                            double ms = options.BarycentricInterpolateMaxTriangleSideLengthPixels;
+                            if (ms > 0)
+                            {
+                                double ms2 = ms * ms;
+                                filter = (mesh, tri) =>
+                                {
+                                    var v0 = mesh.Vertices[tri.P0];
+                                    var v1 = mesh.Vertices[tri.P1];
+                                    var v2 = mesh.Vertices[tri.P2];
+                                    var d0 = Vector3.DistanceSquared(v0.Position, v1.Position);
+                                    if (d0 > ms2) return false;
+                                    var d1 = Vector3.DistanceSquared(v1.Position, v2.Position);
+                                    if (d1 > ms2) return false;
+                                    var d2 = Vector3.DistanceSquared(v2.Position, v0.Position);
+                                    if (d2 > ms2) return false;
+                                    return true;
+                                };
+
+                            }
+                            Rasterizer.BarycentricInterpolate(diffImage, filter);
                         }
                         
                         if (options.InpaintDiff != 0)

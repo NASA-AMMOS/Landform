@@ -35,6 +35,7 @@ namespace OPS.Geometry
             public Vector2? MeshOffset = null; //XY plane offset to apply to mesh, auto compute if null
             public Func<int, int, int, Image> ImageFactory = null; //defaults to new Image()
             public Func<int, int, Image> MaskFactory = null; //defaults to use ImageFactory
+            public Func<Mesh, Face, bool> FaceFilter = null; //true = rasterize face
 
             public BEVOptions Clone()
             {
@@ -245,8 +246,15 @@ namespace OPS.Geometry
                 }
             }
 
+            Func<Mesh, Face, bool> filter = options.FaceFilter ?? ((m, t) => true);
+
             foreach (var t in mesh.Faces)
             {
+                if (!filter(mesh, t))
+                {
+                    continue;
+                }
+
                 var v0 = mesh.Vertices[ccw ? t.P0 : t.P2];
                 var v1 = mesh.Vertices[t.P1];
                 var v2 = mesh.Vertices[ccw ? t.P2 : t.P0];
@@ -353,7 +361,7 @@ namespace OPS.Geometry
         /// Delaunay triangulate non-masked pixels, then barycentric interpolate pixel colors in their convex hull.
         /// Supplied image must have 1 or 3 bands and a mask.
         /// </summary>
-        public static Image BarycentricInterpolate(Image img)
+        public static Image BarycentricInterpolate(Image img, Func<Mesh, Face, bool> filter = null)
         {
             if (img.Bands != 1 && img.Bands != 3)
             {
@@ -393,7 +401,12 @@ namespace OPS.Geometry
                 throw new ArgumentException("supplied image must have at least 3 unmasked pixels");
             }
 
-            return RenderBirdsEyeView(Delaunay.Triangulate(seeds), null, BEVOptions.DirectToImage(img));
+            var opts = BEVOptions.DirectToImage(img);
+            if (filter != null)
+            {
+                opts.FaceFilter = filter;
+            }
+            return RenderBirdsEyeView(Delaunay.Triangulate(seeds), null, opts);
         }
     }
 }
