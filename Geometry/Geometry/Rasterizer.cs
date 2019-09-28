@@ -33,7 +33,8 @@ namespace OPS.Geometry
             public int WidthPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
             public int HeightPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
             public Vector2? MeshOffset = null; //XY plane offset to apply to mesh, auto compute if null
-            public Func<int, int, int, Image> ImageFactory = null;
+            public Func<int, int, int, Image> ImageFactory = null; //defaults to new Image()
+            public Func<int, int, Image> MaskFactory = null; //defaults to use ImageFactory
 
             public BEVOptions Clone()
             {
@@ -278,9 +279,14 @@ namespace OPS.Geometry
 
             if (options.Inpaint > 0)
             {
+                Func<int, int, Image> maskFactory = options.MaskFactory;
+                if (maskFactory == null)
+                {
+                    maskFactory = (w, h) => imageFactory(1, w, h);
+                }
                 //inpaint just the interior holes
                 //we do this by first creating a mask by floodfilling exterior invalid regions
-                Image mask = imageFactory(1, ret.Width, ret.Height);
+                Image mask = maskFactory(ret.Width, ret.Height);
                 ret.AddOuterRegionsToMask(mask);
                 ret.Inpaint(options.Inpaint);
                 ret.UnionMask(mask, new float[] { 1 } ); //re-apply the exterior mask
