@@ -419,6 +419,18 @@ namespace OPS.Landform
                             pipeline.SaveFile(tmpFile, imgUrl);
                         });
                 }
+
+                if (index != null)
+                {
+                    TemporaryFile.GetAndDelete(".tif", tmpFile => {
+                            var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                            var serializer = new GDALSerializer(opts);
+                            serializer.Write<float>(tmpFile, index);
+                            string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
+                                                                     name + LEAF_INDEX_FILE_SUFFIX + ".tif");
+                            pipeline.SaveFile(tmpFile, indexUrl);
+                        });
+                }
                 
                 TemporaryFile.GetAndDelete(meshExt, tmpFile => {
                         

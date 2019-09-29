@@ -197,7 +197,9 @@ namespace OPS.Landform
             {
                 pipeline.LogVerbose("saving float TIFF {0}", name);
             }
-            img.Save<float>(imageFile);
+            var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+            var serializer = new GDALSerializer(opts);
+            serializer.Write<float>(imageFile, img);
         }
 
         protected void SaveImage(Image img, string name)
