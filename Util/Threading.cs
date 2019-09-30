@@ -74,7 +74,7 @@ namespace OPS.Util
         {
             if (maxCores == 0)
             {
-                maxParallelism = -1;
+                maxParallelism = GetAvailableCores();
             }
             else if (maxCores > 0)
             {

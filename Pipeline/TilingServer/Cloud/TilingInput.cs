@@ -91,7 +91,7 @@ namespace OPS.Pipeline.TilingServer
             pipeline.SaveDatabaseItem(this);
         }
 
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null)
         {
             lock (ChunkIds)
             {
@@ -101,14 +101,17 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
-            if (!string.IsNullOrEmpty(MeshUrl))
+            if (keepMeshes == null || !keepMeshes.Contains(TileId))
             {
-                pipeline.DeleteFile(MeshUrl, ignoreErrors);
-            }
-
-            if (!string.IsNullOrEmpty(ImageUrl))
-            {
-                pipeline.DeleteFile(ImageUrl, ignoreErrors);
+                if (!string.IsNullOrEmpty(MeshUrl))
+                {
+                    pipeline.DeleteFile(MeshUrl, ignoreErrors);
+                }
+                
+                if (!string.IsNullOrEmpty(ImageUrl))
+                {
+                    pipeline.DeleteFile(ImageUrl, ignoreErrors);
+                }
             }
 
             pipeline.DeleteDatabaseItem(this, ignoreErrors);

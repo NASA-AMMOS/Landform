@@ -24,6 +24,9 @@ namespace OPS.TilingServer
     //for now it only handles tiling workflows
     public class StartMaster : CloudPipeline
     {
+        public const double STATUS_SPEW_SEC = 15;
+        public const double LONG_TASK_WARN_SEC = 5 * 60;
+
         private StartMasterOptions options;
 
         private Task workerTask = null;
@@ -86,6 +89,7 @@ namespace OPS.TilingServer
         const int DEQUEUE_THROTTLE_MS = 50;
         private void RunMaster()
         {
+            double lastSpew = UTCTime.Now();
             while (true)
             {
                 //only take one message at a time when we are ready to process it
@@ -145,6 +149,16 @@ namespace OPS.TilingServer
                 if (sleepMS > 0)
                 {
                     Thread.Sleep(sleepMS);
+                }
+
+                double now = UTCTime.Now();
+                if (now - lastSpew > STATUS_SPEW_SEC * 1e3)
+                {
+                    lastSpew = now;
+                    foreach (var sm in stateMachines.Values)
+                    {
+                        sm.SpewStatus(LONG_TASK_WARN_SEC);
+                    }
                 }
             }
         }

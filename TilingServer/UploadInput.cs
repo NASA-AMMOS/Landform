@@ -14,7 +14,7 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("uploadinput", HelpText = "Uploads an input dataset to be tiled")]
-    public class UploadInputOptions : TilingCommandOptions
+    public class UploadInputOptions : TilingServerCommandOptions
     {       
         [Value(1, Required = true, HelpText = "Mesh input file")]
         public string MeshFilepath { get; set; }
@@ -29,7 +29,7 @@ namespace OPS.TilingServer
         public bool NoWait { get; set; }
     }
 
-    public class UploadInput : TilingCommand
+    public class UploadInput : TilingServerCommand
     {
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;

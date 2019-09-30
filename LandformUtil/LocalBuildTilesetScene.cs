@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -17,9 +18,10 @@ using OPS.RayTrace;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
+using OPS.Landform;
 using OPS.TilingServer;
 
-namespace OPS.Landform
+namespace OPS.LandformUtil
 {
     [Verb("local-build-tilesetscene", HelpText = "builds a tileset and astro scene")]
     public class LocalBuildTilesetSceneOptions : LandformCommandOptions
@@ -38,9 +40,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Only build tiles that intersect these observations, comma separated", Default = null)]
         public string OnlyTilesForObs { get; set; }
-
-        [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
 
         [Option(HelpText = "Output coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
         public string OutputFrame { get; set; }
@@ -116,9 +115,6 @@ namespace OPS.Landform
     {
         private LocalBuildTilesetSceneOptions options;
 
-        private MissionSpecific mission;
-        private RoverMasker masker;
-
         public LocalBuildTilesetScene(LocalBuildTilesetSceneOptions options) : base(options)
         {
             if (options.Cloud)
@@ -158,8 +154,8 @@ namespace OPS.Landform
             masker = mission.GetMasker();
 
             var outputFrame = options.OutputFrame;
-            FrameTransform.ParseFrameName(ref outputFrame, out bool specificSiteDrive);
-            if (!specificSiteDrive && outputFrame != "root")
+            bool isSiteDrive = (new Regex("\\d{10}")).IsMatch(outputFrame);
+            if (!isSiteDrive && outputFrame != "root")
             {
                 pipeline.LogError("unsupported output frame: " + outputFrame);
                 return 1;
@@ -170,12 +166,12 @@ namespace OPS.Landform
 
             string dir = string.Format("tiling/TilesetProducts/{0}Frame", outputFrame);
             dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            string outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
+            string localOutputPath = pipeline.GetLocalFolder(options.OutputFolder, dir, options.ProjectName);
 
-            string leafTilesPath = outputPath + "leafTiles/";
+            string leafTilesPath = localOutputPath + "leafTiles/";
             PathHelper.EnsureExists(leafTilesPath);
 
-            string astroOutputPath = outputPath + "astro/";
+            string astroOutputPath = localOutputPath + "astro/";
             PathHelper.EnsureExists(astroOutputPath);
 
             SceneNode root = null;
@@ -259,7 +255,7 @@ namespace OPS.Landform
                 return 1;
             }
 
-            string processedMeshFilePath = Path.Combine(outputPath, "processedFullMesh.ply");
+            string processedMeshFilePath = Path.Combine(localOutputPath, "processedFullMesh.ply");
             pipeline.LogInfo("Saving processed mesh to: {0}", processedMeshFilePath);
             processedFullMesh.Save(processedMeshFilePath);
 
@@ -907,8 +903,7 @@ namespace OPS.Landform
                 .GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
                 .Where(o => o.ObservationType == maskType)
                 .FirstOrDefault(); ;
-            Image mask =
-                FeatureDetecting.MakeMask(pipeline, masker, maskObs == null ? null : maskObs.Url, img, obs.Name);
+            Image mask = ImageMasker.GetOrCreateMask(pipeline, project, obs, masker, maskObs, img);
             int pointsToBackprojectCount = pointsToBackproject.Count();
             List<PixelPoint> failedToBackproject = new List<PixelPoint>();
             while (pointsToBackproject.Count() > 0)

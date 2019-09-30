@@ -74,6 +74,11 @@ namespace OPS.MathExtensions
             return v;
         }
 
+        public static float Clamp01(float v)
+        {
+            return Clamp(v, 0.0f, 1.0f);
+        }
+
         public static double Clamp01(double v)
         {
             return Clamp(v, 0.0, 1.0);

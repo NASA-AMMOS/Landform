@@ -38,12 +38,14 @@ namespace OPS.Landform
     {
         private LocalAgisoftOptions options;
 
-        private MissionSpecific mission;
-        private RoverMasker masker;
-
         public LocalAgisoft(LocalAgisoftOptions options) : base(options)
         {
             this.options = options;
+            if (options.Redo)
+            {
+                options.RedoImages = true;
+                options.RedoAlignment = true;
+            }
         }
 
         public int Run()
@@ -132,7 +134,7 @@ namespace OPS.Landform
                         maskUrl = maskObs.Url;
                     }
 
-                    Image mask = FeatureDetecting.MakeMask(pipeline, masker, maskUrl, img, obs.Name);
+                    Image mask = ImageMasker.GetOrCreateMask(pipeline, project, obs, masker, maskUrl, img);
                     mask.Save<byte>(Path.Combine(masksDir, obs.Name + "_mask.png"));
                 }
 

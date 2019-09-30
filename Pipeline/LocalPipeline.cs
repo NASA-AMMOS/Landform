@@ -22,11 +22,15 @@ namespace OPS.Pipeline
 {
     public class LocalPipeline : PipelineCore
     {
-        public LocalPipeline(PipelineCoreOptions options, LocalPipelineConfig config, ILog logger = null, int lruCache = 100,
-                             bool quietInit = false, bool initQueues = true, bool initTables = true, int? maxCores = null)
+        public LocalPipeline(PipelineCoreOptions options, LocalPipelineConfig config,
+                             ILog logger = null, bool quietInit = false,
+                             int? lruImageCache = null, int? lruDataProductCache = null,
+                             bool initQueues = true, bool initTables = true, int? maxCores = null)
             : base(options, config,
                    StringHelper.NormalizeUrl(config.StorageDir, "file://"),
-                   config.Venue, logger, lruCache, quietInit,
+                   config.Venue, logger, quietInit,
+                   lruImageCache.HasValue ? lruImageCache : config.ImageMemCache,
+                   lruDataProductCache.HasValue ? lruDataProductCache : config.DataProductMemCache,
                    options.SingleThreaded ? 1 : maxCores ?? config.MaxCores)
         {
             var localConfig = (LocalPipelineConfig)Config;
@@ -38,28 +42,21 @@ namespace OPS.Pipeline
 
             if (initQueues)
             {
-                InitializeQueues();
+                InitPhase("initialize message queues", InitializeQueues);
             }
 
             if (initTables)
             {
-                InitializeDatabase(quiet || quietInit);
+                InitPhase("initialize database", () => InitializeDatabase(Quiet || quietInit));
             }
         }
 
-        public LocalPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
-                             bool quietInit = false, bool initQueues = true, bool initTables = true,
-                             int? maxCores = null)
-            : this(options, LocalPipelineConfig.Instance, logger, lruCache, quietInit, initQueues, initTables, maxCores)
+        public LocalPipeline(PipelineCoreOptions options, ILog logger = null, bool quietInit = false,
+                             int? lruImageCache = null, int? lruDataProductCache = null,
+                             bool initQueues = true, bool initTables = true, int? maxCores = null)
+            : this(options, LocalPipelineConfig.Instance, logger, quietInit, lruImageCache, lruDataProductCache,
+                   initQueues, initTables, maxCores)
         {}
-
-        public override void DumpConfig()
-        {
-            base.DumpConfig();
-            var localConfig = (LocalPipelineConfig)Config;
-            //not using LogInfo() to print even if quiet = true
-            Logger.Info("storage directory: " + localConfig.StorageDir);
-        }
 
         private string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
         {
@@ -205,6 +202,11 @@ namespace OPS.Pipeline
                     yield return ret;
                 }
             }
+        }
+
+        protected override bool EnableDataProductDiskCache()
+        {
+            return false;
         }
 
         private static readonly char[] invalidChars = new char[] {'/', '\\' };

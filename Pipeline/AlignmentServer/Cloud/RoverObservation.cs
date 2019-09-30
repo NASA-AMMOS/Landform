@@ -133,7 +133,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static new Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                              string observationType, string cameraModel, bool useForReconstruction,
-                                             int width, int height, int bands, int bits, int day, int index)
+                                             int width, int height, int bands, int bits, int day, int index, bool save)
         {
             throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
         }

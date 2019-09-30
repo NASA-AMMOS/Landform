@@ -11,7 +11,6 @@ namespace OPS.Util
 {
     public interface ILogger
     {
-        string LogPrefix { get; set; }
         void LogInfo(string msg, params Object[] args);
         void LogVerbose(string msg, params Object[] args);
         void LogDebug(string msg, params Object[] args);

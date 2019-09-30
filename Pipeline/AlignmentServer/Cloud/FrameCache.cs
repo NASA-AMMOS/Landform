@@ -309,6 +309,8 @@ namespace OPS.Pipeline.AlignmentServer
             Frame fromFrame = GetFrame(fromObs.FrameName);
             if (fromFrame == null)
             {
+                pipeline.LogWarn("no transform from observation frame {0} to frame {1}: observation frame not found",
+                                 fromObs.FrameName, toFrameName);
                 return null;
             }
 
@@ -321,7 +323,12 @@ namespace OPS.Pipeline.AlignmentServer
             if (toFrameName == "sitedrive" || toFrameName == fromFrame.ParentName)
             {
                 //go from an observation frame to its parent sitedrive frame
-                return getTransformToSD(fromFrame);
+                var ret = getTransformToSD(fromFrame);
+                if (ret == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to parent sitedrive", fromObs.FrameName);
+                }
+                return ret;
             }
 
             if (toFrameName == "site")
@@ -331,7 +338,12 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (toFrameName == "root" || string.IsNullOrEmpty(toFrameName))
             {
-                return GetTransformToRoot(fromFrame, usePriors, onlyAligned);
+                var ret = GetTransformToRoot(fromFrame, usePriors, onlyAligned);
+                if (ret == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to root", fromObs.FrameName);
+                }
+                return ret;
             }
 
             //get here iff destination is
@@ -341,6 +353,8 @@ namespace OPS.Pipeline.AlignmentServer
             Frame toFrame = GetFrame(toFrameName);
             if (toFrame == null)
             {
+                pipeline.LogWarn("no transform from observation frame {0} to frame {1}: destination frame not found",
+                                 fromObs.FrameName, toFrameName);
                 return null;
             }
 
@@ -353,11 +367,28 @@ namespace OPS.Pipeline.AlignmentServer
                 //otherwise we'd build up unnecessary uncertainty going down to root and back up
                 srcToLCA = getTransformToSD(fromFrame);
                 dstToLCA = getTransformToSD(toFrame);
+                if (srcToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to parent sitedrive", fromObs.FrameName);
+                }
+                if (dstToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from destination frame {0} to sitedrive {1}",
+                                     toFrameName, toFrame.ParentName);
+                }
             }
             else
             {
                 srcToLCA = GetTransformToRoot(fromFrame, usePriors, onlyAligned);
                 dstToLCA = GetTransformToRoot(toFrame, usePriors, onlyAligned);
+                if (srcToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to root", fromObs.FrameName);
+                }
+                if (dstToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from destination frame {0} to root", toFrameName);
+                }
             }
 
             return (srcToLCA == null || dstToLCA == null) ? null : srcToLCA.TimesInverse(dstToLCA);

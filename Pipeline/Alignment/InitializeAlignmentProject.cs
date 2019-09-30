@@ -10,6 +10,8 @@ namespace OPS.Pipeline
 {
     public class InitializeAlignmentProject : PipelineRoutine
     {
+        public const string DATA_PRODUCT_DIR = "alignment/products";
+
         public InitializeAlignmentProject(PipelineCore pipeline) : base(pipeline) { }
 
         public Project Initialize(string projectName, string productPath, string inputPath, Mission mission,

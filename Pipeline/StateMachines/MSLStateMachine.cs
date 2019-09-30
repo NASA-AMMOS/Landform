@@ -11,8 +11,7 @@ namespace OPS.Pipeline
     class MSLStateMachine : PipelineStateMachine
     {
         public MSLStateMachine(PipelineCore pipeline, string projectName) : base(pipeline, projectName)
-        {
-        }
+        { }
 
         override protected TypeDispatcher MakeDispatcher()
         {
@@ -25,8 +24,7 @@ namespace OPS.Pipeline
 
         override protected void RunProject()
         {
-            LogInfo("building tiling input");
-            RunProject(new BuildTilingInputMessage(projectName));
+            RunProject(() => pipeline.EnqueueToWorkers(new BuildTilingInputMessage(projectName)));
         }
 
         protected override QueueMessage MakeLeafJobMessage(List<string> leaves)

@@ -828,6 +828,7 @@ namespace OPS.Pipeline
         public override double? GetMaximumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet"); }
         public override double GetMinimumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("min focus distance not implemented for 2020 instruments yet"); }
 
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
         public override bool AllowPlacesDB()
         {
             return false;

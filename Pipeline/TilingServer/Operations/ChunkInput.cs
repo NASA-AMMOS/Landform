@@ -52,16 +52,15 @@ namespace OPS.Pipeline.TilingServer
 
         public void Process()
         {
-            pipeline.LogInfo("started chunking input " + message.InputName);
             var input = TilingInput.Find(pipeline, projectName, message.InputName);
             if (input.Chunked)
             {
-                pipeline.LogInfo("input " + message.InputName + " has already been chunked, skipping");
+                LogInfo("input {0} has already been chunked, skipping", message.InputName);
                 pipeline.EnqueueToMaster(message);
                 return;
             }
 
-            pipeline.LogInfo("downloading " + input.MeshUrl);
+            LogInfo("downloading and cleaning input mesh {0}", input.MeshUrl);
             Mesh mesh = null;
             pipeline.GetFile(input.MeshUrl, f =>
             {
@@ -73,25 +72,26 @@ namespace OPS.Pipeline.TilingServer
             string imageBaseUrl = null;
             if (input.ImageUrl != null)
             {
-                pipeline.LogInfo("downloading and chunking image {0} from {1}", message.InputName, input.ImageUrl);
+                LogInfo("downloading and chunking image {0} from {1}", message.InputName, input.ImageUrl);
                 sparseImage = new SparsePipelineImage(pipeline, input.ImageUrl, CHUNK_RESOLUTION);
                 imageBaseUrl = pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
-                pipeline.LogInfo("saving chunks for input {0} to {1}", message.InputName, imageBaseUrl);
+                LogInfo("saving chunks for input {0} to {1}", message.InputName, imageBaseUrl);
                 sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
                 input.ImageBands = sparseImage.Bands;
                 input.ImageWidth = sparseImage.Width;
                 input.ImageHeight = sparseImage.Height;
             }
-            pipeline.LogInfo("building acceleration structures to chunk input " + message.InputName);
+            LogInfo("building acceleration structures to chunk input {0}", message.InputName);
             var multiClipper = new MultiMeshClipper();
             var dataset = new MultiMeshClipperInput(mesh, sparseImage);
             multiClipper.AddInput(dataset);
 
-            pipeline.LogInfo("building mesh chunks for input " + message.InputName);
+            LogInfo("building bounds tree to chunk input {0}", message.InputName);
             var tilingScheme = new BinaryTreeTilingScheme();
             var root = DefineTiles.BuildBoundsTree(multiClipper, tilingScheme,
                                                    new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
-            
+
+            LogInfo("building mesh chunks for input {0}", message.InputName);
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
             var leaves = root.Leaves().ToList();
             Serial.ForEach(leaves, (leaf, pls, i) =>
@@ -106,10 +106,11 @@ namespace OPS.Pipeline.TilingServer
                     pipeline.SaveFile(f, meshUrl);
                     TilingInputChunk record = TilingInputChunk.Create(pipeline, id, meshUrl, imageBaseUrl, bounds);
                     chunkIds.Add(id);
-                    pipeline.LogInfo("generated chunk {0}/{1} for input {2}",
-                                     chunkIds.Count(), leaves.Count, message.InputName);
+                    LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
                 });
             });
+
+            LogInfo("saving chunk IDs");
             lock (input.ChunkIds)
             {
                 input.ChunkIds.UnionWith(chunkIds);
@@ -117,7 +118,6 @@ namespace OPS.Pipeline.TilingServer
             input.Chunked = true;
             input.Save(pipeline);
             pipeline.EnqueueToMaster(message);
-            pipeline.LogInfo("completed chunking input " + message.InputName);
         }
     }
 }

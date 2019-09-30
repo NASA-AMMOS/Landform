@@ -37,11 +37,13 @@ namespace OPS.Pipeline
         public string AuthCookieFile { get; set; } = "~/.cssotoken/ssosession";
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
-        public string View { get; set; } = "localized_interp"; // options: best_tactical, localized_pos, localized_interp 
+        public string View { get; set; } = "localized_interp"; //MSL: best_tactical, localized_pos, localized_interp 
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
         public string Url { get; set; } = "https://places-dev.m20-dev.jpl.nasa.gov"; //M2020 dev copy of MSL data
-        //"https://mslplaces.jpl.nasa.gov:9443/msl-ops/places"; //MSL mission server - don't use for dev
+        //https://mslplaces.jpl.nasa.gov:9443/msl-ops/places //MSL mission server - don't use for dev
+        //https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places //ROASTT
+        //https://places-sstage.m20.jpl.nasa.gov //TT4 - requires m2020-prod-gov credentials
 
         protected override string ConfigFilename()
         {
@@ -60,7 +62,7 @@ namespace OPS.Pipeline
         private string view;
         private string cookieValue;
 
-        private double ellipsoidRadius;
+        private double? ellipsoidRadius;
 
         //avoid hitting the upstream service too hard
         //important: this is explicitly *not* a ConcurrentDictionary
@@ -72,7 +74,7 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
 
-        public MSLPlaces()
+        public MSLPlaces(ILogger logger = null)
         {
             var config = PlacesConfig.Instance;
 
@@ -96,7 +98,30 @@ namespace OPS.Pipeline
                 
             view = config.View;
 
-            ellipsoidRadius = GetEllipsoidRadius(); //also serves as test query
+            try
+            {
+                GetEstimatedOffsetToStart(new SiteDrive(1, 0)); //test query
+            }
+            catch
+            {
+                if (logger != null)
+                {
+                    logger.LogError("PlacesDB test query for sitedrive (1, 0) failed");
+                }
+                throw;
+            }
+
+            try
+            {
+                ellipsoidRadius = GetEllipsoidRadius();
+            }
+            catch (Exception ex)
+            {
+                if (logger != null)
+                {
+                    logger.LogError("error getting ellipsoid radius from PlacesDB: {0}", ex.Message);
+                }
+            }
         }
 
         private XmlDocument Fetch(string url)
@@ -190,7 +215,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            throw new Exception("failed to get ellipsoid radius from PlacesDB");
+            throw new Exception("ellipsoid_radius not found in orbital metadata");
         }
 
         /// <summary>
@@ -198,11 +223,15 @@ namespace OPS.Pipeline
         /// </summary>
         public Vector2 GetEstimatedLatLon(SiteDrive sd)
         {
+            if (!ellipsoidRadius.HasValue)
+            {
+                throw new Exception("ellipsoid radius not available");
+            }
             string url = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)", view, sd.Site, sd.Drive);
             Vector3 v = GetOffset(Fetch(url));
             // x is northing, y is easting
-            double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius);
-            double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius);
+            double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
+            double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
             return new Vector2(lat, lon);
         }
 

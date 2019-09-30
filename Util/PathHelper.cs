@@ -100,6 +100,16 @@ namespace OPS.Util
         [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
         private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
 
+        public const int DELETE_RETRIES = 5;
+        public const int DELETE_RETRY_SEC = 10;
+        private static int numDeleteRetries;
+        public static int NumDeleteRetries
+        {
+            get
+            {
+                return numDeleteRetries;
+            }
+        }
         public static void DeleteWithRetry(string file, ILog logger = null)
         {
             if (File.Exists(file))
@@ -112,27 +122,29 @@ namespace OPS.Util
                 {
                     if (logger != null)
                     {
-                        logger.Warn("error deleting \"" + file + "\", trying again in 5s");
+                        logger.DebugFormat("error deleting \"{0}\", trying again in {1}s", file, DELETE_RETRY_SEC);
                     }
                     Task.Run(async () =>
+                    {
+                        for (int retries = DELETE_RETRIES; retries >= 1; retries--)
+                        {
+                            Interlocked.Increment(ref numDeleteRetries);
+                            await Task.Delay(DELETE_RETRY_SEC * 1000);
+                            try
                             {
-                                await Task.Delay(5000);
-                                try
+                                File.Delete(file);
+                                return;
+                            }
+                            catch (Exception e2)
+                            {
+                                if (retries <= 1 && logger != null)
                                 {
-                                    File.Delete(file);
-                                    if (logger != null)
-                                    {
-                                        logger.Info("deleted \"" + file + "\"");
-                                    }
+                                    logger.ErrorFormat("failed to delete \"{0}\" in {1} retries: {2}",
+                                                       file, DELETE_RETRIES, e2.Message);
                                 }
-                                catch (Exception e2)
-                                {
-                                    if (logger != null)
-                                    {
-                                        logger.Error(e2);
-                                    }
-                                }
-                            });
+                            }
+                        }
+                    });
                 }
             }
         }

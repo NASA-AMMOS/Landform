@@ -734,7 +734,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Given a composite image, a mask, and flags, output a stitched image with smoothed seams
+        /// Given a composite image, corresponding index, and flags, output a stitched image with smoothed seams
         ///
         /// The flags image may be omitted but the other two are required.
         ///

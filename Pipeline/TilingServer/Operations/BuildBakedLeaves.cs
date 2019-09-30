@@ -42,7 +42,8 @@ namespace OPS.Pipeline.TilingServer
 
         public void Process()
         {
-            pipeline.LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            LogInfo("starting batch of {0} leaf tiles", message.TileIds.Count);
+
             var project = TilingProject.Find(pipeline, projectName);
 
             List<TilingNode> leaves = new List<TilingNode>();
@@ -50,24 +51,27 @@ namespace OPS.Pipeline.TilingServer
             {
                 leaves.Add(TilingNode.Find(pipeline, projectName, id));
             }
+
             // Send completion messages for leaves that are already done
             foreach (var n in leaves)
             {
                 if (n.MeshUrl != null)
                 {
-                    pipeline.LogInfo("leaf " + n.Id + " already complete, skipping");
+                    LogInfo("leaf {0} already complete, skipping", n.Id);
                     pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }
+
             // Filter any completed leaves
             leaves = leaves.Where(n => n.MeshUrl == null).ToList();
             if (leaves.Count == 0)
             {
-                pipeline.LogInfo("all leaves in job already generated");
+                LogInfo("all leaves in job already generated");
                 return;
             }
 
             // Get a list of all chunks that overlap with a leaf tile
+            LogInfo("collecting input chunks per leaf");
             var inputs = TilingInput.Find(pipeline, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
             foreach (var input in inputs)
@@ -81,7 +85,7 @@ namespace OPS.Pipeline.TilingServer
                 foreach (var chunkId in chunks)
                 {
                     TilingInputChunk chunk = TilingInputChunk.Find(pipeline, chunkId);
-                    bool anyIntersect = leaves.Any(leaf => leaf.GetBounds().Intersects(chunk.GetBounds()));
+                    bool anyIntersect = leaves.Any(leaf => leaf.GetBoundsChecked().Intersects(chunk.GetBounds()));
                     if (anyIntersect)
                     {
                         group.Chunks.Add(chunk);
@@ -94,6 +98,7 @@ namespace OPS.Pipeline.TilingServer
             }
 
             // Reconstruct a mesh for each input using only the chunks that overlap with leaves that we are building
+            LogInfo("building acceleration datastructures");
             bool hasImages = false;
             var bakeClipper = new MultiMeshClipper();
             foreach (var group in inputGroups)
@@ -119,24 +124,29 @@ namespace OPS.Pipeline.TilingServer
             }
             bakeClipper.InitTextureBaker();
 
-            ConcurrentBag<TilingNode> processed = new ConcurrentBag<TilingNode>();
+            LogInfo("baking leaves");
+            int nl = 0;
             Serial.ForEach(leaves, leaf =>
             {              
-                var m = bakeClipper.Clip(leaf.GetBounds());
+                LogInfo("baking leaf {0} from {1} chunks ({2}/{3})",
+                        leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), ++nl, leaves.Count);
+
+                var m = bakeClipper.Clip(leaf.GetBoundsChecked());
+
                 var pair = new MeshImagePair(m, null);
                 if (hasImages)
                 {
-                    pair = bakeClipper.BakeTexture(m, project.TileResolution);
+                    pair = bakeClipper.BakeTexture(m, project.TileResolution, msg => LogInfo(msg));
                 }
-                leaf.SaveMesh(pair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
-                              project.GetSkirtMode());
-                processed.Add(leaf);
+
+                LogInfo("saving leaf tile mesh");
+                leaf.SaveMesh(pair, pipeline, project);
+                leaf.Save(pipeline);
+
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
-                pipeline.LogInfo("generating leaf {0} from {1} chunks ({2}/{3})",
-                                 leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), processed.Count(), leaves.Count);
             });
 
-            pipeline.LogInfo("batch completed, generated " + processed.Count() + " leaf tiles");
+            LogInfo("batch completed, generated {0} leaf tiles", nl);
         }
     }
 }

@@ -4,7 +4,7 @@ using OPS.Pipeline;
 
 namespace OPS.TilingServer
 {
-    public class TilingCommandOptions : PipelineCoreOptions
+    public class TilingServerCommandOptions : PipelineCoreOptions
     {
         [Value(0, Required = true, HelpText = "project name", Default = null)]
         public string ProjectName { get; set; }
@@ -13,17 +13,17 @@ namespace OPS.TilingServer
         public bool Local { get; set; }
     }
 
-    public class TilingCommand
+    public class TilingServerCommand
     {
         protected PipelineCore pipeline;
         protected PipelineExecutive executive;
 
-        protected TilingCommand(TilingCommandOptions options, ExecutionMode localExecutionMode = ExecutionMode.None)
+        protected TilingServerCommand(TilingServerCommandOptions options, ExecutionMode localExecutionMode = ExecutionMode.None)
             : this(options, options.Local, localExecutionMode)
         {
         }
 
-        protected TilingCommand(PipelineCoreOptions options, bool local,
+        protected TilingServerCommand(PipelineCoreOptions options, bool local,
                                 ExecutionMode localExecutionMode = ExecutionMode.None)
         {
             if (local)
@@ -37,7 +37,7 @@ namespace OPS.TilingServer
             }
         }
 
-        protected TilingCommand(PipelineCore pipeline, ExecutionMode localExecutionMode = ExecutionMode.None)
+        protected TilingServerCommand(PipelineCore pipeline, ExecutionMode localExecutionMode = ExecutionMode.None)
         {
             this.pipeline = pipeline;
             if (pipeline is LocalPipeline && localExecutionMode != ExecutionMode.None)

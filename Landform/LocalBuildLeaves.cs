@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
-using System.Diagnostics;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using OPS.Util;
@@ -19,86 +18,55 @@ using System.Threading;
 namespace OPS.Landform
 {
     [Verb("local-build-leaves", HelpText = "builds textured leaf tiles from a full scene mesh")]
-    public class LocalBuildLeavesOptions : LandformCommandOptions
+    public class LocalBuildLeavesOptions : TilingCommandOptions
     {
-        // input related
-        [Option(Default = null, HelpText = "Mesh to turn into leaf tiles, search project storage if omitted")]
-        public string InputMesh { get; set; }
+        [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
+        public override string ProjectName { get; set; }
 
-        [Option(Default = null, HelpText = "texture associated with the mesh's texture coordinates, generate textures from observations if omitted")]
+        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
+        public override double BackprojectBatchGridSize { get; set; }
+
+        [Value(1, Required = false, Default = null, HelpText = "Scene mesh texture image to bake into leaves, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
-        [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
-        public string OcclusionMesh { get; set; }
-
-        [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
-        public string MeshFrame { get; set; }
-
-        // output related
-        [Option(HelpText = "output directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
-
-        // observation filtering related (landform standard)
-        [Option(HelpText = "Only use specific cameras, comma separated (FrontHazcamLeft, FrontHazcamRight, RearHazcamLeft, RearHazcamRight, NavcamLeft, NavcamRight, MastcamLeft, MastcamRight, MAHLI)", Default = null)]
-        public string OnlyForCameras { get; set; }
-
-        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
-        public string OnlyForSiteDrives { get; set; }
-
-        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
-        public string AdjustedTransformSources { get; set; }
-
-        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
-        public string PriorTransformSources { get; set; }
-
-        [Option(HelpText = "Use transform priors only", Default = false)]
-        public bool UsePriors { get; set; }
-
-        [Option(HelpText = "Use adjusted transforms only", Default = false)]
-        public bool OnlyAligned { get; set; }
-
-        // tile mesh related
-        [Option(HelpText = "percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.1)]
+        [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.1)]
         public double SplitByTexturePctToTest { get; set; }
 
-        [Option(HelpText = "percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = 0.5)]
+        [Option(HelpText = "Percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = 0.5)]
         public double SplitByTexturePctSatisfied { get; set; }
 
-        [Option(HelpText = "the area of source pixels mapped to a single destination pixel that would trigger a split", Default = 4.5)]
+        [Option(HelpText = "Area of source pixels mapped to a single destination pixel that would trigger a split", Default = 4.5)]
         public double SplitByTextureSamplingRatio { get; set; }
 
-        [Option(HelpText = "tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
+        [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(HelpText = "target maximum faces per tile", Default = 2000)]
-        public int FacesPerTile { get; set; }
+        [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = TextureVariant.Blended)]
+        public override TextureVariant TextureVariant { get; set; }
 
-        // texture related
-        [Option(HelpText = "Image resolution for output texture for each tile", Default = 256)]
-        public int OutputTextureResolution { get; set; }
-
-        [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
-        public double BackprojectGoodnessSamplingPct { get; set; }
-
-        // debug related
         [Option(HelpText = "Don't inpaint output to fill seams and holes when backprojecting", Default = false)]
         public bool DontInpaint { get; set; }
 
-        [Option(HelpText = "Debug function that skips all tiles except that one with this name", Default = null)]
+        [Option(HelpText = "Debug function that skips all tiles except the one with this name", Default = null)]
         public string OnlyTileNamed { get; set; }
 
-        [Option(HelpText = "delete existing output before running", Default = false)]
-        public bool Redo { get; set; }
+        [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
+        public Mission Mission { get; set; }
+
+        [Option(HelpText = "Don't save leaf backproject index images", Default = false)]
+        public bool NoBackprojectIndexImages { get; set; }
     }
 
-    public class LocalBuildLeaves : LandformCommand
+    public class LocalBuildLeaves : TilingCommand
     {
         private LocalBuildLeavesOptions options;
 
-        private MissionSpecific mission;
-        private RoverMasker masker;
+        private bool bakeTextures;
+        private bool backprojectTextures;
 
-        private string outputPath;
+        private Image sceneTexture;
+        private SceneNode tileTree;
+        private MeshOperator meshOp;
 
         public LocalBuildLeaves(LocalBuildLeavesOptions options) : base(options)
         {
@@ -107,280 +75,164 @@ namespace OPS.Landform
 
         public int Run()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
+            StartStopwatch();
 
-            if (options.UsePriors && options.OnlyAligned)
+            try
             {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
-                return 1;
-            }
-
-            var project = Project.Find(pipeline, options.ProjectName);
-            if (project == null)
-            {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
-                return 1;
-            }
-            mission = MissionSpecific.GetInstance(project.Mission);
-            masker = mission.GetMasker();
-
-            var meshFrame = options.MeshFrame;
-            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
-            if (!specificSiteDrive && meshFrame != "root")
-            {
-                pipeline.LogError("unsupported mesh frame: " + meshFrame);
-                return 1;
-            }
-
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
-
-            string dir = string.Format("meshing/LeafTiles/{0}Frame", options.MeshFrame);
-            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
-            if(options.Redo && Directory.Exists(outputPath))
-            {
-                Directory.Delete(outputPath, true);
-            }
-            PathHelper.EnsureExists(outputPath);
-
-            SiteDrive[] siteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
-
-            string[] cameras = StringHelper.ParseList(options.OnlyForCameras);
-
-            var frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
-            string imageObs = ObservationType.Image.ToString();
-            string maskObs = ObservationType.RoverMask.ToString();
-            var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.
-                Preload(obs => obs.UseForReconstruction &&
-                        (obs.ObservationType == imageObs || obs.ObservationType == maskObs) &&
-                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
-                        (cameras.Length == 0 || cameras.Any(cam => cam == ((RoverObservation)obs).Sensor)));
-
-            //try to load SceneMesh record from database even if options.InputMesh is going to override it
-            SceneMesh sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
-
-            Mesh inputMesh = null;
-            if (!string.IsNullOrEmpty(options.InputMesh))
-            {
-                pipeline.LogInfo("loading input mesh from {0}", options.InputMesh);
-                inputMesh = Mesh.Load(pipeline.GetFileCached(options.InputMesh, "meshes"));
-            }
-            else if (sceneMesh != null)
-            {
-                if (sceneMesh.MeshGuid != Guid.Empty)
+                if (!ParseArgumentsAndLoadCaches())
                 {
-                    pipeline.LogInfo("loading scene mesh in frame {0} from database", meshFrame);
-                    inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                }
-                else
-                {
-                    pipeline.LogError("scene mesh in frame {0} in database but without mesh", meshFrame);
-                    return 1;
-                }
-            }
-            else
-            {
-                pipeline.LogError("no input mesh specified and no scene mesh in frame {0} in database", meshFrame);
-                return 1;
-            }
-
-            if (inputMesh == null)
-            {
-                pipeline.LogError("failed to load input mesh");
-                return 1;
-            }
-            if (inputMesh.Faces.Count == 0)
-            {
-                pipeline.LogError("input mesh empty");
-                return 1;
-            }
-
-            //handle prebuilt texture associated with mesh
-            bool backprojectTextures = string.IsNullOrEmpty(options.InputTexture);
-            Image inputImage = null;
-            if (backprojectTextures)
-            {
-                pipeline.LogInfo("no input image provided, textures for meshes will be generated from observations");
-            }
-            else
-            {
-                pipeline.LogInfo("input image provided, that textures will be used for meshes");
-                inputImage = Image.Load(options.InputTexture);
-                if(!inputMesh.HasUVs)
-                {
-                    pipeline.LogError("expecting a uv set on mesh data if an input image was provided");
-                    return 1;
-                }
-            }
-
-            //load or clone occlusion mesh
-            SceneCaster occlusionScene = null;
-            if (backprojectTextures)
-            {
-                Mesh occlusionMesh = null;
-                if (!string.IsNullOrEmpty(options.OcclusionMesh))
-                {
-                    pipeline.LogInfo("loading occlusion mesh {0}", options.OcclusionMesh);
-                    occlusionMesh = Mesh.Load(pipeline.GetFileCached(options.OcclusionMesh, "meshes"));
-                    if (occlusionMesh == null)
-                    {
-                        pipeline.LogError("failed to load occlusion mesh");
-                        return 1;
-                    }
-                    if (occlusionMesh.Faces.Count == 0)
-                    {
-                        pipeline.LogError("occlusion mesh empty");
-                        return 1;
-                    }
-                }
-                else
-                {
-                    pipeline.LogInfo("building occlusion mesh from input mesh");
-                    occlusionMesh = new Mesh(inputMesh);
+                    return 0; //help
                 }
 
-                pipeline.LogInfo("building occlusion data structures");
-                occlusionScene = new SceneCaster();
-                occlusionScene.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after adding to collider
-                occlusionScene.Build();
-            }
-
-            List<Observation> imageObservations = null;
-            IDictionary<string, ConvexHull> obsToHull = null;
-            SplitByTextureOpts texSplitOpts = null;
-
-            if (backprojectTextures)
-            {
-                imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
-
-                //build convex hulls
-                obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, options.MeshFrame, options.UsePriors, options.OnlyAligned, imageObservations);
-          
-                //build tile bounds
-                pipeline.LogInfo("Building tile tree bounds from fullmesh");
-            
-                //only need to split tiles based on observations if backprojecting new textures
-                if (options.SplitByTexturePctToTest > 0)
+                if (bakeTextures)
                 {
-                    texSplitOpts = new SplitByTextureOpts()
-                    {
-                        pctPixelsToTest = options.SplitByTexturePctToTest,
-                        pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                        subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio,
-                        tileResolution = options.OutputTextureResolution,
-                        scInMesh = occlusionScene,
-                        cameraInstances =
-                        imageObservations
-                        .Select(obs => ToCameraInstance((RoverObservation)obs, obsToHull, options.MeshFrame, frameCache))
-                        .ToArray(),
-                    };
+                    RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
-            }
 
-            SceneNode root = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
-                                                    new List<MeshImagePair>() { new MeshImagePair(inputMesh) },
-                                                    texSplitOpts);
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: bakeTextures));
 
-            //populate tiles
-            List<SceneNode> failedNodes = new List<SceneNode>();
-            MeshOperator meshOp = new MeshOperator(inputMesh, buildFaceTree: true, buildVertexTree: false,
-                                                   buildUVFaceTree: false);
-            int curLeafNum = 0;
-            pipeline.LogInfo("creating leaf meshes");
-            int leafCount = root.Leaves().Count();
-            CoreLimitedParallel.ForEach(root.Leaves(), leaf =>
-            {
-                Interlocked.Increment(ref curLeafNum);
-
-            //debug functionality to only generate a single tile
-            if (options.OnlyTileNamed != null && options.OnlyTileNamed != leaf.Name)
-                    return;
-
-                pipeline.LogInfo("Building tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, curLeafNum, leafCount,
-                                (int)(100 * curLeafNum / (float)leafCount));
-
-                Mesh leafMesh = MakeLeafMesh(leaf, meshOp, backprojectTextures);
-                if (leafMesh != null)
-                {
-                    leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, null));
-                    leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
-                }
-                else
-                {
-                    failedNodes.Add(leaf);
-                }
-            });
-            
-            int failedMeshing = failedNodes.Count();
-            if (failedMeshing > 0)
-            {
-                pipeline.LogWarn("{0} tiles have failed to generate meshes", failedMeshing);
-            }
-            
-            //build textures for each leaf. parallelization is happening in the building of each individual texture
-            curLeafNum = 0;
-            var leavesToTexture = root.Leaves().Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null);
-            leafCount = leavesToTexture.Count();
-            pipeline.LogInfo("texturing leaf meshes");
-
-            MultiMeshClipper bakeClipper = null;
-            if (!backprojectTextures)
-            {
-                bakeClipper = new MultiMeshClipper();
-                bakeClipper.AddInput(new MultiMeshClipperInput(inputMesh, inputImage));
-                bakeClipper.InitTextureBaker();
-            }
-
-            CoreLimitedParallel.ForEach(leavesToTexture, leaf =>
-            {
-                int leafNum = Interlocked.Increment(ref curLeafNum);
-                pipeline.LogInfo("Texturing tile mesh {0}: {1}/{2} ({3}%)", leaf.Name, leafNum, leafCount,
-                    (int)(100 * leafNum / (float)leafCount));
-
-                MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
                 if (backprojectTextures)
                 {
-                    mp.Image = MakeLeafTexture(frameCache, observationCache, occlusionScene, imageObservations, obsToHull, mp.Mesh, mission);
-                }
-                else
-                {
-                    var newPair = bakeClipper.BakeTexture(mp.Mesh, options.OutputTextureResolution);
-                    mp.Mesh = newPair.Mesh;
-                    mp.Image = newPair.Image;
+                    RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
+                    RunPhase("build occlusion datastructures", BuildSceneCaster);
+                    RunPhase("build observation frustum hulls", BuildObsHulls);
                 }
 
-                if (mp.Image != null)
-                {
-                    //save good mesh and texture
-                    leaf.SaveMesh(outputPath, "ply", "png");
-                }
-                else
-                {
-                    failedNodes.Add(leaf);
-                }
+                RunPhase("build tile tree", BuildTileTree);
+                RunPhase("build acceleration datastructures", BuildMeshOperator);
+                RunPhase("build leaf meshes", BuildLeafMeshes);
 
-                leaf.RemoveComponent<MeshImagePair>(); //conserve memory
-            });
-
-            int failedTexturing = failedNodes.Count() - failedMeshing;
-            if(failedTexturing > 0)
+                RunPhase(string.Format("{0}save leaves", withTextures ? "build leaf textures and " : ""),
+                         BuildLeafTexturesAndSaveLeaves);
+            }
+            catch (Exception ex)
             {
-                pipeline.LogWarn("{0} tiles have failed to generate textures", failedTexturing);
+                pipeline.LogException(ex);
+                return 1;
             }
 
-            pipeline.LogInfo("{0} leaf tiles built successfully", curLeafNum - failedNodes.Count());
+            StopStopwatch();
+
             return 0;
         }
 
-        private CameraInstance ToCameraInstance(RoverObservation obs, IDictionary<string, ConvexHull> obsToHull, string outputFrame,
-                                               FrameCache frameCache)
+        protected override bool ParseArgumentsAndLoadCaches()
         {
-            var xform = frameCache.GetObservationTransform(obs, outputFrame, options.UsePriors);
+            if (!base.ParseArgumentsAndLoadCaches())
+            {
+                return false; //help
+            }
+
+            bakeTextures = withTextures && !string.IsNullOrEmpty(options.InputTexture);
+            backprojectTextures = withTextures && !bakeTextures;
+
+            if (!options.NoBackprojectIndexImages && !backprojectTextures)
+            {
+                throw new Exception("not backprojecting textures, cannot save backproject index images");
+            }
+
+            pipeline.LogInfo("{0} leaf textures",
+                             withTextures ? (bakeTextures ? "baking" : "backprojecting") : "not making");
+            return true;
+        }
+
+        private bool BakingInputMesh()
+        {
+            return !string.IsNullOrEmpty(options.InputMesh) && !string.IsNullOrEmpty(options.InputTexture);
+        }
+
+        protected override Project GetProject()
+        {
+            if (BakingInputMesh())
+            {
+                string projectName = options.ProjectName;
+                if (string.IsNullOrEmpty(projectName))
+                {
+                    projectName = StringHelper.GetLastUrlPathSegment(options.InputMesh, stripExtension: true);
+                    pipeline.LogInfo("inferred project name \"{0}\"", projectName);
+                }
+                var project = Project.Find(pipeline, projectName);
+                if (project != null)
+                {
+                    return project;
+                } 
+                if (options.Mission == Mission.None)
+                {
+                    throw new Exception("cannot create project: mission must be specified");
+                }
+                string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, projectName);
+                string inputUrl = null;
+                bool recreateIfExists = false;
+                var init = new InitializeAlignmentProject(pipeline);
+                return init.Initialize(projectName, productUrl, inputUrl, options.Mission, recreateIfExists);
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(options.ProjectName))
+                {
+                    throw new Exception("--projectname must be specified");
+                }
+                return base.GetProject();
+            }
+        }
+
+        protected override string GetAutoMeshFrame()
+        {
+            return BakingInputMesh() ? "passthrough" : "newest";
+        }
+
+        protected override bool PassthroughMeshFrameAllowed()
+        {
+            return BakingInputMesh();
+        }
+
+        protected override bool NonPassthroughMeshFrameAllowed()
+        {
+            return !BakingInputMesh();
+        }
+
+        protected override void LoadFrameCache()
+        {
+            if (!BakingInputMesh())
+            {
+                base.LoadFrameCache();
+            }
+        }
+
+        protected override void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        {
+            if (!BakingInputMesh())
+            {
+                base.LoadObservationCache(obsTypes, onlyObsForReconstruction);
+            }
+        }
+
+        private void BuildTileTree()
+        {
+            SplitByTextureOpts texSplitOpts = null;
+            if (backprojectTextures && options.SplitByTexturePctToTest > 0)
+            {
+                texSplitOpts = new SplitByTextureOpts()
+                {
+                    pctPixelsToTest = options.SplitByTexturePctToTest,
+                    pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
+                    subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio,
+                    tileResolution = resolution,
+                    scInMesh = sceneCaster,
+                    cameraInstances =
+                    imageObservations
+                    .Select(obs => ToCameraInstance((RoverObservation)obs))
+                    .ToArray(),
+                };
+            }
+            tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
+                                                           new List<MeshImagePair>() { new MeshImagePair(mesh) },
+                                                           texSplitOpts);
+        }
+
+        private CameraInstance ToCameraInstance(RoverObservation obs)
+        {
+            var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
             if (xform == null)
             {
                 return null;
@@ -395,13 +247,228 @@ namespace OPS.Landform
             return camInst;
         }
 
-        private Mesh MakeLeafMesh(SceneNode leaf, MeshOperator meshOp,bool generateUVs)
+        private void BuildMeshOperator()
+        {
+            meshOp = new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+        }
+
+        private void BuildLeafMeshes()
+        {
+            int curLeafNum = 0, numFailed = 0, leafCount = tileTree.Leaves().Count();
+            CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
+            {
+                Interlocked.Increment(ref curLeafNum);
+
+                if (!string.IsNullOrEmpty(options.OnlyTileNamed) && options.OnlyTileNamed != leaf.Name)
+                {
+                    return;
+                }
+                else if (!options.NoProgress)
+                {
+                    pipeline.LogInfo("building leaf mesh {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
+                                     100 * curLeafNum / (float)leafCount, leaf.Name);
+                }
+
+                Mesh leafMesh = MakeLeafMesh(leaf, meshOp);
+
+                if (leafMesh != null)
+                {
+                    leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, null));
+                    leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
+                }
+                else
+                {
+                    Interlocked.Increment(ref numFailed);
+                }
+            });
+
+            if (numFailed > 0)
+            {
+                pipeline.LogWarn("failed to generate meshes for {0} leaves", numFailed);
+            }
+        }
+
+        private void BuildLeafTexturesAndSaveLeaves()
+        {
+            leafList = new LeafList()
+                {
+                    MeshExt = meshExt,
+                    ImageExt = withTextures ? imageExt : null,
+                    MeshFrame = meshFrame,
+                    HasIndexImages = !options.NoBackprojectIndexImages,
+                    TilingScheme = options.TilingScheme,
+                    LeafNames = new List<string>()
+                };
+            
+            var leavesToTexture = tileTree.Leaves()
+                .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
+                .ToList();
+            int leafCount = leavesToTexture.Count;
+
+            MultiMeshClipper bakeClipper = null;
+            if (backprojectTextures)
+            {
+                bakeClipper = new MultiMeshClipper();
+                bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
+                bakeClipper.InitTextureBaker();
+            }
+
+            var texMsg = string.Format("{0}x{0} {1} textures (falling back to {2})",
+                                       resolution, options.TextureVariant, TextureVariant.Original);
+            pipeline.LogInfo("processing {0} leaves{1}", leafCount, 
+                             bakeTextures ? ", baking " + texMsg :
+                             backprojectTextures ? ", backprojecting " + texMsg : "");
+            if (backprojectTextures && !options.NoBackprojectIndexImages)
+            {
+                pipeline.LogInfo("saving leaf backproject index images");
+            }
+
+            //it's actually a significant win to build the leaves serially when backprojecting
+            int np = 0, curLeafNum = 0, numFailed = 0, numSucceded = 0;
+            void buildLeaf(SceneNode leaf)
+            {
+                Interlocked.Increment(ref curLeafNum);
+                Interlocked.Increment(ref np);
+
+                if (!options.NoProgress)
+                {
+                    pipeline.LogInfo("{0}saving leaf {1}/{2} ({3:F2}%){4}: {5}",
+                                     withTextures ? "texturing and " : "", curLeafNum, leafCount,
+                                     100 * curLeafNum / (float)leafCount,
+                                     np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
+                }
+
+                MeshImagePair mp = leaf.GetComponent<MeshImagePair>();
+
+                Image index = null;
+                if (bakeTextures)
+                {
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogInfo(msg));
+                    mp.Mesh = newMP.Mesh;
+                    mp.Image = newMP.Image;
+                }
+                else if (backprojectTextures)
+                {
+                    index = !options.NoBackprojectIndexImages ? new Image(3, resolution, resolution) : null;
+                    mp.Image = BackprojectLeaf(leaf, mp.Mesh, index);
+                }
+
+                if (!withTextures || mp.Image != null)
+                {
+                    SaveLeaf(leaf.Name, mp.Mesh, mp.Image, index, localSave, cloudSave);
+                    Interlocked.Increment(ref numSucceded);
+                }
+                else
+                {
+                    Interlocked.Increment(ref numFailed);
+                }
+
+                leaf.RemoveComponent<MeshImagePair>(); //conserve memory
+
+                Interlocked.Decrement(ref np);
+            }
+
+            //it used to be the case that it was a perf win to build the leaves serially at least when backprojecting
+            //but probably not anymore
+            //now that PipelineCore implements locking to prevent multiple threads from trying to load the same image
+            //Serial.ForEach(leavesToTexture, buildLeaf);
+            CoreLimitedParallel.ForEach(leavesToTexture, buildLeaf);
+
+            if (withTextures && numFailed > 0)
+            {
+                pipeline.LogWarn("failed to generate textures for {0} leaves", numFailed);
+            }
+
+            pipeline.LogInfo("{0} leaf tiles built successfully", numSucceded);
+
+            if (!options.NoSave)
+            {
+                pipeline.LogInfo("saving leaf list");
+                pipeline.SaveDataProduct(project, leafList);
+                sceneMesh.LeafListGuid = leafList.Guid;
+                sceneMesh.Save(pipeline);
+            }
+        }
+
+        private void SaveLeaf(string name, Mesh mesh, Image image, Image index, bool local, bool cloud)
+        {
+            string imgName = image != null ? name + imageExt : null;
+            
+            if (local)
+            {
+                if (image != null)
+                {
+                    SaveImage(image, name);
+                }
+                if (index != null)
+                {
+                    SaveFloatTIFF(index, name + LeafList.INDEX_FILE_SUFFIX);
+                }
+                SaveMesh(mesh, name, imgName);
+            }
+
+            if (cloud)
+            {
+                if (image != null)
+                {
+                    TemporaryFile.GetAndDelete(imageExt, tmpFile => {
+                            image.Save<byte>(tmpFile);
+                            string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
+                            pipeline.SaveFile(tmpFile, imgUrl);
+                        });
+                }
+
+                if (index != null)
+                {
+                    TemporaryFile.GetAndDelete(".tif", tmpFile => {
+                            var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                            var serializer = new GDALSerializer(opts);
+                            serializer.Write<float>(tmpFile, index);
+                            string indexName = name + LeafList.INDEX_FILE_SUFFIX + LeafList.INDEX_FILE_EXT;
+                            string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
+                            pipeline.SaveFile(tmpFile, indexUrl);
+                        });
+                }
+                
+                TemporaryFile.GetAndDelete(meshExt, tmpFile => {
+                        
+                        mesh.Save(tmpFile, imgName);
+                        string meshName = name + meshExt;
+                        string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
+                        pipeline.SaveFile(tmpFile, meshUrl);
+
+                        if (image != null)
+                        {
+                            string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
+                            if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
+                            {
+                                string mtlName = name + ".mtl";
+                                string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
+                                pipeline.SaveFile(mtlFile, mtlUrl);
+                                PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
+                            }
+                        }
+                    });
+            }
+
+            lock (leafList.LeafNames)
+            {
+                //each leaf name is of the form ABCDE... where
+                //A is the index of a child of the root
+                //B is the index of a child of the node corresponding to A, etc
+                //thus each leaf name encodes a full path from the root to the leaf
+                //and the collection of all leaf names encodes the full tree topology
+                leafList.LeafNames.Add(name);
+            }
+        }
+
+        private Mesh MakeLeafMesh(SceneNode leaf, MeshOperator meshOp)
         {
             Mesh leafMesh = null;
            
             if (!leaf.HasComponent<NodeBounds>())
             {
-                return null; //Need bounds on scene nodes being clipped - run define tiles
+                throw new Exception(string.Format("leaf {0} missing bounds", leaf.Name));
             }
 
             //clip the big mesh to get a leaf tile's mesh
@@ -409,25 +476,28 @@ namespace OPS.Landform
             {
                 leafMesh = meshOp.Clip(leaf.GetComponent<NodeBounds>().Bounds);
             }
-            catch
+            catch (Exception ex)
             {
+                pipeline.LogError("error clipping mesh for leaf {0}: {1}", leaf.Name, ex.Message);
                 return null;
             }
             
             if (leafMesh.Vertices.Count == 0)
             {
+                pipeline.LogWarn("leaf {0} empty", leaf.Name);
                 return null;
             }
 
-            //if texturing is requested, attach uv's to the mesh vertices
-            if (options.OutputTextureResolution > 0 && generateUVs)
+            //assign UVs to the leaf vertices iff backproject (not baked) texturing is requested
+            if (backprojectTextures)
             {
                 try
                 {
-                    leafMesh = UVAtlas.Atlas(leafMesh, options.OutputTextureResolution, options.OutputTextureResolution);
+                    leafMesh = UVAtlas.Atlas(leafMesh, options.TextureResolution, options.TextureResolution);
                 }
-                catch
+                catch (Exception ex)
                 {
+                    pipeline.LogError("error atlasing leaf mesh {0}: {1}", leaf.Name, ex.Message);
                     return null;
                 }
             }
@@ -435,33 +505,34 @@ namespace OPS.Landform
             return leafMesh;
         }
 
-        private Image MakeLeafTexture(FrameCache frameCache, ObservationCache observationCache, SceneCaster occlusionScene,
-                                IEnumerable<Observation> imageObservations, IDictionary<string, ConvexHull> obsHullsByName,
-                                Mesh leafMesh, MissionSpecific mission)
+        private Image BackprojectLeaf(SceneNode leaf, Mesh leafMesh, Image index = null)
         {
-            Image leafImage = null;
-
             try
             {
-                Dictionary<Pixel, Backproject.ObsPixel> backprojectResults = Backproject.BackprojectObservations(pipeline, frameCache, observationCache,
-                                       leafMesh, options.OutputTextureResolution, occlusionScene, imageObservations.ToList(),
-                                       options.UsePriors, options.OnlyAligned, options.MeshFrame, mission, options.BackprojectGoodnessSamplingPct, false, obsHullsByName);
+                bool logging = pipeline.Verbose || pipeline.Debug;
+                var backprojectResults = BackprojectObservations(leafMesh, logging);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                if (backprojectResults.Count() == 0)
+                if (backprojectResults.Count == 0)
                 {
                     return null;
                 }
 
-                leafImage = new Image(3, options.OutputTextureResolution, options.OutputTextureResolution);
-                Backproject.FillOutputTexture(pipeline, backprojectResults, leafImage, !options.DontInpaint);
+                if (index != null)
+                {
+                    Backproject.FillIndexImage(backprojectResults, index);
+                }
+
+                Image leafImage = new Image(3, resolution, resolution);
+                Backproject.FillOutputTexture(pipeline, backprojectResults, leafImage, options.TextureVariant,
+                                              !options.DontInpaint, fallbackToOriginal: true);
+                return leafImage;
             }
-            catch
+            catch (Exception ex)
             {
+                pipeline.LogError("error building leaf mesh {0}: {1}", leaf.Name, ex.Message);
                 return null;
             }
-
-            return leafImage;
         }
     }
 }

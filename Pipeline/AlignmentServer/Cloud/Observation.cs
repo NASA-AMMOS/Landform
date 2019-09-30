@@ -19,6 +19,8 @@ namespace OPS.Pipeline.AlignmentServer
         RoverMask
     }
 
+    public enum TextureVariant { Original, Blurred, Blended };
+
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
     /// Can be connected to Frames and aligned with other observations through FrameTransforms
@@ -49,7 +51,13 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Url;
 
+        public Guid MaskGuid; //combines rover mask, user mask, invalid/missing pixels, and border
+
         public Guid FeaturesGuid;
+
+        public Guid BlurredGuid;
+
+        public Guid BlendedGuid;
 
         public string FrameName;
 
@@ -74,12 +82,6 @@ namespace OPS.Pipeline.AlignmentServer
         public int Day;
 
         public int Index;
-
-        //DEPRECATED - for legacy compat only
-        public string MaskGuid;
-
-        //DEPRECATED - for legacy compat only
-        public string FeatureUrl;
 
         /// Add required fields here 
         protected void IsValid()
@@ -132,6 +134,10 @@ namespace OPS.Pipeline.AlignmentServer
             this.FrameName = frame.Name;
             this.Name = name;
             this.Url = url;
+            this.MaskGuid = Guid.Empty;
+            this.FeaturesGuid = Guid.Empty;
+            this.BlurredGuid = Guid.Empty;
+            this.BlendedGuid = Guid.Empty;
             this.ObservationType = observationType;
             this.CameraModel = cameraModel;
             this.UseForReconstruction = useForReconstruction;
@@ -245,7 +251,8 @@ namespace OPS.Pipeline.AlignmentServer
                                  cm.Linear ? "linear" : "nonlinear",
                                  brief ? "" : string.Format("ForReconstruction={0}, ", UseForReconstruction),
                                  Width, Height, Bands, Bits, Day,
-                                 brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid));
+                                 brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid),
+                                 brief ? "" : string.Format(", BlendedGuid={0}", BlendedGuid));
         }
 
         public override string ToString()

@@ -22,197 +22,235 @@ using OPS.TilingServer;
 namespace OPS.Landform
 {
     [Verb("local-build-tileset", HelpText = "builds a tileset from leaf tiles")]
-    public class LocalBuildTilesetOptions : LandformCommandOptions
+    public class LocalBuildTilesetOptions : TilingCommandOptions
     {
-        [Option(HelpText = "Input directory, or omit to save to load from project storage", Default = null)]
-        public string InputFolder { get; set; }
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSave { get; set; }
 
-        [Option(HelpText = "target maximum faces per tile", Default = 2000)]
-        public int FacesPerTile { get; set; }
+        [Option(Required = false, Default = SkirtMode.None, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
+        public SkirtMode SkirtMode { get; set; }
 
-        [Option(HelpText = "maximum image resolution per tile", Default = 256)]
-        public int TileResolution { get; set; }
+        [Option(Default = MeshReconMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
+        public MeshReconMethod ReconMethod { get; set; }
 
-        [Option(Required = false, Default = SkirtMode.None, HelpText = "Axis to use as up in quad tree tiling")]
-        public SkirtMode SkirtAxis { get; set; }
-
-        [Option(HelpText = "Redo tiling project, delete if it already exists", Default = false)]
-        public bool RedoTilingProject { get; set; }
-
-        [Option(HelpText = "Leaves mesh coordinate frame: a numeric sitedrive SSSSSDDDDD or root", Default = "root")]
-        public string MeshFrame { get; set; }
-
-        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
-        public string AdjustedTransformSources { get; set; }
-
-        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
-        public string PriorTransformSources { get; set; }
-
-        [Option(HelpText = "Use transform priors only", Default = false)]
-        public bool UsePriors { get; set; }
-
-        [Option(Required = false, Default = "b3dm", HelpText = "Mesh Extension")]
-        public string MeshExtension { get; set; }
-
-        [Option(Required = false, Default = "jpg", HelpText = "Image Extension")]
-        public string ImageExtension { get; set; }
+        [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
+        public double MaxTime { get; set; }
     }
 
-    public class LocalBuildTileset : LandformCommand
+    public class LocalBuildTileset : TilingCommand
     {
+        private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
+        private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
+        private const int MAX_LEAF_GROUP_SIZE = 32;
+        private const int SLEEP_MS = 500;
+
         private LocalBuildTilesetOptions options;
+
+        private TilingProject tilingProject;
+        private string tilesetFolder;
 
         public LocalBuildTileset(LocalBuildTilesetOptions options) : base(options)
         {
-            if (options.Cloud)
-            {
-                throw new NotImplementedException("cloud operation not implemented yet");
-            }
-
             this.options = options;
         }
 
         public int Run()
         {
-            var project = Project.Find(pipeline, options.ProjectName);
-            if (project == null)
-            {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
-                return 1;
-            }
+            StartStopwatch();
 
-            if (options.RedoTilingProject)
+            try
             {
-                TilingProject existingProject = TilingProject.Find(pipeline, options.ProjectName);
-                if (null != existingProject)
+                if (!ParseArgumentsAndLoadCaches())
                 {
-                    pipeline.LogInfo("Deleting existing tiling project {0}",options.ProjectName);
-                    existingProject.Delete(pipeline);
+                    return 0; //help
                 }
-            }
 
-            pipeline.LogInfo("Creating Tiling project");
-            if(!CreateTilingProject(project.Name))
+                RunPhase("create tiling project", CreateTilingProject);
+                RunPhase("add leaf meshes", AddLeafMeshes);
+                RunPhase("build leaf tiles and define parents", BuildLeavesAndDefineParents);
+                RunPhase("build parent tiles", BuildParentTiles);
+            }
+            catch (Exception ex)
             {
-                pipeline.LogError("Failed to create tiling project {0}", project.Name);
+                pipeline.LogException(ex);
                 return 1;
             }
 
-            pipeline.LogInfo("preparing tiling input");
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
+            StopStopwatch();
 
-            string dir = string.Format("meshing/LeafTiles/{0}Frame", options.MeshFrame);
-            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            string inputDir = pipeline.GetLocalDebugFolder(options.InputFolder, dir, options.ProjectName);
-            if (!Directory.Exists(inputDir))
-            {
-                pipeline.LogError("input directory {0} doesn't exist", inputDir);
-                return 1;
-            }
-
-            int numLeaves = UploadLeafMeshPairs(inputDir, options.ProjectName);
-            if(numLeaves == 0)
-            {
-                pipeline.LogError("no leaves to build");
-                return 1;
-            }
-
-            pipeline.LogInfo("building parent for {0} leaf tiles",numLeaves);
-            {
-                var runOptions = new RunProjectOptions()
-                {
-                    ProjectName = project.Name,
-                    Local = true,
-                    Wait = true
-                };
-
-                int runResult = new RunProject(pipeline,runOptions,ExecutionMode.None).Run();
-                if(runResult != 0)
-                {
-                    pipeline.LogError("build parents failed");
-                    return 1;
-                }
-            }
-
-            pipeline.LogInfo("building tileset completed");
             return 0;
         }
 
-        private bool SkirtsEnabled
-        { get { return options.SkirtAxis != SkirtMode.None; } }
-
-        private bool CreateTilingProject(string name)
+        protected override bool ParseArgumentsAndLoadCaches()
         {
-            var createOptions = new CreateProjectOptions()
+            if (options.NoSave)
             {
-                ProjectName = name,
-                TilingScheme = TilingScheme.UserDefined,
-                SkirtMode = Geometry.SkirtMode.None,
-                ReconMethod = Geometry.MeshReconMethod.FSSR,
-                FacesPerTile = options.FacesPerTile,
-                TileResolution = options.TileResolution,
-                ExportImageFormat = options.ImageExtension,
-                ExportMeshFormat = options.MeshExtension,
-                ProjectType = PipelineStateMachine.ProjectType.GenericTiling,
-                NoWait = false,
-                MaxLeafGroupSize = 32,
-                Local = true,
-
-            };
-
-            var createProject = new CreateProject(pipeline,createOptions,ExecutionMode.Deferred);
-            int createResult = createProject.Run();
-            if (createResult == 1)
-            {
-                pipeline.LogWarn("failed to create tiling project {0} ", name);
-                return false;
+                throw new Exception("--nosave not implemented for this command");
             }
-            else
+
+            if (!base.ParseArgumentsAndLoadCaches())
             {
-                pipeline.LogInfo("Tiling Project {0} created", name);
-                return true;
+                return false; //help
+            }
+
+            if (sceneMesh == null) //might have already been loaded in GetProject()
+            {
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+            }
+
+            if (sceneMesh == null)
+            {
+                throw new Exception(string.Format("no scene mesh for project {0} in frame {1}", project.Name, meshFrame));
+            }
+
+            LoadLeafList();
+
+            withTextures &= !string.IsNullOrEmpty(leafList.ImageExt);
+
+            tilesetFolder = DecorateOutDir(OUT_DIR + "Set");
+
+            return true;
+        }
+
+        protected override bool DeleteLocalProductsBeforeRedo()
+        {
+            return false;
+        }
+            
+        protected override bool PassthroughMeshFrameAllowed()
+        {
+            return true;
+        }
+
+        protected override void LoadFrameCache()
+        {
+            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            {
+                base.LoadFrameCache();
             }
         }
 
-        private int UploadLeafMeshPairs(string inputDir, string tilingProjectName)
+        protected override void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
         {
-            int numMeshes = 0;
-            var meshFiles = Directory.EnumerateFiles(inputDir, "*.ply").ToArray();
-            int totalMeshFiles = meshFiles.Count();
+            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            {
+                base.LoadObservationCache(obsTypes, onlyObsForReconstruction);
+            }
+        }
 
-          Serial.ForEach(meshFiles, meshPath =>
-           {
-               int curMeshIdx = Interlocked.Increment(ref numMeshes);
+        private void CreateTilingProject()
+        {
+            var keepMeshes = new HashSet<string>();
+            keepMeshes.UnionWith(leafList.LeafNames);
+            tilingProject = GetOrDeleteTilingProject(keepMeshes);
 
-               string tileName = Path.GetFileNameWithoutExtension(meshPath);
-               string texturePath = Path.ChangeExtension(meshPath, "png");
-               if (!File.Exists(texturePath))
-               {
-                   texturePath = null;
-               }
-               var uploadOptions = new UploadInputOptions()
-               {
-                   ProjectName = tilingProjectName,
-                   MeshFilepath = meshPath,
-                   ImageFilepath = texturePath,
-                   TileId = tileName,
-                   NoWait = false,
-                   Local = true
-               };
-               int runResult = new UploadInput(pipeline, uploadOptions, ExecutionMode.None).Run();
-               if (runResult == 1)
-               {
-                   pipeline.LogWarn("failed to upload tile: " + tileName);
-               }
-               else
-               {
-                   pipeline.LogInfo("Uploading input {0}: {1}/{2} ({3}%)", tileName, curMeshIdx, totalMeshFiles,
-                                (int)(100 * curMeshIdx / (float)totalMeshFiles));
-               }
-           });
+            if (tilingProject == null)
+            {
+                //in a user defined tiling scheme the inputs give a subset of all the tiles
+                //including at least all the leaves
+                //the tree topology is encoded in the names of the given tiles
+                //such that all tiles with the same name prefix XXXX are parented to a tile named XXXX
+                //we'll automatically create any and all parent tiles which were not provided as input
+                //in practice for the local-build-leaves -> local-build-tileset workflow
+                //all and only the leaves of the tree are supplied as user defined tiles here
+                var tilingScheme = TilingScheme.UserDefined;
 
-            return numMeshes;
+                var projectType = PipelineStateMachine.ProjectType.ParentTiling;
+
+                string exportMeshFormat = null;
+                string exportImageFormat = null;
+
+                int maxLeafGroupSize = MAX_LEAF_GROUP_SIZE;
+
+                tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
+                                                     options.SkirtMode, options.ReconMethod, options.FacesPerTile,
+                                                     resolution, projectType.ToString(),
+                                                     exportMeshFormat, exportImageFormat, maxLeafGroupSize);
+
+                tilingProject.ExportDir = null;
+
+                //our own internal representation of the tile meshes are stored here
+                //typically in ply / png formats
+                //note this is the same folder and formats that local-build-leaves used to save the leaf meshes
+                tilingProject.InternalTileDir = outputFolder;
+                tilingProject.InternalMeshFormat = options.MeshFormat;
+                tilingProject.InternalImageFormat = options.ImageFormat;
+
+                //acutal output tileset is saved here
+                //typically in b3dm / jpg formats
+                tilingProject.TilesetDir = tilesetFolder;
+
+                tilingProject.StartedRunning = false;
+                tilingProject.FinishedRunning = false;
+
+                tilingProject.Save(pipeline);
+            }
+
+            var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
+            pipeline.LogInfo("{0} {1} tileset meshes and {2} leaf textures to {3}",
+                             pipeline is CloudPipeline ? "uploading" : "saving",
+                             tilingProject.TilesetMeshFormat, tilingProject.TilesetImageFormat, tilesetUrl);
+        }
+
+        private void AddLeafMeshes()
+        {
+            pipeline.LogInfo("adding {0} leaf meshes{1}", leafList.LeafNames.Count,
+                             withTextures ? " and textures" : "");
+            foreach (var leaf in leafList.LeafNames)
+            {
+                if (!options.NoProgress)
+                {
+                    pipeline.LogVerbose("adding/updating leaf mesh {0}", leaf);
+                }
+                var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.MeshExt);
+                var imgUrl =
+                    withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.ImageExt) : null;
+                TilingInput.Create(pipeline, leaf, tilingProject, meshUrl, imgUrl, leaf);
+            }
+        }
+
+        private void BuildLeavesAndDefineParents()
+        {
+            TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE);
+            var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
+            dt.DownloadInputsAndBuildTree(tilingProject, !options.NoProgress,
+                                          skipSavingInternalTileMeshesForUserDefinedNodes: true);
+        }
+
+        private void BuildParentTiles()
+        {
+            PipelineExecutive executive = null;
+            if (pipeline is LocalPipeline)
+            {
+                executive = PipelineExecutive.MakeExecutive(pipeline as LocalPipeline, ExecutionMode.Deferred);
+            }
+
+            PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
+
+            pipeline.EnqueueToMaster(new RunProjectMessage(project.Name));
+
+            TilingProject tp = null;
+            do
+            {
+                if (stopwatch.ElapsedMilliseconds * 0.001 > options.MaxTime)
+                {
+                    throw new Exception("timed out waiting for parent tiles");
+                }
+
+                Thread.Sleep(SLEEP_MS);
+                
+                //re-fetch project record to ensure database synchronization
+                tp = TilingProject.Find(pipeline, project.Name);
+
+            }
+            while (tp != null && !tp.FinishedRunning);
+
+            if (executive != null)
+            {
+                (executive as DeferredExecutive).Quit();
+            }
+
+            TilingNode.DumpLRUCacheStats(pipeline);
         }
     }
 }

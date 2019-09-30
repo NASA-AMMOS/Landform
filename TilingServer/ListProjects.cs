@@ -19,7 +19,7 @@ namespace OPS.TilingServer
         public bool Local { get; set; }
     }
         
-    public class ListProjects : TilingCommand
+    public class ListProjects : TilingServerCommand
     {
         private ListProjectsOptions options;
 

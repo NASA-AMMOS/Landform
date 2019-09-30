@@ -18,6 +18,12 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_STORAGE_DIR")]
         public string StorageDir;
 
+        [ConfigEnvironmentVariable("LANDFORM_IMAGE_MEM_CACHE")]
+        public int ImageMemCache = 100;
+
+        [ConfigEnvironmentVariable("LANDFORM_DATA_PRODUCT_MEM_CACHE")]
+        public int DataProductMemCache = 100;
+
         //0 to use all available cores, N to use up to N, -M to reserve M
         [ConfigEnvironmentVariable("LANDFORM_MAX_CORES")]
         public int MaxCores;

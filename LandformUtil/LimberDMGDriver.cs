@@ -36,7 +36,7 @@ namespace OPS.LandformUtil
         [Option(Required = false, HelpText = "number of iterations of relaxation to perform between multigrid iterations", Default = LimberDMG.DEF_NUM_RELAXATION_STEPS)]
         public int NumRelaxationSteps { get; set; }
 
-        [Option(Required = false, HelpText = "number of iterations multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
+        [Option(Required = false, HelpText = "number of multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
         public int NumMultigridIterations { get; set; }
 
         [Option(Required = false, HelpText = "higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]

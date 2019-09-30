@@ -35,14 +35,16 @@ namespace OPS.Pipeline
         private readonly StorageHelper defaultStorage;
         private readonly Dictionary<string, StorageHelper> storageSelect = new Dictionary<string, StorageHelper>();
 
-        public CloudPipeline(PipelineCoreOptions options, ILog logger = null, int lruCache = 100,
-                             bool quietInit = false,
+        public CloudPipeline(PipelineCoreOptions options, ILog logger = null, bool quietInit = false,
+                             int? lruImageCache = null, int? lruDataProductCache = null, 
                              bool enableS3 = true, bool enableDynamo = true,
                              bool initQueues = true, bool initTables = true,
                              string queuePrefix = null, string tablePrefix = null, int? maxCores = null)
             : base(options, CloudPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
-                   CloudPipelineConfig.Instance.Venue, logger, lruCache, quietInit,
+                   CloudPipelineConfig.Instance.Venue, logger, quietInit,
+                   lruImageCache.HasValue ? lruImageCache : CloudPipelineConfig.Instance.ImageMemCache,
+                   lruDataProductCache.HasValue ? lruDataProductCache : CloudPipelineConfig.Instance.DataProductMemCache,
                    options.SingleThreaded ? 1 : maxCores ?? CloudPipelineConfig.Instance.MaxCores)
         {
             var cloudConfig = (CloudPipelineConfig)Config;
@@ -91,7 +93,7 @@ namespace OPS.Pipeline
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
-                    InitializeDatabase(quiet || quietInit);
+                    InitPhase("initialize database", () => InitializeDatabase(Quiet || quietInit));
                 }
             }
 
@@ -102,7 +104,7 @@ namespace OPS.Pipeline
                     throw new NotImplementedException("legacy compat SQS messaging not implemented");
                 }
                 this.queuePrefix = makePrefix(queuePrefix);
-                InitializeQueues(quiet || quietInit);
+                InitPhase("initialize message queues", () => InitializeQueues(Quiet || quietInit));
             }
 
             //TODO MSL specific
@@ -118,12 +120,12 @@ namespace OPS.Pipeline
         {
             base.DumpConfig();
             var cloudConfig = (CloudPipelineConfig)Config;
-            //not using LogInfo() to print even if quiet = true
-            Logger.Info("AWS region: " + cloudConfig.AWSRegion);
-            Logger.Info("AWS profile: " + cloudConfig.AWSProfile);
-            Logger.Info("MSLICE AWS profile: " + cloudConfig.MSLICEAWSProfile);
-            Logger.Info("MSLICE AWS region: " + cloudConfig.MSLICEAWSRegion);
-            Logger.Info("MSLICE S3 URL: " + cloudConfig.MSLICES3Url);
+            //not using LogInfo() to print even if Quiet = true
+            Logger.InfoFormat("AWS region: {0}", cloudConfig.AWSRegion);
+            Logger.InfoFormat("AWS profile: {0}", cloudConfig.AWSProfile);
+            Logger.InfoFormat("MSLICE AWS profile: {0}", cloudConfig.MSLICEAWSProfile);
+            Logger.InfoFormat("MSLICE AWS region: {0}", cloudConfig.MSLICEAWSRegion);
+            Logger.InfoFormat("MSLICE S3 URL: {0}", cloudConfig.MSLICES3Url);
         }
 
         private StorageHelper GetStorageHelper(string url) {
