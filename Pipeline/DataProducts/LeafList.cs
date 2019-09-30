@@ -9,6 +9,8 @@ namespace OPS.Pipeline
 {
     public class LeafList : JsonDataProduct
     {
+        public const string INDEX_FILE_SUFFIX = "_index";
+        public const string INDEX_FILE_EXT = ".tif";
         public string MeshExt;
         public string ImageExt;
         public string MeshFrame;

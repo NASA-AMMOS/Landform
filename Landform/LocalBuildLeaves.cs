@@ -59,8 +59,6 @@ namespace OPS.Landform
 
     public class LocalBuildLeaves : TilingCommand
     {
-        public const string LEAF_INDEX_FILE_SUFFIX = "_index";
-
         private LocalBuildLeavesOptions options;
 
         private bool bakeTextures;
@@ -404,7 +402,7 @@ namespace OPS.Landform
                 }
                 if (index != null)
                 {
-                    SaveFloatTIFF(index, name + LEAF_INDEX_FILE_SUFFIX);
+                    SaveFloatTIFF(index, name + LeafList.INDEX_FILE_SUFFIX);
                 }
                 SaveMesh(mesh, name, imgName);
             }
@@ -426,8 +424,8 @@ namespace OPS.Landform
                             var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
                             var serializer = new GDALSerializer(opts);
                             serializer.Write<float>(tmpFile, index);
-                            string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
-                                                                     name + LEAF_INDEX_FILE_SUFFIX + ".tif");
+                            string indexName = name + LeafList.INDEX_FILE_SUFFIX + LeafList.INDEX_FILE_EXT;
+                            string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
                             pipeline.SaveFile(tmpFile, indexUrl);
                         });
                 }

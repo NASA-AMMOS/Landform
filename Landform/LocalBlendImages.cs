@@ -739,14 +739,14 @@ namespace OPS.Landform
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F3} meters/pixel",
                              resolution, leafList.LeafNames.Count, opts.MetersPerPixel);
 
-            string indexSuffix = LocalBuildLeaves.LEAF_INDEX_FILE_SUFFIX;
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
             CoreLimitedParallel.ForEach(leafList.LeafNames, leaf =>
             {
                 string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + leafList.MeshExt);
                 var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
 
-                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + indexSuffix + ".tif");
+                string indexName = leaf + LeafList.INDEX_FILE_SUFFIX + LeafList.INDEX_FILE_EXT;
+                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var leafIndex = pipeline.LoadImage(indexUrl);
 
                 //only rasterize winning pixels from the leaf
@@ -781,7 +781,6 @@ namespace OPS.Landform
         private void BuildBlendedLeafTextures()
         {
             pipeline.LogInfo("blending leaf textures");
-            string indexSuffix = LocalBuildLeaves.LEAF_INDEX_FILE_SUFFIX;
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
             int curLeafNum = 0, leafCount = leafList.LeafNames.Count;
             CoreLimitedParallel.ForEach(leafList.LeafNames, leaf =>
@@ -789,7 +788,8 @@ namespace OPS.Landform
                 Interlocked.Increment(ref curLeafNum);
                 pipeline.LogInfo("blending leaf texture {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
                                  100 * curLeafNum / (float)leafCount, leaf);
-                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + indexSuffix + ".tif");
+                string indexName = leaf + LeafList.INDEX_FILE_SUFFIX + LeafList.INDEX_FILE_EXT;
+                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedObservations);
                 var texture = new Image(3, index.Width, index.Height);
