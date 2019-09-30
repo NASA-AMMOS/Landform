@@ -25,7 +25,7 @@ namespace OPS.Landform
     [Verb("local-blend-images", HelpText = "blend observation images")]
     public class LocalBlendImagesOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Don't uexisting leaves to build backproject index", Default = false)]
+        [Option(HelpText = "Don't use existing leaves to build backproject index", Default = false)]
         public bool NoUseExistingLeaves { get; set; }
 
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
