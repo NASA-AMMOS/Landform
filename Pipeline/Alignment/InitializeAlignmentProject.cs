@@ -35,10 +35,6 @@ namespace OPS.Pipeline
                 }
             }
 
-            if ((project == null || recreateIfExists) && string.IsNullOrEmpty(inputPath))
-            {
-                throw new ArgumentException("input path must be specified to (re)create project");
-            }
 
             string rootName = MissionSpecific.GetInstance(mission).RootFrameName();
 
