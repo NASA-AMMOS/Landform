@@ -20,7 +20,4 @@ QMDTMesher/bin/
 QMDTMesher/obj/
 TilingServer/bin/
 TilingServer/obj/
-CloudMessages/CloudMessagesCore/bin/
-CloudMessages/CloudMessagesCore/obj/
-CloudMessages/CloudMessagesFramework/bin/
-CloudMessages/CloudMessagesFramework/obj/
+
