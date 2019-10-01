@@ -306,7 +306,7 @@ namespace OPS.Landform
             int leafCount = leavesToTexture.Count;
 
             MultiMeshClipper bakeClipper = null;
-            if (!backprojectTextures)
+            if (bakeTextures)
             {
                 bakeClipper = new MultiMeshClipper();
                 bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
