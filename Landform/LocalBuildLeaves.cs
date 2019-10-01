@@ -26,7 +26,7 @@ namespace OPS.Landform
         [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
         public override double BackprojectBatchGridSize { get; set; }
 
-        [Value(1, Required = false, Default = null, HelpText = "Scene mesh texture image to bake into leaves, backproject observations instead if omitted")]
+        [Option(Default = null, HelpText = "Scene mesh texture image to bake into leaves, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
         [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.1)]
@@ -306,7 +306,7 @@ namespace OPS.Landform
             int leafCount = leavesToTexture.Count;
 
             MultiMeshClipper bakeClipper = null;
-            if (backprojectTextures)
+            if (bakeTextures)
             {
                 bakeClipper = new MultiMeshClipper();
                 bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));

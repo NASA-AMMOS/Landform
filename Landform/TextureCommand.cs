@@ -29,7 +29,7 @@ namespace OPS.Landform
         [Option(HelpText = "Wedge debug image decimation blocksize, 0 to disable, -1 for auto", Default = -1)]
         public virtual int DecimateDebugWedgeImages { get; set; }
 
-        [Value(1, Required = false, Default = null, HelpText = "Scene mesh, search project storage if omitted")]
+        [Option(Default = null, HelpText = "Scene mesh, search project storage if omitted")]
         public string InputMesh { get; set; }
 
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
