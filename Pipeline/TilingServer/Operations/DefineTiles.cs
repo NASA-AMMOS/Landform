@@ -79,7 +79,7 @@ namespace OPS.Pipeline.TilingServer
         public void Process()
         {
             var project = TilingProject.Find(pipeline, projectName);
-            if(project == null)
+            if (project == null)
             {
                 throw new Exception("project not found");
             }
@@ -134,7 +134,7 @@ namespace OPS.Pipeline.TilingServer
                 foreach (var input in inputs)
                 {
                     var id = input.TileId;
-                    idToSceneNode[id] = new SceneNode(id); 
+                    idToSceneNode[id] = new SceneNode(id);
                 }
 
                 numUserTiles = idToSceneNode.Count;
@@ -234,7 +234,7 @@ namespace OPS.Pipeline.TilingServer
                 {
                     tilingNode = idToTilingNode[id];
                 }
-                    
+
                 tilingNode.SetDependsOn(dependencies.DependsOn(id));
                 tilingNode.SetDependedOnBy(dependencies.DependedOnBy(id));
                 if (sceneNode.HasComponent<NodeBounds>())
@@ -263,9 +263,7 @@ namespace OPS.Pipeline.TilingServer
             project.Save(pipeline);
         }
 
-        public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        int facesPerTile, List<MeshImagePair> pairs,
-                                                        SplitByTextureOpts texOpts = null, string logPrefix = null)
+        private static void EnsureLogPrefix(ref string logPrefix)
         {
             if (logPrefix == null)
             {
@@ -275,6 +273,117 @@ namespace OPS.Pipeline.TilingServer
             {
                 logPrefix += " ";
             }
+        }
+
+        public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, TilingScheme tilingScheme,
+                                                        List<MeshImagePair> LODPairs, string logPrefix = null)
+        {
+            EnsureLogPrefix(ref logPrefix);
+
+            ITilingScheme scheme = GetTilingScheme(tilingScheme);
+
+            return BuildFixedLevelsBoundsTree(LODPairs, scheme);
+        }
+
+        public static SceneNode BuildFixedLevelsBoundsTree(List<MeshImagePair> LODPairs, ITilingScheme scheme)
+        {
+            if (LODPairs.Count < 2)
+            {
+                throw new InvalidDataException("expecting > 1 LOD, received " + LODPairs.Count);
+            }
+
+            if (LODPairs.ElementAt(0).Mesh.Vertices.Count < LODPairs.ElementAt(1).Mesh.Vertices.Count)
+            {
+                throw new InvalidDataException("expecting LOD 0 to be higher number of verts than LOD 1");
+            }
+
+            //debug
+            //int level = 0;
+            //foreach (var lod in LODPairs.Reverse<MeshImagePair>())
+            //{
+            //    string filename = "input_level_" + level;
+            //    string imgFilename = filename + ".png";
+            //    string mshFilename = filename + ".ply";
+            //    lod.Image.Save<byte>(imgFilename);
+            //    lod.Mesh.Save(mshFilename);
+            //    level++;
+            //}
+
+            // get maximum bounds across all the lod levels (it is possible LOD's might have 
+            // different bounds if decimation stretches or shrinks triangles
+            BoundingBox rootBounds = LODPairs.First().Mesh.Bounds();
+            foreach (var lodMesh in LODPairs.Skip(1).Select(lp => lp.Mesh))
+            {
+                rootBounds = BoundingBox.CreateMerged(rootBounds, lodMesh.Bounds());
+            }
+
+            //add root
+            SceneNode root = new SceneNode("");
+            root.Name = "";
+            root.AddComponent(new NodeBounds(rootBounds));
+            root.AddComponent(new MeshImagePair(LODPairs.Last().Mesh, LODPairs.Last().Image));
+
+            //debug
+            ConvexHull parentHull = new ConvexHull(rootBounds.GetCorners());
+            parentHull.Mesh.Save(root.Name + "_hull.ply");
+
+            //coarse to fine (coarsest is root)
+            List<SceneNode> previousLevelNodes = new List<SceneNode> { root };
+            foreach (var lodPair in LODPairs.Reverse<MeshImagePair>().Skip(1))
+            {
+                //TexturedMeshClipper texturedMeshClipper = new TexturedMeshClipper();
+                MeshOperator meshOp = new MeshOperator(lodPair.Mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+                //texturedMeshClipper.AddMeshImagePair(meshOp, lodPair.Image);
+                List<SceneNode> currentLevelNodes = new List<SceneNode>();
+                foreach (var parentNode in previousLevelNodes)
+                {                    
+                    var parentBounds = parentNode.GetComponent<NodeBounds>().Bounds;
+
+                    var childrenBounds = scheme.Split(null, parentBounds);
+                    int counter = 0; //note this is always exactly one decimal digit
+                    foreach (var childBounds in childrenBounds)
+                    {
+                        //debug
+                        ConvexHull childHull = new ConvexHull(childBounds.GetCorners());
+                       
+                        if (!meshOp.Empty(childBounds))
+                        { 
+                            SceneNode child = CreateChildNode(parentNode, counter, childBounds);
+                            //MeshImagePair childPair = texturedMeshClipper.Clip(childBounds);
+                            //child.AddComponent(childPair);
+
+                            //debug
+                            childHull.Mesh.Save(child.Name + "_hull.ply");
+                            //string imagePath = child.Name + ".png";
+                            //childPair.Image.Save<byte>(imagePath);
+                            //childPair.Mesh.Save(child.Name + ".ply", imagePath);
+
+                            //debug: memory limits
+                            //child.RemoveComponent<MeshImagePair>();
+
+                            currentLevelNodes.Add(child);
+
+                            counter++;
+                        }
+                        else
+                        {
+                            childHull.Mesh.Save(parentNode.Name + "_failedchild_" + counter + "_hull.ply");
+                        }
+                    }
+                }
+
+                previousLevelNodes = currentLevelNodes;
+            }
+
+            root.Name = "root";
+            return root;
+        }
+
+        public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
+                                                        int facesPerTile, List<MeshImagePair> pairs,
+                                                        SplitByTextureOpts texOpts = null, string logPrefix = null)
+        {
+            EnsureLogPrefix(ref logPrefix);
 
             pipeline.LogInfo("{0}build tile tree: building mesh clipper", logPrefix);
             var multiClipper = new MultiMeshClipper();
@@ -283,6 +392,21 @@ namespace OPS.Pipeline.TilingServer
                 multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
             }
 
+            ITilingScheme scheme = GetTilingScheme(tilingScheme);
+
+            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
+
+            if (texOpts != null)
+            {
+                splitCriteria.Add(new TextureSplitCriteria(texOpts));
+            }
+
+            pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);
+            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray());
+        }
+
+        private static ITilingScheme GetTilingScheme(TilingScheme tilingScheme)
+        {
             ITilingScheme scheme;
             if (tilingScheme == TilingScheme.Bin)
             {
@@ -303,15 +427,7 @@ namespace OPS.Pipeline.TilingServer
                 throw new Exception("unknown tiling scheme");
             }
 
-            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
-
-            if (texOpts != null)
-            {
-                splitCriteria.Add(new TextureSplitCriteria(texOpts));
-            }
-
-            pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);
-            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray());
+            return scheme;
         }
 
         //each node name is of the form ABCDE... where
@@ -328,21 +444,21 @@ namespace OPS.Pipeline.TilingServer
             queue.Enqueue(root);
 
             int cores = CoreLimitedParallel.GetAvailableCores();
-            while (queue.Count > 0 )
+            while (queue.Count > 0)
             {
                 List<SceneNode> toProcess = new List<SceneNode>();
-                for(int idx=0; idx < cores && queue.Count() > 0; idx++)
-                {                
+                for (int idx = 0; idx < cores && queue.Count() > 0; idx++)
+                {
                     toProcess.Add(queue.Dequeue());
                 }
 
                 CoreLimitedParallel.ForEach(toProcess, cur =>
+            {
+                var curBounds = cur.GetComponent<NodeBounds>().Bounds;
+                if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
                 {
-                    var curBounds = cur.GetComponent<NodeBounds>().Bounds;
-                    if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
-                    {
-                        var childBounds = tilingScheme.Split(null, curBounds);
-                        childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                    var childBounds = tilingScheme.Split(null, curBounds);
+                    childBounds = multiClipper.FilterEmptyBounds(childBounds);
 
                         //For quad trees, expand bounds in the non-split dimension
                         //Otherwise, we clip high peaks/low valleys in the decimated mesh
@@ -352,17 +468,17 @@ namespace OPS.Pipeline.TilingServer
 
                         int counter = 0; //note this is always exactly one decimal digit
                         foreach (var childBound in childBounds)
+                    {
+                        SceneNode child = CreateChildNode(cur, counter, childBound);
+
+                        lock (queue)
                         {
-                            SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
-                            child.AddComponent(new NodeBounds(childBound));
-                            lock (queue)
-                            {
-                                queue.Enqueue(child);
-                            }
-                            counter++;
+                            queue.Enqueue(child);
                         }
+                        counter++;
                     }
-                });
+                }
+            });
             }
             root.Name = "root";
             return root;
@@ -395,6 +511,13 @@ namespace OPS.Pipeline.TilingServer
             });
 
             return new MeshImagePair(mesh, image);
+        }
+
+        private static SceneNode CreateChildNode(SceneNode cur, int counter, BoundingBox childBounds)
+        {
+            SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
+            child.AddComponent(new NodeBounds(childBounds));
+            return child;
         }
     }
 }
