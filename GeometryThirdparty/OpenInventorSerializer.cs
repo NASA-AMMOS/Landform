@@ -32,6 +32,19 @@ namespace OPS.Geometry
             return result;
         }
 
+        public override List<Mesh> LoadAllLODs(string filename)
+        {
+            return ReadAllLODs(filename);
+        }
+
+        /// <summary>
+        /// this serializer supports multiple levels of detail within a single file
+        /// </summary>
+        public override bool SupportsLODs()
+        {
+            return true;
+        }
+
         /// <summary>
         /// Return only the highest resolution LOD in the file
         /// </summary>
