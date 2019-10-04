@@ -163,7 +163,7 @@ namespace OPS.Pipeline
         /// <param name="img">original image</param>
         /// <param name="borderSize">pixel border around patches</param>
         /// <returns></returns>
-        List<TexturePatch> ComputePatches(Mesh mesh, Image img, int borderSize)
+        static private List<TexturePatch> ComputePatches(Mesh mesh, Image img, int borderSize)
         {
             mesh.Clean();
             MeshOperator op = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false);
@@ -207,32 +207,13 @@ namespace OPS.Pipeline
             return patches;
         }
 
-
-
-        /// <summary>
-        /// Clips every mesh in the list of MeshImagePairs to specified bounding box. Creates new texture of patches from original images for each portion of clipped mesh packed into single image.
-        /// Each patch has border of borderSize pixels. Returns new single MeshImagePair with clipped mesh and packed image.
-        /// If rotation is allowed in packing, small pixel texture may be introduced.
-        /// </summary>
-        /// <param name="box"></param>
-        /// <param name="borderSize"></param>
-        /// <param name="allowRotation"></param>
-        /// <returns></returns>
-        public MeshImagePair Clip(BoundingBox box, int borderSize = 5, bool allowRotation = false)
+        static public MeshImagePair RemapMeshClipImage(MeshOperator fullMeshOp, Mesh clippedMesh, Image image, int borderSize = 5, bool allowRotation = false)
         {
-            if (allowRotation)
-            {
-                logger.Warn("Clip Mesh rotation is potentially unstable and may result in half pixel texture offsets");
-            }
-            List<TexturePatch> patches = new List<TexturePatch>();
-            
-            foreach (var pair in pairs)
-            {
-                Mesh clippedMesh = pair.MeshOperator.Clip(box);
-                clippedMesh.Clean();
-                patches.AddRange(ComputePatches(clippedMesh, pair.Image, borderSize));
-            }
+            return ClipPatches(ComputePatches(clippedMesh, image, borderSize), clippedMesh.HasNormals, clippedMesh.HasColors, image.Bands, borderSize, allowRotation);
+        }
 
+        static private MeshImagePair ClipPatches(List<TexturePatch> patches, bool hasNormals, bool hasColors, int outputImageBands, int borderSize, bool allowRotation)
+        {
             int maxWidth = 0, maxHeight = 0;
             for (int b = 0; b < patches.Count; b++)
             {
@@ -241,8 +222,8 @@ namespace OPS.Pipeline
                 maxHeight = Math.Max(maxHeight, patches[b].patchImage.Height);
             }
 
-            var binWidth = Math.Max( MathExtensions.MathE.CeilPowerOf2(maxWidth), 1);
-            var binHeight =Math.Max( MathExtensions.MathE.CeilPowerOf2(maxHeight), 1);
+            var binWidth = Math.Max(MathExtensions.MathE.CeilPowerOf2(maxWidth), 1);
+            var binHeight = Math.Max(MathExtensions.MathE.CeilPowerOf2(maxHeight), 1);
             var binDepth = 1;
 
             Cuboid[] cuboids = new Cuboid[patches.Count];
@@ -273,7 +254,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            Image packedImg = new Image(pairs[0].Image.Bands, binWidth, binHeight);
+            Image packedImg = new Image(outputImageBands, binWidth, binHeight);
             var cubes = packed.BestResult.First();
             //create new texture image from packing results
             foreach (var cube in cubes)
@@ -321,8 +302,43 @@ namespace OPS.Pipeline
             }
             MeshImagePair result = new MeshImagePair();
             result.Image = packedImg;
-            result.Mesh = new Mesh(resultTriangles, hasNormals: pairs[0].MeshOperator.HasNormals, hasUVs: pairs[0].MeshOperator.HasUVs, hasColors: pairs[0].MeshOperator.HasColors);
+            result.Mesh = new Mesh(resultTriangles, hasNormals: hasNormals, hasUVs: true, hasColors: hasColors);
             return result;
+        }
+
+        /// <summary>
+        /// Clips every mesh in the list of MeshImagePairs to specified bounding box. Creates new texture of patches from original images for each portion of clipped mesh packed into single image.
+        /// Each patch has border of borderSize pixels. Returns new single MeshImagePair with clipped mesh and packed image.
+        /// If rotation is allowed in packing, small pixel texture may be introduced.
+        /// </summary>
+        /// <param name="box"></param>
+        /// <param name="borderSize"></param>
+        /// <param name="allowRotation"></param>
+        /// <returns></returns>
+        public MeshImagePair Clip(BoundingBox box, int borderSize = 5, bool allowRotation = false)
+        {
+            if (allowRotation)
+            {
+                logger.Warn("Clip Mesh rotation is potentially unstable and may result in half pixel texture offsets");
+            }
+            List<TexturePatch> patches = new List<TexturePatch>();
+        
+            int outputImageBands = 0;
+            bool hasNormals = false;
+            bool hasColors = false;
+            foreach (var pair in pairs)
+            {
+                Mesh clippedMesh = pair.MeshOperator.Clip(box);
+                clippedMesh.Clean();
+                patches.AddRange(ComputePatches(clippedMesh, pair.Image, borderSize));
+                outputImageBands = Math.Max(outputImageBands, pair.Image.Bands);
+                hasNormals |= pair.MeshOperator.HasNormals;
+                hasColors |= pair.MeshOperator.HasColors;
+
+            }
+
+            return ClipPatches(patches, hasNormals, hasColors, outputImageBands, borderSize, allowRotation);
+
         }
     }
 }
