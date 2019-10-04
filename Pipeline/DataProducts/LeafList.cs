@@ -7,7 +7,7 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
 {
-    public class LeafList : JsonDataProduct
+    public class TileList : JsonDataProduct
     {
         public const string INDEX_FILE_SUFFIX = "_index";
         public const string INDEX_FILE_EXT = ".tif";
@@ -16,6 +16,6 @@ namespace OPS.Pipeline
         public string MeshFrame;
         public bool HasIndexImages;
         public TilingScheme TilingScheme;
-        public List<string> LeafNames;
+        public List<string> TileNames;
     }
 }

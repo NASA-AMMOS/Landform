@@ -68,7 +68,7 @@ namespace OPS.Landform
         protected SceneCaster sceneCaster;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
         protected Image backprojectIndex;
-        protected LeafList leafList;
+        protected TileList tileList;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -314,23 +314,23 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual void LoadLeafList()
+        protected virtual void LoadTileList()
         {
-            if (sceneMesh.LeafListGuid == Guid.Empty)
+            if (sceneMesh.TileListGuid == Guid.Empty)
             {
                 throw new Exception(string.Format("scene mesh {0} has no leaf list, run local-build-leaves",
                                                   sceneMesh.Name));
             }
 
-            leafList = pipeline.GetDataProduct<LeafList>(project, sceneMesh.LeafListGuid);
+            tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
 
-            if (leafList.MeshFrame != meshFrame)
+            if (tileList.MeshFrame != meshFrame)
             {
                 throw new Exception(string.Format("leaf list is in frame {0}, expected {1}",
-                                                  leafList.MeshFrame, meshFrame));
+                                                  tileList.MeshFrame, meshFrame));
             }
 
-            if (leafList.LeafNames == null || leafList.LeafNames.Count == 0)
+            if (tileList.TileNames == null || tileList.TileNames.Count == 0)
             {
                 throw new Exception("leaf list is empty");
             }

@@ -135,7 +135,7 @@ namespace OPS.Landform
                 RunPhase("load or generate blurred texture", LoadOrBuildBlurredTexture);
                 RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
                 RunPhase("generate blended observation images", BuildBlendedObservationImages);
-                if (useExistingLeaves && !string.IsNullOrEmpty(leafList.ImageExt) && !options.NoSave)
+                if (useExistingLeaves && !string.IsNullOrEmpty(tileList.ImageExt) && !options.NoSave)
                 {
                     RunPhase("generate blended leaf textures", BuildBlendedLeafTextures);
                 }
@@ -167,12 +167,12 @@ namespace OPS.Landform
             if (!options.NoUseExistingLeaves)
             {
                 var dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
-                if (dsm != null && dsm.LeafListGuid != Guid.Empty)
+                if (dsm != null && dsm.TileListGuid != Guid.Empty)
                 {
                     sceneMesh = dsm;
                     useExistingLeaves = true;
                     pipeline.LogInfo("using existing leaves");
-                    LoadLeafList();
+                    LoadTileList();
                 }
             }
 
@@ -223,11 +223,11 @@ namespace OPS.Landform
             throw new NotImplementedException();
         }
 
-        protected override void LoadLeafList()
+        protected override void LoadTileList()
         {
-            base.LoadLeafList();
+            base.LoadTileList();
 
-            if (!leafList.HasIndexImages)
+            if (!tileList.HasIndexImages)
             {
                 throw new Exception("leaf list missing index images, run local-build-leaves");
             }
@@ -737,15 +737,15 @@ namespace OPS.Landform
             opts.MeshOffset = new Vector2(boundsSize.X, boundsSize.Y) * 0.5;
             
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F3} meters/pixel",
-                             resolution, leafList.LeafNames.Count, opts.MetersPerPixel);
+                             resolution, tileList.TileNames.Count, opts.MetersPerPixel);
 
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            CoreLimitedParallel.ForEach(leafList.LeafNames, leaf =>
+            CoreLimitedParallel.ForEach(tileList.TileNames, leaf =>
             {
-                string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + leafList.MeshExt);
+                string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.MeshExt);
                 var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
 
-                string indexName = leaf + LeafList.INDEX_FILE_SUFFIX + LeafList.INDEX_FILE_EXT;
+                string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var leafIndex = pipeline.LoadImage(indexUrl);
 
@@ -782,22 +782,22 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("blending leaf textures");
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            int curLeafNum = 0, leafCount = leafList.LeafNames.Count;
-            CoreLimitedParallel.ForEach(leafList.LeafNames, leaf =>
+            int curLeafNum = 0, leafCount = tileList.TileNames.Count;
+            CoreLimitedParallel.ForEach(tileList.TileNames, leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
                 pipeline.LogInfo("blending leaf texture {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
                                  100 * curLeafNum / (float)leafCount, leaf);
-                string indexName = leaf + LeafList.INDEX_FILE_SUFFIX + LeafList.INDEX_FILE_EXT;
+                string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedObservations);
                 var texture = new Image(3, index.Width, index.Height);
                 Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
                                               fallbackToOriginal: true);
-                TemporaryFile.GetAndDelete(leafList.ImageExt, tmpFile => {
+                TemporaryFile.GetAndDelete(tileList.ImageExt, tmpFile => {
                         texture.Save<byte>(tmpFile);
-                        string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + leafList.ImageExt);
+                        string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.ImageExt);
                         pipeline.SaveFile(tmpFile, textureUrl);
                     });
             });
