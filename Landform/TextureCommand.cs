@@ -273,7 +273,29 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading input mesh from {0}{1}", tcopts.InputMesh,
                                  sceneMesh != null ? (", overriding scene mesh " + sceneMesh.Name) : "");
+
+                if (tcopts.LoadLODs)
+                {
+                    meshLODs = Mesh.LoadAllLODs(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+                    
+                    if(meshLODs.Count < 2)
+                    {
+                        throw new Exception("LoadLODs requested, but input mesh has only " + meshLODs.Count + " LODs");
+                    }
+
+                    pipeline.LogInfo("Input mesh contains {0} levels of detail", meshLODs.Count);
+                    for(int idxLOD = 0; idxLOD < meshLODs.Count; idxLOD++)
+                    {
+                        Mesh meshLOD = meshLODs.ElementAt(idxLOD);
+                        pipeline.LogInfo("Mesh LOD {0}: {1} vertices, {2} faces", idxLOD, meshLOD.Vertices.Count(), meshLOD.Faces.Count());
+                    }
+
+                    mesh = meshLODs.First();
+                }
+                else
+                {
                 mesh = Mesh.Load(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+            }
             }
             else if (sceneMesh != null)
             {
