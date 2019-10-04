@@ -362,43 +362,44 @@ namespace OPS.Pipeline.TilingServer
         }
 
         public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        List<MeshImagePair> LODPairs, string logPrefix = null)
+                                                        List<Mesh> LODs, string logPrefix = null)
         {
             EnsureLogPrefix(ref logPrefix);
 
             ITilingScheme scheme = GetTilingScheme(tilingScheme);
 
-            return BuildFixedLevelsBoundsTree(LODPairs, scheme);
-        }
+            SceneNode root = BuildFixedLevelsBoundsTree(LODs, scheme, out int emptyTileCount);
 
-        public static SceneNode BuildFixedLevelsBoundsTree(List<MeshImagePair> LODPairs, ITilingScheme scheme)
-        {
-            if (LODPairs.Count < 2)
+            if(emptyTileCount > 0)
             {
-                throw new InvalidDataException("expecting > 1 LOD, received " + LODPairs.Count);
+                pipeline.LogInfo("{0} tiles were empty", emptyTileCount);
             }
 
-            if (LODPairs.ElementAt(0).Mesh.Vertices.Count < LODPairs.ElementAt(1).Mesh.Vertices.Count)
+            return root;
+        }
+
+        /// <summary>
+        /// if you have pre-defined LODs this function creates a tiletree that has a fixed depth matching
+        /// the number of LODs you are expecting. it does not use any mesh or texture based split criteria
+        /// </summary>
+        /// <param name="LODPairs">expected sorted by decreasing quality (best first)</param>
+        /// <returns></returns>
+        public static SceneNode BuildFixedLevelsBoundsTree(List<Mesh> LODs, ITilingScheme scheme, out int emptyTileCount)
+        {
+            if (LODs.Count < 2)
+            {
+                throw new InvalidDataException("expecting > 1 LOD, received " + LODs.Count);
+            }
+
+            if (LODs.ElementAt(0).Vertices.Count < LODs.ElementAt(1).Vertices.Count)
             {
                 throw new InvalidDataException("expecting LOD 0 to be higher number of verts than LOD 1");
             }
 
-            //debug
-            //int level = 0;
-            //foreach (var lod in LODPairs.Reverse<MeshImagePair>())
-            //{
-            //    string filename = "input_level_" + level;
-            //    string imgFilename = filename + ".png";
-            //    string mshFilename = filename + ".ply";
-            //    lod.Image.Save<byte>(imgFilename);
-            //    lod.Mesh.Save(mshFilename);
-            //    level++;
-            //}
-
-            // get maximum bounds across all the lod levels (it is possible LOD's might have 
+            // get maximum bounds across all the lod levels (it is possible LODs might have 
             // different bounds if decimation stretches or shrinks triangles
-            BoundingBox rootBounds = LODPairs.First().Mesh.Bounds();
-            foreach (var lodMesh in LODPairs.Skip(1).Select(lp => lp.Mesh))
+            BoundingBox rootBounds = LODs.First().Bounds();
+            foreach (var lodMesh in LODs.Skip(1))
             {
                 rootBounds = BoundingBox.CreateMerged(rootBounds, lodMesh.Bounds());
             }
@@ -407,19 +408,13 @@ namespace OPS.Pipeline.TilingServer
             SceneNode root = new SceneNode("");
             root.Name = "";
             root.AddComponent(new NodeBounds(rootBounds));
-            root.AddComponent(new MeshImagePair(LODPairs.Last().Mesh, LODPairs.Last().Image));
-
-            //debug
-            ConvexHull parentHull = new ConvexHull(rootBounds.GetCorners());
-            parentHull.Mesh.Save(root.Name + "_hull.ply");
 
             //coarse to fine (coarsest is root)
+            emptyTileCount = 0;
             List<SceneNode> previousLevelNodes = new List<SceneNode> { root };
-            foreach (var lodPair in LODPairs.Reverse<MeshImagePair>().Skip(1))
+            foreach (var lodMesh in LODs.Reverse<Mesh>().Skip(1))
             {
-                //TexturedMeshClipper texturedMeshClipper = new TexturedMeshClipper();
-                MeshOperator meshOp = new MeshOperator(lodPair.Mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-                //texturedMeshClipper.AddMeshImagePair(meshOp, lodPair.Image);
+                MeshOperator meshOp = new MeshOperator(lodMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
                 List<SceneNode> currentLevelNodes = new List<SceneNode>();
                 foreach (var parentNode in previousLevelNodes)
                 {                    
@@ -429,31 +424,14 @@ namespace OPS.Pipeline.TilingServer
                     int counter = 0; //note this is always exactly one decimal digit
                     foreach (var childBounds in childrenBounds)
                     {
-                        //debug
-                        ConvexHull childHull = new ConvexHull(childBounds.GetCorners());
-                       
                         if (!meshOp.Empty(childBounds))
-                        { 
-                            SceneNode child = CreateChildNode(parentNode, counter, childBounds);
-                            //MeshImagePair childPair = texturedMeshClipper.Clip(childBounds);
-                            //child.AddComponent(childPair);
-
-                            //debug
-                            childHull.Mesh.Save(child.Name + "_hull.ply");
-                            //string imagePath = child.Name + ".png";
-                            //childPair.Image.Save<byte>(imagePath);
-                            //childPair.Mesh.Save(child.Name + ".ply", imagePath);
-
-                            //debug: memory limits
-                            //child.RemoveComponent<MeshImagePair>();
-
-                            currentLevelNodes.Add(child);
-
+                        {
+                            currentLevelNodes.Add(CreateChildNode(parentNode, counter, childBounds));
                             counter++;
                         }
                         else
                         {
-                            childHull.Mesh.Save(parentNode.Name + "_failedchild_" + counter + "_hull.ply");
+                            emptyTileCount++;
                         }
                     }
                 }
