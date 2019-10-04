@@ -139,7 +139,7 @@ namespace OPS.Pipeline.TilingServer
 
                 numUserTiles = idToSceneNode.Count;
 
-                LogInfo("connecting {0} user defined nodes by name and adding mising parent nodes", numUserTiles);
+                LogInfo("connecting {0} user defined nodes by name and adding missing parent nodes", numUserTiles);
 
                 root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
 
@@ -185,6 +185,33 @@ namespace OPS.Pipeline.TilingServer
                 });
                 LogInfo("computing tile tree bounds");
                 SceneNodeTilingExtensions.ComputeBounds(root, useExistingLeafBounds: true);
+
+                LogInfo("adding non-leaf geometric errors");
+                CoreLimitedParallel.ForEach(root.NonLeaves(), node =>
+                {
+                    TilingNode parentTilingNode = GetGeometricErrorParent(node, root, idToTilingNode);
+                    if (parentTilingNode == null)
+                        return;
+
+                    List<TilingNode> childTilingNodes = GetGeometricErrorChildren(node, idToTilingNode);
+                    if (childTilingNodes == null || childTilingNodes.Count == 0)
+                        return;
+
+                    if (!node.HasComponent<NodeGeometricError>())
+                    {
+                        var parentPair = parentTilingNode.LoadMeshImagePair(pipeline, false);
+                        if (parentPair == null || parentPair.Mesh == null)
+                            return;
+
+                        var childrenPairs = childTilingNodes.Select(ctn => ctn.LoadMeshImagePair(pipeline, false)).Where(p => p != null && p.Mesh != null);
+                        if (childrenPairs.Count() == 0)
+                            return;
+
+                        double geoError = parentPair.Mesh.HausdorffDistance(childrenPairs.Select(cp => cp.Mesh).ToArray());
+                        node.AddComponent<NodeGeometricError>(new NodeGeometricError(geoError));
+                    }
+                });
+              
             }
             else // automatically build all leaves and parents from one or more input meshes
             {
@@ -261,6 +288,65 @@ namespace OPS.Pipeline.TilingServer
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);
+        }
+
+        //find first children with meshes 
+        //matches SceneNodeTilingExtension.CalculateGeometricError but with tiling nodes/file url indirection)
+        private List<TilingNode> GetGeometricErrorChildren(SceneNode node, ConcurrentDictionary<string, TilingNode> idToTilingNode)
+        {
+            List<TilingNode> childTilingNodes = new List<TilingNode>();
+
+            Queue<SceneNode> childrenQueue = new Queue<SceneNode>();
+            foreach (var n in node.Children)
+            {
+                childrenQueue.Enqueue(n);
+            }
+            while (childrenQueue.Count > 0)
+            {
+                SceneNode curNode = childrenQueue.Dequeue();
+                TilingNode curTilingNode = idToTilingNode[curNode.Name];
+
+                if (!string.IsNullOrEmpty(curTilingNode.MeshUrl))
+                {
+                    childTilingNodes.Add(curTilingNode);
+                }
+                else
+                {
+                    foreach (var n in curNode.Children)
+                    {
+                        childrenQueue.Enqueue(n);
+                    }
+                }
+            }
+
+            return childTilingNodes;
+        }
+
+        //find first parent with mesh 
+        //matches SceneNodeTilingExtension.CalculateGeometricError but with tiling nodes/file url indirection)
+        private static TilingNode GetGeometricErrorParent(SceneNode node, SceneNode root, ConcurrentDictionary<string, TilingNode> idToTilingNode)
+        {
+            SceneNode parentSceneNode = node;
+            TilingNode parentTilingNode = null;
+            string parentMeshUrl = null;
+            while (parentSceneNode != null)
+            {
+                parentTilingNode = idToTilingNode[node.Name];
+                if (!string.IsNullOrEmpty(parentTilingNode.MeshUrl))
+                {
+                    parentMeshUrl = parentTilingNode.MeshUrl;
+                    break;
+                }
+
+                if (parentSceneNode == root)
+                {
+                    break;
+                }
+
+                parentSceneNode = parentSceneNode.Transform.Parent.Node;
+            }
+
+            return parentMeshUrl != null ? parentTilingNode : null;
         }
 
         private static void EnsureLogPrefix(ref string logPrefix)
