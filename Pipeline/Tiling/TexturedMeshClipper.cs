@@ -52,7 +52,7 @@ namespace OPS.Pipeline
         /// <param name="pair"></param>
         public void AddMeshImagePair(MeshImagePair pair)
         {
-            if (pair.Mesh.HasUVs)
+            if (!pair.Mesh.HasUVs)
             {
                 throw new Exception("Expecting uvs on textured mesh clip");
             }
@@ -62,7 +62,7 @@ namespace OPS.Pipeline
 
         public void AddMeshImagePair(MeshOperator op, Image image)
         {
-            if (op.HasUVs)
+            if (!op.HasUVs)
             {
                 throw new Exception("Expecting uvs on textured mesh clip");
             }
@@ -72,7 +72,7 @@ namespace OPS.Pipeline
 
         public void AddMeshImagePair(Mesh m, Image image)
         {
-            if (m.HasUVs)
+            if (!m.HasUVs)
             {
                 throw new Exception("Expecting uvs on textured mesh clip");
             }
