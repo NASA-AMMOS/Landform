@@ -189,6 +189,9 @@ namespace OPS.Pipeline.TilingServer
                 LogInfo("adding non-leaf geometric errors");
                 CoreLimitedParallel.ForEach(root.NonLeaves(), node =>
                 {
+                    if (!idToTilingNode.ContainsKey(node.Name))
+                        return;
+
                     TilingNode parentTilingNode = GetGeometricErrorParent(node, root, idToTilingNode);
                     if (parentTilingNode == null)
                         return;
