@@ -52,16 +52,31 @@ namespace OPS.Pipeline
         /// <param name="pair"></param>
         public void AddMeshImagePair(MeshImagePair pair)
         {
+            if (pair.Mesh.HasUVs)
+            {
+                throw new Exception("Expecting uvs on textured mesh clip");
+            }
+
             pairs.Add(new MeshImageOperatorPair( pair.Mesh, pair.Image));
         }
 
         public void AddMeshImagePair(MeshOperator op, Image image)
         {
+            if (op.HasUVs)
+            {
+                throw new Exception("Expecting uvs on textured mesh clip");
+            }
+
             pairs.Add(new MeshImageOperatorPair(op, image));
         }
 
         public void AddMeshImagePair(Mesh m, Image image)
         {
+            if (m.HasUVs)
+            {
+                throw new Exception("Expecting uvs on textured mesh clip");
+            }
+
             pairs.Add(new MeshImageOperatorPair(m, image));
         }
 
