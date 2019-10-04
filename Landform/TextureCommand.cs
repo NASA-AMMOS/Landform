@@ -294,8 +294,8 @@ namespace OPS.Landform
                 }
                 else
                 {
-                mesh = Mesh.Load(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
-            }
+                    mesh = Mesh.Load(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+                }
             }
             else if (sceneMesh != null)
             {
