@@ -428,8 +428,10 @@ namespace OPS.Landform
                 bakeClipper.InitTextureBaker();
             }
 
-            var texMsg = string.Format("{0}x{0} {1} textures (falling back to {2})",
-                                       resolution, options.TextureVariant, TextureVariant.Original);
+            var texMsg = string.Format("{0}x{0} {1} textures{2}",
+                                       resolution, options.TextureVariant,
+                                       options.TextureVariant != TextureVariant.Original ?
+                                       " (falling back to " + TextureVariant.Original + ")" : "");
             pipeline.LogInfo("processing {0} tiles{1}", tileCount,
                              texGenMode == TextureGenMode.Bake ? ", baking " + texMsg :
                              texGenMode == TextureGenMode.Backproject ? ", backprojecting " + texMsg :
