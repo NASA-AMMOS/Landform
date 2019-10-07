@@ -20,6 +20,9 @@ namespace OPS.Landform
     [Verb("local-build-leaves", HelpText = "builds textured leaf tiles from a full scene mesh")]
     public class LocalBuildLeavesOptions : TilingCommandOptions
     {
+        [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
+        public override string ProjectName { get; set; }
+
         [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
         public override double BackprojectBatchGridSize { get; set; }
 
@@ -178,7 +181,8 @@ namespace OPS.Landform
                 string projectName = options.ProjectName;
                 if (string.IsNullOrEmpty(projectName))
                 {
-                    throw new Exception("project name required");
+                    projectName = StringHelper.GetLastUrlPathSegment(options.InputMesh, stripExtension: true);
+                    pipeline.LogInfo("inferred project name \"{0}\"", projectName);
                 }
                 var project = Project.Find(pipeline, projectName);
                 if (project != null)
