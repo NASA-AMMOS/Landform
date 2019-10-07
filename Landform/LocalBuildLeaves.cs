@@ -150,13 +150,19 @@ namespace OPS.Landform
             }
             else if (options.LoadLODs)
             {
+                //TODO we should probably default to clipping vs baking whenever --inputtexture is given
+                //not just when --loadlods is given
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/199
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/713
                 texGenMode = TextureGenMode.Clip;
                 description = "clipping from source texture";
+                options.NoBackprojectIndexImages = true;
             }
             else if (!string.IsNullOrEmpty(options.InputTexture))
             {
                 texGenMode = TextureGenMode.Bake;
                 description = "baking from source texture";
+                options.NoBackprojectIndexImages = true;
             }
             else
             {
