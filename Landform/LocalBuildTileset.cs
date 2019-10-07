@@ -125,7 +125,7 @@ namespace OPS.Landform
 
         protected override void LoadFrameCache()
         {
-            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            if (meshFrame != "passthrough")
             {
                 base.LoadFrameCache();
             }
@@ -133,7 +133,7 @@ namespace OPS.Landform
 
         protected override void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
         {
-            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            if (meshFrame != "passthrough")
             {
                 base.LoadObservationCache(obsTypes, onlyObsForReconstruction);
             }
