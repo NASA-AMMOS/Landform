@@ -137,6 +137,11 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            if (options.LoadLODs && !BakingInputMesh())
+            {
+                throw new Exception("--loadlods requires --inputmesh and --inputtexture");
+            }
+
             string description = null;
             if (!withTextures)
             {
