@@ -471,14 +471,18 @@ namespace OPS.Landform
                 }
                 else if (texGenMode == TextureGenMode.Clip)
                 {
-                    if(!options.LoadLODs)
+                    MeshOperator meshOp = null;
+                    if (options.LoadLODs)
                     {
-                        throw new NotImplementedException("texture clipping only implemnented for LODs currently"); // prevented really just for mesh op caching
+                        int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
+                        int idxLOD = meshLODs.Count() - idxTreeLevel - 1;
+                        meshOp = meshOps[idxLOD];
                     }
-
-                    int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
-                    int idxLOD = meshLODs.Count() - idxTreeLevel - 1;
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(meshOps[idxLOD], mp.Mesh, sceneTexture);
+                    else
+                    {
+                        meshOp = meshOps.First();
+                    }
+                    var newMP = TexturedMeshClipper.RemapMeshClipImage(meshOp, mp.Mesh, sceneTexture);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }
