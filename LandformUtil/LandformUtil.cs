@@ -70,6 +70,7 @@ namespace OPS.LandformUtil
                 LegacyToTile3DOptions,
                 DEM2MeshOptions,
                 BenchmarkS3Options,
+                LocalConvertToASTTROSceneOptions,
                 LimberDMGOptions>(args);
 
             return parsed.MapResult(
@@ -87,6 +88,7 @@ namespace OPS.LandformUtil
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 (LimberDMGOptions opts) => new LimberDMGDriver(opts).Run(),
+                (LocalConvertToASTTROSceneOptions opts) => new LocalConvertToASTTRO(opts).Run(),
                 errs => 1);
         }
     }

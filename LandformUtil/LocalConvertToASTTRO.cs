@@ -1,37 +1,26 @@
-﻿using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Collections.Concurrent;
-using System.IO;
-using System.Linq;
-using System.Diagnostics;
-using CommandLine;
+﻿using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Util;
 using OPS.Imaging;
-using OPS.RayTrace;
-using OPS.Geometry;
+using OPS.Landform;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
-using System.Threading;
-using Newtonsoft.Json;
-using System.Xml;
+using OPS.Util;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Text;
-using OPS.Pipeline.Tile3D;
+using System.Xml;
 
-namespace OPS.Landform
+namespace OPS.LandformUtil
 {
-    [Verb("local-convert-to-legacy-scene", HelpText = "convert a tileset to a legacy ASTTRO scene")]
-    public class LocalConvertToLegacySceneOptions : LandformCommandOptions
+    [Verb("local-convert-to-ASTTRO-scene", HelpText = "convert a tileset to a ASTTRO scene")]
+    public class LocalConvertToASTTROSceneOptions : TilingCommandOptions
     {
         // input related
         [Option(Default = null, HelpText = "input tileset json (tiles assumed to be in same folder), search project storage if omitted")]
         public string InputTileset { get; set; }
-
-        [Option(HelpText = "Mesh coordinate frame: a numeric sitedrive SSSSSDDDDD and primary sitedrive in scene", Default = null)]
-        public string MeshFrame { get; set; }
-
+      
         [Option(Required = false, Default = "ply", HelpText = "input mesh Extension")]
         public string InputMeshExtension { get; set; }
 
@@ -41,122 +30,46 @@ namespace OPS.Landform
         [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")]
         public string OutputMeshExtension { get; set; }
 
-        // output related
-        [Option(HelpText = "output local directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
-
-        [Option(Required = false, HelpText = "a url to a bucket in the form: s3://<bucket>/<path>/ ")]
-        public string OutputS3Bucket { get; set; }
-
-        [Option(Required = false, HelpText = "the aws profile used for credentials for uploading tileset")]
-        public string AWSProfile { get; set; }
-
-        [Option(Required = false, Default = "us-gov-west-1", HelpText = "the aws endpoint for the destination tileset bucket")]
-        public string AWSRegion { get; set; }
-
-        // observation filtering related (landform standard)
-        [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted,Manual,Landform,LandformBEV,Agisoft)", Default = null)]
-        public string AdjustedTransformSources { get; set; }
-
-        [Option(HelpText = "Allowed sources for transform priors, comma separated, all if empty (Prior,PlacesDB,LocationsDB,PDS)", Default = null)]
-        public string PriorTransformSources { get; set; }
-
-        [Option(HelpText = "Use transform priors only", Default = false)]
-        public bool UsePriors { get; set; }
-
-        [Option(HelpText = "Use adjusted transforms only", Default = false)]
-        public bool OnlyAligned { get; set; }
-
-        // debug related
-        [Option(HelpText = "delete existing output before running", Default = false)]
-        public bool Redo { get; set; }
+       
     }
 
-    public class LocalConvertToLegacyScene : LandformCommand
+    public class LocalConvertToASTTRO : TilingCommand
     {
-        private LocalConvertToLegacySceneOptions options;
+        private const string OutputDirectory = "ASTTRO";
 
-        private MissionSpecific mission;
-        private RoverMasker masker;
+        private LocalConvertToASTTROSceneOptions options;
+        private string legacySceneManifestPath;
 
         private string outputPath;
 
-        public LocalConvertToLegacyScene(LocalConvertToLegacySceneOptions options) : base(options)
+        public LocalConvertToASTTRO(LocalConvertToASTTROSceneOptions options) : base(options)
         {
             this.options = options;
         }
 
         public int Run()
         {
-            var stopwatch = new Stopwatch();
-            stopwatch.Start();
+            StartStopwatch();
 
-            if (options.UsePriors && options.OnlyAligned)
+            try
             {
-                pipeline.LogError("cannot specify both --usepriors and --onlyaligned");
-                return 1;
+                if (!ParseArgumentsAndLoadCaches(OutputDirectory))
+                {
+                    return 0; //help
+                }
+
+                RunPhase("build scene manifest", () => { legacySceneManifestPath = BuildASTTROScene(); });
+            }
+            catch
+            {
+                
             }
 
-            var project = Project.Find(pipeline, options.ProjectName);
-            if (project == null)
-            {
-                pipeline.LogError("project \"{0}\" not found", options.ProjectName);
-                return 1;
-            }
-            mission = MissionSpecific.GetInstance(project.Mission);
-            masker = mission.GetMasker();
 
-            var meshFrame = options.MeshFrame;
-            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
-            if (!specificSiteDrive)
-            {
-                pipeline.LogError("unsupported mesh frame: " + meshFrame + ". ASTTRO wants a sitedrive to be at origin.");
-                return 1;
-            }
-
-            var adjustedSources = FrameTransform.ParseSources(options.AdjustedTransformSources);
-            var priorSources = FrameTransform.ParseSources(options.PriorTransformSources);
-
-            string dir = string.Format("www");
-            string inputDir = pipeline.GetLocalDebugFolder(Path.GetDirectoryName(options.InputTileset), dir, options.ProjectName);
-            if (!Directory.Exists(inputDir))
-            {
-                pipeline.LogError("input directory {0} doesn't exist", inputDir);
-                return 1;
-            }
-
-            pipeline.LogInfo("preparing to convert tileset {0}", options.InputTileset);
-
-            dir = string.Format("scene/legacy/{0}Frame", options.MeshFrame);
-            dir = FrameTransform.AppendSourcesPath(dir, adjustedSources, priorSources, options.UsePriors);
-            outputPath = pipeline.GetLocalDebugFolder(options.OutputFolder, dir, options.ProjectName);
-            if (options.Redo && Directory.Exists(outputPath))
-            {
-                Directory.Delete(outputPath, true);
-            }
-            PathHelper.EnsureExists(outputPath);
-
-            pipeline.LogInfo("results will be written to {0}", outputPath);
-
-            var frameCache = new FrameCache(pipeline, options.ProjectName);
-            frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, options.UsePriors);
-
-            string imageObs = ObservationType.Image.ToString();
-            string maskObs = ObservationType.RoverMask.ToString();
-            var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.
-                Preload(obs => obs.UseForReconstruction &&
-                        (obs.ObservationType == imageObs || obs.ObservationType == maskObs));
-
-            var imageObservations = observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
-
-            pipeline.LogInfo("Building legacy scene for ASTTRO");
-            string manifestPath = null;
-            {
-                var RASLRecords =
-                    imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
-                EmtToScene.CreateLegacyScene(RASLRecords, outputPath, out manifestPath, meshFrame);
-            }
+            /*
+          
+           
+          
 
             pipeline.LogInfo("rotating meshes to ASTTRO frame");
             string tilesetDir = EmtToScene.GetTilesetDir(outputPath, options.MeshFrame);
@@ -205,9 +118,32 @@ namespace OPS.Landform
             CreateMasterManifest(meshFrame, outputPath, manifestPath, imageObservations);
 
             pipeline.LogInfo("converted to legacy scene successfully");
+            */
 
             // TODO: upload to s3
             return 0;
+        }
+
+        private string BuildASTTROScene()
+        {
+            //TODO: verify it is a numeric sitedrive mesh frame
+
+            var meshFrame = options.MeshFrame;
+            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
+            if (!specificSiteDrive)
+            {
+                pipeline.LogError("unsupported mesh frame: " + meshFrame + ". ASTTRO wants a sitedrive to be at origin.");
+                return 1;
+            }
+
+            string manifestPath = null;
+            {
+                var RASLRecords =
+                    imageObservations.Select(x => new ASTTRO.FileRecord(new System.Uri(x.Url).LocalPath));
+                EmtToScene.CreateLegacyScene(RASLRecords, outputPath, out manifestPath, meshFrame);
+            }
+
+            throw new NotImplementedException();
         }
 
         private List<double> ConvertBoundingBoxToYUp(List<double> box)

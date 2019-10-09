@@ -73,7 +73,6 @@ namespace OPS.Landform
                 LocalBuildTextureOptions,
                 LocalBuildLeavesOptions,
                 LocalBlendImagesOptions,
-                LocalConvertToLegacySceneOptions,
                 StartAlignMasterOptions >(args);
 
             return parsed.MapResult(
@@ -91,7 +90,6 @@ namespace OPS.Landform
                 (LocalBuildTextureOptions opts) => new LocalBuildTexture(opts).Run(),
                 (LocalBuildLeavesOptions opts) => new LocalBuildLeaves(opts).Run(),
                 (LocalBlendImagesOptions opts) => new LocalBlendImages(opts).Run(),
-                (LocalConvertToLegacySceneOptions opts) => new LocalConvertToLegacyScene(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
         }
