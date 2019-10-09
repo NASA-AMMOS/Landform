@@ -186,6 +186,17 @@ namespace OPS.Pipeline.AlignmentServer
             return GetTransforms(frame.Name);
         }
 
+        public FrameTransform GetTransform(string name, TransformSource source)
+        {
+            var ret = GetTransforms(name).Where(t => t.Source == source);
+            return ret != null ? ret.FirstOrDefault() : null;
+        }
+
+        public FrameTransform GetTransform(Frame frame, TransformSource source)
+        {
+            return GetTransform(frame.Name, source);
+        }
+
         public FrameTransform GetBestTransform(string name)
         {
             return GetTransforms(name).FirstOrDefault();
@@ -200,7 +211,9 @@ namespace OPS.Pipeline.AlignmentServer
         {
             var adjustedTransforms = GetTransforms(name).Where(t => t.Source < TransformSource.Prior);
             if (adjustedTransforms == null || adjustedTransforms.Count() == 0)
+            {
                 return null;
+            }
 
             //transforms are in a sorted dictionary, where lower source number is higher priority
             return adjustedTransforms.First();
@@ -296,6 +309,8 @@ namespace OPS.Pipeline.AlignmentServer
             Frame fromFrame = GetFrame(fromObs.FrameName);
             if (fromFrame == null)
             {
+                pipeline.LogWarn("no transform from observation frame {0} to frame {1}: observation frame not found",
+                                 fromObs.FrameName, toFrameName);
                 return null;
             }
 
@@ -308,7 +323,12 @@ namespace OPS.Pipeline.AlignmentServer
             if (toFrameName == "sitedrive" || toFrameName == fromFrame.ParentName)
             {
                 //go from an observation frame to its parent sitedrive frame
-                return getTransformToSD(fromFrame);
+                var ret = getTransformToSD(fromFrame);
+                if (ret == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to parent sitedrive", fromObs.FrameName);
+                }
+                return ret;
             }
 
             if (toFrameName == "site")
@@ -318,7 +338,12 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (toFrameName == "root" || string.IsNullOrEmpty(toFrameName))
             {
-                return GetTransformToRoot(fromFrame, usePriors, onlyAligned);
+                var ret = GetTransformToRoot(fromFrame, usePriors, onlyAligned);
+                if (ret == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to root", fromObs.FrameName);
+                }
+                return ret;
             }
 
             //get here iff destination is
@@ -328,6 +353,8 @@ namespace OPS.Pipeline.AlignmentServer
             Frame toFrame = GetFrame(toFrameName);
             if (toFrame == null)
             {
+                pipeline.LogWarn("no transform from observation frame {0} to frame {1}: destination frame not found",
+                                 fromObs.FrameName, toFrameName);
                 return null;
             }
 
@@ -340,11 +367,28 @@ namespace OPS.Pipeline.AlignmentServer
                 //otherwise we'd build up unnecessary uncertainty going down to root and back up
                 srcToLCA = getTransformToSD(fromFrame);
                 dstToLCA = getTransformToSD(toFrame);
+                if (srcToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to parent sitedrive", fromObs.FrameName);
+                }
+                if (dstToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from destination frame {0} to sitedrive {1}",
+                                     toFrameName, toFrame.ParentName);
+                }
             }
             else
             {
                 srcToLCA = GetTransformToRoot(fromFrame, usePriors, onlyAligned);
                 dstToLCA = GetTransformToRoot(toFrame, usePriors, onlyAligned);
+                if (srcToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to root", fromObs.FrameName);
+                }
+                if (dstToLCA == null)
+                {
+                    pipeline.LogWarn("no transform from destination frame {0} to root", toFrameName);
+                }
             }
 
             return (srcToLCA == null || dstToLCA == null) ? null : srcToLCA.TimesInverse(dstToLCA);
@@ -448,6 +492,262 @@ namespace OPS.Pipeline.AlignmentServer
                                                             bool onlyAligned = false)
         {
             return GetRelativeTransform(GetFrame(srcFrame), GetFrame(dstFrame), usePriors, onlyAligned);
+        }
+
+        /// <summary>
+        /// The structure of our frame tree is rootFrame <- siteDriveFrame <- observationFrame.
+        ///
+        /// observationFrame = rover which adds the rover orientation to siteDriveFrame.
+        ///
+        /// siteDriveFrame is local_level which represents the Mars-aligned XYZ translation of the rover due to driving.
+        ///
+        /// Normally in IngestPDSImage we attempt to create siteDriveFrame priors that are relative to site 1.
+        /// So in that case the root frame for the project is the landing location of the rover.
+        /// This is possible if we can get valid priors from PlacesDB for all sitedrives we are ingesting.
+        ///
+        /// (We can optionally fall back to MSLLocationsDB but that is not as desirable as PlacesDB because
+        /// * MSLLocationsDB is really part of MSLICE
+        /// * MSLLocationsDB is not guaranteed to have entries for every sitedrive
+        /// * MSLLocationsDB entries only contain 2D XY offsets
+        /// * though our implementation can add the corresponding Z offset if the orbital basemap DEM is available.)
+        ///
+        /// However there are important use cases where we cannot get valid PlacesDB priors, such as some field tests.
+        /// Or if credentials are not available to access an appropriate PlacesDB venue.
+        ///
+        /// In those cases IngestPDSImage will only be able to crate "PDS priors" for siteDriveFrames.
+        /// Those will only hold the XYZ offset from rover to the parent site frame.
+        /// Not only are those not relative to site 1, they are not even relative to a single site.
+        ///
+        /// Here we try to at least chain them together so that they are all relative to a single site.
+        /// That is also not necessarily possible, but if it is, then it is much better than nothing.
+        /// Effectively that site frame becomes "root" frame for the project.
+        /// That would often be sufficient at least for dev work.
+        /// Also, some important workflows ultimately output their results in one of the project's siteDriveFrames.
+        /// Which should be possible if all the siteDriveFrames in the project are referenced to some common ancestor.
+        /// 
+        /// The SITE_COORDINATE_SYSTEM PDS header group makes chaining possible.
+        /// It gives the XYZ offset from the site of an observation to the previous site.
+        /// Unfortunately, we have observed some datasets where this header is not present.
+        /// Also, even when it is available, we can only fully chain if the project contains a contiguous set of sites.
+        ///
+        /// This function checks if the project contains any siteDriveFrames with only PDS priors.
+        /// It also checks if the project involves more than one site.
+        /// If both are true, then it tries to create PDSChained priors (which are higher priority than PDS priors).
+        /// It picks the earliest site in the project as the root.
+        /// Any siteDriveFrames in the first site are left untouched, as their PDS priors already do the job.
+        /// All siteDriveFrames in other sites with only PDS priors are then chained back to the first.
+        /// This is done in site order.
+        /// So as long as the set of sites are contiguous and the SITE_COORDINATE_SYSTEM headers were available
+        /// we will always know the translation from the previous site to the first site.
+        ///
+        /// The pdsSiteOffsets dictionary maps a pair (siteB, siteA) to the transform from siteB to siteA.
+        /// It should be passed containing all pairs (N, N-1) where N is a site in the project greater than the first.
+        /// On return it will also contain all pairs (N, F) where N and F are sites in the project and F is the first.
+        ///
+        /// Spews warnings if any attempts to chain fail.
+        ///
+        /// Any new or updated PDSChained transforms are added to the cache and also persisted to the project database.
+        ///
+        /// Returns true if chaining was not needed or all attempts to chain succeeded.
+        /// </summary>
+        public bool ChainPriors(IDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets)
+        {
+            pipeline.LogInfo("chaining PDS priors...");
+
+            var sdsWithPDSPriors = new HashSet<string>();
+            var sites = new SortedSet<int>();
+            foreach (var frame in GetAllFrames())
+            {
+                var parent = frame.ParentName != null ? GetFrame(frame.ParentName) : null;
+                if (parent != null && parent.ParentName == null) //parent is root frame -> frame is a siteDriveFrame
+                {
+                    if (GetBestPrior(frame).Source == TransformSource.PDS)
+                    {
+                        sdsWithPDSPriors.Add(frame.Name);
+                    }
+                    sites.Add((new SiteDrive(frame.Name)).Site);
+                }
+            }
+
+            bool ok = true;
+            if (sdsWithPDSPriors.Count > 0 && sites.Count > 1)
+            {
+                int firstSite = sites.First();
+                pipeline.LogInfo("attempting to chain sitedrives with site-relative PDS priors to first site {0}",
+                                 firstSite);
+
+                foreach (var sd in sdsWithPDSPriors)
+                {
+                    int site = (new SiteDrive(sd)).Site;
+                    if (site == firstSite)
+                    {
+                        pipeline.LogInfo("not chaining PDS priors for sitedrive {0}, already relative to site {1}",
+                                         sd, firstSite);
+                        continue;
+                    }
+
+                    var siteToFirst = new Tuple<int, int>(site, firstSite);
+                    var siteToPrev = new Tuple<int, int>(site, site - 1);
+                    var prevToFirst = new Tuple<int, int>(site - 1, firstSite);
+
+                    var frame = GetFrame(sd);
+
+                    var xform = GetTransform(frame, TransformSource.PDS).Transform; //local_level -> site
+
+                    if (pdsSiteOffsets.ContainsKey(siteToFirst))
+                    {
+                        xform = xform * pdsSiteOffsets[siteToFirst]; //row major transforms compose left to right
+                    }
+                    else if (pdsSiteOffsets.ContainsKey(siteToPrev) && pdsSiteOffsets.ContainsKey(prevToFirst))
+                    {
+                        var xformToFirst = pdsSiteOffsets[siteToPrev] * pdsSiteOffsets[prevToFirst];
+                        pdsSiteOffsets[siteToFirst] = xformToFirst;
+                        xform = xform * xformToFirst;
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("cannot chain PDS prior for site {0} to site {1}", site, firstSite);
+                        ok = false;
+                        continue;
+                    }
+
+                    var ft = GetTransform(frame, TransformSource.PDSChained);
+                    if (ft == null)
+                    {
+                        ft = FrameTransform.Create(pipeline, frame, TransformSource.PDSChained, xform);
+                        Add(ft);
+                    }
+                    else
+                    {
+                        ft.Transform = xform;
+                        ft.Save(pipeline);
+                    }
+
+                    bool changed = false;
+                    lock (frame.Transforms)
+                    {
+                        changed = frame.Transforms.Add(ft.Source);
+                    }
+                    if (changed)
+                    {
+                        frame.Save(pipeline); //don't hold lock while doing save
+                    }
+
+                    pipeline.LogInfo("chained PDS priors for sitedrive {0} to first site {1}", sd, firstSite);
+                }
+            }
+
+            return ok;
+        }
+
+        /// <summary>
+        /// Check the quality of priors in this FrameCache.
+        ///
+        /// Checks for:
+        /// * siteDriveFrames with no priors
+        /// * siteDriveFrames with only site-relative PDS priors
+        /// * siteDriveFrames with PDS priors chained back to the first site in the project
+        /// * siteDriveFrames with PlacesDB site but PDS drive offsets
+        ///
+        /// Spews warning or error messages depending on the badness.
+        ///
+        /// Returns true as long as the frame tree is at least connected,
+        /// i.e. all siteDrives are referenced to some common shared ancestor.
+        /// </summary>
+        public bool CheckPriors(out string effectiveRoot)
+        {
+            pipeline.LogInfo("checking priors...");
+
+            var sdsWithNoPriors = new HashSet<string>();
+            var sdsWithPDSPriors = new HashSet<string>();
+            var sdsWithChainedPriors = new HashSet<string>();
+            var sdsWithMixedPriors = new HashSet<string>(); //PlacesDB site offset but PDS local_level offset
+            var sdsWithRootPriors = new HashSet<string>();
+            int firstSite = -1;
+            foreach (var frame in GetAllFrames())
+            {
+                var parent = frame.ParentName != null ? GetFrame(frame.ParentName) : null;
+                if (parent != null && parent.ParentName == null) //parent is root frame -> frame is a siteDriveFrame
+                {
+                    var prior = GetBestPrior(frame);
+                    var group = prior == null ? sdsWithNoPriors :
+                        prior.Source == TransformSource.PDS ? sdsWithPDSPriors :
+                        prior.Source == TransformSource.PDSChained ? sdsWithChainedPriors :
+                        prior.Source == TransformSource.PlacesDBSitePDSLocal ? sdsWithMixedPriors :
+                        sdsWithRootPriors;
+                    group.Add(frame.Name);
+                    int site = (new SiteDrive(frame.Name)).Site;
+                    if (firstSite < 0 || site < firstSite)
+                    {
+                        firstSite = site;
+                    }
+                }
+            }
+
+            pipeline.LogInfo("{0} sitedrives with no priors: {1}",
+                             sdsWithNoPriors.Count, string.Join(", ", sdsWithNoPriors));
+            pipeline.LogInfo("{0} sitedrives with only site-relative PDS priors: {1}",
+                             sdsWithPDSPriors.Count, string.Join(", ", sdsWithPDSPriors));
+            pipeline.LogInfo("{0} sitedrives with PDS priors chained to earliest site in project: {1}",
+                             sdsWithChainedPriors.Count, string.Join(", ", sdsWithChainedPriors));
+            pipeline.LogInfo("{0} sitedrives with only PlacesDB site but PDS local_level priors: {1}",
+                             sdsWithMixedPriors.Count, string.Join(", ", sdsWithMixedPriors));
+            pipeline.LogInfo("{0} sitedrives with full priors: {1}",
+                             sdsWithRootPriors.Count, string.Join(", ", sdsWithRootPriors));
+
+            bool ok = true;
+            effectiveRoot = (new SiteDrive(1, 0)).ToString();
+            if (sdsWithNoPriors.Count > 0)
+            {
+                pipeline.LogError("incomplete priors! {0} sitedrives with no priors", sdsWithNoPriors.Count);
+                effectiveRoot = null;
+                ok = false;
+            }
+            else if (sdsWithPDSPriors.Count > 0)
+            {
+                int toRoot = sdsWithRootPriors.Count + sdsWithMixedPriors.Count;
+                if (toRoot > 0)
+                {
+                    pipeline.LogError("incomplete priors: {0} sitedrives relative to root and {1} relative to site",
+                                      toRoot, sdsWithPDSPriors.Count);
+                    effectiveRoot = null;
+                    ok = false;
+                }
+                else
+                {
+                    var sites = new HashSet<int>();
+                    foreach (var sd in sdsWithPDSPriors)
+                    {
+                        sites.Add((new SiteDrive(sd)).Site);
+                    }
+
+                    if (sdsWithChainedPriors.Count > 0)
+                    {
+                        sites.Add(firstSite);
+                    }
+
+                    if (sites.Count > 1)
+                    {
+                        pipeline.LogError("incomplete priors: sitedrives relative to {0} different site frames",
+                                          sites.Count);
+                        effectiveRoot = null;
+                        ok = false;
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("incomplete priors: all sitedrives relative to site {0} frame, not root",
+                                         firstSite);
+                        effectiveRoot = (new SiteDrive(firstSite, 0)).ToString();
+                    }
+                }
+            }
+            else if (sdsWithMixedPriors.Count > 0)
+            {
+                pipeline.LogWarn("mixed priors: {0} sitedrives with PlacesDB site offset but PDS local_level",
+                                 sdsWithMixedPriors.Count);
+            }
+
+            return ok;
         }
     }
 }

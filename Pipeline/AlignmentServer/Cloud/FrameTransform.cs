@@ -29,10 +29,12 @@ namespace OPS.Pipeline.AlignmentServer
         Agisoft = 30, //Agisoft bundle adjusted
 
         Prior = 100, //general prior transform
-        LegacyManifest = 105, //legacy onsight manifest
+        LegacyManifest = 105, //prior from legacy onsight manifest
         PlacesDB = 110, //prior from mission "places" databsae
         LocationsDB = 120, //prior from mission "locations" database
-        PDS = 130 //prior from mission PDS header
+        PlacesDBSitePDSLocal = 125, //site to origin from places database, local_level to site from PDS header
+        PDSChained = 128, //prior relative to first site in project from chained PDS headers
+        PDS = 130 //prior relative to parent site from PDS header
     }
 
     /// <summary>
@@ -235,13 +237,6 @@ namespace OPS.Pipeline.AlignmentServer
                 .Select(s => Enum.Parse(typeof(TransformSource), s.Trim(), ignoreCase: true))
                 .Cast<TransformSource>()
                 .ToArray();
-        }
-
-        public static bool ParseFrameName(ref string frameName, out bool specificSiteDrive)
-        {
-            frameName = frameName.ToLower().Trim();
-            specificSiteDrive = (new Regex("\\d{10}")).IsMatch(frameName);
-            return specificSiteDrive || frameName == "rover" || frameName == "sitedrive" || frameName == "root";
         }
     }
 }

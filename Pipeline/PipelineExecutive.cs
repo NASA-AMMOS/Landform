@@ -16,7 +16,13 @@ namespace OPS.Pipeline
 
     public class PipelineExecutive
     {
+        public const double STATUS_SPEW_SEC = 15;
+        public const double LONG_TASK_WARN_SEC = 5 * 60;
+
         protected PipelineCore pipeline;
+
+        //project name -> state machine
+        protected Dictionary<string, PipelineStateMachine> stateMachines = new Dictionary<string, PipelineStateMachine>();
 
         protected PipelineExecutive(PipelineCore pipeline)
         {
@@ -33,35 +39,51 @@ namespace OPS.Pipeline
                 default: throw new ArgumentException("unknown execution mode: " + mode);
             }
         }
+
+        protected PipelineStateMachine GetStateMachine(QueueMessage msg)
+        {
+            if (!stateMachines.ContainsKey(msg.ProjectName))
+            {
+                var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
+                if (projectType.HasValue)
+                {
+                    stateMachines[msg.ProjectName] =
+                        PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
+                }
+                else
+                {
+                    //this can happen if we get a duplicate DeleteProject message 
+                    throw new Exception("could not determine project type");
+                }
+            }
+            return stateMachines[msg.ProjectName];
+        }
     }
 
+    //single threaded executive - should be used for small workflows only
+    //use DeferredExecutive for larger workflows
+    //particularly those that involve a lot of back and forth messaging between master and workers
+    //because in that case ImmediateExecutive will build up large call stacks
+    //work is performed synchronously in the same call where a message is enqueued to the master
+    //https://github.jpl.nasa.gov/OnSight/Landform/issues/699
     public class ImmediateExecutive : PipelineExecutive
     {
-        //project name -> state machine
-        private ConcurrentDictionary<string, PipelineStateMachine> stateMachines =
-            new ConcurrentDictionary<string, PipelineStateMachine>();
-
         public ImmediateExecutive(PipelineCore pipeline) : base(pipeline)
         {
             pipeline.EnqueuedToMaster += msg => {
 
-                var stateMachine = stateMachines.GetOrAdd(msg.ProjectName, _ =>
-                {
-                    var projectType = PipelineStateMachine.GetProjectType(pipeline, msg);
-                    if (projectType.HasValue)
-                    {
-                        return PipelineStateMachine.CreateInstance(pipeline, projectType.Value, msg.ProjectName);
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("could not determine project type, discarding message: {0}", msg.Info());
-                        return null;
-                    }
-                });
+                var stateMachine = GetStateMachine(msg);
 
                 if (stateMachine != null)
                 {
-                    stateMachine.ProcessMessage(msg);
+                    try
+                    {
+                        stateMachine.ProcessMessage(msg);
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
+                    }
                 }
 
                 return false; //now discard message
@@ -69,18 +91,27 @@ namespace OPS.Pipeline
 
             var workerDispatcher = StartWorker.MakeDispatcher(pipeline);
             pipeline.EnqueuedToWorkers += msg => {
-                workerDispatcher.Handle(msg);
+                try
+                {
+                    workerDispatcher.Handle(msg);
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
+                }
                 return false; //now discard message
             };
         }
     }
 
+    //multi threaded executive - use for large workflows'
+    //spins up one thread for the master and a pool of worker threads corresponding to number of available cores
+    //enqueuing a message to the master is a low cost constant time operation
+    //but the ensuing work will be performed asynchronously at a later point as messages are processed
     public class DeferredExecutive : PipelineExecutive
     {
         private ConcurrentQueue<QueueMessage> masterQueue;
         private ConcurrentQueue<QueueMessage> workerQueue;
-
-        private Dictionary<string, PipelineStateMachine> stateMachines = new Dictionary<string, PipelineStateMachine>();
 
         private TypeDispatcher workerDispatcher;
 
@@ -102,36 +133,14 @@ namespace OPS.Pipeline
             masterQueue = ((LocalPipeline)pipeline).MasterQueue;
             workerQueue = ((LocalPipeline)pipeline).WorkerQueue;
 
-            masterTask = Task.Run(() =>
-                    {
-                        try
-                        {
-                            MasterLoop();
-                        }
-                        catch (Exception e)
-                        {
-                            pipeline.LogError("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
-                            pipeline.LogError(e.StackTrace);
-                        }
-                    });
+            masterTask = Task.Run(() => MasterLoop()); //lambda needed to compile
 
             workerDispatcher = StartWorker.MakeDispatcher(pipeline);
 
             workerTasks = new Task[CoreLimitedParallel.GetMaxCores()];
             for (int i = 0; i < workerTasks.Length; i++)
             {
-                workerTasks[i] = Task.Run(() =>
-                        {
-                            try
-                            {
-                                WorkerLoop();
-                            }
-                            catch (Exception e)
-                            {
-                                pipeline.LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                                pipeline.LogError(e.StackTrace);
-                            }
-                        });
+                workerTasks[i] = Task.Run(() => WorkerLoop()); //lambda needed to compile
             }
         }
 
@@ -150,24 +159,24 @@ namespace OPS.Pipeline
             }
         }
 
-        protected void MessageLoop(ConcurrentQueue<QueueMessage> queue, Action<QueueMessage> handler, string what)
+        protected void MessageLoop(ConcurrentQueue<QueueMessage> queue, Action<QueueMessage> handler, string what,
+                                   Action periodic = null)
         {
             while (!quit)
             {
                 //only take one message at a time when we are ready to process it
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
-                if (queue.TryDequeue(out QueueMessage m))
+                if (queue.TryDequeue(out QueueMessage msg))
                 {
                     try
                     {
-                        handler(m);
+                        handler(msg);
                     }
-                    catch (Exception e)
+                    catch (Exception ex)
                     {
-                        pipeline.LogError("{0}: {1} task error ({2}): {3}",
-                                          m.Info(), what, e.GetType().FullName, e.Message);
-                        pipeline.LogError(e.StackTrace);
+                        string err = string.Format("{0}: {1} task error", msg.Info(), what);
+                        pipeline.LogException(ex, err, stackTrace: true);
                     }
                 }
 
@@ -176,40 +185,73 @@ namespace OPS.Pipeline
                 {
                     Thread.Sleep(sleepMS);
                 }
+
+                if (periodic != null)
+                {
+                    periodic();
+                }
             }
         }
 
         protected void MasterLoop()
         {
-            void handler(QueueMessage m)
+            void handler(QueueMessage msg)
             {
-                if (!stateMachines.ContainsKey(m.ProjectName))
+                try
                 {
-                    PipelineStateMachine.ProjectType? pt = PipelineStateMachine.GetProjectType(pipeline, m);
-                    if (pt.HasValue)
+                    var stateMachine = GetStateMachine(msg);
+                    if (stateMachine != null)
                     {
-                        stateMachines[m.ProjectName] =
-                            PipelineStateMachine.CreateInstance(pipeline, pt.Value, m.ProjectName);
-                    }
-                    else
-                    {
-                        //this can happen if we get a duplicate DeleteProject message 
-                        pipeline.LogWarn("could not determine project type, discarding message: {0}", m.Info());
+                        stateMachine.ProcessMessage(msg);
                     }
                 }
-                
-                if (stateMachines.ContainsKey(m.ProjectName))
+                catch (Exception ex)
                 {
-                    stateMachines[m.ProjectName].ProcessMessage(m);
+                    pipeline.LogException(ex, msg.Info() + ": master task error", stackTrace: true);
                 }
             }
 
-            MessageLoop(masterQueue, handler, "master");
+            double lastSpew = UTCTime.Now();
+            void periodic()
+            {
+                double now = UTCTime.Now();
+                if (now - lastSpew > STATUS_SPEW_SEC)
+                {
+                    lastSpew = now;
+                    foreach (var sm in stateMachines.Values)
+                    {
+                        sm.SpewStatus(LONG_TASK_WARN_SEC);
+                    }
+                }
+            }
+
+            MessageLoop(masterQueue, handler, "master", periodic);
         }
 
         protected void WorkerLoop()
         {
-            MessageLoop(workerQueue, m => workerDispatcher.Handle(m), "worker");
+            void handler(QueueMessage msg)
+            {
+                void sendStatus(string status, bool done = false)
+                {
+                    pipeline.EnqueueToMaster(new StatusMessage(msg.ProjectName, msg.MessageId, msg.GetType().Name,
+                                                               status, done));
+                }
+
+                try
+                {
+                    sendStatus("started");
+                    workerDispatcher.Handle(msg); 
+                    sendStatus("complete", done: true);
+                }
+                catch (Exception ex)
+                {
+                    sendStatus("error: " + ex.Message, done: true);
+                    pipeline.LogException(ex, msg.Info() + ": worker task error", stackTrace: true);
+                }
+            }
+            
+            MessageLoop(workerQueue, handler, "worker");
         }
     }
 }

@@ -62,8 +62,8 @@ namespace OPS.Cloud
         private string url;
         private AmazonSQSClient client;
 
-        public MessageQueue(string name, string awsProfileName, int timeoutSec = DEF_TIMEOUT_SEC,
-                            string endpointName = "us-west-1", ILog logger = null, bool quiet = false)
+        public MessageQueue(string name, string awsProfileName = null, string awsRegionName = null,
+                            int timeoutSec = DEF_TIMEOUT_SEC, ILog logger = null, bool quiet = false)
         {
             this.logger = logger != null ? logger : LogManager.GetLogger(typeof(MessageQueue));
 
@@ -81,7 +81,7 @@ namespace OPS.Cloud
 
             TimeoutSec = timeoutSec;
 
-            client = GetClient(awsProfileName, endpointName);
+            client = GetClient(awsProfileName, awsRegionName);
 
             try
             {
@@ -229,23 +229,33 @@ namespace OPS.Cloud
             client.DeleteMessage(new DeleteMessageRequest { QueueUrl = url, ReceiptHandle = receiptHandle });
         }
 
-        public static AmazonSQSClient GetClient(string awsProfileName = null, string endpointName = "us-west-1")
+        public static AmazonSQSClient GetClient(string awsProfileName = null, string awsRegionName = null)
         {
-            RegionEndpoint awsRegion = RegionEndpoint.GetBySystemName(endpointName);
             AWSCredentials awsCredentials = null;
             if (awsProfileName != null)
             {
                 awsCredentials = Credentials.Get(awsProfileName);
             }
 
-            if (awsCredentials != null)
+            RegionEndpoint awsRegion = null;
+            if (awsRegionName != null)
+            {
+                awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
+            }
+
+            if (awsCredentials != null && awsRegion != null)
             {
                 return new AmazonSQSClient(awsCredentials, awsRegion);
             }
-            else
+            else if (awsCredentials != null)
+            {
+                return new AmazonSQSClient(awsCredentials);
+            }
+            else if (awsRegion != null)
             {
                 return new AmazonSQSClient(awsRegion);
             }
+            return new AmazonSQSClient();
         }
 
         public static bool QueueExists(AmazonSQSClient client, string name)

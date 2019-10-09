@@ -24,16 +24,23 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_S3_URL")]
         public string S3Url;
 
-        [ConfigEnvironmentVariable("LANDFORM_DYNAMO_URL")]
-        public string DynamoUrl;
-
         //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_PROFILE")]
         public string MSLICEAWSProfile;
 
         //TODO MSL specific
+        [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_REGION")]
+        public string MSLICEAWSRegion;
+
+        //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_S3_URL")]
         public string MSLICES3Url;
+
+        [ConfigEnvironmentVariable("LANDFORM_IMAGE_MEM_CACHE")]
+        public int ImageMemCache = 100;
+
+        [ConfigEnvironmentVariable("LANDFORM_DATA_PRODUCT_MEM_CACHE")]
+        public int DataProductMemCache = 100;
 
         //0 to use all available cores, N to use up to N, -M to reserve M
         [ConfigEnvironmentVariable("LANDFORM_MAX_CORES")]

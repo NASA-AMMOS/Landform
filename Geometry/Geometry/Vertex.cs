@@ -10,7 +10,7 @@ namespace OPS.Geometry
     public class Vertex : ICloneable
     {
         /// <summary>
-        /// Required property of all Vetex objects
+        /// Required property of all Vertex objects
         /// </summary>
         public Vector3 Position;
         /// <summary>
@@ -26,10 +26,7 @@ namespace OPS.Geometry
         /// </summary>
         public Vector4 Color;
         
-        public Vertex()
-        {
-
-        }
+        public Vertex() { }
 
         public Vertex(Vector3 postion)
         {

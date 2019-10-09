@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
+using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -12,6 +13,8 @@ using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
 {
+    public enum MeshVariant { Default = 0, Shrinkwrap = 1 }
+
     [DynamoDBTable("SceneMeshes")]
     [DynamoDBReadCapacity(50, 100)]
     [DynamoDBWriteCapacity(50, 100)]
@@ -21,15 +24,33 @@ namespace OPS.Pipeline.AlignmentServer
         public string ProjectName;
 
         [DynamoDBHashKey]
-        public string Name; //e.g. "root", "root_shrinkwrap", "SSSSSDDDDD", "SSSSSDDDDD_shrinkwrap" 
+        public string Name;
+
+        public HashSet<SiteDrive> SiteDrives = new HashSet<SiteDrive>(); //immutable, empty = all site drives in project
+
+        public HashSet<string> Observations = new HashSet<string>(); //immutable, empty = all site drives in project
+
+        public String Frame;
+
+        public MeshVariant Variant;
+
+        public string Bounds;
 
         public Guid MeshGuid;
 
         public Guid BackprojectIndexGuid;
 
+        public Guid TextureGuid;
+
+        public Guid BlurredTextureGuid;
+
+        public Guid BlendedTextureGuid;
+
+        public Guid LeafListGuid;
+
         protected void IsValid()
         {
-            if (!(ProjectName != null && Name != null))
+            if (!(ProjectName != null && Name != null && Frame != null))
             {
                 throw new Exception("missing required property in SceneMesh");
             }
@@ -38,18 +59,53 @@ namespace OPS.Pipeline.AlignmentServer
         //This constructor must be public for DynamoDb but should not be used
         public SceneMesh() { }
 
-        protected SceneMesh(string projectName, string name, Guid meshGuid = default(Guid),
-                            Guid backprojectIndexGuid = default(Guid))
+        protected SceneMesh(string projectName, string frame, MeshVariant variant = MeshVariant.Default,
+                            SiteDrive[] siteDrives = null, string[] observations = null,
+                            Guid meshGuid = default(Guid), Guid textureGuid = default(Guid))
         {
             this.ProjectName = projectName;
-            this.Name = name;
+            this.Name = MakeName(frame, variant, siteDrives, observations);
+            if (siteDrives != null)
+            {
+                this.SiteDrives.UnionWith(siteDrives);
+            }
+            if (observations != null)
+            {
+                this.Observations.UnionWith(observations);
+            }
+            this.Frame = frame;
+            this.Variant = variant;
             this.MeshGuid = meshGuid;
-            this.BackprojectIndexGuid = backprojectIndexGuid;
+            this.TextureGuid = textureGuid;
+            this.BackprojectIndexGuid = Guid.Empty;
+            this.BlurredTextureGuid = Guid.Empty;
+            this.BlendedTextureGuid = Guid.Empty;
+            this.LeafListGuid = Guid.Empty;
             IsValid();
         }
 
-        public static SceneMesh Create(PipelineCore pipeline, Project project, string name, Mesh mesh = null,
-                                       Image backprojectIndex = null)
+        public static string MakeName(string frame, MeshVariant variant, SiteDrive[] siteDrives, string[] observations)
+        {
+            string name = frame;
+            if (variant != MeshVariant.Default)
+            {
+                name += "_" + variant;
+            }
+            if (siteDrives != null && siteDrives.Length > 0)
+            {
+                name += "_" + string.Join("_", siteDrives.Distinct().OrderBy(sd => sd).ToArray());
+            }
+            if (observations != null && observations.Length > 0)
+            {
+                name += "_" + string.Join("_", observations.Distinct().OrderBy(obs => obs).ToArray());
+            }
+            return name;
+        }
+
+        public static SceneMesh Create(PipelineCore pipeline, Project project, string frame,
+                                       MeshVariant variant = MeshVariant.Default,
+                                       SiteDrive[] siteDrives = null, string[] observations = null,
+                                       Mesh mesh = null, Image texture = null, bool noSave = false)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null)
@@ -57,17 +113,67 @@ namespace OPS.Pipeline.AlignmentServer
                 pipeline.SaveDataProduct(project, meshProd);
             }
 
-            TiffDataProduct indexProd = backprojectIndex != null ? new TiffDataProduct(backprojectIndex) : null;
-            if (indexProd != null)
+            PngDataProduct textureProd = texture != null ? new PngDataProduct(texture) : null;
+            if (textureProd != null)
             {
-                pipeline.SaveDataProduct(project, indexProd);
+                pipeline.SaveDataProduct(project, textureProd);
             } 
 
-            var ret = new SceneMesh(project.Name, name,
+            var ret = new SceneMesh(project.Name, frame, variant, siteDrives, observations,
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
-                                    indexProd != null ? indexProd.Guid : Guid.Empty);
-            ret.Save(pipeline);
+                                    textureProd != null ? textureProd.Guid : Guid.Empty);
+
+            if (mesh != null)
+            {
+                ret.SetBounds(mesh.Bounds());
+            }
+
+            bool addedToProject = false;
+            lock (project.SceneMeshes)
+            {
+                addedToProject = project.SceneMeshes.Add(ret.Name);
+            }
+
+            if (!noSave)
+            {
+                ret.Save(pipeline);
+
+                if (addedToProject)
+                {
+                    project.Save(pipeline);
+                }
+            }
+
             return ret;
+        }
+
+        public BoundingBox? GetBounds()
+        {
+            if (!string.IsNullOrEmpty(Bounds))
+            {
+                return (BoundingBox)JsonHelper.FromJson(Bounds);
+            }
+            return null;
+        }
+
+        public void SetBounds(BoundingBox bounds)
+        {
+            Bounds = JsonHelper.ToJson(bounds);
+        }
+
+        public void Delete(PipelineCore pipeline, Project project, bool ignoreErrors = true)
+        {
+            bool removedFromProject = false;
+            lock (project.SceneMeshes)
+            {
+                removedFromProject = project.SceneMeshes.Remove(Name);
+            }
+            if (removedFromProject)
+            {
+                project.Save(pipeline);
+            }
+
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         public virtual void Save(PipelineCore pipeline)
@@ -76,9 +182,16 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDatabaseItem(this);
         }
 
-        public static SceneMesh Find(PipelineCore pipeline, string projectName, string name)
+        public static SceneMesh Load(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<SceneMesh>(name, projectName);
+        }
+
+        public static SceneMesh Find(PipelineCore pipeline, string projectName, string frame,
+                                     MeshVariant variant = MeshVariant.Default,
+                                     SiteDrive[] siteDrives = null, string[] observations = null)
+        {
+            return pipeline.LoadDatabaseItem<SceneMesh>(MakeName(frame, variant, siteDrives, observations), projectName);
         }
 
         public static IEnumerable<SceneMesh> Find(PipelineCore pipeline, string projectName)

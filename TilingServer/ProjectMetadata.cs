@@ -13,7 +13,7 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("projectmetadata", HelpText = "Get project metadata")]
-    public class ProjectMetadataOptions : TilingCommandOptions
+    public class ProjectMetadataOptions : TilingServerCommandOptions
     {       
     }
 
@@ -37,7 +37,7 @@ namespace OPS.TilingServer
         public string OutputUrl;
     }
 
-    public class ProjectMetadata : TilingCommand
+    public class ProjectMetadata : TilingServerCommand
     {
         private ProjectMetadataOptions options;
 

@@ -152,14 +152,15 @@
     <Compile Include="AlignmentMaster.cs" />
     <Compile Include="ConfigureCloud.cs" />
     <Compile Include="ConfigureLocal.cs" />
-    <Compile Include="EmtToScene.cs" />
     <Compile Include="FetchData.cs" />
     <Compile Include="GdalConfiguration.cs" />
+    <Compile Include="GeometryCommand.cs" />
     <Compile Include="Landform.cs" />
     <Compile Include="LandformCommand.cs" />
     <Compile Include="LocalAgisoft.cs" />
     <Compile Include="LocalBEVAligner.cs" />
-    <Compile Include="LocalBuildBackprojectIndex.cs" />
+    <Compile Include="LocalBlendImages.cs" />
+    <Compile Include="LocalBuildTexture.cs" />
     <Compile Include="LocalBuildGeometry.cs" />
     <Compile Include="LocalBuildLeaves.cs" />
     <Compile Include="LocalBuildTileset.cs" />
@@ -169,6 +170,9 @@
     <Compile Include="LocalIngest.cs" />
     <Compile Include="LocalMatching.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TextureCommand.cs" />
+    <Compile Include="TilingCommand.cs" />
+    <Compile Include="WedgeCommand.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config">

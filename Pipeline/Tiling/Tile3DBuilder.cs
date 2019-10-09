@@ -103,7 +103,7 @@ namespace OPS.Pipeline
             {
                 if (!curNode.HasComponent<NodeGeometricError>())
                 {
-                    curNode.AddComponent<NodeGeometricError>(new NodeGeometricError(CalculateGeometricError(curNode)));
+                    curNode.AddComponent<NodeGeometricError>(new NodeGeometricError(curNode.CalculateGeometricError()));
                 }
             });
         }
@@ -160,62 +160,6 @@ namespace OPS.Pipeline
                 tile.GeometricError = node.GetComponent<NodeGeometricError>().Error;
             }
             return tile;
-        }
-
-        /// <summary>
-        /// Returns max difference between node and its children
-        /// </summary>
-        /// <param name="node"></param>
-        /// <returns></returns>
-        double CalculateGeometricError(SceneNode node)
-        {
-            if(node.Transform.ChildCount == 0)
-            {
-                return 0;
-            }
-            // If this node doesn't have a mesh get the first parent mesh 
-            // supports case when some parent nodes dont have meshes
-            Mesh parentMesh = null;
-            SceneNode parent = node;
-            while(parent != null)
-            {
-                var pair = parent.GetComponent<MeshImagePair>();
-                if(pair != null && pair.Mesh != null)
-                {
-                    parentMesh = pair.Mesh;
-                    break;
-                }
-                parent = parent.Transform.Parent.Node;
-            }
-            // Get first set of dicendants that have meshes
-            List<Mesh> childrenMeshes = new List<Mesh>();
-            Queue<SceneNode> childrenQueue = new Queue<SceneNode>();
-            foreach (var n in node.Children)
-            {
-                childrenQueue.Enqueue(n);
-            }
-            while (childrenQueue.Count > 0)
-            {
-                SceneNode curNode = childrenQueue.Dequeue();
-                var pair = curNode.GetComponent<MeshImagePair>();
-                if (pair != null && pair.Mesh != null)
-                {
-                    childrenMeshes.Add(pair.Mesh);
-                }
-                else
-                {
-                    foreach (var n in curNode.Children)
-                    {
-                        childrenQueue.Enqueue(n);
-                    }
-                }
-            }
-            // If there are no children with meshes there is no error
-            if (childrenMeshes.Count == 0)
-            {
-                return 0;
-            }
-            return parentMesh.HausdorffDistance(childrenMeshes.ToArray());
         }
     }
 }

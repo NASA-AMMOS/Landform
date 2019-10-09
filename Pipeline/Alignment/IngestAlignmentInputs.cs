@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using OPS.Util;
+using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
@@ -35,10 +36,17 @@ namespace OPS.Pipeline
         public readonly List<BaseUrl> BaseUrls = new List<BaseUrl>();
 
         private Project project;
+        private MissionSpecific mission;
         private IngestPDSImage ingester;
         private bool noProgress;
         private ConcurrentDictionary<string, int> indices; //observation name -> observation index
         private HashSet<string> preExistingObservations;
+
+        private FrameCache frameCache;
+        private ObservationCache observationCache;
+
+        private ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets =
+            new ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform>();
 
         public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
                                      bool recreateObservations = false, bool resetTransforms = false,
@@ -46,6 +54,9 @@ namespace OPS.Pipeline
                                      bool noProgress = false)
             : base(pipeline)
         {
+            this.project = project;
+            this.mission = mission;
+
             if (string.IsNullOrEmpty(project.InputPath))
             {
                 throw new ArgumentException("input path not set for project " + project.Name);
@@ -78,8 +89,6 @@ namespace OPS.Pipeline
                 BaseUrls.Add(new BaseUrl(project.InputPath));
             }
 
-            this.project = project;
-
             SiteDrive[] siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
 
             string[] frames = StringHelper.ParseList(onlyForFrames);
@@ -104,18 +113,13 @@ namespace OPS.Pipeline
                 });
             pipeline.LogInfo("found {0} existing observations in project", preExistingObservations.Count);
 
-            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter, indices);
+            ingester = new IngestPDSImage(pipeline, project, recreateObservations, resetTransforms, filter,
+                                          indices, pdsSiteOffsets);
         }
 
         public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest,
                           Action<IngestImage.Result> func = null)
         {
-            if (places != null && !places.CredentialsLoaded())
-            {
-                pipeline.LogWarn("credentials for PlacesDB priors not available, disabling PlacesDB");
-                places = null;
-            }
-
             ingester.Locations = locations;
             ingester.Places = places;
             ingester.LegacyManifest = manifest;
@@ -144,8 +148,6 @@ namespace OPS.Pipeline
             int nt = 0, nu = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, np = 0;
 
             ConcurrentDictionary<string, bool> done = new ConcurrentDictionary<string, bool>();
-
-            var mission = MissionSpecific.GetInstance(project.Mission);
 
             Action<string> ingestUrl = url => {
 
@@ -247,35 +249,26 @@ namespace OPS.Pipeline
             ni = 0;
             CoreLimitedParallel.ForEach(urls, ingestUrl);
                                             
+            frameCache = new FrameCache(pipeline, project.Name);
+            frameCache.Preload();
+
+            observationCache = new ObservationCache(pipeline, project.Name);
+            observationCache.Preload();
+
             //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
-            if (na > ne) //don't write to database if we didn't add any observations
+            UpdateFrames();
+
+            if (!frameCache.ChainPriors(pdsSiteOffsets))
             {
-                pipeline.LogInfo("adding observations and transforms to frames...");
-                var observationCache = new ObservationCache(pipeline, project.Name);
-                observationCache.Preload();
-                var frameCache = new FrameCache(pipeline, project.Name);
-                frameCache.Preload();
-                foreach (var observation in observationCache.GetAllObservations())
-                {
-                    var frame = frameCache.GetFrame(observation.FrameName);
-                    lock (frame.ObservationNames)
-                    {
-                        frame.ObservationNames.Add(observation.Name);
-                    }
-                }
-                foreach (var transform in frameCache.GetAllTransforms())
-                {
-                    var frame = frameCache.GetFrame(transform.FrameName);
-                    lock (frame.Transforms)
-                    {
-                        frame.Transforms.Add(transform.Source);
-                    }
-                }
-                foreach (var frame in frameCache.GetAllFrames())
-                {
-                    frame.Save(pipeline);
-                }
+                pipeline.LogError("failed to chain all PDS priors");
             }
+
+            if (!frameCache.CheckPriors(out string effectiveRoot))
+            {
+                pipeline.LogError("incomplete priors: not all sitedrives are connected");
+            }
+
+            pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, effectiveRoot);
 
             if (orphans.Count > 0)
             {
@@ -335,6 +328,43 @@ namespace OPS.Pipeline
             }
 
             return na;
+        }
+
+        private void UpdateFrames()
+        {
+            pipeline.LogInfo("adding new observations and transforms to frames...");
+
+            var framesToSave = new HashSet<string>();
+
+            foreach (var observation in observationCache.GetAllObservations())
+            {
+                var frame = frameCache.GetFrame(observation.FrameName);
+                lock (frame.ObservationNames)
+                {
+                    if (frame.ObservationNames.Add(observation.Name))
+                    {
+                        framesToSave.Add(frame.Name);
+                    }
+                }
+            }
+
+            foreach (var transform in frameCache.GetAllTransforms())
+            {
+                var frame = frameCache.GetFrame(transform.FrameName);
+                lock (frame.Transforms)
+                {
+                    if (frame.Transforms.Add(transform.Source))
+                    {
+                        framesToSave.Add(frame.Name);
+                    }
+                }
+            }
+
+            pipeline.LogInfo("saving {0} updated frames", framesToSave.Count);
+            foreach (var frame in framesToSave)
+            {
+                frameCache.GetFrame(frame).Save(pipeline);
+            }
         }
     }
 }

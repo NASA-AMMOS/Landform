@@ -12,78 +12,47 @@ namespace OPS.Geometry
     /// </summary>
     public static class VertexProjection
     {
-        public enum ProjectionAxis
+        public enum ProjectionAxis { None, X, Y, Z }
+
+        public static Func<Vector3, Vector2> MakeUVProjector(ProjectionAxis axis)
         {
-            None,
-            X,
-            Y,
-            Z
+            return new Func<Vector3, Vector2>(v =>
+            {
+                switch (axis) {
+                    case ProjectionAxis.X: return new Vector2(v.Y, v.Z);
+                    case ProjectionAxis.Y: return new Vector2(v.X, v.Z);
+                    case ProjectionAxis.Z: return new Vector2(v.X, v.Y);
+                    default: throw new Exception("unknown projection axis: " + axis);
+                }
+            });
         }
 
-        /// <summary>
-        /// Return xyz projected along given axis
-        /// </summary>
-        /// <param name="xyz"></param>
-        /// <param name="axis"></param>
-        /// <returns></returns>
-        public static Vector2 GetUV(Vector3 xyz, ProjectionAxis axis)
+        public static Func<Vector3, double> MakeHeightGetter(ProjectionAxis axis)
         {
-            switch (axis)
+            return new Func<Vector3, double>(v =>
             {
-                case ProjectionAxis.X:
-                    return new Vector2(xyz.Y, xyz.Z);
-                case ProjectionAxis.Y:
-                    return new Vector2(xyz.X, xyz.Z);
-                case ProjectionAxis.Z:
-                    return new Vector2(xyz.X, xyz.Y);
-                default:
-                    throw new Exception("Getting UV requires projection axis.");
-            }
+                switch (axis)
+                {
+                    case ProjectionAxis.X: return v.X;
+                    case ProjectionAxis.Y: return v.Y;
+                    case ProjectionAxis.Z: return v.Z;
+                    default: throw new Exception("unknown projection axis: " + axis);
+                }
+            });
         }
-
-        /// <summary>
-        /// Return the height of xyz along given axis
-        /// </summary>
-        /// <param name="xyz"></param>
-        /// <param name="axis"></param>
-        /// <returns></returns>
-        public static double GetHeight(Vector3 xyz, ProjectionAxis axis)
+            
+        public static Action<Vertex, double> MakeHeightSetter(ProjectionAxis axis)
         {
-            switch (axis)
+            return new Action<Vertex, double>((v, h) =>
             {
-                case ProjectionAxis.X:
-                    return xyz.X;
-                case ProjectionAxis.Y:
-                    return xyz.Y;
-                case ProjectionAxis.Z:
-                    return xyz.Z;
-                default:
-                    throw new Exception("Getting height requires projection axis.");
-            }
-        }
-
-        /// <summary>
-        /// Set the height of vertex v to h, given vertical axis
-        /// </summary>
-        /// <param name="v"></param>
-        /// <param name="h"></param>
-        /// <param name="axis"></param>
-        public static void SetHeight(Vertex v, double h, ProjectionAxis axis)
-        {
-            switch (axis)
-            {
-                case ProjectionAxis.X:
-                    v.Position.X = h;
-                    break;
-                case ProjectionAxis.Y:
-                    v.Position.Y = h;
-                    break;
-                case ProjectionAxis.Z:
-                    v.Position.Z = h;
-                    break;
-                default:
-                    throw new Exception("Setting height requires shrinkwrap axis.");
-            }
+                switch (axis)
+                {
+                    case ProjectionAxis.X: v.Position.X = h; break;
+                    case ProjectionAxis.Y: v.Position.Y = h; break;
+                    case ProjectionAxis.Z: v.Position.Z = h; break;
+                    default: throw new Exception("unknown projection axis: " + axis);
+                }
+            });
         }
     }
 }

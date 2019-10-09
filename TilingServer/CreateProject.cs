@@ -16,7 +16,7 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.TilingServer
 {
     [Verb("createproject", HelpText = "creates a project")]
-    public class CreateProjectOptions : TilingCommandOptions
+    public class CreateProjectOptions : TilingServerCommandOptions
     {
         [Option(Default = TilingScheme.Bin, HelpText = "tiling scheme")]
         public TilingScheme TilingScheme { get; set; }
@@ -49,7 +49,7 @@ namespace OPS.TilingServer
         public bool NoWait { get; set; }
     }
 
-    public class CreateProject : TilingCommand
+    public class CreateProject : TilingServerCommand
     {
         const int MAX_WAIT_MS = 60 * 1000;
         const int SLEEP_MS = 500;

@@ -131,11 +131,13 @@
     <Compile Include="ConvertBaselineMesh.cs" />
     <Compile Include="ConvertBaselineMeshes.cs" />
     <Compile Include="DEM2Mesh.cs" />
+    <Compile Include="EmtToScene.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="LandformUtil.cs" />
     <Compile Include="LegacyToTile3D.cs" />
     <Compile Include="LegacyToWebVR.cs" />
     <Compile Include="LimberDMGDriver.cs" />
+    <Compile Include="LocalBuildTilesetScene.cs" />
     <Compile Include="LocalObservationProducts.cs" />
     <Compile Include="PDSImageConverter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
@@ -198,6 +200,10 @@
     <ProjectReference Include="..\RayTrace\RayTrace.csproj">
       <Project>{0e8c60bb-4a68-480f-895a-2b326aec002c}</Project>
       <Name>RayTrace</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\TilingServer\TilingServer.csproj">
+      <Project>{9cc7b3c6-93c5-459b-a41c-0c4a10bfcfb4}</Project>
+      <Name>TilingServer</Name>
     </ProjectReference>
     <ProjectReference Include="..\Util\Util.csproj">
       <Project>{8145aa65-ba61-4e27-81ff-b64217b49929}</Project>

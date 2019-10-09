@@ -37,14 +37,17 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "MSLICE profile")]
         public string MSLICEAWSProfile { get; set; }
 
+        [Option(Default = null, HelpText = "MSLICE region")]
+        public string MSLICEAWSRegion { get; set; }
+
         [Option(Default = null, HelpText = "MSLICE S3 url")]
         public string MSLICES3Url { get; set; }
 
         [Option(Default = null, HelpText = "0 or unset to use all available cores, N to use up to N, -M to reserve M")]
         public string MaxCores { get; set; }
 
-        [Option(Default = -1, HelpText = "negative to use a time-dependent random seed")]
-        public int RandomSeed { get; set; }
+        [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
+        public string RandomSeed { get; set; }
 
         [Option(Default = null, HelpText = "legacy compatibility (read only) true/false")]
         public string LegacyCompat { get; set; }
@@ -86,6 +89,8 @@ namespace OPS.Landform
             config.AWSProfile = ConsoleHelper.Prompt("AWS profile", options.AWSProfile, config.AWSProfile);
             config.MSLICEAWSProfile = ConsoleHelper.Prompt("MSLICE AWS profile", options.MSLICEAWSProfile,
                                                            config.MSLICEAWSProfile);
+            config.MSLICEAWSRegion = ConsoleHelper.Prompt("MSLICE AWS region", options.MSLICEAWSRegion,
+                                                          config.MSLICEAWSRegion);
             config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url);
             config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
                                                    options.MaxCores, config.MaxCores);

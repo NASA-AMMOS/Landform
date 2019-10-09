@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using log4net;
 using CommandLine;
@@ -30,6 +31,9 @@ namespace OPS.Pipeline
 
         [Option(Default = false, HelpText = "Log debug info")]
         public bool Debug { get; set; }
+
+        [Option(Default = false, HelpText = "Log full stack traces")]
+        public bool StackTraces { get; set; }
 
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
@@ -71,6 +75,9 @@ namespace OPS.Pipeline
     public abstract class PipelineCore
         : IImageLoader, OPS.Util.ILogger //Microsoft.Extensions.Logging and log4net.Core also have ILogger interfaces
     {
+        public const int DEF_IMAGE_MEM_CACHE = 100;
+        public const int DEF_DATA_PRODUCT_MEM_CACHE = 100;
+
         public readonly PipelineCoreOptions Options;
         public readonly Config Config;
 
@@ -83,9 +90,12 @@ namespace OPS.Pipeline
 
         public virtual bool LegacyCompat { get { return false; } }
 
-        protected bool quiet, verbose, debug;
+        public readonly bool Quiet, Verbose, Debug, StackTraces;
 
         private LRUCache<string, Image> imageCache; //indexed by URL
+        private LRUCache<Guid, DataProduct> dataProductCache;
+
+        public Dictionary<string, long> InitMSPerPhase = new Dictionary<string, long>();
 
         //these are generally used to initialize the database
         //
@@ -119,14 +129,16 @@ namespace OPS.Pipeline
             };
 
         public PipelineCore(PipelineCoreOptions options, Config config, string storageUrl, string venue,
-                            ILog logger = null, int lruCache = 100, bool quietInit = false, int? maxCores = null)
+                            ILog logger = null, bool quietInit = false,
+                            int? lruImageCache = null, int? lruDataProductCache = null, int? maxCores = null)
         {
             this.Options = options;
             this.Config = config;
 
-            this.quiet = options.Quiet;
-            this.verbose = options.Verbose;
-            this.debug = options.Debug;
+            this.Quiet = options.Quiet;
+            this.Verbose = options.Verbose;
+            this.Debug = options.Debug;
+            this.StackTraces = options.StackTraces;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
             this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
@@ -142,7 +154,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                Logging.ConfigureLogging(quiet || quietInit, options.Debug, options.LogFile);
+                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, options.LogFile);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 
@@ -155,33 +167,68 @@ namespace OPS.Pipeline
 
             if (options.ClearCache)
             {
-                DeleteDownloadCache();
+                InitPhase("delete download cache", DeleteDownloadCache);
                 PathHelper.EnsureExists(Path.GetFullPath(DownloadCache));
             }
 
-            //in memory cache is configurable
-            imageCache = new LRUCache<string, Image>(lruCache);
+            imageCache = new LRUCache<string, Image>(lruImageCache ?? DEF_IMAGE_MEM_CACHE);
+            dataProductCache = new LRUCache<Guid, DataProduct>(lruDataProductCache ?? DEF_DATA_PRODUCT_MEM_CACHE);
 
             CoreLimitedParallel.SetMaxCores(maxCores ?? (options.SingleThreaded ? 1 : 0));
             if (!quietInit)
             {
-                LogInfo("using {0} of {1} CPU cores",
-                        CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
+                DumpConfig();
+            }
+
+            InitPhase("scan for user image masks", InitUserMasks);
+        }
+
+        protected void InitPhase(string phase, Action func)
+        {
+            LogInfo(phase);
+            try
+            {
+                var stopwatch = new Stopwatch();
+                stopwatch.Start();
+                var msStart = stopwatch.ElapsedMilliseconds;
+                func();
+                var msEnd = stopwatch.ElapsedMilliseconds;
+                var ms = InitMSPerPhase[phase] = msEnd - msStart;
+                LogInfo("{0}: {1:F3}s, total {2:F3}s", phase, 0.001 * ms, 0.001 * msEnd);
+            }
+            catch
+            {
+                LogError("{0} failed", phase);
+                throw;
             }
         }
 
         public virtual void DumpConfig()
         {
-            //not using LogInfo() to print even if quiet = true
-            Logger.Info("Architecture: " + (IntPtr.Size == 4 ? "x86" : "x64"));
-            Logger.Info("Venue: " + Venue);
-            Logger.Info("Storage URL: " + StorageUrl);
+            //not using LogInfo() to print even if Quiet = true
+            Logger.InfoFormat("Architecture: {0}", (IntPtr.Size == 4 ? "x86" : "x64"));
+            Logger.InfoFormat("Venue: {0}", Venue);
+            Logger.InfoFormat("Storage URL: {0}", StorageUrl);
+            Logger.InfoFormat("using {0} of {1} CPU cores",
+                              CoreLimitedParallel.GetMaxCores(), CoreLimitedParallel.GetAvailableCores());
+            Logger.InfoFormat("LRU image cache capacity {0}, LRU data product cache capacity {1}",
+                              imageCache.Capacity, dataProductCache.Capacity);
+        }
+
+        public virtual void DumpStats()
+        {
+            Logger.InfoFormat("image cache (capacity {0}): {1}", imageCache.Capacity, imageCache.GetStats());
+            Logger.InfoFormat("data product cache (capacity {0}): {1}",
+                              dataProductCache.Capacity, dataProductCache.GetStats());
         }
 
         //****************** Image Fetch API *****************
 
         private ConcurrentDictionary<string, Exception> imageLoadExceptions =
             new ConcurrentDictionary<string, Exception>();
+
+        private ConcurrentDictionary<string, Object> imageLoadLocks =
+            new ConcurrentDictionary<string, Object>();
 
         public Image LoadImage(string url, IImageConverter converter = null)
         {
@@ -190,27 +237,34 @@ namespace OPS.Pipeline
             {
                 return image;
             }
-            try
+            var lockObj = imageLoadLocks.GetOrAdd(url, _ => new Object());
+            lock (lockObj) //prevent multiple threads from trying to load the same image simultaneously
             {
-                string f = GetImageFile(url);
-                image = converter != null ? Image.Load(f, converter) : Image.Load(f);
-                AddAnyUserMask(url, image);
-                imageCache[url] = image;
-                return image;
+                image = imageCache[url];
+                if (image == null)
+                {
+                    try
+                    {
+                        string f = GetImageFile(url);
+                        image = converter != null ? Image.Load(f, converter) : Image.Load(f);
+                        AddAnyUserMask(url, image);
+                        imageCache[url] = image;
+                    }
+                    catch (Exception ex)
+                    {
+                        imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
+                        throw new IOException(string.Format("error loading {0}: {1}", url, ex.Message), ex);
+                    }
+                }
             }
-            catch (Exception ex)
-            {
-                imageLoadExceptions.AddOrUpdate(url, _ => ex, (_, __) => ex);
-                throw new IOException(string.Format("error loading {0}: {1}", url, ex.Message), ex);
-            }
+            imageLoadLocks.TryRemove(url, out Object ignore);
+            return image;
         }
 
         private ConcurrentDictionary<string, string> userMasks = null; //image basename -> user mask URL
-        private object userMasksInitLock = new object();
 
         protected void AddAnyUserMask(string url, Image image)
         {
-            InitUserMasks();
             var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
             if (userMasks.ContainsKey(basename))
             {
@@ -249,40 +303,34 @@ namespace OPS.Pipeline
             }
         }
 
-        protected void InitUserMasks()
+        public void InitUserMasks()
         {
-            lock (userMasksInitLock)
+            string dir = null;
+            if (!string.IsNullOrEmpty(Options.UserMasksDirectory))
             {
-                if (userMasks == null)
+                dir = StringHelper.NormalizeSlashes(Options.UserMasksDirectory);
+            }
+            else
+            {
+                dir = GetStorageUrl("masks");
+            }
+            StringHelper.EnsureTrailingSlash(dir);
+            userMasks = new ConcurrentDictionary<string, string>();
+            string[] suffixes = new [] { "_inverted", "_mask" };
+            foreach (var url in SearchFiles(dir))
+            {
+                var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                //strip _mask, _inverted, and _mask_inverted
+                foreach (var suffix in suffixes)
                 {
-                    string dir = null;
-                    if (!string.IsNullOrEmpty(Options.UserMasksDirectory))
+                    if (basename.ToLower().EndsWith(suffix))
                     {
-                        dir = StringHelper.NormalizeSlashes(Options.UserMasksDirectory);
-                    }
-                    else
-                    {
-                        dir = GetStorageUrl("masks");
-                    }
-                    StringHelper.EnsureTrailingSlash(dir);
-                    LogInfo("searching for user image masks in {0}", dir);
-                    userMasks = new ConcurrentDictionary<string, string>();
-                    string[] suffixes = new [] { "_inverted", "_mask" };
-                    foreach (var url in SearchFiles(dir))
-                    {
-                        var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                        //strip _mask, _inverted, and _mask_inverted
-                        foreach (var suffix in suffixes)
-                        {
-                            if (basename.ToLower().EndsWith(suffix))
-                            {
-                                basename = basename.Substring(0, basename.Length - suffix.Length);
-                            }
-                        }
-                        userMasks.AddOrUpdate(basename, _ => url, (_, __) => url);
+                        basename = basename.Substring(0, basename.Length - suffix.Length);
                     }
                 }
+                userMasks.AddOrUpdate(basename, _ => url, (_, __) => url);
             }
+            LogInfo("found {0} user image masks in {1}", userMasks.Count, dir);
         }
 
         public Exception GetImageLoadException(string url)
@@ -325,7 +373,7 @@ namespace OPS.Pipeline
             return StringHelper.NormalizeSlashes(Path.Combine(StorageUrlWithVenue, folder, project, file));
         }
 
-        public string GetLocalDebugFolder(string givenFolder, string defaultSubpath, string project)
+        public string GetLocalFolder(string givenFolder, string defaultSubpath, string project)
         {
             var ret = givenFolder;
             if (string.IsNullOrEmpty(givenFolder))
@@ -402,6 +450,14 @@ namespace OPS.Pipeline
 
         private static object dataCacheLock = new object();
 
+        private ConcurrentDictionary<string, Object> dataProductLoadLocks =
+            new ConcurrentDictionary<string, Object>();
+
+        protected virtual bool EnableDataProductDiskCache()
+        {
+            return true;
+        }
+
         /// <summary>
         /// Fetch a data product given a project name and product GUID.
         /// </summary>
@@ -411,34 +467,56 @@ namespace OPS.Pipeline
         /// <param name="cacheFolder">if nonempty then use local disk cache</param>
         public T GetDataProduct<T>(string path, string guid, string cacheFolder = null) where T : DataProduct, new()
         {
-            string url = Path.Combine(path, guid).Replace('\\','/');
-            CheckStorageUrl(url);
-            
-            T res = null;
-            if (!string.IsNullOrEmpty(cacheFolder))
+            DataProduct product = dataProductCache[new Guid(guid)];
+            if (product != null && product is T)
             {
-                var file = DownloadCachePath(cacheFolder, guid);
-                if (!File.Exists(file))
+                return (T) product;
+            }
+
+            var lockObj = dataProductLoadLocks.GetOrAdd(guid, _ => new Object());
+            lock (lockObj) //prevent multiple threads from trying to load the same product simultaneously
+            {
+                product = dataProductCache[new Guid(guid)];
+                if (product == null || !(product is T))
                 {
-                    GetFile(url, tmpFile => {
-                            lock (dataCacheLock)
+                    product = null;
+
+                    string url = Path.Combine(path, guid).Replace('\\','/');
+                    CheckStorageUrl(url);
+                    
+                    if (EnableDataProductDiskCache() && !string.IsNullOrEmpty(cacheFolder))
+                    {
+                        var cacheFile = DownloadCachePath(cacheFolder, guid);
+                        if (!File.Exists(cacheFile))
+                        {
+                            GetFile(url, file =>
                             {
-                                if (!File.Exists(file))
+                                lock (dataCacheLock)
                                 {
-                                    //OK if exists, creates parents
-                                    Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(file)));
-                                    File.Move(tmpFile, file);
+                                    if (!File.Exists(cacheFile))
+                                    {
+                                        //OK if exists, creates parents
+                                        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(cacheFile)));
+                                        File.Copy(file, cacheFile);
+                                        //not using File.Move() here GetFile() is not guaranteed to return a temp file
+                                        //in practice currently it does not only for LocalPipeline
+                                        //but in that case EnableDataProductDiskCache() is false
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
+                        product = DataProduct.Load<T>(File.ReadAllBytes(cacheFile));
+                    }
+                    else
+                    {
+                        GetFile(url, f => product = DataProduct.Load<T>(File.ReadAllBytes(f)));
+                    }
+
+                    dataProductCache[product.Guid] = product;
                 }
-                res = DataProduct.Load<T>(File.ReadAllBytes(file));
             }
-            else
-            {
-                GetFile(url, f => res = DataProduct.Load<T>(File.ReadAllBytes(f)));
-            }
-            return res;
+            dataProductLoadLocks.TryRemove(guid, out Object ignore);
+            return (T) product;
         }
 
         public T GetDataProduct<T>(string path, Guid guid, string cacheFolder = null) where T : DataProduct, new()
@@ -474,7 +552,7 @@ namespace OPS.Pipeline
                 SaveFile(file, url);
             };
 
-            if (cacheFolder != null)
+            if (EnableDataProductDiskCache() && cacheFolder != null)
             {
                 var file = DownloadCachePath(cacheFolder, guid);
                 if (!File.Exists(file))
@@ -490,6 +568,8 @@ namespace OPS.Pipeline
             {
                 TemporaryFile.GetAndDelete("", writeAndUpload);
             }
+
+            dataProductCache[product.Guid] = product;
         }
 
         public void SaveDataProduct(Project project, DataProduct product)
@@ -533,41 +613,73 @@ namespace OPS.Pipeline
 
         //****************** Logging API *****************
 
-        private string _logPrefix = "";
-        public string LogPrefix { get { return _logPrefix; } set { _logPrefix = value; } }
-
         public void LogInfo(string msg, params Object[] args)
         {
-            if (!quiet)
+            if (!Quiet)
             {
-                Logger.InfoFormat(LogPrefix + msg, args);
+                Logger.InfoFormat(msg, args);
             }
         }
 
         public void LogVerbose(string msg, params Object[] args)
         {
-            if (verbose && !quiet)
+            if (Verbose && !Quiet)
             {
-                Logger.InfoFormat(LogPrefix + msg, args);
+                Logger.InfoFormat(msg, args);
             }
         }
 
         public void LogDebug(string msg, params Object[] args)
         {
-            if (debug && !quiet)
+            if (Debug && !Quiet)
             {
-                Logger.DebugFormat(LogPrefix + msg, args);
+                Logger.DebugFormat(msg, args);
             }
         }
 
         public void LogWarn(string msg, params Object[] args)
         {
-            Logger.WarnFormat(LogPrefix + msg, args);
+            Logger.WarnFormat(msg, args);
         }
 
         public void LogError(string msg, params Object[] args)
         {
-            Logger.ErrorFormat(LogPrefix + msg, args);
+            Logger.ErrorFormat(msg, args);
+        }
+
+        /// <summary>
+        /// for a non aggregate exception, default is to just spew its message
+        /// because that is commonly going to be enough and may be user visible (e.g. invalid command line args)
+        /// for an aggregate we spew the message and stack trace of the first inner exception
+        /// because that is most likely an unexpected error that needs to be debugged
+        /// </summary>
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                                 bool aggregateStackTrace = true)
+        {
+            LogError("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + " ") : "", ex.Message);
+
+            if (stackTrace || Debug || StackTraces)
+            {
+                LogError("{0}:\n{1}", ex.GetType().Name, ex.StackTrace);
+            }
+
+            if ((maxAggregateSpew > 0 || Debug || StackTraces) && ex is AggregateException)
+            {
+                var aggregateExceptions = (ex as AggregateException).InnerExceptions;
+                int i = 0;
+                foreach (var ex2 in aggregateExceptions)
+                {
+                    LogError(ex2.Message);
+                    if (aggregateStackTrace || Debug || StackTraces)
+                    {
+                        LogError("{0}:\n{1}", ex2.GetType().Name, ex2.StackTrace);
+                    }
+                    if (!(Debug || StackTraces) && ++i >= maxAggregateSpew)
+                    {
+                        break;
+                    }
+                }
+            }
         }
 
         //****************** Disk Cache API *****************

@@ -179,13 +179,14 @@
     <Compile Include="AlignmentServer\Cloud\SquareMatrixConverter.cs" />
     <Compile Include="AlignmentServer\Cloud\Vector3Converter.cs" />
     <Compile Include="AlignmentServer\Cloud\VectorNConverter.cs" />
-    <Compile Include="AlignmentServer\Operations\CreateMask.cs" />
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
     <Compile Include="Alignment\BirdsEyeViewing.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
+    <Compile Include="Alignment\DeltaRangeImage.cs" />
     <Compile Include="Alignment\FeatureDetecting.cs" />
+    <Compile Include="Alignment\ImageMasker.cs" />
     <Compile Include="Alignment\ImageMatching.cs" />
     <Compile Include="Alignment\IngestAlignmentInputs.cs" />
     <Compile Include="Alignment\IngestImage.cs" />
@@ -196,6 +197,7 @@
     <Compile Include="Alignment\NodeObservation.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
+    <Compile Include="DataProducts\LeafList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
     <Compile Include="PipelineOperation.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
@@ -218,6 +220,7 @@
     <Compile Include="StartWorker.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
+    <Compile Include="StateMachines\ParentTilingStateMachine.cs" />
     <Compile Include="StateMachines\PipelineStateMachine.cs" />
     <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="Texturing\Backproject.cs" />

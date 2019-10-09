@@ -30,11 +30,45 @@ namespace OPS.Geometry
             public int Decimate = 2;
             public double MaxRadiusMeters = 20;
             public bool RadiusRelativeToOrigin = false;
-            public Func<int, int, int, Image> ImageFactory = null;
+            public int WidthPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
+            public int HeightPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
+            public Vector2? MeshOffset = null; //XY plane offset to apply to mesh, auto compute if null
+            public Func<int, int, int, Image> ImageFactory = null; //defaults to new Image()
+            public Func<int, int, Image> MaskFactory = null; //defaults to use ImageFactory
+            public Func<Mesh, Face, bool> FaceFilter = null; //true = rasterize face
 
             public BEVOptions Clone()
             {
                 return (BEVOptions) MemberwiseClone();
+            }
+
+            public static BEVOptions DirectToImage(Image img)
+            {
+                return new BEVOptions() {
+
+                    BlendMode = BlendMode.Under, //don't overwrite any already valid pixels
+                        
+                    CCW = true,
+                        
+                    Greyscale = img.Bands == 1,
+                        
+                    //disable extra stuff
+                    SparseBlockSize = 0,
+                    Inpaint = 0,
+                    Blur = 0,
+                    Decimate = 0,
+                    MaxRadiusMeters = 0,
+                        
+                    //mesh coordinates are already in image pixel space
+                    MetersPerPixel = 1,
+                    WidthPixels = img.Width,
+                    HeightPixels = img.Height,
+                    MeshOffset = new Vector2(0, 0),
+                        
+                    ImageFactory = (b, w, h) => img, //rasterize into supplied image
+
+                    MaskFactory = (w, h) => new Image(1, w, h) //otherwise MaskFactory would default to ImageFactory
+                };
             }
         }
 
@@ -70,7 +104,6 @@ namespace OPS.Geometry
 
             bool ccw = options.CCW;
             double pixelsPerMeter = 1 / options.MetersPerPixel;
-            bool greyscale = options.Greyscale || img != null && img.Bands == 1;
 
             var meshBounds = mesh.Bounds();
 
@@ -96,18 +129,40 @@ namespace OPS.Geometry
                 }
             }
 
-            double widthMeters = meshBounds.Max.X - meshBounds.Min.X;
-            double heightMeters = meshBounds.Max.Y - meshBounds.Min.Y;
+            int widthPixels = options.WidthPixels;
+            if (widthPixels <= 0)
+            {
+                double widthMeters = meshBounds.Max.X - meshBounds.Min.X;
+                widthPixels = (int)(widthMeters * pixelsPerMeter);
+            }
 
-            int widthPixels =  (int)(widthMeters * pixelsPerMeter);
-            int heightPixels =  (int)(heightMeters * pixelsPerMeter);
+            int heightPixels = options.HeightPixels;
+            if (heightPixels <= 0)
+            {
+                double heightMeters = meshBounds.Max.Y - meshBounds.Min.Y;
+                heightPixels = (int)(heightMeters * pixelsPerMeter);
+            }
 
-            var offset = new Vector2(meshBounds.Min.X, ccw ? meshBounds.Max.Y : meshBounds.Min.Y);
-            meshOrigin = -1 * offset * pixelsPerMeter;
+            //ptInImageFramePixels = (ptInMeshFrameMeters + offset) * pixelsPerMeter
+            Vector2 offset =
+                options.MeshOffset.HasValue ? options.MeshOffset.Value :
+                -1 * (new Vector2(meshBounds.Min.X, ccw ? meshBounds.Max.Y : meshBounds.Min.Y));
 
+            meshOrigin = offset * pixelsPerMeter;
+
+            bool greyscale = options.Greyscale || (img != null && img.Bands == 1);
             int bands = greyscale ? 1 : 3;
+            if (mesh.HasUVs && img != null && img.Bands != bands)
+            {
+                throw new ArgumentException(string.Format("got {0} band texture, expected {1}", img.Bands, bands));
+            } 
+
             var ret = imageFactory(bands, widthPixels, heightPixels);
-            ret.CreateMask(true); //pixels default to masked
+
+            if (!ret.HasMask) //respect any existing mask
+            {
+                ret.CreateMask(true); //pixels default to masked
+            }
 
             double relDist(Vector2 p, Vector2 a, Vector2 b)
             {
@@ -167,27 +222,39 @@ namespace OPS.Geometry
                 if (mesh.HasUVs && img != null)
                 {
                     var src = img.UVToPixel(Vector2.Clamp(v0.UV * alpha + v1.UV * beta + v2.UV * gamma, zero, one));
-                    blend(0, r, c, img[0, (int)src.Y, (int)src.X], overdraw);
-                    if (!greyscale)
+                    int sr = (int)src.Y, sc = (int)src.X;
+                    if (img.IsValid(sr, sc))
                     {
-                        blend(1, r, c, img[1, (int)src.Y, (int)src.X], overdraw);
-                        blend(2, r, c, img[2, (int)src.Y, (int)src.X], overdraw);
+                        blend(0, r, c, img[0, sr, sc], overdraw);
+                        if (bands == 3)
+                        {
+                            blend(1, r, c, img[1, sr, sc], overdraw);
+                            blend(2, r, c, img[2, sr, sc], overdraw);
+                        }
+                        ret.SetMaskValue(r, c, false);
                     }
                 }
                 else
                 {
                     blend(0, r, c, (float)(v0.Color.X * alpha + v1.Color.X * beta + v2.Color.X * gamma), overdraw);
-                    if (!greyscale)
+                    if (bands == 3)
                     {
                         blend(1, r, c, (float)(v0.Color.Y * alpha + v1.Color.Y * beta + v2.Color.Y * gamma), overdraw);
                         blend(2, r, c, (float)(v0.Color.Z * alpha + v1.Color.Z * beta + v2.Color.Z * gamma), overdraw);
                     }
+                    ret.SetMaskValue(r, c, false);
                 }
-                ret.SetMaskValue(r, c, false);
             }
+
+            Func<Mesh, Face, bool> filter = options.FaceFilter ?? ((m, t) => true);
 
             foreach (var t in mesh.Faces)
             {
+                if (!filter(mesh, t))
+                {
+                    continue;
+                }
+
                 var v0 = mesh.Vertices[ccw ? t.P0 : t.P2];
                 var v1 = mesh.Vertices[t.P1];
                 var v2 = mesh.Vertices[ccw ? t.P2 : t.P0];
@@ -199,9 +266,9 @@ namespace OPS.Geometry
                     continue;
                 }
 
-                var p0 = (new Vector2(v0.Position.X, v0.Position.Y) - offset) * pixelsPerMeter;
-                var p1 = (new Vector2(v1.Position.X, v1.Position.Y) - offset) * pixelsPerMeter;
-                var p2 = (new Vector2(v2.Position.X, v2.Position.Y) - offset) * pixelsPerMeter;
+                var p0 = (new Vector2(v0.Position.X, v0.Position.Y) + offset) * pixelsPerMeter;
+                var p1 = (new Vector2(v1.Position.X, v1.Position.Y) + offset) * pixelsPerMeter;
+                var p2 = (new Vector2(v2.Position.X, v2.Position.Y) + offset) * pixelsPerMeter;
 
                 var minR = (int)Math.Max(0, Math.Min(Math.Min(p0.Y, p1.Y), p2.Y));
                 var maxR = (int)Math.Min(ret.Height - 1, Math.Max(Math.Max(p0.Y, p1.Y), p2.Y));
@@ -254,9 +321,14 @@ namespace OPS.Geometry
 
             if (options.Inpaint > 0)
             {
+                Func<int, int, Image> maskFactory = options.MaskFactory;
+                if (maskFactory == null)
+                {
+                    maskFactory = (w, h) => imageFactory(1, w, h);
+                }
                 //inpaint just the interior holes
                 //we do this by first creating a mask by floodfilling exterior invalid regions
-                Image mask = imageFactory(1, ret.Width, ret.Height);
+                Image mask = maskFactory(ret.Width, ret.Height);
                 ret.AddOuterRegionsToMask(mask);
                 ret.Inpaint(options.Inpaint);
                 ret.UnionMask(mask, new float[] { 1 } ); //re-apply the exterior mask
@@ -283,6 +355,58 @@ namespace OPS.Geometry
         {
             Vector2 meshOrigin = new Vector2();
             return RenderBirdsEyeView(mesh, img, ref meshOrigin, options);
+        }
+
+        /// <summary>
+        /// Delaunay triangulate non-masked pixels, then barycentric interpolate pixel colors in their convex hull.
+        /// Supplied image must have 1 or 3 bands and a mask.
+        /// </summary>
+        public static Image BarycentricInterpolate(Image img, Func<Mesh, Face, bool> filter = null)
+        {
+            if (img.Bands != 1 && img.Bands != 3)
+            {
+                throw new ArgumentException("only 1 or 3 band images supported");
+            }
+
+            if (!img.HasMask)
+            {
+                throw new ArgumentException("supplied image must have a mask");
+            }
+
+            var seeds = new List<Vertex>();
+            for (int r = 0; r < img.Height; r++)
+            {
+                for (int c = 0; c < img.Width; c++)
+                {
+                    if (img.IsValid(r, c))
+                    {
+                        var color = new Vector4();
+                        color.X = img[0, r, c];
+                        if (img.Bands == 3)
+                        {
+                            color.Y = img[1, r, c];
+                            color.Z = img[2, r, c];
+                        }
+
+                        var vert = new Vertex(c, r, 0);
+                        vert.Color = color;
+
+                        seeds.Add(vert);
+                    }
+                }
+            }
+
+            if (seeds.Count < 3)
+            {
+                throw new ArgumentException("supplied image must have at least 3 unmasked pixels");
+            }
+
+            var opts = BEVOptions.DirectToImage(img);
+            if (filter != null)
+            {
+                opts.FaceFilter = filter;
+            }
+            return RenderBirdsEyeView(Delaunay.Triangulate(seeds), null, opts);
         }
     }
 }

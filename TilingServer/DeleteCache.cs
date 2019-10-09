@@ -15,7 +15,7 @@ namespace OPS.TilingServer
         public bool Local { get; set; }
     }
 
-    public class DeleteCache : TilingCommand
+    public class DeleteCache : TilingServerCommand
     {
         private DeleteCacheOptions options;
 

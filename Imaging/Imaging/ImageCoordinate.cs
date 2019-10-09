@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -19,6 +20,20 @@ namespace OPS.Imaging
         public static Pixel operator+(Pixel a, Pixel b)
         {
             return new Pixel(a.Row + b.Row, a.Col + b.Col);
+        }
+
+        public override int GetHashCode()
+        {
+            return (Row < 65536 && Col < 65536) ? ((Row << 16) | Col) : HashCombiner.Combine(Row, Col);
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null || !(obj is Pixel))
+            {
+                return false;
+            }
+            return Row == ((Pixel)obj).Row && Col == ((Pixel)obj).Col;
         }
     }
 

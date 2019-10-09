@@ -68,25 +68,29 @@ namespace OPS.Geometry
             return heightmap;
         }
 
-        public static Image BuildHeightMap(Mesh mesh, BoundingBox bounds, int width, int height, VertexProjection.ProjectionAxis axis, bool invertHeight=false)
+        public static Image BuildHeightMap(Mesh mesh, int width, int height,
+                                           VertexProjection.ProjectionAxis axis, bool invertHeight = false)
         {
-            //Create a deep copy of the mesh
-            Mesh mesh_copy = new Mesh(mesh);
+            mesh = new Mesh(mesh);
+            var getUV = VertexProjection.MakeUVProjector(axis);
+            mesh.Vertices.ForEach(v => { v.UV = getUV(v.Position); });
+            mesh.HasUVs = true;
+            var mo = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+            return BuildHeightMap(mo, width, height, axis, invertHeight);
+        }
 
-            //Set UVs
-            mesh_copy.Vertices.ForEach(vert => {
-                vert.UV = VertexProjection.GetUV(vert.Position, axis);
-            });
-            mesh_copy.HasUVs = true;
-
-            //Build a mesh operator for efficient point look up
-            MeshOperator mo = new MeshOperator(mesh_copy, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+        public static Image BuildHeightMap(MeshOperator mo, int width, int height,
+                                           VertexProjection.ProjectionAxis axis, bool invertHeight = false)
+        {
+            var getUV = VertexProjection.MakeUVProjector(axis);
+            var getHeight = VertexProjection.MakeHeightGetter(axis);
 
             //For each image pixel, find projected location in triangle and interpolate height, or mask out
             Image heightmap = new Image(1, width, height);
             heightmap.CreateMask();
-            Vector2 min = VertexProjection.GetUV(bounds.Min, axis);
-            Vector2 max = VertexProjection.GetUV(bounds.Max, axis);
+            var bounds = mo.Bounds;
+            Vector2 min = getUV(bounds.Min);
+            Vector2 max = getUV(bounds.Max);
             double minU = min.U;
             double minV = min.V;
             double uExtent = max.U - minU;
@@ -108,11 +112,11 @@ namespace OPS.Geometry
                     {
                         if (invertHeight)
                         {
-                            heightmap[0, r, c] = -1 * (float)points.Select(vert => VertexProjection.GetHeight(vert.Position, axis)).Min();
+                            heightmap[0, r, c] = -1 * (float)points.Select(vert => getHeight(vert.Position)).Min();
                         }
                         else
                         {
-                            heightmap[0, r, c] = (float)points.Select(vert => VertexProjection.GetHeight(vert.Position, axis)).Max();
+                            heightmap[0, r, c] = (float)points.Select(vert => getHeight(vert.Position)).Max();
                         }
                         heightmap.SetMaskValue(r, c, false);
                     }

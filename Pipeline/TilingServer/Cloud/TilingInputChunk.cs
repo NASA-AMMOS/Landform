@@ -18,13 +18,13 @@ namespace OPS.Pipeline.TilingServer
     {
         [DynamoDBHashKey] //Partition key
         [DynamoDBProperty()]
-        public string Id { get; set; }
+        public string Id;
 
-        public string MeshUrl { get; set; }
+        public string MeshUrl;
 
-        public string ImageUrl { get; set; }
+        public string ImageUrl;
 
-        public string Bounds { get; set; }
+        public string Bounds;
 
         //This constructor must be public for DynamoDB but should not be used
         public TilingInputChunk() { }

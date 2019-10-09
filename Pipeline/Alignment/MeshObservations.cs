@@ -206,7 +206,7 @@ namespace OPS.Pipeline
                 .Where(obs => opts.AllowMastcam || !obs.IsMastcam)
                 .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
                 .Where(obs => opts.OnlyForFrames == null || opts.OnlyForFrames.Any(frm => frm == obs.FrameName))
-                .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => cam == obs.Sensor))
+                .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Sensor)))
                 .ToList();
 
             if (opts.Comparator != null)
@@ -430,7 +430,7 @@ namespace OPS.Pipeline
             MaskImage = null;
             if (masker != null)
             {
-                MaskImage = masker.LoadOrBuild(pipeline, Mask, pointsRaw, Name);
+                MaskImage = masker.LoadOrBuild(pipeline, Mask != null ? Mask.Url : null, pointsRaw.Metadata as PDSMetadata);
             }
 
             bool appliedMask = false;
@@ -703,6 +703,31 @@ namespace OPS.Pipeline
             double maxDim = (double)Math.Max(obs.Width, obs.Height);
 
             return Math.Max((int)Math.Round(maxDim / targetResolution), 1);
+        }
+
+        /// <summary>
+        /// if group contains a MeshObservations for eye, return the first of those
+        /// otherwise just return the first thing in group
+        /// </summary>
+        public static T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, MeshObservations> getObs)
+        {
+            foreach (var thing in group)
+            {
+                if (getObs(thing).StereoEye == eye)
+                {
+                    return thing;
+                }
+            }
+            return group.FirstOrDefault();
+        }
+
+        public static IEnumerable<MeshObservations> FilterForEye(IEnumerable<MeshObservations> observations,
+                                                                 RoverStereoEye eye)
+        {
+            return observations 
+                .GroupBy(obs => obs.StereoFrameName)
+                .Select(group => FilterForEye(group, eye, obs => obs))
+                .Where(obs => obs != null);
         }
     }
 }

@@ -49,20 +49,20 @@ namespace OPS.Pipeline.TilingServer
         /// <returns></returns>
         public int Process()
         {
-            pipeline.LogInfo("started batch of " + message.TileIds.Count + " leaf tiles");
+            LogInfo("started batch of {0} leaf tiles to backproject", message.TileIds.Count); 
 
             TilingProject project = TilingProject.Find(pipeline, projectName);
 
-            pipeline.LogInfo("downloading full mesh");
+            LogInfo("downloading full mesh");
             Mesh fullMesh = GetFullMesh(project);
 
-            pipeline.LogInfo("preparing full mesh");
+            LogInfo("preparing full mesh");
             MeshOperator op = new MeshOperator(fullMesh);
             SceneCaster sc = new SceneCaster();
             sc.AddMesh(fullMesh, null, Matrix.Identity);
             sc.Build();
 
-            pipeline.LogInfo("building scene graph");
+            LogInfo("building scene graph");
             Project alignmentProject = Project.Find(pipeline, projectName);
             BuildSceneGraph builder = new BuildSceneGraph(pipeline, projectName,
                                                           new BuildSceneGraph.Options() { OnlyKeepBestImages = true });
@@ -78,38 +78,43 @@ namespace OPS.Pipeline.TilingServer
             Serial.ForEach(leaves, leaf =>
             {
                 int curTileIndex = Interlocked.Increment(ref tiledMeshes);
-                pipeline.LogInfo("generating tile mesh " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
+                LogInfo("generating tile mesh " + curTileIndex + "/" + numLeafTileNodes + " (" + (int)(curTileIndex / (float)numLeafTileNodes * 100) + "%): " + leaf.Id);
 
                 MeshImagePair leafPair = new MeshImagePair();
 
                 // make the leaf tile mesh
-                leafPair.Mesh = op.Clip(leaf.GetBounds());
+                leafPair.Mesh = op.Clip(leaf.GetBoundsChecked());
                 if (leafPair.Mesh.Vertices.Count < 3)
                 {
                     throw new Exception("invalid tile contains less than 3 verts");
                 }
 
-                leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
-                ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
 
+                LogInfo(string.Format("atlasing leaf tile mesh with UVAtlas, resolution {0}", project.TileResolution));
+                leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
+
+                LogInfo("backprojecting leaf tile mesh");
                 // backproject
+                ConvexHull meshHull = new ConvexHull(leafPair.Mesh);
                 List<BackprojectContext> observations = GetPossibleObservations(scene, leafPair.Mesh.Bounds(), meshHull, mission);
-                //...backproject will take place here...
+
+                //TODO ...backproject will take place here...
 
                 // placeholder solid texture simulating backproject results 
                 leafPair.Image = new Image(3, project.TileResolution, project.TileResolution);
                 leafPair.Image.ApplyInPlace(0, x => { return 1.0f; });
 
                 //upload the mesh/texture pair and update the tiling node
+                LogInfo("saving leaf tile mesh");
                 var node = TilingNode.Find(pipeline, projectName, leaf.Id);
-                node.SaveMesh(leafPair, pipeline, 0, project.ExportMeshFormat, project.ExportImageFormat,
-                              project.GetSkirtMode());
+                node.SaveMesh(leafPair, pipeline, project);
+                node.Save(pipeline);
 
                 //notify the tiling server that a tile is ready for building into parent tiles
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id});                
             });
 
-            pipeline.LogInfo("batch completed, generated " + tiledMeshes + " leaf tiles");
+            LogInfo("batch completed, backprojected {0} leaf tiles", tiledMeshes);
                         
             return 0;
         }
@@ -235,7 +240,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 if (n.MeshUrl != null)
                 {
-                    pipeline.LogInfo("leaf " + n.Id + " already complete, skipping");
+                    LogInfo("leaf " + n.Id + " already complete, skipping");
                     pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = n.Id });
                 }
             }

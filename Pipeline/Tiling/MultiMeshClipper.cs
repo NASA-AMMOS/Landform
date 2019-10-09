@@ -163,15 +163,21 @@ namespace OPS.Pipeline
         /// <param name="mesh"></param>
         /// <param name="textureSize"></param>
         /// <returns></returns>
-        public MeshImagePair BakeTexture(Mesh mesh, int textureSize)
+        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, Action<string> info = null)
         {
+            info = info ?? (msg => {});
             if(!textureBakerInitialized)
             {
                 throw new Exception("InitTextureBaker() must be called before BakeTexture");
             }
             var box = mesh.Bounds();
+
+            info(string.Format("atlasing mesh with UVAtlas, texture resolution {0}", textureSize));
             mesh = UVAtlas.Atlas(mesh, textureSize, textureSize);
+
+            info("baking texture");
             var img = TextureBaker.Bake(mesh, textureSize, textureSize);
+
             return new MeshImagePair(mesh, img);
         }
     }

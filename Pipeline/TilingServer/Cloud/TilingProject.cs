@@ -46,11 +46,34 @@ namespace OPS.Pipeline.TilingServer
 
         public string NodeIdsUrl;
 
-        public string ExportMeshFormat;
-
-        public string ExportImageFormat;
-
         public int MaxLeafGroupSize;
+
+        public string ExportDir = "www"; //disable exporting meshes and images if null or empty
+
+        public string ExportMeshFormat = null; //disable exporting meshes if null or empty
+
+        public string ExportImageFormat = null; //disable exporting images if null or empty
+
+        public string InternalTileDir = "tiles"; //disable saving internal tile meshes and images if null or empty
+
+        public string InternalMeshFormat = "ply";
+
+        public string InternalImageFormat = "png";
+
+        public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
+
+        public string TilesetMeshFormat = "b3dm"; //but pointclouds will be saved as pnts
+
+        public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
+
+        public static string ToExt(string fmt)
+        {
+            if (!fmt.StartsWith("."))
+            {
+                fmt = "." + fmt;
+            }
+            return fmt.ToLower();
+        }
 
         //This constructor must be public for DynamoDB but should not be used
         public TilingProject() { }
@@ -113,27 +136,23 @@ namespace OPS.Pipeline.TilingServer
         }
 
         public const int SLEEP_BETWEEN_NODE_DELETES_MS = 10;
-        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true, ISet<string> keepMeshes = null)
         {
-            if (StartedRunning)
+            var nodes = TilingNode.Find(pipeline, this, pipeline.Logger, ignoreErrors);
+            int nn = nodes.Count();
+            int n = 0; 
+            pipeline.LogInfo("deleting {0} nodes", nn);
+            foreach (var node in nodes)
             {
-                var nodes = TilingNode.Find(pipeline, this, pipeline.Logger);
-                int nn = nodes.Count();
-                int n = 0; 
-                pipeline.LogInfo("deleting {0} nodes", nn);
-                foreach (var node in nodes)
+                node.Delete(pipeline, ignoreErrors, keepMeshes);
+                if (pipeline is CloudPipeline)
                 {
-                    node.Delete(pipeline, ignoreErrors);
                     Thread.Sleep(SLEEP_BETWEEN_NODE_DELETES_MS); //throttle to reduce chance of exponential backoff
-                    if (++n % 500 == 0)
-                    {
-                        pipeline.LogInfo("deleted {0} nodes", n);
-                    }
                 }
-            }
-            else
-            {
-                pipeline.LogInfo("deleting 0 nodes - project never run");
+                if (++n % 500 == 0)
+                {
+                    pipeline.LogInfo("deleted {0} nodes", n);
+                }
             }
 
             var inputs = TilingInput.Find(pipeline, this, pipeline.Logger);
@@ -142,16 +161,31 @@ namespace OPS.Pipeline.TilingServer
             {
                 if (input != null)
                 {
-                    input.Delete(pipeline, ignoreErrors);
+                    input.Delete(pipeline, ignoreErrors, keepMeshes);
                 }
             }
 
             pipeline.DeleteProjectCache(Name);
 
-            pipeline.DeleteFiles(pipeline.GetStorageUrl("www", Name), "*", ignoreErrors);
+            if (!string.IsNullOrEmpty(ExportDir))
+            {
+                //trailing slash is necessary to make sure we don't delete foo_bar/* in addition to foo/*
+                var baseUrl = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(ExportDir, Name));
+                pipeline.LogInfo("deleting tileset exports under {0}", baseUrl);
+                pipeline.DeleteFiles(baseUrl, "*", ignoreErrors);
+            }
+
+            if (!string.IsNullOrEmpty(TilesetDir) && TilesetDir != ExportDir && TilesetDir != InternalTileDir)
+            {
+                //trailing slash is necessary to make sure we don't delete foo_bar/* in addition to foo/*
+                var baseUrl = StringHelper.EnsureTrailingSlash(pipeline.GetStorageUrl(TilesetDir, Name));
+                pipeline.LogInfo("deleting tileset under {0}", baseUrl);
+                pipeline.DeleteFiles(baseUrl, "*", ignoreErrors);
+            }
 
             if (!string.IsNullOrEmpty(NodeIdsUrl))
             {
+                pipeline.LogInfo("deleting node ids");
                 pipeline.DeleteFile(NodeIdsUrl, ignoreErrors);
             }
 
@@ -196,7 +230,7 @@ namespace OPS.Pipeline.TilingServer
 
         public string SaveNodeIds(List<string> ids, PipelineCore pipeline)
         {
-            var url = pipeline.GetStorageUrl("tile", Name, "nodeids.json");
+            var url = pipeline.GetStorageUrl(InternalTileDir, Name, "nodeids.json");
             TemporaryFile.GetAndDelete(".json", tmpJson =>
             {
                 var json = JsonHelper.ToJson(ids, autoTypes: false);

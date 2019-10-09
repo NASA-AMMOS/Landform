@@ -51,6 +51,7 @@
     <Compile Include="Compression.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="ConsoleHelper.cs" />
+    <Compile Include="Format.cs" />
     <Compile Include="HammingDistance.cs" />
     <Compile Include="HashCombiner.cs" />
     <Compile Include="Histogram.cs" />

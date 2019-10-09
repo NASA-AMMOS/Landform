@@ -20,8 +20,25 @@ namespace OPS.Pipeline
         private Dictionary<string, IEnumerable<string>> dependedOnBy;
         private Dictionary<string, IEnumerable<string>> dependsOn;
         private HashSet<string> completed;
-        private HashSet<string> enqued;
+        private HashSet<string> enqueued;
         private HashSet<string> inputsToChunk;
+
+        private int numNodes;
+        public int NumNodes
+        {
+            get
+            {
+                return numNodes;
+            }
+        }
+
+        public int NumCompleted
+        {
+            get
+            {
+                return completed.Count;
+            }
+        }
 
         public ProjectCache(PipelineCore pipeline, string projectName, ILog logger)
         {
@@ -39,7 +56,7 @@ namespace OPS.Pipeline
             dependedOnBy = new Dictionary<string, IEnumerable<string>>();
             dependsOn = new Dictionary<string, IEnumerable<string>>();
             completed = new HashSet<string>();
-            enqued = new HashSet<string>();
+            enqueued = new HashSet<string>();
             inputsToChunk = new HashSet<string>();
         }
                 
@@ -65,35 +82,33 @@ namespace OPS.Pipeline
                                            ": project not found or tiles not defined yet");
             }
 
+            numNodes = 0;
             var nodes = TilingNode.Find(pipeline, project).ToList();
             foreach (var n in nodes)
             {
                 ids.Add(n.Id);
 
-                lock (n.DependedOnBy)
-                { 
-                    dependedOnBy.Add(n.Id, n.DependedOnBy.ToArray());
-                }
+                dependedOnBy.Add(n.Id, n.GetDependedOnBy());
 
-                lock (n.DependsOn)
-                {
-                    dependsOn.Add(n.Id, n.DependsOn.ToArray());
-                }
+                dependsOn.Add(n.Id, n.GetDependsOn());
 
                 if (n.MeshUrl != null)
                 {
                     completed.Add(n.Id);
                 }
+
                 if (n.ParentId == null)
                 {
                     rootId = n.Id;
                 }
+
+                numNodes++;
             }
 
             if (logger != null)
             {
-                logger.InfoFormat("[{0}] initialized project cache in {1}s",
-                                  projectName, 0.001 * sw.ElapsedMilliseconds);
+                logger.InfoFormat("[{0}] initialized project cache in {1:F3}s, {2} nodes already completed",
+                                  projectName, 0.001 * sw.ElapsedMilliseconds, completed.Count);
             }
 
             initialized = true;
@@ -108,7 +123,7 @@ namespace OPS.Pipeline
         public void MarkEnqueued(string id)
         {
             EnsureInitialized();
-            enqued.Add(id);
+            enqueued.Add(id);
         }
 
         public void MarkDone(string id)
@@ -120,7 +135,7 @@ namespace OPS.Pipeline
         public bool AlreadyProcessed(string id)
         {
             EnsureInitialized();
-            return enqued.Contains(id) || completed.Contains(id);
+            return enqueued.Contains(id) || completed.Contains(id);
         }
 
         public bool AlreadyCompleted(string id)

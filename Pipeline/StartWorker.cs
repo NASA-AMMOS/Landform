@@ -32,7 +32,8 @@ namespace OPS.Pipeline
         public const int MAX_PROCESSING_SEC = 6 * 60 * 60; //6h
         public const double HEARTBEAT_PERIOD_REL = 0.333;
         const int DEQUEUE_THROTTLE_MS = 500;
-        const int IMAGE_CACHE_SIZE = 5;
+        const int IMAGE_CACHE = 5;
+        const int DATA_PRODUCT_CACHE = 5;
 
         private class MessageRec
         {
@@ -70,10 +71,9 @@ namespace OPS.Pipeline
                 .Case((BuildBackprojectLeavesMessage m) => new BuildBackprojectLeaves(pipeline, m).Process())
                 .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
                 .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
-                .Case((CreateMaskMessage m) => new CreateMask(pipeline, m).Process())
                 .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
                 .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
-            ret.Unhandled = (t, x) => pipeline.LogError("Unknown message type: " + t);
+            ret.Unhandled = (t, x) => pipeline.LogError("unknown worker message type: " + t);
             return ret;
         }
 
@@ -380,10 +380,18 @@ namespace OPS.Pipeline
             //each worker thread has its own pipeline instance
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
-            var pipeline = new CloudPipeline(options, logger: Logger, lruCache: IMAGE_CACHE_SIZE, quietInit: true,
+            //TODO we should probably switch to using a single shared pipeline instance
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/611
+            var pipeline = new CloudPipeline(options, logger: Logger, quietInit: true,
+                                             lruImageCache: IMAGE_CACHE, lruDataProductCache: DATA_PRODUCT_CACHE,
                                              initQueues: true, initTables: false, queuePrefix: queuePrefix);
 
             var dispatcher = MakeDispatcher(pipeline);
+
+            void sendStatus(QueueMessage m, string status, bool done = false)
+            {
+                pipeline.EnqueueToMaster(new StatusMessage(m.ProjectName, m.MessageId, m.GetType().Name, status, done));
+            }
 
             while (true)
             {
@@ -400,13 +408,14 @@ namespace OPS.Pipeline
                             bool handled = false;
                             try
                             {
+                                sendStatus(m, "started");
                                 dispatcher.Handle(m);
-                                LogPrefix = "";
+                                sendStatus(m, "complete", done: true);
                                 handled = true;
                             }
                             catch (Exception e)
                             {
-                                LogPrefix = "";
+                                sendStatus(m, "error: " + e.Message, done: true);
                                 LogError("{0}: processing error ({1}): {2}",
                                           m.Info(), e.GetType().FullName, e.Message);
                                 LogError(e.StackTrace);

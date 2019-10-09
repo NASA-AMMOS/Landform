@@ -15,6 +15,9 @@ namespace OPS.Landform
     [Verb("local-ingest", HelpText = "ingest mission data")]
     public class LocalIngestOptions : LandformCommandOptions
     {
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSave { get; set; }
+
         [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
@@ -48,12 +51,6 @@ namespace OPS.Landform
         [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
         public bool RedoPriors { get; set; }
 
-        [Option(HelpText = "Redo everything", Default = false)]
-        public bool Redo { get; set; }
-
-        [Option(HelpText = "Hide progress", Default = false)]
-        public bool NoProgress { get; set; }
-
         [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
         public string LegacyManifestURL { get; set; }
 
@@ -63,7 +60,16 @@ namespace OPS.Landform
 
     public class LocalIngest : LandformCommand
     {
+        private const string OUT_DIR = "alignment/IngestProducts";
+
         private LocalIngestOptions options;
+
+        private IngestAlignmentInputs ingester;
+        private List<string> baseUrls;
+
+        private MSLLocations locations;
+        private MSLPlaces places;
+        private MSLLegacyManifest manifest;
 
         public LocalIngest(LocalIngestOptions options) : base(options)
         {
@@ -79,44 +85,93 @@ namespace OPS.Landform
 
         public int Run()
         {
-            var productUrl = pipeline.GetStorageUrl("alignment/products", options.ProjectName);
+            StartStopwatch();
 
-            var inputUrl = options.InputPath;
+            try
+            {
+                if (!ParseArguments())
+                {
+                    return 0; //help
+                }
+
+                RunPhase("init ingester", InitIngester);
+                RunPhase("init priors databases", InitPriorsDatabases);
+                RunPhase("ingest inputs", IngestInputs);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
+                return 1;
+            }
+
+            StopStopwatch();
+
+            return 0;
+        }
+        
+        protected override Project GetProject()
+        {
+            string inputUrl = options.InputPath;
             if (!string.IsNullOrEmpty(inputUrl))
             {
                 inputUrl = StringHelper.NormalizeUrl(options.InputPath, options.Cloud ? "s3://" : "file://");
             }
 
-            var mission = MissionSpecific.GetInstance(options.Mission);
-            var initializer = new InitializeAlignmentProject(pipeline);
-            var project = initializer.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission,
-                                                 options.RedoProject);
-            var ingester = new IngestAlignmentInputs(pipeline, project, mission,
-                                                     options.RedoObservations, options.RedoPriors,
-                                                     options.OnlyForSiteDrives, options.OnlyForFrames,
-                                                     options.NoProgress);
+            string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
 
-            MSLLocations locations = null;
+            var init = new InitializeAlignmentProject(pipeline);
+            return init.Initialize(options.ProjectName, productUrl, inputUrl, options.Mission, options.RedoProject);
+        }
+
+        protected override MissionSpecific GetMission()
+        {
+            return MissionSpecific.GetInstance(options.Mission);
+        }
+
+        private bool ParseArguments()
+        {
+            if (options.NoSave)
+            {
+                throw new Exception("--nosave not implemented for this command");
+            }
+
+            return base.ParseArguments(OUT_DIR);
+        }
+
+        protected override bool ParseArguments(string outDir)
+        {
+            throw new NotImplementedException();
+        }
+
+        private void InitIngester()
+        {
+            ingester = new IngestAlignmentInputs(pipeline, project, mission,
+                                                 options.RedoObservations, options.RedoPriors,
+                                                 options.OnlyForSiteDrives, options.OnlyForFrames,
+                                                 options.NoProgress);
+            baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
+        }
+
+        private void InitPriorsDatabases()
+        {
             if (options.AddLocationsDBPriors && mission.AllowLocationsDB())
             {
-                locations = GetLocationsDB(ingester.BaseUrls.Select(b => b.Url));
+                locations = GetLocationsDB(baseUrls);
             }
             else
             {
                 pipeline.LogInfo("locations DB priors disabled");
             }
 
-            MSLPlaces places = null;
             if (!options.NoPlacesDBPriors && mission.AllowPlacesDB())
             {
-                places = new MSLPlaces();
+                places = GetPlacesDB();
             }
             else
             {
                 pipeline.LogInfo("places DB priors disabled");
             }
 
-            MSLLegacyManifest manifest = null;
             if (options.LegacyManifestURL != null && mission.AllowLegacyManifestDB())
             {
                 manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
@@ -125,13 +180,9 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("legacy manifest DB priors disabled");
             }
-
-            ingester.Ingest(locations, places, manifest);
-
-            return 0;
         }
-        
-        private MSLLocations GetLocationsDB(IEnumerable<string> baseUrls)
+
+        private MSLLocations GetLocationsDB(List<string> baseUrls)
         {
             string findFile(string filename)
             {
@@ -210,6 +261,24 @@ namespace OPS.Landform
             }
 
             return locations;
+        }
+
+        private MSLPlaces GetPlacesDB()
+        {
+            try
+            {
+                return new MSLPlaces(pipeline);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("Error initializing PlacesDB, disabling: {0}", ex.Message);
+                return null;
+            }
+        }
+
+        private void IngestInputs()
+        {
+            ingester.Ingest(locations, places, manifest);
         }
     }
 }

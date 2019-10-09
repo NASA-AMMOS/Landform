@@ -68,11 +68,11 @@ namespace OPS.Landform
                 LocalBundleAdjustOptions,
                 LocalBEVAlignerOptions,
                 LocalAgisoftOptions,
-                EmtToSceneOptions,
                 LocalBuildGeometryOptions,
                 LocalBuildTilesetOptions,
-                LocalBuildBackprojectIndexOptions,
+                LocalBuildTextureOptions,
                 LocalBuildLeavesOptions,
+                LocalBlendImagesOptions,
                 LocalConvertToLegacySceneOptions,
                 StartAlignMasterOptions >(args);
 
@@ -86,11 +86,11 @@ namespace OPS.Landform
                 (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
                 (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
                 (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
-                (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
                 (LocalBuildGeometryOptions opts) => new LocalBuildGeometry(opts).Run(),
                 (LocalBuildTilesetOptions opts) => new LocalBuildTileset(opts).Run(),
-                (LocalBuildBackprojectIndexOptions opts) => new LocalBuildBackprojectIndex(opts).Run(),
+                (LocalBuildTextureOptions opts) => new LocalBuildTexture(opts).Run(),
                 (LocalBuildLeavesOptions opts) => new LocalBuildLeaves(opts).Run(),
+                (LocalBlendImagesOptions opts) => new LocalBlendImages(opts).Run(),
                 (LocalConvertToLegacySceneOptions opts) => new LocalConvertToLegacyScene(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
