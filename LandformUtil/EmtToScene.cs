@@ -73,7 +73,7 @@ namespace OPS.LandformUtil
     {
         EmtToSceneOptions options;
 
-        private static readonly ILog logger = LogManager.GetLogger(typeof(EmtToScene));
+        private static readonly ILog emtLogger = LogManager.GetLogger(typeof(EmtToScene));
 
         public class FileRecord
         {
@@ -341,7 +341,7 @@ namespace OPS.LandformUtil
             Dictionary<string, FileRecord> results = new Dictionary<string, FileRecord>();
             foreach (var searchDir in searchDirectories)
             {
-                logger.Info("Searching " + searchDir);
+                emtLogger.Info("Searching " + searchDir);
                 var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
                 var paths = inputStorageHelper.SearchObjects(searchDir).ToList();
                 foreach (var path in paths)
@@ -392,7 +392,7 @@ namespace OPS.LandformUtil
                     var inputStorageHelper = new StorageHelper(options.InputAWSProfile, options.InputAWSRegion);
                     inputStorageHelper.DownloadFile(s3Location, f);
                 });
-                logger.Info("Downloaded: " + Path.GetFileName(localPath));
+                emtLogger.Info("Downloaded: " + Path.GetFileName(localPath));
             }
         }
 
@@ -440,7 +440,7 @@ namespace OPS.LandformUtil
                 {
                     return;
                 }
-                logger.Info("Processing: " + Path.GetFileName(localRecord.PreferedMesh));
+                emtLogger.Info("Processing: " + Path.GetFileName(localRecord.PreferedMesh));
                 Mesh m = Mesh.Load(localRecord.PreferedMesh);
                 if(m.Faces.Count == 0)
                 {
@@ -451,13 +451,13 @@ namespace OPS.LandformUtil
 
                 if (!m.HasNormals || options.ForceNormalComputation)
                 {
-                    logger.Info("Input mesh missing normals or force normal computation is set, generating normals");
+                    emtLogger.Info("Input mesh missing normals or force normal computation is set, generating normals");
                     m.GenerateVertexNormals();
                 }
                 if (decimationRatio.HasValue)
                 {
                     int targetFaces = (int)(m.Faces.Count * decimationRatio.Value);
-                    logger.Info("Decimating: " + m.Faces.Count + " down to " + targetFaces);
+                    emtLogger.Info("Decimating: " + m.Faces.Count + " down to " + targetFaces);
                     m = EdgeCollapse.QuadricEdgeCollapse(m, targetFaces);
                     m = BaselineAtlaser.AtlasSiteFrameMesh(m, Image.Load(localRecord.PreferedMetadataImage));                  
 
@@ -490,10 +490,11 @@ namespace OPS.LandformUtil
             return StringHelper.NormalizeSlashes(tileDir,true);
         }
 
-        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath, string primarySiteDrive = null)
+        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath, ILog logger, string primarySiteDrive = null)
         {
             string sceneDir = Path.Combine(workingDir, "Scene");
             string imagesDir = Path.Combine(sceneDir, "images");
+            imagesDir = StringHelper.NormalizeSlashes(imagesDir);
             PathHelper.EnsureExists(imagesDir);
 
             ConcurrentBag<LegacySceneManifest.ImageData> imageDatas = new ConcurrentBag<LegacySceneManifest.ImageData>();
@@ -517,15 +518,18 @@ namespace OPS.LandformUtil
                 primarySiteDrive = groupedImageData.Select(g => g.Key).OrderBy(x => x).Last();
             }
             logger.Info("Converting images for scene");
-            CoreLimitedParallel.ForEach(localFileRecords, rec => 
+            Serial.ForEach(localFileRecords, rec => 
             {
                 if (!rec.HasMetadata || !rec.HasImage)
                     return;
 
                 string siteDrive = new PDSParser(new PDSMetadata(rec.PreferedMetadataImage)).SiteDrive;
                 string siteImageDir = Path.Combine(imagesDir, siteDrive);
+                siteImageDir = StringHelper.NormalizeSlashes(siteImageDir);
                 PathHelper.EnsureExists(siteImageDir);
+                
                 var outfile = Path.Combine(siteImageDir, rec.FilenameBase + ".IMG.jpg");
+                outfile = StringHelper.NormalizeSlashes(outfile);
                 if (File.Exists(outfile))
                 {
                     return;
@@ -546,11 +550,15 @@ namespace OPS.LandformUtil
             }
             string content = manifest.Create();
             string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
+            sceneSiteDriveFolder = StringHelper.NormalizeSlashes(sceneSiteDriveFolder);
             PathHelper.EnsureExists(sceneSiteDriveFolder);
+
             manifestPath = Path.Combine(sceneSiteDriveFolder, "manifest.xml");
+            manifestPath = StringHelper.NormalizeSlashes(manifestPath);
             File.WriteAllText(manifestPath, content);
 
             string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
+            sceneSiteDriveFolder = StringHelper.NormalizeSlashes(sceneSiteDriveFolder);
             PathHelper.EnsureExists(tileDir);
             File.WriteAllText(Path.Combine(tileDir, "tilesetSky.json"), LegacySceneManifest.SkyTilesetContent);
         }
@@ -575,41 +583,41 @@ namespace OPS.LandformUtil
             }
 
             var fileRecords = IndexFiles(options.SearchLocations);
-            logger.Info("Total files found: " + fileRecords.Count());           
+            emtLogger.Info("Total files found: " + fileRecords.Count());           
 
             var imageRecords = fileRecords.Where(rec => rec.HasImage && rec.HasMetadata && (rec.RAS || rec.RASL) && !rec.Thumbnail);
-            logger.Info("Total Image files found: " + imageRecords.Count());
+            emtLogger.Info("Total Image files found: " + imageRecords.Count());
             HashSet<string> raslRecords = new HashSet<string>(imageRecords.Where(rec => rec.RASL).Select(rec => rec.FilenameBase));
             imageRecords = imageRecords.Where(rec => rec.RASL || (rec.RAS && !raslRecords.Contains(rec.RASLBaseName)));
-            logger.Info("Images after linear filter: " + imageRecords.Count());
+            emtLogger.Info("Images after linear filter: " + imageRecords.Count());
             if (options.ImageInclude != null)
             {
                 var productIds = ReadFilterFile(options.ImageInclude);
                 imageRecords = imageRecords.Where(rec => productIds.Contains(rec.FilenameBase));
-                logger.Info("Filtered images down to: " + imageRecords.Count());
+                emtLogger.Info("Filtered images down to: " + imageRecords.Count());
             }
             if (options.ImageExclude != null)
             {
                 var productIds = ReadFilterFile(options.ImageExclude);
                 imageRecords = imageRecords.Where(rec => !productIds.Contains(rec.FilenameBase));
-                logger.Info("Filtered images down to: " + imageRecords.Count());
+                emtLogger.Info("Filtered images down to: " + imageRecords.Count());
             }
             var meshRecords = fileRecords.Where(rec => rec.RASL && rec.HasMesh && rec.IsLeft && rec.HasImage && rec.HasMetadata && (rec.Nav || (options.MeshMastcam && rec.Mast) || (options.MeshHazcam && rec.Haz)));
             if (options.MeshInclude != null)
             {
                 var productIds = ReadFilterFile(options.MeshInclude);
                 meshRecords = meshRecords.Where(rec => productIds.Contains(rec.FilenameBase));
-                logger.Info("Filtered meshes down to: " + meshRecords.Count());
+                emtLogger.Info("Filtered meshes down to: " + meshRecords.Count());
             }
             if (options.MeshExclude != null)
             {
                 var productIds = ReadFilterFile(options.MeshExclude);
                 meshRecords = meshRecords.Where(rec => !productIds.Contains(rec.FilenameBase));
-                logger.Info("Filtered meshes down to: " + meshRecords.Count());
+                emtLogger.Info("Filtered meshes down to: " + meshRecords.Count());
             }
-            logger.Info("Total Mesh files found: " + meshRecords.Count());
+            emtLogger.Info("Total Mesh files found: " + meshRecords.Count());
 
-            logger.Info("Downloading Files");
+            emtLogger.Info("Downloading Files");
             var downloadDirectory = Path.Combine(options.WorkingDir, "Download");
             PathHelper.EnsureExists(downloadDirectory);
 
@@ -628,15 +636,15 @@ namespace OPS.LandformUtil
             }
 
 
-            logger.Info("Creating legacy scene");
-            CreateLegacyScene(downloadedRASLRecords, options.WorkingDir, out string manifestPath);
+            emtLogger.Info("Creating legacy scene");
+            CreateLegacyScene(downloadedRASLRecords, options.WorkingDir, out string manifestPath, emtLogger);
 
-            logger.Info("Processing Meshes");
+            emtLogger.Info("Processing Meshes");
             var processedDirectory = Path.Combine(options.WorkingDir, "Processed");
             PathHelper.EnsureExists(processedDirectory);
             var processedRecords = ProcessMeshes(downloadedMeshRecords, processedDirectory, options.DecimationRatio);
             string projectName = options.ProjectName;// + "_" + rec.FilenameBase;
-            logger.Info("Creating tiling Project: " + projectName);
+            emtLogger.Info("Creating tiling Project: " + projectName);
 
             int r;
             var createOptions = new CreateProjectOptions()
@@ -677,7 +685,7 @@ namespace OPS.LandformUtil
             r = new RunProject(runOptions).Run();
             
             var tilesetUrl = createProject.GetPipeline().GetStorageUrl("www", projectName, "tileset.json");
-            logger.Info("Building tileset.  When done copy data from " + tilesetUrl + " to tile3d_2.0 directory");
+            emtLogger.Info("Building tileset.  When done copy data from " + tilesetUrl + " to tile3d_2.0 directory");
 
             if (tilingTask != null)
             {
