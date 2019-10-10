@@ -131,7 +131,6 @@
     <Compile Include="ConvertBaselineMesh.cs" />
     <Compile Include="ConvertBaselineMeshes.cs" />
     <Compile Include="DEM2Mesh.cs" />
-    <Compile Include="EmtToScene.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="LandformUtil.cs" />
     <Compile Include="LegacyToTile3D.cs" />
