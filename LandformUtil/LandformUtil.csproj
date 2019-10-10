@@ -137,7 +137,6 @@
     <Compile Include="LegacyToTile3D.cs" />
     <Compile Include="LegacyToWebVR.cs" />
     <Compile Include="LimberDMGDriver.cs" />
-    <Compile Include="LocalBuildTilesetScene.cs" />
     <Compile Include="LocalConvertToASTTRO.cs" />
     <Compile Include="LocalObservationProducts.cs" />
     <Compile Include="PDSImageConverter.cs" />
