@@ -88,7 +88,7 @@ namespace OPS.LandformUtil
                     numMastcams++;
             }
 
-            string masterManifestPath = Path.Combine(localOutputPath, "mastermanifest.xml");
+            string masterManifestPath = Path.Combine(localOutputPath, "master-landform.xml");
             masterManifestPath = StringHelper.NormalizeSlashes(masterManifestPath);
 
             CreateMasterManifest(LocalPathToS3Url(localOutputPath,legacySceneManifestPath), masterManifestPath, meshFrame, numNavcams, numMastcams);
@@ -120,14 +120,14 @@ namespace OPS.LandformUtil
             //HACK: Issue #602: to emulate the previous version of tilest.json that asttro uses
             jsonData = jsonData.Replace("uri", "url");
 
-            string outputTilesetJSONPath = Path.Combine(EmtToScene.GetTilesetDir(localOutputPath, meshFrame), "tileset.json");
+            string outputTilesetJSONPath = Path.Combine(EmtToScene.GetTilesetDir(localOutputPath, meshFrame, project.Name), "tileset.json");
             outputTilesetJSONPath = StringHelper.NormalizeSlashes(outputTilesetJSONPath);
             File.WriteAllText(outputTilesetJSONPath, jsonData);
         }
 
         private void RotateSceneMeshes()
         {
-            string tilesetDir = EmtToScene.GetTilesetDir(localOutputPath, meshFrame);
+            string tilesetDir = EmtToScene.GetTilesetDir(localOutputPath, meshFrame, project.Name);
             string inputDir = pipeline.GetLocalFolder(options.OutputFolder, DecorateOutDir(TilingCommand.OUT_DIR), project.Name);
             inputDir = StringHelper.NormalizeSlashes(inputDir);
             CoreLimitedParallel.ForEach(Directory.EnumerateFiles(inputDir, "*." + options.MeshFormat), inputFilePath =>
@@ -159,7 +159,7 @@ namespace OPS.LandformUtil
             string manifestPath = null;
             {
                 var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
-                EmtToScene.CreateLegacyScene(RASLRecords, localOutputPath, out manifestPath, pipeline.Logger, meshFrame);
+                EmtToScene.CreateLegacyScene(RASLRecords, localOutputPath, out manifestPath, pipeline.Logger, meshFrame, project.Name);
             }
 
             pipeline.LogInfo("ASTTRO scene manifest written at: {0}", manifestPath);
@@ -221,7 +221,7 @@ namespace OPS.LandformUtil
             AddAttributeXml(manifest, "color", "0.0");
             AddAttributeXml(manifest, "grayscale", "1.0");
             AddAttributeXml(manifest, "orbital", "0.0");
-            manifest.InnerText = CloudPipeline.ConvertS3UrlToHttps(sceneManifestUrl);
+            manifest.InnerText = CloudPipeline.ConvertS3UrlToHttps(sceneManifestUrl,".s3-us-gov-west-1.amazonaws.com");
 
             StringBuilder sb = new StringBuilder();
             XmlWriterSettings settings = new XmlWriterSettings();

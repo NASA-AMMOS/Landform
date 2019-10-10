@@ -482,18 +482,18 @@ namespace OPS.LandformUtil
             return new HashSet<string>(lines);
         }
         
-        static public string GetTilesetDir(string workingDir, string primarySiteDrive)
+        static public string GetTilesetDir(string workingDir, string primarySiteDrive, string sceneName = "Scene")
         {
-            string sceneDir = Path.Combine(workingDir, "Scene");
+            string sceneDir = Path.Combine(workingDir, sceneName);
             string sceneSiteDriveFolder = Path.Combine(sceneDir, Path.Combine("ds" + primarySiteDrive, "201801010000"));
             string tileDir = Path.Combine(sceneSiteDriveFolder, "tile3d_2.0");
             return StringHelper.NormalizeSlashes(tileDir,true);
         }
 
-        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath, ILog logger, string primarySiteDrive = null)
+        static public void CreateLegacyScene(IEnumerable<FileRecord> localFileRecords, string workingDir, out string manifestPath, ILog logger, string primarySiteDrive = null, string sceneName = "Scene")
         {
-            string sceneDir = Path.Combine(workingDir, "Scene");
-            string imagesDir = Path.Combine(sceneDir, "images");
+            string sceneDir = Path.Combine(workingDir, sceneName);
+            string imagesDir = Path.Combine(workingDir, "images");
             imagesDir = StringHelper.NormalizeSlashes(imagesDir);
             PathHelper.EnsureExists(imagesDir);
 
