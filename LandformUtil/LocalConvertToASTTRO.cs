@@ -1,9 +1,11 @@
 ﻿using CommandLine;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
+using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Landform;
 using OPS.Pipeline;
-using OPS.Pipeline.AlignmentServer;
+using OPS.Pipeline.Tile3D;
 using OPS.Util;
 using System;
 using System.Collections.Generic;
@@ -17,18 +19,18 @@ namespace OPS.LandformUtil
     [Verb("local-convert-to-ASTTRO", HelpText = "convert a tileset to a ASTTRO scene")]
     public class LocalConvertToASTTROOptions : TextureCommandOptions
     {
-        // input related
-        [Option(Default = null, HelpText = "input tileset json (tiles assumed to be in same folder), search project storage if omitted")]
-        public string InputTileset { get; set; }
-      
-        [Option(Required = false, Default = "ply", HelpText = "input mesh Extension")]
-        public string InputMeshExtension { get; set; }
+        // input related //TODO: implement
+        //[Option(Default = null, HelpText = "input tileset json (tiles assumed to be in same folder), search project storage if omitted")]
+        //public string InputTileset { get; set; }
 
-        [Option(Required = false, Default = "jpg", HelpText = "input mesh Extension")]
-        public string InputImageExtension { get; set; }
-
-        [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")]
+        [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")] //should pull from tiling project?
         public string OutputMeshExtension { get; set; }
+
+        [Option(Required = false, Default = "jpg", HelpText = "output image Extension")]
+        public string OutputImageExtension { get; set; }
+
+        [Option(Required = false, Default = "m20-rps-asttro-terrain", HelpText = "output s3 bucket (used for pointing in master manifest)")]
+        public string OutputS3Bucket { get; set; }
     }
 
     public class LocalConvertToASTTRO : TextureCommand
@@ -37,7 +39,7 @@ namespace OPS.LandformUtil
 
         private LocalConvertToASTTROOptions options;
         private string legacySceneManifestPath;
-    
+
         public LocalConvertToASTTRO(LocalConvertToASTTROOptions options) : base(options)
         {
             this.options = options;
@@ -55,6 +57,12 @@ namespace OPS.LandformUtil
                 }
 
                 RunPhase("build scene manifest", () => { legacySceneManifestPath = BuildASTTROScene(); });
+                RunPhase("rotate tile meshes to ASTTRO frame", () => { RotateSceneMeshes(); });
+                RunPhase("modify tileset JSON", () => { ModifyTilesetJSON(); });
+                RunPhase("create master manifest", () => { CreateMasterManifest(); });
+
+                pipeline.LogInfo("converted to legacy scene successfully");
+
             }
             catch (Exception ex)
             {
@@ -66,67 +74,88 @@ namespace OPS.LandformUtil
 
             return 0;
         }
-            /*
-          
-           
-          
 
-            pipeline.LogInfo("rotating meshes to ASTTRO frame");
-            string tilesetDir = EmtToScene.GetTilesetDir(outputPath, options.MeshFrame);
+        private void CreateMasterManifest()
+        {
+            int numNavcams = 0;
+            int numMastcams = 0;
+            foreach (var obs in imageObservations)
+            {
+                PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
+                if (mission.IsNavcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                    numNavcams++;
+                else if (mission.IsMastcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                    numMastcams++;
+            }
 
-            CoreLimitedParallel.ForEach(Directory.EnumerateFiles(inputDir, "*." + options.InputMeshExtension), inputFilePath =>
+            string masterManifestPath = Path.Combine(localOutputPath, "mastermanifest.xml");
+            masterManifestPath = StringHelper.NormalizeSlashes(masterManifestPath);
+
+            CreateMasterManifest(LocalPathToS3Url(localOutputPath,legacySceneManifestPath), masterManifestPath, meshFrame, numNavcams, numMastcams);
+        }
+
+        private void ModifyTilesetJSON()
+        {
+            string inputTileDir = pipeline.GetLocalFolder(options.OutputFolder, DecorateOutDir(TilingCommand.OUT_DIR + "Set"), project.Name);
+            string inputTilesetJSONPath = Path.Combine(inputTileDir, "tileset.json");
+            inputTilesetJSONPath = StringHelper.NormalizeSlashes(inputTilesetJSONPath);
+
+            string jsonData = File.ReadAllText(inputTilesetJSONPath);
+            Pipeline.Tile3D.Tileset tileset = JsonConvert.DeserializeObject<Pipeline.Tile3D.Tileset>(jsonData);
+
+            //convert all bounds to y up
+            List<Tile> toProcess = new List<Tile>();
+            toProcess.Add(tileset.Root);
+            while (toProcess.Any())
+            {
+                Tile curTile = toProcess.First();
+                toProcess.RemoveAt(0);
+
+                curTile.BoundingVolume.Box = ConvertBoundingBoxToYUp(curTile.BoundingVolume.Box);
+                toProcess.AddRange(curTile.Children);
+            }
+
+            jsonData = JsonConvert.SerializeObject(tileset, Newtonsoft.Json.Formatting.None);
+
+            //HACK: Issue #602: to emulate the previous version of tilest.json that asttro uses
+            jsonData = jsonData.Replace("uri", "url");
+
+            string outputTilesetJSONPath = Path.Combine(EmtToScene.GetTilesetDir(localOutputPath, meshFrame), "tileset.json");
+            outputTilesetJSONPath = StringHelper.NormalizeSlashes(outputTilesetJSONPath);
+            File.WriteAllText(outputTilesetJSONPath, jsonData);
+        }
+
+        private void RotateSceneMeshes()
+        {
+            string tilesetDir = EmtToScene.GetTilesetDir(localOutputPath, meshFrame);
+            string inputDir = pipeline.GetLocalFolder(options.OutputFolder, DecorateOutDir(TilingCommand.OUT_DIR), project.Name);
+            inputDir = StringHelper.NormalizeSlashes(inputDir);
+            CoreLimitedParallel.ForEach(Directory.EnumerateFiles(inputDir, "*." + options.MeshFormat), inputFilePath =>
             {
                 // read every mesh in and convert to asttro coordinate frame
                 pipeline.LogInfo("Transforming data: {0}", inputFilePath);
                 Mesh mesh = Mesh.Load(inputFilePath);
                 EmtToScene.ConvertMeshToYUp(mesh);
-                string outputFilePath = Path.Combine(tilesetDir, Path.ChangeExtension(Path.GetFileName(inputFilePath),options.OutputMeshExtension));
-                string inputImagePath = Path.Combine(inputDir, Path.ChangeExtension(Path.GetFileName(inputFilePath), options.InputImageExtension));
-                mesh.Save(outputFilePath, File.Exists(inputImagePath) ? inputImagePath : null);
+
+                //save data
+                string outputFilePath = Path.Combine(tilesetDir, Path.ChangeExtension(Path.GetFileName(inputFilePath), options.OutputMeshExtension));
+                outputFilePath = StringHelper.NormalizeSlashes(outputFilePath);
+
+                string inputImagePath = Path.Combine(inputDir, Path.ChangeExtension(Path.GetFileName(inputFilePath), options.ImageFormat));
+                inputImagePath = StringHelper.NormalizeSlashes(inputImagePath);
+
+                string outputImagePath = Path.ChangeExtension(inputImagePath, options.OutputImageExtension);
+                if (inputImagePath != outputImagePath && !File.Exists(outputImagePath))
+                {
+                    pipeline.LoadImage(inputImagePath).Save<byte>(outputImagePath);
+                }
+                mesh.Save(outputFilePath, File.Exists(inputImagePath) ? outputImagePath : null);
             }
             );
-
-            pipeline.LogInfo("modifying tileset json");
-            {
-                string inputTilesetJSONPath = Path.Combine(inputDir, "tileset.json");
-                string jsonData = File.ReadAllText(inputTilesetJSONPath);
-                Pipeline.Tile3D.Tileset tileset = JsonConvert.DeserializeObject<Pipeline.Tile3D.Tileset>(jsonData);
-
-                //convert all bounds to y up
-                List<Tile> toProcess = new List<Tile>();
-                toProcess.Add(tileset.Root);
-                while (toProcess.Any())
-                {
-                    Tile curTile = toProcess.First();
-                    toProcess.RemoveAt(0);
-
-                    curTile.BoundingVolume.Box = ConvertBoundingBoxToYUp(curTile.BoundingVolume.Box);
-                    toProcess.AddRange(curTile.Children);
-                }
-
-                jsonData = JsonConvert.SerializeObject(tileset, Newtonsoft.Json.Formatting.None);
-
-                //HACK: Issue #602: to emulate the previous version of tilest.json that asttro uses
-                jsonData = jsonData.Replace("uri", "url");
-
-                string outputJSONPath = Path.Combine(tilesetDir, "tileset.json");
-                File.WriteAllText(outputJSONPath, jsonData);
-            }
-
-            // create master manifest
-            pipeline.LogInfo("Creating master manifest");
-            CreateMasterManifest(meshFrame, outputPath, manifestPath, imageObservations);
-
-            pipeline.LogInfo("converted to legacy scene successfully");
-            */
-
-            // TODO: upload to s3
-
+        }
 
         private string BuildASTTROScene()
         {
-            //TODO: verify meshframe is newest sitedrive
-           
             string manifestPath = null;
             {
                 var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
@@ -145,31 +174,13 @@ namespace OPS.LandformUtil
             return Tile3DBuilder.BoundsToBox(bb);
         }
 
-        //private void CreateMasterManifest(string outputFrame, string astroOutputPath, string manifestPath,
-        //                                 IEnumerable<Observation> imageObservations)
-        //{
-        //    pipeline.LogInfo("Building master manifest");
-        //    int numNavcams = 0;
-        //    int numMastcams = 0;
-        //    foreach (var obs in imageObservations)
-        //    {
-        //        PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
-        //        if (mission.IsNavcam(mission.GetRoverProductCamera(parser.InstrumentId)))
-        //            numNavcams++;
-        //        else if (mission.IsMastcam(mission.GetRoverProductCamera(parser.InstrumentId)))
-        //            numMastcams++;
-        //    }
-        //    CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath),
-        //                         Path.Combine(astroOutputPath, "mastermanifest.xml"),
-        //                         outputFrame, numNavcams, numMastcams);
-        //}
-
-        //string LocalPathToS3Url(string localRoot, string localPath)
-        //{
-        //    string relativePath =
-        //        StringHelper.NormalizeSlashes(localPath.Substring(Path.GetDirectoryName(localRoot).Length + 1));
-        //    return StringHelper.NormalizeUrl(options.OutputS3Bucket + relativePath, "s3://", false);
-        //}
+        string LocalPathToS3Url(string localRoot, string localPath)
+        {
+            string relativePath = localPath.Substring(Path.GetDirectoryName(localRoot).Length + 1);
+            string bucketPath = Path.Combine(options.OutputS3Bucket, relativePath);
+            bucketPath = StringHelper.NormalizeSlashes(bucketPath);
+            return StringHelper.NormalizeUrl(bucketPath, "s3://", false);
+        }
 
         static private void AddAttributeXml(XmlNode node, string name, string value)
         {
@@ -178,6 +189,7 @@ namespace OPS.LandformUtil
             node.Attributes.Append(att);
 
         }
+
         private void CreateMasterManifest(string sceneManifestUrl, string masterManifestPath, string primarySiteDrive,
                                               int navCams, int mastCams)
         {
