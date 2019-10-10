@@ -14,8 +14,8 @@ using System.Xml;
 
 namespace OPS.LandformUtil
 {
-    [Verb("local-convert-to-ASTTRO-scene", HelpText = "convert a tileset to a ASTTRO scene")]
-    public class LocalConvertToASTTROSceneOptions : TilingCommandOptions
+    [Verb("local-convert-to-ASTTRO", HelpText = "convert a tileset to a ASTTRO scene")]
+    public class LocalConvertToASTTROOptions : TextureCommandOptions
     {
         // input related
         [Option(Default = null, HelpText = "input tileset json (tiles assumed to be in same folder), search project storage if omitted")]
@@ -29,20 +29,16 @@ namespace OPS.LandformUtil
 
         [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")]
         public string OutputMeshExtension { get; set; }
-
-       
     }
 
-    public class LocalConvertToASTTRO : TilingCommand
+    public class LocalConvertToASTTRO : TextureCommand
     {
         private const string OutputDirectory = "ASTTRO";
 
-        private LocalConvertToASTTROSceneOptions options;
+        private LocalConvertToASTTROOptions options;
         private string legacySceneManifestPath;
-
-        private string outputPath;
-
-        public LocalConvertToASTTRO(LocalConvertToASTTROSceneOptions options) : base(options)
+    
+        public LocalConvertToASTTRO(LocalConvertToASTTROOptions options) : base(options)
         {
             this.options = options;
         }
@@ -60,12 +56,16 @@ namespace OPS.LandformUtil
 
                 RunPhase("build scene manifest", () => { legacySceneManifestPath = BuildASTTROScene(); });
             }
-            catch
+            catch (Exception ex)
             {
-                
+                pipeline.LogException(ex);
+                return 1;
             }
 
+            StopStopwatch();
 
+            return 0;
+        }
             /*
           
            
@@ -121,29 +121,20 @@ namespace OPS.LandformUtil
             */
 
             // TODO: upload to s3
-            return 0;
-        }
+
 
         private string BuildASTTROScene()
         {
-            //TODO: verify it is a numeric sitedrive mesh frame
-
-            var meshFrame = options.MeshFrame;
-            FrameTransform.ParseFrameName(ref meshFrame, out bool specificSiteDrive);
-            if (!specificSiteDrive)
-            {
-                pipeline.LogError("unsupported mesh frame: " + meshFrame + ". ASTTRO wants a sitedrive to be at origin.");
-                return 1;
-            }
-
+            //TODO: verify meshframe is newest sitedrive
+           
             string manifestPath = null;
             {
-                var RASLRecords =
-                    imageObservations.Select(x => new ASTTRO.FileRecord(new System.Uri(x.Url).LocalPath));
-                EmtToScene.CreateLegacyScene(RASLRecords, outputPath, out manifestPath, meshFrame);
+                var RASLRecords = imageObservations.Select(x => new EmtToScene.FileRecord(new System.Uri(x.Url).LocalPath));
+                EmtToScene.CreateLegacyScene(RASLRecords, localOutputPath, out manifestPath, pipeline.Logger, meshFrame);
             }
 
-            throw new NotImplementedException();
+            pipeline.LogInfo("ASTTRO scene manifest written at: {0}", manifestPath);
+            return manifestPath;
         }
 
         private List<double> ConvertBoundingBoxToYUp(List<double> box)
@@ -154,31 +145,31 @@ namespace OPS.LandformUtil
             return Tile3DBuilder.BoundsToBox(bb);
         }
 
-        private void CreateMasterManifest(string outputFrame, string astroOutputPath, string manifestPath,
-                                         IEnumerable<Observation> imageObservations)
-        {
-            pipeline.LogInfo("Building master manifest");
-            int numNavcams = 0;
-            int numMastcams = 0;
-            foreach (var obs in imageObservations)
-            {
-                PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
-                if (mission.IsNavcam(mission.GetRoverProductCamera(parser.InstrumentId)))
-                    numNavcams++;
-                else if (mission.IsMastcam(mission.GetRoverProductCamera(parser.InstrumentId)))
-                    numMastcams++;
-            }
-            CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath),
-                                 Path.Combine(astroOutputPath, "mastermanifest.xml"),
-                                 outputFrame, numNavcams, numMastcams);
-        }
+        //private void CreateMasterManifest(string outputFrame, string astroOutputPath, string manifestPath,
+        //                                 IEnumerable<Observation> imageObservations)
+        //{
+        //    pipeline.LogInfo("Building master manifest");
+        //    int numNavcams = 0;
+        //    int numMastcams = 0;
+        //    foreach (var obs in imageObservations)
+        //    {
+        //        PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
+        //        if (mission.IsNavcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+        //            numNavcams++;
+        //        else if (mission.IsMastcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+        //            numMastcams++;
+        //    }
+        //    CreateMasterManifest(LocalPathToS3Url(astroOutputPath, manifestPath),
+        //                         Path.Combine(astroOutputPath, "mastermanifest.xml"),
+        //                         outputFrame, numNavcams, numMastcams);
+        //}
 
-        string LocalPathToS3Url(string localRoot, string localPath)
-        {
-            string relativePath =
-                StringHelper.NormalizeSlashes(localPath.Substring(Path.GetDirectoryName(localRoot).Length + 1));
-            return StringHelper.NormalizeUrl(options.OutputS3Bucket + relativePath, "s3://", false);
-        }
+        //string LocalPathToS3Url(string localRoot, string localPath)
+        //{
+        //    string relativePath =
+        //        StringHelper.NormalizeSlashes(localPath.Substring(Path.GetDirectoryName(localRoot).Length + 1));
+        //    return StringHelper.NormalizeUrl(options.OutputS3Bucket + relativePath, "s3://", false);
+        //}
 
         static private void AddAttributeXml(XmlNode node, string name, string value)
         {
