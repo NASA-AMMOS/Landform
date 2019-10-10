@@ -21,11 +21,7 @@ namespace OPS.LandformUtil
     [Verb("local-convert-to-ASTTRO", HelpText = "convert a tileset to a ASTTRO scene")]
     public class LocalConvertToASTTROOptions : TextureCommandOptions
     {
-        // input related //TODO: implement
-        //[Option(Default = null, HelpText = "input tileset json (tiles assumed to be in same folder), search project storage if omitted")]
-        //public string InputTileset { get; set; }
-
-        [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")] //should pull from tiling project?
+        [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")]
         public string OutputMeshExtension { get; set; }
 
         [Option(Required = false, Default = "jpg", HelpText = "output image Extension")]
@@ -33,6 +29,9 @@ namespace OPS.LandformUtil
 
         [Option(Required = false, Default = "m20-rps-asttro-terrain", HelpText = "output s3 bucket (used for pointing in master manifest)")]
         public string OutputS3Bucket { get; set; }
+
+        [Option(Required = false, Default = ".s3-us-gov-west-1.amazonaws.com", HelpText = "domain used for master manifest")]
+        public string BucketDomain { get; set; }
     }
 
     public class LocalConvertToASTTRO : TextureCommand
@@ -258,7 +257,7 @@ namespace OPS.LandformUtil
             AddAttributeXml(manifest, "color", "0.0");
             AddAttributeXml(manifest, "grayscale", "1.0");
             AddAttributeXml(manifest, "orbital", "0.0");
-            manifest.InnerText = CloudPipeline.ConvertS3UrlToHttps(sceneManifestUrl,".s3-us-gov-west-1.amazonaws.com");
+            manifest.InnerText = CloudPipeline.ConvertS3UrlToHttps(sceneManifestUrl,options.BucketDomain);
 
             StringBuilder sb = new StringBuilder();
             XmlWriterSettings settings = new XmlWriterSettings();
