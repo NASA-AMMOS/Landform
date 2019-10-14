@@ -1,3 +1,4 @@
+//#define DEBUG_PLACES
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -34,10 +35,10 @@ namespace OPS.Pipeline
         public string AuthCookieValue { get; set; }
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_FILE")]
-        public string AuthCookieFile { get; set; } = "~/.cssotoken/ssosession";
+        public string AuthCookieFile { get; set; } = "~/.cssotoken/dev/ssosession";
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
-        public string View { get; set; } = "localized_interp"; //MSL: best_tactical, localized_pos, localized_interp 
+        public string View { get; set; } = "best_tactical"; //MSL: best_tactical, localized_pos, localized_interp 
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
         public string Url { get; set; } = "https://places-dev.m20-dev.jpl.nasa.gov"; //M2020 dev copy of MSL data
@@ -69,7 +70,7 @@ namespace OPS.Pipeline
         //we lock on it to serialize requests
         //that handles the case of launching multiple initial requests for the same query in parallel
         //query => response
-        Dictionary<string, XmlDocument> cache = new Dictionary<string, XmlDocument>();
+        Dictionary<string, string> cache = new Dictionary<string, string>();
 
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
@@ -124,7 +125,7 @@ namespace OPS.Pipeline
             }
         }
 
-        private XmlDocument Fetch(string url)
+        private string Fetch(string url)
         {
             lock (cache)
             {
@@ -170,52 +171,112 @@ namespace OPS.Pipeline
                                                       response.StatusCode, url, response.ErrorMessage));
                 }
                 
-                XmlDocument document = new XmlDocument();
-                try
-                {
-                    document.LoadXml(response.Content);
-                }
-                catch (System.Xml.XmlException ex)
-                {
-                    cache[url] = null;
-                    throw new Exception(string.Format("Error parsing response from Places DB for request '{0}': {1}",
-                                                      url, ex.Message));
-                }
-                
-                cache[url] = document;
+                string content = response.Content;
+                cache[url] = content;
 
-                return document;
+#if DEBUG_PLACES
+                Console.WriteLine("MSLPlaces request: {0}, response:\n{1}", url, content);
+#endif
+
+                return content;
             }
         }
-                
-        private Vector3 GetOffset(XmlDocument doc)
+
+        private XmlDocument ParseXml(string url, string response)
         {
-            XmlNodeList nodes = doc.GetElementsByTagName("offset");
-            if (nodes.Count != 1)
+            try
             {
-                throw new MSLPlacesException("Unexpected number of offsets in places query");
+                XmlDocument doc = new XmlDocument();
+                doc.LoadXml(response);
+                return doc;
             }
-            return new Vector3(double.Parse(nodes[0].Attributes["x"].Value),
-                               double.Parse(nodes[0].Attributes["y"].Value),
-                               double.Parse(nodes[0].Attributes["z"].Value));
+            catch (System.Xml.XmlException ex)
+            {
+                throw new Exception(string.Format("Error parsing response from Places DB for request {0}: {1}",
+                                                  url, ex.Message));
+            }
+        }
+
+        private class JsonTranslation
+        {
+            public double[] offset = new double[0];
+        }
+
+        private class JsonDocument
+        {
+            public JsonTranslation[] translations = new JsonTranslation[0];
+        }
+
+        private JsonDocument ParseJson(string url, string response)
+        {
+            return JsonHelper.FromJson<JsonDocument>(response);
+        }
+
+        private Vector3 GetOffset(string url)
+        {
+            string response = Fetch(url);
+            Vector3 offset = new Vector3();
+            if (response.StartsWith("{"))
+            {
+                JsonDocument doc = ParseJson(url, response);
+                var translations = doc.translations;
+                if (translations.Length != 1)
+                {
+                    throw new MSLPlacesException("Unexpected number of offsets in places query");
+                }
+                offset = new Vector3(translations[0].offset[0], translations[0].offset[1], translations[0].offset[2]);
+            }
+            else
+            {
+                XmlDocument doc = ParseXml(url, response);
+                XmlNodeList nodes = doc.GetElementsByTagName("offset");
+                if (nodes.Count != 1)
+                {
+                    throw new MSLPlacesException("Unexpected number of offsets in places query");
+                }
+                offset = new Vector3(double.Parse(nodes[0].Attributes["x"].Value),
+                                     double.Parse(nodes[0].Attributes["y"].Value),
+                                     double.Parse(nodes[0].Attributes["z"].Value));
+            }
+#if DEBUG_PLACES
+            Console.WriteLine("MSLPlaces request {0}, offset {1}", url, offset);
+#endif
+            return offset;
         }
 
         private double GetEllipsoidRadius()
         {
             string url = string.Format("rmc/orbital(0)/metadata");
-            XmlDocument document = Fetch(url);
-            if (document != null)
+            string response = Fetch(url);
+            double radius = 0;
+            if (response.StartsWith("{"))
             {
-                foreach (XmlElement itemNode in document.GetElementsByTagName("item"))
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/752
+                throw new MSLPlacesException("MSLPlaces orbital metadata Json TODO");
+            }
+            else
+            {
+                XmlDocument doc = ParseXml(url, response);
+                bool ok = false;
+                foreach (XmlElement itemNode in doc.GetElementsByTagName("item"))
                 {
                     XmlNodeList elList = itemNode.GetElementsByTagName("key");
                     if (elList.Count == 1 && elList[0].InnerText.Contains("ellipsoid_radius"))
                     {
-                        return double.Parse(itemNode.GetElementsByTagName("value")[0].InnerText);
+                        radius = double.Parse(itemNode.GetElementsByTagName("value")[0].InnerText);
+                        ok = true;
+                        break;
                     }
                 }
+                if (!ok)
+                {
+                    throw new MSLPlacesException("ellipsoid_radius not found in orbital metadata");
+                }
             }
-            throw new Exception("ellipsoid_radius not found in orbital metadata");
+#if DEBUG_PLACES
+            Console.WriteLine("MSLPlaces request {0}, radius {1}", url, radius);
+#endif
+            return radius;
         }
 
         /// <summary>
@@ -228,7 +289,7 @@ namespace OPS.Pipeline
                 throw new Exception("ellipsoid radius not available");
             }
             string url = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)", view, sd.Site, sd.Drive);
-            Vector3 v = GetOffset(Fetch(url));
+            Vector3 v = GetOffset(url);
             // x is northing, y is easting
             double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
             double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
@@ -249,7 +310,7 @@ namespace OPS.Pipeline
             {
                 url = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSite);
             }
-            return GetOffset(Fetch(url));
+            return GetOffset(url);
         }
 
         /// <summary>
