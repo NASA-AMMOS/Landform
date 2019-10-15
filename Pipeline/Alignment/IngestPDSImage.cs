@@ -241,8 +241,7 @@ namespace OPS.Pipeline
                                                       JsonHelper.ToJson(cameraModel),
                                                       mission.UseForReconstruction(parser),
                                                       parser.Site, parser.Drive, parser.ProductId.Version,
-                                                      cameraName, parser.ImageSizeType.ToString(),
-                                                      parser.ProducingInstitution.ToString(),
+                                                      cameraName, parser.ProducingInstitution.ToString(),
                                                       metadata.Width, metadata.Height, metadata.Bands,
                                                       metadata.BitDepth, mission.DayNumber(parser), index);
 
