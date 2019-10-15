@@ -64,7 +64,6 @@ namespace OPS.Pipeline
         }
     }
 
-
     public class OPGSProductId : RoverProductId
     {
         protected string prodType, geometry, site, drive;
@@ -151,7 +150,6 @@ namespace OPS.Pipeline
             id.producer = productId.Substring(51, 1);
             id.version = productId.Substring(52, 2);
 
-            // TODO: handle BL and BR front hazcam codes
             return id;
         }
 

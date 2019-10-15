@@ -33,7 +33,7 @@ namespace OPS.Pipeline
     }
 
     /// <summary>
-    /// Also See Mission.{IsHazcam,IsMastrcam,IsNavcam}()
+    /// Also See Mission.{IsHazcam,IsMastcam,IsNavcam}()
     /// </summary>
     public static class RoverCamera
     {
