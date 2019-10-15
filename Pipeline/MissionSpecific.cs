@@ -667,7 +667,6 @@ namespace OPS.Pipeline
                             nearFocus /= 1000.0; //mahli is in millimeters
                         }
                     }
-
                     return nearFocus;
                 }
             }
@@ -733,11 +732,24 @@ namespace OPS.Pipeline
             return TranslateCamera(parser.ProductId.Camera).ToString();
         }
 
-        public override double GetFocalLengthMM(RoverProductCamera rovProdCam) { throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet"); }
-        public override double GetSensorPixelSizeMM(RoverProductCamera camera) { throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet"); }
+        public override double GetFocalLengthMM(RoverProductCamera rovProdCam)
+        {
+            throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet");
+        }
 
-        public override double? GetMaximumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet"); }
-        public override double GetMinimumFocusDistance(PDSMetadata metadata) { throw new NotImplementedException("min focus distance not implemented for 2020 instruments yet"); }
+        public override double GetSensorPixelSizeMM(RoverProductCamera camera) {
+            throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet");
+        }
+
+        public override double? GetMaximumFocusDistance(PDSMetadata metadata)
+        {
+            throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet");
+        }
+
+        public override double GetMinimumFocusDistance(PDSMetadata metadata)
+        {
+            throw new NotImplementedException("min focus distance not implemented for 2020 instruments yet");
+        }
 
         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
         public override bool AllowPlacesDB()
