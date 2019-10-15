@@ -112,21 +112,10 @@ namespace OPS.Pipeline
 
     public class OPGSProductId : RoverProductId
     {
-        protected static Dictionary<string, RoverProductType> prodToType;
         protected string prodType = null,
                          geometry = null,
                          site = null,
                          drive = null;
-
-
-        static OPGSProductId()
-        {
-            prodToType = new Dictionary<string, RoverProductType>();
-            prodToType.Add("RAS", RoverProductType.Image);
-            prodToType.Add("RNG", RoverProductType.Range);
-            prodToType.Add("XYZ", RoverProductType.XYZ);
-            prodToType.Add("UVW", RoverProductType.NormalMap);
-        }
 
         public override RoverProductGeometry Geometry
         {
@@ -149,11 +138,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (prodToType.ContainsKey(prodType))
-                {
-                    return prodToType[prodType];
-                }
-                return RoverProductType.Unknown;
+                return RoverProduct.FromRDRProductType(prodType);
             }
         }
 

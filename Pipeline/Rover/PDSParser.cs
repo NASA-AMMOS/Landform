@@ -154,43 +154,11 @@ namespace OPS.Pipeline
                 if (metadata.HasKey("DERIVED_IMAGE_PARMS", "DERIVED_IMAGE_TYPE"))
                 {
                     string imageType = metadata.ReadAsString("DERIVED_IMAGE_PARMS", "DERIVED_IMAGE_TYPE");
-                    if (imageType == "IMAGE")
-                    {
-                       return RoverProductType.Image;
-                    }
-                    else if (imageType == "MASK")
-                    {
-                       return RoverProductType.RoverMask;
-                    }
-                    else if (imageType == "RANGE_MAP")
-                    {
-                       return RoverProductType.Range;
-                    }
-                    else if (imageType == "REACHABILITY_MAP")
-                    {
-                       return RoverProductType.ReachabilityMap;
-                    }
-                    else if (imageType == "XYZ_MAP")
-                    {
-                       return RoverProductType.XYZ;
-                    }
-                    else if (imageType == "RANGE_ERROR_MAP")
-                    {
-                       return RoverProductType.RangeErrorMap;
-                    }
-                    else if (imageType == "UVW_MAP")
-                    {
-                       return RoverProductType.NormalMap;
-                    }
-                    else if (imageType == "XYZ_ERROR_MAP")
-                    {
-                       return RoverProductType.XYZErrorMap;
-                    }
+                    return RoverProduct.FromPDSDerivedImageType(imageType);
                 }
-                else if(this.ProductId.ProductType != RoverProductType.Unknown)
+                else if (this.ProductId.ProductType != RoverProductType.Unknown)
                 {
-                    //fallback to filename
-                    return this.ProductId.ProductType;
+                    return this.ProductId.ProductType; //fallback to filename
                 }
                 
                 return RoverProductType.Unknown;

@@ -101,13 +101,57 @@ namespace OPS.Pipeline
     {
         Unknown,
         Image,
-        Range,
         RoverMask,
-        ReachabilityMap,
+        Range,
         XYZ,
-        RangeErrorMap,
         NormalMap,
+        RangeErrorMap,
         XYZErrorMap
+    }
+
+    public static class RoverProduct
+    {
+        private static Dictionary<string, RoverProductType> pdsDerivedImageTypes =
+            new Dictionary<string, RoverProductType>()
+        {
+            { "IMAGE", RoverProductType.Image },
+            { "MASK", RoverProductType.RoverMask },
+            { "RANGE_MAP", RoverProductType.Range },
+            { "XYZ_MAP", RoverProductType.XYZ },
+            { "UVW_MAP", RoverProductType.NormalMap },
+            { "RANGE_ERROR_MAP", RoverProductType.RangeErrorMap },
+            { "XYZ_ERROR_MAP", RoverProductType.XYZErrorMap },
+        };
+
+        private static Dictionary<string, RoverProductType> rdrProductTypes =
+            new Dictionary<string, RoverProductType>()
+        {
+            { "RAS", RoverProductType.Image },
+            { "MSK", RoverProductType.RoverMask },
+            { "RNG", RoverProductType.Range },
+            { "XYZ", RoverProductType.XYZ },
+            { "UVW", RoverProductType.NormalMap },
+            { "RNE", RoverProductType.RangeErrorMap },
+            { "XYE", RoverProductType.XYZErrorMap },
+        };
+
+        public static RoverProductType FromPDSDerivedImageType(string pdsType)
+        {
+            if (pdsDerivedImageTypes.ContainsKey(pdsType))
+            {
+                return pdsDerivedImageTypes[pdsType];
+            }
+            return RoverProductType.Unknown;
+        }
+
+        public static RoverProductType FromRDRProductType(string rdrType)
+        {
+            if (rdrProductTypes.ContainsKey(rdrType))
+            {
+                return rdrProductTypes[rdrType];
+            }
+            return RoverProductType.Unknown;
+        }
     }
 
     public enum RoverProductProducer
