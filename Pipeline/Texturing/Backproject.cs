@@ -332,6 +332,7 @@ namespace OPS.Pipeline
 
             //build contexts and call backproject
             string maskType = ObservationType.RoverMask.ToString();
+            var comparator = opts.mission.GetRoverObservationComparator();
             var allContexts = new List<BackprojectContext>();
             foreach (var obs in intersectingObservations)
             {
@@ -345,6 +346,7 @@ namespace OPS.Pipeline
 
                 var maskObs = opts.observationCache.GetAllObservationsForFrame(opts.frameCache.GetFrame(obs.FrameName))
                     .Where(o => o.ObservationType == maskType)
+                    .OrderBy(o => (RoverObservation)o, comparator)
                     .FirstOrDefault();
 
                 allContexts.Add(new BackprojectContext(obs, maskObs, obsToHull[obs.Name], obsToMesh));

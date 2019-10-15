@@ -217,6 +217,7 @@
     <Compile Include="Rover\MSLPlaces.cs" />
     <Compile Include="Rover\PDSImage.cs" />
     <Compile Include="Rover\RoverMasker.cs" />
+    <Compile Include="Rover\RoverObservationComparator.cs" />
     <Compile Include="StartWorker.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />

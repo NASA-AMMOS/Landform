@@ -107,8 +107,12 @@ namespace OPS.Landform
             if (observationCache != null)
             {
                 string imageObs = ObservationType.Image.ToString();
-                imageObservations =
-                    observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+                var comparator = mission.GetRoverObservationComparator();
+                imageObservations = observationCache.GetAllObservations()
+                    .Where(obs => obs.ObservationType == imageObs)
+                    .GroupBy(obs => obs.FrameName)
+                    .Select(group => group.OrderBy(obs => (RoverObservation)obs, comparator).First())
+                    .ToList();
                 indexedObservations = new Dictionary<int, Observation>();
                 foreach (var obs in imageObservations)
                 {
@@ -223,6 +227,7 @@ namespace OPS.Landform
         protected void BuildObservationImageMasks()
         {
             string maskType = ObservationType.RoverMask.ToString();
+            var comparator = mission.GetRoverObservationComparator();
             int no = imageObservations.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(imageObservations, obs => {
@@ -245,6 +250,7 @@ namespace OPS.Landform
 
                     var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
                         .Where(o => o.ObservationType == maskType)
+                        .OrderBy(o => (RoverObservation)o, comparator)
                         .FirstOrDefault();
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
