@@ -46,7 +46,7 @@ namespace OPS.Pipeline
             {
                 float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
                 
-                //ROASTT: single float missing constant for 3 channel navcam
+                //ROASTT18 wart: single float missing constant for 3 channel navcam
                 if(missing.Count() == 1 && src.Bands > 1)
                 {
                     missing = Enumerable.Repeat<float>(missing.First(), src.Bands).ToArray();

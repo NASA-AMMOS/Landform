@@ -8,7 +8,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020 }
+    public enum Mission { None, MSL, M2020, ROASTT18 }
 
     public abstract class MissionSpecific
     {
@@ -19,6 +19,7 @@ namespace OPS.Pipeline
                 case Mission.None: return null;
                 case Mission.MSL: return new MissionMSL();
                 case Mission.M2020: return new MissionM2020();
+                case Mission.ROASTT18: return new MissionROASTT18();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -75,7 +76,10 @@ namespace OPS.Pipeline
             return true;
         }
 
-        public abstract int DayNumber(PDSParser parser);
+        public virtual int DayNumber(PDSParser parser)
+        {
+            return parser.PlanetDayNumber;
+        }
 
         public class RoverObservationComparator : IComparer<RoverObservation>
         {
@@ -577,11 +581,6 @@ namespace OPS.Pipeline
             return true;
         }
 
-        public override int DayNumber(PDSParser parser)
-        {
-            return parser.PlanetDayNumber;
-        }
-
         public override RoverMasker GetMasker()
         {
             return new MSLRoverMasker(this);
@@ -676,13 +675,6 @@ namespace OPS.Pipeline
 
     public class MissionM2020 : MissionSpecific
     {
-        // ROASTT: bug prevents RMC from being used for frame names. This workaround
-        // will break multiple images with different filters resolving to same frame.
-        public override string RoverMotionCounter(PDSParser parser)
-        {          
-            return ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
-        }
-
         public override bool IsHazcam(RoverProductCamera camera)
         {
             return base.IsHazcam(camera) ||
@@ -693,19 +685,6 @@ namespace OPS.Pipeline
         {
             return base.IsMastcam(camera) ||
                 camera == RoverProductCamera.MastcamZLeft || camera == RoverProductCamera.MastcamZRight;
-        }
-
-        // ROASTT: some images have invalid PLANET_DAY_NUMBER
-        public override int DayNumber(PDSParser parser)
-        {
-            try
-            {
-                return parser.PlanetDayNumber;
-            }
-            catch (MetadataException)
-            {
-                return ((M2020OPGSProductId)parser.ProductId).GetDayNumber();
-            }
         }
 
         public override RoverMasker GetMasker()
@@ -724,14 +703,6 @@ namespace OPS.Pipeline
                 case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
                 default: return cam;
             }
-        }
-
-        /// <summary>
-        /// ROASTT: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
-        /// </summary>
-        public override string CameraName(PDSParser parser)
-        {
-            return TranslateCamera(parser.ProductId.Camera).ToString();
         }
 
         public override double GetFocalLengthMM(RoverProductCamera rovProdCam)
@@ -757,6 +728,35 @@ namespace OPS.Pipeline
         public override bool AllowPlacesDB()
         {
             return false;
+        }
+    }
+
+    public class MissionROASTT18 : MissionM2020 
+    {
+        // ROASTT18: bug prevents RMC from being used for frame names. This workaround
+        // will break multiple images with different filters resolving to same frame.
+        public override string RoverMotionCounter(PDSParser parser)
+        {          
+            return ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
+        }
+
+        // ROASTT18: some images have invalid PLANET_DAY_NUMBER
+        public override int DayNumber(PDSParser parser)
+        {
+            try
+            {
+                return parser.PlanetDayNumber;
+            }
+            catch (MetadataException)
+            {
+                return ((M2020OPGSProductId)parser.ProductId).GetDayNumber();
+            }
+        }
+
+        // ROASTT18: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
+        public override string CameraName(PDSParser parser)
+        {
+            return TranslateCamera(parser.ProductId.Camera).ToString();
         }
     }
 }
