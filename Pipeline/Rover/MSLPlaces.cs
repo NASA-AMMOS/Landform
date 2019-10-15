@@ -63,6 +63,8 @@ namespace OPS.Pipeline
     /// </summary>
     public class MSLPlaces
     {
+        private ILogger logger;
+
         private string view;
         private string cookieValue;
 
@@ -80,6 +82,8 @@ namespace OPS.Pipeline
 
         public MSLPlaces(ILogger logger = null)
         {
+            this.logger = logger;
+
             var config = PlacesConfig.Instance;
 
             if (!string.IsNullOrEmpty(config.AuthCookieValue))
@@ -182,12 +186,24 @@ namespace OPS.Pipeline
                 string content = response.Content;
                 cache[url] = content;
 
-#if DEBUG_PLACES
-                Console.WriteLine("MSLPlaces request: {0}, response:\n{1}", url, content);
-#endif
+                Debug("MSLPlaces request: {0}, response:\n{1}", url, content);
 
                 return content;
             }
+        }
+
+        private void Debug(string msg, params Object[] args)
+        {
+#if DEBUG_PLACES
+            if (logger != null)
+            {
+                logger.LogInfo(msg, args);
+            }
+            else
+            {
+                Console.WriteLine(msg, args);
+            }
+#endif
         }
 
         private XmlDocument ParseXml(string url, string response)
@@ -246,9 +262,9 @@ namespace OPS.Pipeline
                                      double.Parse(nodes[0].Attributes["y"].Value),
                                      double.Parse(nodes[0].Attributes["z"].Value));
             }
-#if DEBUG_PLACES
-            Console.WriteLine("MSLPlaces request {0}, offset {1}", url, offset);
-#endif
+
+            Debug("MSLPlaces request {0}, offset {1}", url, offset);
+
             return offset;
         }
 
@@ -281,9 +297,9 @@ namespace OPS.Pipeline
                     throw new MSLPlacesException("ellipsoid_radius not found in orbital metadata");
                 }
             }
-#if DEBUG_PLACES
-            Console.WriteLine("MSLPlaces request {0}, radius {1}", url, radius);
-#endif
+
+            Debug("MSLPlaces request {0}, radius {1}", url, radius);
+
             return radius;
         }
 
