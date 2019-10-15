@@ -175,8 +175,8 @@ namespace OPS.Pipeline
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
-                var cameraName = mission.CameraName(parser);
-                var observationFrameName = cameraName + "_" + mission.RoverMotionCounter(parser);
+                var cameraType = mission.CameraType(parser);
+                var observationFrameName = cameraType.ToString() + "_" + mission.RoverMotionCounter(parser);
                 var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
 
@@ -241,7 +241,7 @@ namespace OPS.Pipeline
                                                       JsonHelper.ToJson(cameraModel),
                                                       mission.UseForReconstruction(parser),
                                                       parser.Site, parser.Drive, parser.ProductId.Version,
-                                                      cameraName, parser.ProducingInstitution.ToString(),
+                                                      cameraType, parser.ProducingInstitution.ToString(),
                                                       metadata.Width, metadata.Height, metadata.Bands,
                                                       metadata.BitDepth, mission.DayNumber(parser), index);
 

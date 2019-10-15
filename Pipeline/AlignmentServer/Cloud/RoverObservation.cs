@@ -25,7 +25,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Version;
 
-        public string Sensor;
+        public RoverProductCamera Sensor;
 
         public string Producer;
 
@@ -35,26 +35,14 @@ namespace OPS.Pipeline.AlignmentServer
 
         [DynamoDBIgnore]
         [JsonIgnore]
-        public bool IsMastcam
-        {
-            get
-            {
-                //DEPRECATED use mission specific methods
-                return Sensor == RoverProductCamera.MastcamLeft.ToString() ||
-                    Sensor == RoverProductCamera.MastcamRight.ToString();
-            }
-        }
-
-        [DynamoDBIgnore]
-        [JsonIgnore]
         public string StereoFrameName
         {
             get
             {
-                var cam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), Sensor);
-                if (FrameName.StartsWith(Sensor) && RoverStereoPair.IsStereo(cam))
+                var cameraName = Sensor.ToString();
+                if (FrameName.StartsWith(cameraName) && RoverStereoPair.IsStereo(Sensor))
                 {
-                    return RoverStereoPair.GetStereoCamera(cam).ToString() + FrameName.Substring(Sensor.Length);
+                    return RoverStereoPair.GetStereoCamera(Sensor).ToString() + FrameName.Substring(cameraName.Length);
                 }
                 else
                 {
@@ -67,12 +55,11 @@ namespace OPS.Pipeline.AlignmentServer
         {
             get
             {
-                var cam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), Sensor);
-                if (RoverStereoPair.IsStereoLeft(cam))
+                if (RoverStereoPair.IsStereoLeft(Sensor))
                 {
                     return RoverStereoEye.Left;
                 }
-                else if (RoverStereoPair.IsStereoRight(cam))
+                else if (RoverStereoPair.IsStereoRight(Sensor))
                 {
                     return RoverStereoEye.Right;
                 }
@@ -86,7 +73,7 @@ namespace OPS.Pipeline.AlignmentServer
         protected void IsValidRoverOservation()
         {
             base.IsValid();
-            if (!(Version != null && Sensor != null && Producer != null))
+            if (!(Version != null && Sensor != RoverProductCamera.Unknown && Producer != null))
             {
                 throw new Exception("Missing required property in RoverObservation " + Name +
                                     " Version=" + Version + " Sensor=" + Sensor + " Producer=" + Producer);
@@ -97,7 +84,7 @@ namespace OPS.Pipeline.AlignmentServer
         public RoverObservation() { }
 
         protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel,
-                                   bool useForReconstruction, int site, int drive, string version, string sensor,
+                                   bool useForReconstruction, int site, int drive, string version, RoverProductCamera sensor,
                                    string producer, int width, int height, int bands, int bits,
                                    int day, int index) :
             base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, bands, bits, day,
@@ -143,7 +130,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                               string observationType, string cameraModel, bool useForReconstruction,
-                                              int site, int drive, string version, string sensor,
+                                              int site, int drive, string version, RoverProductCamera sensor,
                                               string producer, int width, int height, int bands, int bits, int day,
                                               int index)
         {

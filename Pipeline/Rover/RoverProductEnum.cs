@@ -152,6 +152,16 @@ namespace OPS.Pipeline
             return IsCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), camType, ignoreCase: true),
                             (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
         }
+
+        public static bool IsCamera(string camType, RoverProductCamera cam)
+        {
+            return IsCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), camType, ignoreCase: true), cam);
+        }
+
+        public static bool IsCamera(RoverProductCamera camType, string cam)
+        {
+            return IsCamera(camType, (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+        }
     }
 
     public enum RoverProductGeometry

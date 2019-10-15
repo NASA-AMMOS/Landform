@@ -453,7 +453,7 @@ namespace OPS.Landform
                 int cameraId = 0;
                 foreach (var cameraConfig in obsByCameraConfig)
                 {
-                    RoverProductCamera roverProdCam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cameraConfig.Key.Sensor);
+                    RoverProductCamera roverProdCam = cameraConfig.Key.Sensor;
                     AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height, cameraConfig.Key.Bands, mission);
 
                     foreach (var obs in cameraConfig.Select(o => o.Obs))

@@ -481,14 +481,14 @@ namespace OPS.Pipeline
             return RoverCamera.FromPDSInstrumentID(instrumentId);
         } 
 
-        public virtual string CameraName(PDSParser parser)
+        public virtual RoverProductCamera CameraType(PDSParser parser)
         {
-            return GetRoverProductCamera(parser.InstrumentId).ToString();
+            return GetRoverProductCamera(parser.InstrumentId);
         }
 
         public virtual string GetObservationFrameName(PDSParser parser)
         {
-            return string.Format("{0}_{1}", CameraName(parser), RoverMotionCounter(parser));
+            return string.Format("{0}_{1}", CameraType(parser), RoverMotionCounter(parser));
         }
         
         public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
@@ -754,9 +754,9 @@ namespace OPS.Pipeline
         }
 
         // ROASTT18: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
-        public override string CameraName(PDSParser parser)
+        public override RoverProductCamera CameraType(PDSParser parser)
         {
-            return TranslateCamera(parser.ProductId.Camera).ToString();
+            return TranslateCamera(parser.ProductId.Camera);
         }
     }
 }
