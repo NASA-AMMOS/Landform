@@ -37,6 +37,34 @@ namespace OPS.Pipeline
     /// </summary>
     public static class RoverCamera
     {
+        private static Dictionary<string, RoverProductCamera> pdsCameraTypes =
+            new Dictionary<string, RoverProductCamera>()
+        {
+            { "FHAZ_LEFT", RoverProductCamera.FrontHazcamLeft },
+            { "FHAZ_RIGHT", RoverProductCamera.FrontHazcamRight },
+            { "RHAZ_LEFT", RoverProductCamera.RearHazcamLeft },
+            { "RHAZ_RIGHT", RoverProductCamera.RearHazcamRight },
+            { "NAV_LEFT", RoverProductCamera.NavcamLeft }, //MSL
+            { "NAV_RIGHT", RoverProductCamera.NavcamRight }, //MSL
+            { "NAVCAM_LEFT", RoverProductCamera.NavcamLeft }, //M2020
+            { "NAVCAM_RIGHT", RoverProductCamera.NavcamRight }, //M2020
+            { "MAST_LEFT", RoverProductCamera.MastcamLeft }, //MSL
+            { "MAST_RIGHT", RoverProductCamera.MastcamRight }, //MSL
+            { "MCZ_LEFT", RoverProductCamera.MastcamZLeft }, //M2020
+            { "MCZ_RIGHT", RoverProductCamera.MastcamZRight }, //M2020
+            { "MAHLI", RoverProductCamera.MAHLI } //MSL
+            //TODO additional M2020 types
+        };
+
+        public static RoverProductCamera FromPDSInstrumentID(string id)
+        {
+            if (pdsCameraTypes.ContainsKey(id))
+            {
+                return pdsCameraTypes[id];
+            }
+            return RoverProductCamera.Unknown;
+        }
+
         public static bool IsCamera(RoverProductCamera camType, RoverProductCamera cam)
         {
             switch (camType)
