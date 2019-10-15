@@ -15,11 +15,6 @@ using RestSharp.Authenticators;
 
 namespace OPS.Pipeline
 {
-    public class MSLPlacesException : Exception
-    {
-        public MSLPlacesException(string msg) : base(msg) { }
-    }
-
     public class PlacesConfig : SingletonConfig<PlacesConfig>
     {
         [ConfigEnvironmentVariable("LANDFORM_PLACES_USERNAME")]
@@ -141,7 +136,7 @@ namespace OPS.Pipeline
                     var doc = cache[url];
                     if (doc == null)
                     {
-                        throw new Exception(string.Format("Places DB request '{0}' failed, not retrying", url));
+                        throw new Exception(string.Format("PlacesDB: request '{0}' failed, not retrying", url));
                     }
                     return doc;
                 }
@@ -179,7 +174,7 @@ namespace OPS.Pipeline
                     response.StatusCode != System.Net.HttpStatusCode.OK)
                 {
                     cache[url] = null;
-                    throw new Exception(string.Format("{0} connecting to Places DB for request '{1}': {2}",
+                    throw new Exception(string.Format("PlacesDB: {0} connecting for request '{1}': {2}",
                                                       response.StatusCode, url, response.ErrorMessage));
                 }
                 
@@ -216,7 +211,7 @@ namespace OPS.Pipeline
             }
             catch (System.Xml.XmlException ex)
             {
-                throw new Exception(string.Format("Error parsing response from Places DB for request {0}: {1}",
+                throw new Exception(string.Format("PlacesDB: error parsing response for request {0}: {1}",
                                                   url, ex.Message));
             }
         }
@@ -246,7 +241,7 @@ namespace OPS.Pipeline
                 var translations = doc.translations;
                 if (translations.Length != 1)
                 {
-                    throw new MSLPlacesException("Unexpected number of offsets in places query");
+                    throw new Exception("PlacesDB: unexpected number of offsets in response");
                 }
                 offset = new Vector3(translations[0].offset[0], translations[0].offset[1], translations[0].offset[2]);
             }
@@ -256,7 +251,7 @@ namespace OPS.Pipeline
                 XmlNodeList nodes = doc.GetElementsByTagName("offset");
                 if (nodes.Count != 1)
                 {
-                    throw new MSLPlacesException("Unexpected number of offsets in places query");
+                    throw new Exception("PlacesDB: unexpected number of offsets in response");
                 }
                 offset = new Vector3(double.Parse(nodes[0].Attributes["x"].Value),
                                      double.Parse(nodes[0].Attributes["y"].Value),
@@ -276,7 +271,7 @@ namespace OPS.Pipeline
             if (response.StartsWith("{"))
             {
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/752
-                throw new MSLPlacesException("MSLPlaces orbital metadata Json TODO");
+                throw new Exception("PlacesDB: orbital metadata Json TODO");
             }
             else
             {
@@ -294,7 +289,7 @@ namespace OPS.Pipeline
                 }
                 if (!ok)
                 {
-                    throw new MSLPlacesException("ellipsoid_radius not found in orbital metadata");
+                    throw new Exception("PlacesDB: ellipsoid_radius not found in orbital metadata");
                 }
             }
 
@@ -310,7 +305,7 @@ namespace OPS.Pipeline
         {
             if (!ellipsoidRadius.HasValue)
             {
-                throw new Exception("ellipsoid radius not available");
+                throw new Exception("PlacesDB: ellipsoid radius not available");
             }
             string url = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)", view, sd.Site, sd.Drive);
             Vector3 v = GetOffset(url);
