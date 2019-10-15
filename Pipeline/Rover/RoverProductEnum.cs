@@ -56,11 +56,52 @@ namespace OPS.Pipeline
             //TODO additional M2020 types
         };
 
+        private static Dictionary<string, RoverProductCamera> rdrCameraTypes =
+            new Dictionary<string, RoverProductCamera>()
+        {
+            { "FL", RoverProductCamera.FrontHazcamLeft },
+            { "FR", RoverProductCamera.FrontHazcamRight },
+            { "RL", RoverProductCamera.RearHazcamLeft },
+            { "RR", RoverProductCamera.RearHazcamRight },
+            { "NL", RoverProductCamera.NavcamLeft },
+            { "NR", RoverProductCamera.NavcamRight },
+            { "ML", RoverProductCamera.MastcamLeft }, //MastcamZLeft for M2020, see MissionM2020.TranslateCamera()
+            { "MR", RoverProductCamera.MastcamRight }, //MastcamZRight for M2020, see MissionM2020.TranslateCamera()
+            { "MH", RoverProductCamera.MAHLI }, //MSL
+            { "BL", RoverProductCamera.FrontHazcamLeftB }, //M2020
+            { "BR", RoverProductCamera.FrontHazcamRightB }, //M2020
+            { "CC", RoverProductCamera.CacheCam }, //M2020
+            { "EA", RoverProductCamera.EDLPUCA }, //M2020
+            { "EB", RoverProductCamera.EDLPUCB }, //M2020
+            { "EC", RoverProductCamera.EDLPUCC }, //M2020
+            { "ED", RoverProductCamera.EDLRDC }, //M2020
+            { "EL", RoverProductCamera.EDLLVS }, //M2020
+            { "ES", RoverProductCamera.EDLDSD }, //M2020
+            { "EU", RoverProductCamera.EDLRUC }, //M2020
+            { "HN", RoverProductCamera.HeliNav }, //M2020
+            { "HS", RoverProductCamera.HeliScout }, //M2020
+            { "MS", RoverProductCamera.MEDASkyCam }, //M2020
+            { "PC", RoverProductCamera.PIXELMCC }, //M2020
+            { "SC", RoverProductCamera.SHERLOCACI }, //M2020
+            { "IL", RoverProductCamera.SHERLOCWATSONLeft }, //M2020
+            { "IR", RoverProductCamera.SHERLOCWATSONRight }, //M2020
+            { "SR", RoverProductCamera.SuperCamRMI } //M2020
+        };
+
         public static RoverProductCamera FromPDSInstrumentID(string id)
         {
             if (pdsCameraTypes.ContainsKey(id))
             {
                 return pdsCameraTypes[id];
+            }
+            return RoverProductCamera.Unknown;
+        }
+
+        public static RoverProductCamera FromRDRInstrumentID(string id)
+        {
+            if (rdrCameraTypes.ContainsKey(id))
+            {
+                return rdrCameraTypes[id];
             }
             return RoverProductCamera.Unknown;
         }

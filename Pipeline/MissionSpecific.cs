@@ -718,6 +718,8 @@ namespace OPS.Pipeline
         {
             switch (cam)
             {
+                //ML and MR in RDR product names for M2020 really mean MastcamZ not Mastcam
+                //and in any case M2020 has only MastcamZ not Mastcam
                 case RoverProductCamera.MastcamLeft: return RoverProductCamera.MastcamZLeft;
                 case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
                 default: return cam;
