@@ -46,6 +46,9 @@ namespace OPS.Pipeline
         //https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places //ROASTT
         //https://places-sstage.m20.jpl.nasa.gov //TT4 - requires m2020-prod-gov credentials
 
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
+        public string ResponseType { get; set; } = "application/xml"; //application/xml or application/json (experimental)
+
         protected override string ConfigFilename()
         {
             return "places";
@@ -160,6 +163,11 @@ namespace OPS.Pipeline
                 
                 var request = new RestRequest();
                 request.Resource = url;
+
+                if (!string.IsNullOrEmpty(config.ResponseType))
+                {
+                    request.AddHeader("Accept", config.ResponseType);
+                }
                 
                 IRestResponse response = client.Execute(request);
                 
