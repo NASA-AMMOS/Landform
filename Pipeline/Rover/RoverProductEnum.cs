@@ -93,7 +93,9 @@ namespace OPS.Pipeline
                 case RoverProductCamera.Mastcam:
                     {
                         return cam == RoverProductCamera.Mastcam ||
-                            cam == RoverProductCamera.MastcamLeft || cam == RoverProductCamera.MastcamRight;
+                            cam == RoverProductCamera.MastcamLeft || cam == RoverProductCamera.MastcamRight ||
+                            cam == RoverProductCamera.MastcamZ ||
+                            cam == RoverProductCamera.MastcamZLeft || cam == RoverProductCamera.MastcamZRight;
                     }
                 case RoverProductCamera.Navcam:
                     {
