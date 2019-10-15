@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 
 namespace OPS.Pipeline
 {
-    
     public class RoverProductId
     {
         public string fullIdString = null;
@@ -101,7 +100,7 @@ namespace OPS.Pipeline
             {
                 result = MSSSProductId.ParseFromMSSS(productId);
             }
-            if(result == null)
+            if (result == null)
             {
                 result = M2020OPGSProductId.ParseFromM2020Name(productId);
             }
@@ -112,10 +111,7 @@ namespace OPS.Pipeline
 
     public class OPGSProductId : RoverProductId
     {
-        protected string prodType = null,
-                         geometry = null,
-                         site = null,
-                         drive = null;
+        protected string prodType, geometry, site, drive;
 
         public override RoverProductGeometry Geometry
         {
@@ -159,18 +155,7 @@ namespace OPS.Pipeline
     public class M2020OPGSProductId : OPGSProductId
     {
 
-        protected string colorFilter = null,
-                 spec = null,
-                 ts0 = null,
-                 venue = null,
-                 ts1 = null,
-                 ts2 = null,
-                 thumb = null,
-                 sequence = null,
-                 camspec = null,
-                 downsample = null,
-                 compression = null,
-                 producer = null;
+        protected string colorFilter, spec, ts0, venue, ts1, ts2, thumb, sequence, camspec, downsample, compression, producer;
 
         public static M2020OPGSProductId ParseFromM2020Name(string productId)
         {
@@ -257,13 +242,7 @@ namespace OPS.Pipeline
 
     public class MSLOPGSProductId : OPGSProductId
     {
-        protected string config = null,
-                         spec = null,
-                         sclk = null,
-                         samp = null,
-                         seqnum = null,
-                         venue = null;
-                
+        protected string config, spec, sclk, samp, seqnum, venue;
 
         public override RoverProductProducer Producer
         {
@@ -277,11 +256,11 @@ namespace OPS.Pipeline
         {
             get
             {
-                if(samp.ToUpper().Equals("F") || samp.ToUpper().Equals("S"))
+                if (samp.ToUpper().Equals("F") || samp.ToUpper().Equals("S"))
                 {
                     return RoverProductSize.Regular;
                 }
-                if(samp.ToUpper().Equals("T"))
+                if (samp.ToUpper().Equals("T"))
                 {
                     return RoverProductSize.Thumbnail;
                 }
@@ -327,15 +306,8 @@ namespace OPS.Pipeline
 
     public class MSSSProductId : RoverProductId
     {
+        protected string sol, fullSeqId, seqLine, cdpidCounter, cdpidComplete, productType, gopCounter, processingCode; 
 
-        protected string sol,
-                         fullSeqId,
-                         seqLine,
-                         cdpidCounter,
-                         cdpidComplete,
-                         productType,
-                         gopCounter,
-                         processingCode; 
         public override RoverProductProducer Producer
         {
             get
@@ -351,6 +323,7 @@ namespace OPS.Pipeline
                 return processingCode.ToUpper().Contains("D");
             }
         }
+
         public bool RadiometricallyCalibrated
         {
             get
