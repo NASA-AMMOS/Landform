@@ -9,8 +9,8 @@ namespace OPS.Pipeline
 {
     public class RoverProductId
     {
-        public string fullIdString = null;
-        protected string inst = null, version = null;
+        public string fullIdString;
+        protected string inst, version;
 
         public virtual RoverProductProducer Producer
         {
@@ -84,7 +84,6 @@ namespace OPS.Pipeline
                 return RoverProductGeometry.Unknown;
             }
         }
-
        
         public override RoverProductType ProductType
         {
