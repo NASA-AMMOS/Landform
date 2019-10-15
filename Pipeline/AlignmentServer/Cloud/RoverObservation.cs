@@ -27,7 +27,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public RoverProductCamera Sensor;
 
-        public string Producer;
+        public RoverProductProducer Producer;
 
         [DynamoDBIgnore]
         [JsonIgnore]
@@ -73,7 +73,7 @@ namespace OPS.Pipeline.AlignmentServer
         protected void IsValidRoverOservation()
         {
             base.IsValid();
-            if (!(Version != null && Sensor != RoverProductCamera.Unknown && Producer != null))
+            if (!(Version != null && Sensor != RoverProductCamera.Unknown && Producer != RoverProductProducer.Unknown))
             {
                 throw new Exception("Missing required property in RoverObservation " + Name +
                                     " Version=" + Version + " Sensor=" + Sensor + " Producer=" + Producer);
@@ -85,7 +85,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel,
                                    bool useForReconstruction, int site, int drive, string version, RoverProductCamera sensor,
-                                   string producer, int width, int height, int bands, int bits,
+                                   RoverProductProducer producer, int width, int height, int bands, int bits,
                                    int day, int index) :
             base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, bands, bits, day,
                  index)
@@ -131,7 +131,7 @@ namespace OPS.Pipeline.AlignmentServer
         public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                               string observationType, string cameraModel, bool useForReconstruction,
                                               int site, int drive, string version, RoverProductCamera sensor,
-                                              string producer, int width, int height, int bands, int bits, int day,
+                                              RoverProductProducer producer, int width, int height, int bands, int bits, int day,
                                               int index)
         {
             if (Find(pipeline, frame.ProjectName, name) != null)

@@ -84,7 +84,6 @@ namespace OPS.Pipeline
         public class RoverObservationComparator : IComparer<RoverObservation>
         {
             private string pointsType = ObservationType.Points.ToString(), rangeType = ObservationType.Range.ToString();
-            private string msss = RoverProductProducer.MSSS.ToString(), opgs = RoverProductProducer.OPGS.ToString();
             private bool preferMSSSToOPGS, preferLinearToNonlinear;
 
             public RoverObservationComparator(bool preferMSSSToOPGS, bool preferLinearToNonlinear)
@@ -112,11 +111,11 @@ namespace OPS.Pipeline
                 }
                 
                 // sort next by producer
-                if (a.Producer == msss && b.Producer == opgs)
+                if (a.Producer == RoverProductProducer.MSSS && b.Producer == RoverProductProducer.OPGS)
                 {
                     return preferMSSSToOPGS ? -1 : 1;
                 }
-                if (a.Producer == opgs && b.Producer == msss)
+                if (a.Producer == RoverProductProducer.OPGS && b.Producer == RoverProductProducer.MSSS)
                 {
                     return preferMSSSToOPGS ? 1 : -1;
                 }
