@@ -230,7 +230,7 @@ namespace OPS.Pipeline
                     // because stereo correlation often uses 2D disparity
                     // which means the recovered surface point for a pixel
                     // may not actually lie on the ray through that pixel
-                    // but for some missions (MSL) we only have range products
+                    // but in some contexts (e.g. MSL using mslice data) we only have range products
                     // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
                     ret.Points = ret.Range;
                     if (opts.RequirePoints && ret.Points == null)

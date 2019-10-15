@@ -200,13 +200,11 @@ namespace OPS.Pipeline
             return id;
         }
 
-        //ROASTT: spacecraft clock not incrementing
         public string GetConcatenatedTimeString()
         {
             return ts0 + "_" + ts1 + "_" + ts2;
         }
 
-        //ROASTT: some images have invalid planet day number in PDS metadata
         public int GetDayNumber()
         {
             return int.Parse(ts0);
