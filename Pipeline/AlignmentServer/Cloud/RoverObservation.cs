@@ -29,6 +29,10 @@ namespace OPS.Pipeline.AlignmentServer
 
         public RoverProductProducer Producer;
 
+        //it might be nice to have this field
+        //but that would introduce a redundancy with Observation.CameraModel.Linear, so avoiding for now
+        //public RoverProductGeometry Geometry;
+
         [DynamoDBIgnore]
         [JsonIgnore]
         public SiteDrive SiteDrive { get { return new SiteDrive(Site, Drive); } }

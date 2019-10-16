@@ -65,10 +65,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string CameraModel;
 
-        //it might be nice to have this field which would be a RoverProductGeometry string (e.g. Linarized, Raw)
-        //but that would introduce a redundancy with CameraModel.Linear, so avoiding for now
-        //public string Geometry;
-
         public bool UseForReconstruction;
 
         public int Width;
