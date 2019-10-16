@@ -100,22 +100,14 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         /// <summary>
-        /// Prevent possible bugs from calling the default Observation.Create method.
+        /// Prevent possible bugs from calling the default Observation.Create() method.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="frame"></param>
-        /// <param name="name"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
-        /// <param name="useForReconstruction"></param>
-        /// <returns></returns>
         public static new Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                              string observationType, string cameraModel, bool useForReconstruction,
                                              int width, int height, int bands, int bits, int day, int version,
                                              int index, bool save)
         {
-            throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
+            throw new NotImplementedException("Call RoverObservation.Create() with rover specific arguments");
         }
 
         /// <summary>
@@ -123,13 +115,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// Names must be unique within a project.
         /// Project is infered from frame.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="frame"></param>
-        /// <param name="name"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
-        /// <returns></returns>
         public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                               string observationType, string cameraModel, bool useForReconstruction,
                                               int site, int drive, RoverProductCamera sensor,
@@ -156,9 +141,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="imageId"></param>
-        /// <returns></returns>
         new public static RoverObservation Find(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<RoverObservation>(name, projectName);

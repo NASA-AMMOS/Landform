@@ -120,11 +120,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// Observation names must be unique within a project.
         /// ProjectId for this observation will be inferred from the supplied Frame object.
         /// </summary>
-        /// <param name="name"></param>
-        /// <param name="frame"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
         protected Observation(Frame frame, string name, string url, string observationType, string cameraModel,
                               bool useForReconstruction, int width, int height, int bands, int bits, int day,
                               int version, int index)
@@ -154,13 +149,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// Creates a new observation and saves it to the database.  Returned observation has a valid id.
         /// Names must be unique within a project.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="frame"></param>
-        /// <param name="name"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
-        /// <returns></returns>
         public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                          string observationType, string cameraModel, bool useForReconstruction,
                                          int width, int height, int bands, int bits, int day, int version, int index,
@@ -172,14 +160,12 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 obs.Save(pipeline);
             }
-
             return obs;
         }
 
         /// <summary>
         /// Save this observation without overwriting any values it may be missing
         /// </summary>
-        /// <param name=""></param>
         public virtual void Save(PipelineCore pipeline)
         {
             IsValid();
@@ -190,9 +176,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="imageId"></param>
-        /// <returns></returns>
         public static Observation Find(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<Observation>(name, projectName);
