@@ -200,12 +200,6 @@ namespace OPS.Pipeline
             //from frameName -> opts.TargetFrame
             //because to call frameCache.GetObservationTransform() we need an Observation
 
-            var pointsType = ObservationType.Points.ToString();
-            var rangeType = ObservationType.Range.ToString();
-            var normalsType = ObservationType.Normals.ToString();
-            var maskType = ObservationType.RoverMask.ToString();
-            var imageType = ObservationType.Image.ToString();
-
             var observations =
                 observationCache.GetAllObservationsForFrame(frame)
                 .Cast<RoverObservation>()
@@ -227,9 +221,9 @@ namespace OPS.Pipeline
 
                 var ret = new MeshObservations();
 
-                ret.Range = linObs.Find(obs => obs.ObservationType == rangeType);
+                ret.Range = linObs.Find(obs => obs.ObservationType == RoverProductType.Range);
 
-                ret.Points = linObs.Find(obs => obs.ObservationType == pointsType);
+                ret.Points = linObs.Find(obs => obs.ObservationType == RoverProductType.XYZ);
                 if (ret.Points == null)
                 {
                     // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
@@ -245,17 +239,17 @@ namespace OPS.Pipeline
                     }
                 }
 
-                ret.Normals = linObs.Find(obs => obs.ObservationType == normalsType &&
+                ret.Normals = linObs.Find(obs => obs.ObservationType == RoverProductType.NormalMap &&
                                           obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
                 if (opts.RequireNormals && ret.Normals == null)
                 {
                     continue;
                 }
 
-                ret.Mask = linObs.Find(obs => obs.ObservationType == maskType &&
+                ret.Mask = linObs.Find(obs => obs.ObservationType == RoverProductType.RoverMask &&
                                        obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
 
-                ret.Texture = linObs.Find(obs => obs.ObservationType == imageType);
+                ret.Texture = linObs.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (opts.RequireTextures && ret.Texture == null)
                 {
                     continue;

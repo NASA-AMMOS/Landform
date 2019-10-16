@@ -40,7 +40,7 @@ namespace OPS.Landform
             this.gcopts = gcopts;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
+        protected override bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes = null,
                                                             bool onlyObsForReconstruction = false)
         {
             //pass null as outDir because we'll be setting it ourselves below

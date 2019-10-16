@@ -58,10 +58,9 @@ namespace OPS.Pipeline
             return g != null && g != Guid.Empty;
         }
 
-        private static readonly string imageObs = ObservationType.Image.ToString();
         private static bool IsImage(Observation obs)
         {
-            return obs.ObservationType == imageObs;
+            return obs is RoverObservation && ((RoverObservation)obs).ObservationType == RoverProductType.Image;
         }
 
         public AlignmentScene BuildTopDown(Frame root)

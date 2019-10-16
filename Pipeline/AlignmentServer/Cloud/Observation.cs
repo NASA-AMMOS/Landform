@@ -10,15 +10,6 @@ using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    public enum ObservationType
-    {
-        Image,
-        Range,
-        Points,
-        Normals,
-        RoverMask
-    }
-
     public enum TextureVariant { Original, Blurred, Blended };
 
     /// <summary>
@@ -61,8 +52,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string FrameName;
 
-        public string ObservationType;
-
         public string CameraModel;
 
         public bool UseForReconstruction;
@@ -84,32 +73,10 @@ namespace OPS.Pipeline.AlignmentServer
         /// Add required fields here 
         protected void IsValid()
         {
-            if (!(Url != null && FrameName != null && ProjectName != null && Name != null && ObservationType != null))
+            if (!(Url != null && FrameName != null && ProjectName != null && Name != null))
             {
                 throw new Exception("Missing required property in Observation");
             }
-        }
-
-        private static Dictionary<RoverProductType, ObservationType> productTypeMap =
-            new Dictionary<RoverProductType, ObservationType>();
-
-        static Observation()
-        {
-            productTypeMap[RoverProductType.Image] = OPS.Pipeline.AlignmentServer.ObservationType.Image;
-            productTypeMap[RoverProductType.Range] = OPS.Pipeline.AlignmentServer.ObservationType.Range;
-            productTypeMap[RoverProductType.XYZ] = OPS.Pipeline.AlignmentServer.ObservationType.Points;
-            productTypeMap[RoverProductType.NormalMap] = OPS.Pipeline.AlignmentServer.ObservationType.Normals;
-            productTypeMap[RoverProductType.RoverMask] = OPS.Pipeline.AlignmentServer.ObservationType.RoverMask;
-        }
-
-        public static ObservationType ProductTypeToObservationType(RoverProductType productType)
-        {
-            return productTypeMap[productType];
-        }
-
-        public static bool AllowedProductType(RoverProductType productType)
-        {
-            return productTypeMap.ContainsKey(productType);
         }
 
         //This constructor must be public for DynamoDb but should not be used
@@ -120,7 +87,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// Observation names must be unique within a project.
         /// ProjectId for this observation will be inferred from the supplied Frame object.
         /// </summary>
-        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel,
+        protected Observation(Frame frame, string name, string url, string cameraModel,
                               bool useForReconstruction, int width, int height, int bands, int bits, int day,
                               int version, int index)
         {
@@ -132,7 +99,6 @@ namespace OPS.Pipeline.AlignmentServer
             this.FeaturesGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
-            this.ObservationType = observationType;
             this.CameraModel = cameraModel;
             this.UseForReconstruction = useForReconstruction;
             this.Width = width;
@@ -150,11 +116,11 @@ namespace OPS.Pipeline.AlignmentServer
         /// Names must be unique within a project.
         /// </summary>
         public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
-                                         string observationType, string cameraModel, bool useForReconstruction,
+                                         string cameraModel, bool useForReconstruction,
                                          int width, int height, int bands, int bits, int day, int version, int index,
                                          bool save = true)
         {
-            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction,
+            Observation obs = new Observation(frame, name, url, cameraModel, useForReconstruction,
                                               width, height, bands, bits, day, version, index);
             if (save)
             {
@@ -197,11 +163,6 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)
-        {
-            return pipeline.ScanDatabase<Observation>("ProjectName", projectName, "ObservationType", observationType); 
-        }
-
         public bool IsLinear()
         {
             return ((CameraModel)JsonHelper.FromJson(CameraModel)).Linear;
@@ -225,12 +186,11 @@ namespace OPS.Pipeline.AlignmentServer
         public virtual string ToString(bool brief)
         {
             var cm = (CameraModel)JsonHelper.FromJson(CameraModel);
-            return string.Format("{0} Frame={1}, {2}{3}Type={4}, CameraModel={5} ({6}), {7}Size={8}x{9}, Bands={10}, " +
-                                 "Bits={11}, Day={12}{13}",
+            return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}Size={7}x{8}, Bands={9}, " +
+                                 "Bits={10}, Day={11}{12}",
                                  Name, FrameName,
                                  brief ? "" : string.Format("Url={0}, ", Url),
                                  brief ? "" : string.Format("Project={0}, ", ProjectName),
-                                 ObservationType,
                                  cm.GetType().Name,
                                  cm.Linear ? "linear" : "nonlinear",
                                  brief ? "" : string.Format("ForReconstruction={0}, ", UseForReconstruction),

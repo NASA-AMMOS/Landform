@@ -130,7 +130,7 @@ namespace OPS.Landform
             }
         }
 
-        protected override void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        protected override void LoadObservationCache(RoverProductType[] obsTypes, bool onlyObsForReconstruction)
         {
             if (options.MeshFrame.ToLower().Trim() != "passthrough")
             {

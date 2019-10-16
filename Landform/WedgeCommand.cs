@@ -70,7 +70,7 @@ namespace OPS.Landform
             this.wcopts = wcopts;
         }
 
-        protected virtual bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
+        protected virtual bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes = null,
                                                            bool onlyObsForReconstruction = false)
         {
             if (wcopts.UsePriors && wcopts.OnlyAligned)
@@ -123,20 +123,21 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        protected virtual void LoadObservationCache(RoverProductType[] obsTypes, bool onlyObsForReconstruction)
         {
             string[] cameras = StringHelper.ParseList(wcopts.OnlyForCameras);
-            string[] obsFilter = (obsTypes ?? new ObservationType[] {}).Select(ot => ot.ToString()).ToArray();
+            obsTypes = obsTypes ?? new RoverProductType[] {};
             observationCache = new ObservationCache(pipeline, project.Name);
             int num = observationCache.
                 Preload(obs => (!onlyObsForReconstruction || obs.UseForReconstruction) &&
-                        (obsFilter.Length == 0 || obsFilter.Any(ot => obs.ObservationType == ot)) &&
+                        (obsTypes.Length == 0 || obsTypes.Any(t => ((RoverObservation)obs).ObservationType == t)) &&
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
                         (cameras.Length == 0 ||
                          cameras.Any(cam => RoverCamera.IsCamera(cam, ((RoverObservation)obs).Sensor))));
             pipeline.LogInfo("loaded {0} observations in project {1}{2}{3}{4}{5}", num, project.Name,
                              onlyObsForReconstruction ? " for reconstruction" : "",
-                             obsFilter.Length > 0 ? (" for obs types " + string.Join(", ", obsFilter)) : "",
+                             obsTypes.Length > 0 ? (" for obs types " +
+                                                    string.Join(", ", obsTypes.Select(t => t.ToString()))) : "",
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cameras.Length > 0 ? (" for cameras " + string.Join(", ", cameras)) : "");
         }

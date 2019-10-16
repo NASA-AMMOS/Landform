@@ -235,9 +235,8 @@ namespace OPS.Pipeline
                     }
                 }
 
-                var obsType = Observation.ProductTypeToObservationType(parser.DerivedImageType).ToString();
-
-                observation = RoverObservation.Create(pipeline, observationFrame, observationName, url, obsType,
+                observation = RoverObservation.Create(pipeline, observationFrame, observationName, url,
+                                                      parser.DerivedImageType,
                                                       JsonHelper.ToJson(cameraModel),
                                                       mission.UseForReconstruction(parser),
                                                       parser.Site, parser.Drive,

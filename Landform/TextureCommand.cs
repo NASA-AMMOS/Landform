@@ -92,7 +92,8 @@ namespace OPS.Landform
                 throw new Exception("--decimatewedgemeshes is not implemented for this command");
             }
 
-            if (!base.ParseArgumentsAndLoadCaches(outDir, new [] { ObservationType.Image, ObservationType.RoverMask },
+            if (!base.ParseArgumentsAndLoadCaches(outDir,
+                                                  new [] { RoverProductType.Image, RoverProductType.RoverMask },
                                                   onlyObsForReconstruction: true))
             {
                 return false; //help
@@ -106,10 +107,10 @@ namespace OPS.Landform
 
             if (observationCache != null)
             {
-                string imageObs = ObservationType.Image.ToString();
                 var comparator = mission.GetRoverObservationComparator();
                 imageObservations = observationCache.GetAllObservations()
-                    .Where(obs => obs.ObservationType == imageObs)
+                    .Where(obs => obs is RoverObservation)
+                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
                     .GroupBy(obs => obs.FrameName)
                     .Select(group => group.OrderBy(obs => (RoverObservation)obs, comparator).First())
                     .ToList();
@@ -123,7 +124,7 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes,
+        protected override bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes,
                                                             bool onlyObsForReconstruction)
         {
             throw new NotImplementedException();
@@ -226,7 +227,6 @@ namespace OPS.Landform
 
         protected void BuildObservationImageMasks()
         {
-            string maskType = ObservationType.RoverMask.ToString();
             var comparator = mission.GetRoverObservationComparator();
             int no = imageObservations.Count;
             int np = 0, nc = 0;
@@ -249,7 +249,8 @@ namespace OPS.Landform
                     Image img = pipeline.LoadImage(obs.Url);
 
                     var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                        .Where(o => o.ObservationType == maskType)
+                        .Where(o => o is RoverObservation)
+                        .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
                         .OrderBy(o => (RoverObservation)o, comparator)
                         .FirstOrDefault();
 

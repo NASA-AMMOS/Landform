@@ -287,9 +287,9 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (id.ProductType == RoverProductType.Unknown || !Observation.AllowedProductType(id.ProductType))
+            if (id.ProductType == RoverProductType.Unknown)
             {
-                reason = string.Format("product type {0} not allowed", id.ProductType.ToString());
+                reason = "unknown product type";
                 return false;
             }
 
@@ -371,9 +371,9 @@ namespace OPS.Pipeline
             }
 
             var pt = parser.DerivedImageType;
-            if (pt == RoverProductType.Unknown || !Observation.AllowedProductType(pt))
+            if (pt == RoverProductType.Unknown)
             {
-                reason = string.Format("product type {0} not allowed", pt.ToString());
+                reason = "unknown product type";
                 return false;
             }
 

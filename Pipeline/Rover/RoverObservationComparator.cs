@@ -7,7 +7,6 @@ namespace OPS.Pipeline
 {
     public class RoverObservationComparator : IComparer<RoverObservation>
     {
-        private string pointsType = ObservationType.Points.ToString(), rangeType = ObservationType.Range.ToString();
         private bool preferMSSSToOPGS, preferLinearToNonlinear;
         
         public RoverObservationComparator(bool preferMSSSToOPGS, bool preferLinearToNonlinear)
@@ -25,11 +24,11 @@ namespace OPS.Pipeline
             
             // always prefer XYZ to RNG if both are available
             // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
-            if (a.ObservationType == pointsType && b.ObservationType == rangeType)
+            if (a.ObservationType == RoverProductType.XYZ && b.ObservationType == RoverProductType.Range)
             {
                 return -1;
             }
-            if (a.ObservationType == rangeType && b.ObservationType == pointsType)
+            if (a.ObservationType == RoverProductType.Range && b.ObservationType == RoverProductType.XYZ)
             {
                 return 1;
             }

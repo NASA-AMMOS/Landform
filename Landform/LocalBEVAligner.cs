@@ -407,7 +407,7 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes,
+        protected override bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes,
                                                             bool onlyObsForReconstruction)
         {
             throw new NotImplementedException();

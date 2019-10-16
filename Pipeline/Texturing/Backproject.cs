@@ -280,9 +280,11 @@ namespace OPS.Pipeline
             var warn = opts.warn ?? (msg => {});
             var error = opts.error ?? (msg => {});
 
-            //find image observations only
-            string imageObsType = ObservationType.Image.ToString();
-            var imageObservations = opts.observations.Where(obs => obs.ObservationType == imageObsType).ToList();
+            var imageObservations = opts.observations
+                .Where(obs => obs is RoverObservation)
+                .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
+                .ToList();
+
             if (imageObservations.Count() == 0)
             {
                 error("no image observations found"); 
@@ -331,7 +333,6 @@ namespace OPS.Pipeline
                                intersectingObservations.Count, imageObservations.Count));
 
             //build contexts and call backproject
-            string maskType = ObservationType.RoverMask.ToString();
             var comparator = opts.mission.GetRoverObservationComparator();
             var allContexts = new List<BackprojectContext>();
             foreach (var obs in intersectingObservations)
@@ -345,7 +346,8 @@ namespace OPS.Pipeline
                 }
 
                 var maskObs = opts.observationCache.GetAllObservationsForFrame(opts.frameCache.GetFrame(obs.FrameName))
-                    .Where(o => o.ObservationType == maskType)
+                    .Where(o => o is RoverObservation)
+                    .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
                     .OrderBy(o => (RoverObservation)o, comparator)
                     .FirstOrDefault();
 
