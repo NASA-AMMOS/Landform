@@ -10,7 +10,8 @@ namespace OPS.Pipeline
     public class RoverProductId
     {
         public string fullIdString;
-        protected string inst, version;
+        protected string inst;
+        protected int version;
 
         public virtual RoverProductProducer Producer
         {
@@ -36,9 +37,48 @@ namespace OPS.Pipeline
             }
         }
 
-        public string Version
+        public int Version
         {
             get { return version; }
+        }
+
+        /// <summary>
+        /// MSL OPGS version is one digit in the range 1-9A-Z, or _ for 
+        /// MSL MSSS version is one digit in the range 0-9A-Z, or _ for overflow
+        /// M2020 OPGS version is two digits in the range '00'-'99''A0'-'ZZ' or '__' for overflow
+        /// </summary>
+        protected static int ParseVersion(string ver)
+        {
+            int multiplier = 1;
+            int value = 0;
+            for (int i = ver.Length - 1; i >= 0; i--)
+            {
+                char c = ver[i];
+                int placeVal = 0;
+                if (c == '_') //technically the SIS implies that if any digit is '_' they all should be, but whatever
+                {
+                    placeVal = 36;
+                }
+                else if (char.IsDigit(c)) //'0' is invalid for MER OPGS, but valid for MER MSSS and M2020, so whatever
+                {
+                    placeVal = c - '0'; //0-9
+                }
+                else if (char.IsUpper(c))
+                {
+                    placeVal = 10 + c - 'A'; //10-35
+                }
+                else if (char.IsLower(c)) //SIS implies version should be upper case, but whatever
+                {
+                    placeVal = 10 + c - 'a'; //10-35
+                }
+                else
+                {
+                    throw new ArgumentException("error parsing rover product ID version '" + ver + "'");
+                }
+                value += multiplier * placeVal;
+                multiplier *= 10;
+            }
+            return value;
         }
 
         public RoverProductCamera Camera
@@ -148,7 +188,7 @@ namespace OPS.Pipeline
             id.downsample = productId.Substring(48, 1);
             id.compression = productId.Substring(49,2);
             id.producer = productId.Substring(51, 1);
-            id.version = productId.Substring(52, 2);
+            id.version = ParseVersion(productId.Substring(52, 2));
 
             return id;
         }
@@ -243,7 +283,7 @@ namespace OPS.Pipeline
             id.drive = productId.Substring(21, 4);
             id.seqnum = productId.Substring(25, 9);
             id.venue = productId.Substring(34, 1);
-            id.version = productId.Substring(35, 1);
+            id.version = ParseVersion(productId.Substring(35, 1));
             return id;
         }
     }
@@ -348,7 +388,7 @@ namespace OPS.Pipeline
             id.cdpidComplete = productId.Substring(17, 5);
             id.productType = productId.Substring(22, 1);
             id.gopCounter = productId.Substring(23, 1);
-            id.version = productId.Substring(24, 1);
+            id.version = ParseVersion(productId.Substring(24, 1));
             id.processingCode = productId.Substring(26, 4);
             return id;
         }

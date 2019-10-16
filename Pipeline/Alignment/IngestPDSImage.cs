@@ -240,10 +240,11 @@ namespace OPS.Pipeline
                 observation = RoverObservation.Create(pipeline, observationFrame, observationName, url, obsType,
                                                       JsonHelper.ToJson(cameraModel),
                                                       mission.UseForReconstruction(parser),
-                                                      parser.Site, parser.Drive, parser.ProductId.Version,
+                                                      parser.Site, parser.Drive,
                                                       cameraType, parser.ProducingInstitution,
                                                       metadata.Width, metadata.Height, metadata.Bands,
-                                                      metadata.BitDepth, mission.DayNumber(parser), index);
+                                                      metadata.BitDepth, mission.DayNumber(parser),
+                                                      parser.ProductId.Version, index);
 
                 if (observation == null)
                 {

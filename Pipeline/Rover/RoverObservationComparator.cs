@@ -57,8 +57,7 @@ namespace OPS.Pipeline
             }
             
             // finally sort by version, prefer higer versions
-            // versions go numeric 1 to 9, A-Z, _ (opgs) and numeric 0 to 9, A-Z (msss)
-            return (int)b.Version[0] - (int)a.Version[0];
+            return b.Version - a.Version;
         }
     }
 }

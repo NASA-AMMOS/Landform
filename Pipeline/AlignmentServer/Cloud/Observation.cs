@@ -77,6 +77,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Day;
 
+        public int Version;
+
         public int Index;
 
         /// Add required fields here 
@@ -124,7 +126,8 @@ namespace OPS.Pipeline.AlignmentServer
         /// <param name="observationType"></param>
         /// <param name="cameraModel"></param>
         protected Observation(Frame frame, string name, string url, string observationType, string cameraModel,
-                              bool useForReconstruction, int width, int height, int bands, int bits, int day, int index)
+                              bool useForReconstruction, int width, int height, int bands, int bits, int day,
+                              int version, int index)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -142,6 +145,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.Bands = bands;
             this.Bits = bits;
             this.Day = day;
+            this.Version = version;
             this.Index = index;
             IsValid();
         }
@@ -159,10 +163,11 @@ namespace OPS.Pipeline.AlignmentServer
         /// <returns></returns>
         public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
                                          string observationType, string cameraModel, bool useForReconstruction,
-                                         int width, int height, int bands, int bits, int day, int index, bool save=true)
+                                         int width, int height, int bands, int bits, int day, int version, int index,
+                                         bool save = true)
         {
             Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction,
-                                              width, height, bands, bits, day, index);
+                                              width, height, bands, bits, day, version, index);
             if (save)
             {
                 obs.Save(pipeline);
