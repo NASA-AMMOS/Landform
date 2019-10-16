@@ -83,11 +83,11 @@ namespace OPS.LandformUtil
             foreach (var obs in imageObservations)
             {
                 PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
-                if (mission.IsNavcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                if (mission.IsNavcam(mission.GetCamera(parser.InstrumentId)))
                 {
                     numNavcams++;
                 }
-                else if (mission.IsMastcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                else if (mission.IsMastcam(mission.GetCamera(parser.InstrumentId)))
                 {
                     numMastcams++;
                 }

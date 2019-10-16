@@ -175,7 +175,7 @@ namespace OPS.Pipeline
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
-                var cameraType = mission.CameraType(parser);
+                var cameraType = mission.GetCamera(parser);
                 var observationFrameName = cameraType.ToString() + "_" + mission.RoverMotionCounter(parser);
                 var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
@@ -235,15 +235,16 @@ namespace OPS.Pipeline
                     }
                 }
 
-                observation = RoverObservation.Create(pipeline, observationFrame, observationName, url,
-                                                      parser.DerivedImageType,
-                                                      JsonHelper.ToJson(cameraModel),
-                                                      mission.UseForReconstruction(parser),
-                                                      parser.Site, parser.Drive,
-                                                      cameraType, parser.ProducingInstitution,
-                                                      metadata.Width, metadata.Height, metadata.Bands,
-                                                      metadata.BitDepth, mission.DayNumber(parser),
-                                                      parser.ProductId.Version, index);
+                observation =
+                    RoverObservation.Create(pipeline, observationFrame, observationName, url, cameraModel,
+                                            mission.UseForAlignment(parser),
+                                            mission.UseForMeshing(parser),
+                                            mission.UseForTexturing(parser),
+                                            metadata.Width, metadata.Height, metadata.Bands,
+                                            metadata.BitDepth, mission.DayNumber(parser),
+                                            parser.ProductId.Version, index,
+                                            parser.Site, parser.Drive,
+                                            parser.DerivedImageType, cameraType, parser.ProducingInstitution);
 
                 if (observation == null)
                 {
@@ -263,9 +264,9 @@ namespace OPS.Pipeline
                 pipeline.LogDebug("created observation {0}", observationName);
                 return new Result(url, dataUrl, Status.Added, observation, observationFrame);
             }
-            catch (MetadataException ex)
+            catch (Exception ex)
             {
-                pipeline.LogError("error parsing metadata for {0}: {1}", url, ex.Message);
+                pipeline.LogError("error ingesting {0}: {1}", url, ex.Message);
                 return new Result(url, null, Status.Failed);
             }
         }

@@ -76,7 +76,7 @@ namespace OPS.Pipeline
             var articulation = GetParser(metadata).Parse();
             if (rover != null && articulation != null)
             {
-                var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetRoverProductCamera(parser.InstrumentId)));
+                var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetCamera(parser)));
 
                 //coarse test to see if rover is in frame at all (raycasts are expensive)
                 ConvexHull roverHull = new ConvexHull(posedRover);

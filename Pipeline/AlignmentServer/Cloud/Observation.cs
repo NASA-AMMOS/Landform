@@ -15,8 +15,6 @@ namespace OPS.Pipeline.AlignmentServer
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
     /// Can be connected to Frames and aligned with other observations through FrameTransforms
-    /// Observations are not versioned, because all of the data associated with them is deterministic, so it does not matter if workers re-upload them. 
-    /// Fresh Creates, or Saves with missing values, will not overwrite existing values. 
     /// </summary>
     [DynamoDBTable("Observations")]
     [DynamoDBReadCapacity(50, 100)]
@@ -54,7 +52,11 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string CameraModel;
 
-        public bool UseForReconstruction;
+        public bool UseForAlignment;
+
+        public bool UseForMeshing;
+
+        public bool UseForTexturing;
 
         public int Width;
 
@@ -87,9 +89,9 @@ namespace OPS.Pipeline.AlignmentServer
         /// Observation names must be unique within a project.
         /// ProjectId for this observation will be inferred from the supplied Frame object.
         /// </summary>
-        protected Observation(Frame frame, string name, string url, string cameraModel,
-                              bool useForReconstruction, int width, int height, int bands, int bits, int day,
-                              int version, int index)
+        protected Observation(Frame frame, string name, string url, CameraModel cameraModel,
+                              bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                              int width, int height, int bands, int bits, int day, int version, int index)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -99,8 +101,10 @@ namespace OPS.Pipeline.AlignmentServer
             this.FeaturesGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
-            this.CameraModel = cameraModel;
-            this.UseForReconstruction = useForReconstruction;
+            this.CameraModel = JsonHelper.ToJson(cameraModel);
+            this.UseForAlignment = useForAlignment;
+            this.UseForMeshing = useForMeshing;
+            this.UseForTexturing = useForTexturing;
             this.Width = width;
             this.Height = height;
             this.Bands = bands;
@@ -115,12 +119,14 @@ namespace OPS.Pipeline.AlignmentServer
         /// Creates a new observation and saves it to the database.  Returned observation has a valid id.
         /// Names must be unique within a project.
         /// </summary>
-        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
-                                         string cameraModel, bool useForReconstruction,
-                                         int width, int height, int bands, int bits, int day, int version, int index,
-                                         bool save = true)
+        public static Observation
+            Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
+                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                   int width, int height, int bands, int bits, int day, int version, int index,
+                   bool save = true)
         {
-            Observation obs = new Observation(frame, name, url, cameraModel, useForReconstruction,
+            Observation obs = new Observation(frame, name, url, cameraModel,
+                                              useForAlignment, useForMeshing, useForTexturing,
                                               width, height, bands, bits, day, version, index);
             if (save)
             {
@@ -186,17 +192,17 @@ namespace OPS.Pipeline.AlignmentServer
         public virtual string ToString(bool brief)
         {
             var cm = (CameraModel)JsonHelper.FromJson(CameraModel);
-            return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}Size={7}x{8}, Bands={9}, " +
-                                 "Bits={10}, Day={11}{12}",
-                                 Name, FrameName,
-                                 brief ? "" : string.Format("Url={0}, ", Url),
-                                 brief ? "" : string.Format("Project={0}, ", ProjectName),
-                                 cm.GetType().Name,
-                                 cm.Linear ? "linear" : "nonlinear",
-                                 brief ? "" : string.Format("ForReconstruction={0}, ", UseForReconstruction),
-                                 Width, Height, Bands, Bits, Day,
-                                 brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid),
-                                 brief ? "" : string.Format(", BlendedGuid={0}", BlendedGuid));
+            return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}{7}{8}Size={9}x{10}, Bands={9}, " +
+                                 "Bits={12}, Day={13}, Version={14}, Index={15}",
+                                 Name, FrameName, //0, 1
+                                 brief ? "" : string.Format("Url={0}, ", Url), //2
+                                 brief ? "" : string.Format("Project={0}, ", ProjectName), //3
+                                 cm.GetType().Name, //4
+                                 cm.Linear ? "linear" : "nonlinear", //5
+                                 brief ? "" : string.Format("UseForAlignment={0}, ", UseForAlignment), //6
+                                 brief ? "" : string.Format("UseForMeshing={0}, ", UseForMeshing), //7
+                                 brief ? "" : string.Format("UseForTexturing={0}, ", UseForTexturing), //8
+                                 Width, Height, Bands, Bits, Day, Version, Index); //9-15
         }
 
         public override string ToString()

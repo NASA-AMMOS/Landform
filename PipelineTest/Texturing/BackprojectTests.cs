@@ -35,12 +35,11 @@ namespace PipelineTest
             Frame frame1 = Frame.Create(pipeline, projectName, "Frame1", root, false);
             Frame frame2 = Frame.Create(pipeline, projectName, "Frame2", root, false);
 
-            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, JsonHelper.ToJson(new CAHV()),
-                                                  true, 1408, 1200, 3, 8, 606, 1, 1, false);
+            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, new CAHV(),
+                                                  true, true, true, 1408, 1200, 3, 8, 606, 1, 1, false);
 
-            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, JsonHelper.ToJson(new CAHV()),
-                                                  true, 1024, 1024, 1, 16, 609, 1, 2, false);
-
+            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, new CAHV(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 2, false);
 
             Dictionary<Pixel, Backproject.ObsPixel> backprojectResults = new Dictionary<Pixel, Backproject.ObsPixel>();
             //0,0 skipped 
@@ -79,11 +78,11 @@ namespace PipelineTest
             Frame frame1 = Frame.Create(pipeline, projectName, "Frame1", root, false);
             Frame frame2 = Frame.Create(pipeline, projectName, "Frame2", root, false);
 
-            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, JsonHelper.ToJson(new CAHV()),
-                                                  true, 1408, 1200, 3, 8, 606, 1, 1, false);
+            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, new CAHV(),
+                                                  true, true, true, 1408, 1200, 3, 8, 606, 1, 1, false);
 
-            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, JsonHelper.ToJson(new CAHV()),
-                                                  true, 1024, 1024, 1, 16, 609, 1, 2, false);
+            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, new CAHV(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 2, false);
 
             Dictionary<Pixel, Backproject.ObsPixel> results = new Dictionary<Pixel, Backproject.ObsPixel>();
             

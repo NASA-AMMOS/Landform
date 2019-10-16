@@ -46,7 +46,7 @@ namespace OPS.Pipeline.TilingServer
             
             //load observations
             var observationCache = new ObservationCache(pipeline, projectName);
-            observationCache.Preload(obs => obs.UseForReconstruction);
+            observationCache.Preload(obs => obs.UseForMeshing);
 
             LogInfo("building mesh");
             //temporarily suppress mastcam point cloud data until validated

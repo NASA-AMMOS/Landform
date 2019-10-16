@@ -39,47 +39,43 @@ namespace OPS.Pipeline
             return parser.RMC;
         }
 
-        public virtual bool UseForReconstruction(PDSParser parser)
-        {
-            if (parser.IsPartial)
-            {
-                return false;
-            }
-
-            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
-            {
-                return false;
-            }
-
-            //we used to try to check here that the parser could supply rover articulation, and if not return false
-            //articulation is needed for mask computation
-            //however, I think the check was bogus, it was always returning true
-            //even if the parser could not supply the data
-            //
-            //and I don't think it's really appropriate to force the parser to have the articulation data
-            //because it may not always be necessary to compute a mask
-            //the mask may not be needed
-            //or it may already be provided by the mission as its own product
-
-            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
-
-            if (!UseHazcamForReconstruction() && IsHazcam(roverProdCam))
-            {
-                return false;
-            }
-
-            if (!UseMastcamForReconstruction() && IsMastcam(roverProdCam))
-            {
-                return false;
-            }
-
-            return true;
-        }
-
         public virtual int DayNumber(PDSParser parser)
         {
             return parser.PlanetDayNumber;
         }
+
+        public virtual RoverProductCamera TranslateCamera(RoverProductCamera cam)
+        {
+            return cam;
+        }
+
+        public virtual RoverProductCamera GetCamera(string instrumentId)
+        {
+            return TranslateCamera(RoverCamera.FromPDSInstrumentID(instrumentId));
+        } 
+
+        public virtual RoverProductCamera GetCamera(PDSParser parser)
+        {
+            return GetCamera(parser.InstrumentId);
+        }
+
+        public virtual string GetObservationFrameName(PDSParser parser)
+        {
+            return string.Format("{0}_{1}", GetCamera(parser), RoverMotionCounter(parser));
+        }
+        
+        public virtual bool IsGeometricallyLinearlyCorrected(PDSParser parser)
+        {
+            return parser.GeometricProjection == RoverProductGeometry.Linearized;
+        }
+      
+        public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
+
+        public abstract double GetFocalLengthMM(RoverProductCamera camera);
+
+        public abstract double GetMinimumFocusDistance(PDSMetadata metadata);
+
+        public abstract double? GetMaximumFocusDistance(PDSMetadata metadata);
 
         /// <summary>
         /// ordering a sequence with this function should put the "better" observations earlier in the list
@@ -137,14 +133,15 @@ namespace OPS.Pipeline
            return camera == RoverProductCamera.MastcamLeft || camera == RoverProductCamera.MastcamRight;
         }
 
-        public virtual RoverProductCamera TranslateCamera(RoverProductCamera cam)
-        {
-            return cam;
-        }
+        public abstract bool IsArmcam(RoverProductCamera camera);
 
         public virtual string ClassifyCamera(RoverProductCamera cam)
         {
-            if (IsNavcam(cam))
+            if (IsHazcam(cam))
+            {
+                return "hazcam";
+            }
+            else if (IsNavcam(cam))
             {
                 return "navcam";
             }
@@ -152,9 +149,9 @@ namespace OPS.Pipeline
             {
                 return "mastcam";
             }
-            else if (IsHazcam(cam))
+            else if (IsArmcam(cam))
             {
-                return "hazcam";
+                return "armcam";
             }
             else
             {
@@ -165,6 +162,30 @@ namespace OPS.Pipeline
         public virtual string ClassifyCamera(string cam)
         {
             return ClassifyCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+        }
+
+        /// <summary>
+        /// whether to allow priors from MSLLocations
+        /// </summary>
+        public virtual bool AllowLocationsDB()
+        {
+            return false;
+        }
+
+        /// <summary>
+        /// whether to allow priors from the Places database
+        /// </summary>
+        public virtual bool AllowPlacesDB()
+        {
+            return true;
+        }
+             
+        /// <summary>
+        /// whether to allow priors from the OnSight legacy manifest
+        /// </summary>
+        public virtual bool AllowLegacyManifestDB()
+        {
+            return false;
         }
 
         /// <summary>
@@ -241,20 +262,134 @@ namespace OPS.Pipeline
             return true;
         }
 
-        /// <summary>
-        /// whether to use hazcam images for reconstruction
-        /// </summary>
-        public virtual bool UseHazcamForReconstruction()
+        public virtual bool AllowRoverMasks()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/755
+        }
+
+        public virtual bool AllowErrorMaps()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/500
+        }
+
+        public virtual bool UseHazcamForAlignment()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/328
+        }
+
+        public virtual bool UseHazcamForMeshing()
+        {
+            return true;
+        }
+
+        public virtual bool UseHazcamForTexturing()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/729
+        }
+
+        public virtual bool UseNavcamForAlignment()
+        {
+            return true;
+        }
+
+        public virtual bool UseNavcamForMeshing()
+        {
+            return true;
+        }
+
+        public virtual bool UseNavcamForTexturing()
+        {
+            return true;
+        }
+
+        public virtual bool UseMastcamForAlignment()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+        }
+
+        public virtual bool UseMastcamForMeshing()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/261
+        }
+
+        public virtual bool UseMastcamForTexturing()
+        {
+            return true;
+        }
+
+        public virtual bool UseArmcamForAlignment()
         {
             return false;
         }
 
-        /// <summary>
-        /// whether to use mastcam images for reconstruction
-        /// </summary>
-        public virtual bool UseMastcamForReconstruction()
+        public virtual bool UseArmcamForMeshing()
         {
-            return true;
+            return false;
+        }
+
+        public virtual bool UseArmcamForTexturing()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/756
+        }
+
+        public virtual bool UseForAlignment(PDSParser parser)
+        {
+            var cam = GetCamera(parser.InstrumentId);
+            return (IsHazcam(cam) && UseHazcamForAlignment()) ||
+                (IsNavcam(cam) && UseNavcamForAlignment()) ||
+                (IsMastcam(cam) && UseMastcamForAlignment()) ||
+                (IsArmcam(cam) && UseArmcamForAlignment());
+        }
+
+        public virtual bool UseForMeshing(PDSParser parser)
+        {
+            var cam = GetCamera(parser.InstrumentId);
+            return (IsHazcam(cam) && UseHazcamForMeshing()) ||
+                (IsNavcam(cam) && UseNavcamForMeshing()) ||
+                (IsMastcam(cam) && UseMastcamForMeshing()) ||
+                (IsArmcam(cam) && UseArmcamForMeshing());
+        }
+
+        public virtual bool UseForTexturing(PDSParser parser)
+        {
+            var cam = GetCamera(parser.InstrumentId);
+            return (IsHazcam(cam) && UseHazcamForTexturing()) ||
+                (IsNavcam(cam) && UseNavcamForTexturing()) ||
+                (IsMastcam(cam) && UseMastcamForTexturing()) ||
+                (IsArmcam(cam) && UseArmcamForTexturing());
+        }
+
+        public virtual bool AllowCamera(RoverProductCamera cam)
+        {
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing())) ||
+                (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing() || UseNavcamForTexturing())) ||
+                (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForMeshing() || UseMastcamForTexturing())) ||
+                (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing() || UseArmcamForTexturing()));
+        }
+
+        public virtual bool AllowRasterProducts(RoverProductCamera cam)
+        {
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForTexturing())) ||
+                (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForTexturing())) ||
+                (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForTexturing())) ||
+                (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForTexturing()));
+        }
+
+        public virtual bool AllowGeometryProducts(RoverProductCamera cam)
+        {
+            return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing())) ||
+                (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing())) ||
+                (IsMastcam(cam) && (UseMastcamForAlignment() || UseMastcamForMeshing())) ||
+                (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing()));
+        }
+
+        public virtual bool AllowProduct(RoverProductCamera cam, RoverProductType prodType)
+        {
+            return AllowCamera(cam) &&
+                (AllowRoverMasks() || !RoverProduct.IsMask(prodType)) &&
+                (AllowErrorMaps() || !RoverProduct.IsErrorMap(prodType)) &&
+                (AllowRasterProducts(cam) || !RoverProduct.IsRaster(prodType)) &&
+                (AllowGeometryProducts(cam) || !RoverProduct.IsGeometry(prodType));
         }
 
         /// <summary>
@@ -299,6 +434,24 @@ namespace OPS.Pipeline
                 return false;
             }
 
+            if (id.Geometry == RoverProductGeometry.Unknown)
+            {
+                reason = "unknown image geometry";
+                return false;
+            }
+
+            if (!AllowCamera(id.Camera))
+            {
+                reason = string.Format("camera {0} not allowed", id.Camera);
+                return false;
+            }
+
+            if (!AllowProduct(id.Camera, id.ProductType))
+            {
+                reason = string.Format("{0} {1} products not allowed", id.Camera, id.ProductType);
+                return false;
+            }
+
             if (!AllowOPGS() && id.Producer == RoverProductProducer.OPGS)
             {
                 reason = string.Format("producer {0} not allowed", id.Producer.ToString());
@@ -315,12 +468,6 @@ namespace OPS.Pipeline
                 ((OPGSProductId)id).Size != RoverProductSize.Regular)
             {
                 reason = "thumbnails not allowed";
-                return false;
-            }
-
-            if (id.Geometry == RoverProductGeometry.Unknown)
-            {
-                reason = "unknown image geometry";
                 return false;
             }
 
@@ -344,11 +491,6 @@ namespace OPS.Pipeline
             return CheckProductId(id, out string reason);
         }
 
-        public virtual bool IsGeometricallyLinearlyCorrected(PDSParser parser)
-        {
-            return parser.GeometricProjection == RoverProductGeometry.Linearized;
-        }
-      
         /// <summary>
         /// Mostly just confirms what CheckFilename() did using metadata instead of the filename
         /// but some things are only checked by one or the other
@@ -358,9 +500,29 @@ namespace OPS.Pipeline
         {
             reason = "";
 
-            if (GetRoverProductCamera(parser.InstrumentId) == RoverProductCamera.Unknown)
+            var cam = GetCamera(parser.InstrumentId);
+            if (cam == RoverProductCamera.Unknown)
             {
                 reason = "unknown camera";
+                return false;
+            }
+
+            var pt = parser.DerivedImageType;
+            if (pt == RoverProductType.Unknown)
+            {
+                reason = "unknown product type";
+                return false;
+            }
+
+            if (!AllowCamera(cam))
+            {
+                reason = string.Format("camera {0} not allowed", cam);
+                return false;
+            }
+
+            if (!AllowProduct(cam, pt))
+            {
+                reason = string.Format("{0} {1} products not allowed", cam, pt);
                 return false;
             }
 
@@ -370,10 +532,9 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            var pt = parser.DerivedImageType;
-            if (pt == RoverProductType.Unknown)
+            if (parser.metadata.Bands != 3 && parser.metadata.Bands != 1)
             {
-                reason = "unknown product type";
+                reason = "only 1 or 3 band images allowed";
                 return false;
             }
 
@@ -420,115 +581,109 @@ namespace OPS.Pipeline
         {
             return CheckMetadata(parser, out string reason);
         }
-
-        public virtual RoverProductCamera GetRoverProductCamera(string instrumentId)
-        {
-            return RoverCamera.FromPDSInstrumentID(instrumentId);
-        } 
-
-        public virtual RoverProductCamera CameraType(PDSParser parser)
-        {
-            return GetRoverProductCamera(parser.InstrumentId);
-        }
-
-        public virtual string GetObservationFrameName(PDSParser parser)
-        {
-            return string.Format("{0}_{1}", CameraType(parser), RoverMotionCounter(parser));
-        }
-        
-        public abstract double GetSensorPixelSizeMM(RoverProductCamera camera);
-        public abstract double GetFocalLengthMM(RoverProductCamera camera);
-
-        public abstract double GetMinimumFocusDistance(PDSMetadata metadata);
-        public abstract double? GetMaximumFocusDistance(PDSMetadata metadata);
-
-        /// <summary>
-        /// whether to allow priors from MSLLocations
-        /// </summary>
-        public virtual bool AllowLocationsDB()
-        {
-            return false;
-        }
-
-        /// <summary>
-        /// whether to allow priors from the Places database
-        /// </summary>
-        public virtual bool AllowPlacesDB()
-        {
-            return true;
-        }
-             
-        /// <summary>
-        /// whether to allow priors from the OnSight legacy manifest
-        /// </summary>
-        public virtual bool AllowLegacyManifestDB()
-        {
-            return false;
-        }
     }
 
     public class MissionMSL : MissionSpecific
     {
-        public const int MIN_NAV_HAZ_EXPOSURE = 80;
+        public const int MIN_HAZ_EXPOSURE = 80;
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
 
-        public override bool UseForReconstruction(PDSParser parser)
+        public override bool IsGeometricallyLinearlyCorrected(PDSParser parser)
         {
-            if (!base.UseForReconstruction(parser))
+            //some msss msl images are labelled incorrectly: reporting raw in the metadata, 
+            //when they are linearized and labelled correctly in the filename
+            //example 0609MR0025690030401020E01_DRCL
+            return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
+                ((parser.ProducingInstitution == RoverProductProducer.MSSS) &&
+                 (parser.ProductId.Geometry == RoverProductGeometry.Linearized));
+        }
+
+        public override double GetSensorPixelSizeMM(RoverProductCamera camera)
+        {
+            switch (camera)
             {
-                return false;
+                case RoverProductCamera.NavcamLeft:
+                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
+                case RoverProductCamera.NavcamRight:
+                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
+                case RoverProductCamera.MastcamLeft:
+                    return 0.0074; //calculated
+                case RoverProductCamera.MastcamRight:
+                    return 0.0074; //calculated
+                default:
+                    throw new NotImplementedException("sensor pixel size for camera " + camera + " not added yet");
             }
+        }
 
-            RoverProductCamera roverProdCam = GetRoverProductCamera(parser.InstrumentId);
-
-            if (roverProdCam == RoverProductCamera.MAHLI)
+        public override double GetFocalLengthMM(RoverProductCamera camera)
+        {
+            switch (camera)
             {
-                return false;
+                case RoverProductCamera.NavcamLeft:
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
+                case RoverProductCamera.NavcamRight:
+                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
+                case RoverProductCamera.MastcamLeft:
+                    return 34.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
+                case RoverProductCamera.MastcamRight:
+                    return 10.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
+                default:
+                    throw new NotImplementedException("focal length for camera " + camera + " not added yet");
             }
+        }
 
-            // Low exposure hazcams
-            if (IsHazcam(roverProdCam) && parser.DerivedImageType == RoverProductType.Image &&
-                parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_NAV_HAZ_EXPOSURE)
+        public override double GetMinimumFocusDistance(PDSMetadata metadata)
+        {
+            if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
             {
-                return false;
-            }
-
-            if (IsMastcam(roverProdCam))
-            {
-                // Skip mastcam taken with color filters
-                try
+                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
                 {
-                    if (!parser.FilterNumber.HasValue || parser.FilterNumber != 0)
+                    double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+
+                    if (metadata.HasKey("INSTRUMENT_ID"))
                     {
-                        return false;
+                        string instrumentId = metadata.ReadAsString("INSTRUMENT_ID");
+
+                        if (instrumentId.StartsWith("MAHLI"))
+                        {
+                            nearFocus /= 1000.0; //mahli is in millimeters
+                        }
                     }
-                }
-                catch
-                {
-                    return false;
-                }
-
-                // Skip mastcam with short focal distances
-                // (probably closeup of rover part with terrain out of focus in background)
-                double? maxFocusDistance = GetMaximumFocusDistance(parser.metadata as PDSMetadata);
-                if (maxFocusDistance.HasValue && maxFocusDistance < MIN_MASTCAM_FOCUS_CUTOFF)
-                {
-                    return false;
+                    return nearFocus;
                 }
             }
+            return 0;
+        }
 
-            if (IsNavcam(roverProdCam) && parser.IsDownsampled)
+        // Mastcam only
+        public override double? GetMaximumFocusDistance(PDSMetadata metadata)
+        {
+            if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
             {
-                return false;
+                return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
             }
-
-            return true;
+            return null;
         }
 
         public override RoverMasker GetMasker()
         {
             return new MSLRoverMasker(this);
+        }
+
+        public override bool IsArmcam(RoverProductCamera cam)
+        {
+            return cam == RoverProductCamera.MAHLI;
+        }
+
+        public override bool AllowLocationsDB()
+        {
+            return true;
+        }
+
+        public override bool AllowLegacyManifestDB()
+        {
+            return true;
         }
 
         public override bool CheckProductId(RoverProductId id, out string reason)
@@ -582,96 +737,86 @@ namespace OPS.Pipeline
             return true;
         }
 
-        public override bool IsGeometricallyLinearlyCorrected(PDSParser parser)
+        public override bool CheckMetadata(PDSParser parser, out string reason)
         {
-            //some msss msl images are labelled incorrectly: reporting raw in the metadata, 
-            //when they are linearized and labelled correctly in the filename
-            //example 0609MR0025690030401020E01_DRCL
-            return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
-                ((parser.ProducingInstitution == RoverProductProducer.MSSS) &&
-                 (parser.ProductId.Geometry == RoverProductGeometry.Linearized));
-        }
-
-        public override bool AllowLocationsDB()
-        {
-            return true;
-        }
-
-        public override bool AllowLegacyManifestDB()
-        {
-            return true;
-        }
-
-        public override double GetFocalLengthMM(RoverProductCamera camera)
-        {
-            switch (camera)
+            if (!base.CheckMetadata(parser, out reason))
             {
-                case RoverProductCamera.NavcamLeft:
-                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
-                case RoverProductCamera.NavcamRight:
-                    return 14.67; //source SIS: https://pds-imaging.jpl.nasa.gov/data/msl/MSLNAV_0XXX/DOCUMENT/MSL_CAMERA_SIS_latest.PDF
-                case RoverProductCamera.MastcamLeft:
-                    return 34.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
-                case RoverProductCamera.MastcamRight:
-                    return 10.0; //https://www.lpi.usra.edu/meetings/lpsc2010/pdf/1123.pdf
-                default:
-                    throw new NotImplementedException("focal length for camera " + camera + " not added yet");
+                return false;
             }
-        }
 
-        public override double GetSensorPixelSizeMM(RoverProductCamera camera)
-        {
-            switch (camera)
+            var cam = GetCamera(parser.InstrumentId);
+
+            if (IsHazcam(cam) && parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_HAZ_EXPOSURE)
             {
-                case RoverProductCamera.NavcamLeft:
-                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
-                case RoverProductCamera.NavcamRight:
-                    return 0.012; //source Maki, J.N., et al., Mars Exploration Rover Engineering Cameras, J. Geophys. Res., 108(E12), 8071, doi:10.1029/2003JE002077, 2003. (navcam uses same CCD)
-                case RoverProductCamera.MastcamLeft:
-                    return 0.0074; //calculated
-                case RoverProductCamera.MastcamRight:
-                    return 0.0074; //calculated
-                default:
-                    throw new NotImplementedException("sensor pixel size for camera " + camera + " not added yet");
+                reason = "low exposure hazcam";
+                return false;
             }
-        }
 
-        // Mastcam only
-        public override double? GetMaximumFocusDistance(PDSMetadata metadata)
-        {
-            if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE"))
+            if (IsMastcam(cam))
             {
-                return metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MAXIMUM_FOCUS_DISTANCE");
-            }
-            return null;
-        }
-
-        public override double GetMinimumFocusDistance(PDSMetadata metadata)
-        {
-            if (metadata.ReadAsString("INSTRUMENT_HOST_ID") == "MSL")
-            {
-                if (metadata.HasKey("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE"))
+                if (!parser.FilterNumber.HasValue || parser.FilterNumber != 0)
                 {
-                    double nearFocus = metadata.ReadAsDouble("DERIVED_IMAGE_PARMS", "MSL:MINIMUM_FOCUS_DISTANCE");
+                    reason = "mastcam with color filter";
+                    return false;
+                }
 
-                    if (metadata.HasKey("INSTRUMENT_ID"))
-                    {
-                        string instrumentId = metadata.ReadAsString("INSTRUMENT_ID");
-
-                        if (instrumentId.StartsWith("MAHLI"))
-                        {
-                            nearFocus /= 1000.0; //mahli is in millimeters
-                        }
-                    }
-                    return nearFocus;
+                double? maxFocusDistance = GetMaximumFocusDistance(parser.metadata as PDSMetadata);
+                if (maxFocusDistance.HasValue && maxFocusDistance < MIN_MASTCAM_FOCUS_CUTOFF)
+                {
+                    // (probably closeup of rover part with terrain out of focus in background)
+                    reason = "mastcam with short focal distance";
+                    return false;
                 }
             }
-            return 0;
+
+            if (IsNavcam(cam) && parser.IsDownsampled)
+            {
+                reason = "downsampled navcam";
+                return false;
+            }
+
+            return true;
         }
     }
 
     public class MissionM2020 : MissionSpecific
     {
+        public override RoverProductCamera TranslateCamera(RoverProductCamera cam)
+        {
+            switch (cam)
+            {
+                //ML and MR in RDR product names for M2020 really mean MastcamZ not Mastcam
+                //and in any case M2020 has only MastcamZ not Mastcam
+                case RoverProductCamera.MastcamLeft: return RoverProductCamera.MastcamZLeft;
+                case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
+                default: return cam;
+            }
+        }
+
+        public override double GetSensorPixelSizeMM(RoverProductCamera camera) {
+            throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet");
+        }
+
+        public override double GetFocalLengthMM(RoverProductCamera rovProdCam)
+        {
+            throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet");
+        }
+
+        public override double GetMinimumFocusDistance(PDSMetadata metadata)
+        {
+            throw new NotImplementedException("min focus distance not implemented for 2020 instruments yet");
+        }
+
+        public override double? GetMaximumFocusDistance(PDSMetadata metadata)
+        {
+            throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet");
+        }
+
+        public override RoverMasker GetMasker()
+        {
+            return new M2020RoverMasker(this); //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/554
+        }
+
         public override bool IsHazcam(RoverProductCamera camera)
         {
             return base.IsHazcam(camera) ||
@@ -684,10 +829,14 @@ namespace OPS.Pipeline
                 camera == RoverProductCamera.MastcamZLeft || camera == RoverProductCamera.MastcamZRight;
         }
 
-        public override RoverMasker GetMasker()
+        public override bool IsArmcam(RoverProductCamera camera)
         {
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/554
-            return new M2020RoverMasker(this);
+            return camera == RoverProductCamera.PIXELMCC;
+        }
+
+        public override bool AllowPlacesDB()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
         }
 
         public override bool CheckProductId(RoverProductId id, out string reason)
@@ -713,46 +862,10 @@ namespace OPS.Pipeline
 
             if (id.Producer == RoverProductProducer.MSSS)
             {
-                //TODO
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/754
             }
 
             return true;
-        }
-        public override RoverProductCamera TranslateCamera(RoverProductCamera cam)
-        {
-            switch (cam)
-            {
-                //ML and MR in RDR product names for M2020 really mean MastcamZ not Mastcam
-                //and in any case M2020 has only MastcamZ not Mastcam
-                case RoverProductCamera.MastcamLeft: return RoverProductCamera.MastcamZLeft;
-                case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
-                default: return cam;
-            }
-        }
-
-        public override double GetFocalLengthMM(RoverProductCamera rovProdCam)
-        {
-            throw new NotImplementedException("focal lengths not implemented for 2020 instruments yet");
-        }
-
-        public override double GetSensorPixelSizeMM(RoverProductCamera camera) {
-            throw new NotImplementedException("sensor pixels size not implemented for 2020 instruments yet");
-        }
-
-        public override double? GetMaximumFocusDistance(PDSMetadata metadata)
-        {
-            throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet");
-        }
-
-        public override double GetMinimumFocusDistance(PDSMetadata metadata)
-        {
-            throw new NotImplementedException("min focus distance not implemented for 2020 instruments yet");
-        }
-
-        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
-        public override bool AllowPlacesDB()
-        {
-            return false;
         }
     }
 
@@ -779,7 +892,7 @@ namespace OPS.Pipeline
         }
 
         // ROASTT18: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
-        public override RoverProductCamera CameraType(PDSParser parser)
+        public override RoverProductCamera GetCamera(PDSParser parser)
         {
             return TranslateCamera(parser.ProductId.Camera);
         }

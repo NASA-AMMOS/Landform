@@ -233,6 +233,29 @@ namespace OPS.Pipeline
             }
             return RoverProductType.Unknown;
         }
+
+        public static bool IsMask(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.RoverMask;
+        }
+
+        public static bool IsErrorMap(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.RangeErrorMap || prodType == RoverProductType.XYZErrorMap;
+        }
+
+        public static bool IsRaster(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.Image || prodType == RoverProductType.RoverMask;
+        }
+
+        public static bool IsGeometry(RoverProductType prodType)
+        {
+            return prodType == RoverProductType.RoverMask ||
+                prodType == RoverProductType.Range || prodType == RoverProductType.XYZ ||
+                prodType == RoverProductType.NormalMap ||
+                prodType == RoverProductType.RangeErrorMap || prodType == RoverProductType.XYZErrorMap;
+        }
     }
 
     public enum RoverProductProducer

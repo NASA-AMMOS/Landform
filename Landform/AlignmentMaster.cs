@@ -243,7 +243,7 @@ namespace OPS.Landform
                 var observations = obsGroup
                     .Cast<RoverObservation>()
                     .Distinct() //ConcurrentBag allows duplicates, which is probably harmless here, but why not
-                    .Where(obs => obs.UseForReconstruction)
+                    .Where(obs => obs.UseForAlignment)
                     .OrderBy(obs => obs, comparator)
                     .ToList();
 

@@ -80,7 +80,7 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual bool ParseArgumentsAndLoadCaches(string outDir)
+        protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
             if (tcopts.DecimateWedgeImages < 0 || tcopts.DecimateWedgeImages > 1)
             {
@@ -92,9 +92,7 @@ namespace OPS.Landform
                 throw new Exception("--decimatewedgemeshes is not implemented for this command");
             }
 
-            if (!base.ParseArgumentsAndLoadCaches(outDir,
-                                                  new [] { RoverProductType.Image, RoverProductType.RoverMask },
-                                                  onlyObsForReconstruction: true))
+            if (!base.ParseArgumentsAndLoadCaches(outDir))
             {
                 return false; //help
             }
@@ -124,10 +122,15 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes,
-                                                            bool onlyObsForReconstruction)
+        protected override bool ObservationFilter(RoverObservation obs)
         {
-            throw new NotImplementedException();
+            return obs.UseForTexturing && (obs.ObservationType == RoverProductType.Image ||
+                                           obs.ObservationType == RoverProductType.RoverMask);
+        }
+
+        protected override string DescribeObservationFilter()
+        {
+            return " texturing images and masks";
         }
 
         /// <summary>

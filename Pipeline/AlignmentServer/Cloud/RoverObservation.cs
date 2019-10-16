@@ -7,6 +7,7 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using Newtonsoft.Json;
 using OPS.Cloud;
+using OPS.Imaging;
 using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -91,12 +92,13 @@ namespace OPS.Pipeline.AlignmentServer
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation() { }
 
-        protected RoverObservation(Frame frame, string name, string url, RoverProductType observationType,
-                                   string cameraModel, bool useForReconstruction, int site, int drive, RoverProductCamera sensor,
-                                   RoverProductProducer producer, int width, int height, int bands, int bits,
-                                   int day, int version, int index) :
-            base(frame, name, url, cameraModel, useForReconstruction, width, height, bands, bits, day,
-                 version, index)
+        protected RoverObservation(Frame frame, string name, string url, CameraModel cameraModel,
+                                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                                   int width, int height, int bands, int bits, int day, int version, int index,
+                                   int site, int drive, RoverProductType observationType, RoverProductCamera sensor,
+                                   RoverProductProducer producer)
+            : base(frame, name, url, cameraModel, useForAlignment, useForMeshing, useForTexturing,
+                   width, height, bands, bits, day, version, index)
         {
             this.Site = site;
             this.Drive = drive;
@@ -109,10 +111,10 @@ namespace OPS.Pipeline.AlignmentServer
         /// <summary>
         /// Prevent possible bugs from calling the default Observation.Create() method.
         /// </summary>
-        public static new Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
-                                             string cameraModel, bool useForReconstruction,
-                                             int width, int height, int bands, int bits, int day, int version,
-                                             int index, bool save)
+        public static new Observation
+            Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
+                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                   int width, int height, int bands, int bits, int day, int version, int index, bool save)
         {
             throw new NotImplementedException("Call RoverObservation.Create() with rover specific arguments");
         }
@@ -122,19 +124,21 @@ namespace OPS.Pipeline.AlignmentServer
         /// Names must be unique within a project.
         /// Project is infered from frame.
         /// </summary>
-        public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url,
-                                              RoverProductType observationType, string cameraModel,bool useForReconstruction,
-                                              int site, int drive, RoverProductCamera sensor,
-                                              RoverProductProducer producer, int width, int height, int bands,
-                                              int bits, int day, int version, int index, bool save = true)
+        public static RoverObservation
+            Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
+                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                   int width, int height, int bands, int bits, int day, int version, int index,
+                   int site, int drive, RoverProductType observationType, RoverProductCamera sensor,
+                   RoverProductProducer producer, bool save = true)
         {
             if (Find(pipeline, frame.ProjectName, name) != null)
             {
                 return null; //An observation with this name and project already exists 
             }
-            RoverObservation ro =
-                new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive,
-                                     sensor, producer, width, height, bands, bits, day, version, index);
+            RoverObservation ro = new RoverObservation(frame, name, url, cameraModel,
+                                                       useForAlignment, useForMeshing, useForTexturing,
+                                                       width, height, bands, bits, day, version, index,
+                                                       site, drive, observationType, sensor, producer);
             if (save)
             {
                 pipeline.SaveDatabaseItem(ro);

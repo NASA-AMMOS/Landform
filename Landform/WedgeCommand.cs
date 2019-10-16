@@ -70,8 +70,7 @@ namespace OPS.Landform
             this.wcopts = wcopts;
         }
 
-        protected virtual bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes = null,
-                                                           bool onlyObsForReconstruction = false)
+        protected virtual bool ParseArgumentsAndLoadCaches(string outDir)
         {
             if (wcopts.UsePriors && wcopts.OnlyAligned)
             {
@@ -93,7 +92,7 @@ namespace OPS.Landform
             }
 
             LoadFrameCache();
-            LoadObservationCache(obsTypes, onlyObsForReconstruction);
+            LoadObservationCache();
 
             return true;
         }
@@ -123,21 +122,27 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual void LoadObservationCache(RoverProductType[] obsTypes, bool onlyObsForReconstruction)
+        protected virtual bool ObservationFilter(RoverObservation obs)
+        {
+            return true;
+        }
+
+        protected virtual string DescribeObservationFilter()
+        {
+            return "";
+        }
+
+        protected virtual void LoadObservationCache()
         {
             string[] cameras = StringHelper.ParseList(wcopts.OnlyForCameras);
-            obsTypes = obsTypes ?? new RoverProductType[] {};
             observationCache = new ObservationCache(pipeline, project.Name);
             int num = observationCache.
-                Preload(obs => (!onlyObsForReconstruction || obs.UseForReconstruction) &&
-                        (obsTypes.Length == 0 || obsTypes.Any(t => ((RoverObservation)obs).ObservationType == t)) &&
+                Preload(obs => obs is RoverObservation && ObservationFilter((RoverObservation)obs) &&
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
                         (cameras.Length == 0 ||
                          cameras.Any(cam => RoverCamera.IsCamera(cam, ((RoverObservation)obs).Sensor))));
-            pipeline.LogInfo("loaded {0} observations in project {1}{2}{3}{4}{5}", num, project.Name,
-                             onlyObsForReconstruction ? " for reconstruction" : "",
-                             obsTypes.Length > 0 ? (" for obs types " +
-                                                    string.Join(", ", obsTypes.Select(t => t.ToString()))) : "",
+            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
+                             num, DescribeObservationFilter(), project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cameras.Length > 0 ? (" for cameras " + string.Join(", ", cameras)) : "");
         }

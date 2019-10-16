@@ -368,7 +368,7 @@ namespace OPS.Landform
                 throw new Exception("--adjustedtransformsources not supported for this command");
             } 
 
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR, onlyObsForReconstruction: true))
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
                 return false; //help
             }
@@ -407,10 +407,14 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes,
-                                                            bool onlyObsForReconstruction)
+        protected override bool ObservationFilter(RoverObservation obs)
         {
-            throw new NotImplementedException();
+            return obs.UseForAlignment;
+        }
+
+        protected override string DescribeObservationFilter()
+        {
+            return " alignment";
         }
 
         /// <summary>

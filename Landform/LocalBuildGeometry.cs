@@ -99,7 +99,7 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR, onlyObsForReconstruction: true))
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
                 return false; //help
             }
@@ -109,10 +109,14 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, RoverProductType[] obsTypes,
-                                                            bool onlyObsForReconstruction)
+        protected override bool ObservationFilter(RoverObservation obs)
         {
-            throw new NotImplementedException();
+            return obs.UseForMeshing;
+        }
+
+        protected override string DescribeObservationFilter()
+        {
+            return " meshing";
         }
 
         private void BuildMesh()
