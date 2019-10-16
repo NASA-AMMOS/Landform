@@ -220,7 +220,7 @@ namespace OPS.Landform
 
         private SiteDrive? GetSiteDrive(string filename)
         {
-            var id = RoverProductId.ParseFromString(filename);
+            var id = RoverProductId.Parse(filename);
             if (id == null || id.Producer != RoverProductProducer.OPGS)
             {
                 return null;

@@ -76,7 +76,7 @@ namespace OPS.Pipeline
 
         public RoverProductId ProductId
         {
-            get { return RoverProductId.ParseFromString(metadata.ReadAsString("PRODUCT_ID")); }
+            get { return RoverProductId.Parse(metadata.ReadAsString("PRODUCT_ID")); }
         }
 
         public string ProductIdString

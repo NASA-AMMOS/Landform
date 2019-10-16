@@ -263,9 +263,17 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool CheckFilename(string filename, out string reason)
         {
-            reason = "";
+            return CheckProductId(RoverProductId.Parse(filename), out reason);
+        }
 
-            RoverProductId id = RoverProductId.ParseFromString(filename);
+        public bool CheckFilename(string filename)
+        {
+            return CheckFilename(filename, out string reason);
+        }
+
+        public virtual bool CheckProductId(RoverProductId id, out string reason)
+        {
+            reason = "";
 
             if (id == null)
             {
@@ -282,6 +290,12 @@ namespace OPS.Pipeline
             if (id.ProductType == RoverProductType.Unknown || !Observation.AllowedProductType(id.ProductType))
             {
                 reason = string.Format("product type {0} not allowed", id.ProductType.ToString());
+                return false;
+            }
+
+            if (id.Producer == RoverProductProducer.Unknown)
+            {
+                reason = "unknown producer";
                 return false;
             }
 
@@ -304,6 +318,12 @@ namespace OPS.Pipeline
                 return false;
             }
 
+            if (id.Geometry == RoverProductGeometry.Unknown)
+            {
+                reason = "unknown image geometry";
+                return false;
+            }
+
             if (!AllowLinear() && id.Geometry == RoverProductGeometry.Linearized)
             {
                 reason = "linearized images not allowed";
@@ -316,29 +336,12 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (id.Producer == RoverProductProducer.MSSS)
-            {
-                // Check that this is a DCX file
-                MSSSProductId msssId = (MSSSProductId)id;
-                if (!msssId.RadiometricallyCalibrated || !msssId.ColorCorrected || !msssId.Decompressed)
-                {
-                    reason = "MSSS non-DCX files not allowed";
-                    return false;
-                }
-                // Filter for color or black and white jpegs that are not thumbnails
-                if (msssId.MSSSProductType == MSSSProductType.Unknown)
-                {
-                    reason = "MSSS product type unknown";
-                    return false;
-                }
-            }
-
             return true;
         }
 
-        public bool CheckFilename(string filename)
+        public virtual bool CheckProductId(RoverProductId id)
         {
-            return CheckFilename(filename, out string reason);
+            return CheckProductId(id, out string reason);
         }
 
         public virtual bool IsGeometricallyLinearlyCorrected(PDSParser parser)
@@ -528,13 +531,65 @@ namespace OPS.Pipeline
             return new MSLRoverMasker(this);
         }
 
+        public override bool CheckProductId(RoverProductId id, out string reason)
+        {
+            if (!base.CheckProductId(id, out reason))
+            {
+                return false;
+            }
+
+            if (id.Producer == RoverProductProducer.OPGS)
+            {
+                MSLOPGSProductId opgsId = (MSLOPGSProductId)id;
+                string spec = opgsId.Spec.ToUpper();
+                if (spec != "T" && spec != "_")
+                {
+                    reason = "special processing " + spec;
+                    return false;
+                }
+                    
+                string cfg = opgsId.Config.ToUpper();
+                if (IsMastcam(id.Camera) && id.ProductType == RoverProductType.Image && cfg != "F")
+                {
+                    reason = "mastcam raster config " + cfg;
+                    return false;
+                }
+
+                if (id.Camera == RoverProductCamera.MAHLI && id.ProductType == RoverProductType.Image && cfg != "F")
+                {
+                    reason = "MAHLI raster config " + cfg;
+                    return false;
+                }
+            }
+
+            if (id.Producer == RoverProductProducer.MSSS)
+            {
+                // Check that this is a DCX file
+                MSLMSSSProductId msssId = (MSLMSSSProductId)id;
+                if (!msssId.RadiometricallyCalibrated || !msssId.ColorCorrected || !msssId.Decompressed)
+                {
+                    reason = "MSSS non-DCX files not allowed";
+                    return false;
+                }
+                // Filter for color or black and white jpegs that are not thumbnails
+                if (msssId.MSSSProductType == MSSSProductType.Unknown)
+                {
+                    reason = "MSSS product type unknown";
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
         public override bool IsGeometricallyLinearlyCorrected(PDSParser parser)
         {
             //some msss msl images are labelled incorrectly: reporting raw in the metadata, 
             //when they are linearized and labelled correctly in the filename
             //example 0609MR0025690030401020E01_DRCL
             return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
-                ((parser.ProducingInstitution == RoverProductProducer.MSSS) && (parser.ProductId.Geometry == RoverProductGeometry.Linearized));
+                ((parser.ProducingInstitution == RoverProductProducer.MSSS) &&
+                 (parser.ProductId.Geometry == RoverProductGeometry.Linearized));
         }
 
         public override bool AllowLocationsDB()
@@ -635,6 +690,34 @@ namespace OPS.Pipeline
             return new M2020RoverMasker(this);
         }
 
+        public override bool CheckProductId(RoverProductId id, out string reason)
+        {
+            if (!base.CheckProductId(id, out reason))
+            {
+                return false;
+            }
+
+            if (id.Producer == RoverProductProducer.OPGS)
+            {
+                M2020OPGSProductId opgsId = (M2020OPGSProductId)id;
+                string spec = opgsId.Spec.ToUpper();
+                if (spec != "_")
+                {
+                    reason = "special processing " + spec;
+                    return false;
+                }
+
+                //TODO check other Spec values, ColorFilter, Camspec, Downsample, Compression
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/754
+            }
+
+            if (id.Producer == RoverProductProducer.MSSS)
+            {
+                //TODO
+            }
+
+            return true;
+        }
         public override RoverProductCamera TranslateCamera(RoverProductCamera cam)
         {
             switch (cam)
