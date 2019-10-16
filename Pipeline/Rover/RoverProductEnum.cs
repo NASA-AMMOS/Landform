@@ -208,7 +208,7 @@ namespace OPS.Pipeline
             new Dictionary<string, RoverProductType>()
         {
             { "RAS", RoverProductType.Image },
-            { "MSK", RoverProductType.RoverMask },
+            { "MXY", RoverProductType.RoverMask },
             { "RNG", RoverProductType.Range },
             { "XYZ", RoverProductType.XYZ },
             { "UVW", RoverProductType.NormalMap },
