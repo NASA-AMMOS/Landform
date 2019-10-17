@@ -108,11 +108,11 @@ namespace OPS.Pipeline
         public readonly SiteDrive SiteDrive;
 
         protected OPGSProductId(string fullId, RoverProductProducer producer, string productType, string camera,
-                                string geometry, string version, string size, string site, string drive)
+                                string geometry, string version, string size, int site, int drive)
             : base(fullId, producer, productType, camera, geometry, version)
         {
             this.Size = ParseSize(size);
-            this.SiteDrive = new SiteDrive(int.Parse(site), int.Parse(drive));
+            this.SiteDrive = new SiteDrive(site, drive);
         }
 
         protected abstract RoverProductSize ParseSize(string size);
@@ -137,11 +137,12 @@ namespace OPS.Pipeline
     {
         public const int LENGTH = 36;
 
-        public readonly string Config, Spec, Sclk, Seqnum;
+        public readonly string Config, Spec, Seqnum;
+        public readonly int Sclk;
 
         protected MSLOPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
-                                   string version, string size, string site, string drive,
-                                   string config, string spec, string sclk, string seqnum)
+                                   string version, string size, int site, int drive,
+                                   string config, string spec, int sclk, string seqnum)
             : base(fullId, ParseProducer(producer), productType, camera, geometry, version, size, site, drive)
         {
             this.Config = config;
@@ -157,18 +158,27 @@ namespace OPS.Pipeline
             {
                 return null;
             }
+
             string inst = productId.Substring(0, 2);
             string config = productId.Substring(2, 1);
             string spec = productId.Substring(3, 1);
-            string sclk = productId.Substring(4, 9);
+            string sclkStr = productId.Substring(4, 9);
             string prodType = productId.Substring(13, 3);
             string geom = productId.Substring(16, 1);
             string samp = productId.Substring(17, 1);
-            string site = productId.Substring(18, 3);
-            string drive = productId.Substring(21, 4);
+            string siteStr = productId.Substring(18, 3);
+            string driveStr = productId.Substring(21, 4);
             string seqnum = productId.Substring(25, 9);
             string venue = productId.Substring(34, 1);
             string ver = productId.Substring(35, 1);
+
+            if (!int.TryParse(sclkStr, out int sclk) ||
+                !int.TryParse(siteStr, out int site) ||
+                !int.TryParse(driveStr, out int drive))
+            {
+                return null;
+            }
+
             return new MSLOPGSProductId(fullId: productId, producer: venue, productType: prodType, camera: inst,
                                         geometry: geom, version: ver, size: samp, site: site, drive: drive,
                                         config: config, spec: spec, sclk: sclk, seqnum: seqnum);
@@ -206,11 +216,12 @@ namespace OPS.Pipeline
         public const int LENGTH = 30;
 
         public readonly MSSSProductType MSSSProductType;
-        public readonly string Sol, FullSeqId, SeqLine, CdpidCounter, CdpidComplete, GopCounter, ProcessingCode; 
+        public readonly string FullSeqId, SeqLine, CdpidCounter, CdpidComplete, GopCounter, ProcessingCode; 
+        public readonly int Sol;
         public readonly bool Decompressed, RadiometricallyCalibrated, ColorCorrected;
 
         protected MSLMSSSProductId(string fullId, string productType, string camera, string geometry, string version, 
-                                   string sol, string fullSeqId, string seqLine,
+                                   int sol, string fullSeqId, string seqLine,
                                    string cdpidCounter, string cdpidComplete, string gopCounter, string processingCode)
             : base(fullId, RoverProductProducer.MSSS, RoverProductType.Image, camera, geometry, version)
         {
@@ -236,7 +247,8 @@ namespace OPS.Pipeline
             {
                 return null;
             }
-            string sol = productId.Substring(0, 4);
+
+            string solStr = productId.Substring(0, 4);
             string inst = productId.Substring(4, 2);
             string fullSeqId = productId.Substring(6, 6);
             string seqLine = productId.Substring(12, 3);
@@ -246,6 +258,12 @@ namespace OPS.Pipeline
             string gopCounter = productId.Substring(23, 1);
             string version = productId.Substring(24, 1);
             string processingCode = productId.Substring(26, 4);
+
+            if (!int.TryParse(solStr, out int sol))
+            {
+                return null;
+            }
+
             return new MSLMSSSProductId(fullId: productId, productType: productType, camera: inst,
                                         geometry: processingCode, version: version, sol: sol,
                                         fullSeqId: fullSeqId, seqLine: seqLine,
@@ -278,11 +296,12 @@ namespace OPS.Pipeline
     {
         public const int LENGTH = 54;
 
-        public readonly string ColorFilter, Spec, Ts0, Venue, Ts1, Ts2, Sequence, Camspec, Downsample, Compression;
+        public readonly string ColorFilter, Spec, Venue, Sequence, Camspec, Downsample, Compression;
+        public readonly int Ts0, Ts1, Ts2;
 
         protected M2020OPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
-                                     string version, string size, string site, string drive,
-                                     string colorFilter, string spec, string ts0, string venue, string ts1, string ts2,
+                                     string version, string size, int site, int drive,
+                                     string colorFilter, string spec, int ts0, string venue, int ts1, int ts2,
                                      string sequence, string camspec, string downsample, string compression)
             : base(fullId, ParseProducer(producer), productType, camera, geometry, version, size, site, drive)
         {
@@ -313,21 +332,30 @@ namespace OPS.Pipeline
             string inst = productId.Substring(0, 2);
             string colorFilter = productId.Substring(2, 1);
             string spec = productId.Substring(3, 1);
-            string ts0 = productId.Substring(4, 4);
+            string ts0Str = productId.Substring(4, 4);
             string venue = productId.Substring(8, 1);
-            string ts1 = productId.Substring(9, 10);
-            string ts2 = productId.Substring(20, 3);
+            string ts1Str = productId.Substring(9, 10);
+            string ts2Str = productId.Substring(20, 3);
             string prodType = productId.Substring(23, 3);
             string geometry = productId.Substring(26, 1);
             string thumb = productId.Substring(27, 1);
-            string site = productId.Substring(28, 3);
-            string drive = productId.Substring(31, 4);
+            string siteStr = productId.Substring(28, 3);
+            string driveStr = productId.Substring(31, 4);
             string sequence = productId.Substring(35, 9);
             string camspec = productId.Substring(44, 4);
             string downsample = productId.Substring(48, 1);
             string compression = productId.Substring(49,2);
             string producer = productId.Substring(51, 1);
             string version = productId.Substring(52, 2);
+
+            if (!int.TryParse(ts0Str, out int ts0) ||
+                !int.TryParse(ts1Str, out int ts1) ||
+                !int.TryParse(ts2Str, out int ts2) ||
+                !int.TryParse(siteStr, out int site) |
+                !int.TryParse(driveStr, out int drive))
+            {
+                return null;
+            }
 
             return new M2020OPGSProductId(fullId: productId, producer: producer, productType: prodType, camera: inst,
                                           geometry: geometry, version: version, size: thumb, site: site, drive: drive,
@@ -343,7 +371,7 @@ namespace OPS.Pipeline
 
         public int GetDayNumber()
         {
-            return int.Parse(Ts0);
+            return Ts0;
         }
 
         protected static RoverProductProducer ParseProducer(string producer)
