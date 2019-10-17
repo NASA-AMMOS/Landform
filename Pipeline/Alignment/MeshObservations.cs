@@ -221,7 +221,7 @@ namespace OPS.Pipeline
 
                 ret.Range = linObs.Find(obs => obs.ObservationType == RoverProductType.Range);
 
-                ret.Points = linObs.Find(obs => obs.ObservationType == RoverProductType.XYZ);
+                ret.Points = linObs.Find(obs => obs.ObservationType == RoverProductType.Points);
                 if (ret.Points == null)
                 {
                     // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
@@ -237,21 +237,25 @@ namespace OPS.Pipeline
                     }
                 }
 
-                ret.Normals = linObs.Find(obs => obs.ObservationType == RoverProductType.NormalMap &&
-                                          obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
-                if (opts.RequireNormals && ret.Normals == null)
-                {
-                    continue;
-                }
-
-                ret.Mask = linObs.Find(obs => obs.ObservationType == RoverProductType.RoverMask &&
-                                       obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
-
                 ret.Texture = linObs.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (opts.RequireTextures && ret.Texture == null)
                 {
                     continue;
                 }
+
+                bool checkObs(RoverObservation obs, RoverProductType prodType)
+                {
+                    return obs.ObservationType == prodType &&
+                        (ret.Empty || (obs.Width == ret.RoverObs.Width && obs.Height == ret.RoverObs.Height));
+                }
+
+                ret.Normals = linObs.Find(obs => checkObs(obs, RoverProductType.Normals));
+                if (opts.RequireNormals && ret.Normals == null)
+                {
+                    continue;
+                }
+
+                ret.Mask = linObs.Find(obs => checkObs(obs, RoverProductType.RoverMask));
 
                 if (!ret.Empty)
                 {

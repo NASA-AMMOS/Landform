@@ -216,7 +216,7 @@ namespace OPS.Landform
                             if (!options.NoRange)
                             {
                                 var xyzOrRng =
-                                    observations.Find(obs => obs.ObservationType == RoverProductType.XYZ &&
+                                    observations.Find(obs => obs.ObservationType == RoverProductType.Points &&
                                                       obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                                 if (xyzOrRng == null)
                                 {

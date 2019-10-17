@@ -24,11 +24,11 @@ namespace OPS.Pipeline
             
             // always prefer XYZ to RNG if both are available
             // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
-            if (a.ObservationType == RoverProductType.XYZ && b.ObservationType == RoverProductType.Range)
+            if (a.ObservationType == RoverProductType.Points && b.ObservationType == RoverProductType.Range)
             {
                 return -1;
             }
-            if (a.ObservationType == RoverProductType.Range && b.ObservationType == RoverProductType.XYZ)
+            if (a.ObservationType == RoverProductType.Range && b.ObservationType == RoverProductType.Points)
             {
                 return 1;
             }

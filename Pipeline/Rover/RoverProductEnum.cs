@@ -190,10 +190,10 @@ namespace OPS.Pipeline
         Image,
         RoverMask,
         Range,
-        XYZ,
-        NormalMap,
-        RangeErrorMap,
-        XYZErrorMap
+        Points,
+        Normals,
+        RangeError,
+        PointsError
     }
 
     public static class RoverProduct
@@ -204,10 +204,10 @@ namespace OPS.Pipeline
             { "IMAGE", RoverProductType.Image },
             { "MASK", RoverProductType.RoverMask },
             { "RANGE_MAP", RoverProductType.Range },
-            { "XYZ_MAP", RoverProductType.XYZ },
-            { "UVW_MAP", RoverProductType.NormalMap },
-            { "RANGE_ERROR_MAP", RoverProductType.RangeErrorMap },
-            { "XYZ_ERROR_MAP", RoverProductType.XYZErrorMap },
+            { "XYZ_MAP", RoverProductType.Points },
+            { "UVW_MAP", RoverProductType.Normals },
+            { "RANGE_ERROR_MAP", RoverProductType.RangeError },
+            { "XYZ_ERROR_MAP", RoverProductType.PointsError },
         };
 
         private static Dictionary<string, RoverProductType> rdrProductTypes =
@@ -216,10 +216,10 @@ namespace OPS.Pipeline
             { "RAS", RoverProductType.Image },
             { "MXY", RoverProductType.RoverMask },
             { "RNG", RoverProductType.Range },
-            { "XYZ", RoverProductType.XYZ },
-            { "UVW", RoverProductType.NormalMap },
-            { "RNE", RoverProductType.RangeErrorMap },
-            { "XYE", RoverProductType.XYZErrorMap },
+            { "XYZ", RoverProductType.Points },
+            { "UVW", RoverProductType.Normals },
+            { "RNE", RoverProductType.RangeError },
+            { "XYE", RoverProductType.PointsError },
         };
 
         public static RoverProductType FromPDSDerivedImageType(string pdsType)
@@ -247,7 +247,7 @@ namespace OPS.Pipeline
 
         public static bool IsErrorMap(RoverProductType prodType)
         {
-            return prodType == RoverProductType.RangeErrorMap || prodType == RoverProductType.XYZErrorMap;
+            return prodType == RoverProductType.RangeError || prodType == RoverProductType.PointsError;
         }
 
         public static bool IsRaster(RoverProductType prodType)
@@ -258,9 +258,9 @@ namespace OPS.Pipeline
         public static bool IsGeometry(RoverProductType prodType)
         {
             return prodType == RoverProductType.RoverMask ||
-                prodType == RoverProductType.Range || prodType == RoverProductType.XYZ ||
-                prodType == RoverProductType.NormalMap ||
-                prodType == RoverProductType.RangeErrorMap || prodType == RoverProductType.XYZErrorMap;
+                prodType == RoverProductType.Range || prodType == RoverProductType.Points ||
+                prodType == RoverProductType.Normals ||
+                prodType == RoverProductType.RangeError || prodType == RoverProductType.PointsError;
         }
     }
 

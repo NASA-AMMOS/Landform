@@ -367,7 +367,7 @@ namespace OPS.Pipeline
                     rng = xyzOrRng;
                     break;
                 }
-                case RoverProductType.XYZ:
+                case RoverProductType.Points:
                 {
                     //PDSImage.ConvertPoints() will set mask from missing constant
                     xyr = (new PDSImage(xyzOrRng, parser)).ConvertPoints();
