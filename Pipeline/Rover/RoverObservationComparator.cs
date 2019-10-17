@@ -43,7 +43,7 @@ namespace OPS.Pipeline
                 return preferMSSSToOPGS ? 1 : -1;
             }
             
-            // sort next by linear-ness, prefer linear
+            // sort next by linear-ness
             var linearA = a.IsLinear();
             var linearB = b.IsLinear();
             if (linearA && !linearB)
