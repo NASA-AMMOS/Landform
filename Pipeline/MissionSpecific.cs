@@ -264,7 +264,7 @@ namespace OPS.Pipeline
 
         public virtual bool AllowRoverMasks()
         {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/755
+            return true; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/755
         }
 
         public virtual bool AllowErrorMaps()
@@ -385,11 +385,27 @@ namespace OPS.Pipeline
 
         public virtual bool AllowProduct(RoverProductCamera cam, RoverProductType prodType)
         {
-            return AllowCamera(cam) &&
-                (AllowRoverMasks() || !RoverProduct.IsMask(prodType)) &&
-                (AllowErrorMaps() || !RoverProduct.IsErrorMap(prodType)) &&
-                (AllowRasterProducts(cam) || !RoverProduct.IsRaster(prodType)) &&
-                (AllowGeometryProducts(cam) || !RoverProduct.IsGeometry(prodType));
+            if (!AllowCamera(cam))
+            {
+                return false;
+            }
+            if (RoverProduct.IsMask(prodType) && !AllowRoverMasks())
+            {
+                return false;
+            }
+            if (RoverProduct.IsErrorMap(prodType) && !AllowErrorMaps())
+            {
+                return false;
+            }
+            if (RoverProduct.IsRaster(prodType))
+            {
+                return AllowRasterProducts(cam);
+            }
+            if (RoverProduct.IsGeometry(prodType))
+            {
+                return AllowGeometryProducts(cam);
+            }
+            return false;
         }
 
         /// <summary>

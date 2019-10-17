@@ -30,8 +30,7 @@ namespace OPS.Pipeline
         /// </summary>
         public static Image MakeMask(PipelineCore pipeline, RoverMasker masker, string roverMaskUrl, Image img)
         {
-            //do not mutate rover mask if it's loaded from mission product (clone: true)
-            Image mask = masker.LoadOrBuild(pipeline, roverMaskUrl, img.Metadata as PDSMetadata, clone: true);
+            Image mask = masker.LoadOrBuild(pipeline, roverMaskUrl, img.Metadata as PDSMetadata);
 
             //propagate masked pixels from original image to mask
             for (int row = 0; row < img.Height; row++)
