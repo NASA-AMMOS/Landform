@@ -53,9 +53,6 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer", Default = RoverStereoEye.Left)]
         public RoverStereoEye StereoEye { get; set; }
 
-        [Option(HelpText = "Only load specific frames, comma separated", Default = null)]
-        public string OnlyForFrames { get; set; }
-
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
 

@@ -31,9 +31,6 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
         public override int TargetWedgeMeshResolution { get; set; }
 
-        [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]
-        public string OnlyForFrames { get; set; }
-
         [Option(HelpText = "Only create products for observations with normals", Default = false)]
         public bool RequireNormals { get; set; }
 
