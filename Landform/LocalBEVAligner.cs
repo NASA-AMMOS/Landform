@@ -53,11 +53,6 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer", Default = RoverStereoEye.Left)]
         public RoverStereoEye StereoEye { get; set; }
 
-        //temporarily suppress mastcam point cloud data until validated
-        //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-        [Option(HelpText = "Use mastcam observations", Default = false)]
-        public bool AllowMastcam { get; set; }
-
         [Option(HelpText = "Only load specific frames, comma separated", Default = null)]
         public string OnlyForFrames { get; set; }
 
@@ -376,10 +371,12 @@ namespace OPS.Landform
             var opts = new MeshObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
             {
-                AllowMastcam = options.AllowMastcam,
                 RequirePoints = true,
                 RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt && options.NoGenerateNormals,
                 RequireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture,
+                IncludeForAlignment = true,
+                IncludeForMeshing = false,
+                IncludeForTexturing = false,
                 RequirePriorTransform = true,
                 TargetFrame = "root"
             };

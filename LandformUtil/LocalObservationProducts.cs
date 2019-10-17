@@ -34,11 +34,6 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]
         public string OnlyForFrames { get; set; }
 
-        //temporarily suppress mastcam point cloud data until validated
-        //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-        [Option(HelpText = "Create products for mastcam observations", Default = false)]
-        public bool AllowMastcam { get; set; }
-
         [Option(HelpText = "Only create products for observations with normals", Default = false)]
         public bool RequireNormals { get; set; }
 
@@ -243,10 +238,12 @@ namespace OPS.LandformUtil
             var opts = new MeshObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
                 {
-                    AllowMastcam = options.AllowMastcam,
                     RequirePoints = false,
                     RequireNormals = options.RequireNormals,
                     RequireTextures = options.RequireTextures,
+                    IncludeForAlignment = true,
+                    IncludeForMeshing = true,
+                    IncludeForTexturing = true,
                     RequirePriorTransform = options.UsePriors,
                     RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = meshFrame

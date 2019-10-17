@@ -53,7 +53,7 @@ namespace OPS.Pipeline.TilingServer
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
-                                          onlyForCameras: null, useCleverCombine: false, allowMastcam: false,
+                                          onlyForCameras: null, useCleverCombine: false, 
                                           info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); });
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
@@ -86,7 +86,7 @@ namespace OPS.Pipeline.TilingServer
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
                                      bool usePriors, bool noPriors, string onlyForCameras = null,
-                                     bool useCleverCombine = false, bool allowMastcam = false, int decimate = 1,
+                                     bool useCleverCombine = false, int decimate = 1,
                                      int targetPointCloudResolution = 1024, Action<string> info = null,
                                      Action<string> verbose = null, Action<string> warn = null,
                                      Action<string> error = null)
@@ -117,10 +117,12 @@ namespace OPS.Pipeline.TilingServer
 
             var opts = new MeshObservations.CollectOptions(null, null, onlyForCameras, mission)
                 {
-                    AllowMastcam = allowMastcam,
                     RequirePoints = true,
                     RequireNormals = true,
                     RequireTextures = false,
+                    IncludeForAlignment = false,
+                    IncludeForMeshing = true,
+                    IncludeForTexturing = false,
                     RequirePriorTransform = usePriors,
                     RequireAdjustedTransform = noPriors,
                     TargetFrame = outputFrame

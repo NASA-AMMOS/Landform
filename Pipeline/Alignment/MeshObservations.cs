@@ -113,11 +113,13 @@ namespace OPS.Pipeline
 
         public class CollectOptions
         {
-            public bool AllowMastcam = true; //if false then must supply mission
-
             public bool RequirePoints = true;
             public bool RequireNormals = true;
             public bool RequireTextures = false;
+
+            public bool IncludeForAlignment = true;
+            public bool IncludeForMeshing = true;
+            public bool IncludeForTexturing = false;
 
             public SiteDrive[] OnlyForSiteDrives = null;
             public string[] OnlyForCameras = null;
@@ -137,7 +139,6 @@ namespace OPS.Pipeline
 
             public IComparer<RoverObservation> Comparator = null;
             public RoverProductGeometry[] LinearPreference = null;
-            public MissionSpecific Mission = null;
 
             public CollectOptions(string onlyForSiteDrives = null, string onlyForFrames = null,
                                   string onlyForCameras = null, MissionSpecific mission = null)
@@ -162,7 +163,6 @@ namespace OPS.Pipeline
                     Comparator =  mission.GetRoverObservationComparator();
                     LinearPreference = mission.GetLinearPreference();
                 }
-                this.Mission = mission;
             }
         }
 
@@ -178,11 +178,6 @@ namespace OPS.Pipeline
             if (opts == null)
             {
                 opts = new CollectOptions();
-            }
-
-            if (!opts.AllowMastcam && opts.Mission == null)
-            {
-                throw new ArgumentException("must specify mission to filter out mastcam");
             }
 
             var frame = frameCache.GetFrame(frameName);
@@ -203,7 +198,10 @@ namespace OPS.Pipeline
             var observations =
                 observationCache.GetAllObservationsForFrame(frame)
                 .Cast<RoverObservation>()
-                .Where(obs => opts.AllowMastcam || !opts.Mission.IsMastcam(obs.Sensor))
+                .Where(obs =>
+                       (opts.IncludeForAlignment && obs.UseForAlignment) ||
+                       (opts.IncludeForMeshing && obs.UseForMeshing) ||
+                       (opts.IncludeForTexturing && obs.UseForTexturing))
                 .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
                 .Where(obs => opts.OnlyForFrames == null || opts.OnlyForFrames.Any(frm => frm == obs.FrameName))
                 .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Sensor)))
