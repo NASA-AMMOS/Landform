@@ -84,9 +84,13 @@ namespace OPS.LandformUtil
             {
                 PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
                 if (mission.IsNavcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                {
                     numNavcams++;
+                }
                 else if (mission.IsMastcam(mission.GetRoverProductCamera(parser.InstrumentId)))
+                {
                     numMastcams++;
+                }
             }
 
             string masterManifestPath = Path.Combine(localOutputPath, "master-landform.xml");
@@ -713,9 +717,6 @@ namespace OPS.LandformUtil
 
                 foreach (var sitedrive in data)
                 {
-                    // Note: calling GetSolRange on each iteration is a little inefficient as this method does
-                    // a linear pass through the source images. But in practice it is fast enough.
-
                     XmlElement thisSitedrive = doc.CreateElement("sitedrive");
                     thisSitedrive.SetAttribute("id", sitedrive.SiteDrive.ToString());
                     if (sitedrive.Primary)
