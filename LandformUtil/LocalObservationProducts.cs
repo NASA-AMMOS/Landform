@@ -41,7 +41,7 @@ namespace OPS.LandformUtil
         public bool NoWedgeMeshes { get; set; }
 
         [Option(HelpText = "Don't write observation images (and don't texture wedge meshes)", Default = false)]
-        public bool NoImages { get; set; }
+        public bool NoWedgeImages { get; set; }
 
         [Option(HelpText = "Use blended observation textures if available", Default = false)]
         public bool UseBlendedTextures { get; set; }
@@ -93,6 +93,9 @@ namespace OPS.LandformUtil
 
         [Option(HelpText = "Only generate statistics", Default = false)]
         public bool StatsOnly { get; set; }
+
+        [Option(HelpText = "Write mask images", Default = false)]
+        public bool MaskImages { get; set; }
 
         [Option(HelpText = "Write normals images", Default = false)]
         public bool NormalsImages { get; set; }
@@ -147,9 +150,10 @@ namespace OPS.LandformUtil
             {
                 options.MergedSiteDriveMeshes = true;
                 options.NoWedgeMeshes = true;
-                options.NoImages = true;
+                options.NoWedgeImages = true;
                 options.FrustumHullMeshes = false;
                 options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.MaskImages = false;
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
                 options.ElevationImages = false;
@@ -161,6 +165,7 @@ namespace OPS.LandformUtil
                 options.MergedSiteDriveMeshes = true;
                 options.FrustumHullMeshes = true;
                 options.UncertaintyInflatedFrustumHullMeshes = true;
+                options.MaskImages = true;
                 options.NormalsImages = true;
                 options.CurvatureImages = true;
                 options.ElevationImages = true;
@@ -171,9 +176,10 @@ namespace OPS.LandformUtil
             {
                 options.MergedSiteDriveMeshes = false;
                 options.NoWedgeMeshes = true;
-                options.NoImages = true;
+                options.NoWedgeImages = true;
                 options.FrustumHullMeshes = false;
                 options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.MaskImages = false;
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
                 options.ElevationImages = false;
@@ -219,7 +225,7 @@ namespace OPS.LandformUtil
 
             buildWedgeMeshes = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes || options.StatsOnly;
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
-            buildWedgeImages = withTextures || !options.NoImages;
+            buildWedgeImages = withTextures || !options.NoWedgeImages;
             
             if (options.MergedSiteDriveMeshes && options.MeshFrame == "rover")
             {
@@ -346,13 +352,21 @@ namespace OPS.LandformUtil
                 validNormals[obs.FrameName] = numNormals;
                 validTriangles[obs.FrameName] = numTriangles;
 
+                int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages,
+                                                        options.TargetWedgeImageResolution);
+
                 Image img = null;
                 if (buildWedgeImages && obs.Texture != null)
                 {
-                    img = BuildWedgeImage(obs);
+                    img = BuildWedgeImage(obs, ibs);
                 }
 
-                if (!options.NoImages && img != null)
+                if (options.MaskImages && !obs.Empty)
+                {
+                    SaveImage(BuildMaskImage(obs, ibs), sdPrefix + obs.Name + "_mask");
+                }
+
+                if (!options.NoWedgeImages && img != null)
                 {
                     SaveImage(img, sdPrefix + obs.Name);
                 }
@@ -472,7 +486,7 @@ namespace OPS.LandformUtil
                 }
                 else
                 {
-                    pipeline.LogInfo(obs.ToString(pipeline));
+                    pipeline.LogInfo(Environment.NewLine + obs.ToString(pipeline));
                 }
             }
 
@@ -514,7 +528,7 @@ namespace OPS.LandformUtil
             return mesh;
         }
 
-        private Image BuildWedgeImage(MeshObservations obs)
+        private Image BuildWedgeImage(MeshObservations obs, int ibs)
         {
             Image img = null;
             try
@@ -527,7 +541,6 @@ namespace OPS.LandformUtil
                 {
                     img = pipeline.LoadImage(obs.Texture.Url);
                 }
-                int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages, options.TargetWedgeImageResolution);
                 if (ibs > 1)
                 {
                     if (ibs != options.DecimateWedgeImages)
@@ -547,6 +560,20 @@ namespace OPS.LandformUtil
                 pipeline.LogWarn("error creating wedge image: " + ex.Message);
             }
             return img;
+        }
+
+        private Image BuildMaskImage(MeshObservations obs, int ibs)
+        {
+            var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
+            var imgUrl = obs.Texture != null ? obs.Texture.Url : obs.RoverObs.Url;
+            var img = pipeline.LoadImage(imgUrl);
+            var dbgImg = new Image(img);
+            ImageMasker.MakeMask(pipeline, masker, maskUrl, img, dbgImg);
+            if (ibs > 1)
+            {
+                dbgImg = dbgImg.Decimated(ibs);
+            }
+            return dbgImg;
         }
 
         private Image BuildNormalsImage(MeshObservations obs, int mbs, ref Image mask)

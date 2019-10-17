@@ -44,7 +44,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                return Points == null && Range == null && Normals == null && Mask == null && Texture == null;
+                return Points == null && Range == null && Normals == null && Texture == null;
             }
         }
 
@@ -56,7 +56,6 @@ namespace OPS.Pipeline
                 if (Range != null) return Range.Name;
                 if (Texture != null) return Texture.Name;
                 if (Normals != null) return Normals.Name;
-                if (Mask != null) return Mask.Name;
                 return "(empty)"; //so we can at least format exceptions
             }
         }
@@ -69,7 +68,6 @@ namespace OPS.Pipeline
                 if (Range != null) return Range.FrameName;
                 if (Texture != null) return Texture.FrameName;
                 if (Normals != null) return Normals.FrameName;
-                if (Mask != null) return Mask.FrameName;
                 throw new InvalidOperationException("can't get frame name of an empty MeshObservation");
             }
         }
@@ -82,7 +80,6 @@ namespace OPS.Pipeline
                 if (Range != null) return Range.Day;
                 if (Texture != null) return Texture.Day;
                 if (Normals != null) return Normals.Day;
-                if (Mask != null) return Mask.Day;
                 throw new InvalidOperationException("can't get day of an empty MeshObservation");
             }
         }
@@ -99,7 +96,6 @@ namespace OPS.Pipeline
                 if (Range != null) return (RoverObservation)Range;
                 if (Texture != null) return (RoverObservation)Texture;
                 if (Normals != null) return (RoverObservation)Normals;
-                if (Mask != null) return (RoverObservation)Mask;
                 throw new InvalidOperationException("can't get RoverObservation of an empty MeshObservation");
             }
         }        
