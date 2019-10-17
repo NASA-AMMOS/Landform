@@ -519,7 +519,7 @@ namespace OPS.Pipeline
             var cam = GetCamera(parser.InstrumentId);
             if (cam == RoverProductCamera.Unknown)
             {
-                reason = "unknown camera";
+                reason = "unknown camera " + parser.InstrumentId;
                 return false;
             }
 

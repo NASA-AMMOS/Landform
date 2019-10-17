@@ -66,7 +66,7 @@ namespace OPS.Pipeline
                 string reason = "";
                 if (!mission.CheckFilename(filename, out reason))
                 {
-                    pipeline.LogDebug("rejected {0} by filename: {1}", url, reason);
+                    pipeline.LogVerbose("rejected {0} by filename: {1}", url, reason);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -96,7 +96,7 @@ namespace OPS.Pipeline
                 var parser = new PDSParser(metadata);
                 if (!mission.CheckMetadata(parser, out reason))
                 {
-                    pipeline.LogDebug("rejected {0} by metadata: {1}", url, reason);
+                    pipeline.LogVerbose("rejected {0} by metadata: {1}", url, reason);
                     return new Result(url, dataUrl, Status.Skipped);
                 }
                 
