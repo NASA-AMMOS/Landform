@@ -639,6 +639,20 @@ namespace GeometryTest
         }
 
         [TestMethod]
+        public void MeshUnreferencedBoundTest()
+        {
+            Mesh mesh = new Mesh();
+            mesh.Vertices = new List<Vertex>() { new Vertex { Position = new Vector3(1, 0, 0) },
+                                                 new Vertex { Position = new Vector3(0, 1, 0) },
+                                                 new Vertex { Position = new Vector3(0, 0, 1) },
+                                                 new Vertex { Position = new Vector3(1000, 0, 0) } };
+            mesh.Faces = new List<Face>() { new Face(0, 1, 2) };
+
+            BoundingBox bb = mesh.Bounds();
+            Assert.IsTrue(bb.MaxDimension() == 1.0);
+        }
+
+        [TestMethod]
         public void MeshClipPointCloudTest()
         {
             Random r = new Random(17);
