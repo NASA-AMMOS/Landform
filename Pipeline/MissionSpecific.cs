@@ -284,7 +284,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseHazcamForTexturing()
         {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/729
+            return true; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/729
         }
 
         public virtual bool UseNavcamForAlignment()
