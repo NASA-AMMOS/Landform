@@ -40,12 +40,18 @@ namespace OPS.Pipeline
         private static Dictionary<string, RoverProductCamera> pdsCameraTypes =
             new Dictionary<string, RoverProductCamera>()
         {
-            { "FHAZ_LEFT", RoverProductCamera.FrontHazcamLeft },
-            { "FHAZ_RIGHT", RoverProductCamera.FrontHazcamRight },
-            { "RHAZ_LEFT", RoverProductCamera.RearHazcamLeft },
-            { "RHAZ_RIGHT", RoverProductCamera.RearHazcamRight },
-            { "NAV_LEFT", RoverProductCamera.NavcamLeft }, //MSL
-            { "NAV_RIGHT", RoverProductCamera.NavcamRight }, //MSL
+            { "FHAZ_LEFT_A", RoverProductCamera.FrontHazcamLeft },
+            { "FHAZ_LEFT_B ", RoverProductCamera.FrontHazcamLeft },
+            { "FHAZ_RIGHT_A", RoverProductCamera.FrontHazcamRight },
+            { "FHAZ_RIGHT_B", RoverProductCamera.FrontHazcamRight },
+            { "RHAZ_LEFT_A", RoverProductCamera.RearHazcamLeft },
+            { "RHAZ_LEFT_B", RoverProductCamera.RearHazcamLeft },
+            { "RHAZ_RIGHT_A", RoverProductCamera.RearHazcamRight },
+            { "RHAZ_RIGHT_B", RoverProductCamera.RearHazcamRight },
+            { "NAV_LEFT_A", RoverProductCamera.NavcamLeft }, //MSL
+            { "NAV_LEFT_B", RoverProductCamera.NavcamLeft }, //MSL
+            { "NAV_RIGHT_A", RoverProductCamera.NavcamRight }, //MSL
+            { "NAV_RIGHT_B", RoverProductCamera.NavcamRight }, //MSL
             { "NAVCAM_LEFT", RoverProductCamera.NavcamLeft }, //M2020
             { "NAVCAM_RIGHT", RoverProductCamera.NavcamRight }, //M2020
             { "MAST_LEFT", RoverProductCamera.MastcamLeft }, //MSL
