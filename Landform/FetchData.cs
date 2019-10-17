@@ -78,6 +78,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Verbose output")]
+        public bool Verbose { get; set; }
     }
 
     public class FetchData
@@ -163,19 +166,38 @@ namespace OPS.Landform
             foreach (var p in products)
             {
                 string ext = StringHelper.GetUrlExtension(p).ToUpper();
+                string filename = StringHelper.GetLastUrlPathSegment(p, stripExtension: true);
+                string reason = null;
                 if (acceptedExtensions.Contains(ext))
                 {
-                    string filename = StringHelper.GetLastUrlPathSegment(p, stripExtension: true);
-                    if ((mission == null || mission.CheckFilename(filename)) &&
-                        (acceptedProductIds == null || acceptedProductIds.Contains(filename)))
+                    if (mission == null || mission.CheckFilename(filename, out reason))
                     {
-                        SiteDrive? sd = GetSiteDrive(filename);
-                        if (acceptedSiteDrives.Length == 0 || !sd.HasValue ||
-                            acceptedSiteDrives.Any(asd => asd == sd.Value))
+                        if (acceptedProductIds == null || acceptedProductIds.Contains(filename))
                         {
-                            result.Add(p);
+                            SiteDrive? sd = GetSiteDrive(filename);
+                            if (acceptedSiteDrives.Length == 0 || !sd.HasValue ||
+                                acceptedSiteDrives.Any(asd => asd == sd.Value))
+                            {
+                                result.Add(p);
+                            }
+                            else
+                            {
+                                reason = "disallowed sitedrive " + sd.Value;
+                            }
+                        }
+                        else
+                        {
+                            reason = "disallowed product id";
                         }
                     }
+                }
+                else
+                {
+                    reason = "disallowed extension " + ext;
+                }
+                if (options.Verbose && !string.IsNullOrEmpty(reason))
+                {
+                    logger.InfoFormat("rejected {0}: {1}", filename, reason);
                 }
             }
 
@@ -345,21 +367,16 @@ namespace OPS.Landform
             });
         }
 
-        private List<string> ParseList(string list)
-        {
-            return list.Split(',').Select(s => s.Trim()).Where(s => s != "").ToList();
-        }
-
         public int Run()
         {
             if (options.Raw)
             {
-                DownloadFiles(ParseList(options.Input));
+                DownloadFiles(StringHelper.ParseList(options.Input).ToList());
             }
             else
             {
                 var sols = ExpandSolSpecifier(options.Input);
-                var locations = ParseList(options.SearchLocations);
+                var locations = StringHelper.ParseList(options.SearchLocations);
                 logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols), string.Join(", ", locations));
                 
                 var solToProducts = new ConcurrentDictionary<string, List<string>>();
