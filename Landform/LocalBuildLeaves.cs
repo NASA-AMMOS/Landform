@@ -20,6 +20,9 @@ namespace OPS.Landform
     [Verb("local-build-leaves", HelpText = "builds textured leaf tiles from a full scene mesh")]
     public class LocalBuildLeavesOptions : TilingCommandOptions
     {
+        [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
+        public override string ProjectName { get; set; }
+
         [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
         public override double BackprojectBatchGridSize { get; set; }
 
@@ -134,6 +137,11 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            if (options.LoadLODs && !BakingInputMesh())
+            {
+                throw new Exception("--loadlods requires --inputmesh and --inputtexture");
+            }
+
             string description = null;
             if (!withTextures)
             {
@@ -142,13 +150,19 @@ namespace OPS.Landform
             }
             else if (options.LoadLODs)
             {
+                //TODO we should probably default to clipping vs baking whenever --inputtexture is given
+                //not just when --loadlods is given
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/199
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/713
                 texGenMode = TextureGenMode.Clip;
                 description = "clipping from source texture";
+                options.NoBackprojectIndexImages = true;
             }
             else if (!string.IsNullOrEmpty(options.InputTexture))
             {
                 texGenMode = TextureGenMode.Bake;
                 description = "baking from source texture";
+                options.NoBackprojectIndexImages = true;
             }
             else
             {
@@ -178,7 +192,8 @@ namespace OPS.Landform
                 string projectName = options.ProjectName;
                 if (string.IsNullOrEmpty(projectName))
                 {
-                    throw new Exception("project name required");
+                    projectName = StringHelper.GetLastUrlPathSegment(options.InputMesh, stripExtension: true);
+                    pipeline.LogInfo("inferred project name \"{0}\"", projectName);
                 }
                 var project = Project.Find(pipeline, projectName);
                 if (project != null)
@@ -413,8 +428,10 @@ namespace OPS.Landform
                 bakeClipper.InitTextureBaker();
             }
 
-            var texMsg = string.Format("{0}x{0} {1} textures (falling back to {2})",
-                                       resolution, options.TextureVariant, TextureVariant.Original);
+            var texMsg = string.Format("{0}x{0} {1} textures{2}",
+                                       resolution, options.TextureVariant,
+                                       options.TextureVariant != TextureVariant.Original ?
+                                       " (falling back to " + TextureVariant.Original + ")" : "");
             pipeline.LogInfo("processing {0} tiles{1}", tileCount,
                              texGenMode == TextureGenMode.Bake ? ", baking " + texMsg :
                              texGenMode == TextureGenMode.Backproject ? ", backprojecting " + texMsg :
@@ -454,14 +471,18 @@ namespace OPS.Landform
                 }
                 else if (texGenMode == TextureGenMode.Clip)
                 {
-                    if(!options.LoadLODs)
+                    MeshOperator meshOp = null;
+                    if (options.LoadLODs)
                     {
-                        throw new NotImplementedException("texture clipping only implemnented for LODs currently"); // prevented really just for mesh op caching
+                        int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
+                        int idxLOD = meshLODs.Count() - idxTreeLevel - 1;
+                        meshOp = meshOps[idxLOD];
                     }
-
-                    int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
-                    int idxLOD = meshLODs.Count() - idxTreeLevel - 1;
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(meshOps[idxLOD], mp.Mesh, sceneTexture);
+                    else
+                    {
+                        meshOp = meshOps.First();
+                    }
+                    var newMP = TexturedMeshClipper.RemapMeshClipImage(meshOp, mp.Mesh, sceneTexture);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }

@@ -135,7 +135,8 @@ namespace OPS.Landform
         protected override Project GetProject()
         {
             var project = base.GetProject(); //throws if project doesn't exist
-            if (tcopts.MeshFrame.ToLower().Trim() == "auto")
+            meshFrame = tcopts.MeshFrame.ToLower().Trim();
+            if (meshFrame == "auto")
             {
                 var sceneMeshes = project.GetSceneMeshes();
                 if (sceneMeshes.Count() == 1)
@@ -151,6 +152,11 @@ namespace OPS.Landform
                 }
             }
             return project;
+        }
+
+        protected override string GetMeshFrame()
+        {
+            return !string.IsNullOrEmpty(meshFrame) ? meshFrame : tcopts.MeshFrame.ToLower().Trim();
         }
 
         protected void EnsureOrBuildObservationTextures()
