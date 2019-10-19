@@ -161,6 +161,7 @@ namespace OPS.Pipeline.TilingServer
                     if (mesh == null)
                     {
                         warn(string.Format("failed to build pointcloud for observation {0}", obs.Name));
+                        Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nf);
                         return;
                     }
@@ -168,12 +169,14 @@ namespace OPS.Pipeline.TilingServer
                     if (mesh.ContainsZeroLengthNormals())
                     {
                         warn(string.Format("pointcloud for observation {0} has zero length normals", obs.Name));
+                        Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nf);
                         return;
                     }
 
                     obsToMesh.AddOrUpdate(obs.Points.Name, _ => mesh, (_, __) => mesh);
 
+                    Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
 
