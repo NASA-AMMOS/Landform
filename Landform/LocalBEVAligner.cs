@@ -180,7 +180,7 @@ namespace OPS.Landform
 
         private LocalBEVAlignerOptions options;
 
-        private List<MeshObservations> meshObservations;
+        private List<WedgeObservations> meshObservations;
 
         //WedgeCommand.siteDrives is an array of SiteDrive corresponding to the OnlyForSiteDrives option
         //LocalBEVAligner.siteDrives is a sorted array of the sitedrives to be aligned
@@ -365,7 +365,7 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            var opts = new MeshObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
+            var opts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
             {
                 RequirePoints = true,
@@ -377,11 +377,11 @@ namespace OPS.Landform
                 RequirePriorTransform = true,
                 TargetFrame = "root"
             };
-            meshObservations = MeshObservations.Collect(frameCache, observationCache, opts);
+            meshObservations = WedgeObservations.Collect(frameCache, observationCache, opts);
 
             if (options.StereoEye != RoverStereoEye.Any)
             {
-                meshObservations = MeshObservations.FilterForEye(meshObservations, options.StereoEye).ToList(); 
+                meshObservations = WedgeObservations.FilterForEye(meshObservations, options.StereoEye).ToList(); 
             }
         
             //for now lexicographically sort siteDrives so that older ones come before newer
@@ -420,7 +420,7 @@ namespace OPS.Landform
             int no = meshObservations.Count;
             pipeline.LogInfo("creating wedge meshes for {0} observations...", no);
 
-            var meshOpts = new MeshObservations.MeshOptions()
+            var meshOpts = new WedgeObservations.MeshOptions()
                 {
                     Frame = "root",
                     UsePriors = true,
@@ -439,7 +439,7 @@ namespace OPS.Landform
                                          np, nc, no);
                     }
 
-                    int mbs = MeshObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
+                    int mbs = WedgeObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
                     if (mbs > 1 && mbs != options.DecimateWedgeMeshes)
                     {
                         pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
@@ -452,7 +452,7 @@ namespace OPS.Landform
                     if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture && obs.Texture != null)
                     {
                         img = pipeline.LoadImage(obs.Texture.Url);
-                        int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages, options.TargetWedgeImageResolution);
+                        int ibs = WedgeObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages, options.TargetWedgeImageResolution);
                         if (ibs > 1)
                         {
                             if (ibs != options.DecimateWedgeImages)

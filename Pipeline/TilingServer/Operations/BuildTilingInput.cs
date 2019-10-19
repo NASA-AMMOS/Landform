@@ -115,7 +115,7 @@ namespace OPS.Pipeline.TilingServer
             var mission = MissionSpecific.GetInstance(project != null ? project.Mission : Mission.MSL.ToString());
             var masker = mission.GetMasker();
 
-            var opts = new MeshObservations.CollectOptions(null, null, onlyForCameras, mission)
+            var opts = new WedgeObservations.CollectOptions(null, null, onlyForCameras, mission)
                 {
                     RequirePoints = true,
                     RequireNormals = true,
@@ -128,14 +128,14 @@ namespace OPS.Pipeline.TilingServer
                     TargetFrame = outputFrame
                 };
 
-            var observations = MeshObservations.Collect(frameCache, observationCache, opts);
+            var observations = WedgeObservations.Collect(frameCache, observationCache, opts);
             if (observations.Count == 0)
             {
                 error("no observations were found to build a point cloud");
                 return null;
             }
 
-            var meshOpts = new MeshObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
+            var meshOpts = new WedgeObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
             info("building wedge point clouds");
             var obsToMesh = new ConcurrentDictionary<string, Mesh>();
@@ -149,7 +149,7 @@ namespace OPS.Pipeline.TilingServer
                                        np, nc, no, nf));
 
                     var mo = meshOpts.Clone();
-                    mo.Decimate = MeshObservations.AutoDecimate(obs.Points, decimate, targetPointCloudResolution);
+                    mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, decimate, targetPointCloudResolution);
                     if (mo.Decimate > 1 && mo.Decimate != decimate)
                     {
                         verbose(string.Format("auto decimating point cloud for observation {0} with blocksize {1}",

@@ -17,8 +17,8 @@ namespace OPS.Pipeline
     {
         // fills a texture with the difference in the per-pixel range of a src point cloud and dst point cloud 
         // designed to give an coarse visual estimate of how well cameras are aligned
-        public static Image Create(PipelineCore pipeline, RoverMasker masker, MeshObservations srcObs,
-                                   MeshObservations dstObs, FrameCache frameCache, bool usePriors, bool noPriors)
+        public static Image Create(PipelineCore pipeline, RoverMasker masker, WedgeObservations srcObs,
+                                   WedgeObservations dstObs, FrameCache frameCache, bool usePriors, bool noPriors)
         {
             //load images
             var srcPointsRaw = pipeline.LoadImage(srcObs.Points.Url);
@@ -51,7 +51,7 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            var meshOpts = new MeshObservations.MeshOptions() { Frame = "rover", UsePriors = usePriors };
+            var meshOpts = new WedgeObservations.MeshOptions() { Frame = "rover", UsePriors = usePriors };
             var dstHull = dstObs.BuildFrustumHull(pipeline, frameCache, meshOpts, uncertaintyInflated: false);
 
             //project points of src texture into dst

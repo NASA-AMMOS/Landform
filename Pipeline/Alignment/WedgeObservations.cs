@@ -23,7 +23,7 @@ namespace OPS.Pipeline
     /// collects the Observations in the same frame that contribute to building a mesh
     /// also known as a "wedge"
     /// </summary>
-    public class MeshObservations
+    public class WedgeObservations
     {
         public Observation Points; //if XYZ is not available but RNG is, this will be the RNG
         public Observation Range; //only set if RNG is available
@@ -167,7 +167,7 @@ namespace OPS.Pipeline
         /// and try to collect those that are required to build a mesh
         /// returns null if the required observation types are not found for the frame
         /// </summary>
-        public static MeshObservations CollectForFrame(string frameName, FrameCache frameCache,
+        public static WedgeObservations CollectForFrame(string frameName, FrameCache frameCache,
                                                        ObservationCache observationCache,
                                                        CollectOptions opts = null)
         {
@@ -213,7 +213,7 @@ namespace OPS.Pipeline
             {
                 var linObs = observations.Where(obs => obs.CheckLinear(geometry)).ToList();
 
-                var ret = new MeshObservations();
+                var ret = new WedgeObservations();
 
                 ret.Range = linObs.Find(obs => obs.ObservationType == RoverProductType.Range);
 
@@ -279,7 +279,7 @@ namespace OPS.Pipeline
         /// try to collect mesh observations for all frames
         /// corresponding to observations in the passed observation cache
         /// </summary>
-        public static List<MeshObservations> Collect(FrameCache frameCache, ObservationCache observationCache,
+        public static List<WedgeObservations> Collect(FrameCache frameCache, ObservationCache observationCache,
                                                      CollectOptions opts = null)
         {
             if (opts == null)
@@ -287,7 +287,7 @@ namespace OPS.Pipeline
                 opts = new CollectOptions();
             }
 
-            var ret = new List<MeshObservations>();
+            var ret = new List<WedgeObservations>();
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
                 var obs = CollectForFrame(frameName, frameCache, observationCache, opts);
@@ -707,7 +707,7 @@ namespace OPS.Pipeline
         /// if group contains a MeshObservations for eye, return the first of those
         /// otherwise just return the first thing in group
         /// </summary>
-        public static T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, MeshObservations> getObs)
+        public static T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, WedgeObservations> getObs)
         {
             foreach (var thing in group)
             {
@@ -719,7 +719,7 @@ namespace OPS.Pipeline
             return group.FirstOrDefault();
         }
 
-        public static IEnumerable<MeshObservations> FilterForEye(IEnumerable<MeshObservations> observations,
+        public static IEnumerable<WedgeObservations> FilterForEye(IEnumerable<WedgeObservations> observations,
                                                                  RoverStereoEye eye)
         {
             return observations 

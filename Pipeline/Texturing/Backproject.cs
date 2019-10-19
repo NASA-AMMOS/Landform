@@ -619,8 +619,8 @@ namespace OPS.Pipeline
             {
                 Interlocked.Increment(ref nh);
                 pipeline.LogDebug("building convex hull for observation {0}, {1}/{2}", obs.Name, nh, no);
-                var meshObs = new MeshObservations() { Texture = obs };
-                var opts = new MeshObservations.MeshOptions()
+                var meshObs = new WedgeObservations() { Texture = obs };
+                var opts = new WedgeObservations.MeshOptions()
                 { Frame = outputFrame, UsePriors = usePriors, OnlyAligned = onlyAligned };
                 var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false);
                 if (hull != null)

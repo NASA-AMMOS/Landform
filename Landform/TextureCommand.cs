@@ -512,7 +512,7 @@ namespace OPS.Landform
 
         protected void SaveDebugWedgeImage(Image img, Observation obs, string suffix)
         {
-            int bs = MeshObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages, tcopts.TargetWedgeImageResolution);
+            int bs = WedgeObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages, tcopts.TargetWedgeImageResolution);
             if (bs > 1)
             {
                 img = img.Decimated(bs);
