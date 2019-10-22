@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Net;
 using System.Threading;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
@@ -369,6 +370,7 @@ namespace OPS.Landform
 
         public int Run()
         {
+            var stopwatch = Stopwatch.StartNew();
             if (options.Raw)
             {
                 DownloadFiles(StringHelper.ParseList(options.Input).ToList());
@@ -399,7 +401,7 @@ namespace OPS.Landform
                 
                 DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
             }
-
+            logger.InfoFormat("total time: {0}", Fmt.HMS(stopwatch));
             return 0;
         }
     }
