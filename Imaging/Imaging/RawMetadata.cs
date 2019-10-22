@@ -181,6 +181,18 @@ namespace OPS.Imaging
             return ParseDoubleArray(group, key);
         }
 
+        public float[] ReadAsFloatArray(string key)
+        {
+            CheckKey(key);
+            return ReadAsFloatArray(NULL_GROUP, key);
+        }
+
+        public float[] ReadAsFloatArray(string group, string key)
+        {
+            CheckKey(group, key);
+            return ParseFloatArray(group, key);
+        }
+
         public int ReadAsInt(string key)
         {
             CheckKey(key);
@@ -352,6 +364,24 @@ namespace OPS.Imaging
             catch (FormatException)
             {
                 throw new MetadataFormatException(group, key, "double", s);
+            }
+        }
+
+        protected float[] ParseFloatArray(string group, string key)
+        {
+            var s = this[group, key];
+            s = s.Trim();
+            if (s.StartsWith("(") && s.EndsWith(")"))
+            {
+                s = s.Substring(1, s.Length - 2).Trim();
+            }
+            try
+            {
+                return s.Split(',').Select(x => float.Parse(StripUnits(ParseString(x)))).ToArray();
+            }
+            catch (FormatException)
+            {
+                throw new MetadataFormatException(group, key, "float array", s);
             }
         }
 
