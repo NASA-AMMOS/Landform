@@ -38,9 +38,6 @@ namespace OPS.Landform
         [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
         public override int TargetWedgeMeshResolution { get; set; }
 
-        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = "Navcam")]
-        public override string OnlyForCameras { get; set; }
-
         [Option(HelpText = "Option disabled for this command - always loads priors", Default = true)]
         public override bool UsePriors { get; set; }
 
