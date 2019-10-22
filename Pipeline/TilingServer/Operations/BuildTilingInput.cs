@@ -49,8 +49,6 @@ namespace OPS.Pipeline.TilingServer
             observationCache.Preload(obs => obs.UseForMeshing);
 
             LogInfo("building mesh");
-            //temporarily suppress mastcam point cloud data until validated
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
                                           onlyForCameras: null, useCleverCombine: false, 
