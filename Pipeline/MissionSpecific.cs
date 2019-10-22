@@ -8,7 +8,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT18 }
+    public enum Mission { None, MSL, M2020, ROASTT19 }
 
     public abstract class MissionSpecific
     {
@@ -19,7 +19,7 @@ namespace OPS.Pipeline
                 case Mission.None: return null;
                 case Mission.MSL: return new MissionMSL();
                 case Mission.M2020: return new MissionM2020();
-                case Mission.ROASTT18: return new MissionROASTT18();
+                case Mission.ROASTT19: return new MissionROASTT19();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -247,11 +247,10 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// whether to prefer MSSS images to OPGS images when both are available
-        /// default is to prefer MSSS "because people like the colors better"
         /// </summary>
         public virtual bool PreferMSSSToOPGS()
         {
-            return true;
+            return false;
         }
 
         /// <summary>
@@ -885,16 +884,16 @@ namespace OPS.Pipeline
         }
     }
 
-    public class MissionROASTT18 : MissionM2020 
+    public class MissionROASTT19 : MissionM2020 
     {
-        // ROASTT18: bug prevents RMC from being used for frame names. This workaround
+        // ROASTT19: bug prevents RMC from being used for frame names. This workaround
         // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
         {          
             return ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
         }
 
-        // ROASTT18: some images have invalid PLANET_DAY_NUMBER
+        // ROASTT19: some images have invalid PLANET_DAY_NUMBER
         public override int DayNumber(PDSParser parser)
         {
             try
@@ -907,7 +906,7 @@ namespace OPS.Pipeline
             }
         }
 
-        // ROASTT18: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
+        // ROASTT19: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
         public override RoverProductCamera GetCamera(PDSParser parser)
         {
             return TranslateCamera(parser.ProductId.Camera);
