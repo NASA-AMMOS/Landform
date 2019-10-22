@@ -396,15 +396,9 @@ namespace OPS.Pipeline
             {
                 return false;
             }
-            if (RoverProduct.IsRaster(prodType))
-            {
-                return AllowRasterProducts(cam);
-            }
-            if (RoverProduct.IsGeometry(prodType))
-            {
-                return AllowGeometryProducts(cam);
-            }
-            return false;
+            //careful here - consider e.g. that a mask may be both a raster and geometry product
+            return ((RoverProduct.IsRaster(prodType) && AllowRasterProducts(cam)) ||
+                    (RoverProduct.IsGeometry(prodType) && AllowGeometryProducts(cam)));
         }
 
         /// <summary>
