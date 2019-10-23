@@ -68,7 +68,7 @@ namespace OPS.Landform
         protected SceneCaster sceneCaster;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
         protected Image backprojectIndex;
-        protected LeafList leafList;
+        protected TileList tileList;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -143,7 +143,8 @@ namespace OPS.Landform
         protected override Project GetProject()
         {
             var project = base.GetProject(); //throws if project doesn't exist
-            if (tcopts.MeshFrame.ToLower().Trim() == "auto")
+            meshFrame = tcopts.MeshFrame.ToLower().Trim();
+            if (meshFrame == "auto")
             {
                 var sceneMeshes = project.GetSceneMeshes();
                 if (sceneMeshes.Count() == 1)
@@ -159,6 +160,11 @@ namespace OPS.Landform
                 }
             }
             return project;
+        }
+
+        protected override string GetMeshFrame()
+        {
+            return !string.IsNullOrEmpty(meshFrame) ? meshFrame : tcopts.MeshFrame.ToLower().Trim();
         }
 
         protected void EnsureOrBuildObservationTextures()
@@ -283,7 +289,29 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading input mesh from {0}{1}", tcopts.InputMesh,
                                  sceneMesh != null ? (", overriding scene mesh " + sceneMesh.Name) : "");
-                mesh = Mesh.Load(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+
+                if (tcopts.LoadLODs)
+                {
+                    meshLODs = Mesh.LoadAllLODs(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+                    
+                    if(meshLODs.Count < 2)
+                    {
+                        throw new Exception("LoadLODs requested, but input mesh has only " + meshLODs.Count + " LODs");
+                    }
+
+                    pipeline.LogInfo("Input mesh contains {0} levels of detail", meshLODs.Count);
+                    for(int idxLOD = 0; idxLOD < meshLODs.Count; idxLOD++)
+                    {
+                        Mesh meshLOD = meshLODs.ElementAt(idxLOD);
+                        pipeline.LogInfo("Mesh LOD {0}: {1} vertices, {2} faces", idxLOD, meshLOD.Vertices.Count(), meshLOD.Faces.Count());
+                    }
+
+                    mesh = meshLODs.First();
+                }
+                else
+                {
+                    mesh = Mesh.Load(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+                }
             }
             else if (sceneMesh != null)
             {
@@ -324,23 +352,23 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual void LoadLeafList()
+        protected virtual void LoadTileList()
         {
-            if (sceneMesh.LeafListGuid == Guid.Empty)
+            if (sceneMesh.TileListGuid == Guid.Empty)
             {
                 throw new Exception(string.Format("scene mesh {0} has no leaf list, run local-build-leaves",
                                                   sceneMesh.Name));
             }
 
-            leafList = pipeline.GetDataProduct<LeafList>(project, sceneMesh.LeafListGuid);
+            tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
 
-            if (leafList.MeshFrame != meshFrame)
+            if (tileList.MeshFrame != meshFrame)
             {
                 throw new Exception(string.Format("leaf list is in frame {0}, expected {1}",
-                                                  leafList.MeshFrame, meshFrame));
+                                                  tileList.MeshFrame, meshFrame));
             }
 
-            if (leafList.LeafNames == null || leafList.LeafNames.Count == 0)
+            if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
                 throw new Exception("leaf list is empty");
             }

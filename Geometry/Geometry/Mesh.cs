@@ -1753,6 +1753,17 @@ namespace OPS.Geometry
             return s.Load(filename);
         }
 
+        public static List<Mesh> LoadAllLODs(string filename)
+        {
+            string ext = Path.GetExtension(filename).ToLower();
+            MeshSerializer s = MeshSerializers.Instance.GetSerializer(ext);
+            if (s == null)
+            {
+                throw new MeshSerializerException("Mesh format not supported");
+            }
+            return s.LoadAllLODs(filename);
+        }
+
         /// <summary>
         /// An edge that holds two vertices
         /// </summary>

@@ -377,8 +377,19 @@ namespace OPS.Pipeline
                     parentMesh = pair.Mesh;
                     break;
                 }
+
+                //if hit root bail out
+                if (parent.Transform.Parent == null)
+                    break;
+
                 parent = parent.Transform.Parent.Node;
             }
+
+            if(parentMesh == null)
+            {
+                return 0; //no meshes including or above this node
+            }
+
             // Get first set of descendants that have meshes
             List<Mesh> childrenMeshes = new List<Mesh>();
             Queue<SceneNode> childrenQueue = new Queue<SceneNode>();

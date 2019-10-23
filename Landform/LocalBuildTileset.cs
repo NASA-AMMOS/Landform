@@ -21,7 +21,7 @@ using OPS.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-tileset", HelpText = "builds a tileset from leaf tiles")]
+    [Verb("local-build-tileset", HelpText = "builds a tileset from pre-built tiles")]
     public class LocalBuildTilesetOptions : TilingCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
@@ -35,6 +35,7 @@ namespace OPS.Landform
 
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
         public double MaxTime { get; set; }
+
     }
 
     public class LocalBuildTileset : TilingCommand
@@ -66,8 +67,8 @@ namespace OPS.Landform
                 }
 
                 RunPhase("create tiling project", CreateTilingProject);
-                RunPhase("add leaf meshes", AddLeafMeshes);
-                RunPhase("build leaf tiles and define parents", BuildLeavesAndDefineParents);
+                RunPhase("add tile meshes", AddTileMeshes);
+                RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
                 RunPhase("build parent tiles", BuildParentTiles);
             }
             catch (Exception ex)
@@ -103,9 +104,9 @@ namespace OPS.Landform
                 throw new Exception(string.Format("no scene mesh for project {0} in frame {1}", project.Name, meshFrame));
             }
 
-            LoadLeafList();
+            LoadTileList();
 
-            withTextures &= !string.IsNullOrEmpty(leafList.ImageExt);
+            withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
 
             tilesetFolder = DecorateOutDir(OUT_DIR + "Set");
 
@@ -124,7 +125,7 @@ namespace OPS.Landform
 
         protected override void LoadFrameCache()
         {
-            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            if (meshFrame != "passthrough")
             {
                 base.LoadFrameCache();
             }
@@ -132,7 +133,7 @@ namespace OPS.Landform
 
         protected override void LoadObservationCache()
         {
-            if (options.MeshFrame.ToLower().Trim() != "passthrough")
+            if (meshFrame != "passthrough")
             {
                 base.LoadObservationCache();
             }
@@ -141,7 +142,8 @@ namespace OPS.Landform
         private void CreateTilingProject()
         {
             var keepMeshes = new HashSet<string>();
-            keepMeshes.UnionWith(leafList.LeafNames);
+            keepMeshes.UnionWith(tileList.LeafNames);
+            keepMeshes.UnionWith(tileList.ParentNames);
             tilingProject = GetOrDeleteTilingProject(keepMeshes);
 
             if (tilingProject == null)
@@ -160,18 +162,18 @@ namespace OPS.Landform
                 string exportMeshFormat = null;
                 string exportImageFormat = null;
 
-                int maxLeafGroupSize = MAX_LEAF_GROUP_SIZE;
+                int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      options.SkirtMode, options.ReconMethod, options.FacesPerTile,
                                                      resolution, projectType.ToString(),
-                                                     exportMeshFormat, exportImageFormat, maxLeafGroupSize);
+                                                     exportMeshFormat, exportImageFormat, maxTileGroupSize);
 
                 tilingProject.ExportDir = null;
 
                 //our own internal representation of the tile meshes are stored here
                 //typically in ply / png formats
-                //note this is the same folder and formats that local-build-leaves used to save the leaf meshes
+                //note this is the same folder and formats that local-build-leaves used to save the tile meshes
                 tilingProject.InternalTileDir = outputFolder;
                 tilingProject.InternalMeshFormat = options.MeshFormat;
                 tilingProject.InternalImageFormat = options.ImageFormat;
@@ -187,29 +189,33 @@ namespace OPS.Landform
             }
 
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
-            pipeline.LogInfo("{0} {1} tileset meshes and {2} leaf textures to {3}",
+            pipeline.LogInfo("{0} {1} tileset meshes and {2} tile textures to {3}",
                              pipeline is CloudPipeline ? "uploading" : "saving",
                              tilingProject.TilesetMeshFormat, tilingProject.TilesetImageFormat, tilesetUrl);
         }
 
-        private void AddLeafMeshes()
+        private void AddTileMeshes()
         {
-            pipeline.LogInfo("adding {0} leaf meshes{1}", leafList.LeafNames.Count,
+            List<string> tileNames = new List<string>(tileList.LeafNames);
+            tileNames.AddRange(tileList.ParentNames);
+
+            pipeline.LogInfo("adding {0} tile meshes ({1} leaves, {2} parents){3}", tileNames.Count, tileList.LeafNames.Count(), tileList.ParentNames.Count(),
                              withTextures ? " and textures" : "");
-            foreach (var leaf in leafList.LeafNames)
+
+            foreach (var tile in tileNames)
             {
                 if (!options.NoProgress)
                 {
-                    pipeline.LogVerbose("adding/updating leaf mesh {0}", leaf);
+                    pipeline.LogVerbose("adding/updating tile mesh {0}", tile);
                 }
-                var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.MeshExt);
+                var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
                 var imgUrl =
-                    withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, leaf + leafList.ImageExt) : null;
-                TilingInput.Create(pipeline, leaf, tilingProject, meshUrl, imgUrl, leaf);
+                    withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt) : null;
+                TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, tile);
             }
         }
 
-        private void BuildLeavesAndDefineParents()
+        private void BuildTilesAndDefineParents()
         {
             TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE);
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));

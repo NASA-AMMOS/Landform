@@ -162,7 +162,7 @@
     <Compile Include="LocalBlendImages.cs" />
     <Compile Include="LocalBuildTexture.cs" />
     <Compile Include="LocalBuildGeometry.cs" />
-    <Compile Include="LocalBuildLeaves.cs" />
+    <Compile Include="LocalBuildTilingInput.cs" />
     <Compile Include="LocalBuildTileset.cs" />
     <Compile Include="LocalBundleAdjust.cs" />
     <Compile Include="LocalFeatures.cs" />

@@ -71,7 +71,7 @@ namespace OPS.Landform
                 LocalBuildGeometryOptions,
                 LocalBuildTilesetOptions,
                 LocalBuildTextureOptions,
-                LocalBuildLeavesOptions,
+                LocalBuildTilingInputOptions,
                 LocalBlendImagesOptions,
                 StartAlignMasterOptions >(args);
 
@@ -88,7 +88,7 @@ namespace OPS.Landform
                 (LocalBuildGeometryOptions opts) => new LocalBuildGeometry(opts).Run(),
                 (LocalBuildTilesetOptions opts) => new LocalBuildTileset(opts).Run(),
                 (LocalBuildTextureOptions opts) => new LocalBuildTexture(opts).Run(),
-                (LocalBuildLeavesOptions opts) => new LocalBuildLeaves(opts).Run(),
+                (LocalBuildTilingInputOptions opts) => new LocalBuildTilingInput(opts).Run(),
                 (LocalBlendImagesOptions opts) => new LocalBlendImages(opts).Run(),
                 (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
                 errs => 1);
