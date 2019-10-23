@@ -62,39 +62,56 @@ namespace OPS.Pipeline
                         }
                     }
                 }
-            } 
+            }
 
             //propagate invalid pixels from original image to mask
             if (img.Metadata is PDSMetadata)
             {
                 var parser = new PDSParser((PDSMetadata)img.Metadata);
+
+                //nominal missing constant value is 0, MSL SIS
+                float[] missing = new float[] { 0.0f};
+
                 if (parser.HasMissingConstant)
                 {
-                    float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
+                    missing = parser.MissingConstant.Select(x => (float)x).ToArray();
+                }
+                //ROASTT18 wart: single float missing constant for 3 channel navcam
+                if (missing.Count() == 1 && img.Bands > 1)
+                {
+                    missing = Enumerable.Repeat<float>(missing.First(), img.Bands).ToArray();
+                }
+
+                //nominal invalid constant value is 0, MSL SIS
+                float[] invalid = new float[] { 0.0f }; 
+
+                if (parser.HasInvalidConstant)
+                {
+                    invalid = parser.InvalidConstant.Select(x => (float)x).ToArray();
 
                     //ROASTT19 wart: single float missing constant for 3 channel navcam
-                    if(missing.Count() == 1 && img.Bands > 1)
+                    if (invalid.Count() == 1 && img.Bands > 1)
                     {
-                        missing = Enumerable.Repeat<float>(missing.First(), img.Bands).ToArray();
+                        invalid = Enumerable.Repeat<float>(invalid.First(), img.Bands).ToArray();
                     }
+                }
 
-                    //we could do it this way, but it's just a few more lines to avoid allocating the mask array
-                    //mask.UnionMask(img, missing);
-                    //mask.SetValuesForMaskedData(new float[] { 0 });
-                    for (int row = 0; row < img.Height; row++)
+                //we could do it this way, but it's just a few more lines to avoid allocating the mask array
+                //mask.UnionMask(img, missing);
+                //mask.SetValuesForMaskedData(new float[] { 0 });
+                for (int row = 0; row < img.Height; row++)
+                {
+                    for (int col = 0; col < img.Width; col++)
                     {
-                        for (int col = 0; col < img.Width; col++)
+                        if (img.BandValuesEqual(row, col, missing) || img.BandValuesEqual(row, col, invalid))
                         {
-                            if (img.BandValuesEqual(row, col, missing))
+                            mask[0, row, col] = 0;
+                            if (drawDebug)
                             {
-                                mask[0, row, col] = 0;
-                                if (drawDebug)
-                                {
-                                    dbgImg[1, row, col] = 1; //masked/invalid/border = green tint
-                                }
+                                dbgImg[1, row, col] = 1; //masked/invalid/border = green tint
                             }
                         }
-                    } 
+                    }
                 }
             }
 
