@@ -202,11 +202,11 @@ namespace OPS.Pipeline.TilingServer
 
                     if (!node.HasComponent<NodeGeometricError>())
                     {
-                        var parentPair = parentTilingNode.LoadMeshImagePair(pipeline, false);
+                        var parentPair = parentTilingNode.LoadMeshImagePair(pipeline, loadImage:false);
                         if (parentPair == null || parentPair.Mesh == null)
                             return;
 
-                        var childrenPairs = childTilingNodes.Select(ctn => ctn.LoadMeshImagePair(pipeline, false)).Where(p => p != null && p.Mesh != null);
+                        var childrenPairs = childTilingNodes.Select(ctn => ctn.LoadMeshImagePair(pipeline, loadImage: false)).Where(p => p != null && p.Mesh != null);
                         if (childrenPairs.Count() == 0)
                             return;
 
