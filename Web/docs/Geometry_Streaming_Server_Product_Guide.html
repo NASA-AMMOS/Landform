@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="generator" content="pandoc" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>Landform Mesh Tiling Server</title>
+  <title>Geometry Streaming Server Product Guide</title>
   <style>
       code{white-space: pre-wrap;}
       span.smallcaps{font-variant: small-caps;}
@@ -18,11 +18,18 @@
 </head>
 <body>
 <header id="title-block-header">
-<h1 class="title">Landform Mesh Tiling Server</h1>
+<h1 class="title">Geometry Streaming Server Product Guide</h1>
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
-<li><a href="#introduction">Introduction</a></li>
+<li><a href="#change-log">Change Log</a></li>
+<li><a href="#document-overview">Document Overview</a><ul>
+<li><a href="#identification">Identification</a></li>
+<li><a href="#purpose">Purpose</a></li>
+<li><a href="#overview">Overview</a></li>
+<li><a href="#terminology-and-notation">Terminology and Notation</a></li>
+<li><a href="#references">References</a></li>
+</ul></li>
 <li><a href="#aws-setup">AWS Setup</a><ul>
 <li><a href="#s3-bucket-setup">1. S3 Bucket Setup</a></li>
 <li><a href="#create-elastic-beanstalk-environment-for-master-server">2. Create Elastic Beanstalk Environment for Master Server</a></li>
@@ -67,17 +74,234 @@
 </ul></li>
 </ul>
 </nav>
-<h1 id="introduction">Introduction</h1>
-<p>The Landform Mesh Tiling Server securely converts textured triangle meshes to tilesets in the 3DTiles format:</p>
+<h1 id="change-log">Change Log</h1>
+<table>
+<colgroup>
+<col style="width: 10%" />
+<col style="width: 25%" />
+<col style="width: 24%" />
+<col style="width: 39%" />
+</colgroup>
+<thead>
+<tr class="header">
+<th>Revision</th>
+<th>Submission Date (dd-mm-yyy)</th>
+<th>Affected Sections or Pages</th>
+<th>Change Summary</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Initial</td>
+<td>23-10-2019</td>
+<td>All</td>
+<td>Initial issue of document.</td>
+</tr>
+</tbody>
+</table>
+<h1 id="document-overview">Document Overview</h1>
+<h2 id="identification">Identification</h2>
+<table>
+<thead>
+<tr class="header">
+<th>Property</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Element</td>
+<td>IDS</td>
+</tr>
+<tr class="even">
+<td>Program Set</td>
+<td>Geometry Streaming Server</td>
+</tr>
+<tr class="odd">
+<td>Version</td>
+<td>1.5.2</td>
+</tr>
+</tbody>
+</table>
+<h2 id="purpose">Purpose</h2>
+<p>The Geometry Streaming Server securely converts textured triangle meshes to tilesets in the 3DTiles format:</p>
 <p><a href="https://github.com/AnalyticalGraphicsInc/3d-tiles" class="uri">https://github.com/AnalyticalGraphicsInc/3d-tiles</a></p>
 <p>Potentially large meshes are broken up into a hierarchy of tiles that can be scalably streamed to clients.</p>
-<p>This software also supports serving the generated 3DTiles tilesets to clients, and so is also referred to as a “Geometry Streaming Server”.</p>
+<p>This software supports both generating 3DTiles tilesets and serving them to clients, and so is also referred to as both a “Mesh Tiling Server” and a “Geometry Streaming Server”.</p>
 <p>Included in this manual are:</p>
 <ul>
 <li>instructions for deploying to Amazon Web Services</li>
 <li>a manual for the REST API, which is the interface for uploading input meshes and converting them to 3DTiles tilesets</li>
 <li>test instructions.</li>
 </ul>
+<h2 id="overview">Overview</h2>
+<p>The Geometry Streaming Server (GSS) is an assembly under the Instrument Data System (IDS) subsystem of MGSS which provides tools and services in the area of instrument data processing. The purpose of GSS is to support the distribution and display of large 3D datasets. Specifically, GSS is a web service that accepts triangulated meshes as input and reprocesses them into a set of tiles optimized for real-time streaming. This service enables frontend display tools to interactively download and display only the portion a mesh required to fill a user’s current field of view, allowing large meshes to be displayed efficiently.</p>
+<h2 id="terminology-and-notation">Terminology and Notation</h2>
+<p>This document uses standard terminolgy and notation.</p>
+<p>Acronyms and Abberviations:</p>
+<table>
+<tbody>
+<tr class="odd">
+<td>3D</td>
+<td>Three Dimensional</td>
+</tr>
+<tr class="even">
+<td>3DES</td>
+<td>Triple Data Encryption Standard algorithm</td>
+</tr>
+<tr class="odd">
+<td>AES</td>
+<td>Advanced Encryption Standard</td>
+</tr>
+<tr class="even">
+<td>AMMOS</td>
+<td>Advanced Multi-Mission Operations System</td>
+</tr>
+<tr class="odd">
+<td>API</td>
+<td>Application Programming Interface</td>
+</tr>
+<tr class="even">
+<td>ASCII</td>
+<td>American Standard Code for Information Interchange</td>
+</tr>
+<tr class="odd">
+<td>AWS</td>
+<td>Amazon Web Services</td>
+</tr>
+<tr class="even">
+<td>EC2</td>
+<td>Elastic Compute Cloud</td>
+</tr>
+<tr class="odd">
+<td>FPS</td>
+<td>Frames Per Second</td>
+</tr>
+<tr class="even">
+<td>GDAL</td>
+<td>Geospatial Data Abstraction Library</td>
+</tr>
+<tr class="odd">
+<td>glTF</td>
+<td>GL (as in OpenGL: Open Graphics Library) Transmission Format</td>
+</tr>
+<tr class="even">
+<td>GSS</td>
+<td>Geometry Streaming Server</td>
+</tr>
+<tr class="odd">
+<td>GUI</td>
+<td>Graphical User Interface</td>
+</tr>
+<tr class="even">
+<td>HTTP</td>
+<td>Hypertext Transfer Protocol</td>
+</tr>
+<tr class="odd">
+<td>HTTPS</td>
+<td>Hypertext Transfer Protocol Secure</td>
+</tr>
+<tr class="even">
+<td>IDS</td>
+<td>Instrument Data Systems</td>
+</tr>
+<tr class="odd">
+<td>JPG</td>
+<td>JPEG: Joint Pictures Experts Group</td>
+</tr>
+<tr class="even">
+<td>JSON</td>
+<td>Javascript Object Notation</td>
+</tr>
+<tr class="odd">
+<td>MGSS</td>
+<td>Multimission Ground Systems and Services</td>
+</tr>
+<tr class="even">
+<td>OBJ</td>
+<td>Geometry definition file format</td>
+</tr>
+<tr class="odd">
+<td>PLY</td>
+<td>Polygon file format</td>
+</tr>
+<tr class="even">
+<td>PNG</td>
+<td>Portable Network Graphics</td>
+</tr>
+<tr class="odd">
+<td>REST</td>
+<td>Representational State Transfer</td>
+</tr>
+<tr class="even">
+<td>S3</td>
+<td>Simple Storage Service</td>
+</tr>
+<tr class="odd">
+<td>SDK</td>
+<td>Software Development Kit</td>
+</tr>
+<tr class="even">
+<td>SQS</td>
+<td>Simple Queue Service</td>
+</tr>
+<tr class="odd">
+<td>SSO</td>
+<td>Single Sign-On</td>
+</tr>
+<tr class="even">
+<td>TIFF</td>
+<td>Tagged Image File Format</td>
+</tr>
+<tr class="odd">
+<td>TLS</td>
+<td>Transport Layer Security</td>
+</tr>
+<tr class="even">
+<td>UV</td>
+<td>“U” and “V” denote the axes of the two dimensional texture</td>
+</tr>
+</tbody>
+</table>
+<h2 id="references">References</h2>
+<p>Applicable JPL Rules documents:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Title</th>
+<th>DocID</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Software Development, Rev 9</td>
+<td>57653</td>
+</tr>
+</tbody>
+</table>
+<p>Applicable MGSS Documents:</p>
+<table>
+<thead>
+<tr class="header">
+<th>Title</th>
+<th>Document Number</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>AMMOS Technical Standards Profile, Rev A</td>
+<td>DOC-001101</td>
+</tr>
+<tr class="even">
+<td>MGSS Implementation and Maintenance Task Requirements, Rev D</td>
+<td>DOC-001455</td>
+</tr>
+<tr class="odd">
+<td>Geometry Streaming Server Software Requirements Document</td>
+<td>DOC-002000</td>
+</tr>
+</tbody>
+</table>
 <h1 id="aws-setup">AWS Setup</h1>
 <p>The AWS services used are</p>
 <ul>
