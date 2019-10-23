@@ -17,8 +17,8 @@ using System.Threading;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-tiles", HelpText = "builds textured tiles from a full scene mesh")]
-    public class LocalBuildTilesOptions : TilingCommandOptions
+    [Verb("local-build-tiling input", HelpText = "builds textured tiles from a full scene mesh")]
+    public class LocalBuildTilingInputOptions : TilingCommandOptions
     {
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
         public override string ProjectName { get; set; }
@@ -57,9 +57,9 @@ namespace OPS.Landform
         public bool NoBackprojectIndexImages { get; set; }
     }
 
-    public class LocalBuildTiles : TilingCommand
+    public class LocalBuildTilingInput : TilingCommand
     {
-        private LocalBuildTilesOptions options;
+        private LocalBuildTilingInputOptions options;
 
         private enum TextureGenMode {
             None,           //generate just mesh with no textures
@@ -74,7 +74,7 @@ namespace OPS.Landform
         private SceneNode tileTree;
         private MeshOperator[] meshOps;
 
-        public LocalBuildTiles(LocalBuildTilesOptions options) : base(options)
+        public LocalBuildTilingInput(LocalBuildTilingInputOptions options) : base(options)
         {
             this.options = options;
         }
