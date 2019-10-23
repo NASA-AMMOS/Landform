@@ -380,6 +380,8 @@ namespace OPS.Pipeline
             //each worker thread has its own pipeline instance
             //this avoids the need for synchronization
             //all threads share the same logger which is MT safe
+            //TODO we should probably switch to using a single shared pipeline instance
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/611
             var pipeline = new CloudPipeline(options, logger: Logger, quietInit: true,
                                              lruImageCache: IMAGE_CACHE, lruDataProductCache: DATA_PRODUCT_CACHE,
                                              initQueues: true, initTables: false, queuePrefix: queuePrefix);

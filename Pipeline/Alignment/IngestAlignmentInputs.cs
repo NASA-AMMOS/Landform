@@ -133,7 +133,9 @@ namespace OPS.Pipeline
             var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
 
             //sensor type -> count
-            var reconstructionStats = new ConcurrentDictionary<string, int>();
+            var alignmentStats = new ConcurrentDictionary<string, int>();
+            var meshingStats = new ConcurrentDictionary<string, int>();
+            var texturingStats = new ConcurrentDictionary<string, int>();
 
             var minSol = new ConcurrentDictionary<SiteDrive, int>();
             var maxSol = new ConcurrentDictionary<SiteDrive, int>();
@@ -212,11 +214,21 @@ namespace OPS.Pipeline
                     
                     pipeline.LogVerbose("{0} -> observation {1}", res.ToString(), obs.ToString(brief: true));
                     
-                    if (obs.UseForReconstruction)
+                    if (obs.UseForAlignment)
                     {
-                        reconstructionStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
+                        alignmentStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
                     }
                     
+                    if (obs.UseForMeshing)
+                    {
+                        meshingStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
+                    }
+
+                    if (obs.UseForTexturing)
+                    {
+                        texturingStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
+                    }
+
                     if (func != null) func(res);
                 }
             };
@@ -321,10 +333,14 @@ namespace OPS.Pipeline
                 pipeline.LogInfo("sitedrive {0}, sol {1} to {2}: {3}", sd, minSol[sd], maxSol[sd],
                                  string.Join(", ", sds.Select(s => s.Value + " " + s.Key).ToArray()));
             }
+
             foreach (var entry in totalStats)
             {
-                pipeline.LogInfo("total {0} {1}, {2} for reconstruction", entry.Value, entry.Key,
-                                 reconstructionStats.ContainsKey(entry.Key) ? reconstructionStats[entry.Key] : 0);
+                pipeline.LogInfo("total {0} {1}, {2} for alignment, {3} for meshing, {4} for texturing",
+                                 entry.Value, entry.Key,
+                                 alignmentStats.ContainsKey(entry.Key) ? alignmentStats[entry.Key] : 0,
+                                 meshingStats.ContainsKey(entry.Key) ? meshingStats[entry.Key] : 0,
+                                 texturingStats.ContainsKey(entry.Key) ? texturingStats[entry.Key] : 0);
             }
 
             return na;

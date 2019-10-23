@@ -20,7 +20,12 @@ namespace PipelineTest
         public void FillIndexImageTest()
         {
             // prepare input data
-            LocalPipeline pipeline = new LocalPipeline(new PipelineCoreOptions());
+            LocalPipelineConfig config = new LocalPipelineConfig();
+            config.Venue = "FillIndexImageTest";
+            config.StorageDir = StringHelper.NormalizeUrl(".", "file://");
+            config.MaxCores = 1;
+            config.RandomSeed = 0;
+            LocalPipeline pipeline = new LocalPipeline(new PipelineCoreOptions(),config);
 
             string filename1 = Path.Combine("TestData", "img", "ML0_451292526RCX_S0311094MCAM02555M1.IMG");
             string filename2 = Path.Combine("TestData", "img", "NLB_451557756RASLF0311330NCAM00353M1.IMG");
@@ -30,12 +35,11 @@ namespace PipelineTest
             Frame frame1 = Frame.Create(pipeline, projectName, "Frame1", root, false);
             Frame frame2 = Frame.Create(pipeline, projectName, "Frame2", root, false);
 
-            Observation obs1 = Observation.Create(pipeline, new Frame(), "Obs1", filename1, ObservationType.Image.ToString(), JsonHelper.ToJson(new CAHV()),
-                              true, 1408, 1200, 3, 8, 606, 1, false);
+            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, new CAHV(),
+                                                  true, true, true, 1408, 1200, 3, 8, 606, 1, 1, false);
 
-            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, ObservationType.Image.ToString(), JsonHelper.ToJson(new CAHV()),
-                             true, 1024, 1024, 1, 16, 609, 2, false);
-
+            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, new CAHV(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 2, false);
 
             Dictionary<Pixel, Backproject.ObsPixel> backprojectResults = new Dictionary<Pixel, Backproject.ObsPixel>();
             //0,0 skipped 
@@ -74,11 +78,11 @@ namespace PipelineTest
             Frame frame1 = Frame.Create(pipeline, projectName, "Frame1", root, false);
             Frame frame2 = Frame.Create(pipeline, projectName, "Frame2", root, false);
 
-            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, ObservationType.Image.ToString(), JsonHelper.ToJson(new CAHV()),
-                              true, 1408, 1200, 3, 8, 606, 1, false);
+            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, new CAHV(),
+                                                  true, true, true, 1408, 1200, 3, 8, 606, 1, 1, false);
 
-            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, ObservationType.Image.ToString(), JsonHelper.ToJson(new CAHV()),
-                             true, 1024, 1024, 1, 16, 609, 2, false);
+            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, new CAHV(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 2, false);
 
             Dictionary<Pixel, Backproject.ObsPixel> results = new Dictionary<Pixel, Backproject.ObsPixel>();
             

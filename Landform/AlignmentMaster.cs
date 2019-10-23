@@ -237,19 +237,17 @@ namespace OPS.Landform
                             .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentBag<Observation>())
                             .Add(res.Observation));
                             
-            var imageType = ObservationType.Image.ToString();
-            var maskType = ObservationType.RoverMask.ToString();
             var comparator = mission.GetRoverObservationComparator();
             foreach (var obsGroup in obsForFrame.Values)
             {
                 var observations = obsGroup
                     .Cast<RoverObservation>()
                     .Distinct() //ConcurrentBag allows duplicates, which is probably harmless here, but why not
-                    .Where(obs => obs.UseForReconstruction)
+                    .Where(obs => obs.UseForAlignment)
                     .OrderBy(obs => obs, comparator)
                     .ToList();
 
-                var imageObs = observations.Find(obs => obs.ObservationType == imageType);
+                var imageObs = observations.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (imageObs != null)
                 {
                     if (ValidGuid(imageObs.FeaturesGuid) && !options.RedoFeatures)
@@ -258,7 +256,7 @@ namespace OPS.Landform
                     }
                     else
                     {
-                        var maskObs = observations.Find(obs => obs.ObservationType == maskType &&
+                        var maskObs = observations.Find(obs => obs.ObservationType == RoverProductType.RoverMask &&
                                                         obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                         LogVerbose("requesting feature detection for observation {0}", imageObs.Name);
                         pendingFeatures[imageObs.Url] = imageObs;

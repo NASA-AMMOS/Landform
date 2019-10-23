@@ -80,7 +80,7 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual bool ParseArgumentsAndLoadCaches(string outDir)
+        protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
             if (tcopts.DecimateWedgeImages < 0 || tcopts.DecimateWedgeImages > 1)
             {
@@ -92,8 +92,7 @@ namespace OPS.Landform
                 throw new Exception("--decimatewedgemeshes is not implemented for this command");
             }
 
-            if (!base.ParseArgumentsAndLoadCaches(outDir, new [] { ObservationType.Image, ObservationType.RoverMask },
-                                                  onlyObsForReconstruction: true))
+            if (!base.ParseArgumentsAndLoadCaches(outDir))
             {
                 return false; //help
             }
@@ -106,9 +105,13 @@ namespace OPS.Landform
 
             if (observationCache != null)
             {
-                string imageObs = ObservationType.Image.ToString();
-                imageObservations =
-                    observationCache.GetAllObservations().Where(obs => obs.ObservationType == imageObs).ToList();
+                var comparator = mission.GetRoverObservationComparator();
+                imageObservations = observationCache.GetAllObservations()
+                    .Where(obs => obs is RoverObservation)
+                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
+                    .GroupBy(obs => obs.FrameName)
+                    .Select(group => group.OrderBy(obs => (RoverObservation)obs, comparator).First())
+                    .ToList();
                 indexedObservations = new Dictionary<int, Observation>();
                 foreach (var obs in imageObservations)
                 {
@@ -119,10 +122,15 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes,
-                                                            bool onlyObsForReconstruction)
+        protected override bool ObservationFilter(RoverObservation obs)
         {
-            throw new NotImplementedException();
+            return obs.UseForTexturing && (obs.ObservationType == RoverProductType.Image ||
+                                           obs.ObservationType == RoverProductType.RoverMask);
+        }
+
+        protected override string DescribeObservationFilter()
+        {
+            return " texturing images and masks";
         }
 
         /// <summary>
@@ -228,7 +236,7 @@ namespace OPS.Landform
 
         protected void BuildObservationImageMasks()
         {
-            string maskType = ObservationType.RoverMask.ToString();
+            var comparator = mission.GetRoverObservationComparator();
             int no = imageObservations.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(imageObservations, obs => {
@@ -250,7 +258,9 @@ namespace OPS.Landform
                     Image img = pipeline.LoadImage(obs.Url);
 
                     var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                        .Where(o => o.ObservationType == maskType)
+                        .Where(o => o is RoverObservation)
+                        .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
+                        .OrderBy(o => (RoverObservation)o, comparator)
                         .FirstOrDefault();
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
@@ -530,7 +540,7 @@ namespace OPS.Landform
 
         protected void SaveDebugWedgeImage(Image img, Observation obs, string suffix)
         {
-            int bs = MeshObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages, tcopts.TargetWedgeImageResolution);
+            int bs = WedgeObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages, tcopts.TargetWedgeImageResolution);
             if (bs > 1)
             {
                 img = img.Decimated(bs);

@@ -76,7 +76,7 @@ namespace OPS.Pipeline
             var articulation = GetParser(metadata).Parse();
             if (rover != null && articulation != null)
             {
-                var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetRoverProductCamera(parser.InstrumentId)));
+                var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetCamera(parser)));
 
                 //coarse test to see if rover is in frame at all (raycasts are expensive)
                 ConvexHull roverHull = new ConvexHull(posedRover);
@@ -124,17 +124,18 @@ namespace OPS.Pipeline
         /// <summary>
         /// load a rover mask binary image which is 0 for masked pixels
         /// </summary>
-        public Image Load(PipelineCore pipeline, string maskUrl, bool clone = false)
+        public Image Load(PipelineCore pipeline, string maskUrl)
         {
-            var mask = pipeline.LoadImage(maskUrl);
-            return clone ? new Image(mask) : mask;
+            var mask = new Image(pipeline.LoadImage(maskUrl));
+            mask.ApplyInPlace(v => v == 0 ? 1.0f : 0.0f);
+            return mask;
         } 
 
-        public Image LoadOrBuild(PipelineCore pipeline, string maskUrl, PDSMetadata metadata, bool clone = false)
+        public Image LoadOrBuild(PipelineCore pipeline, string maskUrl, PDSMetadata metadata)
         {
             if (!string.IsNullOrEmpty(maskUrl))
             {
-                return Load(pipeline, maskUrl, clone);
+                return Load(pipeline, maskUrl);
             }
             else
             {

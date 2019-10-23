@@ -31,14 +31,6 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
         public override int TargetWedgeMeshResolution { get; set; }
 
-        [Option(HelpText = "Only generate products for specific frames, comma separated", Default = null)]
-        public string OnlyForFrames { get; set; }
-
-        //temporarily suppress mastcam point cloud data until validated
-        //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-        [Option(HelpText = "Create products for mastcam observations", Default = false)]
-        public bool AllowMastcam { get; set; }
-
         [Option(HelpText = "Only create products for observations with normals", Default = false)]
         public bool RequireNormals { get; set; }
 
@@ -49,7 +41,7 @@ namespace OPS.LandformUtil
         public bool NoWedgeMeshes { get; set; }
 
         [Option(HelpText = "Don't write observation images (and don't texture wedge meshes)", Default = false)]
-        public bool NoImages { get; set; }
+        public bool NoWedgeImages { get; set; }
 
         [Option(HelpText = "Use blended observation textures if available", Default = false)]
         public bool UseBlendedTextures { get; set; }
@@ -102,6 +94,9 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Only generate statistics", Default = false)]
         public bool StatsOnly { get; set; }
 
+        [Option(HelpText = "Write mask images", Default = false)]
+        public bool MaskImages { get; set; }
+
         [Option(HelpText = "Write normals images", Default = false)]
         public bool NormalsImages { get; set; }
 
@@ -141,11 +136,11 @@ namespace OPS.LandformUtil
         private bool buildWedgeMeshes;
         private bool buildWedgeImages;
 
-        private List<MeshObservations> meshObservations;
+        private List<WedgeObservations> meshObservations;
 
         //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
-        private ConcurrentDictionary<string, ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>> mergeInputs =
-            new ConcurrentDictionary<string, ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>>();
+        private ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>> mergeInputs =
+            new ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>>();
         
         public LocalObservationProducts(LocalObservationProductsOptions options) : base(options)
         {
@@ -155,9 +150,10 @@ namespace OPS.LandformUtil
             {
                 options.MergedSiteDriveMeshes = true;
                 options.NoWedgeMeshes = true;
-                options.NoImages = true;
+                options.NoWedgeImages = true;
                 options.FrustumHullMeshes = false;
                 options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.MaskImages = false;
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
                 options.ElevationImages = false;
@@ -169,6 +165,7 @@ namespace OPS.LandformUtil
                 options.MergedSiteDriveMeshes = true;
                 options.FrustumHullMeshes = true;
                 options.UncertaintyInflatedFrustumHullMeshes = true;
+                options.MaskImages = true;
                 options.NormalsImages = true;
                 options.CurvatureImages = true;
                 options.ElevationImages = true;
@@ -179,9 +176,10 @@ namespace OPS.LandformUtil
             {
                 options.MergedSiteDriveMeshes = false;
                 options.NoWedgeMeshes = true;
-                options.NoImages = true;
+                options.NoWedgeImages = true;
                 options.FrustumHullMeshes = false;
                 options.UncertaintyInflatedFrustumHullMeshes = false;
+                options.MaskImages = false;
                 options.NormalsImages = false;
                 options.CurvatureImages = false;
                 options.ElevationImages = false;
@@ -227,7 +225,7 @@ namespace OPS.LandformUtil
 
             buildWedgeMeshes = !options.NoWedgeMeshes || options.MergedSiteDriveMeshes || options.StatsOnly;
             withTextures = buildWedgeMeshes && options.ColorMeshesBy == MeshColor.Texture;
-            buildWedgeImages = withTextures || !options.NoImages;
+            buildWedgeImages = withTextures || !options.NoWedgeImages;
             
             if (options.MergedSiteDriveMeshes && options.MeshFrame == "rover")
             {
@@ -240,20 +238,22 @@ namespace OPS.LandformUtil
                 return false; // help
             }
             
-            var opts = new MeshObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
+            var opts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
                 {
-                    AllowMastcam = options.AllowMastcam,
                     RequirePoints = false,
                     RequireNormals = options.RequireNormals,
                     RequireTextures = options.RequireTextures,
+                    IncludeForAlignment = true,
+                    IncludeForMeshing = true,
+                    IncludeForTexturing = true,
                     RequirePriorTransform = options.UsePriors,
                     RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = meshFrame
                 }; 
 
             meshObservations =
-                MeshObservations.Collect(frameCache, observationCache, opts)
+                WedgeObservations.Collect(frameCache, observationCache, opts)
                 .Where(obs => !obs.Empty)
                 .OrderBy(obs => obs.FrameName)
                 .OrderBy(obs => obs.Day)
@@ -264,7 +264,7 @@ namespace OPS.LandformUtil
             {
                 meshObservations = meshObservations 
                     .GroupBy(obs => obs.StereoFrameName)
-                    .Select(group => MeshObservations.FilterForEye(group, options.MergedSiteDriveEye, obs => obs))
+                    .Select(group => WedgeObservations.FilterForEye(group, options.MergedSiteDriveEye, obs => obs))
                     .Where(obs => obs != null)
                     .Where(obs => obs.Points != null || obs.Range != null)
                     .ToList();
@@ -293,7 +293,7 @@ namespace OPS.LandformUtil
             var generatedNormals = new ConcurrentDictionary<string, bool>();
             var wedgeDecimation = new ConcurrentDictionary<string, int>();
 
-            var meshOpts = new MeshObservations.MeshOptions()
+            var meshOpts = new WedgeObservations.MeshOptions()
                 {
                     Frame = meshFrame,
                     UsePriors = options.UsePriors,
@@ -321,7 +321,7 @@ namespace OPS.LandformUtil
                 string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
                 //mesh decimation blocksize
-                int mbs = MeshObservations.AutoDecimate(obs.Points != null ? obs.Points : obs.Normals,
+                int mbs = WedgeObservations.AutoDecimate(obs.Points != null ? obs.Points : obs.Normals,
                                                         options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
 
                 if (mbs > 1 && mbs != options.DecimateWedgeMeshes)
@@ -352,23 +352,31 @@ namespace OPS.LandformUtil
                 validNormals[obs.FrameName] = numNormals;
                 validTriangles[obs.FrameName] = numTriangles;
 
+                int ibs = WedgeObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages,
+                                                        options.TargetWedgeImageResolution);
+
                 Image img = null;
                 if (buildWedgeImages && obs.Texture != null)
                 {
-                    img = BuildWedgeImage(obs);
+                    img = BuildWedgeImage(obs, ibs);
                 }
 
-                if (!options.NoImages && img != null)
+                if (options.MaskImages && !obs.Empty)
+                {
+                    SaveImage(BuildMaskImage(obs, ibs), sdPrefix + obs.Name + "_mask");
+                }
+
+                if (!options.NoWedgeImages && img != null)
                 {
                     SaveImage(img, sdPrefix + obs.Name);
                 }
 
                 if (options.MergedSiteDriveMeshes && mesh != null)
                 {
-                    var input = new Tuple<MeshObservations, Mesh, Image>(obs, mesh, withTextures ? img : null);
+                    var input = new Tuple<WedgeObservations, Mesh, Image>(obs, mesh, withTextures ? img : null);
                     mergeInputs
                     .AddOrUpdate(siteDrive,
-                                 _ => new ConcurrentBag<Tuple<MeshObservations, Mesh, Image>>(new [] { input }),
+                                 _ => new ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>(new [] { input }),
                                  (_, bag) => { bag.Add(input); return bag; });
                 }
 
@@ -478,14 +486,14 @@ namespace OPS.LandformUtil
                 }
                 else
                 {
-                    pipeline.LogInfo(obs.ToString(pipeline));
+                    pipeline.LogInfo(Environment.NewLine + obs.ToString(pipeline));
                 }
             }
 
             pipeline.LogInfo("generated products for {0} observations", no);
         }
 
-        private Mesh BuildWedgeMesh(MeshObservations obs, MeshObservations.MeshOptions mo, out int numPoints, out int numNormals)
+        private Mesh BuildWedgeMesh(WedgeObservations obs, WedgeObservations.MeshOptions mo, out int numPoints, out int numNormals)
         {
             Mesh mesh = null;
             if (options.PointCloud)
@@ -520,7 +528,7 @@ namespace OPS.LandformUtil
             return mesh;
         }
 
-        private Image BuildWedgeImage(MeshObservations obs)
+        private Image BuildWedgeImage(WedgeObservations obs, int ibs)
         {
             Image img = null;
             try
@@ -533,7 +541,6 @@ namespace OPS.LandformUtil
                 {
                     img = pipeline.LoadImage(obs.Texture.Url);
                 }
-                int ibs = MeshObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages, options.TargetWedgeImageResolution);
                 if (ibs > 1)
                 {
                     if (ibs != options.DecimateWedgeImages)
@@ -555,7 +562,21 @@ namespace OPS.LandformUtil
             return img;
         }
 
-        private Image BuildNormalsImage(MeshObservations obs, int mbs, ref Image mask)
+        private Image BuildMaskImage(WedgeObservations obs, int ibs)
+        {
+            var maskUrl = obs.Mask != null ? obs.Mask.Url : null;
+            var imgUrl = obs.Texture != null ? obs.Texture.Url : obs.RoverObs.Url;
+            var img = pipeline.LoadImage(imgUrl);
+            var dbgImg = new Image(img);
+            ImageMasker.MakeMask(pipeline, masker, maskUrl, img, dbgImg);
+            if (ibs > 1)
+            {
+                dbgImg = dbgImg.Decimated(ibs);
+            }
+            return dbgImg;
+        }
+
+        private Image BuildNormalsImage(WedgeObservations obs, int mbs, ref Image mask)
         {
             Image normals = null;
             try
@@ -593,7 +614,7 @@ namespace OPS.LandformUtil
             return normals;
         }
 
-        private Image BuildCurvaturesImage(MeshObservations obs, int mbs, ref Image mask)
+        private Image BuildCurvaturesImage(WedgeObservations obs, int mbs, ref Image mask)
         {
             Image curvatures = null;
             try
@@ -622,7 +643,7 @@ namespace OPS.LandformUtil
             return curvatures;
         }
 
-        private Image BuildElevationsImage(MeshObservations obs, int mbs, ref Image mask)
+        private Image BuildElevationsImage(WedgeObservations obs, int mbs, ref Image mask)
         {
             Image elevations = null;
             try
@@ -664,7 +685,7 @@ namespace OPS.LandformUtil
                 {
                     inputs = inputs
                         .GroupBy(inp => inp.Item1.StereoFrameName)
-                        .Select(group => MeshObservations.FilterForEye(group, options.MergedSiteDriveEye, inp => inp.Item1))
+                        .Select(group => WedgeObservations.FilterForEye(group, options.MergedSiteDriveEye, inp => inp.Item1))
                         .Where(inp => inp != null)
                         .ToArray();
                 }

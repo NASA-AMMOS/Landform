@@ -34,7 +34,7 @@ namespace OPS.Landform
 
     public class TilingCommand : TextureCommand
     {
-        public const string OUT_DIR = "tiling/Tile";
+        static public readonly string OUT_DIR = "tiling/Tile";
 
         protected TilingCommandOptions tilingOpts;
 

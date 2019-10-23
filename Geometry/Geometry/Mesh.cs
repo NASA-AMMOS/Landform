@@ -400,20 +400,14 @@ namespace OPS.Geometry
             }
             this.Faces = uniqueFaces;
         }
-
+        
         /// <summary>
         /// Removes any vertices that are not referenced by a face.
         /// </summary>
         public void RemoveUnreferencedVertices()
         {
-            // Mark which vertices are referenced by faces
-            HashSet<int> referencedIndices = new HashSet<int>();
-            for (int i = 0; i < this.Faces.Count; i++)
-            {
-                referencedIndices.Add(this.Faces[i].P0);
-                referencedIndices.Add(this.Faces[i].P1);
-                referencedIndices.Add(this.Faces[i].P2);
-            }
+            var referencedIndices = VertexIndicesReferencedByFaces();
+
             // Remove unused vertices
             List<Vertex> referencedVertices = new List<Vertex>();
             Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
@@ -1267,6 +1261,20 @@ namespace OPS.Geometry
             }
         }
 
+        private HashSet<int> VertexIndicesReferencedByFaces()
+        {
+            // Mark which vertices are referenced by faces
+            HashSet<int> referencedIndices = new HashSet<int>();
+            for (int i = 0; i < this.Faces.Count; i++)
+            {
+                referencedIndices.Add(this.Faces[i].P0);
+                referencedIndices.Add(this.Faces[i].P1);
+                referencedIndices.Add(this.Faces[i].P2);
+            }
+
+            return referencedIndices;
+        }
+
         /// <summary>
         /// Returns a box thats bounds encompass the vertex positions in 3D space
         /// </summary>
@@ -1274,10 +1282,26 @@ namespace OPS.Geometry
         public BoundingBox Bounds()
         {
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
-            foreach (Vertex v in this.Vertices)
+            if (HasFaces)
             {
-                b.Min = Vector3.Min(b.Min, v.Position);
-                b.Max = Vector3.Max(b.Max, v.Position);
+                var referencedIndices = VertexIndicesReferencedByFaces();
+                for (int idxVert = 0; idxVert < this.Vertices.Count(); idxVert++)
+                {
+                    if (referencedIndices.Contains(idxVert))
+                    {
+                        var v = this.Vertices[idxVert];
+                        b.Min = Vector3.Min(b.Min, v.Position);
+                        b.Max = Vector3.Max(b.Max, v.Position);
+                    }
+                }
+            }
+            else
+            {
+                foreach (Vertex v in this.Vertices)
+                {
+                    b.Min = Vector3.Min(b.Min, v.Position);
+                    b.Max = Vector3.Max(b.Max, v.Position);
+                }
             }
             return b;
         }

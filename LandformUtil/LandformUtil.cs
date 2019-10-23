@@ -63,13 +63,12 @@ namespace OPS.LandformUtil
                 ConvertBaselineMeshesOptions,
                 TileBaselineMeshOptions,
                 TileBaselineMeshesOptions,
-                EmtToSceneOptions,
-                LocalBuildTilesetSceneOptions,
                 PDSImageConverterOptions,
                 LegacyToWebVROptions,
                 LegacyToTile3DOptions,
                 DEM2MeshOptions,
                 BenchmarkS3Options,
+                LocalConvertToASTTROOptions,
                 LimberDMGOptions>(args);
 
             return parsed.MapResult(
@@ -78,8 +77,6 @@ namespace OPS.LandformUtil
                 (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
                 (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
                 (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
-                (EmtToSceneOptions opts) => new EmtToScene(opts).Run(),
-                (LocalBuildTilesetSceneOptions opts) => new LocalBuildTilesetScene(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
@@ -87,6 +84,7 @@ namespace OPS.LandformUtil
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 (LimberDMGOptions opts) => new LimberDMGDriver(opts).Run(),
+                (LocalConvertToASTTROOptions opts) => new LocalConvertToASTTRO(opts).Run(),
                 errs => 1);
         }
     }

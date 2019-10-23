@@ -178,14 +178,14 @@ namespace OPS.Pipeline
             return url;
         }
 
-        public static string ConvertS3UrlToHttps(string url)
+        public static string ConvertS3UrlToHttps(string url, string s3domain = ".s3.amazonaws.com")
         {
             if (string.IsNullOrEmpty(url) || !(url.StartsWith("s3://") || url.StartsWith("S3://")))
             {
                 return url;
             }
             var uri = new Uri(url);
-            return (new Uri("https://" + uri.Host + ".s3.amazonaws.com" + uri.AbsolutePath)).ToString();
+            return (new Uri("https://" + uri.Host + s3domain + uri.AbsolutePath)).ToString();
         }
 
         public override void GetFile(string url, Action<string> func, bool constrainToStorage = false)

@@ -66,7 +66,7 @@ namespace OPS.Pipeline
                 string reason = "";
                 if (!mission.CheckFilename(filename, out reason))
                 {
-                    pipeline.LogDebug("rejected {0} by filename: {1}", url, reason);
+                    pipeline.LogVerbose("rejected {0} by filename: {1}", url, reason);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -96,7 +96,7 @@ namespace OPS.Pipeline
                 var parser = new PDSParser(metadata);
                 if (!mission.CheckMetadata(parser, out reason))
                 {
-                    pipeline.LogDebug("rejected {0} by metadata: {1}", url, reason);
+                    pipeline.LogVerbose("rejected {0} by metadata: {1}", url, reason);
                     return new Result(url, dataUrl, Status.Skipped);
                 }
                 
@@ -175,8 +175,8 @@ namespace OPS.Pipeline
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
-                var cameraName = mission.CameraName(parser);
-                var observationFrameName = cameraName + "_" + mission.RoverMotionCounter(parser);
+                var cameraType = mission.GetCamera(parser);
+                var observationFrameName = cameraType.ToString() + "_" + mission.RoverMotionCounter(parser);
                 var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
 
@@ -235,16 +235,16 @@ namespace OPS.Pipeline
                     }
                 }
 
-                var obsType = Observation.ProductTypeToObservationType(parser.DerivedImageType).ToString();
-
-                observation = RoverObservation.Create(pipeline, observationFrame, observationName, url, obsType,
-                                                      JsonHelper.ToJson(cameraModel),
-                                                      mission.UseForReconstruction(parser),
-                                                      parser.Site, parser.Drive, parser.ProductId.Version,
-                                                      cameraName, parser.ImageSizeType.ToString(),
-                                                      parser.ProducingInstitution.ToString(),
-                                                      metadata.Width, metadata.Height, metadata.Bands,
-                                                      metadata.BitDepth, mission.DayNumber(parser), index);
+                observation =
+                    RoverObservation.Create(pipeline, observationFrame, observationName, url, cameraModel,
+                                            mission.UseForAlignment(parser),
+                                            mission.UseForMeshing(parser),
+                                            mission.UseForTexturing(parser),
+                                            metadata.Width, metadata.Height, metadata.Bands,
+                                            metadata.BitDepth, mission.DayNumber(parser),
+                                            parser.ProductId.Version, index,
+                                            parser.Site, parser.Drive,
+                                            parser.DerivedImageType, cameraType, parser.ProducingInstitution);
 
                 if (observation == null)
                 {
@@ -264,9 +264,9 @@ namespace OPS.Pipeline
                 pipeline.LogDebug("created observation {0}", observationName);
                 return new Result(url, dataUrl, Status.Added, observation, observationFrame);
             }
-            catch (MetadataException ex)
+            catch (Exception ex)
             {
-                pipeline.LogError("error parsing metadata for {0}: {1}", url, ex.Message);
+                pipeline.LogError("error ingesting {0}: {1}", url, ex.Message);
                 return new Result(url, null, Status.Failed);
             }
         }

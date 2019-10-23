@@ -131,11 +131,11 @@ namespace OPS.Landform
             }
         }
 
-        protected override void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        protected override void LoadObservationCache()
         {
             if (meshFrame != "passthrough")
             {
-                base.LoadObservationCache(obsTypes, onlyObsForReconstruction);
+                base.LoadObservationCache();
             }
         }
 

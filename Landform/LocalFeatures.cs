@@ -110,25 +110,23 @@ namespace OPS.Landform
             frameCache.Preload(loadTransforms: false);
 
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
-            observationCache.Preload(obs => obs.UseForReconstruction &&
+            observationCache.Preload(obs => obs.UseForAlignment &&
                                      (allowed.Length == 0 || allowed.Any(name => name == obs.Name)));
 
-            var imageType = ObservationType.Image.ToString();
-            var maskType = ObservationType.RoverMask.ToString();
-            var pointsType = ObservationType.Points.ToString();
-            var rangeType = ObservationType.Range.ToString();
-
-            var obsForFrame = new Dictionary<string, List<Observation>>();
+            var obsForFrame = new Dictionary<string, List<RoverObservation>>();
             foreach (var obs in observationCache.GetAllObservations())
             {
-                if (!obsForFrame.ContainsKey(obs.FrameName))
+                if (obs is RoverObservation)
                 {
-                    obsForFrame[obs.FrameName] = new List<Observation>();
+                    if (!obsForFrame.ContainsKey(obs.FrameName))
+                    {
+                        obsForFrame[obs.FrameName] = new List<RoverObservation>();
+                    }
+                    obsForFrame[obs.FrameName].Add(obs as RoverObservation);
                 }
-                obsForFrame[obs.FrameName].Add(obs);
             }
 
-            int no = obsForFrame.Values.Count(obsGroup => obsGroup.Any(obs => obs.ObservationType == imageType));
+            int no = obsForFrame.Values.Count(grp => grp.Any(obs => obs.ObservationType == RoverProductType.Image));
             pipeline.LogInfo("computing {0} features for {1} reconstruction images", options.DetectorType, no);
 
             var detectorOpts = new FeatureDetector.Options()
@@ -162,10 +160,10 @@ namespace OPS.Landform
                     .OrderBy(obs => obs, comparator)
                     .ToList();
                     
-                    var imageObs = observations.Find(obs => obs.ObservationType == imageType);
+                    var imageObs = observations.Find(obs => obs.ObservationType == RoverProductType.Image);
                     if (imageObs != null)
                     {
-                        var maskObs = observations.Find(obs => obs.ObservationType == maskType &&
+                        var maskObs = observations.Find(obs => obs.ObservationType == RoverProductType.RoverMask &&
                                                         obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                         var maskUrl = maskObs != null ? maskObs.Url : null;
 
@@ -218,12 +216,12 @@ namespace OPS.Landform
                             if (!options.NoRange)
                             {
                                 var xyzOrRng =
-                                    observations.Find(obs => obs.ObservationType == pointsType &&
+                                    observations.Find(obs => obs.ObservationType == RoverProductType.Points &&
                                                       obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                                 if (xyzOrRng == null)
                                 {
                                     xyzOrRng =
-                                        observations.Find(obs => obs.ObservationType == rangeType &&
+                                        observations.Find(obs => obs.ObservationType == RoverProductType.Range &&
                                                           obs.Width == imageObs.Width && obs.Height == imageObs.Height);
                                 }
                                 if (xyzOrRng != null)

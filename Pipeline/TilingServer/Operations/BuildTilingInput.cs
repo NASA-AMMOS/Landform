@@ -46,14 +46,12 @@ namespace OPS.Pipeline.TilingServer
             
             //load observations
             var observationCache = new ObservationCache(pipeline, projectName);
-            observationCache.Preload(obs => obs.UseForReconstruction);
+            observationCache.Preload(obs => obs.UseForMeshing);
 
             LogInfo("building mesh");
-            //temporarily suppress mastcam point cloud data until validated
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
-                                          onlyForCameras: null, useCleverCombine: false, allowMastcam: false,
+                                          onlyForCameras: null, useCleverCombine: false, 
                                           info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); });
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
@@ -86,7 +84,7 @@ namespace OPS.Pipeline.TilingServer
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
                                      bool usePriors, bool noPriors, string onlyForCameras = null,
-                                     bool useCleverCombine = false, bool allowMastcam = false, int decimate = 1,
+                                     bool useCleverCombine = false, int decimate = 1,
                                      int targetPointCloudResolution = 1024, Action<string> info = null,
                                      Action<string> verbose = null, Action<string> warn = null,
                                      Action<string> error = null)
@@ -115,25 +113,27 @@ namespace OPS.Pipeline.TilingServer
             var mission = MissionSpecific.GetInstance(project != null ? project.Mission : Mission.MSL.ToString());
             var masker = mission.GetMasker();
 
-            var opts = new MeshObservations.CollectOptions(null, null, onlyForCameras, mission)
+            var opts = new WedgeObservations.CollectOptions(null, null, onlyForCameras, mission)
                 {
-                    AllowMastcam = allowMastcam,
                     RequirePoints = true,
                     RequireNormals = true,
                     RequireTextures = false,
+                    IncludeForAlignment = false,
+                    IncludeForMeshing = true,
+                    IncludeForTexturing = false,
                     RequirePriorTransform = usePriors,
                     RequireAdjustedTransform = noPriors,
                     TargetFrame = outputFrame
                 };
 
-            var observations = MeshObservations.Collect(frameCache, observationCache, opts);
+            var observations = WedgeObservations.Collect(frameCache, observationCache, opts);
             if (observations.Count == 0)
             {
                 error("no observations were found to build a point cloud");
                 return null;
             }
 
-            var meshOpts = new MeshObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
+            var meshOpts = new WedgeObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
             info("building wedge point clouds");
             var obsToMesh = new ConcurrentDictionary<string, Mesh>();
@@ -147,7 +147,7 @@ namespace OPS.Pipeline.TilingServer
                                        np, nc, no, nf));
 
                     var mo = meshOpts.Clone();
-                    mo.Decimate = MeshObservations.AutoDecimate(obs.Points, decimate, targetPointCloudResolution);
+                    mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, decimate, targetPointCloudResolution);
                     if (mo.Decimate > 1 && mo.Decimate != decimate)
                     {
                         verbose(string.Format("auto decimating point cloud for observation {0} with blocksize {1}",
@@ -159,6 +159,7 @@ namespace OPS.Pipeline.TilingServer
                     if (mesh == null)
                     {
                         warn(string.Format("failed to build pointcloud for observation {0}", obs.Name));
+                        Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nf);
                         return;
                     }
@@ -166,12 +167,14 @@ namespace OPS.Pipeline.TilingServer
                     if (mesh.ContainsZeroLengthNormals())
                     {
                         warn(string.Format("pointcloud for observation {0} has zero length normals", obs.Name));
+                        Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nf);
                         return;
                     }
 
                     obsToMesh.AddOrUpdate(obs.Points.Name, _ => mesh, (_, __) => mesh);
 
+                    Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
 

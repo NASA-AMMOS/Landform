@@ -23,7 +23,7 @@ namespace OPS.Pipeline
     /// collects the Observations in the same frame that contribute to building a mesh
     /// also known as a "wedge"
     /// </summary>
-    public class MeshObservations
+    public class WedgeObservations
     {
         public Observation Points; //if XYZ is not available but RNG is, this will be the RNG
         public Observation Range; //only set if RNG is available
@@ -44,7 +44,7 @@ namespace OPS.Pipeline
         {
             get
             {
-                return Points == null && Range == null && Normals == null && Mask == null && Texture == null;
+                return Points == null && Range == null && Normals == null && Texture == null;
             }
         }
 
@@ -56,7 +56,6 @@ namespace OPS.Pipeline
                 if (Range != null) return Range.Name;
                 if (Texture != null) return Texture.Name;
                 if (Normals != null) return Normals.Name;
-                if (Mask != null) return Mask.Name;
                 return "(empty)"; //so we can at least format exceptions
             }
         }
@@ -69,7 +68,6 @@ namespace OPS.Pipeline
                 if (Range != null) return Range.FrameName;
                 if (Texture != null) return Texture.FrameName;
                 if (Normals != null) return Normals.FrameName;
-                if (Mask != null) return Mask.FrameName;
                 throw new InvalidOperationException("can't get frame name of an empty MeshObservation");
             }
         }
@@ -82,7 +80,6 @@ namespace OPS.Pipeline
                 if (Range != null) return Range.Day;
                 if (Texture != null) return Texture.Day;
                 if (Normals != null) return Normals.Day;
-                if (Mask != null) return Mask.Day;
                 throw new InvalidOperationException("can't get day of an empty MeshObservation");
             }
         }
@@ -99,7 +96,6 @@ namespace OPS.Pipeline
                 if (Range != null) return (RoverObservation)Range;
                 if (Texture != null) return (RoverObservation)Texture;
                 if (Normals != null) return (RoverObservation)Normals;
-                if (Mask != null) return (RoverObservation)Mask;
                 throw new InvalidOperationException("can't get RoverObservation of an empty MeshObservation");
             }
         }        
@@ -109,15 +105,17 @@ namespace OPS.Pipeline
             get { var ro = RoverObs; return new SiteDrive(ro.Site, ro.Drive); }
         }
 
-        public string Camera { get { return RoverObs.Sensor; } }
+        public RoverProductCamera Camera { get { return RoverObs.Sensor; } }
 
         public class CollectOptions
         {
-            public bool AllowMastcam = false;
-
             public bool RequirePoints = true;
             public bool RequireNormals = true;
             public bool RequireTextures = false;
+
+            public bool IncludeForAlignment = true;
+            public bool IncludeForMeshing = true;
+            public bool IncludeForTexturing = false;
 
             public SiteDrive[] OnlyForSiteDrives = null;
             public string[] OnlyForCameras = null;
@@ -136,7 +134,6 @@ namespace OPS.Pipeline
             public string TargetFrame = null;
 
             public IComparer<RoverObservation> Comparator = null;
-
             public RoverProductGeometry[] LinearPreference = null;
 
             public CollectOptions(string onlyForSiteDrives = null, string onlyForFrames = null,
@@ -170,7 +167,7 @@ namespace OPS.Pipeline
         /// and try to collect those that are required to build a mesh
         /// returns null if the required observation types are not found for the frame
         /// </summary>
-        public static MeshObservations CollectForFrame(string frameName, FrameCache frameCache,
+        public static WedgeObservations CollectForFrame(string frameName, FrameCache frameCache,
                                                        ObservationCache observationCache,
                                                        CollectOptions opts = null)
         {
@@ -194,16 +191,13 @@ namespace OPS.Pipeline
             //from frameName -> opts.TargetFrame
             //because to call frameCache.GetObservationTransform() we need an Observation
 
-            var pointsType = ObservationType.Points.ToString();
-            var rangeType = ObservationType.Range.ToString();
-            var normalsType = ObservationType.Normals.ToString();
-            var maskType = ObservationType.RoverMask.ToString();
-            var imageType = ObservationType.Image.ToString();
-
             var observations =
                 observationCache.GetAllObservationsForFrame(frame)
                 .Cast<RoverObservation>()
-                .Where(obs => opts.AllowMastcam || !obs.IsMastcam)
+                .Where(obs =>
+                       (opts.IncludeForAlignment && obs.UseForAlignment) ||
+                       (opts.IncludeForMeshing && obs.UseForMeshing) ||
+                       (opts.IncludeForTexturing && obs.UseForTexturing))
                 .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
                 .Where(obs => opts.OnlyForFrames == null || opts.OnlyForFrames.Any(frm => frm == obs.FrameName))
                 .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Sensor)))
@@ -219,18 +213,18 @@ namespace OPS.Pipeline
             {
                 var linObs = observations.Where(obs => obs.CheckLinear(geometry)).ToList();
 
-                var ret = new MeshObservations();
+                var ret = new WedgeObservations();
 
-                ret.Range = linObs.Find(obs => obs.ObservationType == rangeType);
+                ret.Range = linObs.Find(obs => obs.ObservationType == RoverProductType.Range);
 
-                ret.Points = linObs.Find(obs => obs.ObservationType == pointsType);
+                ret.Points = linObs.Find(obs => obs.ObservationType == RoverProductType.Points);
                 if (ret.Points == null)
                 {
                     // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
                     // because stereo correlation often uses 2D disparity
                     // which means the recovered surface point for a pixel
                     // may not actually lie on the ray through that pixel
-                    // but for some missions (MSL) we only have range products
+                    // but in some contexts (e.g. MSL using mslice data) we only have range products
                     // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
                     ret.Points = ret.Range;
                     if (opts.RequirePoints && ret.Points == null)
@@ -239,21 +233,25 @@ namespace OPS.Pipeline
                     }
                 }
 
-                ret.Normals = linObs.Find(obs => obs.ObservationType == normalsType &&
-                                          obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
+                ret.Texture = linObs.Find(obs => obs.ObservationType == RoverProductType.Image);
+                if (opts.RequireTextures && ret.Texture == null)
+                {
+                    continue;
+                }
+
+                bool checkObs(RoverObservation obs, RoverProductType prodType)
+                {
+                    return obs.ObservationType == prodType &&
+                        (ret.Empty || (obs.Width == ret.RoverObs.Width && obs.Height == ret.RoverObs.Height));
+                }
+
+                ret.Normals = linObs.Find(obs => checkObs(obs, RoverProductType.Normals));
                 if (opts.RequireNormals && ret.Normals == null)
                 {
                     continue;
                 }
 
-                ret.Mask = linObs.Find(obs => obs.ObservationType == maskType &&
-                                       obs.Width == ret.Points.Width && obs.Height == ret.Points.Height);
-
-                ret.Texture = linObs.Find(obs => obs.ObservationType == imageType);
-                if (opts.RequireTextures && ret.Texture == null)
-                {
-                    continue;
-                }
+                ret.Mask = linObs.Find(obs => checkObs(obs, RoverProductType.RoverMask));
 
                 if (!ret.Empty)
                 {
@@ -281,7 +279,7 @@ namespace OPS.Pipeline
         /// try to collect mesh observations for all frames
         /// corresponding to observations in the passed observation cache
         /// </summary>
-        public static List<MeshObservations> Collect(FrameCache frameCache, ObservationCache observationCache,
+        public static List<WedgeObservations> Collect(FrameCache frameCache, ObservationCache observationCache,
                                                      CollectOptions opts = null)
         {
             if (opts == null)
@@ -289,7 +287,7 @@ namespace OPS.Pipeline
                 opts = new CollectOptions();
             }
 
-            var ret = new List<MeshObservations>();
+            var ret = new List<WedgeObservations>();
             foreach (var frameName in observationCache.GetAllFramesWithObservations())
             {
                 var obs = CollectForFrame(frameName, frameCache, observationCache, opts);
@@ -709,7 +707,7 @@ namespace OPS.Pipeline
         /// if group contains a MeshObservations for eye, return the first of those
         /// otherwise just return the first thing in group
         /// </summary>
-        public static T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, MeshObservations> getObs)
+        public static T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, WedgeObservations> getObs)
         {
             foreach (var thing in group)
             {
@@ -721,7 +719,7 @@ namespace OPS.Pipeline
             return group.FirstOrDefault();
         }
 
-        public static IEnumerable<MeshObservations> FilterForEye(IEnumerable<MeshObservations> observations,
+        public static IEnumerable<WedgeObservations> FilterForEye(IEnumerable<WedgeObservations> observations,
                                                                  RoverStereoEye eye)
         {
             return observations 
