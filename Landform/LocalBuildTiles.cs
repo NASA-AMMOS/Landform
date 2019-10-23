@@ -341,7 +341,6 @@ namespace OPS.Landform
                     {
                         nodeMesh.Clean(); //copying behavior from TextureMeshClipper
                         curNode.AddComponent<MeshImagePair>(new MeshImagePair(nodeMesh));
-                        //TODO: geometric error curNode.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
                     }
                     else
                     {

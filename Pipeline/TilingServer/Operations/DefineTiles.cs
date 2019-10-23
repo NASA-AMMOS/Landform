@@ -429,8 +429,7 @@ namespace OPS.Pipeline.TilingServer
                     {
                         if (!meshOp.Empty(childBounds))
                         {
-                            currentLevelNodes.Add(CreateChildNode(parentNode, counter, childBounds));
-                            counter++;
+                            currentLevelNodes.Add(CreateChildNode(parentNode, ref counter, childBounds));                           
                         }
                         else
                         {
@@ -536,13 +535,13 @@ namespace OPS.Pipeline.TilingServer
                         int counter = 0; //note this is always exactly one decimal digit
                         foreach (var childBound in childBounds)
                     {
-                        SceneNode child = CreateChildNode(cur, counter, childBound);
+                        SceneNode child = CreateChildNode(cur, ref counter, childBound);
 
                         lock (queue)
                         {
                             queue.Enqueue(child);
                         }
-                        counter++;
+
                     }
                 }
             });
@@ -580,9 +579,11 @@ namespace OPS.Pipeline.TilingServer
             return new MeshImagePair(mesh, image);
         }
 
-        private static SceneNode CreateChildNode(SceneNode cur, int counter, BoundingBox childBounds)
+        private static SceneNode CreateChildNode(SceneNode cur, ref int counter, BoundingBox childBounds)
         {
             SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
+            counter++;
+
             child.AddComponent(new NodeBounds(childBounds));
             return child;
         }
