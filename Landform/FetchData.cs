@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Net;
 using System.Threading;
+using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
@@ -28,8 +29,8 @@ namespace OPS.Landform
         [Value(1, Required = true, Default = null, HelpText = "output directory, e.g. c:/Users/$USERNAME/Downloads")]
         public string OutputDir { get; set; }
         
-        [Value(2, Required = false, HelpText = "RDR search locations with sol replaced with ##### (ie s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr/")]
-        public IEnumerable<string> SearchLocations { get; set; } = null;
+        [Value(2, Required = true, HelpText = "RDR search locations, comma separated, with sol replaced with ##### (e.g. s3://landform/MSL/ods/surface/sol/#####/opgs/rdr). See https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes")]
+        public string SearchLocations { get; set; } = null;
 
         [Option(Required = false, Default = false, HelpText = "Treat input as raw S3 URLs, not sol numbers")]
         public bool Raw { get; set; }
@@ -46,8 +47,17 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Download PNG products")]
         public bool WithPNG { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Download RGB products")]
+        public bool WithRGB { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Download OBJ products, implies --withpng")]
         public bool WithOBJ { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Download IV products, implies --withrgb")]
+        public bool WithIV { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Download VIC products")]
+        public bool WithVIC { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't download PDS products")]
         public bool NoPDS { get; set; }
@@ -64,8 +74,14 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]
         public bool Overwrite { get; set; }
 
+        [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
+        public int MaxRetries { get; set; }
+
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Verbose output")]
+        public bool Verbose { get; set; }
     }
 
     public class FetchData
@@ -88,29 +104,16 @@ namespace OPS.Landform
             }
         }
 
-        private string[] defaultSearchLocations = new string[]
-        {
-            "s3://red-product/ods/surface/sol/#####/soas/rdr", //mslice bucket on us-west-1 (malin images??)
-            "s3://red-product/proj/msl/redops/ods/surface/sol/#####/opgs/rdr", //mslice bucket on us-west-1
-            "s3://m20-roastt-staging/ocs/test/sol/#####/ids/rdr" //M2020 bucket on us-gov-west-1
-            //see https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes
-        };
-        
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
-            if (options.SearchLocations == null || options.SearchLocations.Count() == 0)
-            {
-                options.SearchLocations = defaultSearchLocations;
-            }
             options.WithPNG |= options.WithOBJ;
+            options.WithRGB |= options.WithIV;
             
             mission = MissionSpecific.GetInstance(options.Mission);
         }
 
-        //TODO: this is public because it's also used by EmtToScene
-        //if/when that goes away consider making this private
-        public IEnumerable<string> IndexFiles(string searchDir)
+        private IEnumerable<string> IndexFiles(string searchDir)
         {
             try
             {
@@ -163,22 +166,52 @@ namespace OPS.Landform
             var acceptedExtensions = GetExtensions();
             foreach (var p in products)
             {
-                string ext = Path.GetExtension(p).ToUpper();
+                string ext = StringHelper.GetUrlExtension(p).ToUpper();
+                string filename = StringHelper.GetLastUrlPathSegment(p, stripExtension: true);
+                string reason = null;
                 if (acceptedExtensions.Contains(ext))
                 {
-                    string filename = Path.GetFileNameWithoutExtension(p);
-                    if ((mission == null || mission.CheckFilename(filename)) &&
-                        (acceptedProductIds == null || acceptedProductIds.Contains(filename)))
+                    if (mission == null || mission.CheckFilename(filename, out reason))
                     {
-                        SiteDrive? sd = GetSiteDrive(filename);
-                        if (acceptedSiteDrives.Length == 0 || !sd.HasValue ||
-                            acceptedSiteDrives.Any(asd => asd == sd.Value))
+                        if (acceptedProductIds == null || acceptedProductIds.Contains(filename))
                         {
-                            result.Add(p);
+                            SiteDrive? sd = GetSiteDrive(filename);
+                            if (acceptedSiteDrives.Length == 0 || !sd.HasValue ||
+                                acceptedSiteDrives.Any(asd => asd == sd.Value))
+                            {
+                                result.Add(p);
+                            }
+                            else
+                            {
+                                reason = "disallowed sitedrive " + sd.Value;
+                            }
+                        }
+                        else
+                        {
+                            reason = "disallowed product id";
                         }
                     }
                 }
+                else
+                {
+                    reason = "disallowed extension " + ext;
+                }
+                if (options.Verbose && !string.IsNullOrEmpty(reason))
+                {
+                    logger.InfoFormat("rejected {0}: {1}", filename, reason);
+                }
             }
+
+            //it might be nice if we could group products by observation frame here
+            //and then apply similar rules as in RoverObservationComparator
+            //to only download the preferred products for each frame
+            //but unfortunately it doesn't appear possible to know the full RMC from the filename
+            //and RMC would be needed to correctly define the observation frame
+            //the filename typically does include a timestamp (e.g. sclk) which could be used for grouping
+            //but MSSS and OPGS filenames use different formats for representing timestamps
+            //and also there can be multiple different timestamps for the same RMC
+            //so such grouping would be finer than desired
+
             logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
                               products.Count, result.Count,
                               acceptedSiteDrives.Count() > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
@@ -206,21 +239,33 @@ namespace OPS.Landform
                 ret.Add(".IMG");
                 ret.Add(".LBL");
             }
+            if (options.WithVIC)
+            {
+                ret.Add(".VIC");
+            }
             if (options.WithPNG)
             {
                 ret.Add(".PNG");
+            }
+            if (options.WithRGB)
+            {
+                ret.Add(".RGB");
             }
             if (options.WithOBJ)
             {
                 ret.Add(".OBJ");
                 ret.Add(".MTL");
             }
+            if (options.WithIV)
+            {
+                ret.Add(".IV");
+            }
             return ret;
         }
 
         private SiteDrive? GetSiteDrive(string filename)
         {
-            var id = RoverProductId.ParseFromString(filename);
+            var id = RoverProductId.Parse(filename);
             if (id == null || id.Producer != RoverProductProducer.OPGS)
             {
                 return null;
@@ -248,7 +293,7 @@ namespace OPS.Landform
             {
                 bool success = false;
                 int retryCounter = 0;
-                while (!success && retryCounter < 3)
+                while (!success && retryCounter < options.MaxRetries)
                 {
                     if (retryCounter > 0)
                     {
@@ -325,26 +370,29 @@ namespace OPS.Landform
 
         public int Run()
         {
+            var stopwatch = Stopwatch.StartNew();
             if (options.Raw)
             {
-                DownloadFiles(options.Input.Split(',').Select(f => f.Trim()).Where(f => f != "").ToList());
+                DownloadFiles(StringHelper.ParseList(options.Input).ToList());
             }
             else
             {
                 var sols = ExpandSolSpecifier(options.Input);
-                logger.InfoFormat("seaching sols {0}", string.Join(", ", sols));
+                var locations = StringHelper.ParseList(options.SearchLocations);
+                logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols), string.Join(", ", locations));
                 
                 var solToProducts = new ConcurrentDictionary<string, List<string>>();
                 CoreLimitedParallel.ForEach(sols, sol =>
-                        {
-                            var prods = new List<string>();
-                            foreach (var location in options.SearchLocations)
-                            {
-                                var solLocation = location.Replace("#####", sol);
-                                prods.AddRange(IndexFiles(solLocation));
-                            }
-                            solToProducts.TryAdd(sol, prods);
-                        });
+                {
+                    var prods = new List<string>();
+                    foreach (var location in locations)
+                    {
+                        var solLocation = location.Replace("#####", sol);
+                        prods.AddRange(IndexFiles(solLocation));
+                    }
+                    solToProducts.TryAdd(sol, prods);
+                });
+                
                 foreach (var sol in sols)
                 {
                     logger.InfoFormat("filtering files for sol {0}", sol);
@@ -353,7 +401,7 @@ namespace OPS.Landform
                 
                 DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
             }
-
+            logger.InfoFormat("total time: {0}", Fmt.HMS(stopwatch));
             return 0;
         }
     }

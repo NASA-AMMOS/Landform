@@ -33,6 +33,12 @@ namespace OPS.Landform
         [Option(HelpText = "Wedge image auto decimation target resolution", Default = 1024)]
         public virtual int TargetWedgeImageResolution { get; set; }
 
+        [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
+        public virtual string OnlyForObservations { get; set; }
+
+        [Option(HelpText = "Only use specific frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
+        public virtual string OnlyForFrames { get; set; }
+
         [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
         public virtual string OnlyForCameras { get; set; }
 
@@ -70,8 +76,7 @@ namespace OPS.Landform
             this.wcopts = wcopts;
         }
 
-        protected virtual bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes = null,
-                                                           bool onlyObsForReconstruction = false)
+        protected virtual bool ParseArgumentsAndLoadCaches(string outDir)
         {
             if (wcopts.UsePriors && wcopts.OnlyAligned)
             {
@@ -93,7 +98,7 @@ namespace OPS.Landform
             }
 
             LoadFrameCache();
-            LoadObservationCache(obsTypes, onlyObsForReconstruction);
+            LoadObservationCache();
 
             return true;
         }
@@ -123,22 +128,35 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual void LoadObservationCache(ObservationType[] obsTypes, bool onlyObsForReconstruction)
+        protected virtual bool ObservationFilter(RoverObservation obs)
         {
-            string[] cameras = StringHelper.ParseList(wcopts.OnlyForCameras);
-            string[] obsFilter = (obsTypes ?? new ObservationType[] {}).Select(ot => ot.ToString()).ToArray();
+            return true;
+        }
+
+        protected virtual string DescribeObservationFilter()
+        {
+            return "";
+        }
+
+        protected virtual void LoadObservationCache()
+        {
+            string[] observations = StringHelper.ParseList(wcopts.OnlyForObservations);
+            string[] frames = StringHelper.ParseList(wcopts.OnlyForFrames);
+            string[] cams = StringHelper.ParseList(wcopts.OnlyForCameras);
+
             observationCache = new ObservationCache(pipeline, project.Name);
+
             int num = observationCache.
-                Preload(obs => (!onlyObsForReconstruction || obs.UseForReconstruction) &&
-                        (obsFilter.Length == 0 || obsFilter.Any(ot => obs.ObservationType == ot)) &&
+                Preload(obs => obs is RoverObservation && ObservationFilter((RoverObservation)obs) &&
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
-                        (cameras.Length == 0 ||
-                         cameras.Any(cam => RoverCamera.IsCamera(cam, ((RoverObservation)obs).Sensor))));
-            pipeline.LogInfo("loaded {0} observations in project {1}{2}{3}{4}{5}", num, project.Name,
-                             onlyObsForReconstruction ? " for reconstruction" : "",
-                             obsFilter.Length > 0 ? (" for obs types " + string.Join(", ", obsFilter)) : "",
+                        (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
+                        (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
+                        (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Sensor))));
+
+            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
+                             num, DescribeObservationFilter(), project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
-                             cameras.Length > 0 ? (" for cameras " + string.Join(", ", cameras)) : "");
+                             cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
         }
     }
 }

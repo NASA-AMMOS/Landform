@@ -28,19 +28,38 @@ namespace OPS.Pipeline
         /// 3) masked pixels the original image (e.g. due to a user mask override image)
         /// 4) inset borders of the original image (image borders sometimes have solid bars)
         /// </summary>
-        public static Image MakeMask(PipelineCore pipeline, RoverMasker masker, string roverMaskUrl, Image img)
+        public static Image MakeMask(PipelineCore pipeline, RoverMasker masker, string roverMaskUrl, Image img,
+                                     Image dbgImg = null)
         {
-            //do not mutate rover mask if it's loaded from mission product (clone: true)
-            Image mask = masker.LoadOrBuild(pipeline, roverMaskUrl, img.Metadata as PDSMetadata, clone: true);
+            bool drawDebug = dbgImg != null;
+            if (drawDebug && dbgImg.Bands < 3)
+            {
+                float[] band0 = dbgImg.GetBandData(0);
+                while (dbgImg.Bands < 3)
+                {
+                    Array.Copy(band0, dbgImg.GetBandData(dbgImg.AddBand()), band0.Length);
+                }
+            }
 
-            //propagate masked pixels from original image to mask
+            Image mask = masker.LoadOrBuild(pipeline, roverMaskUrl, img.Metadata as PDSMetadata);
+
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
                 {
+                    if (drawDebug && mask[0, row, col] == 0)
+                    {
+                        dbgImg[0, row, col] = 1; //rover mask = red tint
+                    }
+
+                    //propagate masked pixels from original image to mask
                     if (!img.IsValid(row, col))
                     {
                         mask[0, row, col] = 0;
+                        if (drawDebug)
+                        {
+                            dbgImg[1, row, col] = 1; //masked/invalid/border = green tint
+                        }
                     }
                 }
             } 
@@ -53,7 +72,7 @@ namespace OPS.Pipeline
                 {
                     float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
 
-                    //ROASTT: single float missing constant for 3 channel navcam
+                    //ROASTT19 wart: single float missing constant for 3 channel navcam
                     if(missing.Count() == 1 && img.Bands > 1)
                     {
                         missing = Enumerable.Repeat<float>(missing.First(), img.Bands).ToArray();
@@ -69,6 +88,10 @@ namespace OPS.Pipeline
                             if (img.BandValuesEqual(row, col, missing))
                             {
                                 mask[0, row, col] = 0;
+                                if (drawDebug)
+                                {
+                                    dbgImg[1, row, col] = 1; //masked/invalid/border = green tint
+                                }
                             }
                         }
                     } 
@@ -84,6 +107,11 @@ namespace OPS.Pipeline
                 {
                     mask[0, b, col] = 0;
                     mask[0, mask.Height - 1 - b, col] = 0;
+                    if (drawDebug)
+                    {
+                        dbgImg[1, b, col] = 1; //masked/invalid/border = green tint
+                        dbgImg[1, mask.Height - 1 - b, col] = 1;
+                    }
                 }
 
                 //whole column
@@ -91,6 +119,11 @@ namespace OPS.Pipeline
                 {
                     mask[0, row, b] = 0;
                     mask[0, row, mask.Width - 1 - b] = 0;
+                    if (drawDebug)
+                    {
+                        dbgImg[1, row, b] = 1; //masked/invalid/border = green tint
+                        dbgImg[1, row, mask.Width - 1 - b] = 1;
+                    }
                 }
             }
 

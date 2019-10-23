@@ -22,7 +22,7 @@ namespace OPS.Pipeline
         public delegate bool IncludeOverlapDelegate(string observationName1, string observationName2);
 
         /// <summary>
-        /// By default only image observations marked UseForReconstruction are loaded.  
+        /// By default only image observations marked UseForAlignment are loaded.  
         /// </summary>
         public class Options
         {
@@ -34,7 +34,7 @@ namespace OPS.Pipeline
             public bool LoadCorrespondences = false; //implies LoadOverlaps
             public bool OnlyKeepImagesWithFeatures = false;
             public bool OnlyKeepBestImages = false;
-            public bool OnlyLoadObservationsForReconstruction = true;
+            public bool OnlyLoadObservationsForAlignment = true;
             public bool OnlyLoadImageObservations = true;
             public bool OnlyCrossSiteDriveOverlaps = false;
             public IncludeFrameDelegate IncludeFrame = _ => true;
@@ -58,10 +58,9 @@ namespace OPS.Pipeline
             return g != null && g != Guid.Empty;
         }
 
-        private static readonly string imageObs = ObservationType.Image.ToString();
         private static bool IsImage(Observation obs)
         {
-            return obs.ObservationType == imageObs;
+            return obs is RoverObservation && ((RoverObservation)obs).ObservationType == RoverProductType.Image;
         }
 
         public AlignmentScene BuildTopDown(Frame root)
@@ -148,7 +147,7 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("preloading observation cache for project {0}", projectName);
                     Func<Observation, bool> filter =
-                        obs => !options.OnlyLoadObservationsForReconstruction || obs.UseForReconstruction;
+                        obs => !options.OnlyLoadObservationsForAlignment || obs.UseForAlignment;
                     double start = UTCTime.Now();
                     int numPreloaded = observationCache.Preload(filter);
                     pipeline.LogInfo("preloaded {0} observations for project {1} in {2:F3}s",
@@ -228,7 +227,7 @@ namespace OPS.Pipeline
                 {
                     var obsForFrame = observationCache.GetAllObservationsForFrame(frame)
                         .Where(o => options.IncludeObservation(o))
-                        .Where(o => !options.OnlyLoadObservationsForReconstruction || o.UseForReconstruction)
+                        .Where(o => !options.OnlyLoadObservationsForAlignment || o.UseForAlignment)
                         .Where(o => !options.OnlyLoadImageObservations || IsImage(o))
                         .Where(o => !options.OnlyKeepImagesWithFeatures || !IsImage(o) || ValidGuid(o.FeaturesGuid))
                         .Cast<RoverObservation>()

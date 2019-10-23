@@ -46,7 +46,7 @@ namespace OPS.Pipeline
             {
                 float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
                 
-                //ROASTT: single float missing constant for 3 channel navcam
+                //ROASTT19 wart: single float missing constant for 3 channel navcam
                 if(missing.Count() == 1 && src.Bands > 1)
                 {
                     missing = Enumerable.Repeat<float>(missing.First(), src.Bands).ToArray();
@@ -214,7 +214,7 @@ namespace OPS.Pipeline
             switch (Parser.DerivedImageType)
             {
                 case RoverProductType.Range: return ConvertRNG();
-                case RoverProductType.XYZ: return ConvertXYZ();
+                case RoverProductType.Points: return ConvertXYZ();
                 default: throw new ArgumentException("cannot convert " + Parser.DerivedImageType + " image to XYR");
             }
         }
@@ -227,7 +227,7 @@ namespace OPS.Pipeline
         /// </summary>
         public Image ConvertXYZ()
         {
-            CheckType(RoverProductType.XYZ, "ConvertXYZ");
+            CheckType(RoverProductType.Points, "ConvertXYZ");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
             Image src = this.Image;
             Image ret = new Image(3, src.Width, src.Height);
@@ -317,7 +317,7 @@ namespace OPS.Pipeline
             switch (Parser.DerivedImageType)
             {
                 case RoverProductType.Range: return GenerateConfidenceFromRNG();
-                case RoverProductType.XYZ: return GenerateConfidenceFromXYZ();
+                case RoverProductType.Points: return GenerateConfidenceFromXYZ();
                 default: throw new NotImplementedException("synthetic confidence requires range or XYZ map"); ;
             }
         }
@@ -357,7 +357,7 @@ namespace OPS.Pipeline
         /// </summary>
         public Image GenerateConfidenceFromXYZ()
         {
-            CheckType(RoverProductType.XYZ, "GenerateConfidenceFromXYZ");
+            CheckType(RoverProductType.Points, "GenerateConfidenceFromXYZ");
             Vector3 c = CheckCameraCenter("GenerateConfidenceFromXYZ", false);
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
             Image src = this.Image;
@@ -398,7 +398,7 @@ namespace OPS.Pipeline
         /// </summary>
         public Image ConvertNormals(Image confidence = null)
         {
-            CheckType(RoverProductType.NormalMap, "ConvertNormals");
+            CheckType(RoverProductType.Normals, "ConvertNormals");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
             bool nonIdentityXform = !xform.Equals(Matrix.Identity);
             Image src = this.Image;

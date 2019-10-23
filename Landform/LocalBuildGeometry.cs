@@ -36,11 +36,6 @@ namespace OPS.Landform
         [Option(HelpText = "Only emit faces that intersect these observations, comma separated (disables database save)", Default = null)]
         public string OnlyFacesForObs { get; set; }
 
-        //temporarily suppress mastcam point cloud data until validated
-        //https://github.jpl.nasa.gov/OnSight/Landform/issues/261
-        [Option(HelpText = "Use mastcam observations", Default = false)]
-        public bool AllowMastcam { get; set; }
-
         [Option(HelpText = "Clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
     }
@@ -99,7 +94,7 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR, onlyObsForReconstruction: true))
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
                 return false; //help
             }
@@ -109,18 +104,21 @@ namespace OPS.Landform
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir, ObservationType[] obsTypes,
-                                                            bool onlyObsForReconstruction)
+        protected override bool ObservationFilter(RoverObservation obs)
         {
-            throw new NotImplementedException();
+            return obs.UseForMeshing;
+        }
+
+        protected override string DescribeObservationFilter()
+        {
+            return " meshing";
         }
 
         private void BuildMesh()
         {
             mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
                                               frameCache, observationCache, meshFrame, options.UsePriors,
-                                              options.OnlyAligned, options.OnlyForCameras,
-                                              !options.NoCleverCombine, options.AllowMastcam,
+                                              options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
 
             if (mesh == null || mesh.Faces.Count == 0)

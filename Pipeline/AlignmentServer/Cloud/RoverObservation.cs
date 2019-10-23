@@ -7,6 +7,7 @@ using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using Newtonsoft.Json;
 using OPS.Cloud;
+using OPS.Imaging;
 using OPS.Pipeline;
 
 namespace OPS.Pipeline.AlignmentServer
@@ -23,13 +24,15 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Drive;
 
-        public string Version;
+        public RoverProductType ObservationType;
 
-        public string Sensor;
+        public RoverProductCamera Sensor;
 
-        public string ImageFrameSize;
+        public RoverProductProducer Producer;
 
-        public string Producer;
+        //it might be nice to have this field
+        //but that would introduce a redundancy with Observation.CameraModel.Linear, so avoiding for now
+        //public RoverProductGeometry Geometry;
 
         [DynamoDBIgnore]
         [JsonIgnore]
@@ -37,26 +40,14 @@ namespace OPS.Pipeline.AlignmentServer
 
         [DynamoDBIgnore]
         [JsonIgnore]
-        public bool IsMastcam
-        {
-            get
-            {
-                //DEPRECATED use mission specific methods
-                return Sensor == RoverProductCamera.MastcamLeft.ToString() ||
-                    Sensor == RoverProductCamera.MastcamRight.ToString();
-            }
-        }
-
-        [DynamoDBIgnore]
-        [JsonIgnore]
         public string StereoFrameName
         {
             get
             {
-                var cam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), Sensor);
-                if (FrameName.StartsWith(Sensor) && RoverStereoPair.IsStereo(cam))
+                var cameraName = Sensor.ToString();
+                if (FrameName.StartsWith(cameraName) && RoverStereoPair.IsStereo(Sensor))
                 {
-                    return RoverStereoPair.GetStereoCamera(cam).ToString() + FrameName.Substring(Sensor.Length);
+                    return RoverStereoPair.GetStereoCamera(Sensor).ToString() + FrameName.Substring(cameraName.Length);
                 }
                 else
                 {
@@ -69,12 +60,11 @@ namespace OPS.Pipeline.AlignmentServer
         {
             get
             {
-                var cam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), Sensor);
-                if (RoverStereoPair.IsStereoLeft(cam))
+                if (RoverStereoPair.IsStereoLeft(Sensor))
                 {
                     return RoverStereoEye.Left;
                 }
-                else if (RoverStereoPair.IsStereoRight(cam))
+                else if (RoverStereoPair.IsStereoRight(Sensor))
                 {
                     return RoverStereoEye.Right;
                 }
@@ -88,15 +78,13 @@ namespace OPS.Pipeline.AlignmentServer
         protected void IsValidRoverOservation()
         {
             base.IsValid();
-            if (!(Version != null &&
-                  Sensor != null &&
-                  ImageFrameSize != null &&
-                  Producer != null))
+            if (!(ObservationType != RoverProductType.Unknown &&
+                  Sensor != RoverProductCamera.Unknown &&
+                  Producer != RoverProductProducer.Unknown))
             {
                 throw new Exception("Missing required property in RoverObservation " + Name +
-                                    " Version=" + Version +
+                                    " ObservationType=" + ObservationType +
                                     " Sensor=" + Sensor +
-                                    " ImageFrameSize=" + ImageFrameSize +
                                     " Producer=" + Producer);
             }
         }
@@ -104,38 +92,31 @@ namespace OPS.Pipeline.AlignmentServer
         //This constructor must be public for DynamoDb but should not be used
         public RoverObservation() { }
 
-        protected RoverObservation(Frame frame, string name, string url, string observationType, string cameraModel,
-                                   bool useForReconstruction, int site, int drive, string version, string sensor,
-                                   string imageFrameSize, string producer, int width, int height, int bands, int bits,
-                                   int day, int index) :
-            base(frame, name, url, observationType, cameraModel, useForReconstruction, width, height, bands, bits, day,
-                 index)
+        protected RoverObservation(Frame frame, string name, string url, CameraModel cameraModel,
+                                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                                   int width, int height, int bands, int bits, int day, int version, int index,
+                                   int site, int drive, RoverProductType observationType, RoverProductCamera sensor,
+                                   RoverProductProducer producer)
+            : base(frame, name, url, cameraModel, useForAlignment, useForMeshing, useForTexturing,
+                   width, height, bands, bits, day, version, index)
         {
             this.Site = site;
             this.Drive = drive;
-            this.Version = version;
+            this.ObservationType = observationType;
             this.Sensor = sensor;
-            this.ImageFrameSize = imageFrameSize;
             this.Producer = producer;
             this.IsValidRoverOservation();
         }
 
         /// <summary>
-        /// Prevent possible bugs from calling the default Observation.Create method.
+        /// Prevent possible bugs from calling the default Observation.Create() method.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="frame"></param>
-        /// <param name="name"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
-        /// <param name="useForReconstruction"></param>
-        /// <returns></returns>
-        public static new Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
-                                             string observationType, string cameraModel, bool useForReconstruction,
-                                             int width, int height, int bands, int bits, int day, int index, bool save)
+        public static new Observation
+            Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
+                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                   int width, int height, int bands, int bits, int day, int version, int index, bool save)
         {
-            throw new NotImplementedException("Call the other version of RoverObservation.Create with rover specific arguments");
+            throw new NotImplementedException("Call RoverObservation.Create() with rover specific arguments");
         }
 
         /// <summary>
@@ -143,27 +124,25 @@ namespace OPS.Pipeline.AlignmentServer
         /// Names must be unique within a project.
         /// Project is infered from frame.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="frame"></param>
-        /// <param name="name"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
-        /// <returns></returns>
-        public static RoverObservation Create(PipelineCore pipeline, Frame frame, string name, string url,
-                                              string observationType, string cameraModel, bool useForReconstruction,
-                                              int site, int drive, string version, string sensor, string imageFrameSize,
-                                              string producer, int width, int height, int bands, int bits, int day,
-                                              int index)
+        public static RoverObservation
+            Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
+                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                   int width, int height, int bands, int bits, int day, int version, int index,
+                   int site, int drive, RoverProductType observationType, RoverProductCamera sensor,
+                   RoverProductProducer producer, bool save = true)
         {
             if (Find(pipeline, frame.ProjectName, name) != null)
             {
                 return null; //An observation with this name and project already exists 
             }
-            RoverObservation ro =
-                new RoverObservation(frame, name, url, observationType, cameraModel, useForReconstruction, site, drive,
-                                     version, sensor, imageFrameSize, producer, width, height, bands, bits, day, index);
-            pipeline.SaveDatabaseItem(ro);
+            RoverObservation ro = new RoverObservation(frame, name, url, cameraModel,
+                                                       useForAlignment, useForMeshing, useForTexturing,
+                                                       width, height, bands, bits, day, version, index,
+                                                       site, drive, observationType, sensor, producer);
+            if (save)
+            {
+                pipeline.SaveDatabaseItem(ro);
+            }
             return ro;
         }
 
@@ -176,9 +155,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="imageId"></param>
-        /// <returns></returns>
         new public static RoverObservation Find(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<RoverObservation>(name, projectName);
@@ -200,11 +176,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public override string ToString(bool brief)
         {
-            return string.Format("{0}, Site={1}, Drive={2}, Sensor={3}, SizeType={4}, Producer={5}, Version={6}",
-                                 base.ToString(brief),
-                                 Site, Drive,
-                                 Sensor, ImageFrameSize,
-                                 Producer, Version);
+            return string.Format("{0}, Site={1}, Drive={2}, ObservationType={3}, Sensor={4}, Producer={5}",
+                                 base.ToString(brief), Site, Drive, ObservationType, Sensor, Producer);
         }
 
         public override string ToString()

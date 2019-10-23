@@ -84,9 +84,6 @@ namespace OPS.Landform
             string debugAgiScene = Path.Combine(metaDir, "scene.psz");
             string outputCamerasXMLPath = Path.Combine(metaDir, "camerasOut.xml");
 
-            string imgStr = ObservationType.Image.ToString();
-            string maskStr = ObservationType.RoverMask.ToString();
-
             //build scene graph from database tables for images and transforms heirarchy
             pipeline.LogInfo("building scene graph for bundle adjustment, project {0}", options.ProjectName);
             var bsg = new BuildSceneGraph(pipeline, project.Name, new BuildSceneGraph.Options
@@ -97,13 +94,15 @@ namespace OPS.Landform
                 OnlyKeepBestImages = true,
                 OnlyCrossSiteDriveOverlaps = false,
                 OnlyLoadImageObservations = false,
-                IncludeObservation = o => o.ObservationType == imgStr || o.ObservationType == maskStr
+                IncludeObservation = o => o is RoverObservation &&
+                (((RoverObservation)o).ObservationType == RoverProductType.Image ||
+                 ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
             });
             AlignmentScene scene = bsg.BuildTopDown(mission.RootFrameName());
 
             // prepare png versions of images and masks for agisoft
             var imgObsNodes = scene.Root.GetComponentsInTree<NodeObservation>()
-                .Where(no => no.Observation.ObservationType == imgStr);
+                .Where(no => ((RoverObservation)(no.Observation)).ObservationType == RoverProductType.Image);
             var observations = imgObsNodes.Select(no => no.Observation).Cast<RoverObservation>();
 
             pipeline.LogInfo("generating pngs for " + imgObsNodes.Count() + " images and masks");
@@ -124,7 +123,7 @@ namespace OPS.Landform
                 if (!File.Exists(maskPath) || options.RedoImages)
                 {
                     var maskObs = imgNode.Node.Parent.GetComponentsInTree<NodeObservation>()
-                        .Where(no => no.Observation.ObservationType == maskStr)
+                        .Where(no => ((RoverObservation)(no.Observation)).ObservationType == RoverProductType.RoverMask)
                         .Cast<RoverObservation>()
                         .FirstOrDefault();
 
@@ -453,7 +452,7 @@ namespace OPS.Landform
                 int cameraId = 0;
                 foreach (var cameraConfig in obsByCameraConfig)
                 {
-                    RoverProductCamera roverProdCam = (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cameraConfig.Key.Sensor);
+                    RoverProductCamera roverProdCam = cameraConfig.Key.Sensor;
                     AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height, cameraConfig.Key.Bands, mission);
 
                     foreach (var obs in cameraConfig.Select(o => o.Obs))

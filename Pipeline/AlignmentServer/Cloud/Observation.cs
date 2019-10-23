@@ -10,22 +10,11 @@ using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    public enum ObservationType
-    {
-        Image,
-        Range,
-        Points,
-        Normals,
-        RoverMask
-    }
-
     public enum TextureVariant { Original, Blurred, Blended };
 
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
     /// Can be connected to Frames and aligned with other observations through FrameTransforms
-    /// Observations are not versioned, because all of the data associated with them is deterministic, so it does not matter if workers re-upload them. 
-    /// Fresh Creates, or Saves with missing values, will not overwrite existing values. 
     /// </summary>
     [DynamoDBTable("Observations")]
     [DynamoDBReadCapacity(50, 100)]
@@ -61,15 +50,13 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string FrameName;
 
-        public string ObservationType;
-
         public string CameraModel;
 
-        //it might be nice to have this field which would be a RoverProductGeometry string (e.g. Linarized, Raw)
-        //but that would introduce a redundancy with CameraModel.Linear, so avoiding for now
-        //public string Geometry;
+        public bool UseForAlignment;
 
-        public bool UseForReconstruction;
+        public bool UseForMeshing;
+
+        public bool UseForTexturing;
 
         public int Width;
 
@@ -81,37 +68,17 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Day;
 
+        public int Version;
+
         public int Index;
 
         /// Add required fields here 
         protected void IsValid()
         {
-            if (!(Url != null && FrameName != null && ProjectName != null && Name != null && ObservationType != null))
+            if (!(Url != null && FrameName != null && ProjectName != null && Name != null))
             {
                 throw new Exception("Missing required property in Observation");
             }
-        }
-
-        private static Dictionary<RoverProductType, ObservationType> productTypeMap =
-            new Dictionary<RoverProductType, ObservationType>();
-
-        static Observation()
-        {
-            productTypeMap[RoverProductType.Image] = OPS.Pipeline.AlignmentServer.ObservationType.Image;
-            productTypeMap[RoverProductType.Range] = OPS.Pipeline.AlignmentServer.ObservationType.Range;
-            productTypeMap[RoverProductType.XYZ] = OPS.Pipeline.AlignmentServer.ObservationType.Points;
-            productTypeMap[RoverProductType.NormalMap] = OPS.Pipeline.AlignmentServer.ObservationType.Normals;
-            productTypeMap[RoverProductType.RoverMask] = OPS.Pipeline.AlignmentServer.ObservationType.RoverMask;
-        }
-
-        public static ObservationType ProductTypeToObservationType(RoverProductType productType)
-        {
-            return productTypeMap[productType];
-        }
-
-        public static bool AllowedProductType(RoverProductType productType)
-        {
-            return productTypeMap.ContainsKey(productType);
         }
 
         //This constructor must be public for DynamoDb but should not be used
@@ -122,13 +89,9 @@ namespace OPS.Pipeline.AlignmentServer
         /// Observation names must be unique within a project.
         /// ProjectId for this observation will be inferred from the supplied Frame object.
         /// </summary>
-        /// <param name="name"></param>
-        /// <param name="frame"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
-        protected Observation(Frame frame, string name, string url, string observationType, string cameraModel,
-                              bool useForReconstruction, int width, int height, int bands, int bits, int day, int index)
+        protected Observation(Frame frame, string name, string url, CameraModel cameraModel,
+                              bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                              int width, int height, int bands, int bits, int day, int version, int index)
         {
             this.ProjectName = frame.ProjectName;
             this.FrameName = frame.Name;
@@ -138,14 +101,16 @@ namespace OPS.Pipeline.AlignmentServer
             this.FeaturesGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
-            this.ObservationType = observationType;
-            this.CameraModel = cameraModel;
-            this.UseForReconstruction = useForReconstruction;
+            this.CameraModel = JsonHelper.ToJson(cameraModel);
+            this.UseForAlignment = useForAlignment;
+            this.UseForMeshing = useForMeshing;
+            this.UseForTexturing = useForTexturing;
             this.Width = width;
             this.Height = height;
             this.Bands = bands;
             this.Bits = bits;
             this.Day = day;
+            this.Version = version;
             this.Index = index;
             IsValid();
         }
@@ -154,31 +119,25 @@ namespace OPS.Pipeline.AlignmentServer
         /// Creates a new observation and saves it to the database.  Returned observation has a valid id.
         /// Names must be unique within a project.
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="frame"></param>
-        /// <param name="name"></param>
-        /// <param name="url"></param>
-        /// <param name="observationType"></param>
-        /// <param name="cameraModel"></param>
-        /// <returns></returns>
-        public static Observation Create(PipelineCore pipeline, Frame frame, string name, string url,
-                                         string observationType, string cameraModel, bool useForReconstruction,
-                                         int width, int height, int bands, int bits, int day, int index, bool save=true)
+        public static Observation
+            Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
+                   bool useForAlignment, bool useForMeshing, bool useForTexturing,
+                   int width, int height, int bands, int bits, int day, int version, int index,
+                   bool save = true)
         {
-            Observation obs = new Observation(frame, name, url, observationType, cameraModel, useForReconstruction,
-                                              width, height, bands, bits, day, index);
+            Observation obs = new Observation(frame, name, url, cameraModel,
+                                              useForAlignment, useForMeshing, useForTexturing,
+                                              width, height, bands, bits, day, version, index);
             if (save)
             {
                 obs.Save(pipeline);
             }
-
             return obs;
         }
 
         /// <summary>
         /// Save this observation without overwriting any values it may be missing
         /// </summary>
-        /// <param name=""></param>
         public virtual void Save(PipelineCore pipeline)
         {
             IsValid();
@@ -189,9 +148,6 @@ namespace OPS.Pipeline.AlignmentServer
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
-        /// <param name="pipeline"></param>
-        /// <param name="imageId"></param>
-        /// <returns></returns>
         public static Observation Find(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<Observation>(name, projectName);
@@ -211,11 +167,6 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 yield return Find(pipeline, frame.ProjectName, obsName);
             }
-        }
-
-        public static IEnumerable<Observation> FindByType(PipelineCore pipeline, string projectName, string observationType)
-        {
-            return pipeline.ScanDatabase<Observation>("ProjectName", projectName, "ObservationType", observationType); 
         }
 
         public bool IsLinear()
@@ -241,18 +192,17 @@ namespace OPS.Pipeline.AlignmentServer
         public virtual string ToString(bool brief)
         {
             var cm = (CameraModel)JsonHelper.FromJson(CameraModel);
-            return string.Format("{0} Frame={1}, {2}{3}Type={4}, CameraModel={5} ({6}), {7}Size={8}x{9}, Bands={10}, " +
-                                 "Bits={11}, Day={12}{13}",
-                                 Name, FrameName,
-                                 brief ? "" : string.Format("Url={0}, ", Url),
-                                 brief ? "" : string.Format("Project={0}, ", ProjectName),
-                                 ObservationType,
-                                 cm.GetType().Name,
-                                 cm.Linear ? "linear" : "nonlinear",
-                                 brief ? "" : string.Format("ForReconstruction={0}, ", UseForReconstruction),
-                                 Width, Height, Bands, Bits, Day,
-                                 brief ? "" : string.Format(", FeaturesGuid={0}", FeaturesGuid),
-                                 brief ? "" : string.Format(", BlendedGuid={0}", BlendedGuid));
+            return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}{7}{8}Size={9}x{10}, Bands={9}, " +
+                                 "Bits={12}, Day={13}, Version={14}, Index={15}",
+                                 Name, FrameName, //0, 1
+                                 brief ? "" : string.Format("Url={0}, ", Url), //2
+                                 brief ? "" : string.Format("Project={0}, ", ProjectName), //3
+                                 cm.GetType().Name, //4
+                                 cm.Linear ? "linear" : "nonlinear", //5
+                                 brief ? "" : string.Format("UseForAlignment={0}, ", UseForAlignment), //6
+                                 brief ? "" : string.Format("UseForMeshing={0}, ", UseForMeshing), //7
+                                 brief ? "" : string.Format("UseForTexturing={0}, ", UseForTexturing), //8
+                                 Width, Height, Bands, Bits, Day, Version, Index); //9-15
         }
 
         public override string ToString()
