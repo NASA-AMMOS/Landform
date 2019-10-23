@@ -42,7 +42,7 @@ namespace OPS.Landform
     {
         private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
-        private const int MAX_TILE_GROUP_SIZE = 32;
+        private const int MAX_LEAF_GROUP_SIZE = 32;
         private const int SLEEP_MS = 500;
 
         private LocalBuildTilesetOptions options;
@@ -161,7 +161,7 @@ namespace OPS.Landform
                 string exportMeshFormat = null;
                 string exportImageFormat = null;
 
-                int maxTileGroupSize = MAX_TILE_GROUP_SIZE;
+                int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      options.SkirtMode, options.ReconMethod, options.FacesPerTile,
