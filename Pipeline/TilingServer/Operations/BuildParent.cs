@@ -94,6 +94,9 @@ namespace OPS.Pipeline.TilingServer
             }
             else
             {
+                var meshImageParent = parent.LoadMeshImagePair(pipeline,loadImage:false);
+                parentSceneNode.AddComponent<MeshImagePair>(meshImageParent);
+
                 LogInfo("generating parent {0} geometric error from {1} tiles", message.TileId, parent.DependsOn.Count);
                 parent.GeometricError = parentSceneNode.CalculateGeometricError();
                 parent.Save(pipeline);

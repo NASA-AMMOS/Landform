@@ -92,7 +92,7 @@ namespace OPS.Pipeline
 
                 dependsOn.Add(n.Id, n.GetDependsOn());
 
-                if (n.MeshUrl != null)
+                if (n.MeshUrl != null && n.GeometricError.HasValue)
                 {
                     completed.Add(n.Id);
                 }
