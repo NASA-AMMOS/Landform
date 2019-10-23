@@ -255,7 +255,7 @@ namespace OPS.Landform
         {
             if (options.LoadLODs)
             {
-                //use decimated versions of the mesh provided to generate a tile tree with a fixe number of levels
+                //use decimated versions of the mesh provided to generate a tile tree with a fixed number of levels
                 tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLODs);
             }
             else
