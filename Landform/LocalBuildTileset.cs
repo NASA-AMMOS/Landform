@@ -142,7 +142,8 @@ namespace OPS.Landform
         private void CreateTilingProject()
         {
             var keepMeshes = new HashSet<string>();
-            keepMeshes.UnionWith(tileList.TileNames);
+            keepMeshes.UnionWith(tileList.LeafNames);
+            keepMeshes.UnionWith(tileList.ParentNames);
             tilingProject = GetOrDeleteTilingProject(keepMeshes);
 
             if (tilingProject == null)
@@ -195,9 +196,13 @@ namespace OPS.Landform
 
         private void AddTileMeshes()
         {
-            pipeline.LogInfo("adding {0} tile meshes{1}", tileList.TileNames.Count,
+            List<string> tileNames = new List<string>(tileList.LeafNames);
+            tileNames.AddRange(tileList.ParentNames);
+
+            pipeline.LogInfo("adding {0} tile meshes ({1} leaves, {2} parents){3}", tileNames.Count, tileList.LeafNames.Count(), tileList.ParentNames.Count(),
                              withTextures ? " and textures" : "");
-            foreach (var tile in tileList.TileNames)
+
+            foreach (var tile in tileNames)
             {
                 if (!options.NoProgress)
                 {

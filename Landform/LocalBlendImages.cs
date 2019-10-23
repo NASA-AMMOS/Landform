@@ -737,10 +737,10 @@ namespace OPS.Landform
             opts.MeshOffset = new Vector2(boundsSize.X, boundsSize.Y) * 0.5;
             
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F3} meters/pixel",
-                             resolution, tileList.TileNames.Count, opts.MetersPerPixel);
+                             resolution, tileList.LeafNames.Count, opts.MetersPerPixel);
 
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            CoreLimitedParallel.ForEach(tileList.TileNames, leaf =>
+            CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.MeshExt);
                 var leafMesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
@@ -782,8 +782,8 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("blending leaf textures");
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            int curLeafNum = 0, leafCount = tileList.TileNames.Count;
-            CoreLimitedParallel.ForEach(tileList.TileNames, leaf =>
+            int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
+            CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
                 pipeline.LogInfo("blending leaf texture {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,

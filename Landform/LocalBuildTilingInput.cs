@@ -17,7 +17,7 @@ using System.Threading;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-tiling input", HelpText = "builds textured tiles from a full scene mesh")]
+    [Verb("local-build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
     public class LocalBuildTilingInputOptions : TilingCommandOptions
     {
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
@@ -411,7 +411,8 @@ namespace OPS.Landform
                     MeshFrame = meshFrame,
                     HasIndexImages = !options.NoBackprojectIndexImages,
                     TilingScheme = options.TilingScheme,
-                    TileNames = new List<string>()
+                    LeafNames = new List<string>(),
+                    ParentNames = new List<string>()
                 };
             
             var tilesToTexture = tileTree.DepthFirstTraverse()
@@ -488,7 +489,7 @@ namespace OPS.Landform
 
                 if (!withTextures || mp.Image != null)
                 {
-                    SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave);
+                    SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave, tile.IsLeaf);
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -522,7 +523,7 @@ namespace OPS.Landform
             }
         }
 
-        private void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud)
+        private void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
         {
             string imgName = image != null ? name + imageExt : null;
             
@@ -583,14 +584,24 @@ namespace OPS.Landform
                     });
             }
 
-            lock (tileList.TileNames)
+            //each tile name is of the form ABCDE... where
+            //A is the index of a child of the root
+            //B is the index of a child of the node corresponding to A, etc
+            //thus each tile name encodes a full path from the root to the tile
+            //and the collection of all tile names encodes the full tree topology
+            if (isLeaf)
             {
-                //each tile name is of the form ABCDE... where
-                //A is the index of a child of the root
-                //B is the index of a child of the node corresponding to A, etc
-                //thus each tile name encodes a full path from the root to the tile
-                //and the collection of all tile names encodes the full tree topology
-                tileList.TileNames.Add(name);
+                lock (tileList.LeafNames)
+                {                  
+                    tileList.LeafNames.Add(name);
+                }
+            }
+            else
+            {               
+                lock (tileList.LeafNames)
+                {
+                    tileList.ParentNames.Add(name);
+                }                
             }
         }
 

@@ -368,7 +368,7 @@ namespace OPS.Landform
                                                   tileList.MeshFrame, meshFrame));
             }
 
-            if (tileList.TileNames == null || tileList.TileNames.Count == 0)
+            if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
                 throw new Exception("leaf list is empty");
             }
