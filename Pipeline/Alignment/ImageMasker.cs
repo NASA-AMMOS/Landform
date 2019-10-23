@@ -74,7 +74,7 @@ namespace OPS.Pipeline
 
                 if (parser.HasMissingConstant)
                 {
-                    missing = parser.MissingConstant.Select(x => (float)x).ToArray();
+                    missing = parser.MissingConstant;
                 }
                 //ROASTT18 wart: single float missing constant for 3 channel navcam
                 if (missing.Count() == 1 && img.Bands > 1)
@@ -83,17 +83,17 @@ namespace OPS.Pipeline
                 }
 
                 //nominal invalid constant value is 0, MSL SIS
-                float[] invalid = new float[] { 0.0f }; 
+                float[] invalid = new float[] { 0.0f };
 
                 if (parser.HasInvalidConstant)
                 {
-                    invalid = parser.InvalidConstant.Select(x => (float)x).ToArray();
+                    invalid = parser.InvalidConstant;
+                }
 
-                    //ROASTT19 wart: single float missing constant for 3 channel navcam
-                    if (invalid.Count() == 1 && img.Bands > 1)
-                    {
-                        invalid = Enumerable.Repeat<float>(invalid.First(), img.Bands).ToArray();
-                    }
+                //ROASTT19 wart: single float missing constant for 3 channel navcam
+                if (invalid.Count() == 1 && img.Bands > 1)
+                {
+                    invalid = Enumerable.Repeat<float>(invalid.First(), img.Bands).ToArray();
                 }
 
                 //we could do it this way, but it's just a few more lines to avoid allocating the mask array
