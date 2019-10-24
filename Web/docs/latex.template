@@ -415,6 +415,8 @@ $endif$
 $for(include-before)$
 $include-before$
 
+\newpage
+
 $endfor$
 $if(toc)$
 $if(toc-title)$
