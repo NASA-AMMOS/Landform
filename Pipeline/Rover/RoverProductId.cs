@@ -36,15 +36,68 @@ namespace OPS.Pipeline
             this.Version = ParseVersion(version);
         }
 
-        public static RoverProductId Parse(string productId)
+        public static RoverProductId Parse(string productId, MissionSpecific mission = null, bool throwOnFail = true)
         {
             string basename = StringHelper.StripUrlExtension(productId);
-            switch (basename.Length)
+
+            RoverProductId fail(string reason)
             {
-                case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(basename);
-                case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(basename);
-                case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(basename);
-                default: return null;
+                if (throwOnFail)
+                {
+                    throw new Exception("failed to parse rover product ID \"" + productId +
+                                        "\" with base length " + basename.Length + ": " + reason);
+                }
+                return null;
+            }
+
+            try
+            {
+                if (mission != null)
+                {
+                    if (mission is MissionMSL)
+                    {
+                        if (basename.Length == MSLOPGSProductId.LENGTH)
+                        {
+                            return MSLOPGSProductId.Parse(basename);
+                        }
+                        else if (basename.Length == MSLMSSSProductId.LENGTH)
+                        {
+                            return MSLMSSSProductId.Parse(basename);
+                        }
+                        else
+                        {
+                            return fail("unexpected length");
+                        }
+                    }
+                    else if (mission is MissionM2020)
+                    {
+                        if (basename.Length == M2020OPGSProductId.LENGTH)
+                        {
+                            return M2020OPGSProductId.Parse(basename);
+                        }
+                        else
+                        {
+                            return fail("unexpected length");
+                        }
+                    }
+                    else
+                    {
+                        return fail("unknown mission \"" + mission.GetType().Name + "\"");
+                    }
+                }
+                else
+                {
+                    switch (basename.Length)
+                    {
+                        case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(basename);
+                        case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(basename);
+                        case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(basename);
+                        default: return fail("unexpected length");
+                    }
+                }
+            } catch (Exception ex)
+            {
+                return fail(ex.Message);
             }
         }
 

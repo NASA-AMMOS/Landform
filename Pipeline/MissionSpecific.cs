@@ -59,6 +59,16 @@ namespace OPS.Pipeline
             return GetCamera(parser.InstrumentId);
         }
 
+        public virtual RoverProductType GetProductType(string productId)
+        {
+            return RoverProductId.Parse(productId, this).ProductType;
+        } 
+
+        public virtual RoverProductType GetProductType(PDSParser parser)
+        {
+            return parser.DerivedImageType;
+        }
+
         public virtual string GetObservationFrameName(PDSParser parser)
         {
             return string.Format("{0}_{1}", GetCamera(parser), RoverMotionCounter(parser));
@@ -415,7 +425,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool CheckFilename(string filename, out string reason)
         {
-            return CheckProductId(RoverProductId.Parse(filename), out reason);
+            return CheckProductId(RoverProductId.Parse(filename, this, throwOnFail: false), out reason);
         }
 
         public bool CheckFilename(string filename)
@@ -433,27 +443,27 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (id.Camera == RoverProductCamera.Unknown)
-            {
-                reason = "unknown camera";
-                return false;
-            }
-
             if (id.ProductType == RoverProductType.Unknown)
             {
                 reason = "unknown product type";
                 return false;
             }
 
-            if (id.Producer == RoverProductProducer.Unknown)
+            if (!id.IsSingleFrame() && !id.IsSingleSiteDrive())
             {
-                reason = "unknown producer";
+                reason = "only single frame products or single sitedrive unified mesh products allowed";
                 return false;
             }
 
-            if (id.Geometry == RoverProductGeometry.Unknown)
+            if (!id.IsSingleCamera())
             {
-                reason = "unknown image geometry";
+                reason = "multi camera unified meshes not allowed";
+                return false;
+            }
+
+            if (id.Camera == RoverProductCamera.Unknown)
+            {
+                reason = "unknown camera";
                 return false;
             }
 
@@ -466,6 +476,12 @@ namespace OPS.Pipeline
             if (!AllowProduct(id.Camera, id.ProductType))
             {
                 reason = string.Format("{0} {1} products not allowed", id.Camera, id.ProductType);
+                return false;
+            }
+
+            if (id.Producer == RoverProductProducer.Unknown)
+            {
+                reason = "unknown producer";
                 return false;
             }
 
@@ -485,6 +501,12 @@ namespace OPS.Pipeline
                 ((OPGSProductId)id).Size != RoverProductSize.Regular)
             {
                 reason = "thumbnails not allowed";
+                return false;
+            }
+
+            if (id.Geometry == RoverProductGeometry.Unknown)
+            {
+                reason = "unknown image geometry";
                 return false;
             }
 
@@ -524,7 +546,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            var pt = parser.DerivedImageType;
+            var pt = GetProductType(parser);
             if (pt == RoverProductType.Unknown)
             {
                 reason = "unknown product type";
@@ -606,6 +628,16 @@ namespace OPS.Pipeline
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
 
+        public override RoverProductType GetProductType(PDSParser parser)
+        {
+            var pt = parser.DerivedImageType;
+            if (pt == RoverProductType.Unknown && parser.ProducingInstitution == RoverProductProducer.MSSS)
+            {
+                pt = GetProductType(parser.ProductIdString);
+            }
+            return pt;
+        }
+
         public override bool IsGeometricallyLinearlyCorrected(PDSParser parser)
         {
             //some msss msl images are labelled incorrectly: reporting raw in the metadata, 
@@ -613,7 +645,7 @@ namespace OPS.Pipeline
             //example 0609MR0025690030401020E01_DRCL
             return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
                 ((parser.ProducingInstitution == RoverProductProducer.MSSS) &&
-                 (parser.ProductId.Geometry == RoverProductGeometry.Linearized));
+                 (RoverProductId.Parse(parser.ProductIdString, this).Geometry == RoverProductGeometry.Linearized));
         }
 
         public override double GetSensorPixelSizeMM(RoverProductCamera camera)
@@ -808,7 +840,7 @@ namespace OPS.Pipeline
             }
             catch (MetadataException)
             {
-                return ((M2020OPGSProductId)parser.ProductId).GetDayNumber();
+                return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetDayNumber();
             }
         }
 
@@ -914,13 +946,13 @@ namespace OPS.Pipeline
         // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
         {          
-            return ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
+            return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetConcatenatedTimeString();
         }
 
         // ROASTT19: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
         public override RoverProductCamera GetCamera(PDSParser parser)
         {
-            return TranslateCamera(parser.ProductId.Camera);
+            return TranslateCamera(RoverProductId.Parse(parser.ProductIdString, this).Camera);
         }
     }
 }

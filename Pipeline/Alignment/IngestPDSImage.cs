@@ -100,6 +100,7 @@ namespace OPS.Pipeline
                     return new Result(url, dataUrl, Status.Skipped);
                 }
                 
+                var productId = RoverProductId.Parse(parser.ProductIdString, mission);
                 var observationName = parser.ProductIdString;
                 var siteDriveName = parser.SiteDrive;
 
@@ -243,9 +244,9 @@ namespace OPS.Pipeline
                                             mission.UseForTexturing(parser),
                                             metadata.Width, metadata.Height, metadata.Bands,
                                             metadata.BitDepth, mission.DayNumber(parser),
-                                            parser.ProductId.Version, index,
-                                            parser.Site, parser.Drive,
-                                            parser.DerivedImageType, cameraType, parser.ProducingInstitution);
+                                            productId.Version, index, parser.Site, parser.Drive,
+                                            mission.GetProductType(parser), cameraType,
+                                            parser.ProducingInstitution);
 
                 if (observation == null)
                 {

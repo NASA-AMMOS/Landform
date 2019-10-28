@@ -77,11 +77,6 @@ namespace OPS.Pipeline
             get { return metadata.ReadAsFloatArray("IMAGE", "INVALID_CONSTANT"); }
         }
 
-        public RoverProductId ProductId
-        {
-            get { return RoverProductId.Parse(metadata.ReadAsString("PRODUCT_ID")); }
-        }
-
         public string ProductIdString
         {
             get { return metadata.ReadAsString("PRODUCT_ID"); }
@@ -159,10 +154,11 @@ namespace OPS.Pipeline
                     string imageType = metadata.ReadAsString("DERIVED_IMAGE_PARMS", "DERIVED_IMAGE_TYPE");
                     return RoverProduct.FromPDSDerivedImageType(imageType);
                 }
-                else if (this.ProductId.ProductType != RoverProductType.Unknown)
-                {
-                    return this.ProductId.ProductType; //fallback to filename
-                }
+
+                //we used to fall back on RoverProductId.ProductType here
+                //but that obscures problems with the PDS header
+                //and it is safer to parse the product ID if the mission is known
+                //if we do need such fallbacks they should be in MissionSpecific
                 
                 return RoverProductType.Unknown;
             }
