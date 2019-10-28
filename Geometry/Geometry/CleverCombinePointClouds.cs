@@ -1,4 +1,5 @@
-﻿using System;
+﻿//#define LEGACY_IMPL
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -31,6 +32,21 @@ namespace OPS.Geometry
         //then prune the points from that cloud from the cell
         private const double MaxMSEThreshold = 0.0001;
 
+        //thread-local storage
+        private class TLS
+        {
+            public List<int> cloudsInCell;
+            public List<double> cellToCloudOrigin;
+            public List<int> samples;
+
+            public TLS(int numClouds)
+            {
+                cloudsInCell = new List<int>(numClouds);
+                cellToCloudOrigin = new List<double>(numClouds);
+                samples = new List<int>();
+            }
+        }
+            
         /// <summary>
         /// a weighted combination of redundant point cloud data resulting in a single winner per voxel
         //  note: all input pointclouds are expected to be in the same reference frame
@@ -38,6 +54,7 @@ namespace OPS.Geometry
         /// <param name="origins">a position from which the distance of each point is a meaningful quality estimate (eg. site drive center, camera origin, etc) </param>
         /// <param name="clouds">point clouds to combine, order should match pointcloudorigins</param>
         public static Mesh Combine(Vector3[] origins, Mesh[] clouds, ILogger logger = null)
+#if !LEGACY_IMPL
         {
             int numClouds = clouds.Length;
             if (origins.Length != numClouds)
@@ -67,12 +84,7 @@ namespace OPS.Geometry
                 logger.LogInfo("CleverCombine: allocating {0}x{1} grid of {2} {3}x{3}m cells",
                                width, height, Fmt.KMG(width * height), CellSize);
             }
-            var grid = new ConcurrentDictionary<int, List<int>>[height, width];
-            CoreLimitedParallel.ForEach(Enumerable.Range(0, width * height), cell =>
-            {
-                int i = cell / width, j = cell % width;
-                grid[i, j] = new ConcurrentDictionary<int, List<int>>();
-            });
+            var grid = new List<int>[numClouds][,];
 
             int np = clouds.Sum(cloud => cloud.Vertices.Count);
 
@@ -80,8 +92,9 @@ namespace OPS.Geometry
             {
                 logger.LogInfo("CleverCombine: gridding {0} points from {1} clouds", Fmt.KMG(np), numClouds);
             }
-            CoreLimitedParallel.ForEach(Enumerable.Range(0, numClouds), c =>
+            CoreLimitedParallel.For(0, numClouds, c =>
             {
+                grid[c] = new List<int>[height, width];
                 var verts = clouds[c].Vertices;
                 for (int p = 0; p < verts.Count; p++)
                 {
@@ -90,10 +103,30 @@ namespace OPS.Geometry
                     {
                         int j = (int)Math.Floor((pt.X - bbox.Min.X) / CellSize);
                         int i = (int)Math.Floor((pt.Y - bbox.Min.Y) / CellSize);
-                        grid[i, j].AddOrUpdate(c, _ => new List<int>() { p }, (_, l) => { l.Add(p); return l; });
+                        if (grid[c][i, j] == null)
+                        {
+                            grid[c][i, j] = new List<int>() { p };
+                        }
+                        else
+                        {
+                            grid[c][i, j].Add(p);
+                        }
                     }
                 }
             });
+
+            //Fisher-Yates shuffle
+            var rng = NumberHelper.MakeRandomGenerator();
+            void shuffle(List<int> list)
+            {
+                for (int i = 0; i < list.Count - 1; i++)
+                {
+                    int j = rng.Next(i, list.Count);
+                    int t = list[i];
+                    list[i] = list[j];
+                    list[j] = t;
+                }
+            }
 
             //prune points from outlier clouds in each cell
             if (logger != null)
@@ -101,83 +134,68 @@ namespace OPS.Geometry
                 logger.LogInfo("CleverCombine: pruning {0} cells", Fmt.KMG(width * height));
             }
             var keepers = new ConcurrentBag<Vertex>();
-            var rng = NumberHelper.MakeRandomGenerator();
-            CoreLimitedParallel.ForEach(Enumerable.Range(0, width * height), cell =>
+            CoreLimitedParallel.For(0, width * height, () => new TLS(numClouds), (cell, tls) =>
             {
                 int i = cell / width, j = cell % width;
-                double[] cellToCloudOrigin = origins.Select(origin =>
+
+                tls.cloudsInCell.Clear();
+                for (int c = 0; c < numClouds; c++)
                 {
-                    double dx = origin.X - ((j + 0.5) * CellSize + bbox.Min.X);
-                    double dy = origin.Y - ((i + 0.5) * CellSize + bbox.Min.Y);
-                    return Math.Sqrt(dx * dx + dy * dy);
-                }).ToArray();
-                
-                List<int> cloudsInCell = new List<int>(grid[i, j].Keys);
-                
-                //first filter: remove clouds whose origin is too far from this grid cell
-                while (cloudsInCell.Count > 1)
-                {
-                    int maxDistIdx = -1;
-                    double minDist = double.PositiveInfinity;
-                    double maxDist = double.NegativeInfinity;
-                    
-                    for (int k = 0; k < cloudsInCell.Count; k++)
+                    if (grid[c][i, j] != null)
                     {
-                        double dist = cellToCloudOrigin[cloudsInCell[k]];
-                        
-                        if (dist < minDist)
-                        {
-                            minDist = dist;
-                        }
-                        
-                        if (dist > maxDist)
-                        {
-                            maxDist = dist;
-                            maxDistIdx = k;
-                        }
+                        tls.cloudsInCell.Add(c);
                     }
-                    
-                    if (maxDist > minDist * MinDistRange)
-                    {
-                        cloudsInCell.RemoveAt(maxDistIdx);
-                        continue;
-                    }
-                    
-                    break; //no more outlier clouds
                 }
-                
+
+                tls.cellToCloudOrigin.Clear();
+                for (int c = 0; c < numClouds; c++)
+                {
+                    double dx = origins[c].X - ((j + 0.5) * CellSize + bbox.Min.X);
+                    double dy = origins[c].Y - ((i + 0.5) * CellSize + bbox.Min.Y);
+                    tls.cellToCloudOrigin.Add(Math.Sqrt(dx * dx + dy * dy));
+                }
+
+                //first filter: remove clouds whose origin is too far from this grid cell
+                if (tls.cloudsInCell.Count > 1)
+                {
+                    double minDist = tls.cloudsInCell.Min(c => tls.cellToCloudOrigin[c]);
+                    tls.cloudsInCell.RemoveAll(c => tls.cellToCloudOrigin[c] > minDist * MinDistRange);
+                }
+
                 //second filter: remove clouds where a sampling of their points within this cell
                 //is too far from their nearest neighbors in other clouds in this cell
-                while (cloudsInCell.Count > 1)
+                while (tls.cloudsInCell.Count > 1)
                 {
                     double maxMSE = double.NegativeInfinity;
                     int maxMSECloud = -1;
-                    for (int k = 0; k < cloudsInCell.Count; k++)
+                    for (int k = 0; k < tls.cloudsInCell.Count; k++)
                     {
-                        var cloud = cloudsInCell[k];
-                        var cloudPts = grid[i, j][cloud];
-                        
-                        int[] samples = Enumerable.Range(0, cloudPts.Count)
-                            .OrderBy(x => rng.NextDouble())
-                            .Take(Math.Min(cloudPts.Count, MaxMSESamples))
-                            .Select(idx => cloudPts[idx])
-                            .ToArray();
+                        var c = tls.cloudsInCell[k];
+                        var cloudPts = grid[c][i, j];
+
+                        tls.samples.Clear();
+                        tls.samples.AddRange(cloudPts);
+                        if (tls.samples.Count > MaxMSESamples)
+                        {
+                            shuffle(tls.samples);
+                        }
+                        int ns = Math.Min(tls.samples.Count, MaxMSESamples);
                         
                         double mse = 0;
                         int numDistances = 0;
-                        for (int l = 0; l < cloudsInCell.Count; l++)
+                        for (int l = 0; l < tls.cloudsInCell.Count; l++)
                         {
                             if (l != k)
                             {
-                                var otherCloud = cloudsInCell[l];
-                                var otherCloudPts = grid[i, j][otherCloud];
-                                foreach (var sample in samples)
+                                int oc = tls.cloudsInCell[l];
+                                var otherCloudPts = grid[oc][i, j];
+                                for (int s = 0; s < ns; s++)
                                 {
-                                    Vector3 pt = clouds[cloud].Vertices[sample].Position;
+                                    Vector3 pt = clouds[c].Vertices[tls.samples[s]].Position;
                                     double minDist = double.PositiveInfinity;
                                     foreach (var otherPtIdx in otherCloudPts)
                                     {
-                                        Vector3 otherPt = clouds[otherCloud].Vertices[otherPtIdx].Position;
+                                        Vector3 otherPt = clouds[oc].Vertices[otherPtIdx].Position;
                                         double dist = Vector3.DistanceSquared(pt, otherPt);
                                         if (dist < minDist)
                                         {
@@ -206,21 +224,23 @@ namespace OPS.Geometry
                     
                     if (maxMSE > MaxMSEThreshold)
                     {
-                        cloudsInCell.RemoveAt(maxMSECloud);
+                        tls.cloudsInCell.RemoveAt(maxMSECloud);
                         continue;
                     }
                     
                     break; //no more outlier clouds
                 }
                 
-                foreach (var cloud in cloudsInCell)
+                foreach (var c in tls.cloudsInCell)
                 {
-                    foreach (var ptIdx in grid[i, j][cloud])
+                    foreach (var ptIdx in grid[c][i, j])
                     {
-                        keepers.Add(new Vertex(clouds[cloud].Vertices[ptIdx]));
+                        keepers.Add(new Vertex(clouds[c].Vertices[ptIdx]));
                     }
                 }
-            });
+
+                return tls;
+            }, tls => {});
 
             if (logger != null)
             {
@@ -251,20 +271,13 @@ namespace OPS.Geometry
 
             return output;
         }
-
-        /// <summary>
-        /// a weighted combination of redundant point cloud data resulting in a single winner per voxel
-        //  note: all input pointclouds are expected to be in the same reference frame
-        /// </summary>
-        /// <param name="inputPointCloudOrigins">a position from which the distance of each point is a meaningful quality estimate (eg. site drive center, camera origin, etc) /param>
-        /// <param name="inputPointClouds">point clouds to combine, order should match pointcloudorigins</param>
-        public static Mesh CombineLegacy(Vector3[] inputPointCloudOrigins, Mesh[] inputPointClouds)
+#else //LEGACY_IMPL
         {
             // Compute bounds of surface area
-            BoundingBox bbox = inputPointClouds.FirstOrDefault().Bounds();
-            for (int idx = 1; idx < inputPointClouds.Length; idx++)
+            BoundingBox bbox = clouds.FirstOrDefault().Bounds();
+            for (int idx = 1; idx < clouds.Length; idx++)
             {
-                bbox = BoundingBox.CreateMerged(bbox, inputPointClouds[idx].Bounds());
+                bbox = BoundingBox.CreateMerged(bbox, clouds[idx].Bounds());
             }
 
             //calculate the number of cells
@@ -272,16 +285,16 @@ namespace OPS.Geometry
             int height = (int)Math.Ceiling(bbox.Extent().Y / CellSize);
 
             //collect points into voxels
-            List<int>[][,] pointIndices = new List<int>[inputPointClouds.Length][,];
-            List<Vector3>[][,] points = new List<Vector3>[inputPointClouds.Length][,];
-            for (int idx = 0; idx < inputPointClouds.Length; idx++)
+            List<int>[][,] pointIndices = new List<int>[clouds.Length][,];
+            List<Vector3>[][,] points = new List<Vector3>[clouds.Length][,];
+            for (int idx = 0; idx < clouds.Length; idx++)
             {
                 pointIndices[idx] = new List<int>[width, height];
                 points[idx] = new List<Vector3>[width, height];
 
                 var indices = pointIndices[idx];              
                 int pointIdx = 0;
-                foreach (var point in inputPointClouds[idx].Vertices)
+                foreach (var point in clouds[idx].Vertices)
                 {
                     pointIdx++;
                     if (bbox.Contains(point.Position) == ContainmentType.Disjoint)
@@ -304,10 +317,10 @@ namespace OPS.Geometry
             }
 
             //initialize points to keep arrays
-            BitArray[] pointsToKeep = new BitArray[inputPointClouds.Length];
-            for (int idx = 0; idx < inputPointClouds.Length; idx++)
+            BitArray[] pointsToKeep = new BitArray[clouds.Length];
+            for (int idx = 0; idx < clouds.Length; idx++)
             {
-                pointsToKeep[idx] = new BitArray(inputPointClouds[idx].Vertices.Count);
+                pointsToKeep[idx] = new BitArray(clouds[idx].Vertices.Count);
             }
 
             // Filter points
@@ -317,14 +330,14 @@ namespace OPS.Geometry
                 {
                     for (int j = 0; j < height; j++)
                     {
-                        double[] originDistances = inputPointCloudOrigins.Select( origin =>
+                        double[] originDistances = origins.Select( origin =>
                         {
                             double dx = origin.X - ((i + 0.5) * CellSize + bbox.Min.X);
                             double dy = origin.Y - ((j + 0.5) * CellSize + bbox.Min.Y);
                             return Math.Sqrt(dx * dx + dy * dy);
                         }).ToArray();
 
-                        List<int> cloudIndices = Enumerable.Range(0, inputPointClouds.Length)
+                        List<int> cloudIndices = Enumerable.Range(0, clouds.Length)
                             .Where(pc => pointIndices[pc] != null && pointIndices[pc][i, j] != null)
                             .ToList();
 
@@ -439,14 +452,14 @@ namespace OPS.Geometry
             }
 
             //fill output mesh
-            bool hasNormals = inputPointClouds.Any(pc => pc.HasNormals);
-            bool hasUVs = inputPointClouds.Any(pc => pc.HasUVs);
-            bool hasColors = inputPointClouds.Any(pc => pc.HasColors);
+            bool hasNormals = clouds.Any(pc => pc.HasNormals);
+            bool hasUVs = clouds.Any(pc => pc.HasUVs);
+            bool hasColors = clouds.Any(pc => pc.HasColors);
             Mesh output = new Mesh(hasNormals, hasUVs, hasColors);
 
-            for (int idx = 0; idx < inputPointClouds.Length; idx++)
+            for (int idx = 0; idx < clouds.Length; idx++)
             {
-                Mesh pc = inputPointClouds[idx];
+                Mesh pc = clouds[idx];
                 for (int i = 0; i < pc.Vertices.Count; i++)
                 {
                     if (pointsToKeep[idx].Get(i))
@@ -458,5 +471,6 @@ namespace OPS.Geometry
 
             return output;
         }
+#endif
     }
 }
