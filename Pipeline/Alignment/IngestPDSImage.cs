@@ -101,6 +101,12 @@ namespace OPS.Pipeline
                 }
                 
                 var productId = RoverProductId.Parse(parser.ProductIdString, mission);
+                if (!productId.IsSingleFrame())
+                {
+                    pipeline.LogVerbose("rejected multi-frame product {0}", url);
+                    return new Result(url, dataUrl, Status.Skipped);
+                }
+
                 var observationName = parser.ProductIdString;
                 var siteDriveName = parser.SiteDrive;
 
