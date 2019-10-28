@@ -19,13 +19,13 @@ namespace PipelineTest
             Assert.AreEqual(RoverProductCamera.NavcamLeft, id.Camera);
             Assert.AreEqual(RoverProductGeometry.Linearized, id.Geometry);
             Assert.AreEqual(RoverProductProducer.OPGS, id.Producer);
-            Assert.AreEqual("_", id.Version);
+            Assert.AreEqual(36, id.Version);
             Assert.AreEqual(RoverProductType.Image, id.ProductType);
             id = RoverProductId.Parse("0608ML0025660260301542E01_DRCX.IMG");
             Assert.AreEqual(RoverProductCamera.MastcamLeft, id.Camera);
             Assert.AreEqual(RoverProductGeometry.Raw, id.Geometry);
             Assert.AreEqual(RoverProductProducer.MSSS, id.Producer);
-            Assert.AreEqual("1", id.Version);
+            Assert.AreEqual(1, id.Version);
             Assert.AreEqual(RoverProductType.Image, id.ProductType);
             var msssId = (MSLMSSSProductId)id;
             Assert.AreEqual(true, msssId.Decompressed);
