@@ -341,7 +341,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForAlignment(PDSParser parser)
         {
-            var cam = GetCamera(parser.InstrumentId);
+            var cam = GetCamera(parser);
             return (IsHazcam(cam) && UseHazcamForAlignment()) ||
                 (IsNavcam(cam) && UseNavcamForAlignment()) ||
                 (IsMastcam(cam) && UseMastcamForAlignment()) ||
@@ -350,7 +350,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForMeshing(PDSParser parser)
         {
-            var cam = GetCamera(parser.InstrumentId);
+            var cam = GetCamera(parser);
             return (IsHazcam(cam) && UseHazcamForMeshing()) ||
                 (IsNavcam(cam) && UseNavcamForMeshing()) ||
                 (IsMastcam(cam) && UseMastcamForMeshing()) ||
@@ -359,7 +359,7 @@ namespace OPS.Pipeline
 
         public virtual bool UseForTexturing(PDSParser parser)
         {
-            var cam = GetCamera(parser.InstrumentId);
+            var cam = GetCamera(parser);
             return (IsHazcam(cam) && UseHazcamForTexturing()) ||
                 (IsNavcam(cam) && UseNavcamForTexturing()) ||
                 (IsMastcam(cam) && UseMastcamForTexturing()) ||
@@ -517,7 +517,7 @@ namespace OPS.Pipeline
         {
             reason = "";
 
-            var cam = GetCamera(parser.InstrumentId);
+            var cam = GetCamera(parser);
             if (cam == RoverProductCamera.Unknown)
             {
                 reason = "unknown camera " + parser.InstrumentId;
@@ -761,7 +761,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            var cam = GetCamera(parser.InstrumentId);
+            var cam = GetCamera(parser);
 
             if (IsHazcam(cam) && parser.ExposureDuration != 0 && parser.ExposureDuration < MIN_HAZ_EXPOSURE)
             {
