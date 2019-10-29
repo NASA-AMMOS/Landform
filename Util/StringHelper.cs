@@ -154,7 +154,7 @@ namespace OPS.Util
             }
             else
             {
-                return null;
+                return "";
             }
         }
 
