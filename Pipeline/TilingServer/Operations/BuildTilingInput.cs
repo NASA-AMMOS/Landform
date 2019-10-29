@@ -205,7 +205,7 @@ namespace OPS.Pipeline.TilingServer
                 int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
                 pipeline.LogInfo("combining {0} point clouds with clever combine, total {1} points",
                                  meshes.Count, Fmt.KMG(nv));
-                aggregatePointCloud = CleverCombinePointClouds.Combine(origins.ToArray(), meshes.ToArray());
+                aggregatePointCloud = CleverCombinePointClouds.Combine(origins.ToArray(), meshes.ToArray(), pipeline);
             }
             else
             {

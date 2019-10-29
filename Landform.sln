@@ -25,6 +25,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Geometry", "Geometry\Geometry.csproj", "{49A27854-2DB1-4E1C-893A-F60BDF5F3C86}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GeometryTest", "GeometryTest\GeometryTest.csproj", "{402A9626-13E2-43F5-B74E-B98BFB9E957F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8145AA65-BA61-4E27-81FF-B64217B49929} = {8145AA65-BA61-4E27-81FF-B64217B49929}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestData", "TestData\TestData.csproj", "{42298EE4-6937-4B4C-A8B8-89EFFBC40E80}"
 EndProject
