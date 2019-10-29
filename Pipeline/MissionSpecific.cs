@@ -85,7 +85,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual RoverObservationComparator GetRoverObservationComparator()
         {
-            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearToNonlinear());
+            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearToNonlinear(), PreferColorToGrayscale());
         }
 
         public virtual RoverProductGeometry[] GetLinearPreference()
@@ -257,6 +257,14 @@ namespace OPS.Pipeline
         /// whether to prefer linear to nonlinear images when both are available
         /// </summary>
         public virtual bool PreferLinearToNonlinear()
+        {
+            return true;
+        }
+
+        /// <summary>
+        /// whether to prefer color images to bw when both are available
+        /// </summary>
+        public virtual bool PreferColorToGrayscale()
         {
             return true;
         }
@@ -865,7 +873,17 @@ namespace OPS.Pipeline
                     return false;
                 }
 
-                //TODO check other Spec values, ColorFilter, Camspec, Downsample, Compression
+                //TODO: if F is not provided (CRUISE FSW) and OPGS doesn't do this, consider combining RGB into color image
+                //TODO: if F or M not provided consider using G, R or B in that order 
+                string colorFilter = opgsId.ColorFilter.ToUpper();
+                if (colorFilter != "M" && colorFilter != "F" &&  //RGB
+                    colorFilter != "T")                          //XYZ
+                {
+                    reason = "color filter " + colorFilter;
+                    return false;
+                }
+                
+                //TODO check other Spec values, Camspec, Downsample, Compression
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/754
             }
 
