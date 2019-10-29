@@ -207,8 +207,9 @@ namespace OPS.Pipeline
                                                                 covariance);
                         pdsSiteOffsets.AddOrUpdate(key, _ => xform, (_, __) => xform);
                     }
-                    else
+                    else if(parser.Site != 1)
                     {
+                        //The SITE_COORDINATE_SYSTEM group is only set if the SITE Index is greater than 1 and the Site Quaternion is not 0,0,0,0 (unknown).  (from 2020 SIS, verified doesn't exist in MSL Site 1 Label)
                         pipeline.LogVerbose("PDS data product {0} missing SITE_COORDINATE_SYSTEM", url);
                     }
                 }
