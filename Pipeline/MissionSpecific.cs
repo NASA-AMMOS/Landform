@@ -798,6 +798,20 @@ namespace OPS.Pipeline
 
     public class MissionM2020 : MissionSpecific
     {
+        //some images have invalid PLANET_DAY_NUMBER
+        //we have seen this in multiple M2020 datasets so far including ROASTT19 and TT4
+        public override int DayNumber(PDSParser parser)
+        {
+            try
+            {
+                return parser.PlanetDayNumber;
+            }
+            catch (MetadataException)
+            {
+                return ((M2020OPGSProductId)parser.ProductId).GetDayNumber();
+            }
+        }
+
         public override RoverProductCamera TranslateCamera(RoverProductCamera cam)
         {
             switch (cam)
@@ -902,19 +916,6 @@ namespace OPS.Pipeline
         public override string RoverMotionCounter(PDSParser parser)
         {          
             return ((M2020OPGSProductId)parser.ProductId).GetConcatenatedTimeString();
-        }
-
-        // ROASTT19: some images have invalid PLANET_DAY_NUMBER
-        public override int DayNumber(PDSParser parser)
-        {
-            try
-            {
-                return parser.PlanetDayNumber;
-            }
-            catch (MetadataException)
-            {
-                return ((M2020OPGSProductId)parser.ProductId).GetDayNumber();
-            }
         }
 
         // ROASTT19: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
