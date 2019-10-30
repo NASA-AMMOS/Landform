@@ -85,7 +85,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual RoverObservationComparator GetRoverObservationComparator()
         {
-            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearToNonlinear());
+            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearToNonlinear(), PreferColorToGrayscale());
         }
 
         public virtual RoverProductGeometry[] GetLinearPreference()
@@ -257,6 +257,14 @@ namespace OPS.Pipeline
         /// whether to prefer linear to nonlinear images when both are available
         /// </summary>
         public virtual bool PreferLinearToNonlinear()
+        {
+            return true;
+        }
+
+        /// <summary>
+        /// whether to prefer color images to bw when both are available
+        /// </summary>
+        public virtual bool PreferColorToGrayscale()
         {
             return true;
         }
@@ -878,14 +886,22 @@ namespace OPS.Pipeline
                     reason = "special processing " + spec;
                     return false;
                 }
-
-                //TODO check other Spec values, ColorFilter, Camspec, Downsample, Compression
+                
+                string colorFilter = opgsId.ColorFilter.ToUpper();
+                if (colorFilter != "M" && colorFilter != "F")
+                {
+                    reason = "color filter " + colorFilter;
+                    return false;
+                }
+                
+                //TODO check other Spec values, Camspec, Downsample, Compression
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/754
             }
 
             if (id.Producer == RoverProductProducer.MSSS)
             {
                 //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/754
+                return false;
             }
 
             return true;

@@ -7,12 +7,15 @@ namespace OPS.Pipeline
 {
     public class RoverObservationComparator : IComparer<RoverObservation>
     {
-        private bool preferMSSSToOPGS, preferLinearToNonlinear;
+        private bool preferMSSSToOPGS;
+        private bool preferLinearToNonlinear;
+        private bool preferColorToGrayscale;
         
-        public RoverObservationComparator(bool preferMSSSToOPGS, bool preferLinearToNonlinear)
+        public RoverObservationComparator(bool preferMSSSToOPGS, bool preferLinearToNonlinear, bool preferColor)
         {
             this.preferMSSSToOPGS = preferMSSSToOPGS;
             this.preferLinearToNonlinear = preferLinearToNonlinear;
+            this.preferColorToGrayscale = preferColor;
         }
         
         public int Compare(RoverObservation a, RoverObservation b)
@@ -43,6 +46,19 @@ namespace OPS.Pipeline
                 return preferMSSSToOPGS ? 1 : -1;
             }
             
+            //sort images by color
+            if (a.ObservationType == RoverProductType.Image && b.ObservationType == RoverProductType.Image)
+            {
+                if (a.Bands > b.Bands)
+                {
+                    return preferColorToGrayscale ? -1 : 1;
+                }
+                else if (b.Bands > a.Bands)
+                {
+                    return preferColorToGrayscale ? 1 : -1;
+                }
+            }
+
             // sort next by linear-ness
             var linearA = a.IsLinear();
             var linearB = b.IsLinear();
@@ -55,7 +71,7 @@ namespace OPS.Pipeline
                 return preferLinearToNonlinear ? 1 : -1;
             }
             
-            // finally sort by version, prefer higer versions
+            // finally sort by version, prefer higher versions
             return b.Version - a.Version;
         }
     }
