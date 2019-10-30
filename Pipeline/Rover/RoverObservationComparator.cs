@@ -47,7 +47,7 @@ namespace OPS.Pipeline
             }
             
             //sort images by color
-            if(a.ObservationType == RoverProductType.Image && b.ObservationType == RoverProductType.Image)
+            if (a.ObservationType == RoverProductType.Image && b.ObservationType == RoverProductType.Image)
             {
                 if (a.Bands > b.Bands)
                 {

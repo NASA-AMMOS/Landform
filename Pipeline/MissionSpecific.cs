@@ -886,9 +886,7 @@ namespace OPS.Pipeline
                     reason = "special processing " + spec;
                     return false;
                 }
-
-                //TODO: if F is not provided (CRUISE FSW) and OPGS doesn't do this, consider combining RGB into color image
-                //TODO: if F or M not provided consider using G, R or B in that order 
+                
                 string colorFilter = opgsId.ColorFilter.ToUpper();
                 if (colorFilter != "M" && colorFilter != "F")
                 {
@@ -903,6 +901,7 @@ namespace OPS.Pipeline
             if (id.Producer == RoverProductProducer.MSSS)
             {
                 //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/754
+                return false;
             }
 
             return true;
