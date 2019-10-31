@@ -186,6 +186,55 @@ namespace OPS.Pipeline
             }
             return value;
         }
+
+        protected virtual bool GetVersionSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        protected virtual bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        protected virtual bool GetGeometrySpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        protected virtual bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public virtual string GetPartialId(bool includeVersion = true, bool includeProductType = true,
+                                           bool includeGeometry = true, bool includeColorFilter = true)
+        {
+            string ret = FullId;
+            int start, length;
+            var spans = new List<int[]>();
+            if (!includeVersion && GetVersionSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeProductType && GetProductTypeSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeGeometry && GetGeometrySpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeColorFilter && GetColorFilterSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            return StringHelper.RemoveMultiple(FullId, spans);
+        }
     }
 
     public abstract class OPGSProductId : RoverProductId
@@ -326,6 +375,33 @@ namespace OPS.Pipeline
                 return RoverProductColor.Unknown;
             }
         }
+
+        protected override bool GetVersionSpan(out int start, out int length)
+        {
+            start = 35;
+            length = 1;
+            return true;
+        }
+
+        protected override bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = 13;
+            length = 3;
+            return true;
+        }
+
+        protected override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = 16;
+            length = 1;
+            return true;
+        }
+
+        protected override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = 2;
+            length = 1;
+            return true;
         }
     }
 
@@ -447,6 +523,45 @@ namespace OPS.Pipeline
             return RoverProductColor.Unknown;
         }
 
+        protected override bool GetVersionSpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = us + 30;
+            length = 1;
+            return true;
+        }
+
+        protected override bool GetProductTypeSpan(out int start, out int length)
+        {
+            //prodType in a unified mesh ID is actually the type of the texture product
+            start = length = -1;
+            return false;
+        }
+
+        protected override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = us + 10;
+            length = 1;
+            return true;
+        }
+
+        protected override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
         private RoverProductCamera ParseCamera(char camera)
         {
             switch (camera)
@@ -555,6 +670,33 @@ namespace OPS.Pipeline
                 case "E": case "F": return RoverProductColor.FullColor;
                 default: return RoverProductColor.Unknown;
             }
+        }
+
+        protected override bool GetVersionSpan(out int start, out int length)
+        {
+            start = 24;
+            length = 1;
+            return true;
+        }
+
+        protected override bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        protected override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = 26;
+            length = 4;
+            return true;
+        }
+
+        protected override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = 22;
+            length = 1;
+            return true;
         }
     }
 
@@ -679,6 +821,34 @@ namespace OPS.Pipeline
                 case "B": return RoverProductColor.Blue;
                 default: return RoverProductColor.Unknown;
             }
+        }
+
+        protected override bool GetVersionSpan(out int start, out int length)
+        {
+            start = 52;
+            length = 2;
+            return true;
+        }
+
+        protected override bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = 23;
+            length = 3;
+            return true;
+        }
+
+        protected override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = 26;
+            length = 1;
+            return true;
+        }
+
+        protected override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = 2;
+            length = 1;
+            return true;
         }
     }
 }
