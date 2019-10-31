@@ -50,7 +50,8 @@ namespace OPS.Pipeline
 
         public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
                                      bool recreateObservations = false, bool resetTransforms = false,
-                                     string onlyForSiteDrives = null, string onlyForFrames = null,
+                                     string onlyForObservations = null, string onlyForFrames = null,
+                                     string onlyForCameras = null, string onlyForSiteDrives = null, 
                                      bool noProgress = false)
             : base(pipeline)
         {
@@ -89,17 +90,21 @@ namespace OPS.Pipeline
                 BaseUrls.Add(new BaseUrl(project.InputPath));
             }
 
-            SiteDrive[] siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
-
-            string[] frames = StringHelper.ParseList(onlyForFrames);
-
+            var observations = StringHelper.ParseList(onlyForObservations);
+            var frames = StringHelper.ParseList(onlyForFrames);
+            var cameras = RoverCamera.ParseList(onlyForCameras);
+            var siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
             IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
                 {
+                    var imgId = pdsParser.ProductIdString;
                     var imgSiteDrive = new SiteDrive(pdsParser.Site, pdsParser.Drive);
                     var imgFrame = mission.GetObservationFrameName(pdsParser);
+                    var imgCam = mission.GetCamera(pdsParser);
                     return
+                    (observations.Length == 0 || observations.Any(obs => obs == imgId)) &&
                     (siteDrives.Length == 0 || siteDrives.Any(sd => sd == imgSiteDrive)) &&
-                    (frames.Length == 0 || frames.Any(frame => frame == imgFrame));
+                    (frames.Length == 0 || frames.Any(frame => frame == imgFrame)) &&
+                    (cameras.Length == 0 || cameras.Any(cam => RoverCamera.IsCamera(cam, imgCam)));
                 };
 
             this.noProgress = noProgress;

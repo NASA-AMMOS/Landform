@@ -21,11 +21,17 @@ namespace OPS.Landform
         [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
-        [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
-        public string OnlyForSiteDrives { get; set; }
+        [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
+        public string OnlyForObservations { get; set; }
 
-        [Option(HelpText = "Only ingest data for specific frames, comma separated", Default = null)]
+        [Option(HelpText = "Only use specific frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
         public string OnlyForFrames { get; set; }
+
+        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
+        public string OnlyForCameras { get; set; }
+
+        [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Whether to make LocationsDB priors (requires locations.xml and basemap DEM)", Default = false)]
         public bool AddLocationsDBPriors { get; set; }
@@ -147,7 +153,8 @@ namespace OPS.Landform
         {
             ingester = new IngestAlignmentInputs(pipeline, project, mission,
                                                  options.RedoObservations, options.RedoPriors,
-                                                 options.OnlyForSiteDrives, options.OnlyForFrames,
+                                                 options.OnlyForObservations, options.OnlyForFrames,
+                                                 options.OnlyForCameras, options.OnlyForSiteDrives,
                                                  options.NoProgress);
             baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
         }
