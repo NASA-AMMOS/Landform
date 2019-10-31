@@ -92,12 +92,14 @@ namespace OPS.Pipeline
         /// <summary>
         /// ordering a sequence with this function should put the "better" observations earlier in the list
         /// thus a "better" observation should be *less than* a "worse" observation
-        /// uses PreferMSSSToOPGS() and PreferLinearToNonlinear()
+        /// uses PreferMSSSToOPGS(), PreferLinearToNonlinear(), PreferColorToGrayscale()
         /// so if a mission only differs from the default in one of those respects, just override that
         /// </summary>
         public virtual RoverObservationComparator GetRoverObservationComparator()
         {
-            return new RoverObservationComparator(PreferMSSSToOPGS(), PreferLinearToNonlinear(), PreferColorToGrayscale());
+            return new RoverObservationComparator(PreferMSSSToOPGS(),
+                                                  PreferLinearToNonlinear(),
+                                                  PreferColorToGrayscale());
         }
 
         public virtual RoverProductGeometry[] GetLinearPreference()
