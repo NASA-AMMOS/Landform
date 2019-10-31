@@ -99,5 +99,71 @@ namespace OPS.Pipeline
                 .OrderBy(o => o, this)
                 .FirstOrDefault();
         }
+
+        public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
+                                                                       params RoverProductType[] types)
+        {
+            return KeepBestRoverObservations(observations, null, types);
+        }
+
+        public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
+                                                                       Func<RoverObservation, bool> filter,
+                                                                       params RoverProductType[] types)
+        {
+            if (types.Length > 0)
+            {
+                return observations
+                    .Where(obs => obs is RoverObservation)
+                    .Cast<RoverObservation>()
+                    .Where(o => types.Any(t => t == o.ObservationType))
+                    .Where(o => filter == null || filter(o))
+                    .GroupBy(o => o.FrameName)
+                    .Select(group => group.OrderBy(o => o, this).First());
+            }
+            else
+            {
+                //no types specified, so filter each type separately
+
+                //be careful to not mix linear and nonlinear products for each observation
+                //matters (only) in the case that both mission.AllowLinear() = mission.AllowNonLinear() = true
+                var linear = new Dictionary<string, bool>();
+                void registerLinear(IEnumerable<RoverObservation> roverObservations)
+                {
+                    foreach (var obs in roverObservations)
+                    {
+                        if (!linear.ContainsKey(obs.FrameName))
+                        {
+                            linear[obs.FrameName] = obs.IsLinear;
+                        }
+                    }
+                }
+                bool linearFilter(RoverObservation obs)
+                {
+                    return !linear.ContainsKey(obs.FrameName) || linear[obs.FrameName] == obs.IsLinear;
+                }
+
+                //(only) in the case that both mission.AllowLinear() = mission.AllowNonLinear() = true
+                //the order we process each type here matters
+                //because the first type found for each observation will determine
+                //whether we keep linear or nonlinear products for that observation
+
+                //filter RNG and XYZ together so we can keep only the latter if both are available
+                var xyz = KeepBestRoverObservations(observations, RoverProductType.Range, RoverProductType.Points);
+                registerLinear(xyz);
+
+                var img = KeepBestRoverObservations(observations, linearFilter, RoverProductType.Image);
+                registerLinear(img);
+
+                var msk = KeepBestRoverObservations(observations, linearFilter, RoverProductType.RoverMask);
+                registerLinear(msk);
+
+                var uvw = KeepBestRoverObservations(observations, linearFilter, RoverProductType.Normals);
+                registerLinear(uvw);
+
+                var err = KeepBestRoverObservations(observations, linearFilter, RoverProductType.RangeError);
+
+                return xyz.Concat(img).Concat(msk).Concat(uvw).Concat(err);
+            }
+        }
     }
 }
