@@ -38,8 +38,18 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Suppress subdirs in output")]
         public bool NoSubdirs { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "A set of comma delimited site drives to filter by, e.g. '0000100000,0003101330', wildcard 'xxxxx'")]
-        public string SiteDrives { get; set; }
+        [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
+        public string OnlyForObservations { get; set; }
+
+        //cannot determine frame from filename, requires RMC
+        //[Option(HelpText = "Only use specific frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
+        //public string OnlyForFrames { get; set; }
+
+        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
+        public string OnlyForCameras { get; set; }
+
+        [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Text file listing filenames without extension (product IDs) to include, one per line")]
         public string Include { get; set; }
@@ -160,45 +170,86 @@ namespace OPS.Landform
 
         private List<string> Filter(List<string> products)
         {
-            List<string> result = new List<string>();
-            var acceptedSiteDrives = SiteDrive.ParseList(options.SiteDrives);
-            var acceptedProductIds = ProductIDFilter();
-            var acceptedExtensions = GetExtensions();
+            var acceptedSiteDrives = SiteDrive.ParseList(options.OnlyForSiteDrives);
+            //var acceptedFrames = StringHelper.ParseList(options.OnlyForFrames); //cannot determine frame from filename
+            var acceptedCameras = RoverCamera.ParseList(options.OnlyForCameras);
+
+            var acceptedProductIds = new HashSet<string>();
+            acceptedProductIds.UnionWith(StringHelper.ParseList(options.OnlyForObservations));
+            if (options.Include != null)
+            {
+                acceptedProductIds.UnionWith(File.ReadAllLines(options.Include)
+                                             .Where(s => !string.IsNullOrEmpty(s.Trim()))
+                                             .Select(s => StringHelper.GetLastUrlPathSegment(s, stripExtension: true)));
+            }
+
+            var acceptedExtensions = new HashSet<string>();
+            if (!options.NoPDS)
+            {
+                acceptedExtensions.Add(".IMG");
+                acceptedExtensions.Add(".LBL");
+            }
+            if (options.WithVIC)
+            {
+                acceptedExtensions.Add(".VIC");
+            }
+            if (options.WithPNG)
+            {
+                acceptedExtensions.Add(".PNG");
+            }
+            if (options.WithRGB)
+            {
+                acceptedExtensions.Add(".RGB");
+            }
+            if (options.WithOBJ)
+            {
+                acceptedExtensions.Add(".OBJ");
+                acceptedExtensions.Add(".MTL");
+            }
+            if (options.WithIV)
+            {
+                acceptedExtensions.Add(".IV");
+            }
+
+            var filtered = new List<string>();
             foreach (var p in products)
             {
                 string ext = StringHelper.GetUrlExtension(p).ToUpper();
-                string filename = StringHelper.GetLastUrlPathSegment(p, stripExtension: true);
+                string idStr = StringHelper.GetLastUrlPathSegment(p, stripExtension: true);
                 string reason = null;
-                if (acceptedExtensions.Contains(ext))
-                {
-                    if (mission == null || mission.CheckFilename(filename, out reason))
-                    {
-                        if (acceptedProductIds == null || acceptedProductIds.Contains(filename))
-                        {
-                            SiteDrive? sd = GetSiteDrive(filename);
-                            if (acceptedSiteDrives.Length == 0 || !sd.HasValue ||
-                                acceptedSiteDrives.Any(asd => asd == sd.Value))
-                            {
-                                result.Add(p);
-                            }
-                            else
-                            {
-                                reason = "disallowed sitedrive " + sd.Value;
-                            }
-                        }
-                        else
-                        {
-                            reason = "disallowed product id";
-                        }
-                    }
-                }
-                else
+                if (!acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 means let nothing in
                 {
                     reason = "disallowed extension " + ext;
                 }
+                else if (acceptedProductIds.Count > 0 && !acceptedProductIds.Contains(idStr))
+                {
+                    reason = "excluded product id " + idStr;
+                }
+                else
+                {
+                    var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                    if (mission != null && !mission.CheckProductId(id)) //null ok
+                    {
+                        reason = "disallowed product id for " + mission.Name();
+                    }
+                    else if (acceptedSiteDrives.Length > 0 && id is OPGSProductId &&
+                             !acceptedSiteDrives.Any(asd => asd == ((OPGSProductId)id).SiteDrive))
+                    {
+                        reason = "excluded sitedrive " + ((OPGSProductId)id).SiteDrive;
+                    }
+                    else if (acceptedCameras.Length > 0 &&
+                             !acceptedCameras.Any(ac => RoverCamera.IsCamera(ac, id.Camera)))
+                    {
+                        reason = "excluded camera " + id.Camera;
+                    }
+                    else
+                    {
+                        filtered.Add(p);
+                    }
+                }
                 if (options.Verbose && !string.IsNullOrEmpty(reason))
                 {
-                    logger.InfoFormat("rejected {0}: {1}", filename, reason);
+                    logger.InfoFormat("rejected {0}: {1}", idStr, reason);
                 }
             }
 
@@ -213,64 +264,11 @@ namespace OPS.Landform
             //so such grouping would be finer than desired
 
             logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
-                              products.Count, result.Count,
+                              products.Count, filtered.Count,
                               acceptedSiteDrives.Count() > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
                               String.Join(",", acceptedExtensions.ToList()),
                               acceptedProductIds != null ? acceptedProductIds.Count.ToString() : "no");
-            return result;
-        }
-
-        private HashSet<string> ProductIDFilter()
-        {
-            if (options.Include == null)
-            {
-                return null;
-            }
-            return new HashSet<string>(File.ReadAllLines(options.Include)
-                                       .Where(s => !string.IsNullOrEmpty(s.Trim()))
-                                       .Select(s => Path.GetFileNameWithoutExtension(s)));
-        }
-
-        private HashSet<string> GetExtensions()
-        {
-            var ret = new HashSet<string>();
-            if (!options.NoPDS)
-            {
-                ret.Add(".IMG");
-                ret.Add(".LBL");
-            }
-            if (options.WithVIC)
-            {
-                ret.Add(".VIC");
-            }
-            if (options.WithPNG)
-            {
-                ret.Add(".PNG");
-            }
-            if (options.WithRGB)
-            {
-                ret.Add(".RGB");
-            }
-            if (options.WithOBJ)
-            {
-                ret.Add(".OBJ");
-                ret.Add(".MTL");
-            }
-            if (options.WithIV)
-            {
-                ret.Add(".IV");
-            }
-            return ret;
-        }
-
-        private SiteDrive? GetSiteDrive(string filename)
-        {
-            var id = RoverProductId.Parse(filename, mission);
-            if (id == null || id.Producer != RoverProductProducer.OPGS)
-            {
-                return null;
-            }
-            return ((OPGSProductId)id).SiteDrive;
+            return filtered;
         }
 
         private string LocalPath(string url)
