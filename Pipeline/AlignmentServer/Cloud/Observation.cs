@@ -135,13 +135,15 @@ namespace OPS.Pipeline.AlignmentServer
             return obs;
         }
 
-        /// <summary>
-        /// Save this observation without overwriting any values it may be missing
-        /// </summary>
         public virtual void Save(PipelineCore pipeline)
         {
             IsValid();
             pipeline.SaveDatabaseItem(this);
+        }
+
+        public virtual void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        {
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
         /// <summary>

@@ -85,6 +85,11 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDatabaseItem(this);
         }
 
+        public void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        {
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
+        }
+
         /// <summary>
         /// Find a frame in the given project with the specififed name.  Create it if it doesn't exist.
         /// Returns the frame if it can be found or created.  Returns null otherwise.

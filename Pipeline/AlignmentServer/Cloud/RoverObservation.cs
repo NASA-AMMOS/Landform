@@ -144,14 +144,9 @@ namespace OPS.Pipeline.AlignmentServer
                                                        site, drive, observationType, camera, producer, color);
             if (save)
             {
-                pipeline.SaveDatabaseItem(ro);
+                ro.Save(pipeline);
             }
             return ro;
-        }
-
-        public override void Save(PipelineCore pipeline)
-        {
-            pipeline.SaveDatabaseItem(this);
         }
 
         /// <summary>
