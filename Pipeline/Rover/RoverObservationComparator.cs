@@ -165,5 +165,102 @@ namespace OPS.Pipeline
                 return xyz.Concat(img).Concat(msk).Concat(uvw).Concat(err);
             }
         }
+
+        /// <summary>
+        /// Does a related job to KeepBestRoverObservations but operates on raw product IDs (or URLs).
+        /// This is used during fetch to avoid downloading stuff that's just going to get skipped anyway.
+        /// It's also used as a first pass for culling in ingest (KeepBestRoverObservations() is also used there).
+        /// It's tricky to do this just based on the ID (no metadata available here).
+        /// So this is not quite as powerful as KeepBestRoverObservations().
+        /// But that's OK it's just intended to be a first pass.
+        /// </summary>
+        public static IEnumerable<string> FilterProductIdGroups(IEnumerable<string> products,
+                                                                MissionSpecific mission = null)
+        {
+            IEnumerable<RoverProductId> filterRNG(IEnumerable<RoverProductId> ids)
+            {
+                bool hasXYZ = ids.Any(id => id.ProductType == RoverProductType.Points);
+                return ids.Where(id => !hasXYZ || id.ProductType != RoverProductType.Range);
+            }
+
+            IEnumerable<RoverProductId> filterGeometry(IEnumerable<RoverProductId> ids, bool preferLinearToNonlinear)
+            {
+                bool hasLinear = ids.Any(id => id.Geometry == RoverProductGeometry.Linearized);
+                bool hasNonlinear = ids.Any(id => id.Geometry == RoverProductGeometry.Raw);
+                return ids.Where(id => !hasLinear || !hasNonlinear ||
+                                 (preferLinearToNonlinear && id.Geometry == RoverProductGeometry.Linearized) ||
+                                 (!preferLinearToNonlinear && id.Geometry == RoverProductGeometry.Raw));
+            }
+
+            IEnumerable<RoverProductId> filterColor(IEnumerable<RoverProductId> ids, bool preferColorToGrayscale)
+            {
+                bool hasColor = ids.Any(id => id.Color == RoverProductColor.FullColor);
+                bool hasGrayscale = ids.Any(id => RoverProduct.IsMonochrome(id.Color));
+                var best = RoverProductColor.FullColor;
+                if (hasGrayscale && (!hasColor || !preferColorToGrayscale))
+                {
+                    best = ids
+                        .Select(id => id.Color)
+                        .Where(color => RoverProduct.IsMonochrome(color))
+                        .OrderBy(color => RoverProduct.BandPreference(color))
+                        .FirstOrDefault();
+                }
+                return ids.Where(id => id.Color == best);
+            }
+
+            var idToProduct = new Dictionary<RoverProductId, string>();
+            foreach (var product in products)
+            {
+                string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+                idToProduct[RoverProductId.Parse(idStr, mission)] = product;
+            }
+
+            //filter each type of ID separately
+            //this keeps us from comparing e.g. MSSS to OPGS ids
+            //not that it wouldn't be nice if we could do that
+            //but the code just doesn't support that
+            //KeepBestRoverObservations() does consider producer
+            foreach (var group in idToProduct.Keys.GroupBy(id => id.GetType()))
+            {
+                var filtered = group.ToList();
+
+                //keep only latest version
+                filtered = filtered
+                    .GroupBy(id => id.GetPartialId(includeVersion: false))
+                    .Select(ids => ids.OrderByDescending(id => id.Version).First())
+                    .ToList();
+
+                //skip RNG if XYZ is available
+                filtered = filtered
+                    .GroupBy(id => id.GetPartialId(includeProductType: false))
+                    .SelectMany(ids => filterRNG(ids))
+                    .ToList();
+
+                //if both linear and nonlinear are available, keep the preferred geometry
+                if (mission != null && mission.AllowLinear() && mission.AllowNonlinear())
+                {
+                    bool preferLinearToNonlinear = mission.PreferLinearToNonlinear();
+                    filtered = filtered
+                        .GroupBy(id => id.GetPartialId(includeGeometry: false))
+                        .SelectMany(ids => filterGeometry(ids, preferLinearToNonlinear))
+                        .ToList();
+                }
+
+                //if both color and grayscale are available, keep the preferred one
+                //also if multiple grayscale bands are available, keep the preferred one
+                bool preferColorToGrayscale = mission != null ? mission.PreferColorToGrayscale() : true;
+                filtered = filtered
+                    .GroupBy(id => id.GetPartialId(includeColorFilter: false))
+                    .SelectMany(ids => filterColor(ids, preferColorToGrayscale))
+                    .ToList();
+            
+                foreach (var id in filtered)
+                {
+                    yield return idToProduct[id];
+                }
+            }
+
+            yield break;
+        }
     }
 }
