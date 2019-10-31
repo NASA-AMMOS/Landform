@@ -260,6 +260,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// whether to allow multi-frame products such as unified meshes
+        /// </summary>
+        public virtual bool AllowMultiFrameProducts()
+        {
+            return true;
+        }
+
+        /// <summary>
         /// whether to prefer MSSS images to OPGS images when both are available
         /// </summary>
         public virtual bool PreferMSSSToOPGS()
@@ -453,15 +461,21 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!id.IsSingleFrame() && !id.IsSingleSiteDrive())
+            if (!id.IsSingleFrame() && !AllowMultiFrameProducts())
             {
-                reason = "only single frame products or single sitedrive unified mesh products allowed";
+                reason = "multi frame products (e.g. unified meshes) not allowed";
+                return false;
+            }
+
+            if (!id.IsSingleSiteDrive())
+            {
+                reason = "multi site-drive products (e.g. unified meshes) not allowed";
                 return false;
             }
 
             if (!id.IsSingleCamera())
             {
-                reason = "multi camera unified meshes not allowed";
+                reason = "multi camera products (e.g. unified meshes) not allowed";
                 return false;
             }
 
