@@ -235,6 +235,11 @@ namespace OPS.Pipeline
             }
             return StringHelper.RemoveMultiple(FullId, spans);
         }
+
+        public virtual int GetSol()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public abstract class OPGSProductId : RoverProductId
@@ -562,6 +567,11 @@ namespace OPS.Pipeline
             return false;
         }
 
+        public override int GetSol()
+        {
+            return Sol;
+        }
+
         private RoverProductCamera ParseCamera(char camera)
         {
             switch (camera)
@@ -698,6 +708,11 @@ namespace OPS.Pipeline
             length = 1;
             return true;
         }
+
+        public override int GetSol()
+        {
+            return Sol;
+        }
     }
 
     public class M2020OPGSProductId : OPGSProductId
@@ -777,11 +792,6 @@ namespace OPS.Pipeline
             return Ts0 + "_" + Ts1 + "_" + Ts2;
         }
 
-        public int GetDayNumber()
-        {
-            return Ts0;
-        }
-
         protected static RoverProductProducer ParseProducer(string producer)
         {
             switch (producer.ToUpper())
@@ -849,6 +859,11 @@ namespace OPS.Pipeline
             start = 2;
             length = 1;
             return true;
+        }
+
+        public override int GetSol()
+        {
+            return Ts0;
         }
     }
 }

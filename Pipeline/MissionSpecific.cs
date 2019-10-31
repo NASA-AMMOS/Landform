@@ -855,7 +855,7 @@ namespace OPS.Pipeline
             }
             catch (MetadataException)
             {
-                return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetDayNumber();
+                return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetSol();
             }
         }
 
