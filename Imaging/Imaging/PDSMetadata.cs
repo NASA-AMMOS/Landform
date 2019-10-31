@@ -247,31 +247,34 @@ namespace OPS.Imaging
                 bool firstline = true;
                 while ((line = file.ReadLine()) != null)
                 {
-                    if(firstline)
+                    line = line.Trim();
+
+                    if (line.Length == 0 || line.StartsWith("/*"))
                     {
-                        if(!line.StartsWith("PDS") && !line.StartsWith("ODL"))
+                        continue;
+                    }
+
+                    if (firstline)
+                    {
+                        if (!line.StartsWith("PDS") && !line.StartsWith("ODL"))
                         {
                             throw new InvalidDataException("no metadata in pds file");
                         }
                         firstline = false;
                     }
-                    line = line.Trim();
                     
                     if (line == "END")
                     {
                         break;
                     }
-                    if (line.Length > 0 && line.IndexOf("/*") != 0)
+
+                    if (line.Split('=').Length == 2)
                     {
-                        if (line.Split('=').Length == 2)
-                        {
-                            lines.Add(line);
-                        }
-                        else
-                        {
-                            // This is a continuation of the last line
-                            lines[lines.Count - 1] += " " + line;
-                        }
+                        lines.Add(line);
+                    }
+                    else // continuation of the last line
+                    {
+                        lines[lines.Count - 1] += " " + line;
                     }
                 }
 

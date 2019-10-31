@@ -162,9 +162,10 @@ namespace OPS.Imaging
         /// <param name="fillValue"></param>
         public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
-            string template = @"
-RECORD_BYTES                      = {0}
-^IMAGE                       = 2
+            string template =
+@"ODL_VERSION_ID = ODL3
+RECORD_BYTES = {0}
+^IMAGE = 2
 OBJECT = IMAGE
 INTERCHANGE_FORMAT = BINARY
 LINES = {1}
@@ -173,7 +174,7 @@ SAMPLE_TYPE = {3}
 SAMPLE_BITS = {4}
 BANDS = {5}
 BAND_STORAGE_TYPE = BAND_SEQUENTIAL
-END_OBJECT                        = IMAGE
+END_OBJECT = IMAGE
 END
 ";
             string type = null;
