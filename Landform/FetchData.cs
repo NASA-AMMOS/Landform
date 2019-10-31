@@ -75,6 +75,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't download PDS products")]
         public bool NoPDS { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Don't download and use unified meshes for filtering")]
+        public bool NoUnifiedMeshes { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
         public string AWSProfile { get; set; }
 
@@ -126,13 +129,139 @@ namespace OPS.Landform
             mission = MissionSpecific.GetInstance(options.Mission);
         }
 
+        private class UnifiedMesh
+        {
+            public string Path;
+            public HashSet<RoverProductId> Wedges;
+        }
+
+        private Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>> unifiedMeshes =
+            new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
+
+        private List<string> CollectLatestUnifiedMeshes(List<string> urls)
+        {
+            var latest = new Dictionary<SiteDrive, Dictionary<RoverProductCamera, string>>();
+            foreach (var url in urls)
+            {
+                if (StringHelper.GetUrlExtension(url).ToUpper() == ".IV")
+                {
+                    var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                    var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                    if (id != null && id is OPGSProductId && ((OPGSProductId)id).Size != RoverProductSize.Thumbnail &&
+                        !id.IsSingleFrame() && id.IsSingleCamera() && id.IsSingleSiteDrive() &&
+                        (mission == null || mission.CheckProductId(id)))
+                    {
+                        //note: we rely on mission.CheckProductId() to allow only unified meshes for the correct cameras
+                        //and also to filter linear/nonlinear if only one or the other is allowed
+
+                        var sd = ((OPGSProductId)id).SiteDrive;
+                        if (!latest.ContainsKey(sd))
+                        {
+                            latest[sd] = new Dictionary<RoverProductCamera, string>();
+                        }
+                        if (!latest[sd].ContainsKey(id.Camera))
+                        {
+                            latest[sd][id.Camera] = url;
+                        }
+                        else
+                        {
+                            var oldUrl = latest[sd][id.Camera];
+                            var oldStr = StringHelper.GetLastUrlPathSegment(oldUrl, stripExtension: true);
+                            var oldId = RoverProductId.Parse(oldStr, mission);
+                            bool preferLinear = mission == null || mission.PreferLinearToNonlinear();
+                            if (oldId.Geometry != id.Geometry &&
+                                ((preferLinear && id.Geometry == RoverProductGeometry.Linearized) ||
+                                 (!preferLinear && id.Geometry == RoverProductGeometry.Raw)))
+                            {
+                                latest[sd][id.Camera] = url;
+                            }
+                            else if (id.Version > oldId.Version || id.GetSol() > oldId.GetSol())
+                            {
+                                latest[sd][id.Camera] = url;
+                            }
+                        }
+                    }
+                }
+            }
+            var ret = new List<string>();
+            foreach (var sd in latest.Keys)
+            {
+                foreach (var cam in latest[sd].Keys)
+                {
+                    ret.Add(latest[sd][cam]);
+                }
+            }
+            return ret;
+        }
+
+        private void LoadUnifiedMeshes(List<string> paths)
+        {
+            foreach (var path in paths)
+            {
+                var id = RoverProductId.Parse(StringHelper.GetLastUrlPathSegment(path, stripExtension: true), mission);
+                if (id.IsSingleFrame() || !(id is OPGSProductId))
+                {
+                    throw new ArgumentException("not a unified mesh: " + path);
+                }
+                if (!id.IsSingleCamera())
+                {
+                    throw new ArgumentException("not a single camera unified mesh: " + path);
+                }
+                if (!id.IsSingleSiteDrive())
+                {
+                    throw new ArgumentException("not a single site-drive unified mesh: " + path);
+                }
+                var sd = ((OPGSProductId)id).SiteDrive;
+                if (!unifiedMeshes.ContainsKey(sd))
+                {
+                    unifiedMeshes[sd] = new Dictionary<RoverProductCamera, UnifiedMesh>();
+                }
+                unifiedMeshes[sd][id.Camera] = new UnifiedMesh() { Path = path, Wedges = LoadUnifiedMesh(path) };
+            }
+        }
+
+        private HashSet<RoverProductId> LoadUnifiedMesh(string path)
+        {
+            //#Inventor V2.0 ascii
+            //File {name "./wedge/NLF_0000F0606540970_105RASLN0010024000309914_0N00LLJ00.iv"}
+            //...
+            var ret = new HashSet<RoverProductId>();
+            using (FileStream fs = File.OpenRead(path))
+            {
+                using (StreamReader sr = new StreamReader(fs))
+                {
+                    string line = null;
+                    while ((line = sr.ReadLine()) != null)
+                    {
+                        line = line.Trim();
+                        if (line.StartsWith("File"))
+                        {
+                            int start = line.IndexOf('"') + 1;
+                            int end = line.LastIndexOf('"') - 1;
+                            if (start > 0 && start < line.Length - 1 && end > start && end < line.Length - 1)
+                            {
+                                string wedge = line.Substring(start, end - start + 1);
+                                string idStr = StringHelper.GetLastUrlPathSegment(wedge, stripExtension: true);
+                                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                                if (id != null)
+                                {
+                                    ret.Add(id);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return ret;
+        }
+
         private IEnumerable<string> IndexFiles(string searchDir)
         {
             try
             {
                 List<string> results = new List<string>();
                 logger.InfoFormat("searching \"{0}\"", searchDir);
-                // TODO: Limit folder depth as "tiles" directory can result in long indexing time
+                // TODO: #791 Limit folder depth as "tiles" directory can result in long indexing time
                 var paths = storageHelper.SearchObjects(searchDir).ToList();
                 foreach (var path in paths)
                 {
@@ -222,6 +351,25 @@ namespace OPS.Landform
                 acceptedExtensions.Add(".IV");
             }
 
+            bool checkUnifiedMeshes(RoverProductId id)
+            {
+                if (unifiedMeshes.Count == 0 || !(id is OPGSProductId) ||
+                    !RoverProduct.IsGeometry(id.ProductType) || RoverProduct.IsRaster(id.ProductType))
+                {
+                    return true;
+                }
+                var sd = ((OPGSProductId)id).SiteDrive;
+                if (!unifiedMeshes.ContainsKey(sd))
+                {
+                    return true;
+                }
+                if (!unifiedMeshes[sd].ContainsKey(id.Camera))
+                {
+                    return true;
+                }
+                return unifiedMeshes[sd][id.Camera].Wedges.Contains(id);
+            }
+
             var filtered = new List<string>();
             foreach (var p in products)
             {
@@ -240,7 +388,15 @@ namespace OPS.Landform
                 else
                 {
                     var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                    if (mission != null && !mission.CheckProductId(id)) //null ok
+                    if (id == null)
+                    {
+                        reason = "failed to parse product ID";
+                    }
+                    else if (!id.IsSingleFrame())
+                    {
+                        reason = "excluded unified mesh";
+                    }
+                    else if (mission != null && !mission.CheckProductId(id))
                     {
                         reason = "disallowed product id for " + mission.Name();
                     }
@@ -253,6 +409,10 @@ namespace OPS.Landform
                              !acceptedCameras.Any(ac => RoverCamera.IsCamera(ac, id.Camera)))
                     {
                         reason = "excluded camera " + id.Camera;
+                    }
+                    else if (!checkUnifiedMeshes(id))
+                    {
+                        reason = "not in unified mesh " + unifiedMeshes[((OPGSProductId)id).SiteDrive][id.Camera].Path;
                     }
                     else
                     {
@@ -410,7 +570,15 @@ namespace OPS.Landform
                     }
                     solToProducts.TryAdd(sol, prods);
                 });
-                
+
+                if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrameProducts()))
+                {
+                    var urls = CollectLatestUnifiedMeshes(solToProducts.SelectMany(s => s.Value).ToList());
+                    logger.InfoFormat("downloading {0} unified meshes", urls.Count);
+                    DownloadFiles(urls);
+                    LoadUnifiedMeshes(urls.Select(url => LocalPath(url)).ToList());
+                }
+
                 foreach (var sol in sols)
                 {
                     logger.InfoFormat("filtering files for sol {0}", sol);
