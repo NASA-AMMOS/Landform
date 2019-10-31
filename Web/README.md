@@ -9,6 +9,7 @@ Additional docs:
 * [REST API](docs/API.md)
 * [Test Procedures](docs/TEST.md)
 * [AWS Setup](docs/SETUP.md)
+* [Landform Internal](docs/INTERNAL.md)
 
 ## AWS Credentials
 Most development and deployment tasks require AWS credentials.

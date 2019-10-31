@@ -1,13 +1,15 @@
-# LandformWeb REST API
+# REST API Manual
+
 All API methods require an API token to be set as an `x-landform-token` HTTP header or `landform-token` cookie.
 
 Unless otherwise specified, all API arguments may be specified as either URL query parameters or as fields in a `application/json` or `application/x-www-form-urlencoded` HTTP request body.  If both the query parameter and body field are present the former takes precedence.
 
-
 ### Create Project: POST /api/projects/*name*
+
 Create the named project.  Implements the [task API](#task-api).
 
 Accepts the following arugments:
+
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `Oct`, or `UserDefined`; default `Bin`
 * *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `None`
 * *reconmethod*: reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
@@ -52,9 +54,11 @@ Response
     }
 
 ### Upload Data: POST /api/projects/*name*/upload
+
 Upload data for the named project.  Implements the [task API](#task-api).
 
 Accepts the following arguments in a `multipart/form-data` encoded HTTP request body:
+
 * *mesh*: mesh data file (required); data format will be implied from filename extension
 * *texture*: texture image file (optional); data format will be implied from filename extension
 * *tileid*: tile ID string; must be given if and only if the tiling scheme for the project is `UserDefined` (this argument may also be specified as a URL parameter).
@@ -113,6 +117,7 @@ Response
     }
 
 ### Run Project: POST /api/projects/*name*/run
+
 Initiate a run of a project.  Implements the [task API](#task-api).
 
 Fails with HTTP status 400 (bad request) if the named project does not exist.
@@ -120,6 +125,7 @@ Fails with HTTP status 400 (bad request) if the named project does not exist.
 If the project is deleted quickly after a call to this API then it is possible that the HTTP status will be 200 (OK) but the run will fail.
 
 This task only initiates the execution of a project.  To determine whether the project execution has completed, do one of the following:
+
 * poll the project metadata via `/api/projects/*name*` and wait for `Project.FinishedRunning=true`
 * get the project result URL via `/api/projects/*name*/result?redirect=false` and poll it until the status is HTTP 200 (OK).
 
@@ -153,11 +159,13 @@ Response
     }
 
 ### Get Project Metadata: GET /api/projects/*name*
+
 Get JSON metadata for a project.
 
 Fails with HTTP status 400 (bad request) if the named project does not exist.
 
 The project metadata is returned as a JSON object with at least the following fields:
+
 * `Project`
   * `Name`: project name
   * `TilingScheme`, `SkirtMode`, `FacesPerTile`, `TileResolution`: correspond to the options when the object was created
@@ -169,7 +177,7 @@ The project metadata is returned as a JSON object with at least the following fi
   * `ImageUrl`: URL of the image for this input
   * `Processed`: whether this input has been processed yet
   * `ImageBands`, `ImageWidth`, `ImageHeight`: image metadata, null if the input has not yet been processed
-* `NumNodes`: the total number of [3DTiles](https://github.com/AnalyticalGraphicsInc/3d-tiles) hierarchy nodes defined for the project, or null if that has not been computed yet
+* `NumNodes`: the total number of 3DTiles hierarchy nodes defined for the project, or null if that has not been computed yet
 * `NumProcesedNodes`: number of hierarchy nodes processed so far, or null if the project has not yet begun execution
 * `OutputUrl`: the URL at which the final `tileset.json` is expected, see `/api/projects/*name*/result` for more info
 
@@ -218,6 +226,7 @@ Response
 
 
 ### List Projects: GET /api/projects
+
 Get a list of the existing project names.
 
 The project names are returned as a JSON array of strings.
@@ -242,7 +251,8 @@ Response
     ]
 
 ### Get Project Result URL: GET /api/projects/*name*/result
-Fetch [3DTiles](https://github.com/AnalyticalGraphicsInc/3d-tiles) `tileset.json` result for a project.
+
+Fetch 3DTiles (<https://github.com/AnalyticalGraphicsInc/3d-tiles>) `tileset.json` result for a project.
 
 By default this API will return a HTTP 302 (found) redirect to the `tileset.json` file stored on AWS.  If execution of the project is not yet completed then AWS will return HTTP 403 (forbidden).
 
@@ -265,9 +275,10 @@ Response
     https://landlords-dev.s3.amazonaws.com/landformweb/www/testproj/tileset.json
 
 ### View Project: GET /api/projects/*name*/view
+
 Launch a web-based 3D viewer for a completed project.
 
-By default this API will return a HTTP 302 (found) redirect to a web-based viewer for the project hosted by the LandformWeb server.
+By default this API will return a HTTP 302 (found) redirect to a web-based viewer for the project.
 
 If the argument `redirect=false` is specified then the output is the viewer URL with no redirect.
 
@@ -286,6 +297,7 @@ Response
     content-type: text/html; charset=utf-8
 
 ### Delete Project: DELETE /api/projects/*name*
+
 Delete the named project. Implements the [task API](#task-api).
 
 Fails with HTTP status 400 (bad request) if the named project does not exist or is currently running.
@@ -318,9 +330,8 @@ Response
       "ended": 1537227672413
     }
 
----
-
 ## Task API
+
 Many API calls launch a task.  By default such calls are synchronous in that they will not return a response until the task completes.  At that point an `application/json` response will normally be sent with the following task metadata:
 
     {
@@ -346,17 +357,20 @@ If the server encountered an error processing the request (e.g. invalid API call
 In this case the HTTP status will be 400 (bad request) if the API call was invalid or 500 if the task failed to lauch for some other reason.
 
 If the task was successfully launched (i.e. if a task `id` was returned):
+
 * The text output of the task may be retrieved via the /api/tasks/*id*/log API.
 * The task metadata may be retrieved again via the /api/tasks/*id* API.
 
 The server will expire task metadata and logs after 24h has expired since the completion of the task, after which they will no longer be available.
 
 #### Asynchronous Task API
+
 If the caller prefers an asynchronous task interface the request may include the optional argument `async=true`.  In this case the server will respond with the task (or API error) metadata without waiting for the task to complete.  The HTTP status will be 200 if the task launched successfully, 400 if the API call was invalid, or 500 if the task failed to launch.
 
 If the task was successfully launched the caller may monitor execution of the task by subsequently polling the /api/tasks/*id* API.  The `success`, `exitCode`, `error`, and `ended` fields are only valid once the task is completed, i.e. `running=false`.
 
 #### Text Task API
+
 If the caller prefers to receive the text output of the task instead of the task metadata the request may include the optional argument `text=true` or `live=true` (the latter takes precedence over the former, and `async=true` takes precedence over both).
 
 When `text=true` the server returns the text output of the task as `text/plain` synchronously, i.e. all at once when the task completes.
@@ -364,15 +378,18 @@ When `text=true` the server returns the text output of the task as `text/plain` 
 When `live=true` the server returns the text output of the task as `text/plain` progressively, i.e. line-by-line as it is produced.
 
 In either case
+
 * If the server failed to launch the task it will return API error metadata as `application/json` and an HTTP status code of 400 or 500.
 * If the task was successfully launched the first line of output will give the task ID.
 * If the task fails an error message will be appended to the text output.
 
 If the task was successfully launched
+
 * For `text=true` the HTTP status will be 200 or 500 depending on whether the task completed successfully.
 * For `live=true` the HTTP status will be 200 whether or not the task completed successfully (because the status code may need to be sent before the task completes).
 
 ### Get Master Task ID: GET /api/tasks/master/id
+
 Returns id of the master task.
 
 **Example:**
@@ -392,6 +409,7 @@ Response
     0
 
 ### Get Task Metadata: GET /api/tasks/*id*
+
 Returns JSON metadata for task with the given id.
 
 **Example:** get metadata for task 0 (typically task 0 is the master task)
@@ -419,6 +437,7 @@ Response
     }
 
 ### Get Task Log: GET /api/tasks/*id*/log
+
 Returns the log for task with the given id.
 
 By default the log is returned as an JSON array of strings containing the line-by-line text output of the task.  If the task is still running then whatever it has output up to the time of call will be returned.
