@@ -112,6 +112,16 @@ namespace OPS.Pipeline
             return FullId;
         }
 
+        public override int GetHashCode()
+        {
+            return FullId.GetHashCode();
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is RoverProductId && (obj as RoverProductId).FullId == FullId; 
+        }
+
         public virtual bool IsSingleFrame()
         {
             return true;
