@@ -59,19 +59,22 @@ namespace OPS.Pipeline
             }
         }
 
-        public double[] MissingConstant
+        public float[] MissingConstant
         {
-            get { return metadata.ReadAsDoubleArray("IMAGE", "MISSING_CONSTANT"); }
+            get { return metadata.ReadAsFloatArray("IMAGE", "MISSING_CONSTANT"); }
         }
 
         public bool HasInvalidConstant
         {
-            get { return metadata.HasKey("IMAGE", "INVALID_CONSTANT") && metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != Unknown; }
+            get { return metadata.HasKey("IMAGE", "INVALID_CONSTANT") && 
+                    metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != Unknown &&
+                    metadata.ReadAsString("IMAGE", "INVALID_CONSTANT") != NullStr;
+            }
         }
 
-        public float InvalidConstant
+        public float[] InvalidConstant
         {
-            get { return (float)metadata.ReadAsDouble("IMAGE", "INVALID_CONSTANT"); }
+            get { return metadata.ReadAsFloatArray("IMAGE", "INVALID_CONSTANT"); }
         }
 
         public RoverProductId ProductId

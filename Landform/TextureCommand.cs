@@ -184,7 +184,7 @@ namespace OPS.Landform
             {
                 if (obs.BlendedGuid == Guid.Empty)
                 {
-                    throw new Exception(string.Format("no blended texture for observation {0}, run local-blend-images"));
+                    throw new Exception(string.Format("no blended texture for observation {0}, run local-blend-images", obs.Name));
                 }
             }
         }

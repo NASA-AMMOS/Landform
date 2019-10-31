@@ -42,22 +42,21 @@ namespace OPS.Pipeline
         public static void AddMaskForMissingConstant(Image dst, Image src, PDSParser parser = null)
         {
             parser = parser ?? new PDSParser((PDSMetadata)src.Metadata);
+
+            //nominal missing constant value is 0, MSL SIS
+            float[] missing = new float[] { 0.0f };
             if (parser.HasMissingConstant)
             {
-                float[] missing = parser.MissingConstant.Select(x => (float)x).ToArray();
-                
-                //ROASTT19 wart: single float missing constant for 3 channel navcam
-                if(missing.Count() == 1 && src.Bands > 1)
-                {
-                    missing = Enumerable.Repeat<float>(missing.First(), src.Bands).ToArray();
-                }
+                missing = parser.MissingConstant;
+            }
 
-                dst.UnionMask(src, missing);
-            }
-            else
+            //ROASTT18 wart: single float missing constant for 3 channel navcam
+            if (missing.Count() == 1 && src.Bands > 1)
             {
-                dst.CreateMask(false);
+                missing = Enumerable.Repeat<float>(missing.First(), src.Bands).ToArray();
             }
+
+            dst.UnionMask(src, missing);
         }
 
         /// <summary>
