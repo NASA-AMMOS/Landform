@@ -51,8 +51,11 @@ namespace OPS.Landform
         [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Text file listing filenames without extension (product IDs) to include, one per line")]
+        [Option(Required = false, Default = null, HelpText = "Text file listing filenames or product IDs to include, one per line")]
         public string Include { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Text file listing filenames or product IDs to exclude, one per line")]
+        public string Exclude { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Download PNG products")]
         public bool WithPNG { get; set; }
@@ -183,6 +186,14 @@ namespace OPS.Landform
                                              .Select(s => StringHelper.GetLastUrlPathSegment(s, stripExtension: true)));
             }
 
+            var rejectedProductIds = new HashSet<string>();
+            if (options.Exclude != null)
+            {
+                rejectedProductIds.UnionWith(File.ReadAllLines(options.Exclude)
+                                             .Where(s => !string.IsNullOrEmpty(s.Trim()))
+                                             .Select(s => StringHelper.GetLastUrlPathSegment(s, stripExtension: true)));
+            }
+
             var acceptedExtensions = new HashSet<string>();
             if (!options.NoPDS)
             {
@@ -221,7 +232,8 @@ namespace OPS.Landform
                 {
                     reason = "disallowed extension " + ext;
                 }
-                else if (acceptedProductIds.Count > 0 && !acceptedProductIds.Contains(idStr))
+                else if ((acceptedProductIds.Count > 0 && !acceptedProductIds.Contains(idStr)) ||
+                         (rejectedProductIds.Count > 0 && rejectedProductIds.Contains(idStr)))
                 {
                     reason = "excluded product id " + idStr;
                 }
