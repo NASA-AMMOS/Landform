@@ -26,7 +26,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public RoverProductType ObservationType;
 
-        public RoverProductCamera Sensor;
+        public RoverProductCamera Camera;
 
         public RoverProductProducer Producer;
 
@@ -44,10 +44,10 @@ namespace OPS.Pipeline.AlignmentServer
         {
             get
             {
-                var cameraName = Sensor.ToString();
-                if (FrameName.StartsWith(cameraName) && RoverStereoPair.IsStereo(Sensor))
+                var cameraName = Camera.ToString();
+                if (FrameName.StartsWith(cameraName) && RoverStereoPair.IsStereo(Camera))
                 {
-                    return RoverStereoPair.GetStereoCamera(Sensor).ToString() + FrameName.Substring(cameraName.Length);
+                    return RoverStereoPair.GetStereoCamera(Camera).ToString() + FrameName.Substring(cameraName.Length);
                 }
                 else
                 {
@@ -60,11 +60,11 @@ namespace OPS.Pipeline.AlignmentServer
         {
             get
             {
-                if (RoverStereoPair.IsStereoLeft(Sensor))
+                if (RoverStereoPair.IsStereoLeft(Camera))
                 {
                     return RoverStereoEye.Left;
                 }
-                else if (RoverStereoPair.IsStereoRight(Sensor))
+                else if (RoverStereoPair.IsStereoRight(Camera))
                 {
                     return RoverStereoEye.Right;
                 }
@@ -79,12 +79,12 @@ namespace OPS.Pipeline.AlignmentServer
         {
             base.IsValid();
             if (!(ObservationType != RoverProductType.Unknown &&
-                  Sensor != RoverProductCamera.Unknown &&
+                  Camera != RoverProductCamera.Unknown &&
                   Producer != RoverProductProducer.Unknown))
             {
                 throw new Exception("Missing required property in RoverObservation " + Name +
                                     " ObservationType=" + ObservationType +
-                                    " Sensor=" + Sensor +
+                                    " Camera=" + Camera +
                                     " Producer=" + Producer);
             }
         }
@@ -95,15 +95,15 @@ namespace OPS.Pipeline.AlignmentServer
         protected RoverObservation(Frame frame, string name, string url, CameraModel cameraModel,
                                    bool useForAlignment, bool useForMeshing, bool useForTexturing,
                                    int width, int height, int bands, int bits, int day, int version, int index,
-                                   int site, int drive, RoverProductType observationType, RoverProductCamera sensor,
                                    RoverProductProducer producer)
+                                   int site, int drive, RoverProductType observationType, RoverProductCamera camera,
             : base(frame, name, url, cameraModel, useForAlignment, useForMeshing, useForTexturing,
                    width, height, bands, bits, day, version, index)
         {
             this.Site = site;
             this.Drive = drive;
             this.ObservationType = observationType;
-            this.Sensor = sensor;
+            this.Camera = camera;
             this.Producer = producer;
             this.IsValidRoverOservation();
         }
@@ -128,8 +128,8 @@ namespace OPS.Pipeline.AlignmentServer
             Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
                    bool useForAlignment, bool useForMeshing, bool useForTexturing,
                    int width, int height, int bands, int bits, int day, int version, int index,
-                   int site, int drive, RoverProductType observationType, RoverProductCamera sensor,
                    RoverProductProducer producer, bool save = true)
+                   int site, int drive, RoverProductType observationType, RoverProductCamera camera,
         {
             if (Find(pipeline, frame.ProjectName, name) != null)
             {
@@ -138,7 +138,7 @@ namespace OPS.Pipeline.AlignmentServer
             RoverObservation ro = new RoverObservation(frame, name, url, cameraModel,
                                                        useForAlignment, useForMeshing, useForTexturing,
                                                        width, height, bands, bits, day, version, index,
-                                                       site, drive, observationType, sensor, producer);
+                                                       site, drive, observationType, camera, producer);
             if (save)
             {
                 pipeline.SaveDatabaseItem(ro);
@@ -176,8 +176,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public override string ToString(bool brief)
         {
-            return string.Format("{0}, Site={1}, Drive={2}, ObservationType={3}, Sensor={4}, Producer={5}",
-                                 base.ToString(brief), Site, Drive, ObservationType, Sensor, Producer);
+            return string.Format("{0}, Site={1}, Drive={2}, ObservationType={3}, Camera={4}, Producer={5}, Color={6}",
+                                 base.ToString(brief), Site, Drive, ObservationType, Camera, Producer, Color);
         }
 
         public override string ToString()

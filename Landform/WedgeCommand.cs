@@ -42,7 +42,7 @@ namespace OPS.Landform
         [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
         public virtual string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
+        [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public virtual string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Allowed sources for adjusted transforms, comma separated, all if empty (Adjusted, Manual, Landform, LandformBEV, LandformBEVRoot, LandformBEVCalf, Agisoft)", Default = null)]
@@ -140,9 +140,9 @@ namespace OPS.Landform
 
         protected virtual void LoadObservationCache()
         {
-            string[] observations = StringHelper.ParseList(wcopts.OnlyForObservations);
-            string[] frames = StringHelper.ParseList(wcopts.OnlyForFrames);
-            string[] cams = StringHelper.ParseList(wcopts.OnlyForCameras);
+            var observations = StringHelper.ParseList(wcopts.OnlyForObservations);
+            var frames = StringHelper.ParseList(wcopts.OnlyForFrames);
+            var cams = RoverCamera.ParseList(wcopts.OnlyForCameras);
 
             observationCache = new ObservationCache(pipeline, project.Name);
 
@@ -151,7 +151,7 @@ namespace OPS.Landform
                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
                         (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
                         (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
-                        (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Sensor))));
+                        (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera))));
 
             pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
                              num, DescribeObservationFilter(), project.Name,
