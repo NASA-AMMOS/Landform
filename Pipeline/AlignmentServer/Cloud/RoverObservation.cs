@@ -30,6 +30,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public RoverProductProducer Producer;
 
+        public RoverProductColor Color;
+
         //it might be nice to have this field
         //but that would introduce a redundancy with Observation.CameraModel.Linear, so avoiding for now
         //public RoverProductGeometry Geometry;
@@ -95,8 +97,8 @@ namespace OPS.Pipeline.AlignmentServer
         protected RoverObservation(Frame frame, string name, string url, CameraModel cameraModel,
                                    bool useForAlignment, bool useForMeshing, bool useForTexturing,
                                    int width, int height, int bands, int bits, int day, int version, int index,
-                                   RoverProductProducer producer)
                                    int site, int drive, RoverProductType observationType, RoverProductCamera camera,
+                                   RoverProductProducer producer, RoverProductColor color)
             : base(frame, name, url, cameraModel, useForAlignment, useForMeshing, useForTexturing,
                    width, height, bands, bits, day, version, index)
         {
@@ -105,6 +107,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.ObservationType = observationType;
             this.Camera = camera;
             this.Producer = producer;
+            this.Color = color;
             this.IsValidRoverOservation();
         }
 
@@ -128,8 +131,8 @@ namespace OPS.Pipeline.AlignmentServer
             Create(PipelineCore pipeline, Frame frame, string name, string url, CameraModel cameraModel,
                    bool useForAlignment, bool useForMeshing, bool useForTexturing,
                    int width, int height, int bands, int bits, int day, int version, int index,
-                   RoverProductProducer producer, bool save = true)
                    int site, int drive, RoverProductType observationType, RoverProductCamera camera,
+                   RoverProductProducer producer, RoverProductColor color, bool save = true)
         {
             if (Find(pipeline, frame.ProjectName, name) != null)
             {
@@ -138,7 +141,7 @@ namespace OPS.Pipeline.AlignmentServer
             RoverObservation ro = new RoverObservation(frame, name, url, cameraModel,
                                                        useForAlignment, useForMeshing, useForTexturing,
                                                        width, height, bands, bits, day, version, index,
-                                                       site, drive, observationType, camera, producer);
+                                                       site, drive, observationType, camera, producer, color);
             if (save)
             {
                 pipeline.SaveDatabaseItem(ro);

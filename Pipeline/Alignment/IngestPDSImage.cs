@@ -250,8 +250,8 @@ namespace OPS.Pipeline
                                             metadata.Width, metadata.Height, metadata.Bands,
                                             metadata.BitDepth, mission.DayNumber(parser),
                                             productId.Version, index, parser.Site, parser.Drive,
-                                            parser.ProducingInstitution);
                                             mission.GetProductType(parser), mission.GetCamera(parser),
+                                            parser.ProducingInstitution, productId.Color);
 
                 if (observation == null)
                 {
