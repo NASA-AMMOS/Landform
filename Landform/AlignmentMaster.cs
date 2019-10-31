@@ -240,12 +240,7 @@ namespace OPS.Landform
             var comparator = mission.GetRoverObservationComparator();
             foreach (var obsGroup in obsForFrame.Values)
             {
-                var observations = obsGroup
-                    .Cast<RoverObservation>()
-                    .Distinct() //ConcurrentBag allows duplicates, which is probably harmless here, but why not
-                    .Where(obs => obs.UseForAlignment)
-                    .OrderBy(obs => obs, comparator)
-                    .ToList();
+                var observations = comparator.SortRoverObservations(obsGroup, obs => obs.UseForAlignment).ToList();
 
                 var imageObs = observations.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (imageObs != null)

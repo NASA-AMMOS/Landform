@@ -1,6 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using OPS.Util;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
@@ -73,6 +75,27 @@ namespace OPS.Pipeline
             
             // finally sort by version, prefer higher versions
             return b.Version - a.Version;
+        }
+
+        public IEnumerable<RoverObservation> SortRoverObservations(IEnumerable<Observation> observations,
+                                                                   Func<RoverObservation, bool> filter = null)
+        {
+            return observations
+                .Where(o => o is RoverObservation)
+                .Cast<RoverObservation>()
+                .Where(o => filter == null || filter(o))
+                .OrderBy(o => o, this);
+        }
+
+        public RoverObservation GetBestRoverObservation(IEnumerable<Observation> observations,
+                                                        params RoverProductType[] types)
+        {
+            return observations
+                .Where(o => o is RoverObservation)
+                .Cast<RoverObservation>()
+                .Where(o => types.Length == 0 || types.Any(t => t == o.ObservationType))
+                .OrderBy(o => o, this)
+                .FirstOrDefault();
         }
     }
 }

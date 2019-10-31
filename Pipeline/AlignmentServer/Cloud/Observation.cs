@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
+using Amazon.DynamoDBv2.DataModel;
+using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
-using OPS.Util;
-using Amazon.DynamoDBv2.DataModel;
 
 namespace OPS.Pipeline.AlignmentServer
 {
@@ -50,8 +51,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string FrameName;
 
-        public string CameraModel;
-
         public bool UseForAlignment;
 
         public bool UseForMeshing;
@@ -71,6 +70,40 @@ namespace OPS.Pipeline.AlignmentServer
         public int Version;
 
         public int Index;
+
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        private string _cameraModel;
+
+        public string CameraModel {
+            get
+            {
+                return _cameraModel;
+            }
+            set
+            {
+                _cameraModel = value;
+                _linear = null;
+            }
+        }
+
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        private bool? _linear;
+
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public bool IsLinear
+        {
+            get
+            {
+                if (!_linear.HasValue)
+                {
+                    _linear = ((CameraModel)JsonHelper.FromJson(CameraModel)).Linear;
+                }
+                return _linear.Value;
+            }
+        }
 
         /// Add required fields here 
         protected void IsValid()
@@ -171,22 +204,17 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
-        public bool IsLinear()
-        {
-            return ((CameraModel)JsonHelper.FromJson(CameraModel)).Linear;
-        }
-
         public bool CheckLinear(bool linear)
         {
-            return linear == IsLinear();
+            return linear == IsLinear;
         }
 
         public bool CheckLinear(RoverProductGeometry geometry)
         {
             switch (geometry)
             {
-                case RoverProductGeometry.Linearized: return IsLinear();
-                case RoverProductGeometry.Raw: return !IsLinear();
+                case RoverProductGeometry.Linearized: return IsLinear;
+                case RoverProductGeometry.Raw: return !IsLinear;
                 default: return false;
             }
         }

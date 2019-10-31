@@ -106,11 +106,9 @@ namespace OPS.Landform
             if (observationCache != null)
             {
                 var comparator = mission.GetRoverObservationComparator();
-                imageObservations = observationCache.GetAllObservations()
-                    .Where(obs => obs is RoverObservation)
-                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
-                    .GroupBy(obs => obs.FrameName)
-                    .Select(group => group.OrderBy(obs => (RoverObservation)obs, comparator).First())
+                var allObs = observationCache.GetAllObservations();
+                imageObservations = comparator.KeepBestRoverObservations(allObs, RoverProductType.Image)
+                    .Cast<Observation>()
                     .ToList();
                 indexedObservations = new Dictionary<int, Observation>();
                 foreach (var obs in imageObservations)
@@ -257,11 +255,8 @@ namespace OPS.Landform
                     
                     Image img = pipeline.LoadImage(obs.Url);
 
-                    var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                        .Where(o => o is RoverObservation)
-                        .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
-                        .OrderBy(o => (RoverObservation)o, comparator)
-                        .FirstOrDefault();
+                    var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
+                    var maskObs = comparator.GetBestRoverObservation(off, RoverProductType.RoverMask);
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
 
