@@ -263,6 +263,14 @@ namespace OPS.Landform
             //and also there can be multiple different timestamps for the same RMC
             //so such grouping would be finer than desired
 
+            //still, there are things we can do
+            //like rejecting all but the latest version in a group of product IDs that are otherwise the same
+            //note that using RoverObservationComparator in downstream code is still valuable
+            //e.g. in workflows where multiple fetches could be done at different times
+            //possibly resulting in multiple versions of a file still being downloaded
+            //Note: the mission.CheckFilename() call above already ensured that RoverProductId.Parse() will succeed
+            filtered = RoverObservationComparator.FilterProductIdGroups(filtered).ToList();
+
             logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
                               products.Count, filtered.Count,
                               acceptedSiteDrives.Count() > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
