@@ -12,27 +12,18 @@ namespace OPS.Pipeline
         public readonly RoverProductType ProductType;
         public readonly RoverProductCamera Camera;
         public readonly RoverProductGeometry Geometry;
+        public readonly RoverProductColor Color;
         public readonly int Version;
 
         protected RoverProductId(string fullId, RoverProductProducer producer, string productType, string camera,
-                                 string geometry, string version)
+                                 string geometry, string color, string version)
         {
             this.FullId = fullId;
             this.Producer = producer;
             this.ProductType = ParseProductType(productType);
             this.Camera = ParseCamera(camera);
             this.Geometry = ParseGeometry(geometry);
-            this.Version = ParseVersion(version);
-        }
-
-        protected RoverProductId(string fullId, RoverProductProducer producer, RoverProductType productType,
-                                 string camera, string geometry, string version)
-        {
-            this.FullId = fullId;
-            this.Producer = producer;
-            this.ProductType = productType;
-            this.Camera = ParseCamera(camera);
-            this.Geometry = ParseGeometry(geometry);
+            this.Color = ParseColor(color, camera);
             this.Version = ParseVersion(version);
         }
 
@@ -145,6 +136,8 @@ namespace OPS.Pipeline
 
         protected abstract RoverProductGeometry ParseGeometry(string geometry);
 
+        protected abstract RoverProductColor ParseColor(string color, string camera);
+
         /// <summary>
         /// MSL OPGS version is one digit in the range 1-9A-Z, or _ for 
         /// MSL MSSS version is one digit in the range 0-9A-Z, or _ for overflow
@@ -191,8 +184,8 @@ namespace OPS.Pipeline
         public readonly SiteDrive SiteDrive;
 
         protected OPGSProductId(string fullId, RoverProductProducer producer, string productType, string camera,
-                                string geometry, string version, string size, int site, int drive)
-            : base(fullId, producer, productType, camera, geometry, version)
+                                string geometry, string color, string version, string size, int site, int drive)
+            : base(fullId, producer, productType, camera, geometry, color, version)
         {
             this.Size = ParseSize(size);
             this.SiteDrive = new SiteDrive(site, drive);
@@ -216,13 +209,14 @@ namespace OPS.Pipeline
         }
     }
 
-    public class MSLOPGSProductIdBase : OPGSProductId
+    public abstract class MSLOPGSProductIdBase : OPGSProductId
     {
         public readonly string Spec;
 
         protected MSLOPGSProductIdBase(string fullId, string producer, string productType, string camera,
-                                       string geometry, string version, string size, int site, int drive, string spec)
-            : base(fullId, ParseProducer(producer), productType, camera, geometry, version, size, site, drive)
+                                       string geometry, string color, string version, string size, int site, int drive,
+                                       string spec)
+            : base(fullId, ParseProducer(producer), productType, camera, geometry, color, version, size, site, drive)
         {
             this.Spec = spec;
         }
@@ -255,9 +249,9 @@ namespace OPS.Pipeline
         public readonly int Sclk;
 
         protected MSLOPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
-                                   string version, string size, int site, int drive,
-                                   string spec, string config, int sclk, string seqnum)
-            : base(fullId, producer, productType, camera, geometry, version, size, site, drive, spec)
+                                   string config, string version, string size, int site, int drive,
+                                   string spec, int sclk, string seqnum)
+            : base(fullId, producer, productType, camera, geometry, config, version, size, site, drive, spec)
         {
             this.Config = config;
             this.Sclk = sclk;
@@ -293,8 +287,35 @@ namespace OPS.Pipeline
             }
 
             return new MSLOPGSProductId(fullId: productId, producer: venue, productType: prodType, camera: inst,
-                                        geometry: geom, version: ver, size: samp, site: site, drive: drive,
-                                        spec: spec, config: config, sclk: sclk, seqnum: seqnum);
+                                        geometry: geom, config: config, version: ver, size: samp,
+                                        site: site, drive: drive, spec: spec, sclk: sclk, seqnum: seqnum);
+        }
+
+        protected override RoverProductColor ParseColor(string color, string camera)
+        {
+            var cam = RoverCamera.FromRDRInstrumentID(camera);
+            if (RoverCamera.IsCamera(RoverProductCamera.Hazcam, cam) ||
+                RoverCamera.IsCamera(RoverProductCamera.Navcam, cam))
+            {
+                return RoverProductColor.Grayscale;
+            }
+            else if (RoverCamera.IsCamera(RoverProductCamera.Mastcam, cam) ||
+                     RoverCamera.IsCamera(RoverProductCamera.MAHLI, cam))
+            {
+                switch (color)
+                {
+                    case "F": return RoverProductColor.FullColor;
+                    case "R": return RoverProductColor.Red;
+                    case "G": return RoverProductColor.Green;
+                    case "B": return RoverProductColor.Blue;
+                    default: return RoverProductColor.Unknown;
+                }
+            }
+            else
+            {
+                return RoverProductColor.Unknown;
+            }
+        }
         }
     }
 
@@ -314,7 +335,7 @@ namespace OPS.Pipeline
                                           string cameras, string geometry, string version, string size,
                                           int site, int drive, string spec, string eye, int sol,
                                           bool multiSol, bool multiSite, bool multiDrive, string meshId)
-            : base(fullId, producer, "XYZ", cameras, geometry, version, size, site, drive, spec)
+            : base(fullId, producer, "XYZ", cameras, geometry, /* color */ "", version, size, site, drive, spec)
         {
             this.Cameras = ParseCameras(cameras);
             this.TextureProductType = ParseProductType(textureProductType);
@@ -411,6 +432,11 @@ namespace OPS.Pipeline
             return ParseCamera(cameras[0]);
         }
 
+        protected override RoverProductColor ParseColor(string color, string camera)
+        {
+            return RoverProductColor.Unknown;
+        }
+
         private RoverProductCamera ParseCamera(char camera)
         {
             switch (camera)
@@ -440,28 +466,19 @@ namespace OPS.Pipeline
         }
     }
 
-    public enum MSSSProductType
-    {
-        JPEGGrayscale,
-        JPEGColor,
-        Unknown
-    }
-
     public class MSLMSSSProductId : RoverProductId
     {
         public const int LENGTH = 30;
 
-        public readonly MSSSProductType MSSSProductType;
         public readonly string FullSeqId, SeqLine, CdpidCounter, CdpidComplete, GopCounter, ProcessingCode; 
         public readonly int Sol;
         public readonly bool Decompressed, RadiometricallyCalibrated, ColorCorrected;
 
-        protected MSLMSSSProductId(string fullId, string productType, string camera, string geometry, string version, 
+        protected MSLMSSSProductId(string fullId, string camera, string geometry, string color, string version,
                                    int sol, string fullSeqId, string seqLine,
                                    string cdpidCounter, string cdpidComplete, string gopCounter, string processingCode)
-            : base(fullId, RoverProductProducer.MSSS, RoverProductType.Image, camera, geometry, version)
+            : base(fullId, RoverProductProducer.MSSS, "RAS", camera, geometry, color, version)
         {
-            this.MSSSProductType = ParseMSSSProductType(productType);
             this.Sol = sol;
             this.FullSeqId = fullSeqId;
             this.SeqLine = seqLine;
@@ -500,15 +517,18 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            return new MSLMSSSProductId(fullId: productId, productType: productType, camera: inst,
-                                        geometry: processingCode, version: version, sol: sol,
-                                        fullSeqId: fullSeqId, seqLine: seqLine,
+            return new MSLMSSSProductId(fullId: productId, camera: inst, geometry: processingCode, color: productType,
+                                        version: version, sol: sol, fullSeqId: fullSeqId, seqLine: seqLine,
                                         cdpidCounter: cdpidCounter, cdpidComplete: cdpidComplete,
                                         gopCounter: gopCounter, processingCode: processingCode);
         }
 
         protected override RoverProductType ParseProductType(string productType)
         {
+            if (productType != null && productType.ToUpper() == "RAS")
+            {
+                return RoverProductType.Image;
+            }
             throw new NotImplementedException();
         }
 
@@ -517,13 +537,13 @@ namespace OPS.Pipeline
             return geometry.ToUpper().Contains("L") ? RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
         }
 
-        protected MSSSProductType ParseMSSSProductType(string productType)
+        protected override RoverProductColor ParseColor(string color, string camera)
         {
-            switch (productType.ToUpper())
+            switch (color.ToUpper())
             {
-                case "D": return MSSSProductType.JPEGGrayscale;
-                case "E": case "F": return MSSSProductType.JPEGColor;
-                default: return MSSSProductType.Unknown;
+                case "D": return RoverProductColor.Grayscale;
+                case "E": case "F": return RoverProductColor.FullColor;
+                default: return RoverProductColor.Unknown;
             }
         }
     }
@@ -536,12 +556,12 @@ namespace OPS.Pipeline
         public readonly int Ts0, Ts1, Ts2;
 
         protected M2020OPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
-                                     string version, string size, int site, int drive,
-                                     string colorFilter, string spec, int ts0, string venue, int ts1, int ts2,
+                                     string color, string version, string size, int site, int drive,
+                                     string spec, int ts0, string venue, int ts1, int ts2,
                                      string sequence, string camspec, string downsample, string compression)
-            : base(fullId, ParseProducer(producer), productType, camera, geometry, version, size, site, drive)
+            : base(fullId, ParseProducer(producer), productType, camera, geometry, color, version, size, site, drive)
         {
-            this.ColorFilter = colorFilter;
+            this.ColorFilter = color;
             this.Spec = spec;
             this.Ts0 = ts0;
             this.Venue = venue;
@@ -594,8 +614,8 @@ namespace OPS.Pipeline
             }
 
             return new M2020OPGSProductId(fullId: productId, producer: producer, productType: prodType, camera: inst,
-                                          geometry: geometry, version: version, size: thumb, site: site, drive: drive,
-                                          colorFilter: colorFilter, spec: spec, ts0: ts0, venue: venue, ts1: ts1,
+                                          geometry: geometry, color: colorFilter, version: version, size: thumb,
+                                          site: site, drive: drive, spec: spec, ts0: ts0, venue: venue, ts1: ts1,
                                           ts2: ts2, sequence: sequence, camspec: camspec, downsample: downsample,
                                           compression: compression);
         }
@@ -635,6 +655,19 @@ namespace OPS.Pipeline
                 case "L": case "A": return RoverProductGeometry.Linearized;
                 case "_": return RoverProductGeometry.Raw;
                 default: return RoverProductGeometry.Unknown;
+            }
+        }
+
+        protected override RoverProductColor ParseColor(string color, string camera)
+        {
+            switch (color.ToUpper())
+            {
+                case "F": return RoverProductColor.FullColor;
+                case "M": return RoverProductColor.Grayscale;
+                case "R": return RoverProductColor.Red;
+                case "G": return RoverProductColor.Green;
+                case "B": return RoverProductColor.Blue;
+                default: return RoverProductColor.Unknown;
             }
         }
     }

@@ -782,10 +782,11 @@ namespace OPS.Pipeline
                     reason = "MSSS non-DCX files not allowed";
                     return false;
                 }
-                // Filter for color or black and white jpegs that are not thumbnails
-                if (msssId.MSSSProductType == MSSSProductType.Unknown)
+
+                // check this is color or grayscale and not a thumbnail
+                if (msssId.Color == RoverProductColor.Unknown)
                 {
-                    reason = "MSSS product type unknown";
+                    reason = "MSSS product color or size not allowed";
                     return false;
                 }
             }
@@ -930,16 +931,15 @@ namespace OPS.Pipeline
                     reason = "special processing " + spec;
                     return false;
                 }
-                
-                string colorFilter = opgsId.ColorFilter.ToUpper();
-                if (colorFilter != "M" && colorFilter != "F")
-                {
-                    reason = "color filter " + colorFilter;
-                    return false;
-                }
-                
+
                 //TODO check other Spec values, Camspec, Downsample, Compression
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/754
+
+                if (opgsId.Color == RoverProductColor.Unknown)
+                {
+                    reason = "color filter " + opgsId.ColorFilter;
+                    return false;
+                }
             }
 
             if (id.Producer == RoverProductProducer.MSSS)

@@ -195,6 +195,16 @@ namespace OPS.Pipeline
         RangeError
     }
 
+    public enum RoverProductColor
+    {
+        Unknown,
+        FullColor,
+        Grayscale,
+        Red,
+        Green,
+        Blue
+    }
+
     public static class RoverProduct
     {
         private static Dictionary<string, RoverProductType> pdsDerivedImageTypes =
@@ -257,6 +267,28 @@ namespace OPS.Pipeline
             return prodType == RoverProductType.RoverMask || prodType == RoverProductType.RangeError ||
                 prodType == RoverProductType.Range || prodType == RoverProductType.Points ||
                 prodType == RoverProductType.Normals;
+        }
+
+        public static bool IsMonochrome(RoverProductColor color)
+        {
+            return color == RoverProductColor.Grayscale ||
+                color == RoverProductColor.Red ||
+                color == RoverProductColor.Green ||
+                color == RoverProductColor.Blue;
+        }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/783#issuecomment-234441
+        public static int BandPreference(RoverProductColor color)
+        {
+            switch (color)
+            {
+                case RoverProductColor.FullColor: return 0;
+                case RoverProductColor.Grayscale: return 1;
+                case RoverProductColor.Green: return 2;
+                case RoverProductColor.Red: return 3;
+                case RoverProductColor.Blue: return 4;
+                default: return 5;
+            }
         }
     }
 
