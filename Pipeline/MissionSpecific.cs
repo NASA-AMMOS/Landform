@@ -136,20 +136,23 @@ namespace OPS.Pipeline
 
         public virtual bool IsNavcam(RoverProductCamera camera)
         {
-           return camera == RoverProductCamera.NavcamLeft || camera == RoverProductCamera.NavcamRight;
+           return camera == RoverProductCamera.Navcam ||
+               camera == RoverProductCamera.NavcamLeft || camera == RoverProductCamera.NavcamRight;
         }
 
         public virtual bool IsHazcam(RoverProductCamera camera)
         {
-                return camera == RoverProductCamera.FrontHazcamLeft
-                    || camera == RoverProductCamera.FrontHazcamRight
-                    || camera == RoverProductCamera.RearHazcamLeft
-                    || camera == RoverProductCamera.RearHazcamRight;
+                return camera == RoverProductCamera.Hazcam ||
+                    camera == RoverProductCamera.FrontHazcamLeft ||
+                    camera == RoverProductCamera.FrontHazcamRight ||
+                    camera == RoverProductCamera.RearHazcamLeft ||
+                    camera == RoverProductCamera.RearHazcamRight;
         }
 
         public virtual bool IsMastcam(RoverProductCamera camera)
         {
-           return camera == RoverProductCamera.MastcamLeft || camera == RoverProductCamera.MastcamRight;
+           return camera == RoverProductCamera.Mastcam ||
+               camera == RoverProductCamera.MastcamLeft || camera == RoverProductCamera.MastcamRight;
         }
 
         public abstract bool IsArmcam(RoverProductCamera camera);
