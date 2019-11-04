@@ -29,7 +29,7 @@ namespace OPS.Landform
         [Value(1, Required = true, Default = null, HelpText = "output directory, e.g. c:/Users/$USERNAME/Downloads")]
         public string OutputDir { get; set; }
         
-        [Value(2, Required = true, HelpText = "RDR search locations, comma separated, with sol replaced with ##### (e.g. s3://landform/MSL/ods/surface/sol/#####/opgs/rdr). See https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes")]
+        [Value(2, Required = false, HelpText = "RDR search locations (only if not using --raw), comma separated, with sol replaced with ##### (e.g. s3://landform/MSL/ods/surface/sol/#####/opgs/rdr). See https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes")]
         public string SearchLocations { get; set; } = null;
 
         [Option(Required = false, Default = false, HelpText = "Treat input as raw S3 URLs, not sol numbers")]
@@ -461,7 +461,7 @@ namespace OPS.Landform
             return Path.Combine(options.OutputDir, dir, StringHelper.GetLastUrlPathSegment(url));
         }
 
-        private void DownloadFile(string url)
+        private long DownloadFile(string url)
         {
             var localPath = LocalPath(url);    
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
@@ -486,7 +486,7 @@ namespace OPS.Landform
                         }
                         else
                         {
-                            using (var fs = new FileStream(localPath, FileMode.Create))
+                            using (var fs = new FileStream(f, FileMode.Create))
                             {
                                 WebRequest.Create(url).GetResponse().GetResponseStream().CopyTo(fs);
                                 success = true;
@@ -503,6 +503,7 @@ namespace OPS.Landform
                     }
                 }
             });
+            return File.Exists(localPath) ? new FileInfo(localPath).Length : 0;
         }
 
         private bool ShouldDownload(string url)
@@ -515,7 +516,7 @@ namespace OPS.Landform
             return !storageHelper.FileSizeMatches(url, localPath);
         }
 
-        private void DownloadFiles(List<string> files)
+        private long DownloadFiles(List<string> files)
         {
             var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };
 
@@ -537,26 +538,41 @@ namespace OPS.Landform
             int remaining = remainingFilesToDownload.Count();
             int downloaded = 0;
             logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
+            long totalBytes = 0;
             CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
             {
-                DownloadFile(f);
+                long bytes = DownloadFile(f);
+                Interlocked.Add(ref totalBytes, bytes);
                 Interlocked.Increment(ref downloaded);
                 logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
                                   downloaded, remaining, (downloaded * 100) / remaining);
             });
+            return totalBytes;
         }
 
         public int Run()
         {
             var stopwatch = Stopwatch.StartNew();
+            long bytes = 0;
             if (options.Raw)
             {
-                DownloadFiles(StringHelper.ParseList(options.Input).ToList());
+                if (!string.IsNullOrEmpty(options.SearchLocations))
+                {
+                    logger.Error("must not specify search locations with --raw");
+                    return 1;
+                }
+                var files = StringHelper.ParseList(options.Input).ToList();
+                bytes += DownloadFiles(files);
             }
             else
             {
-                var sols = ExpandSolSpecifier(options.Input);
+                if (string.IsNullOrEmpty(options.SearchLocations))
+                {
+                    logger.Error("must specify search locations without --raw");
+                    return 1;
+                }
                 var locations = StringHelper.ParseList(options.SearchLocations);
+                var sols = ExpandSolSpecifier(options.Input);
                 logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols), string.Join(", ", locations));
                 
                 var solToProducts = new ConcurrentDictionary<string, List<string>>();
@@ -575,7 +591,7 @@ namespace OPS.Landform
                 {
                     var urls = CollectLatestUnifiedMeshes(solToProducts.SelectMany(s => s.Value).ToList());
                     logger.InfoFormat("downloading {0} unified meshes", urls.Count);
-                    DownloadFiles(urls);
+                    bytes += DownloadFiles(urls);
                     LoadUnifiedMeshes(urls.Select(url => LocalPath(url)).ToList());
                 }
 
@@ -585,9 +601,9 @@ namespace OPS.Landform
                     solToProducts[sol] = Filter(solToProducts[sol]);
                 }
                 
-                DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
+                bytes += DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
             }
-            logger.InfoFormat("total time: {0}", Fmt.HMS(stopwatch));
+            logger.InfoFormat("downloaded {0}, total time: {1}", Fmt.Bytes(bytes), Fmt.HMS(stopwatch));
             return 0;
         }
     }
