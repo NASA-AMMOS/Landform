@@ -635,6 +635,16 @@ namespace OPS.Pipeline
         {
             return CheckMetadata(parser, out string reason);
         }
+
+        public virtual string GetDefaultAWSRegion()
+        {
+            return "us-gov-west-1";
+        }
+
+        public virtual string GetDefaultAWSProfile()
+        {
+            return "credss-default";
+        }
     }
 
     public class MissionMSL : MissionSpecific

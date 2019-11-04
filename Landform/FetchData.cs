@@ -127,12 +127,24 @@ namespace OPS.Landform
             options.WithRGB |= options.WithIV;
             
             mission = MissionSpecific.GetInstance(options.Mission);
+
+            if (mission != null)
+            {
+                if (string.IsNullOrEmpty(options.AWSRegion))
+                {
+                    options.AWSRegion = mission.GetDefaultAWSRegion();
+                }
+                if (string.IsNullOrEmpty(options.AWSProfile))
+                {
+                    options.AWSProfile = mission.GetDefaultAWSProfile();
+                }
+            }
         }
 
         private class UnifiedMesh
         {
             public string Path;
-            public HashSet<RoverProductId> Wedges;
+            public HashSet<string> Wedges;
         }
 
         private Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>> unifiedMeshes =
