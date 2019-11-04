@@ -8,6 +8,7 @@ using System.IO;
 using System.Net;
 using System.Threading;
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
@@ -56,6 +57,12 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = null, HelpText = "Text file listing filenames or product IDs to exclude, one per line")]
         public string Exclude { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "comma separated list of observation wildcard patterns to include")]
+        public string IncludePattern { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "comma separated list of observation wildcard patterns to exclude")]
+        public string ExcludePattern { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Download PNG products")]
         public bool WithPNG { get; set; }
@@ -339,6 +346,14 @@ namespace OPS.Landform
                                              .Select(s => StringHelper.GetLastUrlPathSegment(s, stripExtension: true)));
             }
 
+            var includeRegex = StringHelper.ParseList(options.IncludePattern)
+                .Select(s => StringHelper.WildCardToRegularExression(s))
+                .ToList();
+
+            var excludeRegex = StringHelper.ParseList(options.ExcludePattern)
+                .Select(s => StringHelper.WildCardToRegularExression(s))
+                .ToList();
+
             var acceptedExtensions = new HashSet<string>();
             if (!options.NoPDS)
             {
@@ -455,7 +470,12 @@ namespace OPS.Landform
                 else if ((acceptedProductIds.Count > 0 && !acceptedProductIds.Contains(idStr)) ||
                          (rejectedProductIds.Count > 0 && rejectedProductIds.Contains(idStr)))
                 {
-                    reason = "excluded product id " + idStr;
+                    reason = "product excluded by list " + idStr;
+                }
+                else if ((includeRegex.Count > 0 && !includeRegex.Any(r => r.IsMatch(idStr))) ||
+                         (excludeRegex.Count > 0 && excludeRegex.Any(r => r.IsMatch(idStr))))
+                {
+                    reason = "product excluded by pattern " + idStr;
                 }
                 else
                 {
