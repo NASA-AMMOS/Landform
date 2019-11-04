@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -94,6 +95,9 @@ namespace OPS.Pipeline
             { "SR", RoverProductCamera.SuperCamRMI } //M2020
         };
 
+        private static ConcurrentDictionary<RoverProductCamera, string> invRDRCameraTypes =
+            new ConcurrentDictionary<RoverProductCamera, string>();
+
         public static RoverProductCamera FromPDSInstrumentID(string id)
         {
             if (pdsCameraTypes.ContainsKey(id))
@@ -112,6 +116,12 @@ namespace OPS.Pipeline
             return RoverProductCamera.Unknown;
         }
 
+        public static string ToRDRInstrumentID(RoverProductCamera cam)
+        {
+            return invRDRCameraTypes
+                .GetOrAdd(cam, _ => rdrCameraTypes.Where(e => e.Value == cam).Select(e => e.Key).First());
+        }
+        
         public static bool IsCamera(RoverProductCamera camType, RoverProductCamera cam)
         {
             switch (camType)

@@ -78,6 +78,15 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't download and use unified meshes for filtering")]
         public bool NoUnifiedMeshes { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Don't limit products from cameras used for geometry to only sitedrives with unified meshes for that camera")]
+        public bool NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Don't use unified meshes to filter raster products")]
+        public bool NoFilterRasterProductsByUnifiedMesh { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
+        public bool RespectUnifiedMeshStereoEye { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
         public string AWSProfile { get; set; }
 
@@ -163,9 +172,8 @@ namespace OPS.Landform
                         !id.IsSingleFrame() && id.IsSingleCamera() && id.IsSingleSiteDrive() &&
                         (mission == null || mission.CheckProductId(id)))
                     {
-                        //note: we rely on mission.CheckProductId() to allow only unified meshes for the correct cameras
+                        //rely on mission.CheckProductId() to allow only unified meshes for the correct cameras
                         //and also to filter linear/nonlinear if only one or the other is allowed
-
                         var sd = ((OPGSProductId)id).SiteDrive;
                         if (!latest.ContainsKey(sd))
                         {
@@ -187,7 +195,8 @@ namespace OPS.Landform
                             {
                                 latest[sd][id.Camera] = url;
                             }
-                            else if (id.Version > oldId.Version || id.GetSol() > oldId.GetSol())
+                            else if (id.GetSol() > oldId.GetSol() ||
+                                     (id.GetSol() == oldId.GetSol() && id.Version > oldId.Version))
                             {
                                 latest[sd][id.Camera] = url;
                             }
@@ -232,12 +241,12 @@ namespace OPS.Landform
             }
         }
 
-        private HashSet<RoverProductId> LoadUnifiedMesh(string path)
+        private HashSet<string> LoadUnifiedMesh(string path)
         {
             //#Inventor V2.0 ascii
             //File {name "./wedge/NLF_0000F0606540970_105RASLN0010024000309914_0N00LLJ00.iv"}
             //...
-            var ret = new HashSet<RoverProductId>();
+            var ret = new HashSet<string>();
             using (FileStream fs = File.OpenRead(path))
             {
                 using (StreamReader sr = new StreamReader(fs))
@@ -253,12 +262,7 @@ namespace OPS.Landform
                             if (start > 0 && start < line.Length - 1 && end > start && end < line.Length - 1)
                             {
                                 string wedge = line.Substring(start, end - start + 1);
-                                string idStr = StringHelper.GetLastUrlPathSegment(wedge, stripExtension: true);
-                                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                                if (id != null)
-                                {
-                                    ret.Add(id);
-                                }
+                                ret.Add(StringHelper.GetLastUrlPathSegment(wedge, stripExtension: true));
                             }
                         }
                     }
@@ -365,28 +369,84 @@ namespace OPS.Landform
 
             bool checkUnifiedMeshes(RoverProductId id)
             {
-                if (unifiedMeshes.Count == 0 || !(id is OPGSProductId) ||
-                    !RoverProduct.IsGeometry(id.ProductType) || RoverProduct.IsRaster(id.ProductType))
+                if (unifiedMeshes.Count == 0 || !(id is OPGSProductId))
                 {
                     return true;
                 }
+
+                //if the mission doesn't use geometry products from this camera then don't apply unified mesh filter
+                if (mission != null && !mission.UseGeometryProducts(id.Camera))
+                {
+                    return true;
+                }
+
+                //the mission uses geometry products from this camera
+                //apply the unified mesh filter to raster products from the camera as well
+                if (options.NoFilterRasterProductsByUnifiedMesh && RoverProduct.IsRaster(id.ProductType))
+                {
+                    return true;
+                }
+
                 var sd = ((OPGSProductId)id).SiteDrive;
                 if (!unifiedMeshes.ContainsKey(sd))
                 {
-                    return true;
+                    //the mission uses geometry products from this camera
+                    //but there are no unified meshes for this camera in this sitedrive
+                    return options.NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes;
                 }
-                if (!unifiedMeshes[sd].ContainsKey(id.Camera))
+
+                string idStr = id.FullId; //replace product type with "RAS" - unified mesh entries are always RAS
+                if (id.GetProductTypeSpan(out int pts, out int ptl) && ptl == 3)
+                {
+                    idStr = id.FullId.Substring(0, pts) + "RAS" + id.FullId.Substring(pts + ptl);
+                }
+                else
                 {
                     return true;
                 }
-                return unifiedMeshes[sd][id.Camera].Wedges.Contains(id);
+
+                //collect 0, 1, or 2 unified meshes for id.Camera and/or possibly the other camera in a stereo pair
+                var oc = RoverStereoPair.IsStereo(id.Camera) ? RoverStereoPair.GetOtherEye(id.Camera) : id.Camera;
+                var ums = unifiedMeshes[sd]
+                    .Where(e => e.Key == id.Camera || (!options.RespectUnifiedMeshStereoEye && e.Key == oc))
+                    .ToList();
+
+                if (ums.Count == 0)
+                {
+                    //the mission uses geometry products from this camera
+                    //but there are no unified meshes for this camera in this sitedrive
+                    return options.NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes;
+                }
+
+                string ocIdStr = null; //alternate ID for the other camera in a stereo pair
+                if (!options.RespectUnifiedMeshStereoEye && oc != id.Camera)
+                {
+                    string ocStr = RoverCamera.ToRDRInstrumentID(oc);
+                    if (id.GetInstrumentSpan(out int ins, out int inl) && inl == ocStr.Length)
+                    {
+                        ocIdStr = idStr.Substring(0, ins) + ocStr + idStr.Substring(ins + inl);
+                    }
+                }
+
+                foreach (var entry in ums)
+                {
+                    if (entry.Value.Wedges.Contains(entry.Key == id.Camera ? idStr : ocIdStr))
+                    {
+                        return true;
+                    }
+                }
+
+                //the mission uses geometry products from this camera
+                //and there is at least one unified mesh for this camera in this sitedrive
+                //but this product isn't in it
+                return false;
             }
 
             var filtered = new List<string>();
-            foreach (var p in products)
+            foreach (var product in products.OrderBy(p => p)) //sort makes spew more readable
             {
-                string ext = StringHelper.GetUrlExtension(p).ToUpper();
-                string idStr = StringHelper.GetLastUrlPathSegment(p, stripExtension: true);
+                string ext = StringHelper.GetUrlExtension(product).ToUpper();
+                string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
                 string reason = null;
                 if (!acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 means let nothing in
                 {
@@ -408,9 +468,9 @@ namespace OPS.Landform
                     {
                         reason = "excluded unified mesh";
                     }
-                    else if (mission != null && !mission.CheckProductId(id))
+                    else if (mission != null && !mission.CheckProductId(id, out string msReason))
                     {
-                        reason = "disallowed product id for " + mission.Name();
+                        reason = "disallowed product id for " + mission.Name() + ": " + msReason;
                     }
                     else if (acceptedSiteDrives.Length > 0 && id is OPGSProductId &&
                              !acceptedSiteDrives.Any(asd => asd == ((OPGSProductId)id).SiteDrive))
@@ -422,13 +482,9 @@ namespace OPS.Landform
                     {
                         reason = "excluded camera " + id.Camera;
                     }
-                    else if (!checkUnifiedMeshes(id))
-                    {
-                        reason = "not in unified mesh " + unifiedMeshes[((OPGSProductId)id).SiteDrive][id.Camera].Path;
-                    }
                     else
                     {
-                        filtered.Add(p);
+                        filtered.Add(product);
                     }
                 }
                 if (options.Verbose && !string.IsNullOrEmpty(reason))
@@ -452,14 +508,53 @@ namespace OPS.Landform
             //note that using RoverObservationComparator in downstream code is still valuable
             //e.g. in workflows where multiple fetches could be done at different times
             //possibly resulting in multiple versions of a file still being downloaded
-            //Note: the mission.CheckFilename() call above already ensured that RoverProductId.Parse() will succeed
-            filtered = RoverObservationComparator.FilterProductIdGroups(filtered).ToList();
+            //Note: the mission.CheckProductId() call above already ensured that RoverProductId.Parse() will succeed
+            int nf = filtered.Count;
+            filtered = filtered
+                .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
+                .SelectMany(files => RoverObservationComparator.FilterProductIdGroups(files, mission))
+                .ToList();
+            logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
 
+            //if there is a unified mesh for a given sitedrive and camera
+            //then only keep geometry products that are named in it
+            //apply this filter after RoverObservationComparator.FilterProductIdGroups()
+            //because that might remove e.g. a right eye geometry product if there is a corresponding left eye product
+            //but the left eye product might also get removed by the unified mesh filter
+            var umFiltered = new List<string>();
+            foreach (var product in filtered)
+            {
+                string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
+                var id = RoverProductId.Parse(idStr, mission); //all ids should parse at this point
+                if (checkUnifiedMeshes(id))
+                {
+                    umFiltered.Add(product);
+                }
+                else if (options.Verbose)
+                { 
+                    //checkUnifiedMeshes() = false implies that id is an OPGSProductId
+                    var sd = ((OPGSProductId)id).SiteDrive;
+                    var cam = id.Camera;
+                    var oc = RoverStereoPair.IsStereo(cam) ? RoverStereoPair.GetOtherEye(cam) : cam;
+                    string path = null;
+                    if (unifiedMeshes.ContainsKey(sd))
+                    {
+                        var ums = unifiedMeshes[sd];
+                        path = ums.ContainsKey(cam) ? ums[cam].Path : ums.ContainsKey(oc) ? ums[oc].Path : null;
+                    }
+                    logger.InfoFormat("rejected {0}: not in unified mesh{1}",
+                                      idStr, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
+                }
+            }
+            logger.InfoFormat("unified meshes rejected {0} products", filtered.Count - umFiltered.Count);
+            filtered = umFiltered;
+            
             logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
                               products.Count, filtered.Count,
                               acceptedSiteDrives.Count() > 0 ? String.Join(",", acceptedSiteDrives) : "(all)",
                               String.Join(",", acceptedExtensions.ToList()),
                               acceptedProductIds != null ? acceptedProductIds.Count.ToString() : "no");
+
             return filtered;
         }
 
