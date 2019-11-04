@@ -773,7 +773,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (id.Producer == RoverProductProducer.OPGS)
+            if (id is MSLOPGSProductId)
             {
                 MSLOPGSProductId opgsId = (MSLOPGSProductId)id;
                 string spec = opgsId.Spec.ToUpper();
@@ -797,9 +797,8 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (id.Producer == RoverProductProducer.MSSS)
+            if (id is MSLMSSSProductId)
             {
-                // Check that this is a DCX file
                 MSLMSSSProductId msssId = (MSLMSSSProductId)id;
                 if (!msssId.RadiometricallyCalibrated || !msssId.ColorCorrected || !msssId.Decompressed)
                 {
