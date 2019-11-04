@@ -426,11 +426,11 @@ namespace OPS.Pipeline
                                           string cameras, string geometry, string version, string size,
                                           int site, int drive, string spec, string eye, int sol,
                                           bool multiSol, bool multiSite, bool multiDrive, string meshId)
-            : base(fullId, producer, "XYZ", cameras, geometry, /* color */ "", version, size, site, drive, spec)
+            : base(fullId, producer, "XYZ", cameras + eye, geometry, /* color */ "", version, size, site, drive, spec)
         {
-            this.Cameras = ParseCameras(cameras);
+            this.Cameras = ParseCameras(cameras, eye);
             this.TextureProductType = ParseProductType(textureProductType);
-            this.StereoEye = ParseEye(eye);
+            this.StereoEye = ParseEye(eye[0]);
             this.Sol = sol;
             this.MultiSol = multiSol;
             this.MultiSite = multiSite;
@@ -468,16 +468,27 @@ namespace OPS.Pipeline
             string venue = productId.Substring(us + 29, 1);
             string ver = productId.Substring(us + 30, 1);
 
-            if (!int.TryParse(solStr, out int sol) || //TODO
+            if (!int.TryParse(solStr, out int sol) || //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/794
                 !int.TryParse(siteStr, out int site) ||
                 !int.TryParse(driveStr, out int drive))
             {
                 return null;
             }
 
-            if (!bool.TryParse(multiSolStr, out bool multiSol) ||
-                !bool.TryParse(multiSiteStr, out bool multiSite) ||
-                !bool.TryParse(multiDriveStr, out bool multiDrive))
+            bool parseFlag(string flag, out bool value)
+            {
+                value = false;
+                switch (flag.ToUpper())
+                {
+                    case "_": return true;
+                    case "X": value = true; return true;
+                    default: return false;
+                }
+            }
+
+            if (!parseFlag(multiSolStr, out bool multiSol) ||
+                !parseFlag(multiSiteStr, out bool multiSite) ||
+                !parseFlag(multiDriveStr, out bool multiDrive))
             {
                 return null;
             }
@@ -504,23 +515,23 @@ namespace OPS.Pipeline
             return !MultiSite && !MultiDrive;
         }
 
-        private RoverProductCamera[] ParseCameras(string cameras)
+        private RoverProductCamera[] ParseCameras(string cameras, string eye)
         {
             var ret = new List<RoverProductCamera>();
             foreach (char camera in (cameras ?? ""))
             {
-                ret.Add(ParseCamera(camera));
+                ret.Add(ParseCamera(camera, eye[0]));
             }
             return ret.ToArray();
         }
 
         protected override RoverProductCamera ParseCamera(string cameras)
         {
-            if (string.IsNullOrEmpty(cameras))
+            if (string.IsNullOrEmpty(cameras) || cameras.Length < 2)
             {
                 return RoverProductCamera.Unknown;
             }
-            return ParseCamera(cameras[0]);
+            return ParseCamera(cameras[0], cameras[cameras.Length - 1]);
         }
 
         protected override RoverProductColor ParseColor(string color, string camera)
@@ -572,14 +583,19 @@ namespace OPS.Pipeline
             return Sol;
         }
 
-        private RoverProductCamera ParseCamera(char camera)
+        private RoverProductCamera ParseCamera(char camera, char eyeChar)
         {
+            var eye = ParseEye(eyeChar);
             switch (camera)
             {
-                case 'F': return RoverProductCamera.FrontHazcam;
-                case 'R': return RoverProductCamera.RearHazcam;
-                case 'N': return RoverProductCamera.Navcam;
-                case 'M': return RoverProductCamera.Mastcam;
+                case 'F': return eye == RoverStereoEye.Left ? RoverProductCamera.FrontHazcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.FrontHazcamRight : RoverProductCamera.FrontHazcam;
+                case 'R': return eye == RoverStereoEye.Left ? RoverProductCamera.RearHazcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.RearHazcamRight : RoverProductCamera.RearHazcam;
+                case 'N': return eye == RoverStereoEye.Left ? RoverProductCamera.NavcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.NavcamRight : RoverProductCamera.Navcam;
+                case 'M': return eye == RoverStereoEye.Left ? RoverProductCamera.MastcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.MastcamRight : RoverProductCamera.Mastcam;
                 case 'H': return RoverProductCamera.MAHLI;
                 case 'O': return RoverProductCamera.Unknown; //orbiter
                 case 'A': return RoverProductCamera.Unknown; //all six instruments
@@ -587,15 +603,15 @@ namespace OPS.Pipeline
             }
         }
 
-        private RoverStereoEye ParseEye(string eye)
+        private RoverStereoEye ParseEye(char eye)
         {
             switch (eye)
             {
-                case "L": return RoverStereoEye.Left;
-                case "R": return RoverStereoEye.Right;
-                case "M": return RoverStereoEye.Mono;
-                case "N": return RoverStereoEye.Any; //not applicable
-                case "X": return RoverStereoEye.Any; //mixed
+                case 'L': return RoverStereoEye.Left;
+                case 'R': return RoverStereoEye.Right;
+                case 'M': return RoverStereoEye.Mono;
+                case 'N': return RoverStereoEye.Any; //not applicable
+                case 'X': return RoverStereoEye.Any; //mixed
                 default: return RoverStereoEye.Any;
             }
         }
