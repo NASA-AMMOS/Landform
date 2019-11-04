@@ -187,36 +187,68 @@ namespace OPS.Pipeline
             return value;
         }
 
-        protected virtual bool GetVersionSpan(out int start, out int length)
+        public virtual bool GetVersionSpan(out int start, out int length)
         {
             start = length = -1;
             return false;
         }
 
-        protected virtual bool GetProductTypeSpan(out int start, out int length)
+        public virtual bool GetProductTypeSpan(out int start, out int length)
         {
             start = length = -1;
             return false;
         }
 
-        protected virtual bool GetGeometrySpan(out int start, out int length)
+        public virtual bool GetGeometrySpan(out int start, out int length)
         {
             start = length = -1;
             return false;
         }
 
-        protected virtual bool GetColorFilterSpan(out int start, out int length)
+        public virtual bool GetColorFilterSpan(out int start, out int length)
         {
             start = length = -1;
             return false;
+        }
+
+        public virtual bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public string GetPartialId(int start, int length)
+        {
+            return FullId.Substring(start, length);
         }
 
         public virtual string GetPartialId(bool includeVersion = true, bool includeProductType = true,
-                                           bool includeGeometry = true, bool includeColorFilter = true)
+                                           bool includeGeometry = true, bool includeColorFilter = true,
+                                           bool includeInstrument = true, bool includeVariants = true)
+        {
+            return GetPartialId(null, includeVersion, includeProductType, includeGeometry, includeColorFilter,
+                                includeInstrument, includeVariants);
+        }
+
+        public virtual string GetPartialId(MissionSpecific mission, bool includeVersion = true,
+                                           bool includeProductType = true, bool includeGeometry = true,
+                                           bool includeColorFilter = true, bool includeInstrument = true,
+                                           bool includeVariants = true)
         {
             string ret = FullId;
             int start, length;
             var spans = new List<int[]>();
+            if (!includeVariants)
+            {
+                if (mission != null)
+                {
+                    spans.AddRange(mission.GetProductIdVariantSpans(this));
+                }
+                else
+                {
+                    includeVersion = false;
+                }
+            }
             if (!includeVersion && GetVersionSpan(out start, out length))
             {
                 spans.Add(new int[] { start, length });
@@ -230,6 +262,10 @@ namespace OPS.Pipeline
                 spans.Add(new int[] { start, length });
             }
             if (!includeColorFilter && GetColorFilterSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeInstrument && GetInstrumentSpan(out start, out length))
             {
                 spans.Add(new int[] { start, length });
             }
@@ -381,31 +417,38 @@ namespace OPS.Pipeline
             }
         }
 
-        protected override bool GetVersionSpan(out int start, out int length)
+        public override bool GetVersionSpan(out int start, out int length)
         {
             start = 35;
             length = 1;
             return true;
         }
 
-        protected override bool GetProductTypeSpan(out int start, out int length)
+        public override bool GetProductTypeSpan(out int start, out int length)
         {
             start = 13;
             length = 3;
             return true;
         }
 
-        protected override bool GetGeometrySpan(out int start, out int length)
+        public override bool GetGeometrySpan(out int start, out int length)
         {
             start = 16;
             length = 1;
             return true;
         }
 
-        protected override bool GetColorFilterSpan(out int start, out int length)
+        public override bool GetColorFilterSpan(out int start, out int length)
         {
             start = 2;
             length = 1;
+            return true;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = 0;
+            length = 2;
             return true;
         }
     }
@@ -539,7 +582,7 @@ namespace OPS.Pipeline
             return RoverProductColor.Unknown;
         }
 
-        protected override bool GetVersionSpan(out int start, out int length)
+        public override bool GetVersionSpan(out int start, out int length)
         {
             start = length = -1;
             int us = FullId.IndexOf('_');
@@ -552,14 +595,14 @@ namespace OPS.Pipeline
             return true;
         }
 
-        protected override bool GetProductTypeSpan(out int start, out int length)
+        public override bool GetProductTypeSpan(out int start, out int length)
         {
             //prodType in a unified mesh ID is actually the type of the texture product
             start = length = -1;
             return false;
         }
 
-        protected override bool GetGeometrySpan(out int start, out int length)
+        public override bool GetGeometrySpan(out int start, out int length)
         {
             start = length = -1;
             int us = FullId.IndexOf('_');
@@ -572,10 +615,23 @@ namespace OPS.Pipeline
             return true;
         }
 
-        protected override bool GetColorFilterSpan(out int start, out int length)
+        public override bool GetColorFilterSpan(out int start, out int length)
         {
             start = length = -1;
             return false;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = 0;
+            length = us + 2;
+            return true;
         }
 
         public override int GetSol()
@@ -698,30 +754,37 @@ namespace OPS.Pipeline
             }
         }
 
-        protected override bool GetVersionSpan(out int start, out int length)
+        public override bool GetVersionSpan(out int start, out int length)
         {
             start = 24;
             length = 1;
             return true;
         }
 
-        protected override bool GetProductTypeSpan(out int start, out int length)
+        public override bool GetProductTypeSpan(out int start, out int length)
         {
             start = length = -1;
             return false;
         }
 
-        protected override bool GetGeometrySpan(out int start, out int length)
+        public override bool GetGeometrySpan(out int start, out int length)
         {
             start = 26;
             length = 4;
             return true;
         }
 
-        protected override bool GetColorFilterSpan(out int start, out int length)
+        public override bool GetColorFilterSpan(out int start, out int length)
         {
             start = 22;
             length = 1;
+            return true;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = 4;
+            length = 2;
             return true;
         }
 
@@ -849,31 +912,38 @@ namespace OPS.Pipeline
             }
         }
 
-        protected override bool GetVersionSpan(out int start, out int length)
+        public override bool GetVersionSpan(out int start, out int length)
         {
             start = 52;
             length = 2;
             return true;
         }
 
-        protected override bool GetProductTypeSpan(out int start, out int length)
+        public override bool GetProductTypeSpan(out int start, out int length)
         {
             start = 23;
             length = 3;
             return true;
         }
 
-        protected override bool GetGeometrySpan(out int start, out int length)
+        public override bool GetGeometrySpan(out int start, out int length)
         {
             start = 26;
             length = 1;
             return true;
         }
 
-        protected override bool GetColorFilterSpan(out int start, out int length)
+        public override bool GetColorFilterSpan(out int start, out int length)
         {
             start = 2;
             length = 1;
+            return true;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = 0;
+            length = 2;
             return true;
         }
 

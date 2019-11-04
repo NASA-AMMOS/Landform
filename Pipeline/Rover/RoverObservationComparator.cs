@@ -10,21 +10,25 @@ namespace OPS.Pipeline
     public class RoverObservationComparator : IComparer<RoverObservation>
     {
         private bool preferMSSSToOPGS, preferLinearToNonlinear, preferColorToGrayscale;
+        private RoverStereoEye preferEyeForGeometry;
+        private Func<RoverObservation, RoverObservation, int> ext;
         
-        public RoverObservationComparator(bool preferMSSS, bool preferLinear, bool preferColor)
+        public RoverObservationComparator(bool preferMSSS, bool preferLinear, bool preferColor,
+                                          RoverStereoEye preferEyeForGeometry,
+                                          Func<RoverObservation, RoverObservation, int> ext = null)
         {
             this.preferMSSSToOPGS = preferMSSS;
             this.preferLinearToNonlinear = preferLinear;
             this.preferColorToGrayscale = preferColor;
+            this.preferEyeForGeometry = preferEyeForGeometry;
+            this.ext = ext;
         }
         
+        // 0 if a and b are equivalently good
+        // negative if a is "better" than b
+        // positive if a is "worse than" b
         public int Compare(RoverObservation a, RoverObservation b)
         {
-            // Return should be:
-            // negative if a is "better" than b
-            // 0 if a and b are equivalently good
-            // positive if a is "worse than" b
-            
             // always prefer XYZ to RNG if both are available
             // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
             if (a.ObservationType == RoverProductType.Points && b.ObservationType == RoverProductType.Range)
@@ -64,8 +68,7 @@ namespace OPS.Pipeline
             }
 
             // sort next by linear-ness
-            var linearA = a.IsLinear;
-            var linearB = b.IsLinear;
+            bool linearA = a.IsLinear, linearB = b.IsLinear;
             if (linearA && !linearB)
             {
                 return preferLinearToNonlinear ? -1 : 1;
@@ -74,8 +77,40 @@ namespace OPS.Pipeline
             {
                 return preferLinearToNonlinear ? 1 : -1;
             }
-            
-            // finally sort by version, prefer higher versions
+
+            //fine-grained comparisons from here down
+            //but allow comparing between eyes, e.g. NavcamLeft to NavcamRight and colors
+            if (a.StereoFrameName != b.StereoFrameName || a.ObservationType != b.ObservationType ||
+                a.Producer != b.Producer)
+            {
+                return 0;
+            }
+
+            RoverStereoEye aEye = a.StereoEye, bEye = b.StereoEye;
+            if (preferEyeForGeometry != RoverStereoEye.Any && aEye != bEye &&
+                (aEye == preferEyeForGeometry || bEye == preferEyeForGeometry) &&
+                RoverProduct.IsGeometry(a.ObservationType) && !RoverProduct.IsRaster(a.ObservationType) &&
+                RoverProduct.IsGeometry(b.ObservationType) && !RoverProduct.IsRaster(b.ObservationType))
+            {
+                return aEye == preferEyeForGeometry ? -1 : 1;
+            }
+
+            //only compare same camera observations (e.g. NavcamLeft to NavcamLeft) from here down
+            if (a.Camera != b.Camera || a.Color != b.Color)
+            {
+                return 0;
+            }
+
+            if (ext != null)
+            {
+                var ev = ext(a, b);
+                if (ev != 0)
+                {
+                    return ev;
+                }
+            }
+
+            // prefer higher versions
             return b.Version - a.Version;
         }
 
@@ -208,11 +243,24 @@ namespace OPS.Pipeline
                 return ids.Where(id => id.Color == best);
             }
 
+            IEnumerable<RoverProductId> filterEye(IEnumerable<RoverProductId> ids, RoverStereoEye preferEyeForGeometry)
+            {
+                bool hasLeft = ids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Left));
+                bool hasRight = ids.Any(id => RoverStereoPair.IsStereoEye(id.Camera, RoverStereoEye.Right));
+                return ids.Where(id => RoverProduct.IsRaster(id.ProductType) ||
+                                 !RoverProduct.IsGeometry(id.ProductType) || !hasLeft || !hasRight ||
+                                 RoverStereoPair.IsStereoEye(id.Camera, preferEyeForGeometry));
+            }
+
             var idToProduct = new Dictionary<RoverProductId, string>();
             foreach (var product in products)
             {
                 string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
-                idToProduct[RoverProductId.Parse(idStr, mission)] = product;
+                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                if (id != null)
+                {
+                    idToProduct[id] = product;
+                }
             }
 
             //filter each type of ID separately
@@ -232,7 +280,7 @@ namespace OPS.Pipeline
 
                 //skip RNG if XYZ is available
                 filtered = filtered
-                    .GroupBy(id => id.GetPartialId(includeProductType: false))
+                    .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
                     .SelectMany(ids => filterRNG(ids))
                     .ToList();
 
@@ -241,7 +289,7 @@ namespace OPS.Pipeline
                 {
                     bool preferLinearToNonlinear = mission.PreferLinearToNonlinear();
                     filtered = filtered
-                        .GroupBy(id => id.GetPartialId(includeGeometry: false))
+                        .GroupBy(id => id.GetPartialId(mission, includeGeometry: false, includeVariants: false))
                         .SelectMany(ids => filterGeometry(ids, preferLinearToNonlinear))
                         .ToList();
                 }
@@ -250,10 +298,27 @@ namespace OPS.Pipeline
                 //also if multiple grayscale bands are available, keep the preferred one
                 bool preferColorToGrayscale = mission != null ? mission.PreferColorToGrayscale() : true;
                 filtered = filtered
-                    .GroupBy(id => id.GetPartialId(includeColorFilter: false))
+                    .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false, includeVariants: false))
                     .SelectMany(ids => filterColor(ids, preferColorToGrayscale))
                     .ToList();
-            
+
+                //keep preferred eye for geometry products
+                var preferEyeForGeometry = mission != null ? mission.PreferEyeForGeometry() : RoverStereoEye.Any;
+                if (preferEyeForGeometry != RoverStereoEye.Any)
+                {
+                    filtered = filtered
+                        .GroupBy(id => RoverStereoPair.GetStereoCamera(id.Camera) +
+                                 id.GetPartialId(mission, includeInstrument: false, includeColorFilter: false,
+                                                 includeVariants: false))
+                        .SelectMany(ids => filterEye(ids, preferEyeForGeometry))
+                        .ToList();
+                }
+
+                if (mission != null)
+                {
+                    filtered = mission.FilterProductIdGroups(filtered).ToList();
+                }
+
                 foreach (var id in filtered)
                 {
                     yield return idToProduct[id];

@@ -3,12 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Util;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19 }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4 }
 
     public abstract class MissionSpecific
     {
@@ -20,6 +21,7 @@ namespace OPS.Pipeline
                 case Mission.MSL: return new MissionMSL();
                 case Mission.M2020: return new MissionM2020();
                 case Mission.ROASTT19: return new MissionROASTT19();
+                case Mission.TT4: return new MissionTT4();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -99,7 +101,16 @@ namespace OPS.Pipeline
         {
             return new RoverObservationComparator(PreferMSSSToOPGS(),
                                                   PreferLinearToNonlinear(),
-                                                  PreferColorToGrayscale());
+                                                  PreferColorToGrayscale(),
+                                                  PreferEyeForGeometry());
+        }
+
+        /// <summary>
+        /// see RoverObservationComparator.FilterProductIdGroups()  
+        /// </summary>
+        public virtual IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
+        {
+            return products;
         }
 
         public virtual RoverProductGeometry[] GetLinearPreference()
@@ -545,6 +556,15 @@ namespace OPS.Pipeline
             return CheckProductId(id, out string reason);
         }
 
+        public virtual IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
+        {
+            if (id.GetVersionSpan(out int start, out int length))
+            {
+                yield return new int[] { start, length };
+            }
+            yield break;
+        }
+
         /// <summary>
         /// Mostly just confirms what CheckFilename() did using metadata instead of the filename
         /// but some things are only checked by one or the other
@@ -860,6 +880,14 @@ namespace OPS.Pipeline
 
     public class MissionM2020 : MissionSpecific
     {
+        public const int EECAM_DOWNSAMPLE_FIELD = 46;
+        public const int EECAM_RECONSTRUCTION_FIELD = 47;
+        public const int DOWNSAMPLE_FIELD = 48;
+        public const int COMPRESSION_FIELD = 49;
+        public const int COMPRESSION_FIELD_LENGTH = 2;
+        public const int VERSION_FIELD = 52;
+        public const int VERSION_FIELD_LENGTH = 2;
+
         public override string Name()
         {
             return "M2020";
@@ -875,7 +903,7 @@ namespace OPS.Pipeline
             }
             catch (MetadataException)
             {
-                return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetSol();
+                return RoverProductId.Parse(parser.ProductIdString, this).GetSol();
             }
         }
 
@@ -908,6 +936,123 @@ namespace OPS.Pipeline
         public override double? GetMaximumFocusDistance(PDSMetadata metadata)
         {
             throw new NotImplementedException("max focus distance not implemented for 2020 instruments yet");
+        }
+
+        public override RoverObservationComparator GetRoverObservationComparator()
+        {
+            // 0 if a and b are equivalently good
+            // negative if a is "better" than b
+            // positive if a is "worse than" b
+            int ext(RoverObservation a, RoverObservation b)
+            {
+                if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
+                {
+                    //EECAM reconstruction counter 0-9A-Z
+                    //prefer higher, precedence over version, downsample, compression
+                    char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
+                    char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
+                    if (rcA != rcB)
+                    {
+                        return rcB - rcA;
+                    }
+
+                    //EECAM downsampling A,L,M,N, prefer higher, precedence over compression and version
+                    char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
+                    char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
+                    if (edsA != edsB)
+                    {
+                        return edsB - edsA;
+                    }
+                }
+
+                //downsample 0-3, prefer lower, precedence over compression and version
+                char dsA = a.Name[DOWNSAMPLE_FIELD];
+                char dsB = b.Name[DOWNSAMPLE_FIELD];
+                if (dsA != dsB)
+                {
+                    return dsA - dsB;
+                }
+
+                //compresion, prefer higher, precedence over version
+                int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
+                int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
+                if (compA != compB)
+                {
+                    return compB - compA;
+                }
+
+                return 0;
+            }
+
+            return new RoverObservationComparator(PreferMSSSToOPGS(),
+                                                  PreferLinearToNonlinear(),
+                                                  PreferColorToGrayscale(),
+                                                  PreferEyeForGeometry(),
+                                                  ext);
+        }
+
+        public override IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
+        {
+            IEnumerable<RoverProductId> filterEECAM(IEnumerable<RoverProductId> ids, int idx)
+            {
+                char max = ids
+                    .Where(id => IsHazcam(id.Camera) || IsNavcam(id.Camera))
+                    .Select(id => id.FullId[idx])
+                    .Max();
+                return ids.Where(id => !(IsHazcam(id.Camera) || IsNavcam(id.Camera)) || id.FullId[idx] == max);
+            }
+
+            //EECAM reconstruction counter 0-9A-Z (prefer higher, precedence over version, downsample, and compression)
+            products = products
+                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
+                .SelectMany(ids => filterEECAM(ids, EECAM_RECONSTRUCTION_FIELD))
+                .ToList();
+
+            //EECAM downsampling A,L,M,N (prefer higher, precedence over version, downsample, and compression)
+            products = products
+                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
+                .SelectMany(ids => filterEECAM(ids, EECAM_DOWNSAMPLE_FIELD))
+                .ToList();
+
+            //downsample 0-3 (prefer lower, precedence over version and compression)
+            products = products
+                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
+                .Select(ids => ids.OrderBy(id => id.FullId[DOWNSAMPLE_FIELD]).First())
+                .ToList();
+
+            //compresion (prefer higher, precedence over version)
+            int cf = COMPRESSION_FIELD, cfl = COMPRESSION_FIELD_LENGTH;
+            products = products
+                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
+                .Select(ids => ids.OrderByDescending(id => CompressionPreference(id.GetPartialId(cf, cfl))).First())
+                .ToList();
+
+            return products;
+        }
+
+        public int CompressionPreference(string compression)
+        {
+            compression = compression.ToUpper();
+            if (compression.StartsWith("L")) //lossless
+            {
+                return 300;
+            }
+            else if (compression.StartsWith("I")) //ICER
+            {
+                return 200;
+            }
+            else if (compression == "A0") //JPEG quality 100
+            {
+                return 100;
+            }
+            else if (int.TryParse(compression, out int jpegQuality))
+            {
+                return jpegQuality;
+            }
+            else
+            {
+                return -1;
+            }
         }
 
         public override RoverMasker GetMasker()
@@ -944,7 +1089,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (id.Producer == RoverProductProducer.OPGS)
+            if (id is M2020OPGSProductId)
             {
                 M2020OPGSProductId opgsId = (M2020OPGSProductId)id;
                 string spec = opgsId.Spec.ToUpper();
@@ -954,8 +1099,17 @@ namespace OPS.Pipeline
                     return false;
                 }
 
-                //TODO check other Spec values, Camspec, Downsample, Compression
-                //https://github.jpl.nasa.gov/OnSight/Landform/issues/754
+                var camspec = opgsId.Camspec.ToUpper();
+                if (IsHazcam(id.Camera) || IsNavcam(id.Camera) || IsMastcam(id.Camera))
+                {
+                    var stereoPartner = camspec.Substring(0, 1);
+                    if (stereoPartner != "_")
+                    {
+                        reason = "stereo partner " + stereoPartner;
+                    }
+                }
+
+                //downsample and compression handled in RoverObservationComparator
 
                 if (opgsId.Color == RoverProductColor.Unknown)
                 {
@@ -972,15 +1126,26 @@ namespace OPS.Pipeline
 
             return true;
         }
+
+        public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
+        {
+            foreach (var span in base.GetProductIdVariantSpans(id))
+            {
+                yield return span;
+            }
+            if (id is M2020OPGSProductId)
+            {
+                yield return new int[] { EECAM_DOWNSAMPLE_FIELD, 1 };
+                yield return new int[] { EECAM_RECONSTRUCTION_FIELD, 1 };
+                yield return new int[] { DOWNSAMPLE_FIELD, 1 };
+                yield return new int[] { COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH };
+            }
+            yield break;
+        }
     }
 
     public class MissionROASTT19 : MissionM2020 
     {
-        public override string Name()
-        {
-            return "ROASTT19";
-        }
-
         // ROASTT19: bug prevents RMC from being used for frame names. This workaround
         // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
@@ -992,6 +1157,23 @@ namespace OPS.Pipeline
         public override RoverProductCamera GetCamera(PDSParser parser)
         {
             return TranslateCamera(RoverProductId.Parse(parser.ProductIdString, this).Camera);
+        }
+    }
+
+    public class MissionTT4 : MissionM2020
+    {
+        public const int SEQUENCE_FIELD = 35; 
+        public const int SEQUENCE_FIELD_LENGTH = 9; 
+
+        //TT4: sequence number is bumped for different variants
+        public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
+        {
+            foreach (var span in base.GetProductIdVariantSpans(id))
+            {
+                yield return span;
+            }
+            yield return new int[] { SEQUENCE_FIELD, SEQUENCE_FIELD_LENGTH };
+            yield break;
         }
     }
 }
