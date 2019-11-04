@@ -539,9 +539,7 @@ namespace OPS.Landform
                 .ToList();
             logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
 
-            //if there is a unified mesh for a given sitedrive and camera
-            //then only keep geometry products that are named in it
-            //apply this filter after RoverObservationComparator.FilterProductIdGroups()
+            //apply unified mesh filter after RoverObservationComparator.FilterProductIdGroups()
             //because that might remove e.g. a right eye geometry product if there is a corresponding left eye product
             //but the left eye product might also get removed by the unified mesh filter
             var umFiltered = new List<string>();
