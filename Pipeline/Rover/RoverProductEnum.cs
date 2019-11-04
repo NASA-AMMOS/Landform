@@ -404,12 +404,23 @@ namespace OPS.Pipeline
                 return StereoCams[index];
             }
 
-            if (StereoCams.Contains(cam))
-            {
-                return cam;
-            }
+            return cam;
+        }
 
-            throw new ArgumentException("not a stereo camera: " + cam);
+        public static RoverStereoEye ParseEyeForGeometry(string eye, MissionSpecific mission)
+        {
+            if (mission != null && eye.ToLower() == "auto")
+            {
+                return mission.PreferEyeForGeometry();
+            }
+            else if (Enum.TryParse<RoverStereoEye>(eye, true, out RoverStereoEye ret))
+            {
+                return ret;
+            }
+            else
+            {
+                throw new ArgumentException("unknown stereo eye: " + eye);
+            }
         }
     }
 }

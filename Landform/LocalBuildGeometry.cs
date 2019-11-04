@@ -30,6 +30,9 @@ namespace OPS.Landform
         [Option(HelpText = "Scene mesh decimation method, MeshLab or EdgeCollapse", Default = MeshDecimationProvider.MeshLab)]
         public MeshDecimationProvider SceneMeshDecimator { get; set; }
 
+        [Option(HelpText = "Stereo eye to prefer (auto, left, right, any)", Default = "auto")]
+        public string StereoEye { get; set; }
+
         [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
 
@@ -47,6 +50,7 @@ namespace OPS.Landform
         private LocalBuildGeometryOptions options;
 
         private Observation[] onlyForObs;
+        private RoverStereoEye stereoEye;
 
         private BoundingBox meshBounds;
 
@@ -101,6 +105,8 @@ namespace OPS.Landform
 
             onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
 
+            stereoEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
+
             return true;
         }
 
@@ -116,9 +122,9 @@ namespace OPS.Landform
 
         private void BuildMesh()
         {
-            mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
-                                              frameCache, observationCache, meshFrame, options.UsePriors,
-                                              options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine,
+            mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds, frameCache, observationCache,
+                                              meshFrame, options.UsePriors, options.OnlyAligned,
+                                              options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
 
             if (mesh == null || mesh.Faces.Count == 0)

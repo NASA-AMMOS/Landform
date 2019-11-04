@@ -127,6 +127,11 @@ namespace OPS.Pipeline
             return new RoverProductGeometry[] { RoverProductGeometry.Raw, RoverProductGeometry.Linearized };
         }
 
+        public virtual RoverStereoEye PreferEyeForGeometry()
+        {
+            return RoverStereoEye.Left;
+        }
+
         public abstract RoverMasker GetMasker();
 
         public virtual bool IsNavcam(RoverProductCamera camera)

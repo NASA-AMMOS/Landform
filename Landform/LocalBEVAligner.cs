@@ -47,8 +47,8 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command - always loads priors", Default = null)]
         public override string AdjustedTransformSources { get; set; }
 
-        [Option(HelpText = "Stereo eye to prefer", Default = RoverStereoEye.Left)]
-        public RoverStereoEye StereoEye { get; set; }
+        [Option(HelpText = "Stereo eye to prefer", Default = "auto")]
+        public string StereoEye { get; set; }
 
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
@@ -376,9 +376,10 @@ namespace OPS.Landform
             };
             meshObservations = WedgeObservations.Collect(frameCache, observationCache, opts);
 
-            if (options.StereoEye != RoverStereoEye.Any)
+            var stereoEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
+            if (stereoEye != RoverStereoEye.Any)
             {
-                meshObservations = WedgeObservations.FilterForEye(meshObservations, options.StereoEye).ToList(); 
+                meshObservations = WedgeObservations.FilterForEye(meshObservations, stereoEye).ToList(); 
             }
         
             //for now lexicographically sort siteDrives so that older ones come before newer

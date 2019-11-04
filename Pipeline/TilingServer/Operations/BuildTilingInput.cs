@@ -51,7 +51,7 @@ namespace OPS.Pipeline.TilingServer
             LogInfo("building mesh");
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
-                                          onlyForCameras: null, useCleverCombine: false, 
+                                          onlyForCameras: null, useCleverCombine: false, stereoEye: RoverStereoEye.Left,
                                           info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); });
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
@@ -84,10 +84,10 @@ namespace OPS.Pipeline.TilingServer
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
                                      bool usePriors, bool noPriors, string onlyForCameras = null,
-                                     bool useCleverCombine = false, int decimate = 1,
-                                     int targetPointCloudResolution = 1024, Action<string> info = null,
-                                     Action<string> verbose = null, Action<string> warn = null,
-                                     Action<string> error = null)
+                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,
+                                     int decimate = 1, int targetPointCloudResolution = 1024,
+                                     Action<string> info = null, Action<string> verbose = null,
+                                     Action<string> warn = null, Action<string> error = null)
         {
             pointBounds = new BoundingBox();
 
@@ -127,6 +127,12 @@ namespace OPS.Pipeline.TilingServer
                 };
 
             var observations = WedgeObservations.Collect(frameCache, observationCache, opts);
+
+            if (stereoEye != RoverStereoEye.Any)
+            {
+                observations = WedgeObservations.FilterForEye(observations, stereoEye).ToList(); 
+            }
+
             if (observations.Count == 0)
             {
                 error("no observations were found to build a point cloud");
