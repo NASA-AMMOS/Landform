@@ -440,19 +440,8 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Check if we should even bother downloading or ingesting based on filename.
         /// uses the Allow*() APIs so missions can specialize by just overriding those
         /// </summary>
-        public virtual bool CheckFilename(string filename, out string reason)
-        {
-            return CheckProductId(RoverProductId.Parse(filename, this, throwOnFail: false), out reason);
-        }
-
-        public bool CheckFilename(string filename)
-        {
-            return CheckFilename(filename, out string reason);
-        }
-
         public virtual bool CheckProductId(RoverProductId id, out string reason)
         {
             reason = "";

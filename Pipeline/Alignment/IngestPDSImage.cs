@@ -60,13 +60,31 @@ namespace OPS.Pipeline
         {
             try
             {
-                var filename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var productId = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 
-                // Parse the filename to quickly rule out data products we know we don't care about.
                 string reason = "";
-                if (!mission.CheckFilename(filename, out reason))
+                if (!mission.CheckProductId(productId, out reason)) //null ok
                 {
                     pipeline.LogVerbose("rejected {0} by filename: {1}", url, reason);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleFrame())
+                {
+                    pipeline.LogVerbose("rejected multi-frame product {0}", url);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleCamera())
+                {
+                    pipeline.LogVerbose("rejected multi-camera product {0}", url);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleSiteDrive())
+                {
+                    pipeline.LogVerbose("rejected multi-sitedrive product {0}", url);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -100,13 +118,6 @@ namespace OPS.Pipeline
                     return new Result(url, dataUrl, Status.Skipped);
                 }
                 
-                var productId = RoverProductId.Parse(parser.ProductIdString, mission);
-                if (!productId.IsSingleFrame())
-                {
-                    pipeline.LogVerbose("rejected multi-frame product {0}", url);
-                    return new Result(url, dataUrl, Status.Skipped);
-                }
-
                 var observationName = parser.ProductIdString;
                 var siteDriveName = parser.SiteDrive;
 
