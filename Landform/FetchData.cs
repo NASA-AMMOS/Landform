@@ -114,6 +114,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = false, HelpText = "Verbose output")]
         public bool Verbose { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Print summary")]
+        public bool Summary { get; set; }
     }
 
     public class FetchData
@@ -689,6 +692,11 @@ namespace OPS.Landform
                     return 1;
                 }
                 var files = StringHelper.ParseList(options.Input).ToList();
+                if (options.Summary)
+                {
+                    logger.InfoFormat("--- fetching {0} files ---", files.Count);
+                    files.ForEach(file => logger.Info(file));
+                }
                 bytes += DownloadFiles(files);
             }
             else
@@ -726,6 +734,22 @@ namespace OPS.Landform
                 {
                     logger.InfoFormat("filtering files for sol {0}", sol);
                     solToProducts[sol] = Filter(solToProducts[sol]);
+                }
+
+                if (options.Summary)
+                {
+                    foreach (var sol in sols)
+                    {
+                        var groups = solToProducts[sol]
+                            .Select(product => StringHelper.GetLastUrlPathSegment(product, stripExtension: true))
+                            .Select(idStr => RoverProductId.Parse(idStr, mission))
+                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
+                            .Select(ids => ids.OrderBy(id => id.FullId).Distinct())
+                            .ToList();
+                        logger.InfoFormat("-- fetching {0} product ids for sol {1} --",
+                                          groups.Select(group => group.Count()).Sum(), sol);
+                        groups.ForEach(group => group.ToList().ForEach(id => logger.Info(id.FullId)));
+                    }
                 }
                 
                 bytes += DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
