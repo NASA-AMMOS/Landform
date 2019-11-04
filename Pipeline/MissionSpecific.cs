@@ -299,12 +299,12 @@ namespace OPS.Pipeline
             return true;
         }
 
-        public virtual bool AllowRoverMasks()
+        public virtual bool UseRoverMasks()
         {
             return true; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/755
         }
 
-        public virtual bool AllowErrorMaps()
+        public virtual bool UseErrorMaps()
         {
             return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/500
         }
@@ -396,7 +396,7 @@ namespace OPS.Pipeline
                 (IsArmcam(cam) && UseArmcamForTexturing());
         }
 
-        public virtual bool AllowCamera(RoverProductCamera cam)
+        public virtual bool UseCamera(RoverProductCamera cam)
         {
             return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing() || UseHazcamForTexturing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing() || UseNavcamForTexturing())) ||
@@ -404,7 +404,7 @@ namespace OPS.Pipeline
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing() || UseArmcamForTexturing()));
         }
 
-        public virtual bool AllowRasterProducts(RoverProductCamera cam)
+        public virtual bool UseRasterProducts(RoverProductCamera cam)
         {
             return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForTexturing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForTexturing())) ||
@@ -412,7 +412,7 @@ namespace OPS.Pipeline
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForTexturing()));
         }
 
-        public virtual bool AllowGeometryProducts(RoverProductCamera cam)
+        public virtual bool UseGeometryProducts(RoverProductCamera cam)
         {
             return (IsHazcam(cam) && (UseHazcamForAlignment() || UseHazcamForMeshing())) ||
                 (IsNavcam(cam) && (UseNavcamForAlignment() || UseNavcamForMeshing())) ||
@@ -420,23 +420,23 @@ namespace OPS.Pipeline
                 (IsArmcam(cam) && (UseArmcamForAlignment() || UseArmcamForMeshing()));
         }
 
-        public virtual bool AllowProduct(RoverProductCamera cam, RoverProductType prodType)
+        public virtual bool UseProduct(RoverProductCamera cam, RoverProductType prodType)
         {
-            if (!AllowCamera(cam))
+            if (!UseCamera(cam))
             {
                 return false;
             }
-            if (RoverProduct.IsMask(prodType) && !AllowRoverMasks())
+            if (RoverProduct.IsMask(prodType) && !UseRoverMasks())
             {
                 return false;
             }
-            if (RoverProduct.IsErrorMap(prodType) && !AllowErrorMaps())
+            if (RoverProduct.IsErrorMap(prodType) && !UseErrorMaps())
             {
                 return false;
             }
             //careful here - consider e.g. that a mask may be both a raster and geometry product
-            return ((RoverProduct.IsRaster(prodType) && AllowRasterProducts(cam)) ||
-                    (RoverProduct.IsGeometry(prodType) && AllowGeometryProducts(cam)));
+            return ((RoverProduct.IsRaster(prodType) && UseRasterProducts(cam)) ||
+                    (RoverProduct.IsGeometry(prodType) && UseGeometryProducts(cam)));
         }
 
         /// <summary>
@@ -493,13 +493,13 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowCamera(id.Camera))
+            if (!UseCamera(id.Camera))
             {
                 reason = string.Format("camera {0} not allowed", id.Camera);
                 return false;
             }
 
-            if (!AllowProduct(id.Camera, id.ProductType))
+            if (!UseProduct(id.Camera, id.ProductType))
             {
                 reason = string.Format("{0} {1} products not allowed", id.Camera, id.ProductType);
                 return false;
@@ -579,13 +579,13 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowCamera(cam))
+            if (!UseCamera(cam))
             {
                 reason = string.Format("camera {0} not allowed", cam);
                 return false;
             }
 
-            if (!AllowProduct(cam, pt))
+            if (!UseProduct(cam, pt))
             {
                 reason = string.Format("{0} {1} products not allowed", cam, pt);
                 return false;
