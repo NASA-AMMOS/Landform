@@ -236,7 +236,7 @@ namespace OPS.Pipeline
             obsNames.UnionWith(filteredObs.Select(obs => obs.Name));
             foreach (var res in results.Values)
             {
-                if (!obsNames.Contains(res.Observation.Name))
+                if (res.Accepted && !obsNames.Contains(res.Observation.Name))
                 {
                     res.Status = IngestImage.Status.Culled;
                 }
@@ -303,7 +303,7 @@ namespace OPS.Pipeline
                 {
                     var dead = frame.ObservationNames.Where(obs => !observationCache.ContainsObservation(obs)).ToList();
                     frame.ObservationNames.ExceptWith(dead);
-                    if (frame.ObservationNames.Count == 0)
+                    if (frame.ObservationNames.Count == 0 && frameCache.GetChildren(frame).Count() == 0)
                     {
                         framesToDelete.Add(frame.Name);
                     }
@@ -328,9 +328,9 @@ namespace OPS.Pipeline
             var transformsToDelete = new HashSet<string>();
             foreach (var transform in frameCache.GetAllTransforms())
             {
-                var frame = frameCache.GetFrame(transform.FrameName);
-                if (frame != null)
+                if (frameCache.ContainsFrame(transform.FrameName))
                 {
+                    var frame = frameCache.GetFrame(transform.FrameName);
                     lock (frame.Transforms)
                     {
                         if (frame.Transforms.Add(transform.Source))

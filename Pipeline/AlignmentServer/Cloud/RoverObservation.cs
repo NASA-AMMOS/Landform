@@ -150,6 +150,16 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         /// <summary>
+        /// overrides Observation.Save() so that pipeline.SaveDatabaseItem() sees the type of the object
+        /// as RoverObservation not Observation
+        /// </summary>
+        public override void Save(PipelineCore pipeline)
+        {
+            IsValid();
+            pipeline.SaveDatabaseItem(this);
+        }
+
+        /// <summary>
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
