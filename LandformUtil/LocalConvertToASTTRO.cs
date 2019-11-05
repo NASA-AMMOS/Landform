@@ -595,12 +595,14 @@ namespace OPS.LandformUtil
                 Image.Load(rec.PreferedImage).Save<byte>(outfile);
             });
             var manifest = new LegacySceneManifest(pipeline.Logger);
+
+            Pipeline.AlignmentServer.Frame primaryFrame = frameCache.GetFrame(primarySiteDrive);
             foreach (var group in groupedImageData)
             {
                 var sd = new LegacySceneManifest.SiteDriveData()
                 {
                     SiteDrive = new SiteDrive(group.Key),
-                    Transform = Matrix.Identity,
+                    Transform = frameCache.GetRelativeTransform(frameCache.GetFrame(group.Key), primaryFrame, options.UsePriors, options.OnlyAligned).Mean,
                     Images = group.ToList(),
                     Primary = group.Key == primarySiteDrive
                 };
