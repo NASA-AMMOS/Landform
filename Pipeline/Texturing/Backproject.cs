@@ -24,7 +24,7 @@ namespace OPS.Pipeline
             public Observation Obs;
             public Vector2 Pixel; //col, row
 
-            public ObsPixel(Observation obs, Vector2 pixel) 
+            public ObsPixel(Observation obs, Vector2 pixel)
             {
                 Obs = obs;
                 Pixel = pixel;
@@ -215,8 +215,8 @@ namespace OPS.Pipeline
                     outputImage.SetMaskValue((int)outputPixel.Row, (int)outputPixel.Col, false);
                 }
             }
-            
-            if(inpaint)
+
+            if (inpaint)
             {
                 //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
                 // full inpaint needed for building parent tiles
@@ -275,10 +275,10 @@ namespace OPS.Pipeline
         /// </summary>
         static public IDictionary<Pixel, ObsPixel> BackprojectObservations(BackprojectOptions opts)
         {
-            var info = opts.info ?? (msg => {});
-            var progress = opts.progress ?? (msg => {});
-            var warn = opts.warn ?? (msg => {});
-            var error = opts.error ?? (msg => {});
+            var info = opts.info ?? (msg => { });
+            var progress = opts.progress ?? (msg => { });
+            var warn = opts.warn ?? (msg => { });
+            var error = opts.error ?? (msg => { });
 
             var imageObservations = opts.observations
                 .Where(obs => obs is RoverObservation)
@@ -287,7 +287,7 @@ namespace OPS.Pipeline
 
             if (imageObservations.Count() == 0)
             {
-                error("no image observations found"); 
+                error("no image observations found");
                 return new Dictionary<Pixel, ObsPixel>();
 
             }
@@ -382,8 +382,8 @@ namespace OPS.Pipeline
                     var contexts = allContexts.Where(ctx => ctx.FrustumHull.Intersects(box)).ToList();
                     if (contexts.Count > 0)
                     {
-                        BackprojectObservationContexts(opts.pipeline, opts.project, masker, contexts, meshHull,
-                                                       opts.sceneCaster, pts, opts.quality, results, progress);
+                        BackprojectEachPixelObservationContexts(opts.pipeline, opts.project, masker, contexts, meshHull,
+                                                       opts.sceneCaster, pts, results, progress);
                     }
                     else
                     {
@@ -396,28 +396,48 @@ namespace OPS.Pipeline
             else
             {
                 var results = new Dictionary<Pixel, ObsPixel>(np);
-                BackprojectObservationContexts(opts.pipeline, opts.project, masker, allContexts, meshHull,
-                                               opts.sceneCaster, samplePoints, opts.quality, results, info, info);
+                BackprojectEachPixelObservationContexts(opts.pipeline, opts.project, masker, allContexts, meshHull,
+                                               opts.sceneCaster, samplePoints, results, info, info);
                 return results;
             }
         }
-            
+
+        static protected void BackprojectEachPixelObservationContexts(PipelineCore pipeline, Project project, RoverMasker masker,
+                                           List<BackprojectContext> contexts, ConvexHull meshHull,
+                                           SceneCaster sceneCaster, List<PixelPoint> samplePoints,
+                                           IDictionary<Pixel, ObsPixel> results, Action<string> info = null,
+                                           Action<string> verbose = null)
+        {
+            info = info ?? (msg => { });
+            verbose = verbose ?? (msg => { });
+
+            int np = samplePoints.Count, nc = contexts.Count;
+            info(string.Format("backprojecting individual {0} points into {1} images", Fmt.KMG(np), nc));
+
+            foreach(var samplePoint in samplePoints) 
+            {
+                BackprojectGreedyObservationContexts(pipeline, project, masker, contexts, meshHull,
+                                           sceneCaster, new List<PixelPoint>() { samplePoint }, 1.0,
+                                           results, info, verbose);
+            };
+        }
+
         // lower level function that returns backproject results
         // for each each output pixel selects observation and source pixel
         // taken from a set of observations known to intersect the output mesh
         // uses the current best approach for calculating which texture should win when there are multiple choices
         static protected void
-            BackprojectObservationContexts(PipelineCore pipeline, Project project, RoverMasker masker,
+            BackprojectGreedyObservationContexts(PipelineCore pipeline, Project project, RoverMasker masker,
                                            List<BackprojectContext> contexts, ConvexHull meshHull,
                                            SceneCaster sceneCaster, List<PixelPoint> samplePoints, double quality,
                                            IDictionary<Pixel, ObsPixel> results, Action<string> info = null,
                                            Action<string> verbose = null)
         {
-            info = info ?? (msg => {});
-            verbose = verbose ?? (msg => {});
+            info = info ?? (msg => { });
+            verbose = verbose ?? (msg => { });
 
-            int np = samplePoints.Count, nc = contexts.Count; 
-            info(string.Format("backprojecting {0} points into {1} images, quality {2}", Fmt.KMG(np), nc, quality));
+            int np = samplePoints.Count, nc = contexts.Count;
+            info(string.Format("greedily backprojecting {0} points into {1} images, quality {2}", Fmt.KMG(np), nc, quality));
 
             //calculate goodness: median distance between source pixels in meters on the terrain
             //smaller distance == better texture
@@ -430,7 +450,7 @@ namespace OPS.Pipeline
                                                                    quality);
                 obsToPixelDist.AddOrUpdate(ctx.Obs.Name, _ => dist, (_, __) => dist);
             });
-            
+
             //sort contexts by decreasing quality
             contexts.Sort((ctx0, ctx1) => obsToPixelDist[ctx0.Obs.Name].CompareTo(obsToPixelDist[ctx1.Obs.Name]));
 
@@ -446,7 +466,7 @@ namespace OPS.Pipeline
             //greedily fill output pixels from the best source textures to the worst
             int n = 0;
             var remaining = new List<PixelPoint>(np);
-            foreach(var ctx in contexts)
+            foreach (var ctx in contexts)
             {
                 int nr = samplePoints.Count;
                 verbose(string.Format("backprojecting into image {0}/{1} ({2}%), {3} sample points remaining",
@@ -506,7 +526,7 @@ namespace OPS.Pipeline
                 }
             }
         }
-        
+
         //lowest level function that takes a set of points to backproject
         //and returns a dictionary of key:destination image pixel, value:source observation pixel
         static protected IDictionary<Vector2, Vector2>
@@ -521,7 +541,8 @@ namespace OPS.Pipeline
 #else
             CoreLimitedParallel.
 #endif
-            ForEach(samplePoints, pixelPoint => {
+            ForEach(samplePoints, pixelPoint =>
+            {
 
                 // validate surface point is in the frustum to avoid camera model issues with offscreen points
                 Vector3 meshPos = pixelPoint.Point;
@@ -547,7 +568,7 @@ namespace OPS.Pipeline
                         //raycast the scene to test if the desired position is occluded by terrain
                         if (!IsOccluded(camera, obsPixel, meshPos, occlusion, range, obsToMesh))
                         {
-                            if(!backprojectedPoints.TryAdd(pixelPoint.Pixel, obsPixel))
+                            if (!backprojectedPoints.TryAdd(pixelPoint.Pixel, obsPixel))
                             {
                                 throw new InvalidOperationException("multiple writes to same output pixel");
                             }
