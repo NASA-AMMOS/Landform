@@ -160,6 +160,15 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         /// <summary>
+        /// overrides Observation.Delete() so that pipeline.DeleteDatabaseItem() sees the type of the object
+        /// as RoverObservation not Observation
+        /// </summary>
+        public override void Delete(PipelineCore pipeline, bool ignoreErrors = true)
+        {
+            pipeline.DeleteDatabaseItem(this, ignoreErrors);
+        }
+
+        /// <summary>
         /// Finds an observation based on its name and project
         /// Return null if observation cannot be found
         /// </summary>
