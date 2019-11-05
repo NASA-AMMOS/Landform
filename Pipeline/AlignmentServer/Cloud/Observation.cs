@@ -222,7 +222,7 @@ namespace OPS.Pipeline.AlignmentServer
         public virtual string ToString(bool brief)
         {
             var cm = (CameraModel)JsonHelper.FromJson(CameraModel);
-            return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}{7}{8}Size={9}x{10}, Bands={9}, " +
+            return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}{7}{8}Size={9}x{10}, Bands={11}, " +
                                  "Bits={12}, Day={13}, Version={14}, Index={15}",
                                  Name, FrameName, //0, 1
                                  brief ? "" : string.Format("Url={0}, ", Url), //2

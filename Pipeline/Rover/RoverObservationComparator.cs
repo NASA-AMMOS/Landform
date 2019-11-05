@@ -138,22 +138,40 @@ namespace OPS.Pipeline
         public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
                                                                        params RoverProductType[] types)
         {
-            return KeepBestRoverObservations(observations, null, types);
+            return KeepBestRoverObservations(observations, null, null, types);
         }
 
         public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
+                                                                       ILogger logger,
+                                                                       params RoverProductType[] types)
+        {
+            return KeepBestRoverObservations(observations, logger, null, types);
+        }
+        
+        public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
+                                                                       ILogger logger,
                                                                        Func<RoverObservation, bool> filter,
                                                                        params RoverProductType[] types)
         {
             if (types.Length > 0)
             {
+                RoverObservation filterGroup(IEnumerable<RoverObservation> group)
+                {
+                    group = group.OrderBy(o => o, this);
+                    if (logger != null && group.Count() > 1)
+                    {
+                        logger.LogVerbose("keeping only first of\n  {0}",
+                                          String.Join("\n  ", group.Select(o => o.ToString())));
+                    }
+                    return group.First();
+                }
                 return observations
                     .Where(obs => obs is RoverObservation)
                     .Cast<RoverObservation>()
                     .Where(o => types.Any(t => t == o.ObservationType))
                     .Where(o => filter == null || filter(o))
                     .GroupBy(o => o.FrameName)
-                    .Select(group => group.OrderBy(o => o, this).First());
+                    .Select(filterGroup);
             }
             else
             {
@@ -183,19 +201,20 @@ namespace OPS.Pipeline
                 //whether we keep linear or nonlinear products for that observation
 
                 //filter RNG and XYZ together so we can keep only the latter if both are available
-                var xyz = KeepBestRoverObservations(observations, RoverProductType.Range, RoverProductType.Points);
+                var xyz = KeepBestRoverObservations(observations, logger, null,
+                                                    RoverProductType.Range, RoverProductType.Points);
                 registerLinear(xyz);
 
-                var img = KeepBestRoverObservations(observations, linearFilter, RoverProductType.Image);
+                var img = KeepBestRoverObservations(observations, logger, linearFilter, RoverProductType.Image);
                 registerLinear(img);
 
-                var msk = KeepBestRoverObservations(observations, linearFilter, RoverProductType.RoverMask);
+                var msk = KeepBestRoverObservations(observations, logger, linearFilter, RoverProductType.RoverMask);
                 registerLinear(msk);
 
-                var uvw = KeepBestRoverObservations(observations, linearFilter, RoverProductType.Normals);
+                var uvw = KeepBestRoverObservations(observations, logger, linearFilter, RoverProductType.Normals);
                 registerLinear(uvw);
 
-                var err = KeepBestRoverObservations(observations, linearFilter, RoverProductType.RangeError);
+                var err = KeepBestRoverObservations(observations, logger, linearFilter, RoverProductType.RangeError);
 
                 return xyz.Concat(img).Concat(msk).Concat(uvw).Concat(err);
             }

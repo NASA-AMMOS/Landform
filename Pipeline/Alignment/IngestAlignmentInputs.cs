@@ -228,7 +228,9 @@ namespace OPS.Pipeline
                 .ToList();
             na = filteredObs.Count;
             var comparator = mission.GetRoverObservationComparator();
-            filteredObs = comparator.KeepBestRoverObservations(filteredObs).ToList();
+            filteredObs = comparator
+                .KeepBestRoverObservations(filteredObs, pipeline.Verbose ? pipeline : null)
+                .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
             na = filteredObs.Count;
 
@@ -261,7 +263,7 @@ namespace OPS.Pipeline
                     var obs = RoverObservation.Find(pipeline, project.Name, orphanName);
                     if (obs != null)
                     {
-                        pipeline.LogDebug("deleting orphan observation {0}", orphanName);
+                        pipeline.LogVerbose("deleting orphan observation {0}", orphanName);
                         obs.Delete(pipeline);
                     }
                     indices.TryRemove(orphanName, out int ignore);
@@ -317,7 +319,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("deleting {0} orphan frames", framesToDelete.Count);
             foreach (var frameName in framesToDelete)
             {
-                pipeline.LogDebug("deleting orphan frame {0}", frameName);
+                pipeline.LogVerbose("deleting orphan frame {0}", frameName);
                 var frame = frameCache.GetFrame(frameName);
                 frame.Delete(pipeline);
                 frameCache.Remove(frame);
@@ -348,7 +350,7 @@ namespace OPS.Pipeline
             pipeline.LogInfo("deleting {0} orphan transforms", transformsToDelete.Count);
             foreach (var transformName in transformsToDelete)
             {
-                pipeline.LogDebug("deleting orphan transform {0}", transformName);
+                pipeline.LogVerbose("deleting orphan transform {0}", transformName);
                 var transform = frameCache.GetTransform(transformName);
                 transform.Delete(pipeline);
                 frameCache.Remove(transform);

@@ -107,7 +107,8 @@ namespace OPS.Landform
             {
                 var comparator = mission.GetRoverObservationComparator();
                 var allObs = observationCache.GetAllObservations();
-                imageObservations = comparator.KeepBestRoverObservations(allObs, RoverProductType.Image)
+                imageObservations = comparator
+                    .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
                     .Cast<Observation>()
                     .ToList();
                 indexedObservations = new Dictionary<int, Observation>();
@@ -424,7 +425,7 @@ namespace OPS.Landform
         protected IDictionary<Pixel, Backproject.ObsPixel>
             BackprojectObservations(Mesh mesh, bool logging, bool verbose = false)
         {
-            verbose |= pipeline.Verbose || pipeline.Debug;
+            verbose |= pipeline.Verbose;
             logging |= verbose;
             var opts = new Backproject.BackprojectOptions()
             {
