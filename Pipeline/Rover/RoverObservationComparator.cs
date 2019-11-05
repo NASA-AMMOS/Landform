@@ -23,14 +23,24 @@ namespace OPS.Pipeline
             this.preferEyeForGeometry = preferEyeForGeometry;
             this.ext = ext;
         }
-        
-        // 0 if a and b are equivalently good
-        // negative if a is "better" than b
-        // positive if a is "worse than" b
+
+        /// <summary>
+        /// 0 if a and b are equivalently good
+        /// negative if a is "better" than b
+        /// positive if a is "worse than" b
+        /// </summary>
         public int Compare(RoverObservation a, RoverObservation b)
         {
-            // always prefer XYZ to RNG if both are available
-            // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
+            //this function can only make judgements about observations in the same frame
+            //StereoFrameName abstracts Left/Right distinctions
+            //allowing comparison between the two eyes for the same frame
+            if (a.StereoFrameName != b.StereoFrameName)
+            {
+                return 0;
+            }
+
+            //always prefer XYZ to RNG if both are available
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/471
             if (a.ObservationType == RoverProductType.Points && b.ObservationType == RoverProductType.Range)
             {
                 return -1;
@@ -40,7 +50,7 @@ namespace OPS.Pipeline
                 return 1;
             }
             
-            // sort next by producer
+            //sort next by producer
             if (a.Producer == RoverProductProducer.MSSS && b.Producer == RoverProductProducer.OPGS)
             {
                 return preferMSSSToOPGS ? -1 : 1;
@@ -67,7 +77,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            // sort next by linear-ness
+            //sort next by linear-ness
             bool linearA = a.IsLinear, linearB = b.IsLinear;
             if (linearA && !linearB)
             {
@@ -80,8 +90,7 @@ namespace OPS.Pipeline
 
             //fine-grained comparisons from here down
             //but allow comparing between eyes, e.g. NavcamLeft to NavcamRight and colors
-            if (a.StereoFrameName != b.StereoFrameName || a.ObservationType != b.ObservationType ||
-                a.Producer != b.Producer)
+            if (a.ObservationType != b.ObservationType || a.Producer != b.Producer)
             {
                 return 0;
             }
@@ -110,8 +119,16 @@ namespace OPS.Pipeline
                 }
             }
 
-            // prefer higher versions
-            return b.Version - a.Version;
+            //prefer higher versions
+            if (a.Version != b.Version)
+            {
+                return b.Version - a.Version;
+            }
+
+            //at this point the observations are otherwise equivalent
+            //revert to just a string comparison on their names
+            //just so that results are stable and repeatable
+            return a.Name.CompareTo(b.Name);
         }
 
         public IEnumerable<RoverObservation> SortRoverObservations(IEnumerable<Observation> observations,
