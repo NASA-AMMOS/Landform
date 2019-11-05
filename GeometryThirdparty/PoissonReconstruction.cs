@@ -25,7 +25,7 @@ namespace OPS.Geometry
 
         public PoissonConfig()
         {
-            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonReconV10.02.exe"; //default
+            if (string.IsNullOrEmpty(PoissonExe)) PoissonExe = "PoissonReconV12.0.exe"; //default
             if (PoissonExeLegacy) PoissonExe = "PoissonRecon.exe";
         }
 
