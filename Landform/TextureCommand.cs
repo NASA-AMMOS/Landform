@@ -511,25 +511,27 @@ namespace OPS.Landform
 
         protected void SaveBackprojectIndexDebug(Image index)
         {
-            pipeline.LogInfo("saving backproject index false color textured mesh");
             string name = sceneMesh.Name + "_backprojectIndex";
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
             name += "FalseColor";
+            pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
             if (mesh != null)
             {
+                pipeline.LogInfo("saving backproject index false color textured debug mesh");
                 SaveMesh(mesh, name, name + imageExt);
             }
         }
 
         protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
         {
-            pipeline.LogInfo("saving backproject {0} textured mesh", textureVariant);
             string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
+            pipeline.LogInfo("saving backproject {0} texture debug image", textureVariant);
             SaveImage(texture, name);
             if (mesh != null)
             {
+                pipeline.LogInfo("saving backproject {0} textured debug mesh", textureVariant);
                 SaveMesh(mesh, name, name + imageExt);
             }
         }
