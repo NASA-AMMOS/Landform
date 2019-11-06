@@ -598,7 +598,7 @@ namespace OPS.Landform
             }
             else
             {               
-                lock (tileList.LeafNames)
+                lock (tileList.ParentNames)
                 {
                     tileList.ParentNames.Add(name);
                 }                
