@@ -141,10 +141,10 @@ namespace OPS.Pipeline
             this.StackTraces = options.StackTraces;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
-            this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
+            this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.Trim());
 
             if (string.IsNullOrEmpty(venue)) throw new Exception("venue must be specified");
-            this.Venue = venue.ToLower().Replace('\\','/').Trim().Trim(new char[] {'/'});
+            this.Venue = venue.Replace('\\','/').Trim().Trim(new char[] {'/'});
 
             this.StorageUrlWithVenue = this.StorageUrl + "/" + this.Venue;
 
@@ -361,7 +361,7 @@ namespace OPS.Pipeline
         protected void CheckStorageUrl(string url, bool withVenue = true)
         {
             string prefix = withVenue ? StorageUrlWithVenue : StorageUrl;
-            if (string.IsNullOrEmpty(url) || !url.ToLower().StartsWith(prefix))
+            if (string.IsNullOrEmpty(url) || !url.StartsWith(prefix, ignoreCase: true, culture: null))
             {
                 throw new Exception(string.Format("storage URL {0} does not start with {1}", url, prefix));
             }
