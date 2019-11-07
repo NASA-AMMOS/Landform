@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -93,7 +92,7 @@ namespace OPS.Landform
             var specials =
                 new string[] { "auto", "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
 
-            bool isSiteDrive = (new Regex("\\d{10}")).IsMatch(meshFrame);
+            bool isSiteDrive = SiteDrive.IsSiteDriveString(meshFrame);
             bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
 
             if (!isSiteDrive && !isSpecial)
