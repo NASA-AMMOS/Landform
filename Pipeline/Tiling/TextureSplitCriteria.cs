@@ -292,7 +292,7 @@ namespace OPS.Pipeline
                 (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels ||
                 (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
             {
-                throw new InvalidDataException("should have been caught by frustum test");
+                return null; //the center of the pixel may have passed the frustum test, but the pixel corner may not
             }
 
             // raycast the scene to test if the desired position is occluded by terrain
