@@ -292,11 +292,6 @@ namespace OPS.Landform
                 {
                     meshLODs = Mesh.LoadAllLODs(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
                     
-                    if(meshLODs.Count < 2)
-                    {
-                        throw new Exception("LoadLODs requested, but input mesh has only " + meshLODs.Count + " LODs");
-                    }
-
                     pipeline.LogInfo("Input mesh contains {0} levels of detail", meshLODs.Count);
                     for(int idxLOD = 0; idxLOD < meshLODs.Count; idxLOD++)
                     {
