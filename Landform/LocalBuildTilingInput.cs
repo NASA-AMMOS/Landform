@@ -55,6 +55,10 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't save tile backproject index images", Default = false)]
         public bool NoBackprojectIndexImages { get; set; }
+
+        [Option(HelpText = "save tile backproject index images previews", Default = false)]
+        public bool BackprojectIndexImagePreviews { get; set; }
+
     }
 
     public class LocalBuildTilingInput : TilingCommand
@@ -535,7 +539,13 @@ namespace OPS.Landform
                 }
                 if (index != null)
                 {
-                    SaveFloatTIFF(index, name + TileList.INDEX_FILE_SUFFIX);
+                    string indexImageName = name + TileList.INDEX_FILE_SUFFIX;
+                    SaveFloatTIFF(index, indexImageName);
+                    if(options.BackprojectIndexImagePreviews)
+                    {
+                        Image preview = Backproject.GenerateIndexPreviewImage(index);
+                        SaveImage(preview, indexImageName +"_preview");
+                    }
                 }
                 SaveMesh(mesh, name, imgName);
             }
