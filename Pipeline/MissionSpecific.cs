@@ -10,7 +10,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4 }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM }
 
     public abstract class MissionSpecific
     {
@@ -23,6 +23,7 @@ namespace OPS.Pipeline
                 case Mission.M2020: return new MissionM2020();
                 case Mission.ROASTT19: return new MissionROASTT19();
                 case Mission.TT4: return new MissionTT4();
+                case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -1400,6 +1401,78 @@ namespace OPS.Pipeline
             }
             yield return new int[] { SEQUENCE_FIELD, SEQUENCE_FIELD_LENGTH };
             yield break;
+        }
+    }
+
+    public class MissionScarecrowEECAM : MissionM2020
+    {
+        private class ScarecrowEECAMUnifiedMesh : OPGSProductId
+        {
+            public const int LENGTH = 10;
+
+            protected ScarecrowEECAMUnifiedMesh(string fullId, int site, int drive)
+                : base(fullId, RoverProductProducer.OPGS, RoverProductType.Points, camera: "NL", geometry: "L",
+                       color: "", version: "0", size: "", site: site, drive: drive) 
+            { }
+
+            public static ScarecrowEECAMUnifiedMesh Parse(string id)
+            {
+                id = StringHelper.StripUrlExtension(id);
+                if (id.Length != LENGTH)
+                {
+                    return null;
+                }
+
+                string siteStr = id.Substring(3, 3);
+                string driveStr = id.Substring(6, 4);
+
+                if (!int.TryParse(siteStr, out int site) || !int.TryParse(driveStr, out int drive))
+                {
+                    return null;
+                }
+                
+                return new ScarecrowEECAMUnifiedMesh(id, site, drive);
+            }
+
+            public override bool IsSingleFrame()
+            {
+                return false;
+            }
+            
+            public override bool IsSingleCamera()
+            {
+                return true;
+            }
+            
+            public override bool IsSingleSiteDrive()
+            {
+                return true;
+            }
+
+            protected override RoverProductColor ParseColor(string color, string camera)
+            {
+                return RoverProductColor.Unknown;
+            }
+
+            protected override RoverProductSize ParseSize(string size)
+            {
+                return RoverProductSize.Regular;
+            }
+
+            public override int GetSol()
+            {
+                return 0;
+            }
+        }
+
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+            if (id.Length == ScarecrowEECAMUnifiedMesh.LENGTH)
+            {
+                return ScarecrowEECAMUnifiedMesh.Parse(id);
+            }
+            return base.ParseProductId(id);
         }
     }
 }
