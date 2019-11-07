@@ -66,7 +66,7 @@ namespace OPS.Pipeline
 
         public virtual RoverProductType GetProductType(string productId)
         {
-            return RoverProductId.Parse(productId, this).ProductType;
+            return ParseProductId(productId).ProductType;
         } 
 
         public virtual RoverProductType GetProductType(PDSParser parser)
@@ -451,6 +451,8 @@ namespace OPS.Pipeline
                     (RoverProduct.IsGeometry(prodType) && UseGeometryProducts(cam)));
         }
 
+        public abstract RoverProductId ParseProductId(string id);
+
         /// <summary>
         /// uses the Allow*() APIs so missions can specialize by just overriding those
         /// </summary>
@@ -787,7 +789,7 @@ namespace OPS.Pipeline
             //example 0609MR0025690030401020E01_DRCL
             return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
                 ((parser.ProducingInstitution == RoverProductProducer.MSSS) &&
-                 (RoverProductId.Parse(parser.ProductIdString, this).Geometry == RoverProductGeometry.Linearized));
+                 (ParseProductId(parser.ProductIdString).Geometry == RoverProductGeometry.Linearized));
         }
 
         public override double GetSensorPixelSizeMM(RoverProductCamera camera)
@@ -875,6 +877,29 @@ namespace OPS.Pipeline
         public override bool AllowLegacyManifestDB()
         {
             return true;
+        }
+
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+
+            //MSL unified mesh IDs can be from 32 to 36 chars long
+            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
+            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            {
+                var unified = MSLUnifiedMeshProductId.Parse(id);
+                if (unified != null)
+                {
+                    return unified;
+                }
+            }
+
+            switch (id.Length)
+            {
+                case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(id);
+                case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(id);
+                default: throw new Exception("unexpected length");
+            }
         }
 
         public override bool CheckProductId(RoverProductId id, out string reason)
@@ -995,7 +1020,7 @@ namespace OPS.Pipeline
             }
             catch (MetadataException)
             {
-                return RoverProductId.Parse(parser.ProductIdString, this).GetSol();
+                return ParseProductId(parser.ProductIdString).GetSol();
             }
         }
 
@@ -1174,6 +1199,31 @@ namespace OPS.Pipeline
             return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
         }
 
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+
+            //TODO for now the M2020 SIS for unified mesh product IDs is incomplete
+            //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/793
+            //MSL unified mesh IDs can be from 32 to 36 chars long
+            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
+            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            {
+                var unified = MSLUnifiedMeshProductId.Parse(id);
+                if (unified != null)
+                {
+                    return unified;
+                }
+            }
+
+            switch (id.Length)
+            {
+                case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(id);
+                default: throw new Exception("unexpected length");
+            }
+        }
+
         public override bool CheckProductId(RoverProductId id, out string reason)
         {
             if (!base.CheckProductId(id, out reason))
@@ -1321,13 +1371,13 @@ namespace OPS.Pipeline
         // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
         {          
-            return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetConcatenatedTimeString();
+            return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
         }
 
         // ROASTT19: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
         public override RoverProductCamera GetCamera(PDSParser parser)
         {
-            return TranslateCamera(RoverProductId.Parse(parser.ProductIdString, this).Camera);
+            return TranslateCamera(ParseProductId(parser.ProductIdString).Camera);
         }
     }
 
