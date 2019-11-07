@@ -23,9 +23,6 @@ namespace OPS.Landform
     {
         [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSSSDDDDD", Default = "auto")]
         public virtual string MeshFrame { get; set; }
-
-        [Option(HelpText = "Use level of detail meshes provided in input mesh instead of decimation", Default = false)]
-        public bool LoadLODs { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -33,10 +30,6 @@ namespace OPS.Landform
         protected GeometryCommandOptions gcopts;
 
         protected string meshFrame;
-
-        protected Mesh mesh;
-        protected List<Mesh> meshLODs;  //the full set of levels of detail for the mesh with the first being highest quality and the last being worst quality
-        protected SceneMesh sceneMesh;
 
         public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {

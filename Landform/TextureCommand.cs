@@ -32,6 +32,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Scene mesh, search project storage if omitted")]
         public string InputMesh { get; set; }
 
+        [Option(HelpText = "Use level of detail meshes provided in input mesh", Default = false)]
+        public bool LoadLODs { get; set; }
+
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
@@ -69,6 +72,10 @@ namespace OPS.Landform
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
         protected Image backprojectIndex;
         protected TileList tileList;
+
+        protected Mesh mesh;
+        protected SceneMesh sceneMesh;
+        protected List<Mesh> meshLODs; //populated iff --loadlods, first = highest quality
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
