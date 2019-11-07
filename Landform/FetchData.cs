@@ -70,10 +70,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Download RGB products")]
         public bool WithRGB { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Download OBJ products, implies --withpng")]
+        [Option(Required = false, Default = false, HelpText = "Download OBJ products")]
         public bool WithOBJ { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Download IV products, implies --withrgb")]
+        [Option(Required = false, Default = false, HelpText = "Download IV products")]
         public bool WithIV { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Download VIC products")]
@@ -143,8 +143,6 @@ namespace OPS.Landform
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
-            options.WithPNG |= options.WithOBJ;
-            options.WithRGB |= options.WithIV;
             
             mission = MissionSpecific.GetInstance(options.Mission);
 
