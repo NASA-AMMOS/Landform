@@ -82,6 +82,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't download PDS products")]
         public bool NoPDS { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Comma separated list of unified mesh filenames or URLs to use (overrides default algorithm to select lastest for each sitedrive)")]
+        public string UnifiedMeshes { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Don't download and use unified meshes for filtering")]
         public bool NoUnifiedMeshes { get; set; }
 
@@ -603,7 +606,22 @@ namespace OPS.Landform
 
                 if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrameProducts()))
                 {
-                    var urls = UnifiedMesh.CollectLatest(solToProducts.SelectMany(s => s.Value).ToList(), mission);
+                    var urls = new List<string>();
+                    if (!string.IsNullOrEmpty(options.UnifiedMeshes))
+                    {
+                        var ums = StringHelper.ParseList(options.UnifiedMeshes);
+                        var names = ums.Where(um => um.IndexOf("://") < 0).ToList();
+                        urls = solToProducts
+                            .SelectMany(s => s.Value)
+                            .Where(s => names.Any(um => s.EndsWith(um, ignoreCase: true, culture: null)))
+                            .ToList();
+                        urls.AddRange(ums.Where(um => um.IndexOf("://") >= 0));
+                        urls = urls.Distinct().ToList();
+                    }
+                    else
+                    {
+                        urls = UnifiedMesh.CollectLatest(solToProducts.SelectMany(s => s.Value).ToList(), mission);
+                    }
                     logger.InfoFormat("downloading {0} unified meshes", urls.Count);
                     bytes += DownloadFiles(urls);
                     unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
