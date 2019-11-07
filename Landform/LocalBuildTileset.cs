@@ -199,7 +199,8 @@ namespace OPS.Landform
             List<string> tileNames = new List<string>(tileList.LeafNames);
             tileNames.AddRange(tileList.ParentNames);
 
-            pipeline.LogInfo("adding {0} tile meshes ({1} leaves, {2} parents){3}", tileNames.Count, tileList.LeafNames.Count(), tileList.ParentNames.Count(),
+            pipeline.LogInfo("adding {0} tile meshes ({1} leaves, {2} parents){3}", tileNames.Count,
+                             tileList.LeafNames.Count(), tileList.ParentNames.Count(),
                              withTextures ? " and textures" : "");
 
             foreach (var tile in tileNames)

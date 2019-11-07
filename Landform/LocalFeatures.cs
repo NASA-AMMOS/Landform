@@ -155,10 +155,7 @@ namespace OPS.Landform
             int nc = 0, ne = 0, nf = 0, np = 0, wr = 0, tf = 0, trf = 0;
             CoreLimitedParallel.ForEach(obsForFrame.Values, obsGroup => { 
 
-                    var observations = obsGroup
-                    .Cast<RoverObservation>()
-                    .OrderBy(obs => obs, comparator)
-                    .ToList();
+                    var observations = comparator.SortRoverObservations(obsGroup).ToList();
                     
                     var imageObs = observations.Find(obs => obs.ObservationType == RoverProductType.Image);
                     if (imageObs != null)

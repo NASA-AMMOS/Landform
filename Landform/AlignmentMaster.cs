@@ -30,11 +30,17 @@ namespace OPS.Landform
         [Option(HelpText = "Input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
-        [Option(HelpText = "Only use observations fromfspecific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
-        public string OnlyForSiteDrives { get; set; }
+        [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
+        public string OnlyForObservations { get; set; }
 
-        [Option(HelpText = "Only ingest data for specific frames, comma separated", Default = null)]
+        [Option(HelpText = "Only use specific frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
         public string OnlyForFrames { get; set; }
+
+        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
+        public string OnlyForCameras { get; set; }
+
+        [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Whether to make LocationsDB priors", Default = false)]
         public bool AddLocationsDBPriors { get; set; }
@@ -200,10 +206,11 @@ namespace OPS.Landform
 
             //careful here - there can be more than one observation of a given type for a single frame
             //frame name -> observations
-            var obsForFrame = new ConcurrentDictionary<string, ConcurrentBag<Observation>>();
+            var obsForFrame = new Dictionary<string, List<Observation>>();
             var ingester = new IngestAlignmentInputs(this, project, mission,
                                                      options.RedoObservations, options.RedoPriors,
-                                                     options.OnlyForSiteDrives, options.OnlyForFrames);
+                                                     options.OnlyForObservations, options.OnlyForFrames,
+                                                     options.OnlyForCameras, options.OnlyForSiteDrives);
 
             MSLLocations locations = null;
             if (options.AddLocationsDBPriors && mission.AllowLocationsDB())
@@ -232,20 +239,21 @@ namespace OPS.Landform
                 manifest = MSLLegacyManifest.Load(options.LegacyManifestURL);
             }
 
-            ingester.Ingest(locations, places, manifest,
-                            res => obsForFrame
-                            .GetOrAdd(res.ObservationFrame.Name, _ => new ConcurrentBag<Observation>())
-                            .Add(res.Observation));
+            void addObs(Observation obs)
+            {
+                if (!obsForFrame.ContainsKey(obs.FrameName))
+                {
+                    obsForFrame[obs.FrameName] = new List<Observation>();
+                }
+                obsForFrame[obs.FrameName].Add(obs);
+            }
+
+            ingester.Ingest(locations, places, manifest, res => addObs(res.Observation));
                             
             var comparator = mission.GetRoverObservationComparator();
             foreach (var obsGroup in obsForFrame.Values)
             {
-                var observations = obsGroup
-                    .Cast<RoverObservation>()
-                    .Distinct() //ConcurrentBag allows duplicates, which is probably harmless here, but why not
-                    .Where(obs => obs.UseForAlignment)
-                    .OrderBy(obs => obs, comparator)
-                    .ToList();
+                var observations = comparator.SortRoverObservations(obsGroup, obs => obs.UseForAlignment).ToList();
 
                 var imageObs = observations.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (imageObs != null)

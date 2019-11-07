@@ -12,8 +12,13 @@ namespace OPS.Pipeline.AlignmentServer
         private readonly PipelineCore pipeline;
         private readonly string projectName;
 
+        //Frame name -> Frame
         private readonly Dictionary<string, Frame> frames = new Dictionary<string, Frame>();
+
+        //Frame name -> Frames
         private readonly Dictionary<string, List<Frame>> children = new Dictionary<string, List<Frame>>();
+
+        //Frame name -> TransformSource -> FrameTransform
         private readonly Dictionary<string, SortedDictionary<TransformSource, FrameTransform>> transforms =
             new Dictionary<string, SortedDictionary<TransformSource, FrameTransform>>();
 
@@ -51,6 +56,20 @@ namespace OPS.Pipeline.AlignmentServer
             }
         }
 
+        public void Remove(Frame frame)
+        {
+            frames.Remove(frame.Name);
+            children.Remove(frame.Name);
+            transforms.Remove(frame.Name);
+        }
+
+        public void Remove(FrameTransform transform)
+        {
+            if (transforms.ContainsKey(transform.FrameName))
+            {
+                transforms[transform.FrameName].Remove(transform.Source);
+            }
+        }
 
         /// <summary>
         /// convenience function for the common case of allowing all frames but filtering transforms based on parameters
@@ -186,9 +205,18 @@ namespace OPS.Pipeline.AlignmentServer
             return GetTransforms(frame.Name);
         }
 
-        public FrameTransform GetTransform(string name, TransformSource source)
+        public FrameTransform GetTransform(string transformName)
         {
-            var ret = GetTransforms(name).Where(t => t.Source == source);
+            if (!FrameTransform.SplitName(transformName, out string frameName, out TransformSource source))
+            {
+                throw new ArgumentException("invalid transform name: " + transformName);
+            }
+            return GetTransform(frameName, source);
+        }
+
+        public FrameTransform GetTransform(string frameName, TransformSource source)
+        {
+            var ret = GetTransforms(frameName).Where(t => t.Source == source);
             return ret != null ? ret.FirstOrDefault() : null;
         }
 

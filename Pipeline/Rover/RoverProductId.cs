@@ -12,45 +12,147 @@ namespace OPS.Pipeline
         public readonly RoverProductType ProductType;
         public readonly RoverProductCamera Camera;
         public readonly RoverProductGeometry Geometry;
+        public readonly RoverProductColor Color;
         public readonly int Version;
 
         protected RoverProductId(string fullId, RoverProductProducer producer, string productType, string camera,
-                                 string geometry, string version)
+                                 string geometry, string color, string version)
+            //this doesn't work because can't call instance method ParseProductType() here
+            //: this(fullId, producer, ParseProductType(productType), camera, geometry, color, version)
         {
+            //this doesn't work because we want the class fields to be readonly
+            //Init(fullId, producer, ParseProductType(productType), camera, geometry, color, version);
+
+            //sigh
             this.FullId = fullId;
             this.Producer = producer;
             this.ProductType = ParseProductType(productType);
             this.Camera = ParseCamera(camera);
             this.Geometry = ParseGeometry(geometry);
+            this.Color = ParseColor(color, camera);
             this.Version = ParseVersion(version);
         }
 
         protected RoverProductId(string fullId, RoverProductProducer producer, RoverProductType productType,
-                                 string camera, string geometry, string version)
+                                 string camera, string geometry, string color, string version)
         {
             this.FullId = fullId;
             this.Producer = producer;
             this.ProductType = productType;
             this.Camera = ParseCamera(camera);
             this.Geometry = ParseGeometry(geometry);
+            this.Color = ParseColor(color, camera);
             this.Version = ParseVersion(version);
         }
 
-        public static RoverProductId Parse(string productId)
+        public static RoverProductId Parse(string productId, MissionSpecific mission = null, bool throwOnFail = true)
         {
             string basename = StringHelper.StripUrlExtension(productId);
-            switch (basename.Length)
+
+            RoverProductId fail(string reason)
             {
-                case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(basename);
-                case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(basename);
-                case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(basename);
-                default: return null;
+                if (throwOnFail)
+                {
+                    throw new Exception("failed to parse rover product ID \"" + productId +
+                                        "\" with base length " + basename.Length + ": " + reason);
+                }
+                return null;
+            }
+
+            try
+            {
+                //MSL unified mesh IDs can be from 32 to 36 chars long
+                //Unfortunately regular MSL IDs are 36 chars long
+                //first try as unified
+                //also, TODO for now the M2020 SIS for unified mesh product IDs is incomplete
+                //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
+                if (basename.Length >= MSLUnifiedMeshProductId.MIN_LENGTH &&
+                    basename.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+                {
+                    var unified = MSLUnifiedMeshProductId.Parse(basename);
+                    if (unified != null)
+                    {
+                        return unified;
+                    }
+                }
+                
+                if (mission != null)
+                {
+                    if (mission is MissionMSL)
+                    {
+                        if (basename.Length == MSLOPGSProductId.LENGTH)
+                        {
+                            return MSLOPGSProductId.Parse(basename);
+                        }
+                        else if (basename.Length == MSLMSSSProductId.LENGTH)
+                        {
+                            return MSLMSSSProductId.Parse(basename);
+                        }
+                        else
+                        {
+                            return fail("unexpected length");
+                        }
+                    }
+                    else if (mission is MissionM2020)
+                    {
+                        if (basename.Length == M2020OPGSProductId.LENGTH)
+                        {
+                            return M2020OPGSProductId.Parse(basename);
+                        }
+                        else
+                        {
+                            return fail("unexpected length");
+                        }
+                    }
+                    else
+                    {
+                        return fail("unknown mission \"" + mission.GetType().Name + "\"");
+                    }
+                }
+                else
+                {
+                    switch (basename.Length)
+                    {
+                        case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(basename);
+                        case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(basename);
+                        case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(basename);
+                        default: return fail("unexpected length");
+                    }
+                }
+            } catch (Exception ex)
+            {
+                return fail(ex.Message);
             }
         }
 
         public override string ToString()
         {
             return FullId;
+        }
+
+        public override int GetHashCode()
+        {
+            return FullId.GetHashCode();
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is RoverProductId && (obj as RoverProductId).FullId == FullId; 
+        }
+
+        public virtual bool IsSingleFrame()
+        {
+            return true;
+        }
+
+        public virtual bool IsSingleCamera()
+        {
+            return true;
+        }
+
+        public virtual bool IsSingleSiteDrive()
+        {
+            return true;
         }
 
         protected abstract RoverProductType ParseProductType(string productType);
@@ -61,6 +163,8 @@ namespace OPS.Pipeline
         }
 
         protected abstract RoverProductGeometry ParseGeometry(string geometry);
+
+        protected abstract RoverProductColor ParseColor(string color, string camera);
 
         /// <summary>
         /// MSL OPGS version is one digit in the range 1-9A-Z, or _ for 
@@ -100,6 +204,96 @@ namespace OPS.Pipeline
             }
             return value;
         }
+
+        public virtual bool GetVersionSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public virtual bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public virtual bool GetGeometrySpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public virtual bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public virtual bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public string GetPartialId(int start, int length)
+        {
+            return FullId.Substring(start, length);
+        }
+
+        public virtual string GetPartialId(bool includeVersion = true, bool includeProductType = true,
+                                           bool includeGeometry = true, bool includeColorFilter = true,
+                                           bool includeInstrument = true, bool includeVariants = true)
+        {
+            return GetPartialId(null, includeVersion, includeProductType, includeGeometry, includeColorFilter,
+                                includeInstrument, includeVariants);
+        }
+
+        public virtual string GetPartialId(MissionSpecific mission, bool includeVersion = true,
+                                           bool includeProductType = true, bool includeGeometry = true,
+                                           bool includeColorFilter = true, bool includeInstrument = true,
+                                           bool includeVariants = true)
+        {
+            string ret = FullId;
+            int start, length;
+            var spans = new List<int[]>();
+            if (!includeVariants)
+            {
+                if (mission != null)
+                {
+                    spans.AddRange(mission.GetProductIdVariantSpans(this));
+                }
+                else
+                {
+                    includeVersion = false;
+                }
+            }
+            if (!includeVersion && GetVersionSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeProductType && GetProductTypeSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeGeometry && GetGeometrySpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeColorFilter && GetColorFilterSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (!includeInstrument && GetInstrumentSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            return StringHelper.RemoveMultiple(FullId, spans);
+        }
+
+        public virtual int GetSol()
+        {
+            throw new NotImplementedException();
+        }
     }
 
     public abstract class OPGSProductId : RoverProductId
@@ -108,8 +302,8 @@ namespace OPS.Pipeline
         public readonly SiteDrive SiteDrive;
 
         protected OPGSProductId(string fullId, RoverProductProducer producer, string productType, string camera,
-                                string geometry, string version, string size, int site, int drive)
-            : base(fullId, producer, productType, camera, geometry, version)
+                                string geometry, string color, string version, string size, int site, int drive)
+            : base(fullId, producer, productType, camera, geometry, color, version)
         {
             this.Size = ParseSize(size);
             this.SiteDrive = new SiteDrive(site, drive);
@@ -133,25 +327,56 @@ namespace OPS.Pipeline
         }
     }
 
-    public class MSLOPGSProductId : OPGSProductId
+    public abstract class MSLOPGSProductIdBase : OPGSProductId
+    {
+        public readonly string Spec;
+
+        protected MSLOPGSProductIdBase(string fullId, string producer, string productType, string camera,
+                                       string geometry, string color, string version, string size, int site, int drive,
+                                       string spec)
+            : base(fullId, ParseProducer(producer), productType, camera, geometry, color, version, size, site, drive)
+        {
+            this.Spec = spec;
+        }
+
+        protected override RoverProductSize ParseSize(string size)
+        {
+            switch (size.ToUpper())
+            {
+                case "F": case "S": return RoverProductSize.Regular;
+                case "T": return RoverProductSize.Thumbnail;
+                default: return RoverProductSize.Unknown;
+            }
+        }
+
+        protected static RoverProductProducer ParseProducer(string producer)
+        {
+            switch (producer.ToUpper())
+            {
+                case "M": return RoverProductProducer.OPGS;
+                default: return RoverProductProducer.Unknown;
+            }
+        }
+    }
+
+    public class MSLOPGSProductId : MSLOPGSProductIdBase
     {
         public const int LENGTH = 36;
 
-        public readonly string Config, Spec, Seqnum;
+        public readonly string Config, Seqnum;
         public readonly int Sclk;
 
         protected MSLOPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
-                                   string version, string size, int site, int drive,
-                                   string config, string spec, int sclk, string seqnum)
-            : base(fullId, ParseProducer(producer), productType, camera, geometry, version, size, site, drive)
+                                   string config, string version, string size, int site, int drive,
+                                   string spec, int sclk, string seqnum)
+            : base(fullId, producer, productType, camera, geometry, config, version, size, site, drive, spec)
         {
             this.Config = config;
-            this.Spec = spec;
             this.Sclk = sclk;
             this.Seqnum = seqnum;
         }
 
-        public static new MSLOPGSProductId Parse(string productId)
+        public static MSLOPGSProductId Parse(string productId)
         {
             productId = StringHelper.StripUrlExtension(productId);
             if (productId.Length != LENGTH)
@@ -180,52 +405,305 @@ namespace OPS.Pipeline
             }
 
             return new MSLOPGSProductId(fullId: productId, producer: venue, productType: prodType, camera: inst,
-                                        geometry: geom, version: ver, size: samp, site: site, drive: drive,
-                                        config: config, spec: spec, sclk: sclk, seqnum: seqnum);
+                                        geometry: geom, config: config, version: ver, size: samp,
+                                        site: site, drive: drive, spec: spec, sclk: sclk, seqnum: seqnum);
         }
 
-        protected override RoverProductSize ParseSize(string size)
+        protected override RoverProductColor ParseColor(string color, string camera)
         {
-            switch (size.ToUpper())
+            var cam = RoverCamera.FromRDRInstrumentID(camera);
+            if (RoverCamera.IsCamera(RoverProductCamera.Hazcam, cam) ||
+                RoverCamera.IsCamera(RoverProductCamera.Navcam, cam))
             {
-                case "F": case "S": return RoverProductSize.Regular;
-                case "T": return RoverProductSize.Thumbnail;
-                default: return RoverProductSize.Unknown;
+                return RoverProductColor.Grayscale;
+            }
+            else if (RoverCamera.IsCamera(RoverProductCamera.Mastcam, cam) ||
+                     RoverCamera.IsCamera(RoverProductCamera.MAHLI, cam))
+            {
+                switch (color)
+                {
+                    case "F": return RoverProductColor.FullColor;
+                    case "R": return RoverProductColor.Red;
+                    case "G": return RoverProductColor.Green;
+                    case "B": return RoverProductColor.Blue;
+                    default: return RoverProductColor.Unknown;
+                }
+            }
+            else
+            {
+                return RoverProductColor.Unknown;
             }
         }
 
-        protected static RoverProductProducer ParseProducer(string producer)
+        public override bool GetVersionSpan(out int start, out int length)
         {
-            switch (producer.ToUpper())
-            {
-                case "M": return RoverProductProducer.OPGS;
-                default: return RoverProductProducer.Unknown;
-            }
+            start = 35;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = 13;
+            length = 3;
+            return true;
+        }
+
+        public override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = 16;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = 2;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = 0;
+            length = 2;
+            return true;
         }
     }
 
-    public enum MSSSProductType
+    public class MSLUnifiedMeshProductId : MSLOPGSProductIdBase
     {
-        JPEGGrayscale,
-        JPEGColor,
-        Unknown
+        public const int MIN_LENGTH = 32;
+        public const int MAX_LENGTH = 36;
+
+        public readonly RoverProductCamera[] Cameras;
+        public readonly RoverProductType TextureProductType;
+        public readonly RoverStereoEye StereoEye;
+        public readonly int Sol;
+        public readonly bool MultiSol, MultiSite, MultiDrive;
+        public readonly string MeshId;
+
+        protected MSLUnifiedMeshProductId(string fullId, string producer, string textureProductType,
+                                          string cameras, string geometry, string version, string size,
+                                          int site, int drive, string spec, string eye, int sol,
+                                          bool multiSol, bool multiSite, bool multiDrive, string meshId)
+            : base(fullId, producer, "XYZ", cameras + eye, geometry, /* color */ "", version, size, site, drive, spec)
+        {
+            this.Cameras = ParseCameras(cameras, eye);
+            this.TextureProductType = ParseProductType(textureProductType);
+            this.StereoEye = ParseEye(eye[0]);
+            this.Sol = sol;
+            this.MultiSol = multiSol;
+            this.MultiSite = multiSite;
+            this.MultiDrive = multiDrive;
+            this.MeshId = meshId;
+        }
+
+        public static MSLUnifiedMeshProductId Parse(string productId)
+        {
+            productId = StringHelper.StripUrlExtension(productId);
+            if (productId.Length < MIN_LENGTH || productId.Length > MAX_LENGTH)
+            {
+                return null;
+            }
+
+            int us = productId.IndexOf('_');
+            if (us < 0)
+            {
+                return null;
+            }
+            
+            string inst = productId.Substring(0, us);
+            string eye = productId.Substring(us + 1, 1);
+            string solStr = productId.Substring(us + 2, 4);
+            string multiSolStr = productId.Substring(us + 6, 1);
+            string prodType = productId.Substring(us + 7, 3);
+            string geom = productId.Substring(us + 10, 1);
+            string samp = productId.Substring(us + 11, 1);
+            string spec = productId.Substring(us + 12, 1);
+            string siteStr = productId.Substring(us + 13, 3);
+            string multiSiteStr = productId.Substring(us + 16, 1);
+            string driveStr = productId.Substring(us + 17, 4);
+            string multiDriveStr = productId.Substring(us + 21, 1);
+            string meshId = productId.Substring(us + 22, 7);
+            string venue = productId.Substring(us + 29, 1);
+            string ver = productId.Substring(us + 30, 1);
+
+            if (!int.TryParse(solStr, out int sol) || //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/794
+                !int.TryParse(siteStr, out int site) ||
+                !int.TryParse(driveStr, out int drive))
+            {
+                return null;
+            }
+
+            bool parseFlag(string flag, out bool value)
+            {
+                value = false;
+                switch (flag.ToUpper())
+                {
+                    case "_": return true;
+                    case "X": value = true; return true;
+                    default: return false;
+                }
+            }
+
+            if (!parseFlag(multiSolStr, out bool multiSol) ||
+                !parseFlag(multiSiteStr, out bool multiSite) ||
+                !parseFlag(multiDriveStr, out bool multiDrive))
+            {
+                return null;
+            }
+
+            return new MSLUnifiedMeshProductId(fullId: productId, producer: venue, textureProductType: prodType,
+                                               cameras: inst, geometry: geom, version: ver, size: samp,
+                                               site: site, drive: drive, spec: spec, eye: eye, sol: sol,
+                                               multiSol: multiSol, multiSite: multiSite, multiDrive: multiDrive,
+                                               meshId: meshId);
+        }
+
+        public override bool IsSingleFrame()
+        {
+            return false;
+        }
+
+        public override bool IsSingleCamera()
+        {
+            return Cameras.Length == 1;
+        }
+
+        public override bool IsSingleSiteDrive()
+        {
+            return !MultiSite && !MultiDrive;
+        }
+
+        private RoverProductCamera[] ParseCameras(string cameras, string eye)
+        {
+            var ret = new List<RoverProductCamera>();
+            foreach (char camera in (cameras ?? ""))
+            {
+                ret.Add(ParseCamera(camera, eye[0]));
+            }
+            return ret.ToArray();
+        }
+
+        protected override RoverProductCamera ParseCamera(string cameras)
+        {
+            if (string.IsNullOrEmpty(cameras) || cameras.Length < 2)
+            {
+                return RoverProductCamera.Unknown;
+            }
+            return ParseCamera(cameras[0], cameras[cameras.Length - 1]);
+        }
+
+        protected override RoverProductColor ParseColor(string color, string camera)
+        {
+            return RoverProductColor.Unknown;
+        }
+
+        public override bool GetVersionSpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = us + 30;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetProductTypeSpan(out int start, out int length)
+        {
+            //prodType in a unified mesh ID is actually the type of the texture product
+            start = length = -1;
+            return false;
+        }
+
+        public override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = us + 10;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = 0;
+            length = us + 2;
+            return true;
+        }
+
+        public override int GetSol()
+        {
+            return Sol;
+        }
+
+        private RoverProductCamera ParseCamera(char camera, char eyeChar)
+        {
+            var eye = ParseEye(eyeChar);
+            switch (camera)
+            {
+                case 'F': return eye == RoverStereoEye.Left ? RoverProductCamera.FrontHazcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.FrontHazcamRight : RoverProductCamera.FrontHazcam;
+                case 'R': return eye == RoverStereoEye.Left ? RoverProductCamera.RearHazcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.RearHazcamRight : RoverProductCamera.RearHazcam;
+                case 'N': return eye == RoverStereoEye.Left ? RoverProductCamera.NavcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.NavcamRight : RoverProductCamera.Navcam;
+                case 'M': return eye == RoverStereoEye.Left ? RoverProductCamera.MastcamLeft :
+                    eye == RoverStereoEye.Right ? RoverProductCamera.MastcamRight : RoverProductCamera.Mastcam;
+                case 'H': return RoverProductCamera.MAHLI;
+                case 'O': return RoverProductCamera.Unknown; //orbiter
+                case 'A': return RoverProductCamera.Unknown; //all six instruments
+                default: return RoverProductCamera.Unknown;
+            }
+        }
+
+        private RoverStereoEye ParseEye(char eye)
+        {
+            switch (eye)
+            {
+                case 'L': return RoverStereoEye.Left;
+                case 'R': return RoverStereoEye.Right;
+                case 'M': return RoverStereoEye.Mono;
+                case 'N': return RoverStereoEye.Any; //not applicable
+                case 'X': return RoverStereoEye.Any; //mixed
+                default: return RoverStereoEye.Any;
+            }
+        }
     }
 
     public class MSLMSSSProductId : RoverProductId
     {
         public const int LENGTH = 30;
 
-        public readonly MSSSProductType MSSSProductType;
         public readonly string FullSeqId, SeqLine, CdpidCounter, CdpidComplete, GopCounter, ProcessingCode; 
         public readonly int Sol;
         public readonly bool Decompressed, RadiometricallyCalibrated, ColorCorrected;
 
-        protected MSLMSSSProductId(string fullId, string productType, string camera, string geometry, string version, 
+        protected MSLMSSSProductId(string fullId, string camera, string geometry, string color, string version,
                                    int sol, string fullSeqId, string seqLine,
                                    string cdpidCounter, string cdpidComplete, string gopCounter, string processingCode)
-            : base(fullId, RoverProductProducer.MSSS, RoverProductType.Image, camera, geometry, version)
+            : base(fullId, RoverProductProducer.MSSS, RoverProductType.Image, camera, geometry, color, version)
         {
-            this.MSSSProductType = ParseMSSSProductType(productType);
             this.Sol = sol;
             this.FullSeqId = fullSeqId;
             this.SeqLine = seqLine;
@@ -240,7 +718,7 @@ namespace OPS.Pipeline
             this.ColorCorrected = processingCode.Contains("C");
         }
 
-        public static new MSLMSSSProductId Parse(string productId)
+        public static MSLMSSSProductId Parse(string productId)
         {
             productId = StringHelper.StripUrlExtension(productId);
             if (productId.Length != LENGTH)
@@ -264,15 +742,18 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            return new MSLMSSSProductId(fullId: productId, productType: productType, camera: inst,
-                                        geometry: processingCode, version: version, sol: sol,
-                                        fullSeqId: fullSeqId, seqLine: seqLine,
+            return new MSLMSSSProductId(fullId: productId, camera: inst, geometry: processingCode, color: productType,
+                                        version: version, sol: sol, fullSeqId: fullSeqId, seqLine: seqLine,
                                         cdpidCounter: cdpidCounter, cdpidComplete: cdpidComplete,
                                         gopCounter: gopCounter, processingCode: processingCode);
         }
 
         protected override RoverProductType ParseProductType(string productType)
         {
+            if (productType != null && productType.ToUpper() == "RAS")
+            {
+                return RoverProductType.Image;
+            }
             throw new NotImplementedException();
         }
 
@@ -281,14 +762,53 @@ namespace OPS.Pipeline
             return geometry.ToUpper().Contains("L") ? RoverProductGeometry.Linearized : RoverProductGeometry.Raw;
         }
 
-        protected MSSSProductType ParseMSSSProductType(string productType)
+        protected override RoverProductColor ParseColor(string color, string camera)
         {
-            switch (productType.ToUpper())
+            switch (color.ToUpper())
             {
-                case "D": return MSSSProductType.JPEGGrayscale;
-                case "E": case "F": return MSSSProductType.JPEGColor;
-                default: return MSSSProductType.Unknown;
+                case "D": return RoverProductColor.Grayscale;
+                case "E": case "F": return RoverProductColor.FullColor;
+                default: return RoverProductColor.Unknown;
             }
+        }
+
+        public override bool GetVersionSpan(out int start, out int length)
+        {
+            start = 24;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = 26;
+            length = 4;
+            return true;
+        }
+
+        public override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = 22;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = 4;
+            length = 2;
+            return true;
+        }
+
+        public override int GetSol()
+        {
+            return Sol;
         }
     }
 
@@ -300,12 +820,12 @@ namespace OPS.Pipeline
         public readonly int Ts0, Ts1, Ts2;
 
         protected M2020OPGSProductId(string fullId, string producer, string productType, string camera, string geometry,
-                                     string version, string size, int site, int drive,
-                                     string colorFilter, string spec, int ts0, string venue, int ts1, int ts2,
+                                     string color, string version, string size, int site, int drive,
+                                     string spec, int ts0, string venue, int ts1, int ts2,
                                      string sequence, string camspec, string downsample, string compression)
-            : base(fullId, ParseProducer(producer), productType, camera, geometry, version, size, site, drive)
+            : base(fullId, ParseProducer(producer), productType, camera, geometry, color, version, size, site, drive)
         {
-            this.ColorFilter = colorFilter;
+            this.ColorFilter = color;
             this.Spec = spec;
             this.Ts0 = ts0;
             this.Venue = venue;
@@ -317,7 +837,7 @@ namespace OPS.Pipeline
             this.Compression = compression;
         }
 
-        public static new M2020OPGSProductId Parse(string productId)
+        public static M2020OPGSProductId Parse(string productId)
         {
             //NLF_0000F0606538784_415RASLN0010000000309914_0N00LLJ00
             //| |||   ||         ||  |  | \   \  |        |   |  |
@@ -358,8 +878,8 @@ namespace OPS.Pipeline
             }
 
             return new M2020OPGSProductId(fullId: productId, producer: producer, productType: prodType, camera: inst,
-                                          geometry: geometry, version: version, size: thumb, site: site, drive: drive,
-                                          colorFilter: colorFilter, spec: spec, ts0: ts0, venue: venue, ts1: ts1,
+                                          geometry: geometry, color: colorFilter, version: version, size: thumb,
+                                          site: site, drive: drive, spec: spec, ts0: ts0, venue: venue, ts1: ts1,
                                           ts2: ts2, sequence: sequence, camspec: camspec, downsample: downsample,
                                           compression: compression);
         }
@@ -367,11 +887,6 @@ namespace OPS.Pipeline
         public string GetConcatenatedTimeString()
         {
             return Ts0 + "_" + Ts1 + "_" + Ts2;
-        }
-
-        public int GetDayNumber()
-        {
-            return Ts0;
         }
 
         protected static RoverProductProducer ParseProducer(string producer)
@@ -400,6 +915,59 @@ namespace OPS.Pipeline
                 case "_": return RoverProductGeometry.Raw;
                 default: return RoverProductGeometry.Unknown;
             }
+        }
+
+        protected override RoverProductColor ParseColor(string color, string camera)
+        {
+            switch (color.ToUpper())
+            {
+                case "F": return RoverProductColor.FullColor;
+                case "M": return RoverProductColor.Grayscale;
+                case "R": return RoverProductColor.Red;
+                case "G": return RoverProductColor.Green;
+                case "B": return RoverProductColor.Blue;
+                default: return RoverProductColor.Unknown;
+            }
+        }
+
+        public override bool GetVersionSpan(out int start, out int length)
+        {
+            start = 52;
+            length = 2;
+            return true;
+        }
+
+        public override bool GetProductTypeSpan(out int start, out int length)
+        {
+            start = 23;
+            length = 3;
+            return true;
+        }
+
+        public override bool GetGeometrySpan(out int start, out int length)
+        {
+            start = 26;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetColorFilterSpan(out int start, out int length)
+        {
+            start = 2;
+            length = 1;
+            return true;
+        }
+
+        public override bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = 0;
+            length = 2;
+            return true;
+        }
+
+        public override int GetSol()
+        {
+            return Ts0;
         }
     }
 }

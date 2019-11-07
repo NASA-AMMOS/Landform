@@ -345,11 +345,8 @@ namespace OPS.Pipeline
                     continue;
                 }
 
-                var maskObs = opts.observationCache.GetAllObservationsForFrame(opts.frameCache.GetFrame(obs.FrameName))
-                    .Where(o => o is RoverObservation)
-                    .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
-                    .OrderBy(o => (RoverObservation)o, comparator)
-                    .FirstOrDefault();
+                var off = opts.observationCache.GetAllObservationsForFrame(opts.frameCache.GetFrame(obs.FrameName));
+                var maskObs = comparator.GetBestRoverObservation(off, RoverProductType.RoverMask);
 
                 allContexts.Add(new BackprojectContext(obs, maskObs, obsToHull[obs.Name], obsToMesh));
             }

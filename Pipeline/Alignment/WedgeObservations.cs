@@ -105,7 +105,7 @@ namespace OPS.Pipeline
             get { var ro = RoverObs; return new SiteDrive(ro.Site, ro.Drive); }
         }
 
-        public RoverProductCamera Camera { get { return RoverObs.Sensor; } }
+        public RoverProductCamera Camera { get { return RoverObs.Camera; } }
 
         public class CollectOptions
         {
@@ -118,7 +118,7 @@ namespace OPS.Pipeline
             public bool IncludeForTexturing = false;
 
             public SiteDrive[] OnlyForSiteDrives = null;
-            public string[] OnlyForCameras = null;
+            public RoverProductCamera[] OnlyForCameras = null;
             public string[] OnlyForFrames = null;
 
             //require that there is a priors-only transform chain from the frame of the MeshObservations to TargetFrame
@@ -151,7 +151,7 @@ namespace OPS.Pipeline
 
                 if (!string.IsNullOrEmpty(onlyForCameras))
                 {
-                    this.OnlyForCameras = StringHelper.ParseList(onlyForCameras);
+                    this.OnlyForCameras = RoverCamera.ParseList(onlyForCameras);
                 }
 
                 if (mission != null)
@@ -200,7 +200,8 @@ namespace OPS.Pipeline
                        (opts.IncludeForTexturing && obs.UseForTexturing))
                 .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
                 .Where(obs => opts.OnlyForFrames == null || opts.OnlyForFrames.Any(frm => frm == obs.FrameName))
-                .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Sensor)))
+                .Where(obs => opts.OnlyForCameras == null ||
+                       opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Camera)))
                 .ToList();
 
             if (opts.Comparator != null)

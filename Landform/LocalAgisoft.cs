@@ -424,7 +424,7 @@ namespace OPS.Landform
                     roverObsBands.Add(robsBand);
                 }
 
-                var obsByCameraConfig = roverObsBands.GroupBy(o => new { o.Obs.Sensor, o.Obs.Width, o.Obs.Height, o.Bands });
+                var obsByCameraConfig = roverObsBands.GroupBy(o => new { o.Obs.Camera, o.Obs.Width, o.Obs.Height, o.Bands });
 
                 //add xml fragmentes needed for cameras
                 XmlDocument doc = new XmlDocument();
@@ -452,7 +452,7 @@ namespace OPS.Landform
                 int cameraId = 0;
                 foreach (var cameraConfig in obsByCameraConfig)
                 {
-                    RoverProductCamera roverProdCam = cameraConfig.Key.Sensor;
+                    RoverProductCamera roverProdCam = cameraConfig.Key.Camera;
                     AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height, cameraConfig.Key.Bands, mission);
 
                     foreach (var obs in cameraConfig.Select(o => o.Obs))
