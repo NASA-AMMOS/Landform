@@ -17,10 +17,28 @@ namespace OPS.Pipeline
 
         protected RoverProductId(string fullId, RoverProductProducer producer, string productType, string camera,
                                  string geometry, string color, string version)
+            //this doesn't work because can't call instance method ParseProductType() here
+            //: this(fullId, producer, ParseProductType(productType), camera, geometry, color, version)
         {
+            //this doesn't work because we want the class fields to be readonly
+            //Init(fullId, producer, ParseProductType(productType), camera, geometry, color, version);
+
+            //sigh
             this.FullId = fullId;
             this.Producer = producer;
             this.ProductType = ParseProductType(productType);
+            this.Camera = ParseCamera(camera);
+            this.Geometry = ParseGeometry(geometry);
+            this.Color = ParseColor(color, camera);
+            this.Version = ParseVersion(version);
+        }
+
+        protected RoverProductId(string fullId, RoverProductProducer producer, RoverProductType productType,
+                                 string camera, string geometry, string color, string version)
+        {
+            this.FullId = fullId;
+            this.Producer = producer;
+            this.ProductType = productType;
             this.Camera = ParseCamera(camera);
             this.Geometry = ParseGeometry(geometry);
             this.Color = ParseColor(color, camera);
@@ -684,7 +702,7 @@ namespace OPS.Pipeline
         protected MSLMSSSProductId(string fullId, string camera, string geometry, string color, string version,
                                    int sol, string fullSeqId, string seqLine,
                                    string cdpidCounter, string cdpidComplete, string gopCounter, string processingCode)
-            : base(fullId, RoverProductProducer.MSSS, "RAS", camera, geometry, color, version)
+            : base(fullId, RoverProductProducer.MSSS, RoverProductType.Image, camera, geometry, color, version)
         {
             this.Sol = sol;
             this.FullSeqId = fullSeqId;
