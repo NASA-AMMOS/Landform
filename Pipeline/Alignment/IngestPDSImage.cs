@@ -324,7 +324,6 @@ namespace OPS.Pipeline
         //TODO: after all sites are processed the matrices can be fixed up to provide current site to root (first site) by chaining
         private UncertainRigidTransform GetSiteDriveToSiteTransformFromPDS(PDSParser parser)
         {            
-            var siteDrive = new SiteDrive(parser.SiteDrive);
             Vector3 siteToLocalLevel = parser.OriginOffset;
 
             // TODO: examine values here
