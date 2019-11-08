@@ -378,6 +378,7 @@ namespace OPS.Pipeline
             var ret = givenFolder;
             if (string.IsNullOrEmpty(givenFolder))
             {
+                //empty strings are ignored
                 ret = Path.Combine(LocalPipelineConfig.Instance.StorageDir, Venue, defaultSubpath, project);
             }
             return StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(ret));

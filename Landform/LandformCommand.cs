@@ -101,8 +101,11 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("{0} file delete retries", ndr);
             }
-            pipeline.LogInfo("local output path: {0}", localOutputPath);
-            if (pipeline is CloudPipeline)
+            if (!string.IsNullOrEmpty(localOutputPath))
+            {
+                pipeline.LogInfo("local output path: {0}", localOutputPath);
+            }
+            if (!string.IsNullOrEmpty(outputFolder) && pipeline is CloudPipeline && project != null)
             {
                 pipeline.LogInfo("cloud output path: {0}", pipeline.GetStorageUrl(outputFolder, project.Name));
             }
@@ -128,6 +131,10 @@ namespace OPS.Landform
 
         protected virtual Project GetProject()
         {
+            if (string.IsNullOrEmpty(lcopts.ProjectName))
+            {
+                return null;
+            }
             var project = Project.Find(pipeline, lcopts.ProjectName);
             if (project == null)
             {
@@ -139,12 +146,13 @@ namespace OPS.Landform
 
         protected virtual MissionSpecific GetMission()
         {
-            return MissionSpecific.GetInstance(project.Mission);
+            return project != null ? MissionSpecific.GetInstance(project.Mission) : null;
         }
 
         protected virtual RoverMasker GetMasker()
         {
-            return mission.GetMasker();
+            
+            return mission != null ? mission.GetMasker() : null;
         }
 
         protected virtual bool DeleteLocalProductsBeforeRedo()
@@ -155,7 +163,7 @@ namespace OPS.Landform
         protected virtual void SetOutDir(string outDir)
         {
             outputFolder = outDir;
-            localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project.Name);
+            localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project != null ? project.Name : "");
             if (lcopts.Redo && Directory.Exists(localOutputPath) && DeleteLocalProductsBeforeRedo())
             {
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);

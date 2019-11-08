@@ -105,7 +105,8 @@ namespace OPS.Landform
 
             if (observationCache != null)
             {
-                var comparator = mission.GetRoverObservationComparator();
+                var comparator =
+                    mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
                 var allObs = observationCache.GetAllObservations();
                 imageObservations = comparator
                     .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
@@ -235,7 +236,8 @@ namespace OPS.Landform
 
         protected void BuildObservationImageMasks()
         {
-            var comparator = mission.GetRoverObservationComparator();
+            var comparator =
+                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
             int no = imageObservations.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(imageObservations, obs => {

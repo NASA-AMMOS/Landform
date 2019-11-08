@@ -88,7 +88,7 @@ namespace OPS.Landform
         {
             meshFrame = GetMeshFrame().ToLower().Trim();
 
-            string missionRoot = mission.RootFrameName();
+            string missionRoot = mission != null ? mission.RootFrameName() : null;
 
             var specials =
                 new string[] { "auto", "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
@@ -121,12 +121,15 @@ namespace OPS.Landform
 
             if (meshFrame == "mission_root" || meshFrame == missionRoot)
             {
+                if (missionRoot == null)
+                {
+                    throw new Exception("mission root output requested but mission not specified");
+                }
                 if (string.IsNullOrEmpty(effectiveRootFrame))
                 {
                     //this can happen if there were no frames to load or the frame cache was not loaded
                     throw new Exception("mission root output requested but no frames or frame cache not loaded");
                 }
-
                 if (effectiveRootFrame != missionRoot)
                 {
                     throw new Exception(string.Format("mission root output {0} requested but effective root is {1}",
