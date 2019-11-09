@@ -85,8 +85,8 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Write only merged site drive meshes", Default = false)]
         public bool OnlyMergedSiteDriveMeshes { get; set; }
 
-        [Option(HelpText = "Stereo eye to prefer for merged site drive meshes", Default = RoverStereoEye.Left)]
-        public RoverStereoEye MergedSiteDriveEye { get; set; }
+        [Option(HelpText = "Stereo eye to prefer for wedges with geometry", Default = "auto")]
+        public string StereoEye { get; set; }
 
         [Option(HelpText = "Write all the things", Default = false)]
         public bool AllTheThings { get; set; }
@@ -136,7 +136,7 @@ namespace OPS.LandformUtil
         private bool buildWedgeMeshes;
         private bool buildWedgeImages;
 
-        private List<WedgeObservations> meshObservations;
+        private List<WedgeObservations> wedgeObservations;
 
         //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
         private ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>> mergeInputs =
@@ -252,31 +252,15 @@ namespace OPS.LandformUtil
                     TargetFrame = meshFrame
                 }; 
 
-            meshObservations =
-                WedgeObservations.Collect(frameCache, observationCache, opts)
-                .Where(obs => !obs.Empty)
-                .OrderBy(obs => obs.FrameName)
-                .OrderBy(obs => obs.Day)
-                .OrderBy(obs => obs.StereoFrameName)
-                .ToList();
-
-            if (options.OnlyMergedSiteDriveMeshes && options.MergedSiteDriveEye != RoverStereoEye.Any)
-            {
-                meshObservations = meshObservations 
-                    .GroupBy(obs => obs.StereoFrameName)
-                    .Select(group => WedgeObservations.FilterForEye(group, options.MergedSiteDriveEye, obs => obs))
-                    .Where(obs => obs != null)
-                    .Where(obs => obs.Points != null || obs.Range != null)
-                    .ToList();
-            }
+            wedgeObservations = CollectWedgeObservations(opts, options.StereoEye);
 
             return true;
         }
 
         private void GenerateObservationProducts()
         {
-            int no = meshObservations.Count;
-            var sds = meshObservations
+            int no = wedgeObservations.Count;
+            var sds = wedgeObservations
                 .Select(obs => obs.SiteDrive)
                 .Distinct()
                 .OrderBy(sd => sd)
@@ -307,7 +291,7 @@ namespace OPS.LandformUtil
                 };
 
             int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(meshObservations, obs => { 
+            CoreLimitedParallel.ForEach(wedgeObservations, obs => { 
 
                 Interlocked.Increment(ref np);
 
@@ -444,7 +428,7 @@ namespace OPS.LandformUtil
                 
                 if (options.DeltaRangeImages && obs.Points != null)
                 {
-                    foreach (var otherObs in meshObservations)
+                    foreach (var otherObs in wedgeObservations)
                     {
                         if (obs != otherObs && otherObs.Points != null &&
                             Overlap.Find(pipeline, project.Name, otherObs.Texture.Name, obs.Texture.Name) != null)
@@ -469,7 +453,7 @@ namespace OPS.LandformUtil
                 Interlocked.Increment(ref nc);
             });
 
-            foreach (var obs in meshObservations)
+            foreach (var obs in wedgeObservations)
             {
                 if (buildWedgeMeshes)
                 {
@@ -680,12 +664,13 @@ namespace OPS.LandformUtil
                     .OrderBy(inp => inp.Item1.FrameName) //order by observation frame
                     .Distinct() //ConcurrentBag is not necessarily a set
                     .ToArray();
-                
-                if (options.MergedSiteDriveEye != RoverStereoEye.Any)
+
+                var eye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
+                if (eye != RoverStereoEye.Any)
                 {
                     inputs = inputs
                         .GroupBy(inp => inp.Item1.StereoFrameName)
-                        .Select(group => WedgeObservations.FilterForEye(group, options.MergedSiteDriveEye, inp => inp.Item1))
+                        .Select(group => WedgeObservations.FilterForEye(group, eye, inp => inp.Item1))
                         .Where(inp => inp != null)
                         .ToArray();
                 }
@@ -715,7 +700,7 @@ namespace OPS.LandformUtil
                 
                 pipeline.LogInfo("generating merged mesh for site drive {0} from {1} {2} eye wedge meshes, " +
                                  "{3} with normals, {4} with textures{5}",
-                                 siteDrive, inputs.Length, options.MergedSiteDriveEye, hasNormals, hasTextures,
+                                 siteDrive, inputs.Length, eye, hasNormals, hasTextures,
                                  hasTextures > 0 ? 
                                  (": " + string.Join(", ", bands.Select(e => string.Format("{0} with {1} bands",
                                                                                            e.Value, e.Key))))
