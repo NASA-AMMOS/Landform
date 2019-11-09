@@ -284,6 +284,26 @@ namespace OPS.Pipeline
             this.SiteDrive = new SiteDrive(site, drive);
         }
 
+        public virtual bool GetSizeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public virtual string AsThumbnail()
+        {
+            if (!GetSizeSpan(out int start, out int length))
+            {
+                throw new NotImplementedException();
+            }
+            return FullId.Substring(0, start) + GetThumbnailString() + FullId.Substring(start + length);
+        }
+
+        protected virtual string GetThumbnailString()
+        {
+            throw new NotImplementedException();
+        }
+
         protected abstract RoverProductSize ParseSize(string size);
 
         protected override RoverProductType ParseProductType(string productType)
@@ -330,6 +350,11 @@ namespace OPS.Pipeline
                 case "T": return RoverProductSize.Thumbnail;
                 default: return RoverProductSize.Unknown;
             }
+        }
+
+        protected override string GetThumbnailString()
+        {
+            return "T";
         }
 
         protected static RoverProductProducer ParseProducer(string producer)
@@ -450,6 +475,13 @@ namespace OPS.Pipeline
         {
             start = 0;
             length = 2;
+            return true;
+        }
+
+        public override bool GetSizeSpan(out int start, out int length)
+        {
+            start = 17;
+            length = 1;
             return true;
         }
     }
@@ -633,6 +665,19 @@ namespace OPS.Pipeline
             }
             start = 0;
             length = us + 2;
+            return true;
+        }
+
+        public override bool GetSizeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = us + 11;
+            length = 1;
             return true;
         }
 
@@ -887,8 +932,14 @@ namespace OPS.Pipeline
             switch (size.ToUpper())
             {
                 case "N": return RoverProductSize.Regular;
-                default: return RoverProductSize.Thumbnail;
+                case "T": return RoverProductSize.Thumbnail;
+                default: return RoverProductSize.Unknown;
             }
+        }
+
+        protected override string GetThumbnailString()
+        {
+            return "T";
         }
 
         protected override RoverProductGeometry ParseGeometry(string geometry)
@@ -946,6 +997,13 @@ namespace OPS.Pipeline
         {
             start = 0;
             length = 2;
+            return true;
+        }
+
+        public override bool GetSizeSpan(out int start, out int length)
+        {
+            start = 27;
+            length = 1;
             return true;
         }
 
