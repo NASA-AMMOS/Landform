@@ -407,7 +407,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="file">path to file on disk</param>
         /// <param name="url">destination URL, must start with StorageURL/Venue</param>
-        public abstract void SaveFile(string file, string url);
+        public abstract void SaveFile(string file, string url, bool constrainToStorage = true);
 
         /// <summary>
         /// Delete a persisted file.

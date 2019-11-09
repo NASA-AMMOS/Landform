@@ -217,9 +217,9 @@ namespace OPS.Pipeline
             return cachedFile;
         }
 
-        public override void SaveFile(string file, string url)
+        public override void SaveFile(string file, string url, bool constrainToStorage = true)
         {
-            UploadFile(file, CheckUrl(url));
+            UploadFile(file, CheckUrl(url, constrainToStorage));
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)

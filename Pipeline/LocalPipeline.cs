@@ -85,9 +85,9 @@ namespace OPS.Pipeline
         }
 
         private static object saveLock = new object();
-        public override void SaveFile(string file, string url)
+        public override void SaveFile(string file, string url, bool constrainToStorage = true)
         {
-            string dest = UrlToFile(CheckUrl(url));
+            string dest = UrlToFile(CheckUrl(url, constrainToStorage));
             PathHelper.EnsureExists(Path.GetDirectoryName(dest));
             //use TemporaryFile.GetAndMove() rather than directly copy file to dest
             //this avoids IOException due to "the file is being used by another process"
