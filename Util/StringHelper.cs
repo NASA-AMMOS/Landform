@@ -93,7 +93,23 @@ namespace OPS.Util
         public static string NormalizeUrl(string url, string protocol = null, bool preserveTrailingSlash = false)
         {
             url = NormalizeSlashes(url, preserveTrailingSlash);
-            return !string.IsNullOrEmpty(protocol) ? EnsureProtocol(url, protocol) : url;
+            if (!string.IsNullOrEmpty(protocol))
+            {
+                return EnsureProtocol(url, protocol);
+            }
+            else
+            {
+                int sep = url.IndexOf("://");
+                if (sep >= 0)
+                {
+                    string proto = url.Substring(0, sep);
+                    return proto.ToLower() + url.Substring(sep);
+                }
+                else
+                {
+                    return url;
+                }
+            }
         }
 
         public static string GetLastUrlPathSegment(string url, bool stripExtension = false)
