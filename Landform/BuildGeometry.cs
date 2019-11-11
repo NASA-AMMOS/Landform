@@ -21,8 +21,8 @@ namespace OPS.Landform
 {
     public enum MeshDecimationProvider { MeshLab, EdgeCollapse };
 
-    [Verb("local-build-geometry", HelpText = "create mesh")]
-    public class LocalBuildGeometryOptions : GeometryCommandOptions
+    [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
+    public class BuildGeometryOptions : GeometryCommandOptions
     {
         [Option(HelpText = "Decimate the scene mesh to this target number of faces if positive", Default = 0)]
         public int TargetSceneMeshFaces { get; set; }
@@ -43,18 +43,18 @@ namespace OPS.Landform
         public double ClipExtent { get; set; }
     }
 
-    public class LocalBuildGeometry : GeometryCommand
+    public class BuildGeometry : GeometryCommand
     {
         private const string OUT_DIR = "meshing/GeometryProducts";
 
-        private LocalBuildGeometryOptions options;
+        private BuildGeometryOptions options;
 
         private Observation[] onlyForObs;
         private RoverStereoEye stereoEye;
 
         private BoundingBox meshBounds;
 
-        public LocalBuildGeometry(LocalBuildGeometryOptions options) : base(options)
+        public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
             this.options = options;
         }
@@ -122,7 +122,7 @@ namespace OPS.Landform
 
         private void BuildMesh()
         {
-            mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds, frameCache, observationCache,
+            mesh = Pipeline.TilingServer.BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds, frameCache, observationCache,
                                               meshFrame, options.UsePriors, options.OnlyAligned,
                                               options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);

@@ -18,8 +18,8 @@ using System.Xml;
 
 namespace OPS.LandformUtil
 {
-    [Verb("local-convert-to-ASTTRO", HelpText = "convert a tileset to a ASTTRO scene")]
-    public class LocalConvertToASTTROOptions : TextureCommandOptions
+    [Verb("convert-to-asttro", HelpText = "convert a tileset to an ASTTRO scene")]
+    public class ConvertToASTTROOptions : TextureCommandOptions
     {
         [Option(Required = false, Default = "b3dm", HelpText = "output mesh Extension")]
         public string OutputMeshExtension { get; set; }
@@ -34,14 +34,14 @@ namespace OPS.LandformUtil
         public string BucketDomain { get; set; }
     }
 
-    public class LocalConvertToASTTRO : TextureCommand
+    public class ConvertToASTTRO : TextureCommand
     {
         private const string OutputDirectory = "ASTTRO";
 
-        private LocalConvertToASTTROOptions options;
+        private ConvertToASTTROOptions options;
         private string legacySceneManifestPath;
 
-        public LocalConvertToASTTRO(LocalConvertToASTTROOptions options) : base(options)
+        public ConvertToASTTRO(ConvertToASTTROOptions options) : base(options)
         {
             this.options = options;
         }
