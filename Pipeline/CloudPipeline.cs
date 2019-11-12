@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using log4net;
 using CommandLine;
@@ -204,16 +203,13 @@ namespace OPS.Pipeline
             url = CheckUrl(url, constrainToStorage);
             if (filename == null)
             {
-                var hash = SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(url));
-                filename = new Guid(hash.Take(16).ToArray()).ToString() + Path.GetExtension(url);
+                filename = StringHelper.SHA1(url, preserveExtension: true);
             }
-
             string cachedFile = DownloadCachePath(cacheFolder, filename);
             if (!File.Exists(cachedFile))
             {
                 TemporaryFile.GetAndMove(cachedFile, tmpFile => DownloadFile(url, tmpFile));
             }
-
             return cachedFile;
         }
 

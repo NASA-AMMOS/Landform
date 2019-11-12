@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 
 namespace OPS.Util
 {
@@ -284,6 +285,13 @@ namespace OPS.Util
                 pairs.Add(new int[] { spans[2 * i], spans[2 * i + 1] });
             }
             return RemoveMultiple(str, pairs);
+        }
+
+        public static string SHA1(string str, bool preserveExtension = false)
+        {
+            string ext = preserveExtension ? GetUrlExtension(str) : "";
+            var sha1 = (new SHA1Managed()).ComputeHash(Encoding.UTF8.GetBytes(str));
+            return string.Concat(sha1.Select(b => b.ToString("x2"))) + ext;
         }
     }
 }
