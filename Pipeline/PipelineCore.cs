@@ -711,7 +711,7 @@ namespace OPS.Pipeline
             }
         }
 
-        protected string DownloadCachePath(string project, string filename)
+        public string DownloadCachePath(string project = null, string filename = null)
         {
             return Path.Combine(DownloadCache, project ?? "", filename ?? ""); //ignores empty components
         }
