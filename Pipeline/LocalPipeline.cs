@@ -161,7 +161,7 @@ namespace OPS.Pipeline
         }
 
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
-                                                        bool constrainToStorage = false)
+                                                        bool ignoreCase = false, bool constrainToStorage = false)
         {
             //ensures url starts with "file://", replaces backslashes
             url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
@@ -188,7 +188,8 @@ namespace OPS.Pipeline
                 yield break;
             }
             dir = StringHelper.EnsureTrailingSlash(dir);
-            var regex = StringHelper.WildCardToRegularExression(dir + stem + globPattern);
+            var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+            var regex = StringHelper.WildCardToRegularExression(dir + stem + globPattern, opts);
             //LogDebug("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
             //         dir, stem, globPattern, recursive, regex);
             foreach (var f in PathHelper.ListFiles(dir, recursive: recursive))

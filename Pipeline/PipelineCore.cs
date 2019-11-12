@@ -445,7 +445,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="url">base URL to search, if constrainToStorage = true must start with StorageURL/Venue</param>
         public abstract IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
-                                                        bool constrainToStorage = false);
+                                                        bool ignoreCase = false, bool constrainToStorage = false);
 
         //****************** Data Product API *****************
 

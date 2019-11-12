@@ -382,11 +382,12 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="s3url">An s3 url specifying the key prefix to search.  This can be a complete or partial "folder" or object key.</param>
         /// <param name="pattern">Only return results matching this string pattern.  Wildcards * and ? can be used.</param>
-        /// <param name="recursive">Return all keys with this s3url prefx if set to true.  If not stop at the next folder, delimited by a forward slash in the key.</param>
-        public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true)
+        /// <param name="recursive">Return all keys with this s3url prefix if set to true.  If not stop at the next folder, delimited by a forward slash in the key.</param>
+        public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true, bool ignoreCase = false)
         {
             S3Url location = new S3Url(s3url);
-            var regex = StringHelper.WildCardToRegularExression(pattern);
+            var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+            var regex = StringHelper.WildCardToRegularExression(pattern, opts);
             using (var client = GetClient(s3url))
             {
                 var request = CreateListRequest(s3url, !recursive);

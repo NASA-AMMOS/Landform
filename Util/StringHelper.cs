@@ -19,9 +19,9 @@ namespace OPS.Util
             return "^" + Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*") + "$";
         }
 
-        public static Regex WildCardToRegularExression(string value)
+        public static Regex WildCardToRegularExression(string value, RegexOptions opts = RegexOptions.None)
         {
-            return new Regex(WildCardToRegularExressionString(value));
+            return new Regex(WildCardToRegularExressionString(value), opts);
         }
 
         public static string EnsureTrailingSlash(string str)

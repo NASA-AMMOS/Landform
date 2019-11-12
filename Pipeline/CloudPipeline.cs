@@ -242,10 +242,10 @@ namespace OPS.Pipeline
         }
         
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
-                                                        bool constrainToStorage = false)
+                                                        bool ignoreCase = false, bool constrainToStorage = false)
         {
             url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
-            return GetStorageHelper(url).SearchObjects(url, globPattern, recursive);
+            return GetStorageHelper(url).SearchObjects(url, globPattern, recursive, ignoreCase);
         }
 
         private void InitializeDatabase(bool quiet = false)
