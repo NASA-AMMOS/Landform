@@ -34,13 +34,13 @@ namespace OPS.Landform
         public bool WriteDebug { get; set; }
 
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
+        public virtual string OutputFolder { get; set; }
 
         [Option(HelpText = "Output mesh format, e.g. ply, obj, help for list", Default = "ply")]
-        public string MeshFormat { get; set; }
+        public virtual string MeshFormat { get; set; }
 
         [Option(HelpText = "Output image format, e.g. png, jpg, help for list", Default = "png")]
-        public string ImageFormat { get; set; }
+        public virtual string ImageFormat { get; set; }
     }
 
     public class LandformCommand

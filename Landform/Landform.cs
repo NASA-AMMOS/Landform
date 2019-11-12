@@ -67,7 +67,8 @@ namespace OPS.Landform
                 BuildTilesetOptions,
                 BuildTextureOptions,
                 BuildTilingInputOptions,
-                BlendImagesOptions
+                BlendImagesOptions,
+                ProcessTacticalOptions
                 >(args);
 
             return parsed.MapResult(
@@ -82,6 +83,7 @@ namespace OPS.Landform
                 (BuildTextureOptions opts) => new BuildTexture(opts).Run(),
                 (BuildTilingInputOptions opts) => new BuildTilingInput(opts).Run(),
                 (BlendImagesOptions opts) => new BlendImages(opts).Run(),
+                (ProcessTacticalOptions opts) => new ProcessTactical(opts).Run(),
                 errs => 1);
         }
     }

@@ -164,6 +164,7 @@
     <Compile Include="BuildTilingInput.cs" />
     <Compile Include="BuildTileset.cs" />
     <Compile Include="Ingest.cs" />
+    <Compile Include="ProcessTactical.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TextureCommand.cs" />
     <Compile Include="TilingCommand.cs" />
