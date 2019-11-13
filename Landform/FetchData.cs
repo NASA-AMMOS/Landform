@@ -493,7 +493,7 @@ namespace OPS.Landform
                     }
                     else if (mission != null && !mission.CheckProductId(id, out string msReason))
                     {
-                        reason = "disallowed product id for " + mission.Name() + ": " + msReason;
+                        reason = "disallowed product id for " + mission.GetMission() + ": " + msReason;
                     }
                     else if (acceptedSiteDrives.Length > 0 && id is OPGSProductId &&
                              !acceptedSiteDrives.Any(asd => asd == ((OPGSProductId)id).SiteDrive))

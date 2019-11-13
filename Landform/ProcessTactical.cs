@@ -164,7 +164,7 @@ namespace OPS.Landform
             //otherwise will check options.ProjectName at end of IndexMeshes()
 
             mission = GetMission();
-            pipeline.LogInfo("mission: {0} ({1})", mission.Name(), mission.GetType().Name);
+            pipeline.LogInfo("mission: {0}", mission.GetMission());
 
             inputPaths = StringHelper.ParseList(options.InputPath)
                 .Select(p => StringHelper.NormalizeUrl(p, preserveTrailingSlash: true))
@@ -454,7 +454,7 @@ namespace OPS.Landform
 
         private void BuildTileset(MeshImagePair pair)
         {
-            string missionStr = mission.GetType().Name;
+            string missionStr = mission.GetMission().ToString();
             string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName :
                 StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);

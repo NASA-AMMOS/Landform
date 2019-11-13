@@ -31,7 +31,7 @@ namespace OPS.Pipeline
             return GetInstance((Mission)Enum.Parse(typeof(Mission), mission, ignoreCase: false));
         }
 
-        public abstract string Name();
+        public abstract Mission GetMission();
 
         public virtual string RootFrameName()
         {
@@ -673,9 +673,9 @@ namespace OPS.Pipeline
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
 
-        public override string Name()
+        public override Mission GetMission()
         {
-            return "MSL";
+            return Mission.MSL;
         }
 
         public override RoverProductType GetProductType(PDSParser parser)
@@ -888,9 +888,9 @@ namespace OPS.Pipeline
         public const int VERSION_FIELD = 52;
         public const int VERSION_FIELD_LENGTH = 2;
 
-        public override string Name()
+        public override Mission GetMission()
         {
-            return "M2020";
+            return Mission.M2020;
         }
 
         //some images have invalid PLANET_DAY_NUMBER
@@ -1146,6 +1146,11 @@ namespace OPS.Pipeline
 
     public class MissionROASTT19 : MissionM2020 
     {
+        public override Mission GetMission()
+        {
+            return Mission.ROASTT19;
+        }
+
         // ROASTT19: bug prevents RMC from being used for frame names. This workaround
         // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
@@ -1164,6 +1169,11 @@ namespace OPS.Pipeline
     {
         public const int SEQUENCE_FIELD = 35; 
         public const int SEQUENCE_FIELD_LENGTH = 9; 
+
+        public override Mission GetMission()
+        {
+            return Mission.TT4;
+        }
 
         //TT4: sequence number is bumped for different variants
         public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
