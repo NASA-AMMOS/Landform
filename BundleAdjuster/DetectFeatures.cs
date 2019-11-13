@@ -14,8 +14,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-features", HelpText = "create image features")]
-    public class LocalFeaturesOptions : LandformCommandOptions
+    [Verb("detect-features", HelpText = "create image features")]
+    public class DetectFeaturesOptions : LandformCommandOptions
     {
         [Option(HelpText = "Detector type", Default = FeatureDetector.DEF_DETECTOR_TYPE)]
         public FeatureDetector.DetectorType DetectorType { get; set; }
@@ -63,11 +63,11 @@ namespace OPS.Landform
         public string OnlyForObservations { get; set; }
     }
 
-    public class LocalFeatures : LandformCommand
+    public class DetectFeatures : LandformCommand
     {
-        private LocalFeaturesOptions options;
+        private DetectFeaturesOptions options;
 
-        public LocalFeatures(LocalFeaturesOptions options) : base(options)
+        public DetectFeatures(DetectFeaturesOptions options) : base(options)
         {
             this.options = options;
 

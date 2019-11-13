@@ -18,8 +18,8 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-texture", HelpText = "backproject a mesh texture and/or index image")]
-    public class LocalBuildTextureOptions : TextureCommandOptions
+    [Verb("build-texture", HelpText = "backproject a mesh texture and/or index image")]
+    public class BuildTextureOptions : TextureCommandOptions
     {
         [Option(HelpText = "Don't generate texture image", Default = false)]
         public bool NoTexture { get; set; }
@@ -28,13 +28,13 @@ namespace OPS.Landform
         public bool NoIndex { get; set; }
     }
 
-    public class LocalBuildTexture : TextureCommand
+    public class BuildTexture : TextureCommand
     {
         private const string OUT_DIR = "texturing/TextureProducts";
 
-        private LocalBuildTextureOptions options;
+        private BuildTextureOptions options;
 
-        public LocalBuildTexture(LocalBuildTextureOptions options) : base(options)
+        public BuildTexture(BuildTextureOptions options) : base(options)
         {
             this.options = options;
         }

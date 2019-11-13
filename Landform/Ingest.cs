@@ -12,8 +12,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-ingest", HelpText = "ingest mission data")]
-    public class LocalIngestOptions : LandformCommandOptions
+    [Verb("ingest", HelpText = "ingest mission data")]
+    public class IngestOptions : LandformCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
@@ -64,11 +64,11 @@ namespace OPS.Landform
         public Mission Mission { get; set; }
     }
 
-    public class LocalIngest : LandformCommand
+    public class Ingest : LandformCommand
     {
         private const string OUT_DIR = "alignment/IngestProducts";
 
-        private LocalIngestOptions options;
+        private IngestOptions options;
 
         private IngestAlignmentInputs ingester;
         private List<string> baseUrls;
@@ -77,7 +77,7 @@ namespace OPS.Landform
         private MSLPlaces places;
         private MSLLegacyManifest manifest;
 
-        public LocalIngest(LocalIngestOptions options) : base(options)
+        public Ingest(IngestOptions options) : base(options)
         {
             this.options = options;
 

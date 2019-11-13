@@ -32,8 +32,6 @@ namespace OPS.LandformUtil
                 Config.SubCommand = args[0];
             }
 
-            //TODO centralize log4net initialization to uniformly handle --quiet and --logfile command line opts
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
             Logging.ConfigureLogging();
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
@@ -59,32 +57,20 @@ namespace OPS.LandformUtil
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             var parsed = CommandLine.Parser.Default.ParseArguments<
                 LocalObservationProductsOptions,
-                ConvertBaselineMeshOptions,
-                ConvertBaselineMeshesOptions,
-                TileBaselineMeshOptions,
-                TileBaselineMeshesOptions,
                 PDSImageConverterOptions,
-                LegacyToWebVROptions,
-                LegacyToTile3DOptions,
                 DEM2MeshOptions,
                 BenchmarkS3Options,
-                LocalConvertToASTTROOptions,
-                LimberDMGOptions>(args);
+                ConvertToASTTROOptions,
+                LimberDMGOptions
+                >(args);
 
             return parsed.MapResult(
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
-                (ConvertBaselineMeshOptions opts) => new ConvertBaselineMesh(opts).Run(),
-                (ConvertBaselineMeshesOptions opts) => new ConvertBaselineMeshes(opts).Run(),
-                (TileBaselineMeshOptions opts) => new TileBaselineMesh(opts).Run(),
-                (TileBaselineMeshesOptions opts) => new TileBaselineMeshes(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
-                (LegacyToWebVROptions opts) => new LegacyToWebVR(opts).Run(),
-                (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
-                (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 (LimberDMGOptions opts) => new LimberDMGDriver(opts).Run(),
-                (LocalConvertToASTTROOptions opts) => new LocalConvertToASTTRO(opts).Run(),
+                (ConvertToASTTROOptions opts) => new ConvertToASTTRO(opts).Run(),
                 errs => 1);
         }
     }

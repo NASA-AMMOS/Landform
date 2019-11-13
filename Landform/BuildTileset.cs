@@ -21,8 +21,8 @@ using OPS.TilingServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-build-tileset", HelpText = "builds a tileset from pre-built tiles")]
-    public class LocalBuildTilesetOptions : TilingCommandOptions
+    [Verb("build-tileset", HelpText = "builds a tileset from pre-built tiles")]
+    public class BuildTilesetOptions : TilingCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
@@ -38,19 +38,19 @@ namespace OPS.Landform
 
     }
 
-    public class LocalBuildTileset : TilingCommand
+    public class BuildTileset : TilingCommand
     {
         private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
         private const int MAX_LEAF_GROUP_SIZE = 32;
         private const int SLEEP_MS = 500;
 
-        private LocalBuildTilesetOptions options;
+        private BuildTilesetOptions options;
 
         private TilingProject tilingProject;
         private string tilesetFolder;
 
-        public LocalBuildTileset(LocalBuildTilesetOptions options) : base(options)
+        public BuildTileset(BuildTilesetOptions options) : base(options)
         {
             this.options = options;
         }
