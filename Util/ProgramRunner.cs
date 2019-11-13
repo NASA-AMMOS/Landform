@@ -36,23 +36,64 @@ namespace OPS.Util
         public int Run()
         {
             ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = this.cmd;
+            startInfo.FileName = cmd;
             startInfo.CreateNoWindow = createNoWindow;
             startInfo.UseShellExecute = useShellExecute;
-            startInfo.Arguments = this.arguments;
+            startInfo.Arguments = arguments;
             startInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            startInfo.RedirectStandardOutput = this.captureOutput;
-            startInfo.RedirectStandardError = this.captureOutput;
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
             if (workingDir != null)
             {
                 startInfo.WorkingDirectory = workingDir;
             }
             Process p = Process.Start(startInfo);
-            if (this.captureOutput)
+
+            //this is deadlock prone
+            //https://csharp.today/how-to-avoid-deadlocks-when-reading-redirected-child-console-in-c-part-2
+            //OutputText = p.StandardOutput.ReadToEnd();
+            //ErrorText = p.StandardError.ReadToEnd();
+
+            var osb = captureOutput ? new StringBuilder() : null;
+            var esb = captureOutput ? new StringBuilder() : null;
+            p.OutputDataReceived += (_, evt) => {
+                if (string.IsNullOrEmpty(evt.Data))
+                {
+                    return;
+                }
+                if (osb != null)
+                {
+                    osb.AppendLine(evt.Data);
+                }
+                else
+                {
+                    Console.WriteLine(evt.Data);
+                }
+            };
+            p.ErrorDataReceived += (_, evt) => {
+                if (string.IsNullOrEmpty(evt.Data))
+                {
+                    return;
+                }
+                if (esb != null)
+                {
+                    esb.AppendLine(evt.Data);
+                }
+                else
+                {
+                    Console.Error.WriteLine(evt.Data);
+                }
+            };
+
+            p.BeginOutputReadLine();
+            p.BeginErrorReadLine();
+
+            if (captureOutput)
             {
-                OutputText = p.StandardOutput.ReadToEnd();
-                ErrorText = p.StandardError.ReadToEnd();
+                OutputText = osb.ToString();
+                ErrorText = esb.ToString();
             }
+
             p.WaitForExit();
             int code = p.ExitCode;
             p.Close();
