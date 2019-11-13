@@ -33,8 +33,6 @@ namespace OPS.Landform
                 Config.SubCommand = args[0];
             }
 
-            //TODO centralize log4net initialization to uniformly handle --quiet and --logfile command line opts
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
             Logging.ConfigureLogging();
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
