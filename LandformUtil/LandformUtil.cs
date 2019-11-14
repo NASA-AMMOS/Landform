@@ -1,38 +1,15 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using CommandLine;
-using log4net;
 using OPS.Util;
-using OPS.Pipeline;
 
 namespace OPS.LandformUtil
 {
     class LandformUtil
     {
-        static ILog logger = LogManager.GetLogger(typeof(LandformUtil));
-
-        /// <summary>
-        /// The start of everything
-        /// </summary>
-        /// <param name="args"></param>
-        /// <returns></returns>
         static int Main(string[] args)
         {
-            Config.ConfigFolder = ".landform";
-
-            //these enable Logging.ConfigureLogging() to retrieve Config.FullCommand
-            //so that can become part of the log filename log/log-Landform-subcommand-timestamp-pid.txt
-            Config.BaseCommand = "LandformUtil";
-            if (args.Length > 0)
-            {
-                Config.SubCommand = args[0];
-            }
-
-            Logging.ConfigureLogging();
+            CommandHelper.Init(args, "LandformUtil");
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
             //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap
@@ -40,38 +17,21 @@ namespace OPS.LandformUtil
             //and we also want those to add themselves to the OPS.Geometry.MeshSerializers SerializerMap
             OPS.Geometry.ThirdPartyMeshSerializers.Register();
 
-            GdalConfiguration.ConfigureGdal();
+            //use centralized version from OPS.Pipeline
+            //not GdalConfiguration which is auto-added to this subproject by nuget
+            OPS.Pipeline.GdalConfiguration.ConfigureGdal();
 
-            return RunFromCommandline(args);
-        }
+            var verbs = new Dictionary<Type, Type>()
+                {
+                    { typeof(LocalObservationProductsOptions), typeof(LocalObservationProducts) },
+                    { typeof(PDSImageConverterOptions), typeof(PDSImageConverter) },
+                    { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },
+                    { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },
+                    { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
+                    { typeof(ConvertToASTTROOptions), typeof(ConvertToASTTRO) },
+                };
 
-        /// <summary>
-        /// Parses command line arguments and executes the appropriate command        
-        /// </summary>
-        /// <param name="args"></param>
-        /// <returns></returns>
-        static int RunFromCommandline(string[] args)
-        {
-            /// Commands are defined by the list of types passed into ParseArguments
-            /// Each passed in object must have a [Verb] decorator
-            /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
-            var parsed = CommandLine.Parser.Default.ParseArguments<
-                LocalObservationProductsOptions,
-                PDSImageConverterOptions,
-                DEM2MeshOptions,
-                BenchmarkS3Options,
-                ConvertToASTTROOptions,
-                LimberDMGOptions
-                >(args);
-
-            return parsed.MapResult(
-                (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
-                (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
-                (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
-                (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
-                (LimberDMGOptions opts) => new LimberDMGDriver(opts).Run(),
-                (ConvertToASTTROOptions opts) => new ConvertToASTTRO(opts).Run(),
-                errs => 1);
+            return CommandHelper.RunFromCommandline(args, verbs);
         }
     }
 }

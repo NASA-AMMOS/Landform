@@ -9,7 +9,7 @@ using OPS.Pipeline;
 
 namespace OPS.Landform
 {
-    public class ConfigureBaseOptions
+    public class ConfigureBaseOptions : CommandHelper.OptionsBase
     {
         //null defaults force interactive prompt
         

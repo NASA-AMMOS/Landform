@@ -18,7 +18,7 @@ using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline
 {
-    public class PipelineCoreOptions
+    public class PipelineCoreOptions : CommandHelper.OptionsBase
     {
         [Option(Default = false, HelpText = "Clear download cache at startup")]
         public bool ClearCache { get; set; }
