@@ -57,6 +57,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Hide output of subcommands")]
         public bool QuietSubcommands { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Override subcommand storage directory")]
+        public string StorageDir { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
         public string AWSProfile { get; set; }
 
@@ -76,9 +79,11 @@ namespace OPS.Landform
 
         private string landformExe;
         private string storageDir;
-        private string configFile;
         private string awsProfile;
         private string awsRegion;
+        private string logFile;
+        private string configFolder;
+        private string configFile;
 
         private List<string> inputPaths;
         private List<string> searchPatterns;
@@ -198,12 +203,9 @@ namespace OPS.Landform
             landformExe = GetLandformExe();
             pipeline.LogInfo("landform exe: {0}", landformExe);
 
-            storageDir = StringHelper.NormalizeSlashes(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)
-                                                       + "/" + LANDFORM_STORAGE);
+            storageDir = StringHelper.NormalizeSlashes(!string.IsNullOrEmpty(options.StorageDir) ? options.StorageDir :
+                                                       PathHelper.GetDocDir() + "/" + LANDFORM_STORAGE);
             pipeline.LogInfo("storage dir: {0}", storageDir);
-
-            configFile = StringHelper.NormalizeSlashes(LocalPipelineConfig.Instance.ConfigFilepath());
-            pipeline.LogInfo("config file: {0}", configFile);
 
             awsProfile = !string.IsNullOrEmpty(options.AWSProfile) ? options.AWSProfile : mission.GetDefaultAWSProfile();
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
@@ -211,7 +213,34 @@ namespace OPS.Landform
             awsRegion = !string.IsNullOrEmpty(options.AWSRegion) ? options.AWSRegion : mission.GetDefaultAWSRegion();
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
+            logFile = !string.IsNullOrEmpty(options.LogFile) ? options.LogFile : Logging.GetLogFile();
+            string logPrefix = GetLogFilePrefix();
+            if (logFile.IndexOf(logPrefix) >= 0)
+            {
+                logFile = logFile.Replace(logPrefix, logPrefix + "-subcommands");
+            }
+            else
+            {
+                logFile = Path.Combine(Path.GetDirectoryName(logFile), "subcommands-" + Path.GetFileName(logFile));
+            }
+            pipeline.LogInfo("subcommand log file: {0}", logFile);
+
+            configFolder = Config.ConfigFolder + GetConfigSuffix();
+            configFile = string.Format("{0}/{1}/{2}.json",
+                                       Config.ConfigDir, configFolder, pipeline.Config.ConfigFileName());
+            pipeline.LogInfo("subcommand config file: {0}", configFile);
+
             return true;
+        }
+
+        private string GetLogFilePrefix()
+        {
+            return "log-Landform-process-tactical";
+        }
+
+        private string GetConfigSuffix()
+        {
+            return "-tactical";
         }
 
         protected override Project GetProject()
@@ -428,16 +457,18 @@ namespace OPS.Landform
                     { "--stacktraces", options.StackTraces },
                     { "--singlethreaded", options.SingleThreaded }
                 };
-            foreach (var entry in stdFlags)
-            {
-                if (entry.Value)
+            var stdArgs = new Dictionary<string, string>()
                 {
-                    cmd += " " + entry.Key;
-                }
-            }
-            if (!string.IsNullOrEmpty(options.LogFile))
+                    { "--logfile", logFile },
+                    { "--tempdir", options.TempDir },
+                    { "--configfolder", configFolder }
+                };
+            foreach (var entry in stdArgs)
             {
-                cmd += " --logfile " + options.LogFile;
+                if (!string.IsNullOrEmpty(entry.Value))
+                {
+                    cmd += string.Format(" {0} {1}", entry.Key, entry.Value);
+                }
             }
             pipeline.LogInfo("{0}running {1} {2}", options.DryRun ? "dry " : "", landformExe, cmd);
             if (!options.DryRun)
@@ -464,7 +495,6 @@ namespace OPS.Landform
             string meshFile = GetFile(pair.mesh);
             string imageFile = GetFile(pair.image);
 
-            string configBackup = configFile + ".BAK";
             string venueDir = storageDir + "/" + venue;
 
             void cleanup()
@@ -480,10 +510,9 @@ namespace OPS.Landform
                         Directory.Delete(venueDir, recursive: true);
                     }
 
-                    if (File.Exists(configBackup))
+                    if (File.Exists(configFile))
                     {
-                        File.Copy(configBackup, configFile, overwrite: true);
-                        File.Delete(configBackup);
+                        File.Delete(configFile);
                     }
 
                     pipeline.DeleteDownloadCache();
@@ -499,15 +528,7 @@ namespace OPS.Landform
             {
                 if (!options.DryRun)
                 {
-                    if (File.Exists(configFile))
-                    {
-                        File.Copy(configFile, configBackup, overwrite: true);
-                    } 
-                    
-                    if (Directory.Exists(venueDir))
-                    {
-                        Directory.Delete(venueDir, recursive: true);
-                    }
+                    cleanup();
                 }
                     
                 RunCommand("configure-local", "--venue", venue, "--storagedir", storageDir, "--maxcores", "0",
