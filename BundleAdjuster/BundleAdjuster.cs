@@ -57,37 +57,15 @@ namespace OPS.Landform
             /// Each passed in object must have a [Verb] decorator
             /// NOTE you will get (slightly cryptic) compiler errors if there are more than 16 commands
             var parsed = CommandLine.Parser.Default.ParseArguments<
-                ConfigureCloudOptions,
-                ConfigureLocalOptions,
-                FetchDataOptions,
-                IngestOptions,
                 DetectFeaturesOptions,
                 MatchFeaturesOptions,
-                BundleAdjustAlignerOptions,
-                BEVAlignerOptions,
-                AgisoftAlignerOptions,
-                BuildGeometryOptions,
-                BuildTilesetOptions,
-                BuildTextureOptions,
-                BuildTilingInputOptions,
-                BlendImagesOptions
+                BundleAdjustAlignerOptions
                 >(args);
 
             return parsed.MapResult(
-                (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
-                (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
-                (FetchDataOptions opts) => new FetchData(opts).Run(),
-                (IngestOptions opts) => new Ingest(opts).Run(),
                 (DetectFeaturesOptions opts) => new DetectFeatures(opts).Run(),
                 (MatchFeaturesOptions opts) => new MatchFeatures(opts).Run(),
                 (BundleAdjustAlignerOptions opts) => new BundleAdjustAligner(opts).Run(),
-                (BEVAlignerOptions opts) => new BEVAligner(opts).Run(),
-                (AgisoftAlignerOptions opts) => new AgisoftAligner(opts).Run(),
-                (BuildGeometryOptions opts) => new BuildGeometry(opts).Run(),
-                (BuildTilesetOptions opts) => new BuildTileset(opts).Run(),
-                (BuildTextureOptions opts) => new BuildTexture(opts).Run(),
-                (BuildTilingInputOptions opts) => new BuildTilingInput(opts).Run(),
-                (BlendImagesOptions opts) => new BlendImages(opts).Run(),
                 errs => 1);
         }
     }
