@@ -38,6 +38,9 @@ namespace OPS.Pipeline
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
 
+        [Option(Default = null, HelpText = "Override default temp dir")]
+        public string TempDir { get; set; }
+
         [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
         public bool SingleThreaded { get; set; }
 
@@ -147,6 +150,11 @@ namespace OPS.Pipeline
             this.Venue = venue.Replace('\\','/').Trim().Trim(new char[] {'/'});
 
             this.StorageUrlWithVenue = this.StorageUrl + "/" + this.Venue;
+
+            if (!string.IsNullOrEmpty(options.TempDir))
+            {
+                TemporaryFile.TemporaryDirectory = options.TempDir;
+            }
 
             if (logger != null)
             {

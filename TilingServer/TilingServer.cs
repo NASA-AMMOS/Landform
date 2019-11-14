@@ -17,7 +17,7 @@ namespace OPS.TilingServer
 
         static int Main(string[] args)
         {
-            Config.ApplicationConfigFolder = ".landform";
+            Config.ConfigFolder = ".landform";
 
             //these enable Logging.ConfigureLogging() to retrieve Config.FullCommand
             //so that can become part of the log filename log/log-TilingServer-subcommand-timestamp-pid.txt

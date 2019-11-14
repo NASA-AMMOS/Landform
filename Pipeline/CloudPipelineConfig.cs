@@ -54,7 +54,7 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_LEGACY_COMPAT")]
         public bool LegacyCompat;
 
-        protected override string ConfigFilename()
+        public override string ConfigFileName()
         {
             return "landform-cloud";
         }

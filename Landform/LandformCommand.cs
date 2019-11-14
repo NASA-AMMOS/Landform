@@ -41,6 +41,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Output image format, e.g. png, jpg, help for list", Default = "png")]
         public virtual string ImageFormat { get; set; }
+
+        [Option(Default = null, HelpText = "Override default config dir (defaults to user home dir)")]
+        public string ConfigDir { get; set; }
+
+        [Option(Default = null, HelpText = "Override default config folder (defaults to .landform)")]
+        public string ConfigFolder { get; set; }
     }
 
     public class LandformCommand
@@ -67,6 +73,9 @@ namespace OPS.Landform
         {
             this.lcopts = lcopts;
 
+            Config.ConfigDir = !string.IsNullOrEmpty(lcopts.ConfigDir) ? lcopts.ConfigDir : PathHelper.GetHomeDir();
+            Config.ConfigFolder = !string.IsNullOrEmpty(lcopts.ConfigFolder) ? lcopts.ConfigFolder : ".landform";
+
             if (lcopts.Cloud)
             {
                 pipeline = new CloudPipeline(lcopts, initQueues: false);
@@ -75,6 +84,10 @@ namespace OPS.Landform
             {
                 pipeline = new LocalPipeline(lcopts);
             }
+
+            pipeline.LogInfo("command started: ", Config.FullCommand);
+            pipeline.LogInfo("config: {0}", pipeline.Config.ConfigFilePath());
+            
             PDSSerializer.DataPath = pipeline.PDSDataPath;
         }
 

@@ -37,23 +37,28 @@ namespace OPS.Util
         /// </summary>
         /// <returns></returns>
 
-        protected virtual string ConfigFilename()
+        public virtual string ConfigFileName()
         {
             return null;
         }
 
-        public string ConfigFilepath()
+        public virtual string ConfigFilePath()
         {
-            return FullPathToConfig(ConfigFilename());
+            return FullPathToConfig(ConfigFileName());
         }
 
         /// <summary>
+        /// defaults to user's home directory
+        /// </summary>
+        public static string ConfigDir;
+
+        /// <summary>
         /// Set the name of the application config folder
-        /// Config files for this application should be stored in a folder of this name under the users home directory
+        /// Config files for this application should be stored in a folder of this name under ConfigDir
         /// This should be just a single folder name not an entire directory path
         /// If this is not set application will not try to read configuration files from disk
         /// </summary>
-        public static string ApplicationConfigFolder { get; set; }
+        public static string ConfigFolder;
 
         public static string BaseCommand { get; set; }
         public static string SubCommand { get; set; }
@@ -67,16 +72,13 @@ namespace OPS.Util
 
         static string FullPathToConfig(string filename)
         {
-            if (ApplicationConfigFolder == null || filename == null)
-            {
-                return null;
-            }
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ApplicationConfigFolder, filename + ".json");
+            string dir = !string.IsNullOrEmpty(ConfigDir) ? ConfigDir : PathHelper.GetHomeDir();
+            return Path.Combine(dir, ConfigFolder, filename + ".json");
         }
 
         public void Save()
         {
-            string filename = ConfigFilepath();
+            string filename = ConfigFilePath();
             PathHelper.EnsureExists(Path.GetDirectoryName(filename));
             File.WriteAllText(filename, JsonConvert.SerializeObject(this, Formatting.Indented));
         }
@@ -84,7 +86,7 @@ namespace OPS.Util
         public Config()
         {
             // Read from config file
-            string filename = ConfigFilepath();
+            string filename = ConfigFilePath();
             if (filename != null && File.Exists(filename))
             {
                 JsonConvert.PopulateObject(File.ReadAllText(filename), this);

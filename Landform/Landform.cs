@@ -23,7 +23,7 @@ namespace OPS.Landform
         /// <returns></returns>
         static int Main(string[] args)
         {
-            Config.ApplicationConfigFolder = ".landform";
+            Config.ConfigFolder = ".landform";
 
             //these enable Logging.ConfigureLogging() to retrieve Config.FullCommand
             //so that can become part of the log filename log/log-Landform-subcommand-timestamp-pid.txt

@@ -29,6 +29,16 @@ namespace OPS.Util
             return Path.GetDirectoryName(path);
         }
 
+        public static string GetHomeDir()
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+
+        public static string GetDocDir()
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+        }
+
         /// <summary>
         /// Checks to see if a directory exists and creates it if not.
         /// </summary>
