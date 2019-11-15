@@ -333,12 +333,12 @@ namespace OPS.Pipeline
         public MessageQueue MasterQueue { get; private set; }
         public MessageQueue WorkerQueue { get; private set; }
 
-        protected override void EnqueueToMasterImpl(QueueMessage message)
+        protected override void EnqueueToMasterImpl(PipelineMessage message)
         {
             MasterQueue.Enqueue(message);
         }
 
-        protected override void EnqueueToWorkersImpl(QueueMessage message)
+        protected override void EnqueueToWorkersImpl(PipelineMessage message)
         {
             WorkerQueue.Enqueue(message);
         }

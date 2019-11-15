@@ -15,7 +15,6 @@ using OPS.Imaging;
 
 //TODO: refactor so that local codepath does not have cloud dependencies
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
 using DBUtil = OPS.Cloud.DBUtil;
 
 namespace OPS.Pipeline
@@ -602,8 +601,8 @@ namespace OPS.Pipeline
             }
         }
 
-        public ConcurrentQueue<QueueMessage> MasterQueue { get; private set; }
-        public ConcurrentQueue<QueueMessage> WorkerQueue { get; private set; }
+        public ConcurrentQueue<PipelineMessage> MasterQueue { get; private set; }
+        public ConcurrentQueue<PipelineMessage> WorkerQueue { get; private set; }
 
         private static int nextMessageId = -1;
         private static string NextMessageId()
@@ -611,13 +610,13 @@ namespace OPS.Pipeline
             return "msg " + Interlocked.Increment(ref nextMessageId);
         }
 
-        protected override void EnqueueToMasterImpl(QueueMessage message)
+        protected override void EnqueueToMasterImpl(PipelineMessage message)
         {
             message.MessageId = NextMessageId();
             MasterQueue.Enqueue(message);
         }
 
-        protected override void EnqueueToWorkersImpl(QueueMessage message)
+        protected override void EnqueueToWorkersImpl(PipelineMessage message)
         {
             message.MessageId = NextMessageId();
             WorkerQueue.Enqueue(message);
@@ -625,8 +624,8 @@ namespace OPS.Pipeline
 
         private void InitializeQueues()
         {
-            MasterQueue = new ConcurrentQueue<QueueMessage>();
-            WorkerQueue = new ConcurrentQueue<QueueMessage>();
+            MasterQueue = new ConcurrentQueue<PipelineMessage>();
+            WorkerQueue = new ConcurrentQueue<PipelineMessage>();
         }
     }
 }

@@ -12,10 +12,6 @@ using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline
 {
     public class PipelineCoreOptions : CommandHelper.OptionsBase
@@ -49,6 +45,26 @@ namespace OPS.Pipeline
 
         [Option(Default = false, HelpText = "user masks are inverted: 0 means invalid, nonzero means valid")]
         public bool UserMasksInverted { get; set; }
+    }
+
+    //TODO: refactor so that local codepath does not have cloud dependencies
+    //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+    public class PipelineMessage : OPS.Cloud.QueueMessage
+    {
+        public string ProjectName;
+
+        public PipelineMessage() { }
+        public PipelineMessage(string projectName) { ProjectName = projectName; }
+
+        public string Info()
+        {
+            var typeName = GetType().Name;
+            if (typeName.EndsWith("Message"))
+            {
+                typeName = typeName.Substring(0, typeName.Length - "Message".Length);
+            }
+            return string.Format("[{0}] {1} {2}", ProjectName, typeName, MessageId);
+        }
     }
 
     /**
@@ -726,11 +742,11 @@ namespace OPS.Pipeline
 
         //****************** Message Queue API *****************
 
-        public delegate bool MessageEnqueued(QueueMessage message);
+        public delegate bool MessageEnqueued(PipelineMessage message);
         public event MessageEnqueued EnqueuedToMaster;
         public event MessageEnqueued EnqueuedToWorkers;
         
-        public void EnqueueToMaster(QueueMessage message)
+        public void EnqueueToMaster(PipelineMessage message)
         {
             if (EnqueuedToMaster == null || EnqueuedToMaster(message))
             {
@@ -738,9 +754,9 @@ namespace OPS.Pipeline
             }
         }
 
-        protected abstract void EnqueueToMasterImpl(QueueMessage message);
+        protected abstract void EnqueueToMasterImpl(PipelineMessage message);
 
-        public void EnqueueToWorkers(QueueMessage message)
+        public void EnqueueToWorkers(PipelineMessage message)
         {
             if (EnqueuedToWorkers == null || EnqueuedToWorkers(message))
             {
@@ -748,7 +764,7 @@ namespace OPS.Pipeline
             }
         }
 
-        protected abstract void EnqueueToWorkersImpl(QueueMessage message);
+        protected abstract void EnqueueToWorkersImpl(PipelineMessage message);
     }
 }
         

@@ -11,13 +11,9 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.TilingServer
 {
-    public class ChunkInputMessage : QueueMessage
+    public class ChunkInputMessage : PipelineMessage
     {
         public string InputName;
         public ChunkInputMessage() { }

@@ -13,13 +13,9 @@ using OPS.Util;
 using OPS.Alignment;
 using OPS.RayTrace;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.TilingServer
 {
-    public class BuildBackprojectLeavesMessage : QueueMessage
+    public class BuildBackprojectLeavesMessage : PipelineMessage
     {
         public List<string> TileIds;
         public BuildBackprojectLeavesMessage() { }

@@ -46,7 +46,7 @@ namespace OPS.Pipeline
             public int NumErrors;
             public double ApproxLastReceiveSec;
 
-            public MessageRec(QueueMessage m)
+            public MessageRec(PipelineMessage m)
             {
                 StartSec = UTCTime.Now();
                 ReceiptHandle = m.ReceiptHandle;
@@ -266,7 +266,7 @@ namespace OPS.Pipeline
             return 0;
         }
 
-        private bool StartedProcessing(MessageQueue queue, QueueMessage m)
+        private bool StartedProcessing(MessageQueue queue, PipelineMessage m)
         {
             if (!options.SingleThreaded)
             {
@@ -325,7 +325,7 @@ namespace OPS.Pipeline
             return true;
         }
 
-        private MessageRec FinishedProcessing(QueueMessage m, CloudPipeline pipeline)
+        private MessageRec FinishedProcessing(PipelineMessage m, CloudPipeline pipeline)
         {
             MessageRec rec = null;
             double now = UTCTime.Now(), totalSec = -1;
@@ -388,7 +388,7 @@ namespace OPS.Pipeline
 
             var dispatcher = MakeDispatcher(pipeline);
 
-            void sendStatus(QueueMessage m, string status, bool done = false)
+            void sendStatus(PipelineMessage m, string status, bool done = false)
             {
                 pipeline.EnqueueToMaster(new StatusMessage(m.ProjectName, m.MessageId, m.GetType().Name, status, done));
             }
@@ -396,7 +396,7 @@ namespace OPS.Pipeline
             while (true)
             {
                 //only take one message at a time when we are ready to process it
-                var m = pipeline.WorkerQueue.DequeueOne();
+                var m = pipeline.WorkerQueue.DequeueOne<PipelineMessage>();
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
                 if (m != null)
