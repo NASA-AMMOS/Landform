@@ -302,10 +302,23 @@ namespace OPS.Pipeline
 #if EACHPIXEL || GREEDY
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
 #elif SPATIAL
-            double sampleDensity = 15; //TODO: use quality
-            Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(opts.mesh, sampleDensity);
-            List<PixelPoint> samplePoints = sampledMesh.Vertices.Select(v => new PixelPoint() { Pixel = Image.UVToPixel(v.UV, opts.resolution, opts.resolution), Point = v.Position })
-                .Where(pp => pp.Pixel.X >= 0 && pp.Pixel.X < opts.resolution && pp.Pixel.Y >= 0 && pp.Pixel.Y < opts.resolution).ToList();
+            double sampleDensity = 5; //TODO: use quality
+            List<PixelPoint> samplePoints = null;
+            {
+                //select points on the surface of the mesh at requested density to use for sampling backproject
+                Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(opts.mesh, sampleDensity);
+
+                //filter these points to remove points that happen to map back to the same output texture pixel
+                // large areas on the mesh can map to small areas in the texture atlas
+                var grouped = sampledMesh.Vertices.GroupBy(
+                    v => new Pixel((int)Image.UVToPixel(v.UV, opts.resolution, opts.resolution).Y, (int)Image.UVToPixel(v.UV, opts.resolution, opts.resolution).X),
+                    v => v);
+                List<Vertex> filteredSampledVerts = grouped.Select(g => g.First()).ToList();
+
+                //convert verts to sample points and filter for any that are located off the destination texture
+                samplePoints = filteredSampledVerts.Select(v => new PixelPoint() { Pixel = Image.UVToPixel(v.UV, opts.resolution, opts.resolution), Point = v.Position })
+                    .Where(pp => pp.Pixel.X >= 0 && pp.Pixel.X < opts.resolution && pp.Pixel.Y >= 0 && pp.Pixel.Y < opts.resolution).ToList();
+            }
 #endif
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
