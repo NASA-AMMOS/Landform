@@ -636,7 +636,7 @@ namespace OPS.Pipeline
             return ScanDatabase<T>(dict);
         }
 
-        //****************** Logging API *****************
+        //****************** Logging API (implements OPS.Util.ILogger) *****************
 
         public void LogInfo(string msg, params Object[] args)
         {
@@ -672,12 +672,6 @@ namespace OPS.Pipeline
             Logger.ErrorFormat(msg, args);
         }
 
-        /// <summary>
-        /// for a non aggregate exception, default is to just spew its message
-        /// because that is commonly going to be enough and may be user visible (e.g. invalid command line args)
-        /// for an aggregate we spew the message and stack trace of the first inner exception
-        /// because that is most likely an unexpected error that needs to be debugged
-        /// </summary>
         public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
                                  bool aggregateStackTrace = true)
         {

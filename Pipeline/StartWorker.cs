@@ -51,7 +51,7 @@ namespace OPS.Pipeline
                 StartSec = UTCTime.Now();
                 ReceiptHandle = m.ReceiptHandle;
                 Info = m.Info();
-                ApproxLastReceiveSec = 0.001 * m.ApproxLastReceiveMS;
+                ApproxLastReceiveSec = 0.001 * m.ApproxReceiveMS;
             }
         }
 
@@ -291,7 +291,7 @@ namespace OPS.Pipeline
                         nh = rec.NumHeartbeats;
                         //use latest receipt handle for heartbeats and deletion
                         //https://stackoverflow.com/a/42000192
-                        rt = 0.001 * m.ApproxLastReceiveMS;
+                        rt = 0.001 * m.ApproxReceiveMS;
                         if (rt >= rec.ApproxLastReceiveSec)
                         {
                             rec.ReceiptHandle = m.ReceiptHandle;

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Util;
+using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 
@@ -664,6 +665,35 @@ namespace OPS.Pipeline
         public virtual string GetDefaultAWSProfile()
         {
             return "credss-default";
+        }
+
+        public virtual string GetTacticalMeshQueueName()
+        {
+            throw new NotImplementedException();
+        }
+
+        public virtual QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException();
+        }
+
+        public virtual string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// This is only used for injecting a message into the queue for testing.
+        /// Also, it does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
+        public virtual QueueMessage ParseTacticalMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException();
+        }
+
+        public virtual int GetTacticalMeshQueueMessageMaxAgeSec()
+        {
+            return 24 * 60 * 60; //give up processing a tactical mesh 1 day after first attempt to process it
         }
     }
 

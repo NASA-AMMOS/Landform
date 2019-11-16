@@ -16,6 +16,15 @@ namespace OPS.Util
         void LogDebug(string msg, params Object[] args);
         void LogWarn(string msg, params Object[] args);
         void LogError(string msg, params Object[] args);
+
+        /// <summary>
+        /// for a non aggregate exception, default is to just spew its message
+        /// because that is commonly going to be enough and may be user visible (e.g. invalid command line args)
+        /// for an aggregate we spew the message and stack trace of the first inner exception
+        /// because that is most likely an unexpected error that needs to be debugged
+        /// </summary>
+        void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                          bool aggregateStackTrace = true);
     }
 
     public class Logging

@@ -9,7 +9,6 @@ using Amazon.SQS.Model;
 using Amazon.Runtime;
 using OPS.Util;
 using Newtonsoft.Json;
-using log4net;
 using OPS.MathExtensions;
 
 namespace OPS.Cloud
@@ -28,12 +27,12 @@ namespace OPS.Cloud
         [JsonIgnore]
         public double ApproxFirstReceiveMS = -1;
 
-        //approx latest time we received this message
+        //approx time we received this message
         //this may be a lower bounds
         //note: other receivers may have received it even later
         //ms since UTC epoch
         [JsonIgnore]
-        public double ApproxLastReceiveMS = -1;
+        public double ApproxReceiveMS = -1;
     }
 
     public class MessageQueue
@@ -42,21 +41,24 @@ namespace OPS.Cloud
 
         public string Name { get; private set; }
         public int TimeoutSec { get; private set; }
+        public bool LandformOwned { get; private set; }
 
-        private ILog logger;
+        private ILogger logger;
         private string url;
         private AmazonSQSClient client;
 
         public MessageQueue(string name, string awsProfileName = null, string awsRegionName = null,
-                            int timeoutSec = DEF_TIMEOUT_SEC, ILog logger = null, bool quiet = false,
+                            int timeoutSec = DEF_TIMEOUT_SEC, ILogger logger = null, bool quiet = false,
                             bool landformOwned = true)
         {
-            this.logger = logger != null ? logger : LogManager.GetLogger(typeof(MessageQueue));
+            this.logger = logger;
 
             if (string.IsNullOrEmpty(name))
             {
                 throw new ArgumentException("queue name cannot be empty");
             }
+
+            this.LandformOwned = landformOwned;
 
             if (landformOwned && !name.ToLower().StartsWith("landform-"))
             {
@@ -85,13 +87,13 @@ namespace OPS.Cloud
                 var res = client.GetQueueAttributes(req);
                 if (!quiet)
                 {
-                    logger.InfoFormat("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
-                                      Name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
+                    logger.LogInfo("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
+                                   Name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
                 }
                 if (res.VisibilityTimeout != timeoutSec)
                 {
-                    logger.WarnFormat("visibility timeout for queue \"{0}\" is {1}s, expected {2}s",
-                                      Name, res.VisibilityTimeout, timeoutSec);
+                    logger.LogWarn("visibility timeout for queue \"{0}\" is {1}s, expected {2}s",
+                                   Name, res.VisibilityTimeout, timeoutSec);
                     if (landformOwned)
                     {
                         var attrs = new Dictionary<string, string>();
@@ -108,7 +110,7 @@ namespace OPS.Cloud
             {
                 if (landformOwned)
                 {
-                    logger.InfoFormat("creating queue \"{0}\"", Name);
+                    logger.LogInfo("creating queue \"{0}\"", Name);
                     var req = new CreateQueueRequest() { QueueName = Name };
                     req.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
                     url = client.CreateQueue(req).QueueUrl;
@@ -182,7 +184,7 @@ namespace OPS.Cloud
             }
             catch (OverLimitException e)
             {
-                logger.Error("client over limit: " + e.Message, e);
+                logger.LogError("client over limit: {0}", e.Message);
                 throw;
             }
 
@@ -202,21 +204,21 @@ namespace OPS.Cloud
                         {
                             double.TryParse(ts, out qm.ApproxFirstReceiveMS);
                         }
-                        qm.ApproxLastReceiveMS = Math.Max(now, qm.ApproxFirstReceiveMS);
+                        qm.ApproxReceiveMS = Math.Max(now, qm.ApproxFirstReceiveMS);
                     }
                     return m;
                 }
                 catch (Exception e)
                 {
                     
-                    logger.ErrorFormat("invalid message '{0}' in {1} (deleting): {2}", msg.Body, Name, e.Message);
+                    logger.LogError("invalid message '{0}' in {1} (deleting): {2}", msg.Body, Name, e.Message);
                     try
                     {
                         DeleteMessage(msg.ReceiptHandle);
                     }
                     catch (Exception e2)
                     {
-                        logger.ErrorFormat("error deleting message: {0}", e2.Message);
+                        logger.LogError("error deleting message: {0}", e2.Message);
                     }
                     return null;
                 }

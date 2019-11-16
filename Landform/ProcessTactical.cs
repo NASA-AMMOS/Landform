@@ -16,7 +16,7 @@ using OPS.Pipeline.AlignmentServer;
 namespace OPS.Landform
 {
     [Verb("process-tactical", HelpText = "process tactical meshes into tilesets")]
-    public class ProcessTacticalOptions : LandformShellOptions
+    public class ProcessTacticalOptions : LandformServiceOptions
     {
         [Value(0, Required = false, HelpText = "project name, empty to infer, must omit if processing more than one mesh", Default = null)]
         public override string ProjectName { get; set; }
@@ -26,12 +26,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = "*", HelpText = "Comma separated list of wildcard patterns for input folders")]
         public string SearchPattern { get; set; }
-
-        [Option(HelpText = "run as service", Default = false)]
-        public bool Service { get; set; }
     }
 
-    public class ProcessTactical : LandformShell
+    public class ProcessTactical : LandformService
     {
         public const string TILESET_JSON = "tileset.json";
 
@@ -39,6 +36,13 @@ namespace OPS.Landform
 
         private List<string> inputPaths;
         private List<string> searchPatterns;
+
+        private class GenericTacticalMeshMessage : QueueMessage
+        {
+#pragma warning disable 0649
+            public string meshUrl;
+#pragma warning restore 0649
+        }
 
         private class MeshImagePair
         {
@@ -56,54 +60,95 @@ namespace OPS.Landform
             this.options = options;
         }
 
-        public int Run()
+        protected override void RunBatch()
         {
-            if (!options.Service)
+            RunPhase("index input meshes", IndexMeshes);
+            foreach (var entry in meshes)
             {
-                StartStopwatch();
+                RunPhase("build tileset " + entry.Key, () => BuildTileset(entry.Value));
+            }
+        }
+
+        protected override string GetDefaultQueueName()
+        {
+            return mission.GetTacticalMeshQueueName();
+        }
+
+        private string GetUrl(QueueMessage msg)
+        {
+            return options.UseGenericMessageType ?
+                ((GenericTacticalMeshMessage)msg).meshUrl : mission.GetUrlFromTacticalMeshQueueMessage(msg);
+        }
+            
+        protected override int GetMaxMessageAgeSec()
+        {
+            return mission.GetTacticalMeshQueueMessageMaxAgeSec();
+        }
+
+        protected override string DescribeMessage(QueueMessage msg)
+        {
+            return "tactical mesh " + GetUrl(msg);
+        }
+
+        protected override QueueMessage DequeueOneMessage()
+        {
+            return options.UseGenericMessageType ?
+                messageQueue.DequeueOne<GenericTacticalMeshMessage>() :
+                mission.DequeueTacticalMeshMessage(messageQueue);
+        }
+
+        protected override bool HandleMessage(QueueMessage msg)
+        {
+            string url = GetUrl(msg); 
+
+            //mission may filter messages to those representing the last created RDRs for that mission
+            //e.g if OBJ are always generated after IV for a mission
+            //and we get messages both when OBJ and IV are generated
+            //then url may be null/empty here for the IV message and non-empty for the OBJ
+
+            if (string.IsNullOrEmpty(url))
+            {
+                return true; //mission decided to ignore this message, remove it from the queue
             }
 
-            try
+            //however, we still want to look and see what mesh formats are actually available right now on S3
+            //and take the format that we prefer the most (which might be e.g. IV rather than OBJ)
+
+            string baseUrl = StringHelper.StripUrlExtension(url);
+
+            foreach (var ext in meshExts) //look for best mesh format in priority order
             {
-                if (!ParseArguments())
+                string meshUrl = baseUrl + ext;
+                if (FileExists(meshUrl))
                 {
-                    return 0; //help
-                }
-
-                if (options.Service)
-                {
-                    RunService();
-                }
-                else
-                {
-                    RunPhase("index input meshes", IndexMeshes);
-                    foreach (var entry in meshes)
-                    {
-                        RunPhase("build tileset " + entry.Key, () => BuildTileset(entry.Value));
-                    }
+                    var pair = new MeshImagePair { mesh = meshUrl };
+                    AddImage(pair); //throws exception if image cannot be found
+                    BuildTileset(pair); //throws exception on error or if killed
+                    return true; //successfully processed, remove message from queue
                 }
             }
-            catch (Exception ex)
-            {
-                pipeline.LogException(ex);
-                return 1;
-            }
 
-            if (!options.Service)
-            {
-                StopStopwatch();
-            }
+            //get here iff mission did not filter the message but we still didn't find any mesh in an accepted format
+            //it may be that we just need to wait a bit longer for the meshes to show up in S3
+            //or it may be that they're never going to show up
+            pipeline.LogError("no mesh in any of the accepted formats ({0}) for tactial mesh {1}, returning to queue",
+                              string.Join(", ", meshExts), url);
 
-            return 0;
+            //ServiceLoop() will eventually cull the message from the queue
+            //if it gets too old without successfully being handled
+
+            return false; //leave message in queue for now
+        }
+
+        protected override QueueMessage ParseMessage(string json)
+        {
+            return options.UseGenericMessageType ? JsonHelper.FromJson<GenericTacticalMeshMessage>(json) :
+                mission.ParseTacticalMeshQueueMessage(json);
         }
 
         protected override bool ParseArguments()
         {
-            if (options.Service && !string.IsNullOrEmpty(options.ProjectName))
-            {
-                throw new Exception("project name must be omitted with --service");
-            }
-            //otherwise will check options.ProjectName at end of IndexMeshes()
+            //will check options.ProjectName at end of IndexMeshes()
 
             inputPaths = StringHelper.ParseList(options.InputPath)
                 .Select(p => StringHelper.NormalizeUrl(p, preserveTrailingSlash: true))
@@ -243,36 +288,12 @@ namespace OPS.Landform
 
                 Configure(venue);
                 
-                RunCommand("build-tiling-input", "--loadlods", "--mission", missionStr, "--inputmesh", meshFile,
-                           "--inputtexture", imageFile);
+                RunCommand("build-tiling-input", project, "--mission", missionStr,
+                           "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
                 
                 RunCommand("build-tileset", project);
-                
-                string outDir = string.Format("{0}/{1}/{2}/passthroughFrame/best/{3}",
-                                              storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
-                string dest = string.Format("{0}/{1}", outputFolder, project);
 
-                pipeline.LogInfo("saving tileset from {0} to {1}", outDir, dest);
-
-                if (!options.DryRun)
-                {
-                    if (!Directory.Exists(outDir))
-                    {
-                        throw new Exception(string.Format("local tileset directory {0} not found", outDir));
-                    }
-                    
-                    foreach (var f in PathHelper.ListFiles(outDir, recursive: false))
-                    {
-                        if (f.Name == TILESET_JSON)
-                        {
-                            SaveFile(f.FullName, string.Format("{0}/{1}_{2}", dest, project, f.Name));
-                        }
-                        else
-                        {
-                            SaveFile(f.FullName, string.Format("{0}/{1}", dest, f.Name));
-                        }
-                    }
-                }
+                SaveTileset(venue, project);
 
                 Cleanup(venueDir);
             }
@@ -283,11 +304,39 @@ namespace OPS.Landform
             }
         }
 
-        private void RunService()
+        private void SaveTileset(string venue, string project)
         {
-            //TODO
-            //StartStopwatch();
-            //StopStopwatch();
+            string outDir = string.Format("{0}/{1}/{2}/passthroughFrame/best/{3}",
+                                          storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
+            string tilesetFile = string.Format("{0}/{1}", outDir, TILESET_JSON);
+            string dest = string.Format("{0}/{1}", outputFolder, project);
+            
+            pipeline.LogInfo("saving tileset from {0} to {1}", outDir, dest);
+            
+            if (!options.DryRun)
+            {
+                if (!Directory.Exists(outDir))
+                {
+                    throw new Exception(string.Format("local tileset directory {0} not found", outDir));
+                }
+                
+                if (!File.Exists(tilesetFile))
+                {
+                    throw new Exception(string.Format("local tileset {0} not found", tilesetFile));
+                }
+                
+                foreach (var f in PathHelper.ListFiles(outDir, recursive: false))
+                {
+                    if (f.Name == TILESET_JSON)
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}_{2}", dest, project, f.Name));
+                    }
+                    else
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}", dest, f.Name));
+                    }
+                }
+            }
         }
     }
 }

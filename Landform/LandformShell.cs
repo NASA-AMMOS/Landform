@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using CommandLine;
 using OPS.Util;
 using OPS.Cloud;
@@ -55,6 +56,12 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1")]
         public string AWSRegion { get; set; }
+
+        [Option(Required = false, Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
+        public int RandomSeed { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
+        public int MaxCores { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -73,6 +80,8 @@ namespace OPS.Landform
 
         protected List<string> meshExts;
         protected List<string> imageExts;
+
+        private volatile Process currentProcess;
 
         private StorageHelper _storageHelper;
         protected StorageHelper storageHelper
@@ -317,11 +326,28 @@ namespace OPS.Landform
             {
                 bool quiet = lsopts.Quiet || lsopts.QuietSubcommands;
                 var runner = new ProgramRunner(landformExe, cmd, captureOutput: quiet);
-                int code = runner.Run();
-                if (code != 0)
+                int code = runner.Run(process => { currentProcess = process; } ); //blocks until process exits or dies
+                currentProcess = null;
+                if (code != 0) //code = -1 if killed
                 {
                     throw new Exception(string.Format("command \"{0}\" failed with code {1}", cmd, code));
                 }
+            }
+        }
+
+        protected void KillCurrentCommand()
+        {
+            try
+            {
+                var p = currentProcess;
+                if (p != null)
+                {
+                    p.Kill();
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, "error killing curent command");
             }
         }
 
@@ -356,7 +382,16 @@ namespace OPS.Landform
         protected void Configure(string venue)
         {
             RunCommand("configure-local", "--venue", venue, "--storagedir", storageDir,
-                       "--maxcores", "0", "--randomseed", "-1");
+                       "--maxcores", lsopts.MaxCores.ToString(), "--randomseed", lsopts.RandomSeed.ToString());
+        }
+
+        protected void SleepSec(double sec)
+        {
+            int ms = (int)(1000 * sec);
+            if (ms > 0)
+            {
+                Thread.Sleep(ms);
+            }
         }
     }
 }

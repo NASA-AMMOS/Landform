@@ -23,7 +23,8 @@ namespace OPS.Util
         public string OutputText { get; private set; }
         public string ErrorText { get; private set; }
 
-        public ProgramRunner(string cmd, string arguments, bool createNoWindow = true, bool useShellExecute = false, bool captureOutput = false, string workingDir = null)
+        public ProgramRunner(string cmd, string arguments, bool createNoWindow = true, bool useShellExecute = false,
+                             bool captureOutput = false, string workingDir = null)
         {
             this.cmd = cmd;
             this.arguments = arguments;           
@@ -33,7 +34,7 @@ namespace OPS.Util
             this.workingDir = workingDir;
         }
 
-        public int Run()
+        public int Run(Action<Process> callback = null)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo();
             startInfo.FileName = cmd;
@@ -47,7 +48,7 @@ namespace OPS.Util
             {
                 startInfo.WorkingDirectory = workingDir;
             }
-            Process p = Process.Start(startInfo);
+            Process process = Process.Start(startInfo);
 
             //this is deadlock prone
             //https://csharp.today/how-to-avoid-deadlocks-when-reading-redirected-child-console-in-c-part-2
@@ -56,7 +57,7 @@ namespace OPS.Util
 
             var osb = captureOutput ? new StringBuilder() : null;
             var esb = captureOutput ? new StringBuilder() : null;
-            p.OutputDataReceived += (_, evt) => {
+            process.OutputDataReceived += (_, evt) => {
                 if (string.IsNullOrEmpty(evt.Data))
                 {
                     return;
@@ -70,7 +71,7 @@ namespace OPS.Util
                     Console.WriteLine(evt.Data);
                 }
             };
-            p.ErrorDataReceived += (_, evt) => {
+            process.ErrorDataReceived += (_, evt) => {
                 if (string.IsNullOrEmpty(evt.Data))
                 {
                     return;
@@ -85,8 +86,15 @@ namespace OPS.Util
                 }
             };
 
-            p.BeginOutputReadLine();
-            p.BeginErrorReadLine();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            if (callback != null)
+            {
+                callback(process);
+            }
+
+            process.WaitForExit();
 
             if (captureOutput)
             {
@@ -94,9 +102,8 @@ namespace OPS.Util
                 ErrorText = esb.ToString();
             }
 
-            p.WaitForExit();
-            int code = p.ExitCode;
-            p.Close();
+            int code = process.ExitCode;
+            process.Close();
             return code;
         }
     }

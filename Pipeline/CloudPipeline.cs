@@ -346,9 +346,9 @@ namespace OPS.Pipeline
         private void InitializeQueues(bool quiet = false)
         {
             MasterQueue = new MessageQueue(queuePrefix + "master", awsProfile, awsRegion, MASTER_QUEUE_TIMEOUT_SEC,
-                                           logger: Logger, quiet: quiet);
+                                           this, quiet: quiet);
             WorkerQueue = new MessageQueue(queuePrefix + "worker", awsProfile, awsRegion, WORKER_QUEUE_TIMEOUT_SEC,
-                                           logger: Logger, quiet: quiet);
+                                           this, quiet: quiet);
             if (!quiet)
             {
                 LogInfo("queues initialized");
