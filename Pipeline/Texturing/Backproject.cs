@@ -25,11 +25,13 @@ namespace OPS.Pipeline
         {
             public Observation Obs;
             public Vector2 Pixel; //col, row
+            public double SpatialDensity;
 
-            public ObsPixel(Observation obs, Vector2 pixel)
+            public ObsPixel(Observation obs, Vector2 pixel, double spatialDensity)
             {
                 Obs = obs;
                 Pixel = pixel;
+                SpatialDensity = spatialDensity;
             }
         }
 
@@ -241,7 +243,7 @@ namespace OPS.Pipeline
                         int obsRow = (int)index[1, r, c];
                         int obsCol = (int)index[2, r, c];
                         var obsPixel = new Vector2(obsCol, obsRow);
-                        results[new Pixel(r, c)] = new Backproject.ObsPixel(obs, obsPixel);
+                        results[new Pixel(r, c)] = new Backproject.ObsPixel(obs, obsPixel, double.MaxValue);
                     }
                 }
             }
@@ -315,6 +317,8 @@ namespace OPS.Pipeline
                     v => v);
                 List<Vertex> filteredSampledVerts = grouped.Select(g => g.First()).ToList();
 
+                //TODO: add center point of each observation (to make sure small fov images are not missed
+
                 //convert verts to sample points and filter for any that are located off the destination texture
                 samplePoints = filteredSampledVerts.Select(v => new PixelPoint() { Pixel = Image.UVToPixel(v.UV, opts.resolution, opts.resolution), Point = v.Position })
                     .Where(pp => pp.Pixel.X >= 0 && pp.Pixel.X < opts.resolution && pp.Pixel.Y >= 0 && pp.Pixel.Y < opts.resolution).ToList();
@@ -323,7 +327,7 @@ namespace OPS.Pipeline
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
 
-            //generate hulls
+            //generate frustum hulls
             var obsToHull = opts.obsToHull;
             if (obsToHull == null)
             {
@@ -333,7 +337,6 @@ namespace OPS.Pipeline
 
             //find the reduced set of observations that intersect the desired mesh
             info(string.Format("testing {0} image observations for intersection", imageObservations.Count()));
-
             var intersectingObservations = new List<Observation>();
             CoreLimitedParallel.ForEach(imageObservations, obs =>
             {
@@ -405,6 +408,7 @@ namespace OPS.Pipeline
                     if (contexts.Count > 0)
                     {
 #if EACHPIXEL || SPATIAL
+                        //TODO: test
                         BackprojectEachPixelObservationContexts(opts.pipeline, opts.project, masker, contexts, meshHull,
                                                        opts.sceneCaster, pts, results, progress);
 #elif GREEDY
@@ -437,6 +441,7 @@ namespace OPS.Pipeline
                 List<PixelPoint> allSamplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
                 if (sampledResults.Count() == 0)
                 {
+                    //fall back to a full backproject
                     BackprojectEachPixelObservationContexts(opts.pipeline, opts.project, masker, allContexts, meshHull,
                                               opts.sceneCaster, allSamplePoints, results, info, info);
                 }
@@ -453,7 +458,7 @@ namespace OPS.Pipeline
 
         static protected void BackprojectNearestPixelObservationContexts(PipelineCore pipeline, Project project, RoverMasker masker,
                                            List<BackprojectContext> contexts, ConvexHull meshHull,
-                                           SceneCaster sceneCaster, List<PixelPoint> samplePoints, 
+                                           SceneCaster sceneCaster, List<PixelPoint> samplePoints,
                                            List<PixelPoint> referencePoints, IDictionary<Pixel, ObsPixel> referenceResults,
                                            IDictionary<Pixel, ObsPixel> results, Action<string> info = null,
                                            Action<string> verbose = null)
@@ -464,81 +469,86 @@ namespace OPS.Pipeline
             int np = samplePoints.Count, nc = contexts.Count;
             info(string.Format("backprojecting individual {0} points into {1} images using {2} reference points", Fmt.KMG(np), nc, referenceResults.Count()));
 
-            if(referenceResults.Count() == 0)
+            if (referenceResults.Count() == 0)
             {
                 throw new Exception("no reference points provided");
             }
 
             //sort and merge data
-            Dictionary<Observation, List<PixelPoint>> resultsByObs = new Dictionary<Observation, List<PixelPoint>>();
-            foreach(var result in referenceResults)
+            Dictionary<string, List<PixelPoint>> refResultsByObs = new Dictionary<string, List<PixelPoint>>();
+            foreach (var result in referenceResults)
             {
                 PixelPoint pt = referencePoints.Single(refPt => (int)refPt.Pixel.X == result.Key.Col && (int)refPt.Pixel.Y == result.Key.Row);
 
-                if (resultsByObs.ContainsKey(result.Value.Obs))
+                if (refResultsByObs.ContainsKey(result.Value.Obs.Name))
                 {
-                    resultsByObs[result.Value.Obs].Add(pt);
+                    refResultsByObs[result.Value.Obs.Name].Add(pt);
                 }
                 else
                 {
-                    resultsByObs.Add(result.Value.Obs, new List<PixelPoint>() { pt });
+                    refResultsByObs.Add(result.Value.Obs.Name, new List<PixelPoint>() { pt });
                 }
             }
 
-            foreach(var samplePt in samplePoints)
+            foreach (var samplePt in samplePoints)
             {
-                List<Observation> candidateObs = new List<Observation>(resultsByObs.Keys);
-                while(candidateObs.Count() > 0)
+                List<string> candidateObsNames = new List<string>(refResultsByObs.Keys);
+                Dictionary<string, double> minSampleDistByObs = new Dictionary<string, double>();
+
+                double maxDistOfCandidates = 0;
+
+                foreach (var candidate in candidateObsNames)
                 {
-                    double minDist = double.MaxValue;
-                    Observation minCandidate = null;
-                    foreach(var candidate in candidateObs)
+                    double minSampleDist = double.MaxValue;
+                    foreach (var candPixelPt in refResultsByObs[candidate])
                     {
-                        double minDistInCandidate = double.MaxValue;
-                        foreach(var candPixelPt in resultsByObs[candidate])
+                        double dist = Vector3.DistanceSquared(candPixelPt.Point, samplePt.Point);
+                        if (dist < minSampleDist)
                         {
-                            double dist = Vector3.DistanceSquared(candPixelPt.Point, samplePt.Point);
-                            if (dist < minDistInCandidate)
-                            {
-                                minDistInCandidate = dist;
-                            }
-                        }
-
-                        if(minDistInCandidate < minDist)
-                        {
-                            minDist = minDistInCandidate;
-                            minCandidate = candidate;
+                            minSampleDist = dist;
                         }
                     }
 
-                    //includes user mask, invalid/missing data in orig image, spacecraft self occlusions, border pixels
-                    BackprojectContext ctx = contexts.Single<BackprojectContext>(c => c.Obs == minCandidate);
-                    Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
-                    var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh.Mean, ctx.FrustumHull,
-                                                          (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), mask,
-                                                          new List<PixelPoint>(){ samplePt }, ctx.Obs.Width, ctx.Obs.Height, sceneCaster);
-                    if (pixelsSucceeded.Count() == 1)
+                    if (minSampleDist < double.MaxValue)
                     {
-                        results.Add(SubpixelToPixel(pixelsSucceeded.First().Key), new ObsPixel(ctx.Obs, pixelsSucceeded.First().Value));
-                        break;
-                    }
-                    else
-                    {
-                        candidateObs.Remove(minCandidate);
-                        if(candidateObs.Count() == 0)
+                        minSampleDistByObs.Add(candidate, minSampleDist);
+
+                        if (minSampleDist > maxDistOfCandidates)
                         {
-                            BackprojectEachPixelObservationContexts(pipeline, project, masker, new List<BackprojectContext> { ctx }, meshHull,
-                                              sceneCaster, new List<PixelPoint>() { samplePt }, results, info, info);
+                            maxDistOfCandidates = minSampleDist;
                         }
                     }
+                }
+
+                //normalize
+                Dictionary<string, double> nomralizedWeightsByObs = new Dictionary<string, double>();
+                foreach (var obsName in minSampleDistByObs.Keys)
+                {
+                    nomralizedWeightsByObs[obsName] = minSampleDistByObs[obsName] / maxDistOfCandidates;
+                }
+
+                //TODO: weight the actual values by the distances
+                contexts.Sort((ctx0, ctx1) => (nomralizedWeightsByObs[ctx0.Obs.Name] * refResultsByObs[ctx0.Obs.Name]).CompareTo(nomralizedWeightsByObs[ctx0.Obs.Name]));
+
+                //includes user mask, invalid/missing data in orig image, spacecraft self occlusions, border pixels
+                BackprojectContext ctx = contexts.First();  //TODO: pass greedy presorted
+                Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
+
+                var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh.Mean, ctx.FrustumHull,
+                                                      (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), mask,
+                                                      new List<PixelPoint>() { samplePt }, ctx.Obs.Width, ctx.Obs.Height, sceneCaster);
+                if (pixelsSucceeded.Count() == 1)
+                {
+                    results.Add(SubpixelToPixel(pixelsSucceeded.First().Key), new ObsPixel(ctx.Obs, pixelsSucceeded.First().Value, minSampleDistByObs[ctx.Obs.Name] * maxDistOfCandidates));
                 }
             }
         }
-            static protected void BackprojectEachPixelObservationContexts(PipelineCore pipeline, Project project, RoverMasker masker,
-                                           List<BackprojectContext> contexts, ConvexHull meshHull,
-                                           SceneCaster sceneCaster, List<PixelPoint> samplePoints,
-                                           IDictionary<Pixel, ObsPixel> results, Action<string> info = null,
-                                           Action<string> verbose = null)
+
+        static protected void BackprojectEachPixelObservationContexts(PipelineCore pipeline, Project project, RoverMasker masker,
+                                       List<BackprojectContext> contexts, ConvexHull meshHull,
+                                       SceneCaster sceneCaster, List<PixelPoint> samplePoints,
+                                       IDictionary<Pixel, ObsPixel> results, Action<string> info = null,
+                                       Action<string> verbose = null)
         {
             info = info ?? (msg => { });
             verbose = verbose ?? (msg => { });
@@ -546,7 +556,7 @@ namespace OPS.Pipeline
             int np = samplePoints.Count, nc = contexts.Count;
             info(string.Format("backprojecting individual {0} points into {1} images", Fmt.KMG(np), nc));
 
-            foreach(var samplePoint in samplePoints) 
+            foreach (var samplePoint in samplePoints)
             {
                 BackprojectGreedyObservationContexts(pipeline, project, masker, contexts, meshHull,
                                            sceneCaster, new List<PixelPoint>() { samplePoint }, 1.0,
@@ -628,7 +638,7 @@ namespace OPS.Pipeline
 #endif
                     foreach (var pixelPair in pixelsSucceeded)
                     {
-                        results.Add(SubpixelToPixel(pixelPair.Key), new ObsPixel(ctx.Obs, pixelPair.Value));
+                        results.Add(SubpixelToPixel(pixelPair.Key), new ObsPixel(ctx.Obs, pixelPair.Value, obsToPixelDist[ctx.Obs.Name]));
 #if BACKPROJECT_TIMING
                         i++;
                         var ms = sw.ElapsedMilliseconds;
