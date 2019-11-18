@@ -21,6 +21,12 @@ namespace OPS.Landform
         [Value(0, Required = false, HelpText = "project name, empty to infer, must omit if processing more than one mesh", Default = null)]
         public override string ProjectName { get; set; }
 
+        [Option(Required = false, Default = "mission", HelpText = "Comma separated priority list of mesh file extensions, or \"mission\" for default mission formats")]
+        public override string MeshFormat { get; set; }
+
+        [Option(Required = false, Default = "mission", HelpText = "Comma separated priority list of image file extensions, or \"mission\" for default mission formats")]
+        public override string ImageFormat { get; set; }
+
         [Option(Required = true, Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths")]
         public string InputPath { get; set; }
 
@@ -185,8 +191,14 @@ namespace OPS.Landform
 
         protected override List<string> GetMeshExts()
         {
-            //don't need/want to check both cases because that's handled by option in search
-            return ParseExts(lsopts.MeshFormat, bothCases: false);
+            var exts = options.MeshFormat.ToLower() == "mission" ? mission.GetTacticalMeshExts() : options.MeshFormat;
+            return ParseExts(exts, bothCases: false); //don't want to check both cases, handled by option in search
+        }
+
+        protected override List<string> GetImageExts()
+        {
+            var exts = options.ImageFormat.ToLower() == "mission" ? mission.GetTacticalImageExts() : options.ImageFormat;
+            return ParseExts(exts, bothCases: !options.CaseSensitiveSearch);
         }
 
         private void IndexMeshes()

@@ -667,16 +667,31 @@ namespace OPS.Pipeline
             return "credss-default";
         }
 
+        /// <summary>
+        /// Get mission specific tactical mesh SQS queue name.  
+        /// Does not get called if --queuename is specified.
+        /// </summary>
         public virtual string GetTacticalMeshQueueName()
         {
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// Pull a tactical mesh tiling message off the queue.
+        /// The message type can be a mission specific subclass of QueueMessage.
+        /// Does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
         public virtual QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
         {
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// Returns null unless msg is a valid and recognized tactical mesh queue message.
+        /// Each tactical mesh queue message must contain at most one valid URL.
+        /// If a mission produces tactical meshes in more than one format (e.g. IV and OBJ)
+        /// then this function should return non-null only for one of those, ideally the one written last.
+        /// </summary>
         public virtual string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg)
         {
             throw new NotImplementedException();
@@ -684,16 +699,41 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// This is only used for injecting a message into the queue for testing.
-        /// Also, it does not get called if --usegenericmessagetype is specified. 
+        /// Does not get called if --usegenericmessagetype is specified. 
         /// </summary>
         public virtual QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
             throw new NotImplementedException();
         }
 
+        /// <summary>
+        /// Give up processing a tactical mesh this long after first attempt to process it.
+        /// </summary>
         public virtual int GetTacticalMeshQueueMessageMaxAgeSec()
         {
-            return 24 * 60 * 60; //give up processing a tactical mesh 1 day after first attempt to process it
+            return 24 * 60 * 60; //1 day
+        }
+
+        /// <summary>
+        /// Get comma separated list of tactical mesh file extensions.
+        /// Not cases sensitive, leading dots will be added automatically.
+        /// In priority order so if a mesh is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetTacticalMeshExts()
+        {
+            //TODO for now prefer IV until we implement per-LOD OBJs
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/749
+            return "iv,obj";
+        }
+
+        /// <summary>
+        /// Get comma separated list of tactical image file extensions.
+        /// Not cases sensitive, leading dots will be added automatically.
+        /// In priority order so if an image is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetTacticalImageExts()
+        {
+            return "img,png";
         }
     }
 

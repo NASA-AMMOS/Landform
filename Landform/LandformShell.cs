@@ -170,12 +170,12 @@ namespace OPS.Landform
 
         protected virtual List<string> GetMeshExts()
         {
-            return ParseExts(lsopts.MeshFormat, !lsopts.CaseSensitiveSearch);
+            return ParseExts(lsopts.MeshFormat, bothCases: !lsopts.CaseSensitiveSearch);
         }
 
         protected virtual List<string> GetImageExts()
         {
-            return ParseExts(lsopts.ImageFormat, !lsopts.CaseSensitiveSearch);
+            return ParseExts(lsopts.ImageFormat, bothCases: !lsopts.CaseSensitiveSearch);
         }
 
         protected List<string> ParseExts(string extsStr, bool bothCases)
