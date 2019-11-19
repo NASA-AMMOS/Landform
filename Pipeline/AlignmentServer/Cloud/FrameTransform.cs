@@ -22,7 +22,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         Adjusted = 0, //general adjusted transform
         Manual = 10, //manually adjusted
-        Landform = 20, //Landform bundle adjusted
+        Landform = 19, //Landform bundle adjusted
+        LandformOrbital = 20, //Landform orbital aligned
         LandformBEV = 21, //Landform birds eye view aligned
         LandformBEVRoot = 22, //Landform birds eye view root
         LandformBEVCalf = 23, //Landform birds eye view calf

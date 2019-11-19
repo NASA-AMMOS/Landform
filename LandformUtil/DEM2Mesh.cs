@@ -392,8 +392,7 @@ namespace OPS.LandformUtil
             {
                 if(options.AlignToScene != "")
                 {
-                    Mesh scene = Mesh.Load(options.AlignToScene);
-                    siteDriveTransform = DemOperations.Align(scene, dem, colRowOffset.Y, colRowOffset.X, 200, 200, options.MetersPerPixel, out samples, zOffset, 1.0, options.WriteHeightmapPath);
+                    throw new Exception("Deprecated - Use OrbitalAligner.");
                 } else
                 {
                     //Shift image origin and apply vertical offset based on places priors

@@ -67,6 +67,7 @@ namespace OPS.LandformUtil
                 LegacyToWebVROptions,
                 LegacyToTile3DOptions,
                 DEM2MeshOptions,
+                OrbitalAlignerOptions,
                 BenchmarkS3Options,
                 LocalConvertToASTTROOptions,
                 LimberDMGOptions>(args);
@@ -82,6 +83,7 @@ namespace OPS.LandformUtil
                 (LegacyToTile3DOptions opts) => new LegacyToTile3D(opts).Run(),
                 (TileLocalMeshOptions opts) => new TileLocalMesh(opts).Run(),
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
+                (OrbitalAlignerOptions opts) => new OribitalAligner(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 (LimberDMGOptions opts) => new LimberDMGDriver(opts).Run(),
                 (LocalConvertToASTTROOptions opts) => new LocalConvertToASTTRO(opts).Run(),

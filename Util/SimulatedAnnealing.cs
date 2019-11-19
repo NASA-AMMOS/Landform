@@ -7,8 +7,23 @@ using System.Threading.Tasks;
 
 namespace Util
 {
+    public class SimulatedAnnealingOptions
+    {
+        //Number of iterations per annealing
+        public int maxIterations;
+        //Used to scale the temperature by a constant factor
+        public double temperatureScale;
+        //Scales the error perceived by the algorithm between a candidate solution and the current solution. Higher probability scale = more likely to stay in local minima
+        public double probabilityScale;
+        public bool verbose;
+        //Allows weighting how much to fluctuate the current solution per dimension. For the case of a transformation, we likely want to perturb the rotation on a different scale than the translation. Higher sigma value for dimension d = more fluctuation of d 
+        public double[] sigma;
+    }
+
     public class SimulatedAnnealing
     {
+        public SimulatedAnnealingOptions opts;
+
         static void Copy(double[] from, double[] to)
         {
             for (int i = 0; i < from.Length; i++)
@@ -49,6 +64,10 @@ namespace Util
             return u * scale;
         }
 
+        //Temperature controls the chance of the algorithm moving to a worse solution (to avoid local minima), as well as how far the solution can move. Higher temperature = higher chance of larger movement. Temperature decays with each iteration 
+        //Controls the shape of temperature decay, higher exponent = sharper decay
+        public double temperatureExponent;
+
         public double[] Minimize(Func<double[], double> errorFunction, double[] x0)
         {
             int dimensions = x0.Length;
@@ -63,19 +82,19 @@ namespace Util
 
             Random r = NumberHelper.MakeRandomGenerator();
             int i;
-            for (i = 0; i < maxIterations; i++)
+            for (i = 0; i < opts.maxIterations; i++)
             {
-                double temperature = 1 - (i / (double)maxIterations);
-                temperature = Math.Pow(temperature, temperatureExponent) * temperatureScale;
+                double temperature = 1 - (i / (double)opts.maxIterations);
+                temperature = Math.Pow(temperature, temperatureExponent) * opts.temperatureScale;
 
                 Copy(x, candidateX);
                 for (int j = 0; j < dimensions; j++)
                 {
-                    candidateX[j] += NormalRandom(r) * sigma[j] * temperature;
+                    candidateX[j] += NormalRandom(r) * opts.sigma[j] * temperature;
                 }
 
                 double candidateError = errorFunction(candidateX);
-                if (candidateError < currentError || r.NextDouble() < Math.Exp(-(candidateError - currentError) * probabilityScale / temperature))
+                if (candidateError < currentError || r.NextDouble() < Math.Exp(-(candidateError - currentError) * opts.probabilityScale / temperature))
                 {
                     currentError = candidateError;
                     Copy(candidateX, x);
@@ -86,30 +105,12 @@ namespace Util
                     Copy(x, bestX);
                 }
 
-                if (verbose && i % 50 == 0)
+                if (opts.verbose && i % 50 == 0)
                 {
-                    Console.WriteLine("{0}% - best error: {1}", (int)(((i + 1) / (float)maxIterations) * 100), bestError);
+                    Console.WriteLine("{0}% - best error: {1}", (int)(((i + 1) / (float)opts.maxIterations) * 100), bestError);
                 }
             }
             return bestX;
-        }
-
-        public int maxIterations;
-	    //Temperature controls the chance of the algorithm moving to a worse solution (to avoid local minima), as well as how far the solution can move. Higher temperature = higher chance of larger movement. Temperature decays with each iteration 
-	    //Controls the shape of temperature decay, higher exponent = sharper decay
-        public double temperatureExponent;
-	    //Used to scale the temperature by a constant factor
-        public double temperatureScale;
-	    //Scales the error perceived by the algorithm between a candidate solution and the current solution. Higher probability scale = more likely to stay in local minima
-        public double probabilityScale;
-        public bool verbose;
-	    //Allows weighting how much to fluctuate the current solution per dimension. For the case of a transformation, we likely want to perturb the rotation on a different scale than the translation. Higher sigma value for dimension d = more fluctuation of d 
-        public double[] sigma;
-
-        public double[] Minimize(Func<double[], double> errorFunction, double[] x0, double[] sigma)
-        {
-            this.sigma = sigma;
-            return Minimize(errorFunction, x0);
         }
     }
 }
