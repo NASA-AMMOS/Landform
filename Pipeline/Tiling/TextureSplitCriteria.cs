@@ -313,7 +313,7 @@ namespace OPS.Pipeline
                                                        ConvexHull meshHull, Vector2 srcPixel, Vector3 srcPos,
                                                        int srcWidth, int srcHeight)
         {
-            double shortestDistance = float.MaxValue;
+            double shortestDistance = double.MaxValue;
 
             var offsetPixels =
                 GetOffsetPixels(srcPixel, offset: 1.0)
