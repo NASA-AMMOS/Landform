@@ -677,6 +677,16 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// Get mission specific tactical mesh SQS fail queue name.  
+        /// Does not get called if --failqueuename is specified.
+        /// Return null or empty to disable tactical mesh fail queue.
+        /// </summary>
+        public virtual string GetTacticalMeshFailQueueName()
+        {
+            return null;
+        }
+
+        /// <summary>
         /// Pull a tactical mesh tiling message off the queue.
         /// The message type can be a mission specific subclass of QueueMessage.
         /// Does not get called if --usegenericmessagetype is specified. 
@@ -1216,6 +1226,11 @@ namespace OPS.Pipeline
         public override string GetTacticalMeshQueueName()
         {
             throw new NotImplementedException(); //TODO testing with m20-ids-g-sqs-landform-lftest1
+        }
+
+        public override string GetTacticalMeshFailQueueName()
+        {
+            return "m20-ids-g-sqs-landform-tactical-fail";
         }
 
         public override QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)

@@ -27,8 +27,14 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Override message queue name")]
         public string QueueName { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Landform owned queue")]
+        [Option(Required = false, Default = null, HelpText = "Override fail message queue name")]
+        public string FailQueueName { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Message queue is Landform owned")]
         public bool LandformOwnedQueue { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Fail message queue is Landform owned")]
+        public bool LandformOwnedFailQueue { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Use generic message type")]
         public bool UseGenericMessageType { get; set; }
@@ -49,6 +55,7 @@ namespace OPS.Landform
         protected LandformServiceOptions lvopts;
 
         protected MessageQueue messageQueue;
+        protected MessageQueue failMessageQueue;
 
         private QueueMessage currentMessage;
         private double messageStartSec;
@@ -122,6 +129,7 @@ namespace OPS.Landform
                     throw new Exception("project name must be omitted with --deletequeue, --sendmessage, --service");
                 }
                 messageQueue = GetMessageQueue(); //creates queue if necessary with --landformowned
+                failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
             }
             return base.ParseArguments();
         }
@@ -129,6 +137,8 @@ namespace OPS.Landform
         protected abstract void RunBatch();
 
         protected abstract string GetDefaultQueueName();
+
+        protected abstract string GetDefaultFailQueueName();
 
         /// <summary>
         /// Messages that keep being received longer than this many seconds
@@ -149,6 +159,11 @@ namespace OPS.Landform
         protected virtual string GetQueueName()
         {
             return !string.IsNullOrEmpty(lvopts.QueueName) ? lvopts.QueueName : GetDefaultQueueName();
+        }
+
+        protected virtual string GetFailQueueName()
+        {
+            return !string.IsNullOrEmpty(lvopts.FailQueueName) ? lvopts.FailQueueName : GetDefaultFailQueueName();
         }
 
         /// <summary>
@@ -182,6 +197,11 @@ namespace OPS.Landform
             return lvopts.LandformOwnedQueue;
         }
 
+        protected virtual bool IsFailQueueLandformOwned()
+        {
+            return lvopts.LandformOwnedFailQueue;
+        }
+
         protected virtual double GetDequeueThrottleSec()
         {
             return DEF_DEQUEUE_THROTTLE_SEC;
@@ -195,6 +215,21 @@ namespace OPS.Landform
             var queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet, owned);
             pipeline.LogInfo("message queue {0}, {1}landform owned, default timeout {2}s, actual timeout {3}s",
                              name, owned ? "" : "not ", defTimeoutSec, queue.TimeoutSec);
+            return queue;
+        }
+
+        protected virtual MessageQueue GetFailMessageQueue()
+        {
+            string name = GetFailQueueName();
+            if (string.IsNullOrEmpty(name))
+            {
+                pipeline.LogInfo("no fail message queue");
+                return null;
+            }
+            int defTimeoutSec = GetDefaultMessageTimeoutSec();
+            bool owned = IsFailQueueLandformOwned();
+            var queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet, owned);
+            pipeline.LogInfo("fail message queue {0}, {1}landform owned", name, owned ? "" : "not ");
             return queue;
         }
 
@@ -263,8 +298,9 @@ namespace OPS.Landform
                         }
                         else
                         {
-                            pipeline.LogError("{0} too old ({1} > {2}), removing from queue without processing", desc,
-                                              Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec));
+                            pipeline.LogError("{0} too old ({1} > {2}), removing from queue, {3} fail queue",
+                                              desc, Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec),
+                                              failMessageQueue != null ? "adding to" : "no");
                         }
 
                         if (handled || tooOld)
@@ -276,6 +312,18 @@ namespace OPS.Landform
                             catch (Exception deleteException)
                             {
                                 pipeline.LogException(deleteException, "error deleting message");
+                            }
+                        }
+
+                        if (tooOld && failMessageQueue != null)
+                        {
+                            try
+                            {
+                                failMessageQueue.Enqueue(msg);
+                            }
+                            catch (Exception failQueueException)
+                            {
+                                pipeline.LogException(failQueueException, "adding message to fail queue");
                             }
                         }
                     }

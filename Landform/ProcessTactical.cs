@@ -80,6 +80,11 @@ namespace OPS.Landform
             return mission.GetTacticalMeshQueueName();
         }
 
+        protected override string GetDefaultFailQueueName()
+        {
+            return mission.GetTacticalMeshFailQueueName();
+        }
+
         private string GetUrl(QueueMessage msg)
         {
             return options.UseGenericMessageType ?
