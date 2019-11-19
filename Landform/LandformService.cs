@@ -42,8 +42,8 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "JSON file of message to send")]
         public string SendMessage { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Delete message queue, requires --landformownedqueue")]
-        public bool DeleteQueue { get; set; }
+        [Option(Required = false, Default = false, HelpText = "Delete message and fail queues iff Landform owned")]
+        public bool DeleteQueues { get; set; }
     }
     
     public abstract class LandformService : LandformShell
@@ -79,9 +79,9 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (lvopts.DeleteQueue)
+                if (lvopts.DeleteQueues)
                 {
-                    RunPhase("delete queue", DeleteQueue);
+                    RunPhase("delete queues", DeleteQueues);
                 }
                 else if (!string.IsNullOrEmpty(lvopts.SendMessage))
                 {
@@ -113,14 +113,10 @@ namespace OPS.Landform
         protected override bool ParseArguments()
         {
             bool sendMessage = !string.IsNullOrEmpty(lvopts.SendMessage);
-            var svcOpts = new bool[] { lvopts.DeleteQueue, sendMessage, lvopts.Service };
+            var svcOpts = new bool[] { lvopts.DeleteQueues, sendMessage, lvopts.Service };
             if (svcOpts.Where(o => o).Count() > 1)
             {
-                throw new Exception("--deletequeue, --sendmessage, and --service are mutually exclusive");
-            }
-            if (lvopts.DeleteQueue && !lvopts.LandformOwnedQueue)
-            {
-                throw new Exception("--deletequeue requires --landformowned");
+                throw new Exception("--deletequeues, --sendmessage, and --service are mutually exclusive");
             }
             if (svcOpts.Any(o => o))
             {
@@ -239,14 +235,25 @@ namespace OPS.Landform
             messageQueue.Enqueue(ParseMessage(File.ReadAllText(lvopts.SendMessage)));
         }
 
-        private void DeleteQueue()
+        private void DeleteQueues()
         {
-            if (!messageQueue.LandformOwned)
+            void deleteQueue(MessageQueue queue, string what)
             {
-                throw new Exception("cannot delete message queue, not owned by Landform");
+                if (queue != null)
+                {
+                    if (queue.LandformOwned)
+                    {
+                        pipeline.LogInfo("deleting {0} queue {1}", what, queue.Name);
+                        queue.Delete();
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("cannot delete {0} queue {1}, not owned by Landform", what, queue.Name);
+                    }
+                }
             }
-            pipeline.LogInfo("deleting message queue {0}", messageQueue.Name);
-            messageQueue.Delete();
+            deleteQueue(messageQueue, "message");
+            deleteQueue(failMessageQueue, "fail");
         }
 
         private void RunService()
