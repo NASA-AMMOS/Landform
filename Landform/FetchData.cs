@@ -94,11 +94,12 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
         public bool RespectUnifiedMeshStereoEye { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
+        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1")]
+        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
+
        
         [Option(Required = false, Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
@@ -153,9 +154,17 @@ namespace OPS.Landform
                 {
                     options.AWSRegion = mission.GetDefaultAWSRegion();
                 }
+                else if (options.AWSRegion.ToLower() == "none")
+                {
+                    options.AWSRegion = null;
+                }
                 if (string.IsNullOrEmpty(options.AWSProfile))
                 {
                     options.AWSProfile = mission.GetDefaultAWSProfile();
+                }
+                else if (options.AWSProfile.ToLower() == "none")
+                {
+                    options.AWSProfile = null;
                 }
             }
         }

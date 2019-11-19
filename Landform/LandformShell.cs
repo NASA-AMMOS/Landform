@@ -51,10 +51,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Override subcommand storage directory")]
         public string StorageDir { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
+        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1")]
+        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
         [Option(Required = false, Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
@@ -135,9 +135,17 @@ namespace OPS.Landform
             pipeline.LogInfo("landform exe: {0}", landformExe);
 
             awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile : mission.GetDefaultAWSProfile();
+            if (awsProfile.ToLower() == "none")
+            {
+                awsProfile = null;
+            }
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion : mission.GetDefaultAWSRegion();
+            if (awsRegion.ToLower() == "none")
+            {
+                awsRegion = null;
+            }
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
             logFile = !string.IsNullOrEmpty(lsopts.LogFile) ? lsopts.LogFile : Logging.GetLogFile();
