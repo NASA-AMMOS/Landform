@@ -44,13 +44,24 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = false, HelpText = "Delete message and fail queues iff Landform owned")]
         public bool DeleteQueues { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "SQS queue message timeout, nonpositive to use default")]
+        public int MessageTimeoutSec { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "Maximum handler runtime, nonpositive to use default")]
+        public int MaxHandlerSec { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "Maximum unhandled message age, nonpositive to use default")]
+        public int MaxMessageAgeSec { get; set; }
     }
     
     public abstract class LandformService : LandformShell
     {
         public const double DEF_HEARTBEAT_REL_PERIOD = 0.333;
-        public const double DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
-        public const double DEF_DEQUEUE_THROTTLE_SEC = 1;
+        public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
+        public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
+        public const int DEF_DEQUEUE_THROTTLE_SEC = 1;
+        public const int SERVICE_LOOP_RETRY_SEC = 60;
 
         protected LandformServiceOptions lvopts;
 
@@ -136,6 +147,10 @@ namespace OPS.Landform
                 }
             }
 
+            pipeline.LogInfo("message timeout: {0}", Fmt.HMS(GetDefaultMessageTimeoutSec() * 1000));
+            pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1000));
+            pipeline.LogInfo("max message age: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1000));
+
             return true;
         }
 
@@ -144,14 +159,6 @@ namespace OPS.Landform
         protected abstract string GetDefaultQueueName();
 
         protected abstract string GetDefaultFailQueueName();
-
-        /// <summary>
-        /// Messages that keep being received longer than this many seconds
-        /// since the first time they are received by any worker
-        /// (e.g. because they keep failing to be processed)
-        /// will be culled from the queue.
-        /// </summary>
-        protected abstract int GetMaxMessageAgeSec();
 
         protected abstract string DescribeMessage(QueueMessage msg);
 
@@ -184,17 +191,36 @@ namespace OPS.Landform
         /// </summary>
         protected virtual int GetDefaultMessageTimeoutSec()
         {
-            return MessageQueue.DEF_TIMEOUT_SEC;
+            return lvopts.MessageTimeoutSec > 0 ? lvopts.MessageTimeoutSec : MessageQueue.DEF_TIMEOUT_SEC;
+        }
+
+        /// <summary>
+        /// Message handlers that run longer than this will be killed.  
+        /// </summary>
+        protected virtual int GetMaxHandlerSec()
+        {
+            return lvopts.MaxHandlerSec > 0 ? lvopts.MaxHandlerSec : DEF_MAX_HANDLER_SEC;
+        }
+
+        /// <summary>
+        /// Messages that keep being received longer than this many seconds
+        /// since the first time they are received by any worker
+        /// (e.g. because they keep failing to be processed)
+        /// will be culled from the queue.
+        /// </summary>
+        protected virtual int GetMaxMessageAgeSec()
+        {
+            return  lvopts.MaxMessageAgeSec > 0 ? lvopts.MaxMessageAgeSec : DEF_MAX_MESSAGE_AGE_SEC;
+        }
+
+        protected virtual int GetDequeueThrottleSec()
+        {
+            return DEF_DEQUEUE_THROTTLE_SEC;
         }
 
         protected virtual double GetHeartbeatRelPeriod()
         {
             return DEF_HEARTBEAT_REL_PERIOD;
-        }
-
-        protected virtual double GetMaxHandlerSec()
-        {
-            return DEF_MAX_HANDLER_SEC;
         }
 
         protected virtual bool IsQueueLandformOwned()
@@ -205,11 +231,6 @@ namespace OPS.Landform
         protected virtual bool IsFailQueueLandformOwned()
         {
             return lvopts.LandformOwnedFailQueue;
-        }
-
-        protected virtual double GetDequeueThrottleSec()
-        {
-            return DEF_DEQUEUE_THROTTLE_SEC;
         }
 
         protected virtual MessageQueue GetMessageQueue()
@@ -231,10 +252,10 @@ namespace OPS.Landform
                 pipeline.LogInfo("no fail message queue");
                 return null;
             }
-            int defTimeoutSec = GetDefaultMessageTimeoutSec();
-            bool owned = IsFailQueueLandformOwned();
-            var queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet, owned);
-            pipeline.LogInfo("fail message queue {0}, {1}landform owned", name, owned ? "" : "not ");
+            int ts = GetDefaultMessageTimeoutSec();
+            bool lo = IsFailQueueLandformOwned();
+            var queue = new MessageQueue(name, awsProfile, awsRegion, ts, pipeline, lvopts.Quiet, lo, autoTypes: false);
+            pipeline.LogInfo("fail message queue {0}, {1}landform owned", name, lo ? "" : "not ");
             return queue;
         }
 
@@ -273,9 +294,9 @@ namespace OPS.Landform
 
         private void ServiceLoop()
         {
-            double throttleSec = GetDequeueThrottleSec();
+            int throttleSec = GetDequeueThrottleSec();
             int maxAgeSec = GetMaxMessageAgeSec();
-            pipeline.LogInfo("running service loop on message queue {0}, throttle {1:F3}s",
+            pipeline.LogInfo("running service loop on message queue {0}, throttle {1}s",
                              messageQueue.Name, throttleSec);
             while (true)
             {
@@ -349,7 +370,9 @@ namespace OPS.Landform
                 }
                 catch (Exception serviceException)
                 {
-                    pipeline.LogException(serviceException, "service loop error");
+                    pipeline.LogException(serviceException, string.Format("service loop error, retrying in {0}",
+                                                                          Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
+                    SleepSec(SERVICE_LOOP_RETRY_SEC);
                 }
             }
         }
@@ -391,7 +414,7 @@ namespace OPS.Landform
                     var totalSec = UTCTime.Now() - messageStartSec;
                     if (totalSec > maxHandlerSec)
                     {
-                        pipeline.LogError("handler has run for {0} > {1}s, killing",
+                        pipeline.LogError("handler has run for {0} > {1}, killing",
                                           Fmt.HMS(1000 * totalSec), Fmt.HMS(1000 * maxHandlerSec));
                         KillCurrentCommand(); //swallows exceptions, but handler will throw exception if killed
                     }

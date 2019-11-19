@@ -675,7 +675,7 @@ namespace OPS.Pipeline
         public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
                                  bool aggregateStackTrace = true)
         {
-            LogError("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + " ") : "", ex.Message);
+            LogError("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + ": ") : "", ex.Message);
 
             if (stackTrace || Debug || StackTraces)
             {

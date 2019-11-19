@@ -97,7 +97,8 @@ namespace OPS.Landform
             
         protected override int GetMaxMessageAgeSec()
         {
-            return mission.GetTacticalMeshQueueMessageMaxAgeSec();
+            return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec :
+                mission.GetTacticalMeshQueueMessageMaxAgeSec();
         }
 
         protected override string DescribeMessage(QueueMessage msg)
@@ -183,18 +184,19 @@ namespace OPS.Landform
                 {
                     throw new Exception("--inputpath required without --service");
                 }
+
                 inputPaths = StringHelper.ParseList(options.InputPath)
                     .Select(p => StringHelper.NormalizeUrl(p, preserveTrailingSlash: true))
                     .ToList();
                 pipeline.LogInfo("input paths: {0}", string.Join(", ", inputPaths));
+
+                searchPatterns = StringHelper.ParseList(options.SearchPattern).ToList();
+                pipeline.LogInfo("search patterns: {0}", string.Join(", ", searchPatterns));
             }
             else if (!string.IsNullOrEmpty(options.InputPath))
             {
                 throw new Exception("cannot combine --inputpath with --service");
             }
-
-            searchPatterns = StringHelper.ParseList(options.SearchPattern).ToList();
-            pipeline.LogInfo("search patterns: {0}", string.Join(", ", searchPatterns));
 
             return true;
         }
