@@ -21,7 +21,7 @@ namespace OPS.Landform
         [Option(Required = true, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
 
-        [Option(Required = true, Default = null, HelpText = "Output directory or S3 folder")]
+        [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder")]
         public override string OutputFolder { get; set; }
 
         [Option(Required = false, Default = "iv,obj", HelpText = "Comma separated priority list of mesh file extensions")]
@@ -125,8 +125,11 @@ namespace OPS.Landform
                                                        PathHelper.GetDocDir() + "/" + LANDFORM_STORAGE);
             pipeline.LogInfo("storage dir: {0}", storageDir);
 
-            outputFolder = StringHelper.NormalizeUrl(lsopts.OutputFolder, preserveTrailingSlash: true);
-            pipeline.LogInfo("output folder: {0}", outputFolder);
+            if (!string.IsNullOrEmpty(lsopts.OutputFolder))
+            {
+                outputFolder = StringHelper.NormalizeUrl(lsopts.OutputFolder, preserveTrailingSlash: true);
+            }
+            pipeline.LogInfo("output folder: {0}", outputFolder ?? "(unset)");
 
             landformExe = GetLandformExe();
             pipeline.LogInfo("landform exe: {0}", landformExe);

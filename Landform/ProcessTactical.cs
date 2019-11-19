@@ -27,7 +27,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = "mission", HelpText = "Comma separated priority list of image file extensions, or \"mission\" for default mission formats")]
         public override string ImageFormat { get; set; }
 
-        [Option(Required = true, Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths")]
+        [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder, if unset use same folder as input")]
+        public override string OutputFolder { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Comma separated list of input mesh files/folders or S3 paths, when run without --service")]
         public string InputPath { get; set; }
 
         [Option(Required = false, Default = "*", HelpText = "Comma separated list of wildcard patterns for input folders")]
@@ -167,10 +170,21 @@ namespace OPS.Landform
         {
             //will check options.ProjectName at end of IndexMeshes()
 
-            inputPaths = StringHelper.ParseList(options.InputPath)
-                .Select(p => StringHelper.NormalizeUrl(p, preserveTrailingSlash: true))
-                .ToList();
-            pipeline.LogInfo("input paths: {0}", string.Join(", ", inputPaths));
+            if (!options.Service)
+            {
+                if (string.IsNullOrEmpty(options.InputPath))
+                {
+                    throw new Exception("--inputpath required without --service");
+                }
+                inputPaths = StringHelper.ParseList(options.InputPath)
+                    .Select(p => StringHelper.NormalizeUrl(p, preserveTrailingSlash: true))
+                    .ToList();
+                pipeline.LogInfo("input paths: {0}", string.Join(", ", inputPaths));
+            }
+            else if (!string.IsNullOrEmpty(options.InputPath))
+            {
+                throw new Exception("cannot combine --inputpath with --service");
+            }
 
             searchPatterns = StringHelper.ParseList(options.SearchPattern).ToList();
             pipeline.LogInfo("search patterns: {0}", string.Join(", ", searchPatterns));
@@ -316,7 +330,7 @@ namespace OPS.Landform
                 
                 RunCommand("build-tileset", project);
 
-                SaveTileset(venue, project);
+                SaveTileset(venue, project, StringHelper.StripLastUrlPathSegment(pair.mesh));
 
                 Cleanup(venueDir);
             }
@@ -327,12 +341,13 @@ namespace OPS.Landform
             }
         }
 
-        private void SaveTileset(string venue, string project)
+        private void SaveTileset(string venue, string project, string altDest)
         {
             string outDir = string.Format("{0}/{1}/{2}/passthroughFrame/best/{3}",
                                           storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
             string tilesetFile = string.Format("{0}/{1}", outDir, TILESET_JSON);
-            string dest = string.Format("{0}/{1}", outputFolder, project);
+            string destDir = !string.IsNullOrEmpty(outputFolder) ? outputFolder : altDest;
+            string dest = string.Format("{0}/{1}", destDir, project);
             
             pipeline.LogInfo("saving tileset from {0} to {1}", outDir, dest);
             
