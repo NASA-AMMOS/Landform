@@ -89,8 +89,16 @@ namespace OPS.Pipeline
                     {
                         //Issue #523: want median or average in case glancing angle?
                         //want a term that looks for consistancy in spacing? implies dead on?
-                        spreads[curSamplePointIndex] = TextureSplitCriteria.GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, meshHull,
+                        double dist = TextureSplitCriteria.GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, meshHull,
                                                       pt.Pixel, pt.Point, obs.Width, obs.Height);
+                        if (dist == double.MaxValue)
+                        {
+                            spreads[curSamplePointIndex] = -1;
+                        }
+                        else
+                        {
+                            spreads[curSamplePointIndex] = dist;
+                        }                        
                     }
                     else
                     {
