@@ -316,14 +316,14 @@ namespace OPS.Landform
 
             pipeline.LogInfo("building tileset {0} for {1}", project, pair);
 
-            string meshFile = GetFile(pair.mesh);
-            string imageFile = GetFile(pair.image);
-
             try
             {
                 Cleanup(venueDir);
 
                 Configure(venue);
+                
+                string meshFile = GetFile(pair.mesh);
+                string imageFile = GetFile(pair.image);
                 
                 RunCommand("build-tiling-input", project, "--mission", missionStr,
                            "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
