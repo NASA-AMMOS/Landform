@@ -60,9 +60,9 @@ namespace OPS.Pipeline
         /// Parse a comma separated list of sitedrives, possibly null.
         /// Always return a non-null array of zero or more SiteDrives (possibly including wildcards).
         /// </summary>
-        public static SiteDrive[] ParseList(string sdList)
+        public static SiteDrive[] ParseList(string sds)
         {
-            return (sdList ?? "")
+            return (sds ?? "")
                 .Split(',')
                 .Where(s => !string.IsNullOrEmpty(s))
                 .Select(s => new SiteDrive(s.Trim()))

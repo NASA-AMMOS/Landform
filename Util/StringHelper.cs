@@ -242,5 +242,32 @@ namespace OPS.Util
             return new string(values.First().Substring(0, values.Min(s => s.Length))
                               .TakeWhile((c, i) => values.All(s => s[i] == c)).ToArray());
         }
+
+        public static string RemoveMultiple(string str, IEnumerable<int[]> spans)
+        {
+            int offset = 0;
+            foreach (var span in spans.OrderBy(span => span[0]))
+            {
+                int start = span[0];
+                int length = span[1];
+                str = str.Remove(start + offset, length);
+                offset -= length;
+            }
+            return str;
+        }
+
+        public static string RemoveMultiple(string str, params int[] spans)
+        {
+            if (spans.Length % 2 != 0)
+            {
+                throw new ArgumentException("must pass list of (start, length) pairs");
+            }
+            var pairs = new List<int[]>();
+            for (int i = 0; i < spans.Length / 2; i++)
+            {
+                pairs.Add(new int[] { spans[2 * i], spans[2 * i + 1] });
+            }
+            return RemoveMultiple(str, pairs);
+        }
     }
 }

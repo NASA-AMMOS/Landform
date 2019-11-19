@@ -33,8 +33,6 @@ namespace OPS.Landform
                 Config.SubCommand = args[0];
             }
 
-            //TODO centralize log4net initialization to uniformly handle --quiet and --logfile command line opts
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
             Logging.ConfigureLogging();
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
@@ -62,35 +60,28 @@ namespace OPS.Landform
                 ConfigureCloudOptions,
                 ConfigureLocalOptions,
                 FetchDataOptions,
-                LocalIngestOptions,
-                LocalFeaturesOptions,
-                LocalMatchingOptions,
-                LocalBundleAdjustOptions,
-                LocalBEVAlignerOptions,
-                LocalAgisoftOptions,
-                LocalBuildGeometryOptions,
-                LocalBuildTilesetOptions,
-                LocalBuildTextureOptions,
-                LocalBuildTilingInputOptions,
-                LocalBlendImagesOptions,
-                StartAlignMasterOptions >(args);
+                IngestOptions,
+                BEVAlignerOptions,
+                AgisoftAlignerOptions,
+                BuildGeometryOptions,
+                BuildTilesetOptions,
+                BuildTextureOptions,
+                BuildTilingInputOptions,
+                BlendImagesOptions
+                >(args);
 
             return parsed.MapResult(
                 (ConfigureCloudOptions opts) => new ConfigureCloud(opts).Run(),
                 (ConfigureLocalOptions opts) => new ConfigureLocal(opts).Run(),
                 (FetchDataOptions opts) => new FetchData(opts).Run(),
-                (LocalIngestOptions opts) => new LocalIngest(opts).Run(),
-                (LocalFeaturesOptions opts) => new LocalFeatures(opts).Run(),
-                (LocalMatchingOptions opts) => new LocalMatching(opts).Run(),
-                (LocalBundleAdjustOptions opts) => new LocalBundleAdjust(opts).Run(),
-                (LocalBEVAlignerOptions opts) => new LocalBEVAligner(opts).Run(),
-                (LocalAgisoftOptions opts) => new LocalAgisoft(opts).Run(),
-                (LocalBuildGeometryOptions opts) => new LocalBuildGeometry(opts).Run(),
-                (LocalBuildTilesetOptions opts) => new LocalBuildTileset(opts).Run(),
-                (LocalBuildTextureOptions opts) => new LocalBuildTexture(opts).Run(),
-                (LocalBuildTilingInputOptions opts) => new LocalBuildTilingInput(opts).Run(),
-                (LocalBlendImagesOptions opts) => new LocalBlendImages(opts).Run(),
-                (StartAlignMasterOptions opts) => new AlignmentMaster(opts).Run(),
+                (IngestOptions opts) => new Ingest(opts).Run(),
+                (BEVAlignerOptions opts) => new BEVAligner(opts).Run(),
+                (AgisoftAlignerOptions opts) => new AgisoftAligner(opts).Run(),
+                (BuildGeometryOptions opts) => new BuildGeometry(opts).Run(),
+                (BuildTilesetOptions opts) => new BuildTileset(opts).Run(),
+                (BuildTextureOptions opts) => new BuildTexture(opts).Run(),
+                (BuildTilingInputOptions opts) => new BuildTilingInput(opts).Run(),
+                (BlendImagesOptions opts) => new BlendImages(opts).Run(),
                 errs => 1);
         }
     }

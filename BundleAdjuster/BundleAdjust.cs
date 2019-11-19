@@ -10,8 +10,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-bundle-adjust", HelpText = "bundle adjust")]
-    public class LocalBundleAdjustOptions : LandformCommandOptions
+    [Verb("ba-align", HelpText = "bundle adjust aligner")]
+    public class BundleAdjustAlignerOptions : LandformCommandOptions
     {
         [Option(HelpText = "Allow bundle adjust to change individual image poses", Default = false)]
         public bool AdjustWithinSiteDrives { get; set; }
@@ -23,13 +23,13 @@ namespace OPS.Landform
         public int BundleAdjustRounds { get; set; }
     }
 
-    public class LocalBundleAdjust : LandformCommand
+    public class BundleAdjustAligner : LandformCommand
     {
-        private LocalBundleAdjustOptions options;
+        private BundleAdjustAlignerOptions options;
 
         private string dbgDir;
 
-        public LocalBundleAdjust(LocalBundleAdjustOptions options) : base(options)
+        public BundleAdjustAligner(BundleAdjustAlignerOptions options) : base(options)
         {
             this.options = options;
         }

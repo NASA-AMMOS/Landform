@@ -42,15 +42,13 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<string, int> indices; //observation name -> observation index
         private HashSet<string> preExistingObservations;
 
-        private FrameCache frameCache;
-        private ObservationCache observationCache;
-
         private ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform> pdsSiteOffsets =
             new ConcurrentDictionary<Tuple<int, int>, UncertainRigidTransform>();
 
         public IngestAlignmentInputs(PipelineCore pipeline, Project project, MissionSpecific mission,
                                      bool recreateObservations = false, bool resetTransforms = false,
-                                     string onlyForSiteDrives = null, string onlyForFrames = null,
+                                     string onlyForObservations = null, string onlyForFrames = null,
+                                     string onlyForCameras = null, string onlyForSiteDrives = null, 
                                      bool noProgress = false)
             : base(pipeline)
         {
@@ -89,17 +87,21 @@ namespace OPS.Pipeline
                 BaseUrls.Add(new BaseUrl(project.InputPath));
             }
 
-            SiteDrive[] siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
-
-            string[] frames = StringHelper.ParseList(onlyForFrames);
-
+            var observations = StringHelper.ParseList(onlyForObservations);
+            var frames = StringHelper.ParseList(onlyForFrames);
+            var cameras = RoverCamera.ParseList(onlyForCameras);
+            var siteDrives = SiteDrive.ParseList(onlyForSiteDrives);
             IngestPDSImage.Filter filter = (imageUrl, pdsMetadata, pdsParser) =>
                 {
+                    var imgId = pdsParser.ProductIdString;
                     var imgSiteDrive = new SiteDrive(pdsParser.Site, pdsParser.Drive);
                     var imgFrame = mission.GetObservationFrameName(pdsParser);
+                    var imgCam = mission.GetCamera(pdsParser);
                     return
+                    (observations.Length == 0 || observations.Any(obs => obs == imgId)) &&
                     (siteDrives.Length == 0 || siteDrives.Any(sd => sd == imgSiteDrive)) &&
-                    (frames.Length == 0 || frames.Any(frame => frame == imgFrame));
+                    (frames.Length == 0 || frames.Any(frame => frame == imgFrame)) &&
+                    (cameras.Length == 0 || cameras.Any(cam => RoverCamera.IsCamera(cam, imgCam)));
                 };
 
             this.noProgress = noProgress;
@@ -129,39 +131,23 @@ namespace OPS.Pipeline
                              places != null ? "enabled" : "disabled",
                              manifest != null ? "enabled" : "disabled");
 
-            //site drive -> sensor type -> count
-            var stats = new ConcurrentDictionary<SiteDrive, ConcurrentDictionary<string, int>>();
-
-            //sensor type -> count
-            var alignmentStats = new ConcurrentDictionary<string, int>();
-            var meshingStats = new ConcurrentDictionary<string, int>();
-            var texturingStats = new ConcurrentDictionary<string, int>();
-
-            var minSol = new ConcurrentDictionary<SiteDrive, int>();
-            var maxSol = new ConcurrentDictionary<SiteDrive, int>();
-
-            var orphans = new ConcurrentDictionary<string, bool>();
-            foreach (var obsName in preExistingObservations)
-            {
-                orphans.AddOrUpdate(obsName, _ => true, (_, __) => true);
-            }
+            //PHASE 1: ingest files
 
             double startTime = UTCTime.Now();
-            int nt = 0, nu = 0, ni = 0, na = 0, ne = 0, nf = 0, ns = 0, np = 0;
-
-            ConcurrentDictionary<string, bool> done = new ConcurrentDictionary<string, bool>();
-
+            int nt = 0, nu = 0, ni = 0, np = 0;
+            var results = new ConcurrentDictionary<string, IngestImage.Result>();
             Action<string> ingestUrl = url => {
 
                 Interlocked.Increment(ref nu);
                 Interlocked.Increment(ref ni);
 
-                if (done.ContainsKey(url))
+                if (results.ContainsKey(url))
                 {
                     return;
                 }
 
                 Interlocked.Increment(ref np);
+
                 if (!noProgress)
                 {
                     pipeline.LogInfo("ingesting {0} images in parallel, completed {1}/{2}, {3} overall",
@@ -172,64 +158,10 @@ namespace OPS.Pipeline
                 
                 Interlocked.Decrement(ref np);
 
-                done.AddOrUpdate(res.Url, _ => true, (_, __) => true);
+                results.AddOrUpdate(res.Url, _ => res, (_, __) => res);
                 if (res.DataUrl != null)
                 {
-                    done.AddOrUpdate(res.DataUrl, _ => true, (_, __) => true);
-                }
-
-                if (res.Status == IngestImage.Status.Skipped)
-                {
-                    Interlocked.Increment(ref ns);
-                    pipeline.LogVerbose(res.ToString());
-                }
-                else if (res.Status == IngestImage.Status.Failed)
-                {
-                    Interlocked.Increment(ref nf);
-                    pipeline.LogVerbose(res.ToString());
-                }
-                else if (res.Status == IngestImage.Status.Added || res.Status == IngestImage.Status.Duplicate)
-                {
-                    //duplicates are OK to allow ingestion being re-run on an existing proj
-                    
-                    Interlocked.Increment(ref na);
-                    
-                    if (res.Status == IngestImage.Status.Duplicate)
-                    {
-                        Interlocked.Increment(ref ne);
-                    }
-                    
-                    var obs = res.Observation as RoverObservation;
-                    var frame = res.ObservationFrame;
-                    
-                    var sd = new SiteDrive(obs.Site, obs.Drive);
-                    var sds = stats.GetOrAdd(sd, _ => new ConcurrentDictionary<string, int>());
-                    var statsKey = mission.ClassifyCamera(obs.Sensor) + " " + obs.ObservationType;
-                    sds.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
-                    
-                    minSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Min(sol, obs.Day));
-                    maxSol.AddOrUpdate(sd, _ => obs.Day, (_, sol) => Math.Max(sol, obs.Day));
-                    
-                    orphans.TryRemove(obs.Name, out bool ignore);
-                    
-                    pipeline.LogVerbose("{0} -> observation {1}", res.ToString(), obs.ToString(brief: true));
-                    
-                    if (obs.UseForAlignment)
-                    {
-                        alignmentStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
-                    }
-                    
-                    if (obs.UseForMeshing)
-                    {
-                        meshingStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
-                    }
-
-                    if (obs.UseForTexturing)
-                    {
-                        texturingStats.AddOrUpdate(statsKey, _ => 1, (_, count) => count + 1);
-                    }
-
-                    if (func != null) func(res);
+                    results.AddOrUpdate(res.DataUrl, _ => res, (_, __) => res);
                 }
             };
 
@@ -244,7 +176,7 @@ namespace OPS.Pipeline
             {
                 pipeline.LogInfo("{0}ingesting input LBL files from {1} for alignment project {2}",
                                  entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive).ToList());
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive));
             }
             nt = urls.Count();
             CoreLimitedParallel.ForEach(urls, ingestUrl);
@@ -254,21 +186,181 @@ namespace OPS.Pipeline
             {
                 pipeline.LogInfo("{0}ingesting input IMG and VIC files from {1} for alignment project {2}",
                                  entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive).ToList());
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive).ToList());
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive));
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive));
             }
             nt = urls.Count();
             ni = 0;
             CoreLimitedParallel.ForEach(urls, ingestUrl);
-                                            
-            frameCache = new FrameCache(pipeline, project.Name);
+
+            int na = CullObservations(results); //PHASE 2: cull observations (e.g. selects latest versions)
+
+            DeleteOrphans(results.Values); //PHASE 3: delete orphan observations
+
+            UpdateFrames(); //PHASE 4: update frames and transforms
+
+            //PHASE 5: callback
+            if (func != null)
+            {
+                foreach (var res in results.Values.Where(res => res.Accepted))
+                {
+                    func(res);
+                }
+            }
+
+            SpewStats(results.Values, nu, startTime); //PHASE 6: collect and spew stats
+
+            return na;
+        }
+
+        private int CullObservations(IDictionary<string, IngestImage.Result> results)
+        {
+            var acceptedUrls = new HashSet<string>();
+            acceptedUrls.UnionWith(results.Values.Where(res => res.Accepted).Select(res => res.Url));
+            int na = acceptedUrls.Count;
+            var filteredUrls = RoverObservationComparator.FilterProductIdGroups(acceptedUrls, mission).ToList();
+            pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
+
+            var filteredObs = filteredUrls
+                .Select(url => results[url].Observation)
+                .Where(obs => obs is RoverObservation)
+                .Cast<RoverObservation>()
+                .ToList();
+            na = filteredObs.Count;
+            var comparator = mission.GetRoverObservationComparator();
+            filteredObs = comparator
+                .KeepBestRoverObservations(filteredObs, pipeline.Verbose ? pipeline : null)
+                .ToList();
+            pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
+            na = filteredObs.Count;
+
+            var obsNames = new HashSet<string>();
+            obsNames.UnionWith(filteredObs.Select(obs => obs.Name));
+            foreach (var res in results.Values)
+            {
+                if (res.Accepted && !obsNames.Contains(res.Observation.Name))
+                {
+                    res.Status = IngestImage.Status.Culled;
+                }
+            }
+
+            return na;
+        }
+
+        private void DeleteOrphans(IEnumerable<IngestImage.Result> results)
+        {
+            var orphans = new HashSet<string>();
+            orphans.UnionWith(preExistingObservations);
+            orphans.ExceptWith(results.Where(res => res.Accepted).Select(res => res.Observation.Name));
+            orphans.UnionWith(results
+                              .Where(res => res.Status == IngestImage.Status.Culled)
+                              .Select(res => res.Observation.Name));
+            if (orphans.Count > 0)
+            {
+                pipeline.LogInfo("deleting {0} orphan observations", orphans.Count);
+                foreach (var orphanName in orphans)
+                {
+                    var obs = RoverObservation.Find(pipeline, project.Name, orphanName);
+                    if (obs != null)
+                    {
+                        pipeline.LogVerbose("deleting orphan observation {0}", orphanName);
+                        obs.Delete(pipeline);
+                    }
+                    indices.TryRemove(orphanName, out int ignore);
+                }
+                //orphaned frames and transforms will be handled in UpdateFrames()
+            }
+        }
+
+        private void UpdateFrames()
+        {
+            pipeline.LogInfo("adding new observations and transforms to frames...");
+
+            var frameCache = new FrameCache(pipeline, project.Name);
             frameCache.Preload();
 
-            observationCache = new ObservationCache(pipeline, project.Name);
+            var observationCache = new ObservationCache(pipeline, project.Name);
             observationCache.Preload();
 
-            //populate frame.ObservationNames and frame.Transforms here to avoid read-modify-write MT hazard
-            UpdateFrames();
+            //register each observation with the frame it uses
+            var framesToSave = new HashSet<string>();
+            foreach (var observation in observationCache.GetAllObservations())
+            {
+                var frame = frameCache.GetFrame(observation.FrameName);
+                lock (frame.ObservationNames)
+                {
+                    if (frame.ObservationNames.Add(observation.Name))
+                    {
+                        framesToSave.Add(frame.Name);
+                    }
+                }
+            }
+
+            //de-register any missing observations referenced by a frame
+            //also cull any frames not used by any observation
+            var framesToDelete = new HashSet<string>();
+            foreach (var frame in frameCache.GetAllFrames())
+            {
+                lock (frame.ObservationNames)
+                {
+                    var dead = frame.ObservationNames.Where(obs => !observationCache.ContainsObservation(obs)).ToList();
+                    frame.ObservationNames.ExceptWith(dead);
+                    if (frame.ObservationNames.Count == 0 && frameCache.GetChildren(frame).Count() == 0)
+                    {
+                        framesToDelete.Add(frame.Name);
+                    }
+                    else if (dead.Count > 0)
+                    {
+                        framesToSave.Add(frame.Name);
+                    }
+                }
+            }
+
+            pipeline.LogInfo("deleting {0} orphan frames", framesToDelete.Count);
+            foreach (var frameName in framesToDelete)
+            {
+                pipeline.LogVerbose("deleting orphan frame {0}", frameName);
+                var frame = frameCache.GetFrame(frameName);
+                frame.Delete(pipeline);
+                frameCache.Remove(frame);
+            }
+
+            //register each transform to its frame
+            //also cull any transforms associated with a deleted frame
+            var transformsToDelete = new HashSet<string>();
+            foreach (var transform in frameCache.GetAllTransforms())
+            {
+                if (frameCache.ContainsFrame(transform.FrameName))
+                {
+                    var frame = frameCache.GetFrame(transform.FrameName);
+                    lock (frame.Transforms)
+                    {
+                        if (frame.Transforms.Add(transform.Source))
+                        {
+                            framesToSave.Add(frame.Name);
+                        }
+                    }
+                }
+                else
+                {
+                    transformsToDelete.Add(transform.Name);
+                }
+            }
+
+            pipeline.LogInfo("deleting {0} orphan transforms", transformsToDelete.Count);
+            foreach (var transformName in transformsToDelete)
+            {
+                pipeline.LogVerbose("deleting orphan transform {0}", transformName);
+                var transform = frameCache.GetTransform(transformName);
+                transform.Delete(pipeline);
+                frameCache.Remove(transform);
+            }
+
+            pipeline.LogInfo("saving {0} updated frames", framesToSave.Count);
+            foreach (var frame in framesToSave)
+            {
+                frameCache.GetFrame(frame).Save(pipeline);
+            }
 
             if (!frameCache.ChainPriors(pdsSiteOffsets))
             {
@@ -281,19 +373,95 @@ namespace OPS.Pipeline
             }
 
             pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, effectiveRoot);
+        }
 
-            if (orphans.Count > 0)
+        private void SpewStats(IEnumerable<IngestImage.Result> results, int numUrls, double startTime)
+        {
+            void tally(Dictionary<string, int> table, string key)
             {
-                pipeline.LogInfo("deleting {0} orphan observations", orphans.Count);
-                foreach (var orphanName in orphans.Keys)
+                if (!table.ContainsKey(key))
                 {
-                    var obs = RoverObservation.Find(pipeline, project.Name, orphanName);
-                    if (obs != null)
+                    table[key] = 1;
+                }
+                else
+                {
+                    table[key] = table[key] + 1;
+                }
+            }
+            var stats = new Dictionary<SiteDrive, Dictionary<string, int>>(); //site drive -> sensor type -> count
+            var alignmentStats = new Dictionary<string, int>(); //sensor type -> count
+            var meshingStats = new Dictionary<string, int>(); //sensor type -> count
+            var texturingStats = new Dictionary<string, int>(); //sensor type -> count
+            var minSol = new Dictionary<SiteDrive, int>();
+            var maxSol = new Dictionary<SiteDrive, int>();
+            int nc = 0, ns = 0, nf = 0, na = 0, ne = 0;
+            foreach (var res in results)
+            {
+                if (!res.Accepted)
+                {
+                    switch (res.Status)
                     {
-                        pipeline.LogDebug("deleting orphan observation {0}", orphanName);
-                        pipeline.DeleteDatabaseItem(obs);
+                        case IngestImage.Status.Culled: nc++; break;
+                        case IngestImage.Status.Skipped: ns++; break;
+                        case IngestImage.Status.Failed: nf++; break;
+                        default: pipeline.LogWarn("unhandled status {0}", res.Status); break;
                     }
-                    indices.TryRemove(orphanName, out int ignore);
+                    pipeline.LogVerbose(res.ToString());
+                    continue;
+                }
+
+                na++;
+
+                if (res.Status == IngestImage.Status.Duplicate)
+                {
+                    ne++;
+                }
+                
+                var obs = res.Observation as RoverObservation;
+                var frame = res.ObservationFrame;
+                
+                var sd = new SiteDrive(obs.Site, obs.Drive);
+                if (!stats.ContainsKey(sd))
+                {
+                    stats[sd] = new Dictionary<string, int>();
+                }
+                var sds = stats[sd];
+                var statsKey = mission.ClassifyCamera(obs.Camera) + " " + obs.ObservationType;
+                tally(sds, statsKey);
+                
+                if (!minSol.ContainsKey(sd))
+                {
+                    minSol[sd] = obs.Day;
+                }
+                else
+                {
+                    minSol[sd] = Math.Min(minSol[sd], obs.Day);
+                }
+                
+                if (!maxSol.ContainsKey(sd))
+                {
+                    maxSol[sd] = obs.Day;
+                }
+                else
+                {
+                    maxSol[sd] = Math.Max(maxSol[sd], obs.Day);
+                }
+                
+                pipeline.LogVerbose("{0} -> observation {1}", res.ToString(), obs.ToString(brief: true));
+                
+                if (obs.UseForAlignment)
+                {
+                    tally(alignmentStats, statsKey);
+                }
+                
+                if (obs.UseForMeshing)
+                {
+                    tally(meshingStats, statsKey);
+                }
+                
+                if (obs.UseForTexturing)
+                {
+                    tally(texturingStats, statsKey);
                 }
             }
 
@@ -314,8 +482,9 @@ namespace OPS.Pipeline
                 }
             }
 
-            pipeline.LogInfo("processed {0} urls ({1:F3}s), {2} accepted, {3} existing, {4} failed, {5} skipped",
-                             nu, UTCTime.Now() - startTime, na, ne, nf, ns);
+            pipeline.LogInfo("processed {0} urls ({1:F3}s): " +
+                             "{2} accepted, {3} existing, {4} failed, {5} skipped, {6} culled",
+                             numUrls, UTCTime.Now() - startTime, na, ne, nf, ns, nc);
 
             var totalStats = new SortedDictionary<string, int>();
             foreach (var sd in stats.Keys.OrderBy(sd => sd))
@@ -341,45 +510,6 @@ namespace OPS.Pipeline
                                  alignmentStats.ContainsKey(entry.Key) ? alignmentStats[entry.Key] : 0,
                                  meshingStats.ContainsKey(entry.Key) ? meshingStats[entry.Key] : 0,
                                  texturingStats.ContainsKey(entry.Key) ? texturingStats[entry.Key] : 0);
-            }
-
-            return na;
-        }
-
-        private void UpdateFrames()
-        {
-            pipeline.LogInfo("adding new observations and transforms to frames...");
-
-            var framesToSave = new HashSet<string>();
-
-            foreach (var observation in observationCache.GetAllObservations())
-            {
-                var frame = frameCache.GetFrame(observation.FrameName);
-                lock (frame.ObservationNames)
-                {
-                    if (frame.ObservationNames.Add(observation.Name))
-                    {
-                        framesToSave.Add(frame.Name);
-                    }
-                }
-            }
-
-            foreach (var transform in frameCache.GetAllTransforms())
-            {
-                var frame = frameCache.GetFrame(transform.FrameName);
-                lock (frame.Transforms)
-                {
-                    if (frame.Transforms.Add(transform.Source))
-                    {
-                        framesToSave.Add(frame.Name);
-                    }
-                }
-            }
-
-            pipeline.LogInfo("saving {0} updated frames", framesToSave.Count);
-            foreach (var frame in framesToSave)
-            {
-                frameCache.GetFrame(frame).Save(pipeline);
             }
         }
     }

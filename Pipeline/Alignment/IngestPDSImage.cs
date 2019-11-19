@@ -60,13 +60,31 @@ namespace OPS.Pipeline
         {
             try
             {
-                var filename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var productId = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 
-                // Parse the filename to quickly rule out data products we know we don't care about.
                 string reason = "";
-                if (!mission.CheckFilename(filename, out reason))
+                if (!mission.CheckProductId(productId, out reason)) //null ok
                 {
                     pipeline.LogVerbose("rejected {0} by filename: {1}", url, reason);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleFrame())
+                {
+                    pipeline.LogVerbose("rejected multi-frame product {0}", url);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleCamera())
+                {
+                    pipeline.LogVerbose("rejected multi-camera product {0}", url);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleSiteDrive())
+                {
+                    pipeline.LogVerbose("rejected multi-sitedrive product {0}", url);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -175,8 +193,7 @@ namespace OPS.Pipeline
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
-                var cameraType = mission.GetCamera(parser);
-                var observationFrameName = cameraType.ToString() + "_" + mission.RoverMotionCounter(parser);
+                var observationFrameName = mission.GetObservationFrameName(parser);
                 var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
 
@@ -243,9 +260,9 @@ namespace OPS.Pipeline
                                             mission.UseForTexturing(parser),
                                             metadata.Width, metadata.Height, metadata.Bands,
                                             metadata.BitDepth, mission.DayNumber(parser),
-                                            parser.ProductId.Version, index,
-                                            parser.Site, parser.Drive,
-                                            parser.DerivedImageType, cameraType, parser.ProducingInstitution);
+                                            productId.Version, index, parser.Site, parser.Drive,
+                                            mission.GetProductType(parser), mission.GetCamera(parser),
+                                            parser.ProducingInstitution, productId.Color);
 
                 if (observation == null)
                 {

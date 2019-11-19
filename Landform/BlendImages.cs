@@ -22,8 +22,8 @@ namespace OPS.Landform
 {
     public enum BlendStrategy { None, Auto, Barycentric, Inpaint };
 
-    [Verb("local-blend-images", HelpText = "blend observation images")]
-    public class LocalBlendImagesOptions : TextureCommandOptions
+    [Verb("blend-images", HelpText = "blend observation images")]
+    public class BlendImagesOptions : TextureCommandOptions
     {
         [Option(HelpText = "Don't use existing leaves to build backproject index", Default = false)]
         public bool NoUseExistingLeaves { get; set; }
@@ -89,17 +89,17 @@ namespace OPS.Landform
         public bool RedoBlendedTexture { get; set; }
     }
 
-    public class LocalBlendImages : TextureCommand
+    public class BlendImages : TextureCommand
     {
         private const string OUT_DIR = "texturing/BlendProducts";
 
-        private LocalBlendImagesOptions options;
+        private BlendImagesOptions options;
 
         private bool useExistingLeaves;
         private Image blurredTexture;
         private Image blendedTexture;
 
-        public LocalBlendImages(LocalBlendImagesOptions options) : base(options)
+        public BlendImages(BlendImagesOptions options) : base(options)
         {
             this.options = options;
 

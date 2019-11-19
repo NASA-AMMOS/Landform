@@ -11,7 +11,10 @@ namespace OPS.Pipeline.AlignmentServer
         private readonly PipelineCore pipeline;
         private readonly string projectName;
 
+        //Observation name -> Observation
         private readonly Dictionary<string, Observation> observations = new Dictionary<string, Observation>();
+
+        //Frame name -> Observations
         private readonly Dictionary<string, List<Observation>> forFrame = new Dictionary<string, List<Observation>>();
 
         public ObservationCache(PipelineCore pipeline, string projectName)

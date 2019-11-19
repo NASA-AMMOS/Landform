@@ -102,6 +102,23 @@ namespace OPS.Pipeline.AlignmentServer
             return string.Format("{0}-{1}", frameName, source);
         }
 
+        public static bool SplitName(string name, out string frameName, out TransformSource source)
+        {
+            frameName = null;
+            source = TransformSource.Prior;
+            if (string.IsNullOrEmpty(name))
+            {
+                return false;
+            }
+            int dash = name.IndexOf('-');
+            if (dash < 0 || dash == name.Length - 1)
+            {
+                return false;
+            }
+            frameName = name.Substring(0, dash);
+            return Enum.TryParse(name.Substring(dash + 1), true, out source);
+        }
+
         public static FrameTransform Create(PipelineCore pipeline, Frame frame, TransformSource source,
                                             UncertainRigidTransform transform)
         {

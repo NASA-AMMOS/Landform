@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -94,6 +95,9 @@ namespace OPS.Pipeline
             { "SR", RoverProductCamera.SuperCamRMI } //M2020
         };
 
+        private static ConcurrentDictionary<RoverProductCamera, string> invRDRCameraTypes =
+            new ConcurrentDictionary<RoverProductCamera, string>();
+
         public static RoverProductCamera FromPDSInstrumentID(string id)
         {
             if (pdsCameraTypes.ContainsKey(id))
@@ -112,6 +116,12 @@ namespace OPS.Pipeline
             return RoverProductCamera.Unknown;
         }
 
+        public static string ToRDRInstrumentID(RoverProductCamera cam)
+        {
+            return invRDRCameraTypes
+                .GetOrAdd(cam, _ => rdrCameraTypes.Where(e => e.Value == cam).Select(e => e.Key).First());
+        }
+        
         public static bool IsCamera(RoverProductCamera camType, RoverProductCamera cam)
         {
             switch (camType)
@@ -153,20 +163,14 @@ namespace OPS.Pipeline
             }
         }
 
-        public static bool IsCamera(string camType, string cam)
+        public static RoverProductCamera[] ParseList(string cams)
         {
-            return IsCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), camType, ignoreCase: true),
-                            (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
-        }
-
-        public static bool IsCamera(string camType, RoverProductCamera cam)
-        {
-            return IsCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), camType, ignoreCase: true), cam);
-        }
-
-        public static bool IsCamera(RoverProductCamera camType, string cam)
-        {
-            return IsCamera(camType, (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+            return (cams ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), s, ignoreCase: true))
+                .Cast<RoverProductCamera>()
+                .ToArray();
         }
     }
 
@@ -193,6 +197,16 @@ namespace OPS.Pipeline
         Points,
         Normals,
         RangeError
+    }
+
+    public enum RoverProductColor
+    {
+        Unknown,
+        FullColor,
+        Grayscale,
+        Red,
+        Green,
+        Blue
     }
 
     public static class RoverProduct
@@ -257,6 +271,28 @@ namespace OPS.Pipeline
             return prodType == RoverProductType.RoverMask || prodType == RoverProductType.RangeError ||
                 prodType == RoverProductType.Range || prodType == RoverProductType.Points ||
                 prodType == RoverProductType.Normals;
+        }
+
+        public static bool IsMonochrome(RoverProductColor color)
+        {
+            return color == RoverProductColor.Grayscale ||
+                color == RoverProductColor.Red ||
+                color == RoverProductColor.Green ||
+                color == RoverProductColor.Blue;
+        }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/783#issuecomment-234441
+        public static int BandPreference(RoverProductColor color)
+        {
+            switch (color)
+            {
+                case RoverProductColor.FullColor: return 0;
+                case RoverProductColor.Grayscale: return 1;
+                case RoverProductColor.Green: return 2;
+                case RoverProductColor.Red: return 3;
+                case RoverProductColor.Blue: return 4;
+                default: return 5;
+            }
         }
     }
 
@@ -378,12 +414,23 @@ namespace OPS.Pipeline
                 return StereoCams[index];
             }
 
-            if (StereoCams.Contains(cam))
-            {
-                return cam;
-            }
+            return cam;
+        }
 
-            throw new ArgumentException("not a stereo camera: " + cam);
+        public static RoverStereoEye ParseEyeForGeometry(string eye, MissionSpecific mission)
+        {
+            if (mission != null && eye.ToLower() == "auto")
+            {
+                return mission.PreferEyeForGeometry();
+            }
+            else if (Enum.TryParse<RoverStereoEye>(eye, true, out RoverStereoEye ret))
+            {
+                return ret;
+            }
+            else
+            {
+                throw new ArgumentException("unknown stereo eye: " + eye);
+            }
         }
     }
 }
