@@ -93,7 +93,13 @@ namespace OPS.Landform
 
         protected override string DescribeMessage(QueueMessage msg)
         {
-            return "tactical mesh " + GetUrl(msg);
+            string url = "(unknown)";
+            try
+            {
+                url = GetUrl(msg);
+            }
+            catch {} //ignore
+            return "tactical mesh " + url;
         }
 
         protected override QueueMessage DequeueOneMessage()

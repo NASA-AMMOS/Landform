@@ -43,7 +43,7 @@ namespace OPS.Landform
     public abstract class LandformService : LandformShell
     {
         public const double DEF_HEARTBEAT_REL_PERIOD = 0.333;
-        public const double DEF_MAX_HANDLER_SEC = 10 * 60;
+        public const double DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const double DEF_DEQUEUE_THROTTLE_SEC = 1;
 
         protected LandformServiceOptions lvopts;

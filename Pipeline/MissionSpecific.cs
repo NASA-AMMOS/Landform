@@ -711,7 +711,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual int GetTacticalMeshQueueMessageMaxAgeSec()
         {
-            return 24 * 60 * 60; //1 day
+            return 60 * 60; //1 hour
         }
 
         /// <summary>
@@ -1211,6 +1211,70 @@ namespace OPS.Pipeline
                 yield return new int[] { COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH };
             }
             yield break;
+        }
+
+        public override string GetTacticalMeshQueueName()
+        {
+            throw new NotImplementedException(); //TODO testing with m20-ids-g-sqs-landform-lftest1
+        }
+
+        public override QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
+        {
+            return queue.DequeueOne<SNSMessageWrapper>();
+        }
+
+        public override string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg)
+        {
+            if (!(msg is SNSMessageWrapper))
+            {
+                throw new Exception("M2020 tactical mesh queue message does not have SNS wrapper");
+            }
+
+            var s3Msg = JsonHelper.FromJson<S3EventMessage>(((SNSMessageWrapper)msg).Message);
+            if (s3Msg.Records.Count != 1)
+            {
+                throw new Exception(string.Format("M2020 tactical mesh queue message has {0} records, expected 1",
+                                                  s3Msg.Records.Count));
+            }
+
+            var s3EventRecord = s3Msg.Records[0];
+            string expected ="ObjectCreated:Put";
+            if (s3EventRecord.eventName != expected)
+            {
+                throw new Exception(string.Format("M2020 tactical mesh queue message event name \"{0}\", " +
+                                                  "expected \"{1}\"", s3EventRecord.eventName, expected));
+            }
+
+            var s3EventData = s3EventRecord.s3;
+            if (s3EventData == null)
+            {
+                throw new Exception("M2020 tactical mesh queue message has no S3EventData");
+            }
+
+            if (s3EventData.bucket == null)
+            {
+                throw new Exception("M2020 tactical mesh queue message has no S3 bucket");
+            }
+
+            if (s3EventData.obj == null)
+            {
+                throw new Exception("M2020 tactical mesh queue message has no S3 object");
+            }
+
+            string url = string.Format("s3://{0}/{1}", s3EventData.bucket.name,
+                                       s3EventData.obj.key); //already url encoded
+
+            if (!string.IsNullOrEmpty(url) && !url.EndsWith(".obj", ignoreCase: true, culture: null))
+            {
+                return null; //OBJ is written last, only keep OBJ messages
+            }
+
+            return url;
+        }
+
+        public override QueueMessage ParseTacticalMeshQueueMessage(string json)
+        {
+            return JsonHelper.FromJson<SNSMessageWrapper>(json);
         }
     }
 
