@@ -45,11 +45,12 @@ namespace OPS.Cloud
 
         private ILogger logger;
         private string url;
+        private bool autoTypes;
         private AmazonSQSClient client;
 
         public MessageQueue(string name, string awsProfileName = null, string awsRegionName = null,
                             int timeoutSec = DEF_TIMEOUT_SEC, ILogger logger = null, bool quiet = false,
-                            bool landformOwned = true)
+                            bool landformOwned = true, bool autoTypes = true)
         {
             this.logger = logger;
 
@@ -57,6 +58,8 @@ namespace OPS.Cloud
             {
                 throw new ArgumentException("queue name cannot be empty");
             }
+
+            this.autoTypes = autoTypes;
 
             this.LandformOwned = landformOwned;
 
@@ -129,7 +132,7 @@ namespace OPS.Cloud
         
         public void Enqueue(QueueMessage message)
         {
-            Enqueue(JsonHelper.ToJson(message));
+            Enqueue(JsonHelper.ToJson(message, autoTypes: autoTypes));
         }
 
         public void Enqueue(string json)
@@ -192,7 +195,7 @@ namespace OPS.Cloud
             {
                 try
                 {
-                    T m = JsonHelper.FromJson<T>(msg.Body);
+                    T m = JsonHelper.FromJson<T>(msg.Body, autoTypes: autoTypes);
                     if (m is QueueMessage)
                     {
                         var qm = m as QueueMessage;

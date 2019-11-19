@@ -112,6 +112,11 @@ namespace OPS.Landform
 
         protected override bool ParseArguments()
         {
+            if (!base.ParseArguments())
+            {
+                return false; //e.g. --help
+            }
+
             bool sendMessage = !string.IsNullOrEmpty(lvopts.SendMessage);
             var svcOpts = new bool[] { lvopts.DeleteQueues, sendMessage, lvopts.Service };
             if (svcOpts.Where(o => o).Count() > 1)
@@ -125,9 +130,13 @@ namespace OPS.Landform
                     throw new Exception("project name must be omitted with --deletequeue, --sendmessage, --service");
                 }
                 messageQueue = GetMessageQueue(); //creates queue if necessary with --landformowned
-                failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
+                if (lvopts.Service || lvopts.DeleteQueues)
+                {
+                    failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
+                }
             }
-            return base.ParseArguments();
+
+            return true;
         }
 
         protected abstract void RunBatch();
@@ -206,11 +215,11 @@ namespace OPS.Landform
         protected virtual MessageQueue GetMessageQueue()
         {
             string name = GetQueueName();
-            int defTimeoutSec = GetDefaultMessageTimeoutSec();
-            bool owned = IsQueueLandformOwned();
-            var queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet, owned);
+            int ts = GetDefaultMessageTimeoutSec();
+            bool lo = IsQueueLandformOwned();
+            var queue = new MessageQueue(name, awsProfile, awsRegion, ts, pipeline, lvopts.Quiet, lo, autoTypes: false);
             pipeline.LogInfo("message queue {0}, {1}landform owned, default timeout {2}s, actual timeout {3}s",
-                             name, owned ? "" : "not ", defTimeoutSec, queue.TimeoutSec);
+                             name, lo ? "" : "not ", ts, queue.TimeoutSec);
             return queue;
         }
 

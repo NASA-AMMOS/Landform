@@ -702,7 +702,7 @@ namespace OPS.Pipeline
         /// If a mission produces tactical meshes in more than one format (e.g. IV and OBJ)
         /// then this function should return non-null only for one of those, ideally the one written last.
         /// </summary>
-        public virtual string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg)
+        public virtual string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg, ILogger logger = null)
         {
             throw new NotImplementedException();
         }
@@ -1238,7 +1238,7 @@ namespace OPS.Pipeline
             return queue.DequeueOne<SNSMessageWrapper>();
         }
 
-        public override string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg)
+        public override string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg, ILogger logger = null)
         {
             if (!(msg is SNSMessageWrapper))
             {
@@ -1279,8 +1279,12 @@ namespace OPS.Pipeline
             string url = string.Format("s3://{0}/{1}", s3EventData.bucket.name,
                                        s3EventData.obj.key); //already url encoded
 
-            if (!string.IsNullOrEmpty(url) && !url.EndsWith(".obj", ignoreCase: true, culture: null))
+            if (!url.EndsWith(".obj", ignoreCase: true, culture: null))
             {
+                if (logger != null)
+                {
+                    logger.LogVerbose("ignoring M2020 tactical mesh queue message (not OBJ) {0}", url);
+                }
                 return null; //OBJ is written last, only keep OBJ messages
             }
 
@@ -1289,7 +1293,7 @@ namespace OPS.Pipeline
 
         public override QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
-            return JsonHelper.FromJson<SNSMessageWrapper>(json);
+            return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
         }
     }
 

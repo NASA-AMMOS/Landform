@@ -88,10 +88,11 @@ namespace OPS.Landform
             return mission.GetTacticalMeshFailQueueName();
         }
 
-        private string GetUrl(QueueMessage msg)
+        private string GetUrl(QueueMessage msg, bool verbose = true)
         {
             return options.UseGenericMessageType ?
-                ((GenericTacticalMeshMessage)msg).meshUrl : mission.GetUrlFromTacticalMeshQueueMessage(msg);
+                ((GenericTacticalMeshMessage)msg).meshUrl :
+                mission.GetUrlFromTacticalMeshQueueMessage(msg, verbose ? pipeline : null);
         }
             
         protected override int GetMaxMessageAgeSec()
@@ -101,13 +102,13 @@ namespace OPS.Landform
 
         protected override string DescribeMessage(QueueMessage msg)
         {
-            string url = "(unknown)";
+            string url = null;
             try
             {
-                url = GetUrl(msg);
+                url = GetUrl(msg, verbose: false);
             }
             catch {} //ignore
-            return "tactical mesh " + url;
+            return "tactical mesh " + (url ?? "(unknown)");
         }
 
         protected override QueueMessage DequeueOneMessage()
@@ -162,7 +163,8 @@ namespace OPS.Landform
 
         protected override QueueMessage ParseMessage(string json)
         {
-            return options.UseGenericMessageType ? JsonHelper.FromJson<GenericTacticalMeshMessage>(json) :
+            return options.UseGenericMessageType ?
+                JsonHelper.FromJson<GenericTacticalMeshMessage>(json, autoTypes: false) :
                 mission.ParseTacticalMeshQueueMessage(json);
         }
 
@@ -170,7 +172,12 @@ namespace OPS.Landform
         {
             //will check options.ProjectName at end of IndexMeshes()
 
-            if (!options.Service)
+            if (!base.ParseArguments())
+            {
+                return false; //e.g. --help
+            }
+
+            if (messageQueue == null)
             {
                 if (string.IsNullOrEmpty(options.InputPath))
                 {
@@ -188,8 +195,8 @@ namespace OPS.Landform
 
             searchPatterns = StringHelper.ParseList(options.SearchPattern).ToList();
             pipeline.LogInfo("search patterns: {0}", string.Join(", ", searchPatterns));
-            
-            return base.ParseArguments();
+
+            return true;
         }
 
         protected override Project GetProject()
