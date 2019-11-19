@@ -242,7 +242,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowNonlinear()
         {
-            return false;
+            return true;
         }
 
         /// <summary>
@@ -258,7 +258,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool PreferLinearToNonlinear()
         {
-            return true;
+            return false;
         }
 
         /// <summary>
