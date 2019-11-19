@@ -41,9 +41,12 @@ namespace OPS.Landform
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
-        public virtual double BackprojectGoodnessSamplingPct { get; set; }
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
+        public virtual double BackprojectQuality { get; set; }
 
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = OPS.Pipeline.Texturing.ObsSelectionStrategyName.Spatial)]
+        public virtual OPS.Pipeline.Texturing.ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
+        
         [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
         public virtual double BackprojectBatchGridSize { get; set; }
 
@@ -446,7 +449,8 @@ namespace OPS.Landform
                 sceneCaster = sceneCaster,
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
-                quality = tcopts.BackprojectGoodnessSamplingPct,
+                quality = tcopts.BackprojectQuality,
+                obsSelectionStrategy = tcopts.ObsSelectionStrategy,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },
