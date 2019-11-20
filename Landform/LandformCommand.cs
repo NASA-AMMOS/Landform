@@ -96,15 +96,23 @@ namespace OPS.Landform
             stopwatch = Stopwatch.StartNew();
         }
 
-        protected void StopStopwatch(bool quiet = false)
+        protected void StopStopwatch(bool quiet = false, bool brief = false)
         {
             stopwatch.Stop();
+
             if (quiet)
             {
                 return;
             }
+
             var totalMS = stopwatch.ElapsedMilliseconds + pipeline.InitMSPerPhase.Values.Sum();
             pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(totalMS));
+
+            if (brief)
+            {
+                return;
+            }
+
             foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
             {
                 foreach (var entry in table)
@@ -112,16 +120,20 @@ namespace OPS.Landform
                     pipeline.LogInfo("{0} {1}", Fmt.HMS(entry.Value), entry.Key);
                 }
             }
+
             pipeline.DumpStats();
+
             int ndr = PathHelper.NumDeleteRetries;
             if (ndr > 0)
             {
                 pipeline.LogWarn("{0} file delete retries", ndr);
             }
+
             if (!string.IsNullOrEmpty(localOutputPath))
             {
                 pipeline.LogInfo("local output path: {0}", localOutputPath);
             }
+
             if (!string.IsNullOrEmpty(outputFolder) && pipeline is CloudPipeline && project != null)
             {
                 pipeline.LogInfo("cloud output path: {0}", pipeline.GetStorageUrl(outputFolder, project.Name));

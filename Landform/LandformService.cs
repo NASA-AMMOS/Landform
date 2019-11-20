@@ -361,7 +361,7 @@ namespace OPS.Landform
                             
                             currentMessage = null;
                             
-                            StopStopwatch();
+                            StopStopwatch(brief: true);
                         }
 
                         if (tooOld)
