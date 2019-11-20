@@ -54,6 +54,11 @@ namespace OPS.Util
         /// </summary>
         public static string ConfigDir;
 
+        public static string GetConfigDir()
+        {
+            return !string.IsNullOrEmpty(ConfigDir) ? ConfigDir : PathHelper.GetHomeDir();
+        }
+
         /// <summary>
         /// Set the name of the application config folder
         /// Config files for this application should be stored in a folder of this name under ConfigDir
@@ -74,8 +79,7 @@ namespace OPS.Util
 
         static string FullPathToConfig(string filename)
         {
-            string dir = !string.IsNullOrEmpty(ConfigDir) ? ConfigDir : PathHelper.GetHomeDir();
-            return Path.Combine(dir, ConfigFolder, filename + ".json");
+            return Path.Combine(GetConfigDir(), ConfigFolder, filename + ".json");
         }
 
         public void Save()

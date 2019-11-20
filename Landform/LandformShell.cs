@@ -153,7 +153,7 @@ namespace OPS.Landform
             pipeline.LogInfo("subcommand log file: {0}", logFile);
 
             configFolder = Config.ConfigFolder + GetConfigSuffix();
-            configFile = Path.Combine(Config.ConfigDir, configFolder, pipeline.Config.ConfigFileName() + ".json");
+            configFile = Path.Combine(Config.GetConfigDir(), configFolder, pipeline.Config.ConfigFileName() + ".json");
             pipeline.LogInfo("subcommand config file: {0}", configFile);
 
             return true;
