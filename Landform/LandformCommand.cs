@@ -73,8 +73,14 @@ namespace OPS.Landform
         {
             this.lcopts = lcopts;
 
-            Config.ConfigDir = !string.IsNullOrEmpty(lcopts.ConfigDir) ? lcopts.ConfigDir : PathHelper.GetHomeDir();
-            Config.ConfigFolder = !string.IsNullOrEmpty(lcopts.ConfigFolder) ? lcopts.ConfigFolder : ".landform";
+            if (!string.IsNullOrEmpty(lcopts.ConfigDir))
+            {
+                Config.ConfigDir = lcopts.ConfigDir;
+            }
+            if (!string.IsNullOrEmpty(lcopts.ConfigFolder)) 
+            {
+                Config.ConfigFolder = lcopts.ConfigFolder;
+            }
 
             if (lcopts.Cloud)
             {

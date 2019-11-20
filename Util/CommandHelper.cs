@@ -15,7 +15,7 @@ namespace OPS.Util
             public string OptionsFile { get; set; }
         }
 
-        public static void Init(string[] args, string baseCommand, string configFolder = ".landform")
+        public static void Init(string[] args, string baseCommand, string configFolder = Config.DEF_CONFIG_FOLDER)
         {
             //these enable Logging.ConfigureLogging() to retrieve Config.FullCommand
             //so that can become part of the log filename log/log-Landform-subcommand-timestamp-pid.txt

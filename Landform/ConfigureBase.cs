@@ -47,8 +47,14 @@ namespace OPS.Landform
         public ConfigureBase(ConfigureBaseOptions cbopts)
         {
             this.cbopts = cbopts;
-            Config.ConfigDir = !string.IsNullOrEmpty(cbopts.ConfigDir) ? cbopts.ConfigDir : PathHelper.GetHomeDir();
-            Config.ConfigFolder = !string.IsNullOrEmpty(cbopts.ConfigFolder) ? cbopts.ConfigFolder : ".landform";
+            if (!string.IsNullOrEmpty(cbopts.ConfigDir))
+            {
+                Config.ConfigDir = cbopts.ConfigDir;
+            }
+            if (!string.IsNullOrEmpty(cbopts.ConfigFolder)) 
+            {
+                Config.ConfigFolder = cbopts.ConfigFolder;
+            }
             Logging.ConfigureLogging(cbopts.Quiet, cbopts.Debug, cbopts.LogFile);
             logger = LogManager.GetLogger(GetType());
         }

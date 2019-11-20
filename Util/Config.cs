@@ -32,6 +32,8 @@ namespace OPS.Util
     /// </summary>
     public abstract class Config
     { 
+        public const string DEF_CONFIG_FOLDER = ".landform";
+
         /// <summary>
         /// Name of configuration file.  This should return just the name of the file without .json or a path
         /// </summary>
@@ -58,7 +60,7 @@ namespace OPS.Util
         /// This should be just a single folder name not an entire directory path
         /// If this is not set application will not try to read configuration files from disk
         /// </summary>
-        public static string ConfigFolder;
+        public static string ConfigFolder = DEF_CONFIG_FOLDER;
 
         public static string BaseCommand { get; set; }
         public static string SubCommand { get; set; }
