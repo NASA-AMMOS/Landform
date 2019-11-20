@@ -140,7 +140,7 @@ namespace OPS.Landform
             awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion : mission.GetDefaultAWSRegion();
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
-            logFile = !string.IsNullOrEmpty(lsopts.LogFile) ? lsopts.LogFile : Logging.GetLogFile();
+            logFile = Logging.GetLogFile();
             string logPrefix = GetLogFilePrefix();
             if (logFile.IndexOf(logPrefix) >= 0)
             {

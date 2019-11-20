@@ -34,6 +34,9 @@ namespace OPS.Pipeline
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
 
+        [Option(Default = null, HelpText = "Override default log directory")]
+        public string LogDir { get; set; }
+
         [Option(Default = null, HelpText = "Override default temp dir")]
         public string TempDir { get; set; }
 
@@ -178,7 +181,16 @@ namespace OPS.Pipeline
             }
             else
             {
-                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, options.LogFile);
+                string logFile = options.LogFile; //null ok
+                if (!string.IsNullOrEmpty(options.LogDir))
+                {
+                    if (string.IsNullOrEmpty(logFile))
+                    {
+                        logFile = Logging.GetLogFile();
+                    }
+                    logFile = Path.Combine(options.LogDir, Path.GetFileName(logFile));
+                }
+                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, logFile);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 
