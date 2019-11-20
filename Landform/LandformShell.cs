@@ -90,7 +90,7 @@ namespace OPS.Landform
             {
                 if (_storageHelper == null)
                 {
-                    _storageHelper = new StorageHelper(awsProfile, awsRegion);
+                    _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
                 }
                 return _storageHelper;
             }
@@ -135,17 +135,9 @@ namespace OPS.Landform
             pipeline.LogInfo("landform exe: {0}", landformExe);
 
             awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile : mission.GetDefaultAWSProfile();
-            if (awsProfile.ToLower() == "none")
-            {
-                awsProfile = null;
-            }
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion : mission.GetDefaultAWSRegion();
-            if (awsRegion.ToLower() == "none")
-            {
-                awsRegion = null;
-            }
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
             logFile = !string.IsNullOrEmpty(lsopts.LogFile) ? lsopts.LogFile : Logging.GetLogFile();

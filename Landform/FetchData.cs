@@ -134,7 +134,7 @@ namespace OPS.Landform
             {
                 if (_storageHelper == null)
                 {
-                    _storageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
+                    _storageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion, logger);
                 }
                 return _storageHelper;
             }
@@ -154,17 +154,9 @@ namespace OPS.Landform
                 {
                     options.AWSRegion = mission.GetDefaultAWSRegion();
                 }
-                else if (options.AWSRegion.ToLower() == "none")
-                {
-                    options.AWSRegion = null;
-                }
                 if (string.IsNullOrEmpty(options.AWSProfile))
                 {
                     options.AWSProfile = mission.GetDefaultAWSProfile();
-                }
-                else if (options.AWSProfile.ToLower() == "none")
-                {
-                    options.AWSProfile = null;
                 }
             }
         }

@@ -244,17 +244,13 @@ namespace OPS.Cloud
 
         public static AmazonSQSClient GetClient(string awsProfileName = null, string awsRegionName = null)
         {
-            AWSCredentials awsCredentials = null;
-            if (!string.IsNullOrEmpty(awsProfileName))
-            {
-                awsCredentials = Credentials.Get(awsProfileName);
-            }
+            string[] nulls = { "", "null", "none", "auto" };
+            Func<string, string> convertNull = s => s == null || nulls.Any(n => n == s.ToLower()) ? null : s;
+            awsProfileName = convertNull(awsProfileName);
+            awsRegionName = convertNull(awsRegionName);
 
-            RegionEndpoint awsRegion = null;
-            if (!string.IsNullOrEmpty(awsRegionName))
-            {
-                awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
-            }
+            AWSCredentials awsCredentials = awsProfileName != null ? Credentials.Get(awsProfileName) : null;
+            RegionEndpoint awsRegion = awsRegionName != null ? RegionEndpoint.GetBySystemName(awsRegionName) : null;
 
             if (awsCredentials != null && awsRegion != null)
             {

@@ -53,10 +53,8 @@ namespace OPS.Pipeline
                 NumberHelper.RandomSeed = cloudConfig.RandomSeed;
             }
 
-            string convertNull(string s) { return s == "" || s == "null" ? null : s; }
-
-            awsProfile = convertNull(cloudConfig.AWSProfile);
-            awsRegion = convertNull(cloudConfig.AWSRegion);
+            awsProfile = cloudConfig.AWSProfile;
+            awsRegion = cloudConfig.AWSRegion;
 
             if (enableS3)
             {
@@ -107,6 +105,8 @@ namespace OPS.Pipeline
             }
 
             //TODO MSL specific
+            string[] nulls = { "", "null", "none", "auto" };
+            Func<string, string> convertNull = s => s == null || nulls.Any(n => n == s.ToLower()) ? null : s;
             string msliceAWSProfile = convertNull(cloudConfig.MSLICEAWSProfile);
             string msliceAWSRegion = convertNull(cloudConfig.MSLICEAWSRegion);
             if (OPS.Cloud.Credentials.Exists(msliceAWSProfile) && !string.IsNullOrEmpty(cloudConfig.MSLICES3Url))
