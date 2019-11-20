@@ -4,6 +4,7 @@
 packages/
 out/
 tmp/
+log/
 TestResults/
 Cloud/docs/*.xml
 *.user
