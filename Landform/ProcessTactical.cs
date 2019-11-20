@@ -352,7 +352,7 @@ namespace OPS.Landform
                 
                 RunCommand("build-tileset", project);
 
-                SaveTileset(venue, project, StringHelper.StripLastUrlPathSegment(pair.mesh));
+                SaveTileset(venue, project, pair.mesh);
 
                 Cleanup(venueDir);
             }
@@ -363,15 +363,30 @@ namespace OPS.Landform
             }
         }
 
-        private void SaveTileset(string venue, string project, string altDest)
+        private string GetDestDir(string meshUrl)
+        {
+            if (!string.IsNullOrEmpty(outputFolder))
+            {
+                return outputFolder;
+            }
+            string rdrSubdir = "/rdr/";
+            string tilesetSubdir = "tileset";
+            int rdrIdx = StringHelper.NormalizeSlashes(meshUrl).ToLower().LastIndexOf(rdrSubdir);
+            if (rdrIdx >= 0)
+            {
+                return meshUrl.Substring(0, rdrIdx + rdrSubdir.Length) + tilesetSubdir;
+            }
+            return StringHelper.StripLastUrlPathSegment(meshUrl) + tilesetSubdir;
+        }
+
+        private void SaveTileset(string venue, string project, string meshUrl)
         {
             string outDir = string.Format("{0}/{1}/{2}/passthroughFrame/best/{3}",
                                           storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
             string tilesetFile = string.Format("{0}/{1}", outDir, TILESET_JSON);
-            string destDir = !string.IsNullOrEmpty(outputFolder) ? outputFolder : altDest;
-            string dest = string.Format("{0}/{1}", destDir, project);
+            string dest = string.Format("{0}/{1}", GetDestDir(meshUrl), project);
             
-            pipeline.LogInfo("saving tileset from {0} to {1}", outDir, dest);
+            pipeline.LogInfo("{0}saving tileset from {1} to {2}", options.DryRun ? "dry " : "", outDir, dest);
             
             if (!options.DryRun)
             {
