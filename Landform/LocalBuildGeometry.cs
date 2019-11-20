@@ -36,8 +36,15 @@ namespace OPS.Landform
         [Option(HelpText = "Only emit faces that intersect these observations, comma separated (disables database save)", Default = null)]
         public string OnlyFacesForObs { get; set; }
 
-        [Option(HelpText = "Clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
+        [Option(HelpText = "Pre-clip inputs to save time in meshing, may want this extent to be smaller than the post extent to hide extrapolation at borders", Default = false)]
+        public bool PreClipPointCloud { get; set; }
+        
+        [Option(HelpText = "Bounds to use if PreClipPointCloud is specified preclip input point clouds to box XY size in meters", Default = 32)]
+        public double PreClipExtent { get; set; }
+
+        [Option(HelpText = "Post meshing clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
+     
     }
 
     public class LocalBuildGeometry : GeometryCommand
@@ -114,11 +121,34 @@ namespace OPS.Landform
             return " meshing";
         }
 
+        //potentially mission specific: assumes z-down/up 
+        BoundingBox BoundsFromXYExtent(Vector3 center, double extent, double minZ, double maxZ)
+        {
+            double halfExtent = extent * 0.5;
+
+            Vector3 min = center + new Vector3(-halfExtent, -halfExtent, 0);
+            Vector3 max = center + new Vector3(halfExtent, halfExtent, 0);
+
+            min.Z = minZ;
+            max.Z = maxZ;
+
+            return new BoundingBox(min, max);
+        }
+        
         private void BuildMesh()
         {
+            BoundingBox preClipBounds = new BoundingBox();
+            if(options.PreClipPointCloud)
+            {
+                //TODO: make a 2D clipper that ignores Z on clipping
+                const double safeVerticalClipMeters = 10000.0;
+                preClipBounds = BoundsFromXYExtent(Vector3.Zero, options.PreClipExtent, -safeVerticalClipMeters, safeVerticalClipMeters);
+            }
+
             mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
                                               frameCache, observationCache, meshFrame, options.UsePriors,
-                                              options.OnlyAligned, options.OnlyForCameras, !options.NoCleverCombine,
+                                              options.OnlyAligned, options.PreClipPointCloud, preClipBounds,
+                                              options.OnlyForCameras, !options.NoCleverCombine,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
 
             if (mesh == null || mesh.Faces.Count == 0)
