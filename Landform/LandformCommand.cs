@@ -96,9 +96,13 @@ namespace OPS.Landform
             stopwatch = Stopwatch.StartNew();
         }
 
-        protected void StopStopwatch()
+        protected void StopStopwatch(bool quiet = false)
         {
             stopwatch.Stop();
+            if (quiet)
+            {
+                return;
+            }
             var totalMS = stopwatch.ElapsedMilliseconds + pipeline.InitMSPerPhase.Values.Sum();
             pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(totalMS));
             foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })

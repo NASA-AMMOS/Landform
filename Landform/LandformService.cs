@@ -167,6 +167,8 @@ namespace OPS.Landform
 
         protected abstract QueueMessage DequeueOneMessage();
 
+        protected abstract bool AcceptMessage(QueueMessage msg);
+
         protected abstract bool HandleMessage(QueueMessage msg);
 
         protected abstract QueueMessage ParseMessage(string json);
@@ -327,9 +329,10 @@ namespace OPS.Landform
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
                         bool tooOld = ageSec > maxAgeSec;
+                        bool accepted = AcceptMessage(msg);
                         bool handled = false;
 
-                        if (!tooOld)
+                        if (accepted && !tooOld)
                         {
                             StartStopwatch();
                             
@@ -351,14 +354,15 @@ namespace OPS.Landform
                             
                             StopStopwatch();
                         }
-                        else
+
+                        if (tooOld)
                         {
                             pipeline.LogError("{0} too old ({1} > {2}), removing from queue, {3} fail queue",
                                               desc, Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec),
                                               failMessageQueue != null ? "adding to" : "no");
                         }
 
-                        if (handled || tooOld)
+                        if (!accepted || handled || tooOld)
                         {
                             try
                             {
@@ -370,7 +374,7 @@ namespace OPS.Landform
                             }
                         }
 
-                        if (tooOld && failMessageQueue != null)
+                        if (accepted && tooOld && failMessageQueue != null)
                         {
                             try
                             {

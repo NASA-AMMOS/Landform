@@ -88,11 +88,11 @@ namespace OPS.Landform
             return mission.GetTacticalMeshFailQueueName();
         }
 
-        private string GetUrl(QueueMessage msg, bool verbose = true)
+        private string GetUrl(QueueMessage msg, bool filter = true, bool verbose = true)
         {
             return options.UseGenericMessageType ?
                 ((GenericTacticalMeshMessage)msg).meshUrl :
-                mission.GetUrlFromTacticalMeshQueueMessage(msg, verbose ? pipeline : null);
+                mission.GetUrlFromTacticalMeshQueueMessage(msg, filter, verbose ? pipeline : null);
         }
             
         protected override int GetMaxMessageAgeSec()
@@ -106,7 +106,7 @@ namespace OPS.Landform
             string url = null;
             try
             {
-                url = GetUrl(msg, verbose: false);
+                url = GetUrl(msg, filter: false, verbose: false);
             }
             catch {} //ignore
             return "tactical mesh " + (url ?? "(unknown)");
@@ -119,9 +119,14 @@ namespace OPS.Landform
                 mission.DequeueTacticalMeshMessage(messageQueue);
         }
 
+        protected override bool AcceptMessage(QueueMessage msg)
+        {
+            return !string.IsNullOrEmpty(GetUrl(msg)); 
+        }
+
         protected override bool HandleMessage(QueueMessage msg)
         {
-            string url = GetUrl(msg); 
+            string url = GetUrl(msg, verbose: false); 
 
             //mission may filter messages to those representing the last created RDRs for that mission
             //e.g if OBJ are always generated after IV for a mission
