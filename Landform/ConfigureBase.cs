@@ -36,6 +36,12 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
+
+        [Option(Default = null, HelpText = "Override default log directory")]
+        public string LogDir { get; set; }
+
+        [Option(Default = null, HelpText = "Override default temp dir")]
+        public string TempDir { get; set; }
     }
 
     public class ConfigureBase
@@ -55,7 +61,11 @@ namespace OPS.Landform
             {
                 Config.ConfigFolder = cbopts.ConfigFolder;
             }
-            Logging.ConfigureLogging(cbopts.Quiet, cbopts.Debug, cbopts.LogFile);
+            if (!string.IsNullOrEmpty(cbopts.TempDir))
+            {
+                TemporaryFile.TemporaryDirectory = cbopts.TempDir;
+            }
+            Logging.ConfigureLogging(cbopts.Quiet, cbopts.Debug, cbopts.LogFile, cbopts.LogDir);
             logger = LogManager.GetLogger(GetType());
         }
     }

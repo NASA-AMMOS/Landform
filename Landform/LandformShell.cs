@@ -312,7 +312,7 @@ namespace OPS.Landform
                 };
             var stdArgs = new Dictionary<string, string>()
                 {
-                    { "--logfile", logFile },
+                    { "--logfile", logFile }, //already handles --logdir
                     { "--tempdir", lsopts.TempDir },
                     { "--configfolder", configFolder }
                 };

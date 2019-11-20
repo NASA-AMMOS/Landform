@@ -46,7 +46,8 @@ namespace OPS.Util
         }
 
         private static volatile bool didConfig = false;
-        public static void ConfigureLogging(bool quiet = false, bool debug = false, string overrideLogFilename = null)
+        public static void ConfigureLogging(bool quiet = false, bool debug = false, string logFilename = null,
+                                            string logDir = null)
         {
             //this is used as part of the the default log filename
             log4net.GlobalContext.Properties["command"] = Config.FullCommand;
@@ -55,8 +56,8 @@ namespace OPS.Util
             //but there are some cases where it's hard to structure the code
             //to avoid more than one possible call
             //that's OK, but we only want to set things up from App.config once
-            //if we call XmlConfigurator.Configure() more than once than one effect
-            //is that we can get get extra log files on disk
+            //if we call XmlConfigurator.Configure() more than once
+            //then one effect is that we can get get extra log files on disk
             //because each call can create a log file with a different timestamp in the filename
             if (!didConfig)
             {
@@ -64,6 +65,16 @@ namespace OPS.Util
                 didConfig = true;
             }
 
+            string logFile = null;
+            if (!string.IsNullOrEmpty(logDir))
+            {
+                if (string.IsNullOrEmpty(logFilename))
+                {
+                    logFilename = Path.GetFileName(GetLogFile());
+                }
+                logFile = Path.Combine(logDir, logFilename);
+            }
+            
             var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
 
             h.Root.Level = debug ? Level.Debug : Level.Info;
@@ -76,12 +87,19 @@ namespace OPS.Util
                 if (a is FileAppender)
                 {
                     FileAppender fa = (FileAppender)a;
-                    bool fileChanged = !string.IsNullOrEmpty(overrideLogFilename);
+                    bool fileChanged = !string.IsNullOrEmpty(logFilename) || !string.IsNullOrEmpty(logFile);
                     FileInfo oldFile = null;
                     if (fileChanged)
                     {
                         oldFile = new FileInfo(fa.File);
-                        fa.File = Path.Combine(oldFile.DirectoryName, overrideLogFilename);
+                        if (!string.IsNullOrEmpty(logFile))
+                        {
+                            fa.File = logFile;
+                        }
+                        else
+                        {
+                            fa.File = Path.Combine(oldFile.DirectoryName, logFilename);
+                        }
                     }
                     if (debug)
                     {

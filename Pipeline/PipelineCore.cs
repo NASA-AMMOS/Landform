@@ -181,16 +181,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                string logFile = options.LogFile; //null ok
-                if (!string.IsNullOrEmpty(options.LogDir))
-                {
-                    if (string.IsNullOrEmpty(logFile))
-                    {
-                        logFile = Logging.GetLogFile();
-                    }
-                    logFile = Path.Combine(options.LogDir, Path.GetFileName(logFile));
-                }
-                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, logFile);
+                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, options.LogFile, options.LogDir);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 
