@@ -160,17 +160,26 @@ namespace OPS.Landform
 
         protected abstract string GetDefaultFailQueueName();
 
+        protected abstract QueueMessage DequeueOneMessage();
+
         /// <summary>
         /// Should not throw.  
         /// </summary>
         protected abstract string DescribeMessage(QueueMessage msg);
 
-        protected abstract QueueMessage DequeueOneMessage();
-
+        /// <summary>
+        /// Should not throw.  
+        /// </summary>
         protected abstract bool AcceptMessage(QueueMessage msg);
 
+        /// <summary>
+        /// Can throw.  
+        /// </summary>
         protected abstract bool HandleMessage(QueueMessage msg);
 
+        /// <summary>
+        /// Used only by SendMessage().
+        /// </summary>
         protected abstract QueueMessage ParseMessage(string json);
 
         protected virtual string GetQueueName()

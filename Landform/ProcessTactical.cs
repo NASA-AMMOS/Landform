@@ -121,7 +121,15 @@ namespace OPS.Landform
 
         protected override bool AcceptMessage(QueueMessage msg)
         {
-            return !string.IsNullOrEmpty(GetUrl(msg)); 
+            try
+            {
+                return !string.IsNullOrEmpty(GetUrl(msg)); 
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn(ex.Message);
+                return false;
+            }
         }
 
         protected override bool HandleMessage(QueueMessage msg)
