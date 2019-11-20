@@ -60,7 +60,6 @@ namespace PipelineTest
                 Assert.AreEqual(0.631446, articulation.MastElevation);
             }
 
-          
             {
                 string filename = Path.Combine("TestData", "img", @"NLB_451649560RNGLF0311330NCAM12813M1.IMG");
                 var md = new PDSMetadata(filename);
@@ -108,7 +107,6 @@ namespace PipelineTest
                 Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.DerivedImageRefFrame);
             }
 
-
             {
                 string filename = Path.Combine("TestData", "img", @"0608ML0025660260301542E01_DRCX.IMG");
                 var md = new PDSMetadata(filename);
@@ -152,10 +150,7 @@ namespace PipelineTest
                 Assert.AreEqual(-0.013007, articulation.LeftRockerAngle);
                 Assert.AreEqual(4.092333, articulation.MastAzimuth);
                 Assert.AreEqual(1.127138, articulation.MastElevation);
-
             }
         }
     }
-
-
 }
