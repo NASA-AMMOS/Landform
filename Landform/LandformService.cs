@@ -238,27 +238,42 @@ namespace OPS.Landform
 
         protected virtual MessageQueue GetMessageQueue()
         {
-            string name = GetQueueName();
-            int ts = GetDefaultMessageTimeoutSec();
-            bool lo = IsQueueLandformOwned();
-            var queue = new MessageQueue(name, awsProfile, awsRegion, ts, pipeline, lvopts.Quiet, lo, autoTypes: false);
-            pipeline.LogInfo("message queue {0}, {1}landform owned, default timeout {2}s, actual timeout {3}s",
-                             name, lo ? "" : "not ", ts, queue.TimeoutSec);
-            return queue;
+            return GetMessageQueue(GetQueueName(), GetDefaultMessageTimeoutSec(), IsQueueLandformOwned(), "message");
         }
 
         protected virtual MessageQueue GetFailMessageQueue()
         {
-            string name = GetFailQueueName();
+            return GetMessageQueue(GetFailQueueName(), GetDefaultMessageTimeoutSec(), IsFailQueueLandformOwned(),
+                                   "fail message");
+        }
+
+        private MessageQueue GetMessageQueue(string name, int defTimeoutSec, bool landformOwned, string what)
+        {
             if (string.IsNullOrEmpty(name))
             {
-                pipeline.LogInfo("no fail message queue");
+                pipeline.LogInfo("no {0} queue", what);
                 return null;
             }
-            int ts = GetDefaultMessageTimeoutSec();
-            bool lo = IsFailQueueLandformOwned();
-            var queue = new MessageQueue(name, awsProfile, awsRegion, ts, pipeline, lvopts.Quiet, lo, autoTypes: false);
-            pipeline.LogInfo("fail message queue {0}, {1}landform owned", name, lo ? "" : "not ");
+            pipeline.LogInfo("opening/creating {0} queue: {1} ({2}landform owned)",
+                             what, name, landformOwned ? "" : "not ");
+            MessageQueue queue = null;
+            while (true)
+            {
+                try
+                {
+                    queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet,
+                                             landformOwned, autoTypes: false);
+                    pipeline.LogInfo("{0} queue {1}: default timeout {2}s, actual timeout {3}s",
+                                     what, name, defTimeoutSec, queue.TimeoutSec);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, string.Format("error opening/creating {0} queue, retrying in {1}",
+                                                            what, Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
+                    SleepSec(SERVICE_LOOP_RETRY_SEC);
+                }
+            }
             return queue;
         }
 
