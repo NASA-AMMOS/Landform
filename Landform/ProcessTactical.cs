@@ -95,6 +95,12 @@ namespace OPS.Landform
                 mission.GetUrlFromTacticalMeshQueueMessage(msg, filter, verbose ? pipeline : null);
         }
             
+        protected override int GetMaxHandlerSec()
+        {
+            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec :
+                mission.GetTacticalMeshQueueMaxHandlerSec();
+        }
+
         protected override int GetMaxMessageAgeSec()
         {
             return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec :

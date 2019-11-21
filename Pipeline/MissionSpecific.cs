@@ -718,6 +718,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// Kill tactical mesh tileset processes after this amount of time.
+        /// </summary>
+        public virtual int GetTacticalMeshQueueMaxHandlerSec()
+        {
+            return 10 * 60; //10 minutes
+        }
+
+        /// <summary>
         /// Give up processing a tactical mesh this long after first attempt to process it.
         /// </summary>
         public virtual int GetTacticalMeshQueueMessageMaxAgeSec()
