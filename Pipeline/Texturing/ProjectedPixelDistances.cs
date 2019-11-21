@@ -59,7 +59,7 @@ namespace OPS.Pipeline
                                       );
                 }
 
-                double pixelSpread = CalculateForObs(occlusionScene, occlusionMesh, samples, obs, obsHull, obsToOutput);
+                double pixelSpread = CalculateForObs(occlusionScene, samples, obs, obsHull, obsToOutput);
 
                 ret[obs.Name] = pixelSpread;
             }
@@ -67,7 +67,7 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static double CalculateForObs(SceneCaster sceneCaster, SceneCaster meshCaster, List<PixelPoint> allSamples, Observation obs, ConvexHull obsHull, Matrix obsToOutput,
+        public static double CalculateForObs(SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs, ConvexHull obsHull, Matrix obsToOutput,
             double pctPtsToSample = 1.0, bool writeDebug = false, string localDebugOutputPath = "")
         {
             int numPoints = allSamples.Count();

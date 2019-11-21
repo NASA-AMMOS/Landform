@@ -35,7 +35,7 @@ namespace OPS.Pipeline.Texturing
         Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs;
         Dictionary<string, Backproject.Context> ObsToContext;
 
-        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, SceneCaster occlusionMesh,
+        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
                                List<Backproject.Context> contexts, int outputTextureResolution,double quality, bool writeDebug, string localOutputPath)
         {
             //select points on the surface of the mesh at requested density to use for sampling backproject
@@ -59,9 +59,40 @@ namespace OPS.Pipeline.Texturing
                 sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
             }
 
-            if(writeDebug)
+            if (writeDebug)
             {
                 sampledMesh.Save(Path.Combine(localOutputPath, "spatialSamplePts.ply"));
+                meshHull.Mesh.Save(Path.Combine(localOutputPath, "meshHull.ply"));
+            }
+
+            //heuristic: add points on the border (to make sure the edge get similar choices to neighbors
+            //potentially mission specific: assumes z down, < 1km height
+            const double safeHeight = -1000;
+            Vector3 dirDown = new Vector3(0, 0, 1);
+            //Vector3[] rayPts = new Vector3[]
+            //{
+            //    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Min.Y, safeHeight),
+            //    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Max.Y, safeHeight),
+            //    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Min.Y, safeHeight),
+            //    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Max.Y, safeHeight),
+            //    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Min.Y, safeHeight),
+            //    new Vector3(meshOp.Bounds.Min.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight),
+            //    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Max.Y, safeHeight),
+            //    new Vector3(meshOp.Bounds.Max.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight)
+            //};
+
+            //heuristic: add points on the mesh hull (bounds is axis aligned off the mesh)
+            //potentially mission specific: assumes z vertical, < 1km height
+            Mesh seedPts = new Mesh(meshHull.Mesh);
+            seedPts.Clean();
+            foreach (var pt in seedPts.Vertices)
+            {
+                var rayPt = new Vector3(pt.Position.X, pt.Position.Y, safeHeight);
+                var rayResult = occlusionScene.Raycast(new Ray(rayPt, dirDown));
+                if (rayResult != null)
+                {
+                    sampledMesh.Vertices.Add(new Vertex(rayResult.Position));
+                }
             }
 
             //heuristic: add center point of each observation (to make sure small fov images are not missed)
@@ -74,6 +105,11 @@ namespace OPS.Pipeline.Texturing
                 {
                     sampledMesh.Vertices.Add(new Vertex(res.Value));
                 }
+            }
+
+            if (writeDebug)
+            {
+                sampledMesh.Save(Path.Combine(localOutputPath, "extendedSpatialSamplePts.ply"));
             }
 
             //filter these points to remove points that happen to map back to the same output texture pixel
@@ -99,7 +135,7 @@ namespace OPS.Pipeline.Texturing
 
             // build db of scores and locations by observation
             ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
-            refSelect.Initialize(mesh, meshHull, meshOp, occlusionScene, occlusionMesh, contexts, outputTextureResolution, quality, writeDebug, localOutputPath);
+            refSelect.Initialize(mesh, meshHull, meshOp, occlusionScene, contexts, outputTextureResolution, quality, writeDebug, localOutputPath);
             foreach(var pt in referencePoints)
             {
                 refSelect.FilterAndSortContexts(pt, out ConcurrentDictionary<string, double> ptScoresByObs);

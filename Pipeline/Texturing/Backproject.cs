@@ -308,7 +308,6 @@ namespace OPS.Pipeline
                 partialSC.Build();
             }
 
-
             info(string.Format("collecting sample points from mesh to {0}x{0} destination texture", opts.resolution));
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
             int np = samplePoints.Count;
@@ -369,8 +368,7 @@ namespace OPS.Pipeline
                 {
                     obsToHull[obs.Name].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
                     Image srcImg = opts.pipeline.LoadImage(obs.Url);
-                    srcImg.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_src.png"));
-
+                 
                     Image obsCoverage = new Image(3, obs.Width, obs.Height);
                     CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
                     Matrix obsToMeshMat = obsToMesh.Mean;
@@ -387,9 +385,9 @@ namespace OPS.Pipeline
                                 Vector3? ptScene = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), opts.sceneCaster);
                                 if(ptScene.HasValue)
                                 {
+                                    //check to tell if the points are likely the same
                                     if(Vector3.Distance(ptScene.Value,ptMesh.Value) < 0.01)
                                     {
-                                        //same pt-ish, point is visible
                                         var bandVals = obsCoverage.GetBandValues(idxRow, idxCol);
                                         bandVals[2] += 0.25f; //tint blue
                                         obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
@@ -404,7 +402,7 @@ namespace OPS.Pipeline
           
             info(string.Format("initialize backproject strategy: {0}", opts.obsSelectionStrategy));
             Texturing.ObsSelectionStrategy obsStrat = Texturing.ObsSelectionStrategy.Create(opts.obsSelectionStrategy);
-            obsStrat.Initialize(opts.mesh, meshHull, meshOp, opts.sceneCaster, partialSC, intersectingContexts, opts.resolution, opts.quality, opts.writeDebug, opts.localDebugOutputPath);
+            obsStrat.Initialize(opts.mesh, meshHull, meshOp, opts.sceneCaster, intersectingContexts, opts.resolution, opts.quality, opts.writeDebug, opts.localDebugOutputPath);
 
             var masker = opts.mission.GetMasker();
             ConcurrentDictionary<Pixel, ObsPixel> results = new ConcurrentDictionary<Pixel, ObsPixel>();
@@ -419,7 +417,7 @@ namespace OPS.Pipeline
                     // if a pixel for a better texture is rejected due to rover occlusion, invalid or missing data, etc) 
                     // the next best texture will be used
                     BackprojectSortedContexts(opts.pipeline, opts.project, masker,
-                                            sortedContexts, meshHull, opts.sceneCaster, //TODO: rename scenecaster to occlusion mesh?
+                                            sortedContexts, meshHull, opts.sceneCaster, 
                                             samplePt, opts.quality,
                                             results,
                                             info, info);

@@ -22,16 +22,16 @@ namespace OPS.Pipeline.Texturing
     {
         protected ConvexHull MeshHull;
         protected SceneCaster OcclusionScene;
-        protected SceneCaster OcclusionMesh;
+
         protected List<Backproject.Context> Contexts;
         protected bool WriteDebug;
         protected string LocalOutputPath;
 
-        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, SceneCaster occlusionMesh,
+        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
                                List<Backproject.Context> contexts, int outputTextureResolution, double quality, bool writeDebug, string localOutputPath)
         {
             MeshHull = meshHull;
-            OcclusionMesh = occlusionMesh;
+
             OcclusionScene = occlusionScene;
             Contexts = contexts;
             WriteDebug = writeDebug;
@@ -62,7 +62,7 @@ namespace OPS.Pipeline.Texturing
             var localScoresByObs = new ConcurrentDictionary<string, double>();
             Serial.ForEach(visibleContexts, ctx =>
             {
-                double dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, OcclusionMesh, new List<PixelPoint>() { forPixel },
+                double dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forPixel },
                                                                        ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh, 1.0, WriteDebug, localOutputPathPixel);
                 if(dist == double.MaxValue)
                 {

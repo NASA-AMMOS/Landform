@@ -89,18 +89,13 @@ namespace OPS.Pipeline
             List<PixelPoint> ptsToTest =
                 clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.tileResolution,  options.tileResolution);
 
-            //make occlusion for just this mesh tile
-            SceneCaster occlusionMesh = new SceneCaster();
-            occlusionMesh.AddMesh(clippedMesh, null, Matrix.Identity);
-            occlusionMesh.Build();
-
             //record the pixel area of the image that would be used to texture the mesh for each output atlas pixel
             Dictionary<CameraInstance,List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();
             foreach (var destPixelPt in ptsToTest)
             {
                 //find the camera that provides the best pixel density for this sample
                 //(would be the texture we would use at this location)
-                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, occlusionMesh, destPixelPt,
+                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, destPixelPt,
                                                  out CameraInstance bestCamera))
                 {
                     continue;
@@ -171,7 +166,7 @@ namespace OPS.Pipeline
 
 
         //TODO: switch to ObsExaustiveStrategy
-        private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull, SceneCaster occlusionMesh,
+        private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
                                                  PixelPoint pxlPt, out CameraInstance bestCamera)
         {
             double minSpread = double.MaxValue;

@@ -25,7 +25,7 @@ namespace OPS.Pipeline.Texturing
         // seams at mesh tile border as different sorts will be calculated for
         // each tile. can be faster than alternatives depending on percentage of pixels
         // to test (quality).
-        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, SceneCaster occlusionMesh,
+        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
                                List<Backproject.Context> contexts, int outputTextureResolution, double quality, bool writeDebug, string localOutputPath)
         {
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(outputTextureResolution, outputTextureResolution);
@@ -34,7 +34,7 @@ namespace OPS.Pipeline.Texturing
             ObsToScore = new ConcurrentDictionary<string, double>();
             CoreLimitedParallel.ForEach(contexts, ctx =>
             {
-                var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, occlusionMesh, samplePoints,
+                var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, samplePoints,
                                                                    ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh,
                                                                    quality);
 

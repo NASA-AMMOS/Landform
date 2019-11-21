@@ -35,7 +35,7 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
-        public abstract void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, SceneCaster occlusionMesh,
+        public abstract void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
                                List<Backproject.Context> contexts, int outputTextureResolution, double quality, bool writeDebug, string localOutputPath);
 
         //sorts observations from best to worst
