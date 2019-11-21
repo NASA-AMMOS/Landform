@@ -18,14 +18,14 @@ namespace OPS.Geometry
             double initXDimMeters = initSceneBounds.Max.X - initSceneBounds.Min.X;
             double initYDimMeters = initSceneBounds.Max.Y - initSceneBounds.Min.Y;
             metersPerPixel = Math.Sqrt(initXDimMeters * initYDimMeters) / targetRes;
-            xOffset = (initSceneBounds.Max.X + initSceneBounds.Min.X) / 2.0;
-            yOffset = (initSceneBounds.Max.Y + initSceneBounds.Min.Y) / 2.0;
+            double preClipXOffset = (initSceneBounds.Max.X + initSceneBounds.Min.X) / 2.0;
+            double preClipYOffset = (initSceneBounds.Max.Y + initSceneBounds.Min.Y) / 2.0;
             int xDimPixels = (int)Math.Ceiling(initXDimMeters / metersPerPixel);
             int yDimPixels = (int)Math.Ceiling(initYDimMeters / metersPerPixel);
             double xDimMeters = xDimPixels * metersPerPixel;
             double yDimMeters = yDimPixels * metersPerPixel;
-            BoundingBox sceneBounds = new BoundingBox(new Vector3(xOffset - xDimMeters / 2.0, yOffset - yDimMeters / 2.0, 0),
-                                                      new Vector3(xOffset + xDimMeters / 2.0, yOffset + yDimMeters / 2.0, 0));
+            BoundingBox sceneBounds = new BoundingBox(new Vector3(preClipXOffset - xDimMeters / 2.0, preClipYOffset - yDimMeters / 2.0, 0),
+                                                      new Vector3(preClipXOffset + xDimMeters / 2.0, preClipYOffset + yDimMeters / 2.0, 0));
             var ret = BuildDem(mesh, sceneBounds, xDimPixels, yDimPixels);
             int sbs = 1;
             ret.InvalidateSparseExternalBlocks(sbs, 0.5);
@@ -36,8 +36,8 @@ namespace OPS.Geometry
             double centerDriftCols = ulc.X + ret.Width / 2.0 - oldW / 2.0;
             double centerDriftRows = ulc.Y + ret.Height / 2.0 - oldH / 2.0;
 
-            xOffset -= centerDriftRows * metersPerPixel;
-            yOffset += centerDriftCols * metersPerPixel;
+            xOffset = preClipXOffset - centerDriftRows * metersPerPixel;
+            yOffset = preClipYOffset + centerDriftCols * metersPerPixel;
 
             return ret;
         }

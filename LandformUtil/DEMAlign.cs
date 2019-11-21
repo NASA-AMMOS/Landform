@@ -26,8 +26,17 @@ namespace OPS.LandformUtil
         [Value(2, Required = true, HelpText = "Image containing heights as values")]
         public string InputDem { get; set; }
 
-        [Option(HelpText = "Alignment relative to highest priority site drive (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.OldestFirst)]
-        public SiteDrivePriority SiteDrivePriority { get; set; }
+        [Option(HelpText = "Specify a base site drive to align others to. By default BaseSiteDrivePriority will be used to pick the base site drive", Default = "")]
+        public string BaseSiteDrive { get; set; }
+
+        [Option(HelpText = "Base site drive chosen by highest priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst). Remaining sorted by RemainingSiteDrivePriority", Default = SiteDrivePriority.OldestFirst)]
+        public SiteDrivePriority BaseSiteDrivePriority { get; set; }
+
+        [Option(HelpText = "Align remaining site drives to base site drive by priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.OldestFirst)]
+        public SiteDrivePriority RemainingSiteDrivePriority { get; set; }
+
+        [Option(Required = false, Default = "", HelpText = "Optionally write out transformed dem.")]
+        public string DemDebugPath { get; set; }
 
         [Option(Required = false, Default = 1, HelpText = "Scaler to convert dem values to verticle meters.  i.e. (meters/pixel value)")]
         public float VerticalScale { get; set; }
@@ -86,7 +95,7 @@ namespace OPS.LandformUtil
 
             if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
-                return 1; //help
+                return 1;
             }
 
             var wedgeOpts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
@@ -117,81 +126,59 @@ namespace OPS.LandformUtil
             GDALDEM gdalDem = GDALDEM.MarsDEM(options.InputDem);
 
             //Select highest priority site drive as base
-            switch (options.SiteDrivePriority)
+            Action<SiteDrivePriority> sortSiteDrives = priority =>
             {
-                case SiteDrivePriority.NewestFirst:
-                    {
-                        siteDrives = siteDrives.OrderByDescending(sd => sd).ToList();
-                        break;
-                    }
-                case SiteDrivePriority.OldestFirst:
-                    {
-                        siteDrives = siteDrives.OrderBy(sd => sd).ToList();
-                        break;
-                    }
-                case SiteDrivePriority.BiggestFirst:
-                    {
-                        throw new NotImplementedException();
-                    }
-                case SiteDrivePriority.SmallestFirst:
-                    {
-                        throw new NotImplementedException();
-                    }
+                switch (priority)
+                {
+                    case SiteDrivePriority.NewestFirst:
+                        {
+                            siteDrives = siteDrives.OrderByDescending(sd => sd).ToList();
+                            break;
+                        }
+                    case SiteDrivePriority.OldestFirst:
+                        {
+                            siteDrives = siteDrives.OrderBy(sd => sd).ToList();
+                            break;
+                        }
+                    case SiteDrivePriority.BiggestFirst:
+                        {
+                            //TODO: Will want this case for minimizing reliance on dem when site drive -> site drive alignment possible
+                            throw new NotImplementedException();
+                        }
+                    case SiteDrivePriority.SmallestFirst:
+                        {
+                            throw new NotImplementedException();
+                        }
+                }
+            };
+
+            //Choose the highest priority site drive as the base for alignment
+            string baseSiteDrive = options.BaseSiteDrive;
+            if (String.IsNullOrEmpty(baseSiteDrive))
+            {
+                sortSiteDrives(options.BaseSiteDrivePriority);
+                baseSiteDrive = siteDrives[0];
             }
-
-            string baseSiteDrive = siteDrives[0];
-            baseSiteDrive = "0003101330";
             siteDrives.Remove(baseSiteDrive);
-            siteDrives.Add(baseSiteDrive);
-            siteDrives.Reverse();
 
-            //Get offset of base site drive in dem
-            double lon, lat;
-            //TODO: places
+            logger.InfoFormat("Base site drive for alignment is {0}", baseSiteDrive);
+
+            //Sort remaining by secondary priority
+            sortSiteDrives(options.RemainingSiteDrivePriority);
+            siteDrives.Insert(0, baseSiteDrive);
 
             MSLPlaces places = new MSLPlaces();
             Vector2 latlon = places.GetEstimatedLatLon(new SiteDrive(baseSiteDrive));
+            Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
 
+            //Site drive to world priors
+            Dictionary<string, FrameTransform> siteDrivePriors = new Dictionary<string, FrameTransform>();
+            foreach(string siteDrive in siteDrives)
             {
-                if (baseSiteDrive == "0003101472")
-                {
-                    lon = 137.40220081556527;
-                    lat = -4.639160357049109;
-                }
-                else if (baseSiteDrive == "0003101444")
-                {
-                    lon = 137.40215532608957;
-                    lat = -4.639095324431385;
-                }
-                else if (baseSiteDrive == "0003101414")
-                {
-                    lon = 137.40209643859887;
-                    lat = -4.63899034486038;
-                }
-                else if (baseSiteDrive == "0003101360")
-                {
-                    lon = 137.40200916648143;
-                    lat = -4.638844859094681;
-                }
-                else if (baseSiteDrive == "0003101330")
-                {
-                    lon = 137.40201003292486;
-                    lat = -4.638842854237814;
-                }
-                else if (baseSiteDrive == "0003101256")
-                {
-                    lon = 137.40203313205978;
-                    lat = -4.638860190558752;
-                }
-                else
-                {
-                    throw new Exception("No lat/lon for sitedrive " + baseSiteDrive);
-                }
+                siteDrivePriors[siteDrive] = frameCache.GetBestTransform(siteDrive);
             }
 
-            Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(lon, lat, 0));
-
-            Matrix baseSiteDriveToWorld = frameCache.GetBestTransform(baseSiteDrive).Transform.Mean;
+            Matrix baseSiteDriveToWorld = siteDrivePriors[baseSiteDrive].Transform.Mean;
 
             Func<string, Mesh> BuildMesh = (siteDrive) =>
             {
@@ -215,18 +202,18 @@ namespace OPS.LandformUtil
             Func<string, Mesh> BuildMeshInBaseSiteDrive = (siteDrive) =>
             {
                 var ret = BuildMesh(siteDrive);
-                Matrix siteDriveToWorldPrior = frameCache.GetBestTransform(siteDrive).Transform.Mean;
-                ret.Transform(siteDriveToWorldPrior);
+                ret.Transform(siteDrivePriors[siteDrive].Transform.Mean);
                 ret.Transform(Matrix.Invert(baseSiteDriveToWorld));
                 return ret;
             };
 
-            Func<string, string, string> GetName = (sd, frame) => sd + "-" + frame;
+            //TODO: How reusable should heightmaps be? Different under rotation, but not translation
+            Func<string, string, TransformSource, string> GetName = (sd, frame, source) => sd + "-" + frame + "-" + source;
 
             //Create a heightmap record for site drive in base site drive frame
             Func<string, SceneHeightmap> FindOrCreateHeightmap = (siteDrive) =>
             {
-                SceneHeightmap rec = SceneHeightmap.Find(pipeline, project.Name, GetName(siteDrive, baseSiteDrive));
+                SceneHeightmap rec = SceneHeightmap.Find(pipeline, project.Name, GetName(siteDrive, baseSiteDrive, siteDrivePriors[siteDrive].Source));
                 if (rec != null)
                 {
                     return rec;
@@ -235,7 +222,7 @@ namespace OPS.LandformUtil
                     Mesh mesh = BuildMeshInBaseSiteDrive(siteDrive);                
                     Image img = MeshToHeightMap.BuildDem(mesh, options.SceneHeightmapRes, out double m2p, out double xOffset, out double yOffset);
                     img.Save<float>("D:\\dems\\heightmap_" + siteDrive + ".tiff");
-                    return SceneHeightmap.Create(pipeline, project, GetName(siteDrive, baseSiteDrive), img, new Vector2(xOffset, yOffset), m2p);
+                    return SceneHeightmap.Create(pipeline, project, GetName(siteDrive, baseSiteDrive, siteDrivePriors[siteDrive].Source), img, new Vector2(xOffset, yOffset), m2p);
                 }
             };
 
@@ -249,17 +236,20 @@ namespace OPS.LandformUtil
                 return image;
             };
 
-            //Align remaining site drives to root via base site drive
-            //Dictionary<string, Matrix> baseSiteDriveToWorldTransforms = new Dictionary<string, Matrix>();
-            //baseSiteDriveToWorldTransforms[baseSiteDrive] = baseSiteDriveToWorld;
-            Dictionary<string, Matrix> baseSiteDriveAdjustments = new Dictionary<string, Matrix>();
+            //Transform priors from each site drive to the base site drive
             Dictionary<string, Matrix> priorToBaseSiteDriveTransforms = new Dictionary<string, Matrix>();
-            baseSiteDriveAdjustments[baseSiteDrive] = Matrix.Identity;
+            //Alignments computed for each site drive in base site drive frame 
+            Dictionary<string, Matrix> baseSiteDriveAdjustments = new Dictionary<string, Matrix>();
+
+            siteDrivePriors[baseSiteDrive] = frameCache.GetBestTransform(baseSiteDrive);
             priorToBaseSiteDriveTransforms[baseSiteDrive] = Matrix.Identity;
+            baseSiteDriveAdjustments[baseSiteDrive] = Matrix.Identity;           
 
             List<string> aligned = new List<string> { baseSiteDrive };
             List<string> unaligned = new List<string>();
 
+            //BEV does a good job aligning in XY plane
+            //For site drives, allow rotation/vertical alignment, but not XY translation
             double[] sigmaNoXY = new double[] { Math.PI / 2880, Math.PI / 2880, Math.PI / 2880, 0, 0 };
             SimulatedAnnealingOptions saOptsNoXY = new SimulatedAnnealingOptions();
             saOptsNoXY.maxIterations = 400;
@@ -273,15 +263,6 @@ namespace OPS.LandformUtil
                 logger.Info("Beginning alignment for site drive: " + siteDrive);
                 var rec = FindOrCreateHeightmap(siteDrive);
                 var image = GetImage(rec);
-
-                Matrix siteDriveToWorldPrior = frameCache.GetBestTransform(siteDrive).Transform.Mean;
-                priorToBaseSiteDriveTransforms[siteDrive] = siteDriveToWorldPrior * Matrix.Invert(baseSiteDriveToWorld);
-
-                //Mesh loaded in its original site drive. Use best prior to get it to our base site drive for dem alignment
-
-                /*logger.Info("Using best transform : " + frameCache.GetBestTransform(siteDrive).Source);
-                siteDriveMesh.Transform(siteDriveToWorldPrior);
-                siteDriveMesh.Transform(Matrix.Invert(baseSiteDriveToWorld));*/
 
                 //Align to the highest priority sitedrive with sufficient overlap
                 bool success = false;
@@ -297,6 +278,9 @@ namespace OPS.LandformUtil
                     {
                         break; //Don't allow alignment to lower priority sitedrive
                     }
+
+                    logger.InfoFormat("Attempting alignment from site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
+
                     var otherRec = FindOrCreateHeightmap(otherSiteDrive);
                     var otherImg = GetImage(otherRec);
 
@@ -308,7 +292,7 @@ namespace OPS.LandformUtil
                     }                 
                     Matrix adjustment = temp.Value;
                     baseSiteDriveAdjustments[siteDrive] = Matrix.Invert(adjustment) * baseSiteDriveAdjustments[otherSiteDrive];
-                    logger.InfoFormat("Aligned stiedrive {0} to sitedrive {1}", siteDrive, otherSiteDrive);
+                    logger.InfoFormat("Aligned site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
                     success = true;
                     aligned.Add(siteDrive);
                     break;
@@ -349,8 +333,31 @@ namespace OPS.LandformUtil
                 baseSiteDriveAdjustments[siteDrive] = Matrix.Invert(demToPriorBase) * demToBaseSiteDrive;
             }
 
-            const bool DEBUG = true;
-            if (DEBUG)
+            foreach (string siteDrive in siteDrives)
+            {
+                var adjustedSiteDriveToWorld = siteDrivePriors[siteDrive].Transform.Mean
+                                               * Matrix.Invert(baseSiteDriveToWorld)
+                                               * baseSiteDriveAdjustments[siteDrive]
+                                               * baseSiteDriveToWorld;
+
+                var ut = new UncertainRigidTransform(adjustedSiteDriveToWorld);
+                var frame = frameCache.GetFrame(siteDrive);
+                var ft = FrameTransform.FindOrCreate(pipeline, frame, TransformSource.LandformOrbital, ut);
+                ft.Transform = ut;
+                ft.Save(pipeline);
+                bool added = false;
+                lock (frame.Transforms)
+                {
+                    added = frame.Transforms.Add(ft.Source);
+                }
+                if (added)
+                {
+                    frame.Save(pipeline);
+                }
+                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
+            }
+
+            if (!String.IsNullOrEmpty(options.DemDebugPath))
             {
                 //Get subset of dem around sitedrive
                 int pixelRadius = (int)(200 / options.MetersPerPixel);
@@ -378,69 +385,9 @@ namespace OPS.LandformUtil
                 Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices); //for debug
                 demMesh.Transform(demToBaseSiteDrive);
                 demMesh.Transform(baseSiteDriveToWorld);
-                demMesh.Save(Path.Combine(Path.GetDirectoryName(options.InputDem), "TEST_DEM_ALIGNED_" + baseSiteDrive + ".obj"));
+                demMesh.Save(options.DemDebugPath);
             }
 
-            foreach (string siteDrive in siteDrives)
-            {
-                var sdMesh = BuildMesh(siteDrive);
-                var adjustedSiteDriveToWorld = priorToBaseSiteDriveTransforms[siteDrive]
-                                               * baseSiteDriveAdjustments[siteDrive]
-                                               * baseSiteDriveToWorld;
-                sdMesh.Transform(adjustedSiteDriveToWorld);
-                sdMesh.Save("D:\\dems\\" + GetName(siteDrive, baseSiteDrive) + ".obj");
-            }
-
-            /*var ut = new UncertainRigidTransform(adjustedSiteDriveToWorld);
-                var frame = frameCache.GetFrame(siteDrive);
-                var ft = FrameTransform.FindOrCreate(pipeline, frame, TransformSource.LandformOrbital, ut);
-                ft.Transform = ut;
-                ft.Save(pipeline);
-                bool added = false;
-                lock (frame.Transforms)
-                {
-                    added = frame.Transforms.Add(ft.Source);
-                }
-                if (added)
-                {
-                    frame.Save(pipeline);
-                }
-                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);*/
-
-            /*if (DEBUG)
-            {
-                Matrix adjustedBaseSiteDriveToWorld = Matrix.Invert(adjustedDemToBaseSiteDrive)
-                                      * demToBaseSiteDrive
-                                      * baseSiteDriveToWorld;
-                siteDriveMesh.Transform(adjustedBaseSiteDriveToWorld);
-                siteDriveMesh.Save(Path.Combine(Path.GetDirectoryName(options.InputDem), "TEST_ALIGNED_" + siteDrive + ".obj"));
-            }*/
-
-            return 0;
-            //if (options.StereoEye != RoverStereoEye.Any)
-            //{
-            //    meshObservations = WedgeObservations.FilterForEye(meshObservations, options.StereoEye).ToList();
-            //}
-
-            /*if (siteDrives.Length < 2)
-            {
-                throw new Exception("at least two site drives required");
-            }*/
-
-            //Mesh wedge = Mesh.Load(options.AlignToScene);
-
-            //string outputImage = null;
-            //if (options.InputOrthoImage != null)
-            //{
-            //    //TODO: Properly clip ortho and map uvs
-            //    Image ortho = Image.Load(options.InputOrthoImage);
-            //    outputImage = Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.ImageFormat);
-            //    ortho.Save<byte>(outputImage); // TODO, add support for matching input type
-            //}
-            //pointCloud.HasUVs = true;
-            //pointCloud.Save(this.options.OutputPath, outputImage);
-            //mesh.HasUVs = true;
-            //mesh.Save(Path.Combine(Path.GetDirectoryName(options.InputDem), Path.GetFileNameWithoutExtension(options.InputDem) + ".mesh." + options.MeshFormat), outputImage);
             return 0;
         }
     }
