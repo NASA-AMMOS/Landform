@@ -29,10 +29,10 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Specify a base site drive to align others to. By default BaseSiteDrivePriority will be used to pick the base site drive", Default = "")]
         public string BaseSiteDrive { get; set; }
 
-        [Option(HelpText = "Base site drive chosen by highest priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst). Remaining sorted by RemainingSiteDrivePriority", Default = SiteDrivePriority.OldestFirst)]
+        [Option(HelpText = "Base site drive chosen by highest priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst). Remaining sorted by RemainingSiteDrivePriority", Default = SiteDrivePriority.NewestFirst)]
         public SiteDrivePriority BaseSiteDrivePriority { get; set; }
 
-        [Option(HelpText = "Align remaining site drives to base site drive by priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.OldestFirst)]
+        [Option(HelpText = "Align remaining site drives to base site drive by priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.NewestFirst)]
         public SiteDrivePriority RemainingSiteDrivePriority { get; set; }
 
         [Option(Required = false, Default = "", HelpText = "Optionally write out transformed dem.")]
@@ -382,9 +382,8 @@ namespace OPS.LandformUtil
                         }
                     }
                 }
-                Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices); //for debug
+                Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
                 demMesh.Transform(demToBaseSiteDrive);
-                demMesh.Transform(baseSiteDriveToWorld);
                 demMesh.Save(options.DemDebugPath);
             }
 
