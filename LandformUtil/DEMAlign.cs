@@ -329,7 +329,7 @@ namespace OPS.LandformUtil
                 var image = GetImage(rec);
 
                 Matrix demToPriorBase = DemOperations.AlignSceneToDem(image, rec.OriginX, rec.OriginY, rec.MetersPerPixel, dem, colRowOffset.Y, colRowOffset.X, options.MetersPerPixel,
-                    options.PreserveXY, 8, saOptsNoXY, 0, options.SceneHeightmapRes, options.DEMMinFilter, options.DEMMaxFilter).Value;
+                    options.PreserveXY, 8, null, 0, options.SceneHeightmapRes, options.DEMMinFilter, options.DEMMaxFilter).Value;
                 baseSiteDriveAdjustments[siteDrive] = Matrix.Invert(demToPriorBase) * demToBaseSiteDrive;
             }
 
