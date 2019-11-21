@@ -142,7 +142,9 @@ namespace OPS.Landform
             {
                 //TODO: make a 2D clipper that ignores Z on clipping
                 const double safeVerticalClipMeters = 10000.0;
-                preClipBounds = BoundsFromXYExtent(Vector3.Zero, options.PreClipExtent, -safeVerticalClipMeters, safeVerticalClipMeters);
+                //DONTCHECKIN
+                Vector3 center = new Vector3(3.5, 1.16, -0.47);
+                preClipBounds = BoundsFromXYExtent(center, options.PreClipExtent, -safeVerticalClipMeters, safeVerticalClipMeters);
             }
 
             mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,

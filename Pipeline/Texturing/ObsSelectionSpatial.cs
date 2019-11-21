@@ -9,6 +9,7 @@ using OPS.Imaging;
 using OPS.RayTrace;
 using OPS.Util;
 using Microsoft.Xna.Framework;
+using System.IO;
 
 namespace OPS.Pipeline.Texturing
 {
@@ -34,11 +35,21 @@ namespace OPS.Pipeline.Texturing
         Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs;
         Dictionary<string, Backproject.Context> ObsToContext;
 
-        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> contexts, int outputTextureResolution,double quality)
+        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, SceneCaster occlusionMesh,
+                               List<Backproject.Context> contexts, int outputTextureResolution,double quality, bool writeDebug, string localOutputPath)
         {
             //select points on the surface of the mesh at requested density to use for sampling backproject
             double samplesPerMeter = quality * 100.0;
+
+            //adjust sampling ratio to be higher when tiles fall below a meter, fine tiles indicate
+            // high resolution data available and are worth the extra sampling
+            //potentially mission specific: assumes z vertical
+            //double minBounds = Math.Min(meshOp.Bounds.Extent().X, meshOp.Bounds.Extent().Y);
+            //if(minBounds < 1.0)
+            //{
+            //    samplesPerMeter *= 1 / minBounds;
+            //}
+
             Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
 
             //guarantee at least a single point on the mesh
@@ -46,6 +57,11 @@ namespace OPS.Pipeline.Texturing
             {
                 samplesPerMeter += 1;
                 sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
+            }
+
+            if(writeDebug)
+            {
+                sampledMesh.Save(Path.Combine(localOutputPath, "spatialSamplePts.ply"));
             }
 
             //heuristic: add center point of each observation (to make sure small fov images are not missed)
@@ -83,24 +99,29 @@ namespace OPS.Pipeline.Texturing
 
             // build db of scores and locations by observation
             ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
-            refSelect.Initialize(mesh, meshHull, meshOp, occlusionScene, contexts, outputTextureResolution, quality);
+            refSelect.Initialize(mesh, meshHull, meshOp, occlusionScene, occlusionMesh, contexts, outputTextureResolution, quality, writeDebug, localOutputPath);
             foreach(var pt in referencePoints)
             {
-                refSelect.SortContexts(pt, out ConcurrentDictionary<string, double> ptScoresByObs);
+                refSelect.FilterAndSortContexts(pt, out ConcurrentDictionary<string, double> ptScoresByObs);
                 foreach(var score in ptScoresByObs)
                 {
                     ScoredRefPtsByObs[score.Key].Add(new ScoredPoint(pt, score.Value));
+                    //TODO: save?
                 }
             };
         }
 
-        public override List<Backproject.Context> SortContexts(PixelPoint forPixel, out ConcurrentDictionary<string, double> scoresByObs)
+        public override List<Backproject.Context> FilterAndSortContexts(PixelPoint forPixel, out ConcurrentDictionary<string, double> scoresByObs)
         {
             //find distances, save maximum for weighting
             Dictionary<string, List<Tuple<double, ScoredPoint>>> groupedByObs = new Dictionary<string, List<Tuple<double, ScoredPoint>>>();
             double maxDistance = double.MinValue;
             foreach (var obsName in ScoredRefPtsByObs.Keys)
             {
+                //early out if context has no chance for pt
+                if (!ObsToContext[obsName].FrustumHull.Contains(forPixel.Point))
+                    continue;
+
                 groupedByObs[obsName] = new List<Tuple<double, ScoredPoint>>();
 
                 foreach (var refScoredPt in ScoredRefPtsByObs[obsName])
@@ -135,7 +156,7 @@ namespace OPS.Pipeline.Texturing
 
             //sort contexts by their scores (and return them)
             //TODO: undo weighting by multiplying by max dist?
-            List<Backproject.Context> sortedContexts = new List<Backproject.Context>(Contexts);
+            List<Backproject.Context> sortedContexts = Contexts.Where(c => bestEntries.ContainsKey(c.Obs.Name)).ToList();
             sortedContexts.Sort((ctx0, ctx1) => bestEntries[ctx0.Obs.Name].CompareTo(bestEntries[ctx1.Obs.Name]));
             scoresByObs = new ConcurrentDictionary<string, double>(bestEntries);
             return sortedContexts;

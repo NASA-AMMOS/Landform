@@ -14,8 +14,6 @@ namespace OPS.Pipeline.Texturing
 {
     class ObsSelectionGreedy : ObsSelectionStrategy
     {
-        protected ConvexHull MeshHull;
-        protected SceneCaster OcclusionScene;
         protected List<Backproject.Context> sortedContexts;
         protected ConcurrentDictionary<string, double> ObsToScore;
 
@@ -27,18 +25,16 @@ namespace OPS.Pipeline.Texturing
         // seams at mesh tile border as different sorts will be calculated for
         // each tile. can be faster than alternatives depending on percentage of pixels
         // to test (quality).
-        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene,
-                               List<Backproject.Context> contexts, int outputTextureResolution, double quality)
+        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, SceneCaster occlusionMesh,
+                               List<Backproject.Context> contexts, int outputTextureResolution, double quality, bool writeDebug, string localOutputPath)
         {
-            MeshHull = meshHull;
-            OcclusionScene = occlusionScene;
-            
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(outputTextureResolution, outputTextureResolution);
-        
+
+            //intersecting contexts
             ObsToScore = new ConcurrentDictionary<string, double>();
             CoreLimitedParallel.ForEach(contexts, ctx =>
             {
-                var dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, meshHull, samplePoints,
+                var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, occlusionMesh, samplePoints,
                                                                    ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh,
                                                                    quality);
 
@@ -49,7 +45,7 @@ namespace OPS.Pipeline.Texturing
                     //TODO: try if all the same value even if valid distances? tie-breaker?
                     CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
                     Vector3 cameraInOutput = Vector3.Transform(cam.Unproject(Vector2.Zero).Position, ctx.ObsToMesh); //use arbitrary point (upper-left) to get camera center, for some models this will move center point
-                    Vector3 meshCenter = MeshHull.Mesh.Bounds().Center();
+                    Vector3 meshCenter = meshHull.Mesh.Bounds().Center();
                     dist = Vector3.Distance(meshCenter, cameraInOutput);
                 }
 
@@ -61,7 +57,7 @@ namespace OPS.Pipeline.Texturing
             sortedContexts.Sort((ctx0, ctx1) => ObsToScore[ctx0.Obs.Name].CompareTo(ObsToScore[ctx1.Obs.Name]));
         }
 
-        public override List<Backproject.Context> SortContexts(PixelPoint forPixel, out ConcurrentDictionary<string, double> scoresByObs)
+        public override List<Backproject.Context> FilterAndSortContexts(PixelPoint forPixel, out ConcurrentDictionary<string, double> scoresByObs)
         {
             scoresByObs = ObsToScore;
             return sortedContexts;

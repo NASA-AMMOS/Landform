@@ -48,7 +48,7 @@ namespace OPS.Landform
         public bool DontInpaint { get; set; }
 
         [Option(HelpText = "Debug function that skips all tiles except the one with this name", Default = null)]
-        public string OnlyTileNamed { get; set; }
+        public string OnlyTilesNamed { get; set; }
 
         [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
         public Mission Mission { get; set; }
@@ -321,7 +321,7 @@ namespace OPS.Landform
 
         private void BuildLODTileMeshes()
         {
-            if (!string.IsNullOrEmpty(options.OnlyTileNamed))
+            if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
             {
                 throw new NotImplementedException("only for tile not implemented for LODs yet"); //could be done by seeing if the tile's name starts with the same digits (subtree over named tile)
             }
@@ -373,11 +373,17 @@ namespace OPS.Landform
         private void BuildLeafMeshes()
         {
             int curLeafNum = 0, numFailed = 0, leafCount = tileTree.Leaves().Count();
+
+            string[] onlyTilesNamed = null;
+            if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
+            {
+                onlyTilesNamed = options.OnlyTilesNamed.Split(',');
+            }
             CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
 
-                if (!string.IsNullOrEmpty(options.OnlyTileNamed) && options.OnlyTileNamed != leaf.Name)
+                if (onlyTilesNamed != null && !onlyTilesNamed.Contains<string>(leaf.Name))
                 {
                     return;
                 }
@@ -663,7 +669,7 @@ namespace OPS.Landform
             try
             {
                 bool logging = pipeline.Verbose || pipeline.Debug;
-                var backprojectResults = BackprojectObservations(mesh, logging);
+                var backprojectResults = BackprojectObservations(mesh, logging, meshName:node.Name);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)

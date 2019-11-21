@@ -89,20 +89,25 @@ namespace OPS.Pipeline
             List<PixelPoint> ptsToTest =
                 clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.tileResolution,  options.tileResolution);
 
+            //make occlusion for just this mesh tile
+            SceneCaster occlusionMesh = new SceneCaster();
+            occlusionMesh.AddMesh(clippedMesh, null, Matrix.Identity);
+            occlusionMesh.Build();
+
             //record the pixel area of the image that would be used to texture the mesh for each output atlas pixel
             Dictionary<CameraInstance,List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();
             foreach (var destPixelPt in ptsToTest)
             {
                 //find the camera that provides the best pixel density for this sample
                 //(would be the texture we would use at this location)
-                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, destPixelPt,
+                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, occlusionMesh, destPixelPt,
                                                  out CameraInstance bestCamera))
                 {
                     continue;
                 }
 
                 // calculate src pixels area contributing to the pixel  
-                Vector2[] pixelCorners = GetPixelCorners(destPixelPt.Pixel);                
+                Vector2[] pixelCorners = GetPixelCorners(destPixelPt.Pixel); 
                 var uvsCorners =
                     pixelCorners.Select(c => Image.PixelToUV(c,options.tileResolution,options.tileResolution));
                 var destPixelMeshPositions =
@@ -164,7 +169,9 @@ namespace OPS.Pipeline
             return false;
         }
 
-        private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
+
+        //TODO: switch to ObsExaustiveStrategy
+        private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull, SceneCaster occlusionMesh,
                                                  PixelPoint pxlPt, out CameraInstance bestCamera)
         {
             double minSpread = double.MaxValue;
@@ -179,7 +186,7 @@ namespace OPS.Pipeline
                 //Issue #523: want median or average in case glancing angle?
                 //want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = GetMinPixelSpreadInMeters(options.scInMesh, camInst.cameraModel,
-                                                             camInst.cameraToMesh, meshHull,
+                                                             camInst.cameraToMesh,
                                                              pxlPt.Pixel, pxlPt.Point, camInst.widthPixels,
                                                              camInst.heightPixels);
                 if (curSpread < minSpread)
@@ -252,8 +259,35 @@ namespace OPS.Pipeline
         }
 
         //Issue #531: raycast bundle of 4 with embree
-        public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sc, CameraModel camera,
-                                                                    Matrix camToMesh, ConvexHull meshHull,
+        //public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sc, CameraModel camera,
+        //                                                            Matrix camToMesh, ConvexHull meshHull,
+        //                                                            List<Vector2> srcPixels)
+        //{
+        //    List<Vector3> result = new List<Vector3>();
+
+        //    foreach (var curPixel in srcPixels)
+        //    {
+        //        //check if pixel ray hit the mesh
+        //        Vector3? curPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sc);
+        //        if (!curPos.HasValue)
+        //            continue;
+
+        //        //check for occlusion by other parts of the mesh
+        //        if (!meshHull.Contains(curPos.Value))
+        //            continue;
+
+        //        result.Add(curPos.Value);
+        //    }
+
+        //    return result;
+        //}
+
+        //TODO: bake off against above
+        //Issue #531: raycast bundle of 4 with embree
+        //BUGBUG: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
+        // as the corners hit a closer mesh than intended
+        public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sceneCaster, CameraModel camera,
+                                                                    Matrix camToMesh, 
                                                                     List<Vector2> srcPixels)
         {
             List<Vector3> result = new List<Vector3>();
@@ -261,15 +295,11 @@ namespace OPS.Pipeline
             foreach (var curPixel in srcPixels)
             {
                 //check if pixel ray hit the mesh
-                Vector3? curPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sc);
-                if (!curPos.HasValue)
+                Vector3? scenePos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sceneCaster);
+                if (!scenePos.HasValue)
                     continue;
-
-                //check for occlusion by other parts of the mesh
-                if (!meshHull.Contains(curPos.Value))
-                    continue;
-
-                result.Add(curPos.Value);
+              
+                result.Add(scenePos.Value);
             }
 
             return result;
@@ -309,8 +339,8 @@ namespace OPS.Pipeline
         //then return the shortest
         //this should give an estimate of the source textures local resolution
         //using our best approximation of the mesh to compare against other images
-        public static double GetMinPixelSpreadInMeters(SceneCaster sc, CameraModel camera, Matrix camToMesh,
-                                                       ConvexHull meshHull, Vector2 srcPixel, Vector3 srcPos,
+        public static double GetMinPixelSpreadInMeters(SceneCaster sceneCaster, CameraModel camera, Matrix camToMesh,
+                                                       Vector2 srcPixel, Vector3 srcPos,
                                                        int srcWidth, int srcHeight)
         {
             double shortestDistance = double.MaxValue;
@@ -323,8 +353,7 @@ namespace OPS.Pipeline
                 return shortestDistance;
             }
 
-            List<Vector3> meshPositions =
-                GetMeshPositionsForCameraPixels(sc, camera, camToMesh, meshHull, offsetPixels.ToList());
+            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, offsetPixels.ToList());
             foreach (var curPos in meshPositions)
             {
                 shortestDistance = Math.Min(shortestDistance, (curPos - srcPos).Length());

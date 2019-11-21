@@ -263,6 +263,8 @@ namespace OPS.Pipeline
             public SceneCaster sceneCaster; //for checking occlusion of backproject rays
             public bool usePriors;
             public bool onlyAligned;
+            public bool writeDebug = false; 
+            public string localDebugOutputPath;
             public double quality; //0 < quality <= 1 (best, slowest)
             public Texturing.ObsSelectionStrategyName obsSelectionStrategy;  //the approach used to pick the best source data
             public IDictionary<string, ConvexHull> obsToHull = null; //observation name -> hull, computed if null
@@ -298,6 +300,14 @@ namespace OPS.Pipeline
             info("building input mesh data structures");
             ConvexHull meshHull = new ConvexHull(opts.mesh);
             MeshOperator meshOp = new MeshOperator(opts.mesh);
+            SceneCaster partialSC = null;
+            if(opts.writeDebug)
+            {
+                partialSC = new SceneCaster();
+                partialSC.AddMesh(opts.mesh, null, Matrix.Identity);
+                partialSC.Build();
+            }
+
 
             info(string.Format("collecting sample points from mesh to {0}x{0} destination texture", opts.resolution));
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
@@ -336,10 +346,10 @@ namespace OPS.Pipeline
 
             //build contexts and call backproject
             var comparator = opts.mission.GetRoverObservationComparator();
-            var allContexts = new List<Context>();
+            var intersectingContexts = new List<Context>();
             foreach (var obs in intersectingObservations)
             {
-                var obsToMesh =
+               var obsToMesh =
                     opts.frameCache.GetObservationTransform(obs, opts.meshFrame, opts.usePriors, opts.onlyAligned);
                 if (obsToMesh == null)
                 {
@@ -353,28 +363,67 @@ namespace OPS.Pipeline
                     .OrderBy(o => (RoverObservation)o, comparator)
                     .FirstOrDefault();
 
-                allContexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
-            }
+                intersectingContexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
 
+                if (opts.writeDebug)
+                {
+                    obsToHull[obs.Name].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
+                    Image srcImg = opts.pipeline.LoadImage(obs.Url);
+                    srcImg.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_src.png"));
+
+                    Image obsCoverage = new Image(3, obs.Width, obs.Height);
+                    CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                    Matrix obsToMeshMat = obsToMesh.Mean;
+                    for (int idxRow = 0; idxRow < obs.Height; idxRow++)
+                    {
+                        for (int idxCol = 0; idxCol < obs.Width; idxCol++)
+                        {
+                            //intialize with real data
+                            obsCoverage.SetAsColor(srcImg.GetBandValues(idxRow, idxCol), idxRow, idxCol);
+
+                            Vector3? ptMesh = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), partialSC);
+                            if (ptMesh.HasValue)
+                            {
+                                Vector3? ptScene = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), opts.sceneCaster);
+                                if(ptScene.HasValue)
+                                {
+                                    if(Vector3.Distance(ptScene.Value,ptMesh.Value) < 0.01)
+                                    {
+                                        //same pt-ish, point is visible
+                                        var bandVals = obsCoverage.GetBandValues(idxRow, idxCol);
+                                        bandVals[2] += 0.25f; //tint blue
+                                        obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    obsCoverage.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
+                }
+            }
+          
             info(string.Format("initialize backproject strategy: {0}", opts.obsSelectionStrategy));
             Texturing.ObsSelectionStrategy obsStrat = Texturing.ObsSelectionStrategy.Create(opts.obsSelectionStrategy);
-            obsStrat.Initialize(opts.mesh, meshHull, meshOp, opts.sceneCaster, allContexts, opts.resolution, opts.quality);
+            obsStrat.Initialize(opts.mesh, meshHull, meshOp, opts.sceneCaster, partialSC, intersectingContexts, opts.resolution, opts.quality, opts.writeDebug, opts.localDebugOutputPath);
 
             var masker = opts.mission.GetMasker();
             ConcurrentDictionary<Pixel, ObsPixel> results = new ConcurrentDictionary<Pixel, ObsPixel>();
             foreach (var samplePt in samplePoints)
             {
                 //find the strategy specific ranking of contexts for this pixel
-                var sortedContexts = obsStrat.SortContexts(samplePt, out ConcurrentDictionary<string, double> scores);
+                var sortedContexts = obsStrat.FilterAndSortContexts(samplePt, out ConcurrentDictionary<string, double> scores);
 
-                //fill the pixel with the best texture. pass the sorted list of observations (best to worst)
-                // if a pixel for a better texture is rejected due to rover occlusion, invalid or missing data, etc) 
-                // the next best texture will be used
-                BackprojectSortedContexts(opts.pipeline, opts.project, masker,
-                                        sortedContexts, meshHull, opts.sceneCaster, //TODO: rename scenecaster to occlusion mesh?
-                                        samplePt, opts.quality,
-                                        results,
-                                        info, info);
+                if (sortedContexts.Any())
+                {
+                    //fill the pixel with the best texture. pass the sorted list of observations (best to worst)
+                    // if a pixel for a better texture is rejected due to rover occlusion, invalid or missing data, etc) 
+                    // the next best texture will be used
+                    BackprojectSortedContexts(opts.pipeline, opts.project, masker,
+                                            sortedContexts, meshHull, opts.sceneCaster, //TODO: rename scenecaster to occlusion mesh?
+                                            samplePt, opts.quality,
+                                            results,
+                                            info, info);
+                }
             }
 #if false
             if (opts.batchGridSize > 0)
@@ -422,6 +471,16 @@ namespace OPS.Pipeline
             }
             else
 #endif //no batch
+
+            if (opts.writeDebug)
+            {
+                var winningObs = results.Select(p => p.Value.Obs.Name).Distinct();
+                foreach (var obsName in winningObs)
+                {
+                    obsToHull[obsName].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
+                }
+            }
+            
             return results;
         }
 

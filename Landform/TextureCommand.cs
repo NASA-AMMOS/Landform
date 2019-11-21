@@ -423,14 +423,14 @@ namespace OPS.Landform
             BackprojectObservations(logging: true);
         }
 
-        protected void BackprojectObservations(bool logging, bool verbose = false)
+        protected void BackprojectObservations(bool logging, bool verbose = false, string meshName = "")
         {
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            backprojectResults = BackprojectObservations(mesh, logging, verbose);
+            backprojectResults = BackprojectObservations(mesh, logging, verbose, meshName);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false)
+            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "")
         {
             verbose |= pipeline.Verbose || pipeline.Debug;
             logging |= verbose;
@@ -450,6 +450,8 @@ namespace OPS.Landform
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
                 quality = tcopts.BackprojectQuality,
+                writeDebug = tcopts.WriteDebug,
+                localDebugOutputPath = Path.Combine(localOutputPath,meshName),
                 obsSelectionStrategy = tcopts.ObsSelectionStrategy,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
@@ -457,6 +459,12 @@ namespace OPS.Landform
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
+
+            if(opts.writeDebug)
+            {
+                PathHelper.EnsureExists(opts.localDebugOutputPath);
+            }
+
             return Backproject.BackprojectObservations(opts);
         }
 
