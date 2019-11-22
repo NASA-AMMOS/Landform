@@ -1,6 +1,5 @@
 //#define NO_PARALLEL_RAYCASTS
 //#define BACKPROJECT_TIMING
-#define SPATIAL
 
 using System;
 using System.Collections.Generic;
@@ -262,7 +261,6 @@ namespace OPS.Pipeline
             public Mesh mesh; //mesh from which to collect sample points to backproject
             public string meshFrame;
             public int resolution; //output texture resolution
-            public double batchGridSize = 0; //grid cell size to batch backprojects, 0 disables batching
             public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
             public bool usePriors;
             public bool onlyAligned;
@@ -389,52 +387,6 @@ namespace OPS.Pipeline
                                             info, info);
                 }
             }
-#if false
-            if (opts.batchGridSize > 0)
-            {
-                double gs = opts.batchGridSize;
-                Vector3 pointToGridCell(Vector3 pt)
-                {
-                    return new Vector3(Math.Floor(pt.X / gs), Math.Floor(pt.Y / gs), Math.Floor(pt.Z / gs));
-                }
-
-                var batches = samplePoints.GroupBy(pt => pointToGridCell(pt.Point));
-
-                int nb = batches.Count();
-                info(string.Format("grouped {0} samples into {1} {2}x{2} cells", Fmt.KMG(np), nb, gs));
-
-                var diag = new Vector3(gs, gs, gs);
-                var nc = CoreLimitedParallel.GetMaxDegreeOfParallelism();
-                var results = new ConcurrentDictionary<Pixel, ObsPixel>(nc, np);
-                info(string.Format("backprojecting {0} cells, {1} in parallel", nb, nc));
-                CoreLimitedParallel.ForEach(batches, batch =>
-                {
-                    var cell = batch.Key;
-                    var pts = batch.ToList();
-                    var llc = cell * gs;
-                    var box = new BoundingBox(llc, llc + diag);
-                    var contexts = allContexts.Where(ctx => ctx.FrustumHull.Intersects(box)).ToList();
-                    if (contexts.Count > 0)
-                    {
-#if EACHPIXEL || SPATIAL
-                        //TODO: test
-                        BackprojectEachPixelObservationContexts(opts.pipeline, opts.project, masker, contexts, meshHull,
-                                                       opts.sceneCaster, pts, results, progress);
-#elif GREEDY
-                        BackprojectGreedyObservationContexts(opts.pipeline, opts.project, masker, contexts, meshHull,
-                                                       opts.sceneCaster, pts, opts.quality, results, progress);
-#endif
-                    }
-                    else
-                    {
-                        warn(string.Format("no observation hulls intersected grid cell ({0},{1},{2}), size {3:F3}",
-                                           cell.X, cell.Y, cell.Z, gs));
-                    }
-                });
-                return results;
-            }
-            else
-#endif //no batch
 
             if (opts.writeDebug)
             {

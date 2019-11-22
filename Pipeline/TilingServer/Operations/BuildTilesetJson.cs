@@ -1,14 +1,7 @@
-﻿using log4net;
-using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Util;
+﻿using Newtonsoft.Json;
 using OPS.Geometry;
-
+using OPS.Util;
+using System.IO;
 //TODO: refactor so that local codepath does not have cloud dependencies
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
 using QueueMessage = OPS.Cloud.QueueMessage;
