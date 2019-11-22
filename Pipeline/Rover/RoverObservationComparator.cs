@@ -71,10 +71,10 @@ namespace OPS.Pipeline
                 {
                     return preferColorToGrayscale ? 1 : -1;
                 }
-                else if (a.Bands == 1 && b.Bands == 1)
-                {
-                    return RoverProduct.BandPreference(a.Color) - RoverProduct.BandPreference(b.Color);
-                }
+                //else if (a.Bands == 1 && b.Bands == 1)
+                //{
+                //    return RoverProduct.BandPreference(a.Color) - RoverProduct.BandPreference(b.Color);
+                //}
             }
 
             //sort next by linear-ness
@@ -174,7 +174,14 @@ namespace OPS.Pipeline
             {
                 RoverObservation filterGroup(IEnumerable<RoverObservation> group)
                 {
+
+                    //DONTCHECKIN
+                    if (group.Any(g => g.Index == 333))
+                    {
+                        int x = 0;
+                    }
                     group = group.OrderBy(o => o, this);
+
                     if (logger != null && group.Count() > 1)
                     {
                         logger.LogVerbose("keeping only first of\n  {0}",
