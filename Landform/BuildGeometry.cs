@@ -21,14 +21,17 @@ namespace OPS.Landform
 {
     public enum MeshDecimationProvider { MeshLab, EdgeCollapse };
 
-    [Verb("local-build-geometry", HelpText = "create mesh")]
-    public class LocalBuildGeometryOptions : GeometryCommandOptions
+    [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
+    public class BuildGeometryOptions : GeometryCommandOptions
     {
         [Option(HelpText = "Decimate the scene mesh to this target number of faces if positive", Default = 0)]
         public int TargetSceneMeshFaces { get; set; }
 
         [Option(HelpText = "Scene mesh decimation method, MeshLab or EdgeCollapse", Default = MeshDecimationProvider.MeshLab)]
         public MeshDecimationProvider SceneMeshDecimator { get; set; }
+
+        [Option(HelpText = "Stereo eye to prefer (auto, left, right, any)", Default = "auto")]
+        public string StereoEye { get; set; }
 
         [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
@@ -47,17 +50,18 @@ namespace OPS.Landform
      
     }
 
-    public class LocalBuildGeometry : GeometryCommand
+    public class BuildGeometry : GeometryCommand
     {
         private const string OUT_DIR = "meshing/GeometryProducts";
 
-        private LocalBuildGeometryOptions options;
+        private BuildGeometryOptions options;
 
         private Observation[] onlyForObs;
+        private RoverStereoEye stereoEye;
 
         private BoundingBox meshBounds;
 
-        public LocalBuildGeometry(LocalBuildGeometryOptions options) : base(options)
+        public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
             this.options = options;
         }
@@ -108,6 +112,8 @@ namespace OPS.Landform
 
             onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
 
+            stereoEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
+
             return true;
         }
 
@@ -140,17 +146,15 @@ namespace OPS.Landform
             BoundingBox preClipBounds = new BoundingBox();
             if(options.PreClipPointCloud)
             {
-                //TODO: make a 2D clipper that ignores Z on clipping
-                const double safeVerticalClipMeters = 10000.0;
-                //DONTCHECKIN
-                Vector3 center = new Vector3(3.5, 1.16, -0.47);
+                double safeVerticalClipMeters = 1000;
+                Vector3 center = Vector3.Zero;
                 preClipBounds = BoundsFromXYExtent(center, options.PreClipExtent, -safeVerticalClipMeters, safeVerticalClipMeters);
             }
 
-            mesh = BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
+            mesh = OPS.Pipeline.TilingServer.BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
                                               frameCache, observationCache, meshFrame, options.UsePriors,
                                               options.OnlyAligned, options.PreClipPointCloud, preClipBounds,
-                                              options.OnlyForCameras, !options.NoCleverCombine,
+                                              options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
 
             if (mesh == null || mesh.Faces.Count == 0)

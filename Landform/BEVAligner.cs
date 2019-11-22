@@ -29,8 +29,8 @@ namespace OPS.Landform
 
     public enum CalfMode { None, Centroid, Temporal };
 
-    [Verb("local-bev-align", HelpText = "birds eye view alignment")]
-    public class LocalBEVAlignerOptions : WedgeCommandOptions
+    [Verb("bev-align", HelpText = "birds eye view alignment")]
+    public class BEVAlignerOptions : WedgeCommandOptions
     {
         [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
         public override int TargetWedgeImageResolution { get; set; }
@@ -47,8 +47,8 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command - always loads priors", Default = null)]
         public override string AdjustedTransformSources { get; set; }
 
-        [Option(HelpText = "Stereo eye to prefer", Default = RoverStereoEye.Left)]
-        public RoverStereoEye StereoEye { get; set; }
+        [Option(HelpText = "Stereo eye to prefer", Default = "auto")]
+        public string StereoEye { get; set; }
 
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
@@ -171,11 +171,11 @@ namespace OPS.Landform
         public double SpatialOutlierMADs { get; set; }
     }
 
-    public class LocalBEVAligner : WedgeCommand
+    public class BEVAligner : WedgeCommand
     {
         private const string OUT_DIR = "alignment/AdjustProducts";
 
-        private LocalBEVAlignerOptions options;
+        private BEVAlignerOptions options;
 
         private List<WedgeObservations> meshObservations;
 
@@ -271,7 +271,7 @@ namespace OPS.Landform
             return bev.Width * bev.Height;
         }
 
-        public LocalBEVAligner(LocalBEVAlignerOptions options) : base(options)
+        public BEVAligner(BEVAlignerOptions options) : base(options)
         {
             this.options = options;
 
@@ -376,9 +376,10 @@ namespace OPS.Landform
             };
             meshObservations = WedgeObservations.Collect(frameCache, observationCache, opts);
 
-            if (options.StereoEye != RoverStereoEye.Any)
+            var stereoEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
+            if (stereoEye != RoverStereoEye.Any)
             {
-                meshObservations = WedgeObservations.FilterForEye(meshObservations, options.StereoEye).ToList(); 
+                meshObservations = WedgeObservations.FilterForEye(meshObservations, stereoEye).ToList(); 
             }
         
             //for now lexicographically sort siteDrives so that older ones come before newer

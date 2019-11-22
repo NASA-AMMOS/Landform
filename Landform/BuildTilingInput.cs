@@ -17,8 +17,8 @@ using System.Threading;
 using OPS.Pipeline.Texturing;
 namespace OPS.Landform
 {
-    [Verb("local-build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
-    public class LocalBuildTilingInputOptions : TilingCommandOptions
+    [Verb("build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
+    public class BuildTilingInputOptions : TilingCommandOptions
     {
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
         public override string ProjectName { get; set; }
@@ -61,9 +61,9 @@ namespace OPS.Landform
 
     }
 
-    public class LocalBuildTilingInput : TilingCommand
+    public class BuildTilingInput : TilingCommand
     {
-        private LocalBuildTilingInputOptions options;
+        private BuildTilingInputOptions options;
 
         private enum TextureGenMode
         {
@@ -80,7 +80,7 @@ namespace OPS.Landform
         private MeshOperator[] meshOps;
         string localTexturingDebugPath;
 
-        public LocalBuildTilingInput(LocalBuildTilingInputOptions options) : base(options)
+        public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
             this.options = options;
         }
@@ -640,8 +640,8 @@ namespace OPS.Landform
                 }
             }
             else
-            {
-                lock (tileList.LeafNames)
+            {               
+                lock (tileList.ParentNames)
                 {
                     tileList.ParentNames.Add(name);
                 }

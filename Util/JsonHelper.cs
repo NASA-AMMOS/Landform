@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+using Newtonsoft.Json.Converters;
 
 namespace OPS.Util
 {
@@ -39,6 +40,14 @@ namespace OPS.Util
             if (autoTypes) settings.TypeNameHandling = TypeNameHandling.Auto;
             if (ignoreNulls) settings.NullValueHandling = NullValueHandling.Ignore;
             if (ignoreProperties != null) settings.ContractResolver = new IgnorePropertiesResolver(ignoreProperties);
+
+            //serialize enums as their string equivalents instead of ints
+            //the main reason is to reduce backwards compatibility problems if we add values to an enum
+            //this also improves readability of the local database
+            //but at the expense of increased disk usage
+            //(enums that were previously serialized as ints are still accepted)
+            settings.Converters = new List<JsonConverter> () { new StringEnumConverter() };
+
             return settings;
         }
 

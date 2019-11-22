@@ -16,8 +16,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-matching", HelpText = "match features in overlapping images")]
-    public class LocalMatchingOptions : LandformCommandOptions
+    [Verb("match-features", HelpText = "match features in overlapping images")]
+    public class MatchFeaturesOptions : LandformCommandOptions
     {
         [Option(HelpText = "Recreate frustum overlaps that already exist", Default = false)]
         public bool RedoOverlaps { get; set; }
@@ -71,14 +71,14 @@ namespace OPS.Landform
         public string OnlyForOverlaps { get; set; }
     }
 
-    public class LocalMatching : LandformCommand
+    public class MatchFeatures : LandformCommand
     {
-        private LocalMatchingOptions options;
+        private MatchFeaturesOptions options;
 
         private Histogram matchesPerImage = new Histogram(5, "image pairs", "matches after filtering");
         private Histogram matchesPerDistance = new Histogram(50, "feature matches", "distance after filtering");
 
-        public LocalMatching(LocalMatchingOptions options) : base(options)
+        public MatchFeatures(MatchFeaturesOptions options) : base(options)
         {
             this.options = options;
 

@@ -136,7 +136,7 @@ namespace OPS.Pipeline
             this.Config = config;
 
             this.Quiet = options.Quiet;
-            this.Verbose = options.Verbose;
+            this.Verbose = options.Verbose | options.Debug;
             this.Debug = options.Debug;
             this.StackTraces = options.StackTraces;
 

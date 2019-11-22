@@ -18,8 +18,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-agisoft", HelpText = "run agisoft on ingested images")]
-    public class LocalAgisoftOptions : LandformCommandOptions
+    [Verb("agisoft-align", HelpText = "run Agisoft aligner on ingested images")]
+    public class AgisoftAlignerOptions : LandformCommandOptions
     {
         [Value(1, Required = false, HelpText = "path to the Agisoft Metashape Professional exe", Default = @"C:\Program Files\Agisoft\Metashape Pro\metashape.exe")]
         public string MetaShapeExePath { get; set; }
@@ -34,11 +34,11 @@ namespace OPS.Landform
         public bool DontClearInputsOutputs { get; set; }
     }
 
-    public class LocalAgisoft : LandformCommand
+    public class AgisoftAligner : LandformCommand
     {
-        private LocalAgisoftOptions options;
+        private AgisoftAlignerOptions options;
 
-        public LocalAgisoft(LocalAgisoftOptions options) : base(options)
+        public AgisoftAligner(AgisoftAlignerOptions options) : base(options)
         {
             this.options = options;
             if (options.Redo)
@@ -424,7 +424,7 @@ namespace OPS.Landform
                     roverObsBands.Add(robsBand);
                 }
 
-                var obsByCameraConfig = roverObsBands.GroupBy(o => new { o.Obs.Sensor, o.Obs.Width, o.Obs.Height, o.Bands });
+                var obsByCameraConfig = roverObsBands.GroupBy(o => new { o.Obs.Camera, o.Obs.Width, o.Obs.Height, o.Bands });
 
                 //add xml fragmentes needed for cameras
                 XmlDocument doc = new XmlDocument();
@@ -452,7 +452,7 @@ namespace OPS.Landform
                 int cameraId = 0;
                 foreach (var cameraConfig in obsByCameraConfig)
                 {
-                    RoverProductCamera roverProdCam = cameraConfig.Key.Sensor;
+                    RoverProductCamera roverProdCam = cameraConfig.Key.Camera;
                     AddSensorXml(sensorsNode, sensorId, roverProdCam, cameraConfig.Key.Width, cameraConfig.Key.Height, cameraConfig.Key.Bands, mission);
 
                     foreach (var obs in cameraConfig.Select(o => o.Obs))

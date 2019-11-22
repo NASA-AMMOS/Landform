@@ -111,11 +111,10 @@ namespace OPS.Landform
             if (observationCache != null)
             {
                 var comparator = mission.GetRoverObservationComparator();
-                imageObservations = observationCache.GetAllObservations()
-                    .Where(obs => obs is RoverObservation)
-                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
-                    .GroupBy(obs => obs.FrameName)
-                    .Select(group => group.OrderBy(obs => (RoverObservation)obs, comparator).First())
+                var allObs = observationCache.GetAllObservations();
+                imageObservations = comparator
+                    .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
+                    .Cast<Observation>()
                     .ToList();
                 indexedObservations = new Dictionary<int, Observation>();
                 foreach (var obs in imageObservations)
@@ -263,11 +262,8 @@ namespace OPS.Landform
                     
                     Image img = pipeline.LoadImage(obs.Url);
 
-                    var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                        .Where(o => o is RoverObservation)
-                        .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
-                        .OrderBy(o => (RoverObservation)o, comparator)
-                        .FirstOrDefault();
+                    var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
+                    var maskObs = comparator.GetBestRoverObservation(off, RoverProductType.RoverMask);
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
 
@@ -435,7 +431,7 @@ namespace OPS.Landform
         protected IDictionary<Pixel, Backproject.ObsPixel>
             BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "")
         {
-            verbose |= pipeline.Verbose || pipeline.Debug;
+            verbose |= pipeline.Verbose;
             logging |= verbose;
             var opts = new Backproject.BackprojectOptions()
             {
@@ -530,25 +526,27 @@ namespace OPS.Landform
 
         protected void SaveBackprojectIndexDebug(Image index)
         {
-            pipeline.LogInfo("saving backproject index false color textured mesh");
             string name = sceneMesh.Name + "_backprojectIndex";
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
             name += "FalseColor";
+            pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
             if (mesh != null)
             {
+                pipeline.LogInfo("saving backproject index false color textured debug mesh");
                 SaveMesh(mesh, name, name + imageExt);
             }
         }
 
         protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
         {
-            pipeline.LogInfo("saving backproject {0} textured mesh", textureVariant);
             string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
+            pipeline.LogInfo("saving backproject {0} texture debug image", textureVariant);
             SaveImage(texture, name);
             if (mesh != null)
             {
+                pipeline.LogInfo("saving backproject {0} textured debug mesh", textureVariant);
                 SaveMesh(mesh, name, name + imageExt);
             }
         }

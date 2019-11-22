@@ -12,8 +12,8 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    [Verb("local-ingest", HelpText = "ingest mission data")]
-    public class LocalIngestOptions : LandformCommandOptions
+    [Verb("ingest", HelpText = "ingest mission data")]
+    public class IngestOptions : LandformCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
@@ -21,11 +21,17 @@ namespace OPS.Landform
         [Option(HelpText = "input path, ending /** for recursive, or .txt or .json array of paths", Default = null)]
         public string InputPath { get; set; }
 
-        [Option(HelpText = "Only ingest data for specific site drives, comma separated", Default = null)]
-        public string OnlyForSiteDrives { get; set; }
+        [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
+        public string OnlyForObservations { get; set; }
 
-        [Option(HelpText = "Only ingest data for specific frames, comma separated", Default = null)]
+        [Option(HelpText = "Only use specific frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
         public string OnlyForFrames { get; set; }
+
+        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
+        public string OnlyForCameras { get; set; }
+
+        [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
+        public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Whether to make LocationsDB priors (requires locations.xml and basemap DEM)", Default = false)]
         public bool AddLocationsDBPriors { get; set; }
@@ -58,11 +64,11 @@ namespace OPS.Landform
         public Mission Mission { get; set; }
     }
 
-    public class LocalIngest : LandformCommand
+    public class Ingest : LandformCommand
     {
         private const string OUT_DIR = "alignment/IngestProducts";
 
-        private LocalIngestOptions options;
+        private IngestOptions options;
 
         private IngestAlignmentInputs ingester;
         private List<string> baseUrls;
@@ -71,7 +77,7 @@ namespace OPS.Landform
         private MSLPlaces places;
         private MSLLegacyManifest manifest;
 
-        public LocalIngest(LocalIngestOptions options) : base(options)
+        public Ingest(IngestOptions options) : base(options)
         {
             this.options = options;
 
@@ -147,7 +153,8 @@ namespace OPS.Landform
         {
             ingester = new IngestAlignmentInputs(pipeline, project, mission,
                                                  options.RedoObservations, options.RedoPriors,
-                                                 options.OnlyForSiteDrives, options.OnlyForFrames,
+                                                 options.OnlyForObservations, options.OnlyForFrames,
+                                                 options.OnlyForCameras, options.OnlyForSiteDrives,
                                                  options.NoProgress);
             baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
         }

@@ -52,7 +52,7 @@ namespace OPS.Pipeline.TilingServer
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
                                           preclipPointCloud: false, preclipBounds:new BoundingBox(),
-                                          onlyForCameras: null, useCleverCombine: false, 
+                                          onlyForCameras: null, useCleverCombine: false, stereoEye: RoverStereoEye.Left,
                                           info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); });
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
@@ -87,7 +87,7 @@ namespace OPS.Pipeline.TilingServer
                                      bool usePriors, bool noPriors,
                                      bool preclipPointCloud, BoundingBox preclipBounds,
                                      string onlyForCameras = null,
-                                     bool useCleverCombine = false, int decimate = 1,
+                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,  int decimate = 1, 
                                      int targetPointCloudResolution = 1024,
                                      Action<string> info = null,
                                      Action<string> verbose = null, Action<string> warn = null,
@@ -131,6 +131,12 @@ namespace OPS.Pipeline.TilingServer
                 };
 
             var observations = WedgeObservations.Collect(frameCache, observationCache, opts);
+
+            if (stereoEye != RoverStereoEye.Any)
+            {
+                observations = WedgeObservations.FilterForEye(observations, stereoEye).ToList(); 
+            }
+
             if (observations.Count == 0)
             {
                 error("no observations were found to build a point cloud");
