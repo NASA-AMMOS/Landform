@@ -18,42 +18,51 @@ namespace OPS.Pipeline.Texturing
     // performed they apply a weighting to each of the sampling results based on the 
     // sample points distance from the current point. the goal is higher fidelity than greedy
     // and tunable noisiness that is better than exhaustive. 
-    class ObsSelectionSpatial : ObsSelectionStrategy
+    public class ObsSelectionSpatial : ObsSelectionStrategy
     {
-        protected struct ScoredPoint
-        {
-            public PixelPoint Pt;
-            public double Score;
-
-            public ScoredPoint(PixelPoint pt, double score)
-            {
-                Pt = pt;
-                Score = score;
-            }
-        }
-        List<Backproject.Context> Contexts;
-        Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs;
         Dictionary<string, Backproject.Context> ObsToContext;
+        Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>> ScoredRefPtsByObs;
 
-        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> contexts, int outputTextureResolution,double quality, bool writeDebug, string localOutputPath)
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, 
+                               List<Backproject.Context> allContexts, int outputTextureResolution,double quality,
+                               bool writeDebug, string localOutputPath)
         {
-            //select points on the surface of the mesh at requested density to use for sampling backproject
-            double samplesPerMeter = quality * 100.0;
+            ////heuristic: add points on the border (to make sure the edge get similar choices to neighbors
+            ////potentially mission specific: assumes z down, < 1km height
+            //const double safeHeight = -1000;
+            //Vector3 dirDown = new Vector3(0, 0, 1);
+            ////Vector3[] rayPts = new Vector3[]
+            ////{
+            ////    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Min.Y, safeHeight),
+            ////    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Max.Y, safeHeight),
+            ////    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Min.Y, safeHeight),
+            ////    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Max.Y, safeHeight),
+            ////    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Min.Y, safeHeight),
+            ////    new Vector3(meshOp.Bounds.Min.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight),
+            ////    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Max.Y, safeHeight),
+            ////    new Vector3(meshOp.Bounds.Max.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight)
+            ////};
 
-            //adjust sampling ratio to be higher when tiles fall below a meter, fine tiles indicate
-            // high resolution data available and are worth the extra sampling
-            //potentially mission specific: assumes z vertical
-            //double minBounds = Math.Min(meshOp.Bounds.Extent().X, meshOp.Bounds.Extent().Y);
-            //if(minBounds < 1.0)
+            ////heuristic: add points on the mesh hull (bounds is axis aligned off the mesh)
+            ////potentially mission specific: assumes z vertical, < 1km height
+            //Mesh seedPts = new Mesh(meshHull.Mesh);
+            //seedPts.Clean();
+            //foreach (var pt in seedPts.Vertices)
             //{
-            //    samplesPerMeter *= 1 / minBounds;
+            //    var rayPt = new Vector3(pt.Position.X, pt.Position.Y, safeHeight);
+            //    var rayResult = occlusionScene.Raycast(new Ray(rayPt, dirDown));
+            //    if (rayResult != null)
+            //    {
+            //        sampledMesh.Vertices.Add(new Vertex(rayResult.Position));
+            //    }
             //}
 
+            // collect points on the surface of the mesh
+            double samplesPerMeter = quality * 100.0;
             Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
 
-            //guarantee at least a single point on the mesh
-            while(sampledMesh.Vertices.Count == 0)
+            //guarantee at least a single point on the mesh (zero on mesh can occur with very small meshes)
+            while (sampledMesh.Vertices.Count == 0)
             {
                 samplesPerMeter += 1;
                 sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
@@ -61,47 +70,17 @@ namespace OPS.Pipeline.Texturing
 
             if (writeDebug)
             {
-                sampledMesh.Save(Path.Combine(localOutputPath, "spatialSamplePts.ply"));
-                meshHull.Mesh.Save(Path.Combine(localOutputPath, "meshHull.ply"));
+                mesh.Save(Path.Combine(localOutputPath, "sceneMesh.ply"));
+                sampledMesh.Save(Path.Combine(localOutputPath, "spatialSamplePts_base.ply"));
             }
 
-            //heuristic: add points on the border (to make sure the edge get similar choices to neighbors
-            //potentially mission specific: assumes z down, < 1km height
-            const double safeHeight = -1000;
-            Vector3 dirDown = new Vector3(0, 0, 1);
-            //Vector3[] rayPts = new Vector3[]
-            //{
-            //    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Min.Y, safeHeight),
-            //    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Max.Y, safeHeight),
-            //    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Min.Y, safeHeight),
-            //    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Max.Y, safeHeight),
-            //    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Min.Y, safeHeight),
-            //    new Vector3(meshOp.Bounds.Min.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight),
-            //    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Max.Y, safeHeight),
-            //    new Vector3(meshOp.Bounds.Max.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight)
-            //};
-
-            //heuristic: add points on the mesh hull (bounds is axis aligned off the mesh)
-            //potentially mission specific: assumes z vertical, < 1km height
-            Mesh seedPts = new Mesh(meshHull.Mesh);
-            seedPts.Clean();
-            foreach (var pt in seedPts.Vertices)
-            {
-                var rayPt = new Vector3(pt.Position.X, pt.Position.Y, safeHeight);
-                var rayResult = occlusionScene.Raycast(new Ray(rayPt, dirDown));
-                if (rayResult != null)
-                {
-                    sampledMesh.Vertices.Add(new Vertex(rayResult.Position));
-                }
-            }
-
-            //heuristic: add center point of each observation (to make sure small fov images are not missed)
-            foreach (var ctx in contexts)
+            //add center point of each observation (to make sure small fov images are considered)
+            foreach (var ctx in allContexts)
             {
                 CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
                 Vector2 pixel = new Vector2(ctx.Obs.Width / 2.0, ctx.Obs.Height / 2.0);
                 Vector3? res = Backproject.RaycastMesh(cam, ctx.ObsToMesh, pixel, occlusionScene);
-                if(res.HasValue)
+                if (res.HasValue)
                 {
                     sampledMesh.Vertices.Add(new Vertex(res.Value));
                 }
@@ -109,93 +88,99 @@ namespace OPS.Pipeline.Texturing
 
             if (writeDebug)
             {
-                sampledMesh.Save(Path.Combine(localOutputPath, "extendedSpatialSamplePts.ply"));
+                sampledMesh.Save(Path.Combine(localOutputPath, "spatialSamplePts_wObs.ply"));
             }
 
-            //filter these points to remove points that happen to map back to the same output texture pixel
-            // large areas on the mesh can map to small areas in the texture atlas
-            var grouped = sampledMesh.Vertices.GroupBy(
-                v => new Pixel((int)Image.UVToPixel(v.UV, outputTextureResolution, outputTextureResolution).Y, (int)Image.UVToPixel(v.UV, outputTextureResolution, outputTextureResolution).X),
-                v => v);
-            List<Vertex> filteredSampledVerts = grouped.Select(g => g.First()).ToList();
-
-            // convert verts to sample points and filter for any that are located off the destination texture
-            List<PixelPoint> referencePoints = filteredSampledVerts.Select(v => new PixelPoint() { Pixel = Image.UVToPixel(v.UV, outputTextureResolution, outputTextureResolution), Point = v.Position })
-            .Where(pp => pp.Pixel.X >= 0 && pp.Pixel.X < outputTextureResolution && pp.Pixel.Y >= 0 && pp.Pixel.Y < outputTextureResolution).ToList();
-
-            // initialize datastructures 
-            Contexts = new List<Backproject.Context>(contexts);
-            ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
+            //calculate the scores per reference point (grouped by observation)
             ObsToContext = new Dictionary<string, Backproject.Context>();
-            foreach(var ctx in Contexts)
+            ScoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>>();
+            foreach (var ctx in allContexts)
             {
-                ScoredRefPtsByObs.Add(ctx.Obs.Name, new List<ScoredPoint>());
+                ScoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ObsSelectionStrategy.ScoredPoint>());
                 ObsToContext.Add(ctx.Obs.Name, ctx);
             }
 
-            // build db of scores and locations by observation
-            ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
-            refSelect.Initialize(mesh, meshHull, meshOp, occlusionScene, contexts, outputTextureResolution, quality, writeDebug, localOutputPath);
-            foreach(var pt in referencePoints)
+            //collect a sorted list of contexts (best to worst) for each sample point
+            CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
             {
-                refSelect.FilterAndSortContexts(pt, out ConcurrentDictionary<string, double> ptScoresByObs);
-                foreach(var score in ptScoresByObs)
+                string ptDebugPath = Path.Combine(localOutputPath, "Point_" + pt.X + "_" + pt.Y + "_" + pt.Z);
+
+                //exhaustively sort for each sample point
+                ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
+                refSelect.Initialize(mesh, meshOp, occlusionScene, allContexts, outputTextureResolution, quality, writeDebug, ptDebugPath);
+                var sortedContexts = refSelect.FilterAndSortContexts(pt, allContexts, out ConcurrentDictionary<string, double> ptScoresByObs);
+
+                foreach (var pair in ptScoresByObs)
                 {
-                    ScoredRefPtsByObs[score.Key].Add(new ScoredPoint(pt, score.Value));
-                    //TODO: save?
+                    ScoredRefPtsByObs[pair.Key].Add(new ObsSelectionStrategy.ScoredPoint(pt, pair.Value));
                 }
-            };
+
+                if (writeDebug)
+                {
+                    using (StreamWriter sw = new StreamWriter(Path.Combine(localOutputPath, "RefScoresForPoint_" + pt.X + "_" + pt.Y + "_" + pt.Z + ".txt")))
+                    {
+                        sw.WriteLine(string.Format("{0}: {1}", "Observation Name", "Score (lower is better)"));
+                        foreach (var ctx in sortedContexts)
+                        {
+                            sw.WriteLine(string.Format("{0}: {1}", ctx.Obs.Name, ptScoresByObs[ctx.Obs.Name]));
+                        }
+                    }
+                }
+            });
         }
 
-        public override List<Backproject.Context> FilterAndSortContexts(PixelPoint forPixel, out ConcurrentDictionary<string, double> scoresByObs)
+        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> prunedContexts, out ConcurrentDictionary<string, double> scoresByObs)
         {
             //find distances, save maximum for weighting
-            Dictionary<string, List<Tuple<double, ScoredPoint>>> groupedByObs = new Dictionary<string, List<Tuple<double, ScoredPoint>>>();
+            Dictionary<string, List<Tuple<double, ScoredPoint>>> refPtDistancesByObs = new Dictionary<string, List<Tuple<double, ScoredPoint>>>();
             double maxDistance = double.MinValue;
-            foreach (var obsName in ScoredRefPtsByObs.Keys)
+            foreach (var ctx in prunedContexts)
             {
+                if (!ObsToContext.ContainsKey(ctx.Obs.Name))
+                    throw new Exception("Unexpected context as compared to init: "+ ctx.Obs.Name);
+
                 //early out if context has no chance for pt
-                if (!ObsToContext[obsName].FrustumHull.Contains(forPixel.Point))
+                if (!ctx.FrustumHull.Contains(forPoint))
                     continue;
 
-                groupedByObs[obsName] = new List<Tuple<double, ScoredPoint>>();
-
-                foreach (var refScoredPt in ScoredRefPtsByObs[obsName])
+                //collect distance between reference pt and current point
+                refPtDistancesByObs[ctx.Obs.Name] = new List<Tuple<double, ScoredPoint>>();
+                foreach (var refScoredPt in ScoredRefPtsByObs[ctx.Obs.Name])
                 {
-                    double dist = Vector3.Distance(refScoredPt.Pt.Point, forPixel.Point);
+                    double dist = Vector3.Distance(refScoredPt.Point, forPoint);
                     if (dist > maxDistance)
                     {
                         maxDistance = dist;
                     }
 
-                    groupedByObs[obsName].Add(new Tuple<double, ScoredPoint>(dist, refScoredPt));
+                    refPtDistancesByObs[ctx.Obs.Name].Add(new Tuple<double, ScoredPoint>(dist, refScoredPt));
                 }
             }
 
-            //find best score for each observation
-            Dictionary<string, double> bestEntries = new Dictionary<string, double>();
-            foreach (var obs in groupedByObs.Keys)
+            //find best weighted score for each observation
+            Dictionary<string, double> bestWeightedScoreByObs = new Dictionary<string, double>();
+            foreach (var obs in refPtDistancesByObs.Keys)
             {
                 double minWeightedScore = double.MaxValue;
-                //bestEntries[obs] = double.MaxValue; //ensures an en
-                foreach (var pt in groupedByObs[obs])
+                foreach (var pt in refPtDistancesByObs[obs])
                 {
                     //heuristic: assigns equal value to distance from sample point and the min pixel spread on the terrain
                     //TODO: better, more physical weighting?
                     double weightedScore = pt.Item1 / maxDistance * pt.Item2.Score;
-                    if(weightedScore < minWeightedScore)
+                    if (weightedScore < minWeightedScore)
                     {
-                        bestEntries[obs] = weightedScore;
+                        bestWeightedScoreByObs[obs] = weightedScore;
                     }
                 }
             }
 
-            //sort contexts by their scores (and return them)
+            ////sort contexts by their scores (and return them)
             //TODO: undo weighting by multiplying by max dist?
-            List<Backproject.Context> sortedContexts = Contexts.Where(c => bestEntries.ContainsKey(c.Obs.Name)).ToList();
-            sortedContexts.Sort((ctx0, ctx1) => bestEntries[ctx0.Obs.Name].CompareTo(bestEntries[ctx1.Obs.Name]));
-            scoresByObs = new ConcurrentDictionary<string, double>(bestEntries);
+            List<Backproject.Context> sortedContexts = prunedContexts.Where(c => bestWeightedScoreByObs.ContainsKey(c.Obs.Name)).ToList();
+            sortedContexts.Sort((ctx0, ctx1) => bestWeightedScoreByObs[ctx0.Obs.Name].CompareTo(bestWeightedScoreByObs[ctx1.Obs.Name]));
+            scoresByObs = new ConcurrentDictionary<string, double>(bestWeightedScoreByObs);
             return sortedContexts;
+
         }
 
     }

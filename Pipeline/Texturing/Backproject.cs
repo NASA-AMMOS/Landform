@@ -16,6 +16,7 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.RayTrace;
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Pipeline
 {
@@ -38,7 +39,8 @@ namespace OPS.Pipeline
             public Observation Obs;                     //observation to backproject
             public Observation MaskObs;                 //mission rover mask obs corresponding to Obs if any
             public ConvexHull FrustumHull;              //frustum hull for observation in mesh space
-            public Matrix ObsToMesh;   //transform from observation to mesh
+            public Matrix ObsToMesh;                    //transform from observation to mesh
+            public Matrix MeshToObs;                    //transform from mesh to obs
 
             public Context(Observation obs, Observation maskObs, ConvexHull frustumHull,
                                       UncertainRigidTransform obsToMesh)
@@ -47,6 +49,7 @@ namespace OPS.Pipeline
                 MaskObs = maskObs;
                 FrustumHull = frustumHull;
                 ObsToMesh = obsToMesh.Mean;
+                MeshToObs = Matrix.Invert(ObsToMesh);
             }
         }
 
@@ -260,13 +263,13 @@ namespace OPS.Pipeline
             public string meshFrame;
             public int resolution; //output texture resolution
             public double batchGridSize = 0; //grid cell size to batch backprojects, 0 disables batching
-            public SceneCaster sceneCaster; //for checking occlusion of backproject rays
+            public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
             public bool usePriors;
             public bool onlyAligned;
             public bool writeDebug = false; 
             public string localDebugOutputPath;
             public double quality; //0 < quality <= 1 (best, slowest)
-            public Texturing.ObsSelectionStrategyName obsSelectionStrategy;  //the approach used to pick the best source data
+            public ObsSelectionStrategy obsSelectionStrategy;  //the approach used to pick the best source data
             public IDictionary<string, ConvexHull> obsToHull = null; //observation name -> hull, computed if null
             public Action<string> info = null;
             public Action<string> progress = null;
@@ -300,12 +303,12 @@ namespace OPS.Pipeline
             info("building input mesh data structures");
             ConvexHull meshHull = new ConvexHull(opts.mesh);
             MeshOperator meshOp = new MeshOperator(opts.mesh);
-            SceneCaster partialSC = null;
-            if(opts.writeDebug)
+            SceneCaster debugTileOcclusion = null;
+            if (opts.writeDebug)
             {
-                partialSC = new SceneCaster();
-                partialSC.AddMesh(opts.mesh, null, Matrix.Identity);
-                partialSC.Build();
+                debugTileOcclusion = new SceneCaster();
+                debugTileOcclusion.AddMesh(opts.mesh, null, Matrix.Identity);
+                debugTileOcclusion.Build();
             }
 
             info(string.Format("collecting sample points from mesh to {0}x{0} destination texture", opts.resolution));
@@ -332,8 +335,14 @@ namespace OPS.Pipeline
                     {
                         intersectingObservations.Add(obs);
                     }
+
+                    if (opts.writeDebug)
+                    {
+                        obsToHull[obs.Name].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
+                    }
                 }
             });
+
             if (intersectingObservations.Count() == 0)
             {
                 error("no images intersected mesh");
@@ -342,74 +351,31 @@ namespace OPS.Pipeline
 
             info(string.Format("{0}/{1} image observations intersect mesh",
                                intersectingObservations.Count, imageObservations.Count));
+            List<Context> intersectingContexts = BuildContexts(obsToHull, intersectingObservations, 
+                                                                            opts.mission, opts.frameCache, opts.observationCache,
+                                                                            opts.meshFrame, opts.usePriors, opts.onlyAligned,
+                                                                            warn);
 
-            //build contexts and call backproject
-            var comparator = opts.mission.GetRoverObservationComparator();
-            var intersectingContexts = new List<Context>();
-            foreach (var obs in intersectingObservations)
+            if (opts.writeDebug)
             {
-               var obsToMesh =
-                    opts.frameCache.GetObservationTransform(obs, opts.meshFrame, opts.usePriors, opts.onlyAligned);
-                if (obsToMesh == null)
+                info("building debug coverage images");
+                foreach (var ctx in intersectingContexts)
                 {
-                    warn(string.Format("failed to get transform for observation {0}", obs.Name));
-                    continue;
-                }
-
-                var maskObs = opts.observationCache.GetAllObservationsForFrame(opts.frameCache.GetFrame(obs.FrameName))
-                    .Where(o => o is RoverObservation)
-                    .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
-                    .OrderBy(o => (RoverObservation)o, comparator)
-                    .FirstOrDefault();
-
-                intersectingContexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
-
-                if (opts.writeDebug)
-                {
-                    obsToHull[obs.Name].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
-                    Image srcImg = opts.pipeline.LoadImage(obs.Url);
-                 
-                    Image obsCoverage = new Image(3, obs.Width, obs.Height);
-                    CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-                    Matrix obsToMeshMat = obsToMesh.Mean;
-                    for (int idxRow = 0; idxRow < obs.Height; idxRow++)
-                    {
-                        for (int idxCol = 0; idxCol < obs.Width; idxCol++)
-                        {
-                            //intialize with real data
-                            obsCoverage.SetAsColor(srcImg.GetBandValues(idxRow, idxCol), idxRow, idxCol);
-
-                            Vector3? ptMesh = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), partialSC);
-                            if (ptMesh.HasValue)
-                            {
-                                Vector3? ptScene = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), opts.sceneCaster);
-                                if(ptScene.HasValue)
-                                {
-                                    //check to tell if the points are likely the same
-                                    if(Vector3.Distance(ptScene.Value,ptMesh.Value) < 0.01)
-                                    {
-                                        var bandVals = obsCoverage.GetBandValues(idxRow, idxCol);
-                                        bandVals[2] += 0.25f; //tint blue
-                                        obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    obsCoverage.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
+                    DebugWriteCoverageImage(opts, debugTileOcclusion, ctx.Obs, ctx.ObsToMesh);
                 }
             }
-          
-            info(string.Format("initialize backproject strategy: {0}", opts.obsSelectionStrategy));
-            Texturing.ObsSelectionStrategy obsStrat = Texturing.ObsSelectionStrategy.Create(opts.obsSelectionStrategy);
-            obsStrat.Initialize(opts.mesh, meshHull, meshOp, opts.sceneCaster, intersectingContexts, opts.resolution, opts.quality, opts.writeDebug, opts.localDebugOutputPath);
+
+            if(opts.obsSelectionStrategy == null)
+            {
+                info("observation selection strategy required for backproject");
+            }
 
             var masker = opts.mission.GetMasker();
             ConcurrentDictionary<Pixel, ObsPixel> results = new ConcurrentDictionary<Pixel, ObsPixel>();
             foreach (var samplePt in samplePoints)
             {
                 //find the strategy specific ranking of contexts for this pixel
-                var sortedContexts = obsStrat.FilterAndSortContexts(samplePt, out ConcurrentDictionary<string, double> scores);
+                var sortedContexts = opts.obsSelectionStrategy.FilterAndSortContexts(samplePt.Point, intersectingContexts, out ConcurrentDictionary<string, double> scores);
 
                 if (sortedContexts.Any())
                 {
@@ -417,7 +383,7 @@ namespace OPS.Pipeline
                     // if a pixel for a better texture is rejected due to rover occlusion, invalid or missing data, etc) 
                     // the next best texture will be used
                     BackprojectSortedContexts(opts.pipeline, opts.project, masker,
-                                            sortedContexts, meshHull, opts.sceneCaster, 
+                                            sortedContexts, meshHull, opts.sceneOcclusion,
                                             samplePt, opts.quality,
                                             results,
                                             info, info);
@@ -478,8 +444,70 @@ namespace OPS.Pipeline
                     obsToHull[obsName].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
                 }
             }
-            
+
             return results;
+        }
+
+        public static List<Context> BuildContexts(IDictionary<string, ConvexHull> obsToHull, List<Observation> observations,
+                                                MissionSpecific mission, FrameCache frameCache, ObservationCache observationCache,
+                                                string meshFrame, bool usePriors, bool onlyAligned,
+                                                Action<string> warn)
+        {
+            var contexts = new List<Context>();
+            var comparator = mission.GetRoverObservationComparator();
+            foreach (var obs in observations)
+            {
+                var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, usePriors, onlyAligned);
+                if (obsToMesh == null)
+                {
+                    warn(string.Format("failed to get transform for observation {0}", obs.Name));
+                    continue;
+                }
+
+                var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                    .Where(o => o is RoverObservation)
+                    .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
+                    .OrderBy(o => (RoverObservation)o, comparator)
+                    .FirstOrDefault();
+
+                contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
+            }
+
+            return contexts;
+        }
+
+        private static void DebugWriteCoverageImage(BackprojectOptions opts, SceneCaster debugTileOcclusion, Observation obs, Matrix obsToMesh)
+        {
+            Image srcImg = opts.pipeline.LoadImage(obs.Url);
+
+            Image obsCoverage = new Image(3, obs.Width, obs.Height);
+            CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+            Matrix obsToMeshMat = obsToMesh;
+            for (int idxRow = 0; idxRow < obs.Height; idxRow++)
+            {
+                for (int idxCol = 0; idxCol < obs.Width; idxCol++)
+                {
+                    //intialize with real data
+                    obsCoverage.SetAsColor(srcImg.GetBandValues(idxRow, idxCol), idxRow, idxCol);
+
+                    Vector3? ptMesh = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), debugTileOcclusion);
+                    if (ptMesh.HasValue)
+                    {
+                        Vector3? ptScene = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), opts.sceneOcclusion);
+                        if (ptScene.HasValue)
+                        {
+                            //check to tell if the points are likely the same
+                            if (Vector3.Distance(ptScene.Value, ptMesh.Value) < 0.01)
+                            {
+                                var bandVals = obsCoverage.GetBandValues(idxRow, idxCol);
+                                bandVals[2] += 0.25f; //tint blue
+                                obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
+                            }
+                        }
+                    }
+                }
+            }
+            obsCoverage.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
         }
 
         // lower level function that returns backproject results

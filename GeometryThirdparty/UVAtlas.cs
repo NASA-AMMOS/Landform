@@ -84,7 +84,9 @@ namespace OPS.Geometry
             {
                 logger.Info("Using Naive atlasing");
 
-                NaiveAtlas(mesh, out outU, out outV, out indices, out outVertexRemap);
+                rc = NaiveAtlas(mesh, out outU, out outV, out indices, out outVertexRemap);
+                if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
+                    return null;
             }
             if (indices.Length % 3 != 0)
             {
@@ -192,6 +194,14 @@ namespace OPS.Geometry
                 var theta = Math.Acos(cosTheta); // guaranteed positive since that's the range of acos (which, with cosTheta being positive, implies 0 <= theta <= pi/2)
                 tag.uv2 = new Vector2(p0p2Length * cosTheta, p0p2Length * Math.Sin(theta));
 
+                if(tag.uv2.Y == 0)
+                {
+                    outU = null;
+                    outV = null;
+                    outIndices = null;
+                    outVertexRemap = null;
+                    return UVAtlasNET.UVAtlas.ReturnCode.CREATE_ATLAS_FAILED; //can happen with very long and skinny triangles
+                }
                 // store the tag
                 tags[iFace] = tag;
 
@@ -311,6 +321,7 @@ namespace OPS.Geometry
                 outIndices[vertexIndex] = vertexIndex;
                 outU[vertexIndex] = ((float)cube.X + (float)tag.uv2.X) / binDimension;
                 outV[vertexIndex] = ((float)cube.Y + (float)tag.uv2.Y) / binDimension;
+
             }
 
             return UVAtlasNET.UVAtlas.ReturnCode.SUCCESS;

@@ -18,40 +18,32 @@ namespace OPS.Pipeline.Texturing
     // will return the highest quality pixel for every output
     // pixel but can create a noisy result by pingponging
     // between similar quality textures
-    class ObsSelectionExhaustive : ObsSelectionStrategy
+    public class ObsSelectionExhaustive : ObsSelectionStrategy
     {
-        protected ConvexHull MeshHull;
         protected SceneCaster OcclusionScene;
-
-        protected List<Backproject.Context> Contexts;
+        protected MeshOperator MeshOp;
         protected bool WriteDebug;
         protected string LocalOutputPath;
 
-        public override void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> contexts, int outputTextureResolution, double quality, bool writeDebug, string localOutputPath)
-        {
-            MeshHull = meshHull;
 
-            OcclusionScene = occlusionScene;
-            Contexts = contexts;
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, 
+                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
+                               bool writeDebug, string localOutputPath)
+        {
+            MeshOp = meshOp;
+            OcclusionScene = occlusionScene;          
             WriteDebug = writeDebug;
             LocalOutputPath = localOutputPath;
-        }
 
-        public override List<Backproject.Context> FilterAndSortContexts(PixelPoint forPixel, out ConcurrentDictionary<string, double> scoresByObs)
+    }
+
+    public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> prunedContexts, out ConcurrentDictionary<string, double> scoresByObs)
         {
-            string localOutputPathPixel = null;
-            if (WriteDebug)
-            {
-                localOutputPathPixel = Path.Combine(LocalOutputPath, (int)forPixel.Pixel.X + "_" + (int)forPixel.Pixel.Y);
-                PathHelper.EnsureExists(localOutputPathPixel);
-            }
-
             //intersecting contexts
             var visibleContexts = new List<Backproject.Context>();
-            Serial.ForEach(Contexts, ctx =>
+            Serial.ForEach(prunedContexts, ctx =>
             {
-                if (ctx.FrustumHull.Contains(forPixel.Point))
+                if (ctx.FrustumHull.Contains(forPoint))
                 {
                     visibleContexts.Add(ctx);
                 }
@@ -62,16 +54,23 @@ namespace OPS.Pipeline.Texturing
             var localScoresByObs = new ConcurrentDictionary<string, double>();
             Serial.ForEach(visibleContexts, ctx =>
             {
-                double dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forPixel },
-                                                                       ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh, 1.0, WriteDebug, localOutputPathPixel);
+                CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
+                PixelPoint forSrcPixelPt = new PixelPoint
+                {
+                    Pixel = cam.Project(Vector3.Transform(forPoint, ctx.MeshToObs), out double range),
+                    Point = forPoint
+                };
+
+                double dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forSrcPixelPt },
+                                                                       ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh, 1.0, WriteDebug, LocalOutputPath);
                 if(dist == double.MaxValue)
                 {
                     //if no valid samples, use distance from observation to mesh to have a sortable quality rating
                     //  (that's much bigger than per valid inter-pixel distances), otherwise contexts are not really sorted
                     //TODO: try if all the same value even if valid distances? tie-breaker?
-                    CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
-                    Vector3 cameraInOutput = Vector3.Transform(cam.Unproject(forPixel.Pixel).Position, ctx.ObsToMesh);
-                    Vector3 meshCenter = MeshHull.Mesh.Bounds().Center();
+                   
+                    Vector3 cameraInOutput = Vector3.Transform(cam.Unproject(forSrcPixelPt.Pixel).Position, ctx.ObsToMesh);  
+                    Vector3 meshCenter = MeshOp.Bounds.Center();
                     dist = Vector3.Distance(meshCenter, cameraInOutput);
                 }
 
@@ -82,17 +81,6 @@ namespace OPS.Pipeline.Texturing
             List<Backproject.Context> sortedContexts = new List<Backproject.Context>(visibleContexts);
             sortedContexts.Sort((ctx0, ctx1) => localScoresByObs[ctx0.Obs.Name].CompareTo(localScoresByObs[ctx1.Obs.Name]));
             scoresByObs = new ConcurrentDictionary<string, double>(localScoresByObs);
-
-            if (WriteDebug)
-            {            
-                using (StreamWriter sw = new StreamWriter(Path.Combine(localOutputPathPixel, "Scores.txt")))
-                {
-                    foreach (var ctx in sortedContexts)
-                    {
-                        sw.WriteLine(string.Format("{0}: {1}", ctx.Obs.Name, localScoresByObs[ctx.Obs.Name]));
-                    }
-                }
-            }
 
             return sortedContexts;
         }

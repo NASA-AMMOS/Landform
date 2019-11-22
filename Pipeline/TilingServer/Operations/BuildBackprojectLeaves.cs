@@ -92,7 +92,7 @@ namespace OPS.Pipeline.TilingServer
 
                 LogInfo(string.Format("atlasing leaf tile mesh with UVAtlas, resolution {0}", project.TileResolution));
                 leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
-
+                
                 LogInfo("backprojecting leaf tile mesh");
                 // backproject
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);

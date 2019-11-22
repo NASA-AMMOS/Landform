@@ -15,6 +15,7 @@ using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Landform
 {
@@ -72,6 +73,7 @@ namespace OPS.Landform
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
         protected Image backprojectIndex;
         protected TileList tileList;
+        protected ObsSelectionStrategy obsSelStrat;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -122,6 +124,7 @@ namespace OPS.Landform
                 }
             }
 
+            obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
             return true;
         }
 
@@ -423,14 +426,14 @@ namespace OPS.Landform
             BackprojectObservations(logging: true);
         }
 
-        protected void BackprojectObservations(bool logging, bool verbose = false, string meshName = "")
+        protected void BackprojectObservations(bool logging, bool verbose = false, string meshName = "",  string debugOutputPath = "")
         {
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            backprojectResults = BackprojectObservations(mesh, logging, verbose, meshName);
+            backprojectResults = BackprojectObservations(mesh, logging, verbose, meshName, debugOutputPath);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "")
+            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "")
         {
             verbose |= pipeline.Verbose || pipeline.Debug;
             logging |= verbose;
@@ -446,13 +449,13 @@ namespace OPS.Landform
                 meshFrame = meshFrame,
                 resolution = resolution,
                 batchGridSize = tcopts.BackprojectBatchGridSize,
-                sceneCaster = sceneCaster,
+                sceneOcclusion = sceneCaster,
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteDebug,
-                localDebugOutputPath = Path.Combine(localOutputPath,meshName),
-                obsSelectionStrategy = tcopts.ObsSelectionStrategy,
+                localDebugOutputPath = Path.Combine(debugOutputPath ?? localOutputPath, meshName),
+                obsSelectionStrategy = obsSelStrat,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },

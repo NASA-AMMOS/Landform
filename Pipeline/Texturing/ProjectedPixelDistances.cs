@@ -105,46 +105,46 @@ namespace OPS.Pipeline
 
             if (writeDebug)
             {
-                float[] red = { 1, 0, 0 };
-                float[] green = { 0, 1, 0 };
-                float[] blue = { 0, 0, 1 };
+                //float[] red = { 1, 0, 0 };
+                //float[] green = { 0, 1, 0 };
+                //float[] blue = { 0, 0, 1 };
 
-                Image spreadsImg = new Image(3, obs.Width, obs.Height);
-                using (StreamWriter sw = new StreamWriter(Path.Combine(localDebugOutputPath, obs.Name + "_pixelspreads.txt")))
-                {
-                    sw.WriteLine("Col, Row, Spread (m)");
+                //Image spreadsImg = new Image(3, obs.Width, obs.Height);
+                //using (StreamWriter sw = new StreamWriter(Path.Combine(localDebugOutputPath, obs.Name + "_pixelspreads.txt")))
+                //{
+                //    sw.WriteLine("Col, Row, Spread (m)");
 
-                    //fill texture
-                    for (int idxSpread = 0; idxSpread < samples.Count(); idxSpread++)
-                    {
-                        int idxSample = spreadToSample[idxSpread];
-                        PixelPoint sample = samples[idxSample];
-                        int srcRow = (int)sample.Pixel.Y;
-                        int srcCol = (int)sample.Pixel.X;
+                //    //fill texture
+                //    for (int idxSpread = 0; idxSpread < samples.Count(); idxSpread++)
+                //    {
+                //        int idxSample = spreadToSample[idxSpread];
+                //        PixelPoint sample = samples[idxSample];
+                //        int srcRow = (int)sample.Pixel.Y;
+                //        int srcCol = (int)sample.Pixel.X;
 
-                        double spread = spreads[idxSpread];
+                //        double spread = spreads[idxSpread];
 
-                        if (spread == double.MinValue)
-                        {
-                            //not in hull
-                            spreadsImg.SetBandValues(srcRow, srcCol, blue);
-                        }
-                        else if (spread == double.MaxValue)
-                        {
-                            //failed to get valid spread
-                            spreadsImg.SetBandValues(srcRow, srcCol, red);
-                        }
-                        else
-                        {
-                            //got a spread
-                            spreadsImg.SetBandValues(srcRow, srcCol, green);
-                            //write text file
-                            sw.WriteLine(string.Format("{0}, {1}, {2}", srcCol, srcRow, spread));
-                        }
-                    }
+                //        if (spread == double.MinValue)
+                //        {
+                //            //not in hull
+                //            spreadsImg.SetBandValues(srcRow, srcCol, blue);
+                //        }
+                //        else if (spread == double.MaxValue)
+                //        {
+                //            //failed to get valid spread
+                //            spreadsImg.SetBandValues(srcRow, srcCol, red);
+                //        }
+                //        else
+                //        {
+                //            //got a spread
+                //            spreadsImg.SetBandValues(srcRow, srcCol, green);
+                //            //write text file
+                //            sw.WriteLine(string.Format("{0}, {1}, {2}", srcCol, srcRow, spread));
+                //        }
+                //    }
 
-                    spreadsImg.Save<byte>(Path.Combine(localDebugOutputPath, obs.Name + "_pixelspreads.png"));
-                }
+                //    spreadsImg.Save<byte>(Path.Combine(localDebugOutputPath, obs.Name + "_pixelspreads.png"));
+                //}
             }
             //take median of valid spreads
             var validSpreads = spreads.Where(spread => spread != double.MaxValue && spread != double.MinValue).ToList();

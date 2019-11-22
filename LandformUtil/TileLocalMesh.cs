@@ -122,7 +122,7 @@ namespace OPS.LandformUtil
                 if(options.InputTexture != null)
                 {
                     var pair = multiMeshClipper.BakeTexture(m, options.MaxResolutionPerTile);
-                    if(pair.Image != null)
+                    if(pair.Mesh != null && pair.Image != null)
                     {
                         img = pair.Image;
                         m = pair.Mesh;

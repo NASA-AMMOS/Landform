@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.RayTrace;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline.Texturing
 {
@@ -20,6 +21,18 @@ namespace OPS.Pipeline.Texturing
     
     public abstract class ObsSelectionStrategy
     {
+        public struct ScoredPoint
+        {
+            public Vector3 Point;
+            public double Score;
+
+            public ScoredPoint(Vector3 point, double score)
+            {
+                Point = point;
+                Score = score;
+            }
+        }
+
         public static ObsSelectionStrategy Create(ObsSelectionStrategyName name)
         {
             switch (name)
@@ -35,10 +48,11 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
-        public abstract void Initialize(Mesh mesh, ConvexHull meshHull, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> contexts, int outputTextureResolution, double quality, bool writeDebug, string localOutputPath);
+        public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, //TODO: move to constructor
+                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
+                               bool writeDebug, string localOutputPath);
 
         //sorts observations from best to worst
-        public abstract List<Backproject.Context> FilterAndSortContexts(PixelPoint forPixel, out ConcurrentDictionary<string, double> scoresByObs);
+        public abstract List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> prunedContexts, out ConcurrentDictionary<string, double> scoresByObs);
     }
 }

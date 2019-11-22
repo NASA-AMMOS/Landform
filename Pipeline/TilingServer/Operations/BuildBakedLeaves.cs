@@ -139,9 +139,16 @@ namespace OPS.Pipeline.TilingServer
                     pair = bakeClipper.BakeTexture(m, project.TileResolution, msg => LogInfo(msg));
                 }
 
-                LogInfo("saving leaf tile mesh");
-                leaf.SaveMesh(pair, pipeline, project);
-                leaf.Save(pipeline);
+                if (pair.Mesh != null)
+                {
+                    LogInfo("saving leaf tile mesh");
+                    leaf.SaveMesh(pair, pipeline, project);
+                    leaf.Save(pipeline);
+                }
+                else
+                {
+                    LogError("failed to bake leaf");
+                }
 
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
             });

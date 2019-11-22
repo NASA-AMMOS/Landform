@@ -64,6 +64,8 @@ namespace OPS.Pipeline
                 try
                 {
                     clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution);
+                    if (clippedMesh == null)
+                        return false;
                 }
                 catch
                 {
