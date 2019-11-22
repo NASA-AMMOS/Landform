@@ -25,7 +25,7 @@ namespace OPS.Pipeline
         {
             public Observation Obs;
             public Vector2 Pixel; //col, row
-         
+
             public ObsPixel(Observation obs, Vector2 pixel)
             {
                 Obs = obs;
@@ -264,7 +264,7 @@ namespace OPS.Pipeline
             public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
             public bool usePriors;
             public bool onlyAligned;
-            public bool writeDebug = false; 
+            public bool writeDebug = false;
             public string localDebugOutputPath;
             public double quality; //0 < quality <= 1 (best, slowest)
             public ObsSelectionStrategy obsSelectionStrategy;  //the approach used to pick the best source data
@@ -349,7 +349,7 @@ namespace OPS.Pipeline
 
             info(string.Format("{0}/{1} image observations intersect mesh",
                                intersectingObservations.Count, imageObservations.Count));
-            List<Context> intersectingContexts = BuildContexts(obsToHull, intersectingObservations, 
+            List<Context> intersectingContexts = BuildContexts(obsToHull, intersectingObservations,
                                                                             opts.mission, opts.frameCache, opts.observationCache,
                                                                             opts.meshFrame, opts.usePriors, opts.onlyAligned,
                                                                             warn);
@@ -363,7 +363,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            if(opts.obsSelectionStrategy == null)
+            if (opts.obsSelectionStrategy == null)
             {
                 info("observation selection strategy required for backproject");
             }
@@ -382,9 +382,7 @@ namespace OPS.Pipeline
                     // the next best texture will be used
                     BackprojectSortedContexts(opts.pipeline, opts.project, masker,
                                             sortedContexts, meshHull, opts.sceneOcclusion,
-                                            samplePt, opts.quality,
-                                            results,
-                                            info, info);
+                                            samplePt, results, info, info);
                 }
             }
 
@@ -418,7 +416,7 @@ namespace OPS.Pipeline
 
                 var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
                 var maskObs = comparator.GetBestRoverObservation(off, RoverProductType.RoverMask);
-        
+
                 contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
             }
 
@@ -466,7 +464,7 @@ namespace OPS.Pipeline
         static protected void
         BackprojectSortedContexts(PipelineCore pipeline, Project project, RoverMasker masker,
                                        List<Context> contexts, ConvexHull meshHull,
-                                       SceneCaster sceneCaster, PixelPoint samplePoint, double quality,
+                                       SceneCaster sceneCaster, PixelPoint samplePoint,
                                        IDictionary<Pixel, ObsPixel> results, Action<string> info = null,
                                        Action<string> verbose = null)
         {
@@ -474,7 +472,7 @@ namespace OPS.Pipeline
             verbose = verbose ?? (msg => { });
 
             int np = 1, nc = contexts.Count;
-            info(string.Format("backprojecting {0} points with {1} sorted images, quality {2}", Fmt.KMG(np), nc, quality));
+            info(string.Format("backprojecting {0} points with {1} sorted images", Fmt.KMG(np), nc));
 
             List<PixelPoint> samplePoints = new List<PixelPoint>() { samplePoint };
 

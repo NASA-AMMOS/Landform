@@ -10,7 +10,6 @@ using OPS.Util;
 using Microsoft.Xna.Framework;
 using OPS.Imaging;
 
-//BUGBUG: greedy is broken .... initialize for whole mesh instead of individ mesh (distinguish global init, per mesh init?)
 namespace OPS.Pipeline.Texturing
 {
     public class ObsSelectionGreedy : ObsSelectionStrategy
@@ -44,7 +43,6 @@ namespace OPS.Pipeline.Texturing
                 {
                     //if no valid samples, use distance from observation to mesh to have a sortable quality rating
                     //  (that's much bigger than per valid inter-pixel distances), otherwise contexts are not really sorted
-                    //TODO: try if all the same value even if valid distances? tie-breaker?
                     CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
                     Vector3 cameraInOutput = Vector3.Transform(cam.Unproject(Vector2.Zero).Position, ctx.ObsToMesh); //use arbitrary point (upper-left) to get camera center, for some models this will move center point //bugbug use center?
                     Vector3 meshCenter = meshOp.Bounds.Center();

@@ -71,7 +71,7 @@ namespace OPS.Pipeline
                 {
                     //TODO: not being able to atlas can be caused by mesh complexity, which might be helped by a split
                     //returning false in case there's a mesh that wont atlas (degenerate triangles?)
-                    //this would recurse down to single triangle tiles                    
+                    //this would recurse down to single triangle tiles
                     return false;
                 }
             }
@@ -166,8 +166,6 @@ namespace OPS.Pipeline
             return false;
         }
 
-
-        //TODO: switch to ObsExaustiveStrategy
         private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
                                                  PixelPoint pxlPt, out CameraInstance bestCamera)
         {
@@ -254,32 +252,6 @@ namespace OPS.Pipeline
             }
             return result;
         }
-
-        //Issue #531: raycast bundle of 4 with embree
-        //public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sc, CameraModel camera,
-        //                                                            Matrix camToMesh, ConvexHull meshHull,
-        //                                                            List<Vector2> srcPixels)
-        //{
-        //    List<Vector3> result = new List<Vector3>();
-
-        //    foreach (var curPixel in srcPixels)
-        //    {
-        //        //check if pixel ray hit the mesh
-        //        Vector3? curPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sc);
-        //        if (!curPos.HasValue)
-        //            continue;
-
-        //        //check for occlusion by other parts of the mesh
-        //        if (!meshHull.Contains(curPos.Value))
-        //            continue;
-
-        //        result.Add(curPos.Value);
-        //    }
-
-        //    return result;
-        //}
-
-        //TODO: bake off against above
         //Issue #531: raycast bundle of 4 with embree
         //BUGBUG: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
         // as the corners hit a closer mesh than intended

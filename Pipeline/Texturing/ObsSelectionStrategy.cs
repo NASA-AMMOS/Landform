@@ -18,7 +18,6 @@ namespace OPS.Pipeline.Texturing
         Spatial
     };
 
-    
     public abstract class ObsSelectionStrategy
     {
         public struct ScoredPoint
@@ -48,7 +47,7 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
-        public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, //TODO: move to constructor
+        public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
                                List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
                                bool writeDebug, string localOutputPath);
 
