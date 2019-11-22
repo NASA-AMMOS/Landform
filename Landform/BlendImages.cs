@@ -31,9 +31,6 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
         public override TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0.5)]
-        public override double BackprojectBatchGridSize { get; set; }
-
         [Option(HelpText = "Canned blend strategy (Default, Barycentric, Inpaint)", Default = BlendStrategy.Auto)]
         public BlendStrategy BlendStrategy { get; set; }
 

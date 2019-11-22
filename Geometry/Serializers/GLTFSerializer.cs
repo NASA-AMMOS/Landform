@@ -1,15 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Newtonsoft.Json;
 using OPS.Geometry.GLTF;
-using Microsoft.Xna.Framework;
-using OPS.MathExtensions;
-using Newtonsoft.Json;
+using System;
 using System.IO;
-using OPS.Util;
-using OPS.Imaging;
+using System.Text;
 
 namespace OPS.Geometry
 {

@@ -51,8 +51,7 @@ namespace OPS.Pipeline.TilingServer
             LogInfo("building mesh");
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
-                                          preclipPointCloud: false, preclipBounds:new BoundingBox(),
-                                          onlyForCameras: null, useCleverCombine: false, stereoEye: RoverStereoEye.Left,
+                                           preclipBounds:new BoundingBox(), onlyForCameras: null, useCleverCombine: false, stereoEye: RoverStereoEye.Left,
                                           info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); });
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
@@ -84,9 +83,7 @@ namespace OPS.Pipeline.TilingServer
 
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
-                                     bool usePriors, bool noPriors,
-                                     bool preclipPointCloud, BoundingBox preclipBounds,
-                                     string onlyForCameras = null,
+                                     bool usePriors, bool noPriors, BoundingBox preclipBounds, string onlyForCameras = null,
                                      bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,  int decimate = 1, 
                                      int targetPointCloudResolution = 1024,
                                      Action<string> info = null,
@@ -145,7 +142,7 @@ namespace OPS.Pipeline.TilingServer
 
             var meshOpts = new WedgeObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
-            if(preclipPointCloud)
+            if(preclipBounds.MaxDimension() > 0)
             {
                 info(string.Format("preclipping input point clouds"));
             }
@@ -187,7 +184,7 @@ namespace OPS.Pipeline.TilingServer
                         return;
                     }
 
-                    if(preclipPointCloud)
+                    if(preclipBounds.MaxDimension() > 0)
                     {
                         var meshOp = new MeshOperator(mesh, false, true, false);
                         mesh = meshOp.Clip(preclipBounds);

@@ -1,14 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.DocumentModel;
+﻿using Amazon.DynamoDBv2.DataModel;
 using log4net;
 using OPS.Cloud;
-using OPS.Pipeline.AlignmentServer;
+using System;
+using System.Collections.Generic;
 
 namespace OPS.Pipeline.TilingServer
 {

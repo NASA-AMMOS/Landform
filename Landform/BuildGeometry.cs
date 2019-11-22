@@ -1,21 +1,10 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
-using System.Diagnostics;
-using CommandLine;
+﻿using CommandLine;
 using Microsoft.Xna.Framework;
-using Newtonsoft.Json;
-using OPS.Util;
-using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
+using System;
+using System.Linq;
 
 namespace OPS.Landform
 {
@@ -38,11 +27,8 @@ namespace OPS.Landform
 
         [Option(HelpText = "Only emit faces that intersect these observations, comma separated (disables database save)", Default = null)]
         public string OnlyFacesForObs { get; set; }
-
-        [Option(HelpText = "Pre-clip inputs to save time in meshing, may want this extent to be smaller than the post extent to hide extrapolation at borders", Default = false)]
-        public bool PreClipPointCloud { get; set; }
-        
-        [Option(HelpText = "Bounds to use if PreClipPointCloud is specified preclip input point clouds to box XY size in meters", Default = 32)]
+       
+        [Option(HelpText = "Bounds to use if PreClipPointCloud is specified preclip input point clouds to box XY size in meters", Default = 0)]
         public double PreClipExtent { get; set; }
 
         [Option(HelpText = "Post meshing clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
@@ -144,7 +130,7 @@ namespace OPS.Landform
         private void BuildMesh()
         {
             BoundingBox preClipBounds = new BoundingBox();
-            if(options.PreClipPointCloud)
+            if(options.PreClipExtent > 0)
             {
                 double safeVerticalClipMeters = 1000;
                 Vector3 center = Vector3.Zero;
@@ -153,7 +139,7 @@ namespace OPS.Landform
 
             mesh = OPS.Pipeline.TilingServer.BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
                                               frameCache, observationCache, meshFrame, options.UsePriors,
-                                              options.OnlyAligned, options.PreClipPointCloud, preClipBounds,
+                                              options.OnlyAligned, preClipBounds,
                                               options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
 
@@ -172,8 +158,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("clipping mesh to {0} meter box around origin in XY plane", options.ClipExtent);
 
-                //DONTCHECKIN
-                Vector3 center = new Vector3(3.5, 1.16, -0.47);
+                Vector3 center = Vector3.Zero;
                 BoundingBox bbox = BoundsFromXYExtent(center, options.ClipExtent, meshBounds.Min.Z, meshBounds.Max.Z);         
                 mesh = Mesh.Clip(mesh, bbox);
             }

@@ -10,7 +10,6 @@ using OPS.Util;
 using Microsoft.Xna.Framework;
 using OPS.Imaging;
 
-//BUGBUG: greedy is broken .... initialize for whole mesh instead of individ mesh (distinguish global init, per mesh init?)
 namespace OPS.Pipeline.Texturing
 {
     public class ObsSelectionGreedy : ObsSelectionStrategy

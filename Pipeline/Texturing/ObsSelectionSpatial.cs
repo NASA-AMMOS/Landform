@@ -27,36 +27,6 @@ namespace OPS.Pipeline.Texturing
                                List<Backproject.Context> allContexts, int outputTextureResolution,double quality,
                                bool writeDebug, string localOutputPath)
         {
-            ////heuristic: add points on the border (to make sure the edge get similar choices to neighbors
-            ////potentially mission specific: assumes z down, < 1km height
-            //const double safeHeight = -1000;
-            //Vector3 dirDown = new Vector3(0, 0, 1);
-            ////Vector3[] rayPts = new Vector3[]
-            ////{
-            ////    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Min.Y, safeHeight),
-            ////    new Vector3(meshOp.Bounds.Min.X, meshOp.Bounds.Max.Y, safeHeight),
-            ////    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Min.Y, safeHeight),
-            ////    new Vector3(meshOp.Bounds.Max.X, meshOp.Bounds.Max.Y, safeHeight),
-            ////    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Min.Y, safeHeight),
-            ////    new Vector3(meshOp.Bounds.Min.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight),
-            ////    new Vector3((meshOp.Bounds.Min.X + meshOp.Bounds.Max.X)*0.5, meshOp.Bounds.Max.Y, safeHeight),
-            ////    new Vector3(meshOp.Bounds.Max.X, (meshOp.Bounds.Min.Y + meshOp.Bounds.Max.Y)*0.5, safeHeight)
-            ////};
-
-            ////heuristic: add points on the mesh hull (bounds is axis aligned off the mesh)
-            ////potentially mission specific: assumes z vertical, < 1km height
-            //Mesh seedPts = new Mesh(meshHull.Mesh);
-            //seedPts.Clean();
-            //foreach (var pt in seedPts.Vertices)
-            //{
-            //    var rayPt = new Vector3(pt.Position.X, pt.Position.Y, safeHeight);
-            //    var rayResult = occlusionScene.Raycast(new Ray(rayPt, dirDown));
-            //    if (rayResult != null)
-            //    {
-            //        sampledMesh.Vertices.Add(new Vertex(rayResult.Position));
-            //    }
-            //}
-
             // collect points on the surface of the mesh
             double samplesPerMeter = quality * 100.0;
             Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
@@ -164,7 +134,6 @@ namespace OPS.Pipeline.Texturing
                 foreach (var pt in refPtDistancesByObs[obs])
                 {
                     //heuristic: assigns equal value to distance from sample point and the min pixel spread on the terrain
-                    //TODO: better, more physical weighting?
                     double weightedScore = pt.Item1 / maxDistance * pt.Item2.Score;
                     if (weightedScore < minWeightedScore)
                     {
@@ -174,7 +143,6 @@ namespace OPS.Pipeline.Texturing
             }
 
             ////sort contexts by their scores (and return them)
-            //TODO: undo weighting by multiplying by max dist?
             List<Backproject.Context> sortedContexts = prunedContexts.Where(c => bestWeightedScoreByObs.ContainsKey(c.Obs.Name)).ToList();
             sortedContexts.Sort((ctx0, ctx1) => bestWeightedScoreByObs[ctx0.Obs.Name].CompareTo(bestWeightedScoreByObs[ctx1.Obs.Name]));
             scoresByObs = new ConcurrentDictionary<string, double>(bestWeightedScoreByObs);

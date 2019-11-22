@@ -48,9 +48,6 @@ namespace OPS.Landform
         [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = OPS.Pipeline.Texturing.ObsSelectionStrategyName.Spatial)]
         public virtual OPS.Pipeline.Texturing.ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
-        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
-        public virtual double BackprojectBatchGridSize { get; set; }
-
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
 
@@ -444,7 +441,6 @@ namespace OPS.Landform
                 mesh = mesh,
                 meshFrame = meshFrame,
                 resolution = resolution,
-                batchGridSize = tcopts.BackprojectBatchGridSize,
                 sceneOcclusion = sceneCaster,
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
