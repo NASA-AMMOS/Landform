@@ -1263,7 +1263,7 @@ namespace OPS.Pipeline
             }
 
             var s3EventRecord = s3Msg.Records[0];
-            string expected ="ObjectCreated:Put";
+            string expected = "ObjectCreated:Put";
             if (s3EventRecord.eventName != expected)
             {
                 throw new Exception(string.Format("M2020 tactical mesh queue message event name \"{0}\", " +
