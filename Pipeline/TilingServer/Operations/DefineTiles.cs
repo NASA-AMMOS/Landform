@@ -417,6 +417,7 @@ namespace OPS.Pipeline.TilingServer
             queue.Enqueue(root);
 
             int cores = CoreLimitedParallel.GetAvailableCores();
+            int tilesSplit = 0;
             while (queue.Count > 0)
             {
                 List<SceneNode> toProcess = new List<SceneNode>();
@@ -425,12 +426,15 @@ namespace OPS.Pipeline.TilingServer
                     toProcess.Add(queue.Dequeue());
                 }
 
+                info(string.Format("Queue Depth: {0}", queue.Count()));
+
                 CoreLimitedParallel.ForEach(toProcess, cur =>
             {
                 var curBounds = cur.GetComponent<NodeBounds>().Bounds;
+
                 if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
                 {
-                    info(string.Format("Splitting tile: {0}", cur.Name));
+                    info(string.Format("Splitting tile: {0} ({1})", cur.Name, Interlocked.Increment(ref tilesSplit)));
                     var childBounds = tilingScheme.Split(null, curBounds);
                     childBounds = multiClipper.FilterEmptyBounds(childBounds);
 
@@ -451,6 +455,10 @@ namespace OPS.Pipeline.TilingServer
                         }
 
                     }
+                }
+                else
+                {
+                    info(string.Format("Not Splitting tile: {0}", cur.Name));
                 }
             });
             }

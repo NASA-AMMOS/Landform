@@ -21,10 +21,10 @@ namespace OPS.Pipeline.Texturing
     public class ObsSelectionSpatial : ObsSelectionStrategy
     {
         Dictionary<string, Backproject.Context> ObsToContext;
-        Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>> ScoredRefPtsByObs;
+        Dictionary<string, List<ObsSelectionStrategy.ScoredPoint>> ScoredRefPtsByObs;
 
-        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> allContexts, int outputTextureResolution,double quality,
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
+                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
                                bool writeDebug, string localOutputPath)
         {
             // collect points on the surface of the mesh
@@ -62,15 +62,15 @@ namespace OPS.Pipeline.Texturing
 
             //calculate the scores per reference point (grouped by observation)
             ObsToContext = new Dictionary<string, Backproject.Context>();
-            ScoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>>();
+            Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>> scoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>>();
             foreach (var ctx in allContexts)
             {
-                ScoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ObsSelectionStrategy.ScoredPoint>());
+                scoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ObsSelectionStrategy.ScoredPoint>());
                 ObsToContext.Add(ctx.Obs.Name, ctx);
             }
 
             //collect a sorted list of contexts (best to worst) for each sample point
-            foreach(var pt in sampledMesh.Vertices.Select(v => v.Position))
+            foreach (var pt in sampledMesh.Vertices.Select(v => v.Position))
             {
                 string ptDebugPath = Path.Combine(localOutputPath, "Point_" + pt.X + "_" + pt.Y + "_" + pt.Z);
 
@@ -84,7 +84,7 @@ namespace OPS.Pipeline.Texturing
 
                 foreach (var pair in ptScoresByObs)
                 {
-                    ScoredRefPtsByObs[pair.Key].Add(new ObsSelectionStrategy.ScoredPoint(pt, pair.Value));
+                    scoredRefPtsByObs[pair.Key].Add(new ObsSelectionStrategy.ScoredPoint(pt, pair.Value));
                 }
 
                 if (writeDebug)
@@ -98,45 +98,40 @@ namespace OPS.Pipeline.Texturing
                         }
                     }
                 }
-            };
+            }
+
+            //flatten to list for later perf
+            ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
+            foreach (var ctx in allContexts)
+            {
+                ScoredRefPtsByObs.Add(ctx.Obs.Name, scoredRefPtsByObs[ctx.Obs.Name].ToList());
+            }
         }
 
         public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
             //find distances, save maximum for weighting
             Dictionary<string, List<Tuple<double, ScoredPoint>>> refPtDistancesByObs = new Dictionary<string, List<Tuple<double, ScoredPoint>>>(inContexts.Count);
-            double maxDistance = double.MinValue;
+
             foreach (var ctx in inContexts)
             {
                 if (!ObsToContext.ContainsKey(ctx.Obs.Name))
-                    throw new Exception("Unexpected context as compared to init: "+ ctx.Obs.Name);
+                    throw new Exception("Unexpected context as compared to init: " + ctx.Obs.Name);
 
                 //early out if context has no chance for pt
                 if (!ctx.FrustumHull.Contains(forPoint))
                     continue;
-
-                //collect distance between reference pt and current point
-                refPtDistancesByObs[ctx.Obs.Name] = new List<Tuple<double, ScoredPoint>>(ScoredRefPtsByObs[ctx.Obs.Name].Count);
-                foreach (var refScoredPt in ScoredRefPtsByObs[ctx.Obs.Name])
-                {
-                    double dist = Vector3.Distance(refScoredPt.Point, forPoint);
-                    if (dist > maxDistance)
-                    {
-                        maxDistance = dist;
-                    }
-
-                    refPtDistancesByObs[ctx.Obs.Name].Add(new Tuple<double, ScoredPoint>(dist, refScoredPt));
-                }
             }
 
             //find best weighted score for each observation
             foreach (var obs in refPtDistancesByObs.Keys)
             {
                 double minWeightedScore = double.MaxValue;
-                foreach (var pt in refPtDistancesByObs[obs])
+                foreach (var pt in ScoredRefPtsByObs[obs])
                 {
                     //heuristic: assigns equal value to distance from sample point and the min pixel spread on the terrain
-                    double weightedScore = pt.Item1 / maxDistance * pt.Item2.Score;
+                    double distSq = Vector3.DistanceSquared(pt.Point, forPoint);
+                    double weightedScore = distSq * pt.Score;
                     if (weightedScore < minWeightedScore)
                     {
                         scoresByObs[obs] = weightedScore;
