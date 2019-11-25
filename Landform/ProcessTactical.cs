@@ -176,6 +176,7 @@ namespace OPS.Landform
                               string.Join(", ", meshExts), url);
 
             //ServiceLoop() will eventually cull the message from the queue
+            //(and move it to the fail queue, if any)
             //if it gets too old without successfully being handled
 
             return false; //leave message in queue for now
