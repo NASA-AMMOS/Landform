@@ -146,7 +146,11 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, options.UsePriors, options.OnlyAligned,
                                                      msg => pipeline.LogWarn(msg));
 
-            obsSelStrat.Initialize(mesh, meshOps[0], sceneCaster, contexts, options.TextureResolution, options.BackprojectQuality, options.WriteDebug, localTexturingDebugPath);
+
+            if (options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
+            {
+                obsSelStrat.Initialize(mesh, meshOps[0], sceneCaster, contexts, options.TextureResolution, options.BackprojectQuality, options.WriteDebug, localTexturingDebugPath);
+            }
         }
 
         protected override bool ParseArgumentsAndLoadCaches()
@@ -698,7 +702,21 @@ namespace OPS.Landform
             try
             {
                 bool logging = pipeline.Verbose || pipeline.Debug;
-                var backprojectResults = BackprojectObservations(mesh, logging, meshName: node.Name, debugOutputPath:localTexturingDebugPath);
+
+                ObsSelectionStrategy stratOverride = null;
+                if (options.ObsSelectionStrategy == ObsSelectionStrategyName.Greedy)
+                {
+                    ConvexHull tileHull = new ConvexHull(mesh);
+                    MeshOperator tileOp = new MeshOperator(mesh);
+                    var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
+                                                                observationCache, meshFrame, options.UsePriors, options.OnlyAligned,
+                                                                msg => pipeline.LogWarn(msg)).Where(c => obsToHull.ContainsKey(c.Obs.Name) && tileHull.Intersects(obsToHull[c.Obs.Name])).ToList();
+
+                    stratOverride = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
+                    stratOverride.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution, options.BackprojectQuality, options.WriteDebug, localTexturingDebugPath);
+                }
+                
+                var backprojectResults = BackprojectObservations(mesh, logging, meshName: node.Name, debugOutputPath:localTexturingDebugPath, obsObverride: stratOverride ?? null);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)

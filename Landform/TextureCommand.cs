@@ -45,7 +45,7 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = OPS.Pipeline.Texturing.ObsSelectionStrategyName.Spatial)]
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = OPS.Pipeline.Texturing.ObsSelectionStrategyName.Greedy)]
         public virtual OPS.Pipeline.Texturing.ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
@@ -426,7 +426,7 @@ namespace OPS.Landform
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "")
+            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "", OPS.Pipeline.Texturing.ObsSelectionStrategy obsObverride = null)
         {
             verbose |= pipeline.Verbose;
             logging |= verbose;
@@ -447,7 +447,7 @@ namespace OPS.Landform
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteDebug,
                 localDebugOutputPath = Path.Combine(debugOutputPath ?? localOutputPath, meshName),
-                obsSelectionStrategy = obsSelStrat,
+                obsSelectionStrategy = obsObverride ?? obsSelStrat,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },
