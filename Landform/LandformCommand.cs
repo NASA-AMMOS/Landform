@@ -91,10 +91,12 @@ namespace OPS.Landform
                 pipeline = new LocalPipeline(lcopts);
             }
 
-            pipeline.LogInfo("command started: ", Config.FullCommand);
-            pipeline.LogInfo("config: {0}", pipeline.Config.ConfigFilePath());
-            
             PDSSerializer.DataPath = pipeline.PDSDataPath;
+
+            if (!pipeline.Quiet)
+            {
+                CommandHelper.DumpConfig(pipeline.Logger, pipeline.Config);
+            }
         }
 
         protected void StartStopwatch()

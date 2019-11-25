@@ -46,11 +46,15 @@ namespace OPS.Util
         }
 
         private static volatile bool didConfig = false;
-        public static void ConfigureLogging(bool quiet = false, bool debug = false, string logFilename = null,
-                                            string logDir = null)
+        public static void ConfigureLogging(string commandName = null, bool quiet = false, bool debug = false,
+                                            string logFilename = null, string logDir = null)
         {
-            //this is used as part of the the default log filename
-            log4net.GlobalContext.Properties["command"] = Config.FullCommand;
+            if (string.IsNullOrEmpty(commandName))
+            {
+                var exe = PathHelper.GetExe();
+                commandName = StringHelper.GetLastUrlPathSegment(exe, stripExtension: true); //backlashes are ok
+            }
+            log4net.GlobalContext.Properties["command"] = commandName; //used in the default log filename
 
             //normally Logging.ConfigureLogging() would only be called once during app init
             //but there are some cases where it's hard to structure the code
@@ -59,6 +63,8 @@ namespace OPS.Util
             //if we call XmlConfigurator.Configure() more than once
             //then one effect is that we can get get extra log files on disk
             //because each call can create a log file with a different timestamp in the filename
+            //note that we want to configure from xml first to get the default log filename
+            //below we might change that entirely or we might only change the directory
             if (!didConfig)
             {
                 log4net.Config.XmlConfigurator.Configure();

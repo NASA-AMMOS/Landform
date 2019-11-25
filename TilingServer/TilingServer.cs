@@ -14,7 +14,7 @@ namespace OPS.TilingServer
     {
         static int Main(string[] args)
         {
-            CommandHelper.Init(args, "TilingServer");
+            CommandHelper.Configure(args, "TilingServer");
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
             //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap

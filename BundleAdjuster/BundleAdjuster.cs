@@ -9,7 +9,7 @@ namespace OPS.Landform
     {
         static int Main(string[] args)
         {
-            CommandHelper.Init(args, "BundleAdjuster");
+            CommandHelper.Configure(args, "BundleAdjuster");
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
             //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap

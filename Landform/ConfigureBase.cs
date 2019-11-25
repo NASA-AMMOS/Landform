@@ -53,20 +53,20 @@ namespace OPS.Landform
         public ConfigureBase(ConfigureBaseOptions cbopts)
         {
             this.cbopts = cbopts;
-            if (!string.IsNullOrEmpty(cbopts.ConfigDir))
-            {
-                Config.ConfigDir = cbopts.ConfigDir;
-            }
-            if (!string.IsNullOrEmpty(cbopts.ConfigFolder)) 
-            {
-                Config.ConfigFolder = cbopts.ConfigFolder;
-            }
-            if (!string.IsNullOrEmpty(cbopts.TempDir))
-            {
-                TemporaryFile.TemporaryDirectory = cbopts.TempDir;
-            }
-            Logging.ConfigureLogging(cbopts.Quiet, cbopts.Debug, cbopts.LogFile, cbopts.LogDir);
+
+            //this was already called in Landform.cs with args and baseCommand
+            //calling again now that we have parsed command line options
+            CommandHelper.Configure(args: null, baseCommand: null,
+                                    configDir: cbopts.ConfigDir, configFolder: cbopts.ConfigFolder, 
+                                    quiet: cbopts.Quiet, debug: cbopts.Debug, logFilename: cbopts.LogFile,
+                                    logDir: cbopts.LogDir, tempDir: cbopts.TempDir);
+
             logger = LogManager.GetLogger(GetType());
+
+            if (!cbopts.Quiet)
+            {
+                CommandHelper.DumpConfig(logger);
+            }
         }
     }
 }

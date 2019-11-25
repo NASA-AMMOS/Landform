@@ -31,11 +31,6 @@ namespace OPS.Landform
         {
             LocalPipelineConfig config = new LocalPipelineConfig();
 
-            if (string.IsNullOrEmpty(config.Venue))
-            {
-                config.Venue = "local"; //default unless overridden by command line option or console input
-            }
-
             config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
             config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir);
             config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",

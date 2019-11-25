@@ -66,13 +66,6 @@ namespace OPS.Landform
         {
             CloudPipelineConfig config = new CloudPipelineConfig();
 
-            if (string.IsNullOrEmpty(config.Venue))
-            {
-                //default unless overridden by command line option or console input
-                config.Venue = string.Format("landform-dev-{0}-{1}",
-                                             Environment.UserName.ToLower(), Environment.MachineName.ToLower());
-            }
-
             config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
             config.S3Url = ConsoleHelper.Prompt("S3 url", options.S3Url, config.S3Url);
             config.AWSRegion = ConsoleHelper.Prompt("AWS region", options.AWSRegion, config.AWSRegion);

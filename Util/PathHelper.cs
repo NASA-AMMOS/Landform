@@ -29,6 +29,17 @@ namespace OPS.Util
             return Path.GetDirectoryName(path);
         }
 
+        public static string GetExe()
+        {
+            var exe = Assembly.GetEntryAssembly().GetName().CodeBase;
+            exe = StringHelper.StripProtocol(StringHelper.NormalizeSlashes(exe));
+            while (exe.StartsWith("/"))
+            {
+                exe = exe.Substring(1);
+            }
+            return exe;
+        }
+
         public static string GetHomeDir()
         {
             return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

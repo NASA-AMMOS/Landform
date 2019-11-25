@@ -9,7 +9,7 @@ namespace OPS.LandformUtil
     {
         static int Main(string[] args)
         {
-            CommandHelper.Init(args, "LandformUtil");
+            CommandHelper.Configure(args, "LandformUtil");
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
             //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap

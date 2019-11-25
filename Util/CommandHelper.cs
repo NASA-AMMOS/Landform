@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using CommandLine;
+using log4net;
 
 namespace OPS.Util
 {
@@ -15,19 +16,60 @@ namespace OPS.Util
             public string OptionsFile { get; set; }
         }
 
-        public static void Init(string[] args, string baseCommand, string configFolder = Config.DEF_CONFIG_FOLDER)
+        /// <summary>
+        /// Can be called more than once.
+        /// Only non-null settings are applied.
+        /// </summary>
+        public static void Configure(string[] args = null, string baseCommand = null,
+                                     string configDir = null, string configFolder = null,
+                                     bool quiet = false, bool debug = false, string logFilename = null,
+                                     string logDir = null, string tempDir = null)
         {
-            //these enable Logging.ConfigureLogging() to retrieve Config.FullCommand
-            //so that can become part of the log filename log/log-Landform-subcommand-timestamp-pid.txt
-            Config.BaseCommand = baseCommand;
-            if (args.Length > 0)
+            if (args != null)
+            {
+                Config.CommandLineArgs = args;
+            }
+
+            if (args != null && args.Length > 0)
             {
                 Config.SubCommand = args[0];
             }
 
-            Config.ConfigFolder = configFolder;
+            if (!string.IsNullOrEmpty(baseCommand))
+            { 
+                Config.BaseCommand = baseCommand;
+            }
 
-            Logging.ConfigureLogging();
+            if (!string.IsNullOrEmpty(configDir))
+            {
+                Config.ConfigDir = configDir;
+            }
+
+            if (!string.IsNullOrEmpty(configFolder))
+            {
+                Config.ConfigFolder = configFolder;
+            }
+
+            if (!string.IsNullOrEmpty(tempDir))
+            {
+                TemporaryFile.TemporaryDirectory = tempDir;
+            }
+
+            Logging.ConfigureLogging(Config.FullCommand, quiet, debug, logFilename, logDir);
+        }
+
+        public static void DumpConfig(ILog logger, Config config = null)
+        {
+            string exe = PathHelper.GetExe(); 
+            string[] args = Config.CommandLineArgs;
+            logger.InfoFormat("command: {0}{1}", exe, args != null ? (" " + string.Join(" ", args)) : "");
+
+            string configFile = config != null ? config.ConfigFilePath() : null;
+            logger.InfoFormat("config file: {0}",  configFile ?? "(none)");
+
+            logger.InfoFormat("temp dir: {0}", TemporaryFile.TemporaryDirectory);
+
+            logger.InfoFormat("log file: {0}", Logging.GetLogFile());
         }
 
         public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes)

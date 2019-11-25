@@ -181,7 +181,8 @@ namespace OPS.Pipeline
             }
             else
             {
-                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, options.LogFile, options.LogDir);
+                Logging.ConfigureLogging(Config.FullCommand, Quiet || quietInit, options.Debug,
+                                         options.LogFile, options.LogDir);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 
