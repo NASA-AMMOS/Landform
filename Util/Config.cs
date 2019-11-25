@@ -119,12 +119,10 @@ namespace OPS.Util
                 throw new Exception(GetType().Name + " not associated with a file");
             }
 
-            if (!File.Exists(file))
+            if (File.Exists(file))
             {
-                throw new Exception(string.Format("{0}: file {1} not found", GetType().Name, file));
+                JsonConvert.PopulateObject(File.ReadAllText(file), this);
             }
-
-            JsonConvert.PopulateObject(File.ReadAllText(file), this);
         }
 
         public void LoadEnvironmentalVariables()
