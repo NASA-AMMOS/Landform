@@ -59,7 +59,8 @@ namespace OPS.Pipeline
                                       );
                 }
 
-                double pixelSpread = CalculateForObs(occlusionScene, samples, obs, obsHull, obsToOutput);
+                CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                double pixelSpread = CalculateForObs(occlusionScene, samples, obs, cam, obsHull, obsToOutput);
 
                 ret[obs.Name] = pixelSpread;
             }
@@ -67,14 +68,13 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static double CalculateForObs(SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs, ConvexHull obsHull, Matrix obsToOutput,
+        public static double CalculateForObs(SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs, CameraModel cam, ConvexHull obsHull, Matrix obsToOutput,
             double pctPtsToSample = 1.0, bool writeDebug = false, string localDebugOutputPath = "")
         {
             int numPoints = allSamples.Count();
             int skip = numPoints / Math.Max(1, (int)(numPoints * pctPtsToSample));
             var samples = allSamples.Where((pt, index) => index % skip == 0).ToList();
 
-            CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
             double[] spreads = new double[samples.Count];
             int[] spreadToSample = new int[samples.Count];
             int samplePointIndex = -1;
@@ -93,7 +93,7 @@ namespace OPS.Pipeline
                     {
                         //Issue #523: want median or average in case glancing angle?
                         //want a term that looks for consistancy in spacing? implies dead on?
-                        double dist = TextureSplitCriteria.GetMinPixelSpreadInMeters(sceneCaster, cameraModel, obsToOutput,
+                        double dist = TextureSplitCriteria.GetMinPixelSpreadInMeters(sceneCaster, cam, obsToOutput,
                                                       pt.Pixel, pt.Point, obs.Width, obs.Height);
                         spreads[spreadIndex] = dist;
                     }

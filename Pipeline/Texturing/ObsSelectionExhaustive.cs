@@ -47,20 +47,21 @@ namespace OPS.Pipeline.Texturing
             //var localScoresByObs = new ConcurrentDictionary<string, double>()
             foreach(var ctx in visibleContexts)
             {
-                CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
                 PixelPoint forSrcPixelPt = new PixelPoint
                 {
-                    Pixel = cam.Project(Vector3.Transform(forPoint, ctx.MeshToObs), out double range),
+                    Pixel = ctx.CameraModel.Project(Vector3.Transform(forPoint, ctx.MeshToObs), out double range),
                     Point = forPoint
                 };
 
                 double dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forSrcPixelPt },
-                                                                       ctx.Obs, ctx.FrustumHull, ctx.ObsToMesh, 1.0, WriteDebug, LocalOutputPath);
+                                                                       ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, 1.0, WriteDebug, LocalOutputPath);
                 if(dist == double.MaxValue)
                 {
                     //if no valid samples, use distance from observation to mesh to have a sortable quality rating
                     //  (that's much bigger than per valid inter-pixel distances), otherwise contexts are not really sorted
-                    Vector3 cameraInOutput = Vector3.Transform(cam.Unproject(forSrcPixelPt.Pixel).Position, ctx.ObsToMesh);  
+                    //TODO: try if all the same value even if valid distances? tie-breaker?
+                   
+                    Vector3 cameraInOutput = Vector3.Transform(ctx.CameraModel.Unproject(forSrcPixelPt.Pixel).Position, ctx.ObsToMesh);  
                     Vector3 meshCenter = MeshOp.Bounds.Center();
                     dist = Vector3.Distance(meshCenter, cameraInOutput);
                 }

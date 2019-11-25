@@ -40,7 +40,7 @@ namespace OPS.Pipeline
             public ConvexHull FrustumHull;              //frustum hull for observation in mesh space
             public Matrix ObsToMesh;                    //transform from observation to mesh
             public Matrix MeshToObs;                    //transform from mesh to obs
-
+            public CameraModel CameraModel;             //cached camera model
             public Context(Observation obs, Observation maskObs, ConvexHull frustumHull,
                                       UncertainRigidTransform obsToMesh)
             {
@@ -49,6 +49,7 @@ namespace OPS.Pipeline
                 FrustumHull = frustumHull;
                 ObsToMesh = obsToMesh.Mean;
                 MeshToObs = Matrix.Invert(ObsToMesh);
+                CameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
             }
         }
 
@@ -505,7 +506,7 @@ namespace OPS.Pipeline
 
                 sw.Restart();
                 var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull,
-                                                      (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel), mask,
+                                                      ctx.CameraModel, mask,
                                                       samplePoints, ctx.Obs.Width, ctx.Obs.Height, sceneCaster);
                 timing(string.Format("backprojected {0} points to image {1} in {2}", Fmt.KMG(nr), n, Fmt.HMS(sw)));
 

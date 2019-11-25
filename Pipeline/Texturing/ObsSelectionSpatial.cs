@@ -47,9 +47,8 @@ namespace OPS.Pipeline.Texturing
             //add center point of each observation (to make sure small fov images are considered)
             foreach (var ctx in allContexts)
             {
-                CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
                 Vector2 pixel = new Vector2(ctx.Obs.Width / 2.0, ctx.Obs.Height / 2.0);
-                Vector3? res = Backproject.RaycastMesh(cam, ctx.ObsToMesh, pixel, occlusionScene);
+                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, pixel, occlusionScene);
                 if (res.HasValue)
                 {
                     sampledMesh.Vertices.Add(new Vertex(res.Value));
