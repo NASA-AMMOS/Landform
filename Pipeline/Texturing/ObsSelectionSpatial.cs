@@ -110,34 +110,37 @@ namespace OPS.Pipeline.Texturing
 
         public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
-            //find distances, save maximum for weighting
-            Dictionary<string, List<Tuple<double, ScoredPoint>>> refPtDistancesByObs = new Dictionary<string, List<Tuple<double, ScoredPoint>>>(inContexts.Count);
-
-            foreach (var ctx in inContexts)
+            CoreLimitedParallel.ForEach(inContexts, ctx =>
             {
                 if (!ObsToContext.ContainsKey(ctx.Obs.Name))
+                {
                     throw new Exception("Unexpected context as compared to init: " + ctx.Obs.Name);
+                }
 
                 //early out if context has no chance for pt
-                if (!ctx.FrustumHull.Contains(forPoint))
-                    continue;
-            }
-
-            //find best weighted score for each observation
-            foreach (var obs in refPtDistancesByObs.Keys)
-            {
-                double minWeightedScore = double.MaxValue;
-                foreach (var pt in ScoredRefPtsByObs[obs])
+                if (ctx.FrustumHull.Contains(forPoint))
                 {
-                    //heuristic: assigns equal value to distance from sample point and the min pixel spread on the terrain
-                    double distSq = Vector3.DistanceSquared(pt.Point, forPoint);
-                    double weightedScore = distSq * pt.Score;
-                    if (weightedScore < minWeightedScore)
+                    double minWeightedScore = double.MaxValue;
+                   
+                    foreach (var pt in ScoredRefPtsByObs[ctx.Obs.Name])
                     {
-                        scoresByObs[obs] = weightedScore;
+                        //heuristic: assigns equal value to distance from sample point and the min pixel spread on the terrain
+                        double distSq = Vector3.DistanceSquared(pt.Point, forPoint);
+                        double weightedScore = distSq * pt.Score;
+                        if (weightedScore < minWeightedScore)
+                        {
+                            if (!scoresByObs.ContainsKey(ctx.Obs.Name))
+                            {
+                                scoresByObs.Add(ctx.Obs.Name, weightedScore);
+                            }
+                            else
+                            {
+                                scoresByObs[ctx.Obs.Name] = weightedScore;
+                            }
+                        }
                     }
                 }
-            }
+            });
 
             //sort contexts by their scores (and return them)
             sortedContexts = inContexts.Where(c => scoresByObs.ContainsKey(c.Obs.Name)).ToList();
