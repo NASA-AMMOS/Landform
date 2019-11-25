@@ -145,7 +145,14 @@ namespace OPS.Pipeline.Texturing
             }
 
             //sort contexts by their scores (and return them)
-            sortedContexts = inContexts.Where(c => scoresByObsIndex.ContainsKey(c.Obs.Index)).ToList();
+            foreach(var inCtx in inContexts)
+            {
+                if (scoresByObsIndex.ContainsKey(inCtx.Obs.Index))
+                {
+                    sortedContexts.Add(inCtx);
+                }
+            }
+            
             sortedContexts.Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
             
             foreach(var ctx in sortedContexts)
