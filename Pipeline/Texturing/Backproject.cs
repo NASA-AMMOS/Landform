@@ -369,25 +369,53 @@ namespace OPS.Pipeline
                 info("observation selection strategy required for backproject");
             }
 
-            var masker = opts.mission.GetMasker();
-            //ConcurrentDictionary<Pixel, ObsPixel> results = new ConcurrentDictionary<Pixel, ObsPixel>();
-            Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
-            foreach (var samplePt in samplePoints)
-            {
+            info("getting per pixel sortings of contexts");
+            Dictionary<int, List<Context>> sortedContextBySample = new Dictionary<int, List<Context>>(samplePoints.Count);
+            for (int idx = 0; idx < samplePoints.Count; idx++)
+            {               
                 //find the strategy specific ranking of contexts for this pixel
                 Dictionary<string, double> scores = new Dictionary<string, double>();
-                List<Backproject.Context> sortedContexts = new List<Backproject.Context>(intersectingContexts.Count());
-                opts.obsSelectionStrategy.FilterAndSortContexts(samplePt.Point, intersectingContexts, sortedContexts, scores);
+                List<Context> sortedContexts = new List<Context>(intersectingContexts.Count());
+                opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts, sortedContexts, scores);
+                sortedContextBySample.Add(idx, sortedContexts);
+            }
 
-                if (sortedContexts.Any())
+            info("selecting winning contexts");
+            var masker = opts.mission.GetMasker();
+            Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
+
+            int candidateDepth = 0;
+            var remainingIndices = Enumerable.Range(0, samplePoints.Count());
+            while (remainingIndices.Count() > 0)
+            {
+                // remove pixels who had all candidate contexts fail
+                remainingIndices = remainingIndices.Where(idx => sortedContextBySample[idx].Count() > candidateDepth);
+
+                //group all remaining points by their current best candidate
+                var remainingByCurrentWinningObs = remainingIndices.GroupBy(idx => sortedContextBySample[idx].ElementAt(candidateDepth).Obs.Index);
+                
+                foreach (var group in remainingByCurrentWinningObs)
                 {
-                    //fill the pixel with the best texture. pass the sorted list of observations (best to worst)
-                    // if a pixel for a better texture is rejected due to rover occlusion, invalid or missing data, etc) 
-                    // the next best texture will be used
-                    BackprojectSortedContexts(opts.pipeline, opts.project, masker,
-                                            sortedContexts, meshHull, opts.sceneOcclusion,
-                                            samplePt, results, info, info);
+                    //get the list of points with this texture as the winner
+                    var ctx = intersectingContexts.Where(c => c.Obs.Index == group.Key).First();
+                    var pointsWithCtx = group.Select(idx => samplePoints.ElementAt(idx));
+                    if (!pointsWithCtx.Any())
+                        continue;
+
+                    //backproject to see if any win
+                    Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
+                    var succeeded = Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask, pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height, opts.sceneOcclusion);
+
+                    //save winners
+                    foreach (var res in succeeded)
+                    {
+                        results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
+                    }
+
+                    //remove winners from list to do
+                    remainingIndices = remainingIndices.Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel));
                 }
+                candidateDepth++;
             }
 
             if (opts.writeDebug)
@@ -555,7 +583,7 @@ namespace OPS.Pipeline
 
         //lowest level function that takes a set of points to backproject
         //and returns a dictionary of key:destination image pixel, value:source observation pixel
-        static protected IDictionary<Vector2, Vector2>
+        static public IDictionary<Vector2, Vector2>
         CoreBackproject(Matrix obsToMesh, ConvexHull obsHullInMesh, CameraModel camera, Image mask,
                         List<PixelPoint> samplePoints, int obsWidth, int obsHeight, SceneCaster occlusion)
         {
@@ -656,7 +684,7 @@ namespace OPS.Pipeline
         //    }
 
         //    var raysCamToMesh = pixels.Select(p => Backproject.GetRayToMesh(camera, obsToMesh, p));
-           
+
         //    //from embree docs:
         //    //The implementation makes no guarantees that primitives whose hit distance is exactly at
         //    //(or very close to) tnear or tfar are hit or missed. 
