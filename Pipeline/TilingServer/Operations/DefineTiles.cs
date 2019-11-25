@@ -416,17 +416,15 @@ namespace OPS.Pipeline.TilingServer
             Queue<SceneNode> queue = new Queue<SceneNode>();
             queue.Enqueue(root);
 
-            int cores = CoreLimitedParallel.GetAvailableCores();
             int tilesComplete = 0;
             while (queue.Count > 0)
             {
-                List<SceneNode> toProcess = new List<SceneNode>();
-                for (int idx = 0; idx < cores && queue.Count() > 0; idx++)
+                List<SceneNode> toProcess = new List<SceneNode>(queue.Count());
+                info(string.Format("Queue Depth: {0}", queue.Count()));
+                while (queue.Count() > 0)
                 {
                     toProcess.Add(queue.Dequeue());
                 }
-
-                info(string.Format("Queue Depth: {0}", queue.Count()));
 
                 CoreLimitedParallel.ForEach(toProcess, cur =>
             {
