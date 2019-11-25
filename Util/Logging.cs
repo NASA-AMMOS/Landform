@@ -52,7 +52,14 @@ namespace OPS.Util
             if (string.IsNullOrEmpty(commandName))
             {
                 var exe = PathHelper.GetExe();
-                commandName = StringHelper.GetLastUrlPathSegment(exe, stripExtension: true); //backlashes are ok
+                if (!string.IsNullOrEmpty(exe))
+                {
+                    commandName = StringHelper.GetLastUrlPathSegment(exe, stripExtension: true); //backlashes are ok
+                }
+                else
+                {
+                    commandName = "Landform";
+                }
             }
             log4net.GlobalContext.Properties["command"] = commandName; //used in the default log filename
 

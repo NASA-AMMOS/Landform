@@ -31,13 +31,20 @@ namespace OPS.Util
 
         public static string GetExe()
         {
-            var exe = Assembly.GetEntryAssembly().GetName().CodeBase;
-            exe = StringHelper.StripProtocol(StringHelper.NormalizeSlashes(exe));
-            while (exe.StartsWith("/"))
+            try
             {
-                exe = exe.Substring(1);
+                var exe = Assembly.GetEntryAssembly().GetName().CodeBase;
+                exe = StringHelper.StripProtocol(StringHelper.NormalizeSlashes(exe));
+                while (exe.StartsWith("/"))
+                {
+                    exe = exe.Substring(1);
+                }
+                return exe;
             }
-            return exe;
+            catch
+            {
+                return null;
+            }
         }
 
         public static string GetHomeDir()
