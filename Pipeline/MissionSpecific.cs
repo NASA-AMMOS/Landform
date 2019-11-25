@@ -740,9 +740,12 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual string GetTacticalMeshExts()
         {
-            //TODO for now prefer IV until we implement per-LOD OBJs
+            //TODO for now it'd be nice to prefer IV until we implement per-LOD OBJs
+            //but IV import is not working when deployed on EC2
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/749
-            return "iv,obj";
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/816
+            //return "iv,obj";
+            return "obj";
         }
 
         /// <summary>
