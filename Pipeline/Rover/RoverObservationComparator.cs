@@ -174,12 +174,6 @@ namespace OPS.Pipeline
             {
                 RoverObservation filterGroup(IEnumerable<RoverObservation> group)
                 {
-
-                    //DONTCHECKIN
-                    if (group.Any(g => g.Index == 333))
-                    {
-                        int x = 0;
-                    }
                     group = group.OrderBy(o => o, this);
 
                     if (logger != null && group.Count() > 1)
