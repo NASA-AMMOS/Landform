@@ -129,7 +129,6 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BenchmarkS3.cs" />
-    <Compile Include="DEMAlign.cs" />
     <Compile Include="DEM2Mesh.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="LandformUtil.cs" />

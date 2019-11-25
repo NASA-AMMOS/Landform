@@ -59,7 +59,6 @@ namespace OPS.LandformUtil
                 LocalObservationProductsOptions,
                 PDSImageConverterOptions,
                 DEM2MeshOptions,
-                OrbitalAlignerOptions,
                 BenchmarkS3Options,
                 ConvertToASTTROOptions,
                 LimberDMGOptions
@@ -69,7 +68,6 @@ namespace OPS.LandformUtil
                 (LocalObservationProductsOptions opts) => new LocalObservationProducts(opts).Run(),
                 (PDSImageConverterOptions opts) => new PDSImageConverter(opts).Run(),
                 (DEM2MeshOptions opts) => new DEM2Mesh(opts).Run(),
-                (OrbitalAlignerOptions opts) => new OribitalAligner(opts).Run(),
                 (BenchmarkS3Options opts) => new BenchmarkS3(opts).Run(),
                 (LimberDMGOptions opts) => new LimberDMGDriver(opts).Run(),
                 (ConvertToASTTROOptions opts) => new ConvertToASTTRO(opts).Run(),

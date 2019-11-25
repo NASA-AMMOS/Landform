@@ -206,18 +206,18 @@ namespace OPS.Geometry
             return ret;
         }
 
-        public static Matrix? AlignSceneToScene(Image scenemap, double sceneXOffsetMeters, double sceneYOffsetMeters, double sceneMetersPerPixel, Image otherScenemap, double otherSceneXOffsetMeters, double otherSceneYOffsetMeters, double otherSceneMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, int targetHeightmapRes = 256, double minFilter = -1000000, double maxFilter = 1000000)
+        public static Matrix? AlignSceneToScene(Image scenemap, double sceneXOffsetMeters, double sceneYOffsetMeters, double sceneMetersPerPixel, Image otherScenemap, double otherSceneXOffsetMeters, double otherSceneYOffsetMeters, double otherSceneMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000)
         {
-            return AlignScenesToScene(new Image[] { scenemap }, new double[] { sceneXOffsetMeters }, new double[] { sceneYOffsetMeters }, new double[] { sceneMetersPerPixel }, otherScenemap, otherSceneXOffsetMeters, otherSceneYOffsetMeters, otherSceneMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, targetHeightmapRes, minFilter, maxFilter);
+            return AlignScenesToScene(new Image[] { scenemap }, new double[] { sceneXOffsetMeters }, new double[] { sceneYOffsetMeters }, new double[] { sceneMetersPerPixel }, otherScenemap, otherSceneXOffsetMeters, otherSceneYOffsetMeters, otherSceneMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, minFilter, maxFilter);
         }
 
-        public static Matrix? AlignScenesToScene(Image[] scenemaps, double[] sceneXOffsetsMeters, double[] sceneYOffsetsMeters, double[] sceneMetersPerPixel, Image otherScenemap, double otherSceneXOffsetMeters, double otherSceneYOffsetMeters, double otherSceneMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, int targetHeightmapRes = 256, double minFilter = -1000000, double maxFilter = 1000000)
+        public static Matrix? AlignScenesToScene(Image[] scenemaps, double[] sceneXOffsetsMeters, double[] sceneYOffsetsMeters, double[] sceneMetersPerPixel, Image otherScenemap, double otherSceneXOffsetMeters, double otherSceneYOffsetMeters, double otherSceneMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000)
         {
             double centerToOriginRows = otherSceneXOffsetMeters / otherSceneMetersPerPixel;
             double centerToOriginCols = -1 * otherSceneYOffsetMeters / otherSceneMetersPerPixel;
             double rowOrigin = otherScenemap.Height / 2.0 + centerToOriginRows;
             double colOrigin = otherScenemap.Width / 2.0 + centerToOriginCols;
-            Matrix? otherDemToScene = AlignScenesToDem(scenemaps, sceneXOffsetsMeters, sceneYOffsetsMeters, sceneMetersPerPixel, otherScenemap, rowOrigin, colOrigin, otherSceneMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, targetHeightmapRes, minFilter, maxFilter);
+            Matrix? otherDemToScene = AlignScenesToDem(scenemaps, sceneXOffsetsMeters, sceneYOffsetsMeters, sceneMetersPerPixel, otherScenemap, rowOrigin, colOrigin, otherSceneMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, minFilter, maxFilter);
             if (otherDemToScene == null)
             {
                 return null;
@@ -229,9 +229,9 @@ namespace OPS.Geometry
             }
         }
 
-        public static Matrix? AlignSceneToDem(Image scenemap, double sceneXOffsetMeters, double sceneYOffsetMeters, double sceneMetersPerPixel, Image dem, double demRowOffset, double demColOffset, double demMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, int targetHeightmapRes = 256, double minFilter = -1000000, double maxFilter = 1000000, Matrix[] priorTransforms = null)
+        public static Matrix? AlignSceneToDem(Image scenemap, double sceneXOffsetMeters, double sceneYOffsetMeters, double sceneMetersPerPixel, Image dem, double demRowOffset, double demColOffset, double demMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, Matrix[] priorTransforms = null)
         {
-            return AlignScenesToDem(new[] { scenemap }, new[] { sceneXOffsetMeters }, new[] { sceneYOffsetMeters }, new[] { sceneMetersPerPixel }, dem, demRowOffset, demColOffset, demMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, targetHeightmapRes, minOverlap, maxFilter, priorTransforms);
+            return AlignScenesToDem(new[] { scenemap }, new[] { sceneXOffsetMeters }, new[] { sceneYOffsetMeters }, new[] { sceneMetersPerPixel }, dem, demRowOffset, demColOffset, demMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, priorTransforms);
         }
 
         /// <summary>
@@ -251,7 +251,7 @@ namespace OPS.Geometry
         /// <param name="minFilter"></param>
         /// <param name="maxFilter"></param>
         /// <returns></returns>
-        public static Matrix? AlignScenesToDem(Image[] scenemaps, double[] sceneXOffsetsMeters, double[] sceneYOffsetsMeters, double[] sceneMetersPerPixel, Image dem, double demRowOffset, double demColOffset, double demMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, int targetHeightmapRes = 256, double minFilter = -1000000, double maxFilter = 1000000, Matrix[] priorTransforms = null)
+        public static Matrix? AlignScenesToDem(Image[] scenemaps, double[] sceneXOffsetsMeters, double[] sceneYOffsetsMeters, double[] sceneMetersPerPixel, Image dem, double demRowOffset, double demColOffset, double demMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, Matrix[] priorTransforms = null)
         {
             Random rand = NumberHelper.MakeRandomGenerator();
 
