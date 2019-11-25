@@ -619,10 +619,10 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            HitData hit = sc.Raycast(rayMeshToCam, RaycastNearMeters);
+            double? dist = sc.RaycastDistance(rayMeshToCam, RaycastNearMeters);
 
             //if hit something else before camera, occluded
-            return (hit != null) && (hit.Distance < rangeMeshToImage);
+            return (dist != null) && (dist < rangeMeshToImage);
         }
 
         protected static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
@@ -645,11 +645,27 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            HitData hit = sc.Raycast(rayCamToMesh, RaycastNearMeters);
-
-            //return null if missed or the position if hit
-            return hit?.Position;
+            return sc.RaycastPosition(rayCamToMesh, RaycastNearMeters);
         }
+
+        //public static Vector3?[] RaycastMesh4(CameraModel camera, Matrix obsToMesh, Vector2[] pixels, SceneCaster sc)
+        //{
+        //    if(pixels.Count() != 4)
+        //    {
+        //        throw new Exception("expecting 4 source pixels for raycastmesh4");
+        //    }
+
+        //    var raysCamToMesh = pixels.Select(p => Backproject.GetRayToMesh(camera, obsToMesh, p));
+           
+        //    //from embree docs:
+        //    //The implementation makes no guarantees that primitives whose hit distance is exactly at
+        //    //(or very close to) tnear or tfar are hit or missed. 
+        //    //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
+        //    var hits = sc.Raycast4(raysCamToMesh.ToArray(), RaycastNearMeters);
+
+        //    //return null if missed or the position if hit
+        //    return hits.Select(hit => hit?.Position).ToArray();
+        //}
 
         static public IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
