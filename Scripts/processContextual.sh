@@ -42,8 +42,10 @@ venue=local_${mission}_${sol}_${sd}
 rm -rf $storage/$venue
 
 for f in $dir/*masks.zip; do
-    mkdir -p $storage/$venue/masks
-    unzip $f -d $storage/$venue/masks
+    if [ -f $f ]; then
+      mkdir -p $storage/$venue/masks
+      unzip $f -d $storage/$venue/masks
+    fi
 done
 
 # use a clean venue
