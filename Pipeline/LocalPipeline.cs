@@ -15,7 +15,6 @@ using OPS.Imaging;
 
 //TODO: refactor so that local codepath does not have cloud dependencies
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
 using DBUtil = OPS.Cloud.DBUtil;
 
 namespace OPS.Pipeline
@@ -85,9 +84,9 @@ namespace OPS.Pipeline
         }
 
         private static object saveLock = new object();
-        public override void SaveFile(string file, string url)
+        public override void SaveFile(string file, string url, bool constrainToStorage = true)
         {
-            string dest = UrlToFile(CheckUrl(url));
+            string dest = UrlToFile(CheckUrl(url, constrainToStorage));
             PathHelper.EnsureExists(Path.GetDirectoryName(dest));
             //use TemporaryFile.GetAndMove() rather than directly copy file to dest
             //this avoids IOException due to "the file is being used by another process"
@@ -161,7 +160,7 @@ namespace OPS.Pipeline
         }
 
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
-                                                        bool constrainToStorage = false)
+                                                        bool ignoreCase = false, bool constrainToStorage = false)
         {
             //ensures url starts with "file://", replaces backslashes
             url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
@@ -188,7 +187,8 @@ namespace OPS.Pipeline
                 yield break;
             }
             dir = StringHelper.EnsureTrailingSlash(dir);
-            var regex = StringHelper.WildCardToRegularExression(dir + stem + globPattern);
+            var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+            var regex = StringHelper.WildCardToRegularExression(dir + stem + globPattern, opts);
             //LogDebug("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
             //         dir, stem, globPattern, recursive, regex);
             foreach (var f in PathHelper.ListFiles(dir, recursive: recursive))
@@ -601,8 +601,8 @@ namespace OPS.Pipeline
             }
         }
 
-        public ConcurrentQueue<QueueMessage> MasterQueue { get; private set; }
-        public ConcurrentQueue<QueueMessage> WorkerQueue { get; private set; }
+        public ConcurrentQueue<PipelineMessage> MasterQueue { get; private set; }
+        public ConcurrentQueue<PipelineMessage> WorkerQueue { get; private set; }
 
         private static int nextMessageId = -1;
         private static string NextMessageId()
@@ -610,13 +610,13 @@ namespace OPS.Pipeline
             return "msg " + Interlocked.Increment(ref nextMessageId);
         }
 
-        protected override void EnqueueToMasterImpl(QueueMessage message)
+        protected override void EnqueueToMasterImpl(PipelineMessage message)
         {
             message.MessageId = NextMessageId();
             MasterQueue.Enqueue(message);
         }
 
-        protected override void EnqueueToWorkersImpl(QueueMessage message)
+        protected override void EnqueueToWorkersImpl(PipelineMessage message)
         {
             message.MessageId = NextMessageId();
             WorkerQueue.Enqueue(message);
@@ -624,8 +624,8 @@ namespace OPS.Pipeline
 
         private void InitializeQueues()
         {
-            MasterQueue = new ConcurrentQueue<QueueMessage>();
-            WorkerQueue = new ConcurrentQueue<QueueMessage>();
+            MasterQueue = new ConcurrentQueue<PipelineMessage>();
+            WorkerQueue = new ConcurrentQueue<PipelineMessage>();
         }
     }
 }

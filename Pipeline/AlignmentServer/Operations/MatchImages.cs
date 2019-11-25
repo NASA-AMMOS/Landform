@@ -10,13 +10,9 @@ using OPS.Geometry;
 using OPS.Alignment;
 using OPS.Pipeline;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.AlignmentServer
 {
-    public class MatchImagesMessage : QueueMessage
+    public class MatchImagesMessage : PipelineMessage
     {
         public string ModelImageUrl;
         public string ModelFrameName;
@@ -28,7 +24,7 @@ namespace OPS.Pipeline.AlignmentServer
         public MatchImagesMessage(string projectName) : base(projectName) { }
     }
 
-    public class ImagesMatchedMessage : QueueMessage
+    public class ImagesMatchedMessage : PipelineMessage
     {
         public string ModelImageUrl;
         public string DataImageUrl;

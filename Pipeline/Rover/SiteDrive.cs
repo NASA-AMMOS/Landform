@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using OPS.Util;
 
@@ -9,12 +10,16 @@ namespace OPS.Pipeline
 {
     /// <summary>
     /// Represents a rover site drive pair
-    /// Site drives are usually formatted as two concatenated 5 digit numbers with leading zeros
     /// </summary>
     public struct SiteDrive : IComparable<SiteDrive>
     {
         public readonly int Site, Drive; //wildcard if negative
-        
+
+        public static bool IsSiteDriveString(string sd)
+        {
+            return (new Regex("\\d{10}")).IsMatch(sd) || (new Regex("\\d{7}")).IsMatch(sd);
+        }
+
         public SiteDrive(int site, int drive)
         {
             this.Site = site;
@@ -22,23 +27,37 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Parse a site drive from a 10 character string of the form "SSSSSDDDDD"
+        /// Parse a site drive from a 7 character string of the form "SSSDDDD"
+        /// or alternately a 10 character string of the form "SSSSSDDDDD"
         ///
         /// Allows wildcard sites and drives in the (case-insensitive) forms "xxxxx", "#####", "?????".
         /// </summary>
         /// <param name="name"></param>
         public SiteDrive(string name)
         {
-            if (name.Length != 10)
+            string site = null;
+            string drive = null;
+            switch (name.Length)
             {
-                throw new ArgumentException("Unexpected sitedrive string length");
+                case 10: //5 char site, 5 char drive
+                {
+                    site = name.Substring(0, 5);
+                    drive = name.Substring(5, 5);
+                    break;
+                }
+                case 7: //3 char site, 4 char drive as in MSL & M2020 product ID
+                {
+                    site = name.Substring(0, 3);
+                    drive = name.Substring(3, 4);
+                    break;
+                }
+                default: throw new ArgumentException("Unexpected sitedrive string length");
             }
-            var site = name.Substring(0, 5).ToLower();
-            var drive = name.Substring(5, 5).ToLower();
 
             bool isWildcard(string s)
             {
-                return s == "xxxxx" || s == "#####" || s== "?????";
+                var a = s.ToLower().ToCharArray();
+                return a.All(c => c == 'x') || a.All(c => c == '#') || a.All(c => c == '?');
             }
 
             this.Site = isWildcard(site) ? -1 : int.Parse(site);
@@ -46,14 +65,14 @@ namespace OPS.Pipeline
         }
         
         /// <summary>
-        /// Return a 10 digit string representing this site drive
-        /// First 5 digits are 0 left padded site number
-        /// Last 5 digits are 0 left padded drive number
+        /// Return a 7 digit string representing this site drive (as in MSL & M2020 product ID)
+        /// First 3 digits are 0 left padded site number
+        /// Last 4 digits are 0 left padded drive number
         /// </summary>
         /// <returns></returns>
         public override string ToString()
         {
-            return string.Format("{0:D5}{1:D5}", Site, Drive);            
+            return string.Format("{0:D3}{1:D4}", Site, Drive);            
         }
 
         /// <summary>
@@ -71,7 +90,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Convert to an int as if the original SSSSSDDDDD string was parsed directly.
+        /// Convert to an int as if the original SSSDDDD string was parsed directly.
         ///
         /// In the case of wildcard patterns like 00023xxxxx then just converts the non-wildcard portion.
         ///

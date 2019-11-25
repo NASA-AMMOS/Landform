@@ -12,13 +12,9 @@ using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.TilingServer
 {
-    public class BuildTilingInputMessage : QueueMessage
+    public class BuildTilingInputMessage : PipelineMessage
     {
         public BuildTilingInputMessage() { }
         public BuildTilingInputMessage(string projectName) : base(projectName) { }

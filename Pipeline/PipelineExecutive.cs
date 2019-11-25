@@ -7,9 +7,6 @@ using System.Collections.Concurrent;
 using OPS.Util;
 using OPS.Pipeline.TilingServer;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline
 {
     public enum ExecutionMode { Immediate, Deferred, None }
@@ -40,7 +37,7 @@ namespace OPS.Pipeline
             }
         }
 
-        protected PipelineStateMachine GetStateMachine(QueueMessage msg)
+        protected PipelineStateMachine GetStateMachine(PipelineMessage msg)
         {
             if (!stateMachines.ContainsKey(msg.ProjectName))
             {
@@ -110,8 +107,8 @@ namespace OPS.Pipeline
     //but the ensuing work will be performed asynchronously at a later point as messages are processed
     public class DeferredExecutive : PipelineExecutive
     {
-        private ConcurrentQueue<QueueMessage> masterQueue;
-        private ConcurrentQueue<QueueMessage> workerQueue;
+        private ConcurrentQueue<PipelineMessage> masterQueue;
+        private ConcurrentQueue<PipelineMessage> workerQueue;
 
         private TypeDispatcher workerDispatcher;
 
@@ -159,7 +156,7 @@ namespace OPS.Pipeline
             }
         }
 
-        protected void MessageLoop(ConcurrentQueue<QueueMessage> queue, Action<QueueMessage> handler, string what,
+        protected void MessageLoop(ConcurrentQueue<PipelineMessage> queue, Action<PipelineMessage> handler, string what,
                                    Action periodic = null)
         {
             while (!quit)
@@ -167,7 +164,7 @@ namespace OPS.Pipeline
                 //only take one message at a time when we are ready to process it
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
-                if (queue.TryDequeue(out QueueMessage msg))
+                if (queue.TryDequeue(out PipelineMessage msg))
                 {
                     try
                     {
@@ -195,7 +192,7 @@ namespace OPS.Pipeline
 
         protected void MasterLoop()
         {
-            void handler(QueueMessage msg)
+            void handler(PipelineMessage msg)
             {
                 try
                 {
@@ -230,7 +227,7 @@ namespace OPS.Pipeline
 
         protected void WorkerLoop()
         {
-            void handler(QueueMessage msg)
+            void handler(PipelineMessage msg)
             {
                 void sendStatus(string status, bool done = false)
                 {

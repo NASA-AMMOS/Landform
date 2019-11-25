@@ -94,11 +94,12 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
         public bool RespectUnifiedMeshStereoEye { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials")]
+        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1")]
+        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
+
        
         [Option(Required = false, Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
@@ -133,7 +134,7 @@ namespace OPS.Landform
             {
                 if (_storageHelper == null)
                 {
-                    _storageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion);
+                    _storageHelper = new StorageHelper(options.AWSProfile, options.AWSRegion, logger);
                 }
                 return _storageHelper;
             }
@@ -493,7 +494,7 @@ namespace OPS.Landform
                     }
                     else if (mission != null && !mission.CheckProductId(id, out string msReason))
                     {
-                        reason = "disallowed product id for " + mission.Name() + ": " + msReason;
+                        reason = "disallowed product id for " + mission.GetMission() + ": " + msReason;
                     }
                     else if (acceptedSiteDrives.Length > 0 && id is OPGSProductId &&
                              !acceptedSiteDrives.Any(asd => asd == ((OPGSProductId)id).SiteDrive))

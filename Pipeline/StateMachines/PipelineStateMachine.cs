@@ -32,7 +32,7 @@ namespace OPS.Pipeline
             return (PipelineStateMachine)Activator.CreateInstance(StateMachines[projectType], pipeline, projectName);
         }
 
-        public static ProjectType? GetProjectType(PipelineCore pipeline, QueueMessage message)
+        public static ProjectType? GetProjectType(PipelineCore pipeline, PipelineMessage message)
         {
             if (message is CreateProjectMessage)
             {
@@ -136,7 +136,7 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        virtual public void ProcessMessage(QueueMessage m)
+        virtual public void ProcessMessage(PipelineMessage m)
         {
             if (m.ProjectName != projectName)
             {
@@ -339,7 +339,7 @@ namespace OPS.Pipeline
             }
         }
 
-        abstract protected QueueMessage MakeLeafJobMessage(List<string> leaves);
+        abstract protected PipelineMessage MakeLeafJobMessage(List<string> leaves);
 
         virtual protected void BuildNodes(TilingProject project)
         {
@@ -616,7 +616,7 @@ namespace OPS.Pipeline
         }
     }
 
-    public class CreateProjectMessage : QueueMessage
+    public class CreateProjectMessage : PipelineMessage
     {
         public TilingScheme TilingScheme;
         public SkirtMode SkirtMode;
@@ -631,13 +631,13 @@ namespace OPS.Pipeline
         public CreateProjectMessage(string projectName) : base(projectName) { }
     }
 
-    public class DeleteProjectMessage : QueueMessage
+    public class DeleteProjectMessage : PipelineMessage
     {
         public DeleteProjectMessage() { }
         public DeleteProjectMessage(string projectName) : base(projectName) { }
     }
 
-    public class AddInputMessage : QueueMessage
+    public class AddInputMessage : PipelineMessage
     {
         public string Name;
         public string MeshUrl;
@@ -647,19 +647,19 @@ namespace OPS.Pipeline
         public AddInputMessage(string projectName) : base(projectName) { }
     }
 
-    public class RunProjectMessage : QueueMessage
+    public class RunProjectMessage : PipelineMessage
     {
         public RunProjectMessage() { }
         public RunProjectMessage(string projectName) : base(projectName) { }
     }
 
-    public class TileCompletedMessage : QueueMessage
+    public class TileCompletedMessage : PipelineMessage
     {
         public string TileId;
         public TileCompletedMessage(string projectName) : base(projectName) { }
     }
 
-    public class StatusMessage : QueueMessage
+    public class StatusMessage : PipelineMessage
     {
         public string Operation;
         public string TaskId;
