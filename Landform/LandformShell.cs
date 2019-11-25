@@ -66,8 +66,6 @@ namespace OPS.Landform
 
     public abstract class LandformShell : LandformCommand
     {
-        public const string LANDFORM_STORAGE = "landform-storage";
-
         protected LandformShellOptions lsopts;
 
         protected string landformExe;
@@ -122,7 +120,9 @@ namespace OPS.Landform
             pipeline.LogInfo("case sensitive search: {0}", lsopts.CaseSensitiveSearch);
 
             storageDir = StringHelper.NormalizeSlashes(!string.IsNullOrEmpty(lsopts.StorageDir) ? lsopts.StorageDir :
-                                                       PathHelper.GetDocDir() + "/" + LANDFORM_STORAGE);
+                                                       pipeline is LocalPipeline ?
+                                                       StringHelper.StripProtocol(pipeline.StorageUrl, "file://") :
+                                                       LocalPipelineConfig.GetDefaultStorageDir());
             pipeline.LogInfo("storage dir: {0}", storageDir);
 
             if (!string.IsNullOrEmpty(lsopts.OutputFolder))
@@ -131,13 +131,19 @@ namespace OPS.Landform
             }
             pipeline.LogInfo("output folder: {0}", outputFolder ?? "(unset)");
 
-            landformExe = GetLandformExe();
+            landformExe = PathHelper.GetExe();
             pipeline.LogInfo("landform exe: {0}", landformExe);
 
-            awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile : mission.GetDefaultAWSProfile();
+            var cp = pipeline as CloudPipeline;
+
+            awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile :
+                cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
+                mission.GetDefaultAWSProfile();
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
-            awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion : mission.GetDefaultAWSRegion();
+            awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion :
+                cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
+                mission.GetDefaultAWSRegion();
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
             logFile = Logging.GetLogFile();
@@ -191,17 +197,6 @@ namespace OPS.Landform
                 exts = exts.SelectMany(ext => new string[] { ext.ToLower(), ext.ToUpper() }).ToList();
             }
             return exts;
-        }
-
-        protected string GetLandformExe()
-        {
-            var exe = Assembly.GetEntryAssembly().GetName().CodeBase;
-            exe = StringHelper.StripProtocol(StringHelper.NormalizeSlashes(exe));
-            while (exe.StartsWith("/"))
-            {
-                exe = exe.Substring(1);
-            }
-            return exe;
         }
 
         protected bool FileExists(string url)

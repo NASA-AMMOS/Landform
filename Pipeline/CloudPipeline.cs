@@ -22,8 +22,8 @@ namespace OPS.Pipeline
 
         public override bool LegacyCompat { get { return (Config as CloudPipelineConfig).LegacyCompat; } }
 
-        private readonly string awsProfile;
-        private readonly string awsRegion;
+        public readonly string AWSProfile;
+        public readonly string AWSRegion;
 
         private readonly IAmazonDynamoDB dynamoClient;
         private readonly DynamoDBContext dynamoContext;
@@ -53,12 +53,12 @@ namespace OPS.Pipeline
                 NumberHelper.RandomSeed = cloudConfig.RandomSeed;
             }
 
-            awsProfile = cloudConfig.AWSProfile;
-            awsRegion = cloudConfig.AWSRegion;
+            AWSProfile = cloudConfig.AWSProfile;
+            AWSRegion = cloudConfig.AWSRegion;
 
             if (enableS3)
             {
-                defaultStorage = new StorageHelper(awsProfile, awsRegion);
+                defaultStorage = new StorageHelper(AWSProfile, AWSRegion);
             }
 
             Func<string, string> makePrefix = (pfx) => {
@@ -86,7 +86,7 @@ namespace OPS.Pipeline
             if (enableDynamo)
             {
                 this.tablePrefix = makePrefix(tablePrefix);
-                dynamoContext = DBUtil.MakeContext(this.tablePrefix, awsProfile, awsRegion);
+                dynamoContext = DBUtil.MakeContext(this.tablePrefix, AWSProfile, AWSRegion);
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
@@ -105,13 +105,10 @@ namespace OPS.Pipeline
             }
 
             //TODO MSL specific
-            string[] nulls = { "", "null", "none", "auto" };
-            Func<string, string> convertNull = s => s == null || nulls.Any(n => n == s.ToLower()) ? null : s;
-            string msliceAWSProfile = convertNull(cloudConfig.MSLICEAWSProfile);
-            string msliceAWSRegion = convertNull(cloudConfig.MSLICEAWSRegion);
-            if (OPS.Cloud.Credentials.Exists(msliceAWSProfile) && !string.IsNullOrEmpty(cloudConfig.MSLICES3Url))
+            if (!string.IsNullOrEmpty(cloudConfig.MSLICES3Url))
             {
-                storageSelect.Add(cloudConfig.MSLICES3Url, new StorageHelper(msliceAWSProfile, msliceAWSRegion));
+                storageSelect.Add(cloudConfig.MSLICES3Url,
+                                  new StorageHelper(cloudConfig.MSLICEAWSProfile, cloudConfig.MSLICEAWSRegion));
             }
         }
 
@@ -120,10 +117,10 @@ namespace OPS.Pipeline
             base.DumpConfig();
             var cloudConfig = (CloudPipelineConfig)Config;
             //not using LogInfo() to print even if Quiet = true
-            Logger.InfoFormat("AWS region: {0}", cloudConfig.AWSRegion);
-            Logger.InfoFormat("AWS profile: {0}", cloudConfig.AWSProfile);
-            Logger.InfoFormat("MSLICE AWS profile: {0}", cloudConfig.MSLICEAWSProfile);
-            Logger.InfoFormat("MSLICE AWS region: {0}", cloudConfig.MSLICEAWSRegion);
+            Logger.InfoFormat("AWS profile: {0}", cloudConfig.AWSProfile ?? "null");
+            Logger.InfoFormat("AWS region: {0}", cloudConfig.AWSRegion ?? "null");
+            Logger.InfoFormat("MSLICE AWS profile: {0}", cloudConfig.MSLICEAWSProfile ?? "null");
+            Logger.InfoFormat("MSLICE AWS region: {0}", cloudConfig.MSLICEAWSRegion ?? "null");
             Logger.InfoFormat("MSLICE S3 URL: {0}", cloudConfig.MSLICES3Url);
         }
 
@@ -345,9 +342,9 @@ namespace OPS.Pipeline
 
         private void InitializeQueues(bool quiet = false)
         {
-            MasterQueue = new MessageQueue(queuePrefix + "master", awsProfile, awsRegion, MASTER_QUEUE_TIMEOUT_SEC,
+            MasterQueue = new MessageQueue(queuePrefix + "master", AWSProfile, AWSRegion, MASTER_QUEUE_TIMEOUT_SEC,
                                            this, quiet: quiet);
-            WorkerQueue = new MessageQueue(queuePrefix + "worker", awsProfile, awsRegion, WORKER_QUEUE_TIMEOUT_SEC,
+            WorkerQueue = new MessageQueue(queuePrefix + "worker", AWSProfile, AWSRegion, WORKER_QUEUE_TIMEOUT_SEC,
                                            this, quiet: quiet);
             if (!quiet)
             {
@@ -357,7 +354,7 @@ namespace OPS.Pipeline
 
         public void DeleteQueues()
         {
-            var client = MessageQueue.GetClient(awsProfile, awsRegion);
+            var client = MessageQueue.GetClient(AWSProfile, AWSRegion);
             MessageQueue.DeleteQueue(client, queuePrefix + "master");
             MessageQueue.DeleteQueue(client, queuePrefix + "worker");
         }
