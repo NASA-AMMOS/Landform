@@ -899,7 +899,7 @@ namespace OPS.Pipeline
             {
                 case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(id);
                 case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(id);
-                default: throw new Exception("unexpected length");
+                default: throw new Exception("unexpected length for MSL product id");
             }
         }
 
@@ -1221,7 +1221,7 @@ namespace OPS.Pipeline
             switch (id.Length)
             {
                 case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(id);
-                default: throw new Exception("unexpected length");
+                default: throw new Exception("unexpected length for M2020 product id");
             }
         }
 
