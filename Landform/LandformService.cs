@@ -290,8 +290,11 @@ namespace OPS.Landform
 
         private void SendMessage()
         {
-            pipeline.LogInfo("sending message to queue {0}", messageQueue.Name);
-            messageQueue.Enqueue(ParseMessage(File.ReadAllText(lvopts.SendMessage)));
+            pipeline.LogInfo("{0}sending message to queue {1}", lvopts.DryRun ? "dry " : "", messageQueue.Name);
+            if (!lvopts.DryRun)
+            {
+                messageQueue.Enqueue(ParseMessage(File.ReadAllText(lvopts.SendMessage)));
+            }
         }
 
         private void DeleteQueues()
@@ -302,8 +305,11 @@ namespace OPS.Landform
                 {
                     if (queue.LandformOwned)
                     {
-                        pipeline.LogInfo("deleting {0} queue {1}", what, queue.Name);
-                        queue.Delete();
+                        pipeline.LogInfo("{0}deleting {1} queue {2}", lvopts.DryRun ? "dry " : "", what, queue.Name);
+                        if (!lvopts.DryRun)
+                        {
+                            queue.Delete();
+                        }
                     }
                     else
                     {
