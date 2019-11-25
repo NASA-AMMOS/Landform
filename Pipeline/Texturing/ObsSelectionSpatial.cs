@@ -70,7 +70,7 @@ namespace OPS.Pipeline.Texturing
             }
 
             //collect a sorted list of contexts (best to worst) for each sample point
-            foreach (var pt in sampledMesh.Vertices.Select(v => v.Position))
+            CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
             {
                 string ptDebugPath = Path.Combine(localOutputPath, "Point_" + pt.X + "_" + pt.Y + "_" + pt.Z);
 
@@ -98,7 +98,7 @@ namespace OPS.Pipeline.Texturing
                         }
                     }
                 }
-            }
+            });
 
             //flatten to list for later perf
             ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
