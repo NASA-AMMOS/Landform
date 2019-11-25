@@ -127,36 +127,58 @@ namespace OPS.Util
 
         public void LoadEnvironmentalVariables()
         {
-            foreach (var prop in GetType().GetProperties().Where(p => p.CanWrite))
+            var type = GetType();
+            var members = type.GetProperties().Where(p => p.CanWrite).Cast<MemberInfo>().Concat(type.GetFields());
+            foreach (var member in members)
             {
-                var attrib = prop.GetCustomAttribute<ConfigEnvironmentVariable>();
+                var attrib = member.GetCustomAttribute<ConfigEnvironmentVariable>();
                 if (attrib != null && !string.IsNullOrEmpty(attrib.EnvironmentalVariableName))
                 {
                     string str = Environment.GetEnvironmentVariable(attrib.EnvironmentalVariableName);
                     if (str != null)
                     {
-                        SetProperty(prop, str);
+                        SetProperty(member, str);
                     }
                 }
             }
         }
 
-        private void SetProperty(PropertyInfo prop, string value)
+        private void SetProperty(MemberInfo member, string value)
         {
+            if (!(member is FieldInfo || member is PropertyInfo))
+            {
+                throw new Exception("unexpected type: " + member.GetType().Name);
+            }
+
+            void setValue(Object val)
+            {
+                if (member is FieldInfo)
+                {
+                    ((FieldInfo)member).SetValue(this, val);
+                }
+                else
+                {
+                    ((PropertyInfo)member).SetValue(this, val);
+                }
+            }
+
+            var type = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+
             Func<string, bool> parseBool = str => !string.IsNullOrEmpty(str) && str.ToLower() == "true";
+
             new TypeDispatcher()
-                .Case<string>(v => prop.SetValue(this, value))
-                .Case<int>(v => prop.SetValue(this, int.Parse(value)))
-                .Case<byte>(v => prop.SetValue(this, byte.Parse(value)))
-                .Case<short>(v => prop.SetValue(this, short.Parse(value)))
-                .Case<long>(v => prop.SetValue(this, long.Parse(value)))
-                .Case<uint>(v => prop.SetValue(this, uint.Parse(value)))
-                .Case<ushort>(v => prop.SetValue(this, ushort.Parse(value)))
-                .Case<ulong>(v => prop.SetValue(this, ulong.Parse(value)))
-                .Case<float>(v => prop.SetValue(this, float.Parse(value)))
-                .Case<double>(v => prop.SetValue(this, double.Parse(value)))
-                .Case<bool>(v => prop.SetValue(this, parseBool(value)))
-                .Handle(prop.PropertyType);
+                .Case<string>(v => setValue(value))
+                .Case<int>(v => setValue(int.Parse(value)))
+                .Case<byte>(v => setValue(byte.Parse(value)))
+                .Case<short>(v => setValue(short.Parse(value)))
+                .Case<long>(v => setValue(long.Parse(value)))
+                .Case<uint>(v => setValue(uint.Parse(value)))
+                .Case<ushort>(v => setValue(ushort.Parse(value)))
+                .Case<ulong>(v => setValue(ulong.Parse(value)))
+                .Case<float>(v => setValue(float.Parse(value)))
+                .Case<double>(v => setValue(double.Parse(value)))
+                .Case<bool>(v => setValue(parseBool(value)))
+                .Handle(type, value);
         }
     }
 }
