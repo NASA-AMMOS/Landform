@@ -110,7 +110,9 @@ namespace OPS.Pipeline.Texturing
 
         public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
-            CoreLimitedParallel.ForEach(inContexts, ctx =>
+            Dictionary<int, double> scoresByObsIndex = new Dictionary<int, double>(inContexts.Count());
+
+            foreach (var ctx in inContexts)
             {
                 if (!ObsToContext.ContainsKey(ctx.Obs.Name))
                 {
@@ -129,23 +131,27 @@ namespace OPS.Pipeline.Texturing
                         double weightedScore = distSq * pt.Score;
                         if (weightedScore < minWeightedScore)
                         {
-                            if (!scoresByObs.ContainsKey(ctx.Obs.Name))
+                            if (!scoresByObsIndex.ContainsKey(ctx.Obs.Index))
                             {
-                                scoresByObs.Add(ctx.Obs.Name, weightedScore);
+                                scoresByObsIndex.Add(ctx.Obs.Index, weightedScore);
                             }
                             else
                             {
-                                scoresByObs[ctx.Obs.Name] = weightedScore;
+                                scoresByObsIndex[ctx.Obs.Index] = weightedScore;
                             }
                         }
                     }
                 }
-            });
+            }
 
             //sort contexts by their scores (and return them)
-            sortedContexts = inContexts.Where(c => scoresByObs.ContainsKey(c.Obs.Name)).ToList();
-            sortedContexts.Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
+            sortedContexts = inContexts.Where(c => scoresByObsIndex.ContainsKey(c.Obs.Index)).ToList();
+            sortedContexts.Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
+            
+            foreach(var ctx in sortedContexts)
+            {
+                scoresByObs.Add(ctx.Obs.Name, scoresByObsIndex[ctx.Obs.Index]);
+            }
         }
-
     }
 }
