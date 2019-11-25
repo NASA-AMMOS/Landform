@@ -1,6 +1,8 @@
 #!/bin/bash
 
-landform=./Landform/bin/Release/Landform.exe
+# https://stackoverflow.com/a/246128
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+landform=$scriptdir/../Landform/bin/Release/Landform.exe
 home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
@@ -14,7 +16,7 @@ fi
 dir=$1
 mission=$2
 
-meshext="iv";
+meshext="obj";
 if [ $# -gt 2 ]; then
     meshext=$3
 fi
