@@ -10,7 +10,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4 }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM }
 
     public abstract class MissionSpecific
     {
@@ -23,6 +23,7 @@ namespace OPS.Pipeline
                 case Mission.M2020: return new MissionM2020();
                 case Mission.ROASTT19: return new MissionROASTT19();
                 case Mission.TT4: return new MissionTT4();
+                case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -66,7 +67,7 @@ namespace OPS.Pipeline
 
         public virtual RoverProductType GetProductType(string productId)
         {
-            return RoverProductId.Parse(productId, this).ProductType;
+            return ParseProductId(productId).ProductType;
         } 
 
         public virtual RoverProductType GetProductType(PDSParser parser)
@@ -451,6 +452,8 @@ namespace OPS.Pipeline
                     (RoverProduct.IsGeometry(prodType) && UseGeometryProducts(cam)));
         }
 
+        public abstract RoverProductId ParseProductId(string id);
+
         /// <summary>
         /// uses the Allow*() APIs so missions can specialize by just overriding those
         /// </summary>
@@ -787,7 +790,7 @@ namespace OPS.Pipeline
             //example 0609MR0025690030401020E01_DRCL
             return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
                 ((parser.ProducingInstitution == RoverProductProducer.MSSS) &&
-                 (RoverProductId.Parse(parser.ProductIdString, this).Geometry == RoverProductGeometry.Linearized));
+                 (ParseProductId(parser.ProductIdString).Geometry == RoverProductGeometry.Linearized));
         }
 
         public override double GetSensorPixelSizeMM(RoverProductCamera camera)
@@ -875,6 +878,29 @@ namespace OPS.Pipeline
         public override bool AllowLegacyManifestDB()
         {
             return true;
+        }
+
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+
+            //MSL unified mesh IDs can be from 32 to 36 chars long
+            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
+            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            {
+                var unified = MSLUnifiedMeshProductId.Parse(id);
+                if (unified != null)
+                {
+                    return unified;
+                }
+            }
+
+            switch (id.Length)
+            {
+                case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(id);
+                case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(id);
+                default: throw new Exception("unexpected length");
+            }
         }
 
         public override bool CheckProductId(RoverProductId id, out string reason)
@@ -995,7 +1021,7 @@ namespace OPS.Pipeline
             }
             catch (MetadataException)
             {
-                return RoverProductId.Parse(parser.ProductIdString, this).GetSol();
+                return ParseProductId(parser.ProductIdString).GetSol();
             }
         }
 
@@ -1174,6 +1200,31 @@ namespace OPS.Pipeline
             return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
         }
 
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+
+            //TODO for now the M2020 SIS for unified mesh product IDs is incomplete
+            //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/793
+            //MSL unified mesh IDs can be from 32 to 36 chars long
+            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
+            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            {
+                var unified = MSLUnifiedMeshProductId.Parse(id);
+                if (unified != null)
+                {
+                    return unified;
+                }
+            }
+
+            switch (id.Length)
+            {
+                case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(id);
+                default: throw new Exception("unexpected length");
+            }
+        }
+
         public override bool CheckProductId(RoverProductId id, out string reason)
         {
             if (!base.CheckProductId(id, out reason))
@@ -1321,13 +1372,13 @@ namespace OPS.Pipeline
         // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
         {          
-            return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetConcatenatedTimeString();
+            return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
         }
 
         // ROASTT19: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
         public override RoverProductCamera GetCamera(PDSParser parser)
         {
-            return TranslateCamera(RoverProductId.Parse(parser.ProductIdString, this).Camera);
+            return TranslateCamera(ParseProductId(parser.ProductIdString).Camera);
         }
     }
 
@@ -1350,6 +1401,78 @@ namespace OPS.Pipeline
             }
             yield return new int[] { SEQUENCE_FIELD, SEQUENCE_FIELD_LENGTH };
             yield break;
+        }
+    }
+
+    public class MissionScarecrowEECAM : MissionM2020
+    {
+        private class ScarecrowEECAMUnifiedMesh : OPGSProductId
+        {
+            public const int LENGTH = 10;
+
+            protected ScarecrowEECAMUnifiedMesh(string fullId, int site, int drive)
+                : base(fullId, RoverProductProducer.OPGS, RoverProductType.Points, camera: "NL", geometry: "L",
+                       color: "", version: "0", size: "", site: site, drive: drive) 
+            { }
+
+            public static ScarecrowEECAMUnifiedMesh Parse(string id)
+            {
+                id = StringHelper.StripUrlExtension(id);
+                if (id.Length != LENGTH)
+                {
+                    return null;
+                }
+
+                string siteStr = id.Substring(3, 3);
+                string driveStr = id.Substring(6, 4);
+
+                if (!int.TryParse(siteStr, out int site) || !int.TryParse(driveStr, out int drive))
+                {
+                    return null;
+                }
+                
+                return new ScarecrowEECAMUnifiedMesh(id, site, drive);
+            }
+
+            public override bool IsSingleFrame()
+            {
+                return false;
+            }
+            
+            public override bool IsSingleCamera()
+            {
+                return true;
+            }
+            
+            public override bool IsSingleSiteDrive()
+            {
+                return true;
+            }
+
+            protected override RoverProductColor ParseColor(string color, string camera)
+            {
+                return RoverProductColor.Unknown;
+            }
+
+            protected override RoverProductSize ParseSize(string size)
+            {
+                return RoverProductSize.Regular;
+            }
+
+            public override int GetSol()
+            {
+                return 0;
+            }
+        }
+
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+            if (id.Length == ScarecrowEECAMUnifiedMesh.LENGTH)
+            {
+                return ScarecrowEECAMUnifiedMesh.Parse(id);
+            }
+            return base.ParseProductId(id);
         }
     }
 }
