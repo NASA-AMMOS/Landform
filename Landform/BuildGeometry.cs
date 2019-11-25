@@ -1,10 +1,10 @@
-﻿using CommandLine;
+﻿using System;
+using System.Linq;
+using CommandLine;
 using Microsoft.Xna.Framework;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using System;
-using System.Linq;
 
 namespace OPS.Landform
 {
@@ -129,9 +129,9 @@ namespace OPS.Landform
         
         private void BuildMesh()
         {
-            BoundingBox preClipBounds = new BoundingBox();
-            if(options.PreClipExtent > 0)
-            {
+            BoundingBox? preClipBounds = null;
+            if (options.PreClipExtent > 0)
+            {              
                 double safeVerticalClipMeters = 1000;
                 Vector3 center = Vector3.Zero;
                 preClipBounds = BoundsFromXYExtent(center, options.PreClipExtent, -safeVerticalClipMeters, safeVerticalClipMeters);
@@ -159,7 +159,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("clipping mesh to {0} meter box around origin in XY plane", options.ClipExtent);
 
                 Vector3 center = Vector3.Zero;
-                BoundingBox bbox = BoundsFromXYExtent(center, options.ClipExtent, meshBounds.Min.Z, meshBounds.Max.Z);         
+                BoundingBox bbox = BoundsFromXYExtent(center, options.ClipExtent, meshBounds.Min.Z, meshBounds.Max.Z);
                 mesh = Mesh.Clip(mesh, bbox);
             }
 

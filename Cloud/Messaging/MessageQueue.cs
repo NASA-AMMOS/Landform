@@ -1,13 +1,13 @@
-﻿using Amazon;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Amazon;
 using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
 using log4net;
 using Newtonsoft.Json;
 using OPS.Util;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace OPS.Cloud
 {

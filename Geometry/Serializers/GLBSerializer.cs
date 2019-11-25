@@ -1,8 +1,8 @@
-﻿using Newtonsoft.Json;
-using OPS.Geometry.GLTF;
-using System;
+﻿using System;
 using System.IO;
 using System.Text;
+using Newtonsoft.Json;
+using OPS.Geometry.GLTF;
 
 namespace OPS.Geometry
 {

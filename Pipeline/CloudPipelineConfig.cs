@@ -1,5 +1,5 @@
-﻿using OPS.Util;
-using System;
+﻿using System;
+using OPS.Util;
 
 namespace OPS.Pipeline
 {

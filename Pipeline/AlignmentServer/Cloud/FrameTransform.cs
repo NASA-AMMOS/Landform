@@ -1,11 +1,12 @@
-﻿using Amazon.DynamoDBv2.DataModel;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Amazon.DynamoDBv2.DataModel;
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
 using OPS.Cloud;
 using OPS.Geometry;
-using System;
-using System.Collections.Generic;
-using System.Linq;
+
 
 namespace OPS.Pipeline.AlignmentServer
 {

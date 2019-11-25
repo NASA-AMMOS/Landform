@@ -1,20 +1,18 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.RayTrace;
 using OPS.Geometry;
+using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
-using System.Threading;
 using OPS.Pipeline.Texturing;
+using OPS.Pipeline.TilingServer;
+using OPS.Util;
+
 namespace OPS.Landform
 {
     [Verb("build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
@@ -190,7 +188,7 @@ namespace OPS.Landform
             else
             {
                 texGenMode = TextureGenMode.Backproject;
-                description = "backprojecting from observations";                
+                description = "backprojecting from observations";
             }
 
             if (!options.NoBackprojectIndexImages && texGenMode != TextureGenMode.Backproject)
@@ -200,8 +198,11 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0} tile textures", description);
 
-            localTexturingDebugPath = Path.Combine(localOutputPath, "Texturing");
-            PathHelper.EnsureExists(localTexturingDebugPath);
+            if (options.WriteDebug)
+            {
+                localTexturingDebugPath = Path.Combine(localOutputPath, "Texturing");
+                PathHelper.EnsureExists(localTexturingDebugPath);
+            }
 
             return true;
         }
@@ -405,7 +406,7 @@ namespace OPS.Landform
             {
                 Interlocked.Increment(ref curLeafNum);
 
-                if (onlyTilesNamed != null && !onlyTilesNamed.Contains<string>(leaf.Name))
+                if (onlyTilesNamed != null && !onlyTilesNamed.Contains(leaf.Name))
                 {
                     return;
                 }

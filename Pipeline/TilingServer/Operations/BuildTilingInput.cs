@@ -83,7 +83,7 @@ namespace OPS.Pipeline.TilingServer
 
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
-                                     bool usePriors, bool noPriors, BoundingBox preclipBounds, string onlyForCameras = null,
+                                     bool usePriors, bool noPriors, BoundingBox? preclipBounds = null, string onlyForCameras = null,
                                      bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,  int decimate = 1, 
                                      int targetPointCloudResolution = 1024,
                                      Action<string> info = null,
@@ -142,7 +142,7 @@ namespace OPS.Pipeline.TilingServer
 
             var meshOpts = new WedgeObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
-            if(preclipBounds.MaxDimension() > 0)
+            if(preclipBounds.HasValue && preclipBounds.Value.MaxDimension() > 0)
             {
                 info(string.Format("preclipping input point clouds"));
             }
@@ -184,10 +184,10 @@ namespace OPS.Pipeline.TilingServer
                         return;
                     }
 
-                    if(preclipBounds.MaxDimension() > 0)
+                    if(preclipBounds.HasValue && preclipBounds.Value.MaxDimension() > 0)
                     {
                         var meshOp = new MeshOperator(mesh, false, true, false);
-                        mesh = meshOp.Clip(preclipBounds);
+                        mesh = meshOp.Clip(preclipBounds.Value);
 
                         if (!mesh.HasVertices)
                         {

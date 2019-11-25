@@ -83,7 +83,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 LogInfo("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
-                if(false == parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
+                if(!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
                                                           project.FacesPerTile, project.TileResolution,
                                                           project.GetSkirtMode(), info: msg => LogInfo(msg),
                                                           error: msg => { throw new Exception(msg); }))

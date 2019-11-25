@@ -1,13 +1,14 @@
-﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.Util;
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading;
+using Microsoft.Xna.Framework;
+using OPS.Geometry;
+using OPS.Imaging;
+using OPS.Util;
+
 //TODO: refactor so that local codepath does not have cloud dependencies
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
 using QueueMessage = OPS.Cloud.QueueMessage;

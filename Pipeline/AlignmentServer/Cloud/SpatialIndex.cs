@@ -1,8 +1,8 @@
-﻿using Amazon.DynamoDBv2.DataModel;
+﻿using System;
+using Amazon.DynamoDBv2.DataModel;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
 using OPS.Geometry;
-using System;
 
 namespace OPS.Pipeline.AlignmentServer
 {

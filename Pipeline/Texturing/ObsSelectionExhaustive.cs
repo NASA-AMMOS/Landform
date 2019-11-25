@@ -59,8 +59,6 @@ namespace OPS.Pipeline.Texturing
                 {
                     //if no valid samples, use distance from observation to mesh to have a sortable quality rating
                     //  (that's much bigger than per valid inter-pixel distances), otherwise contexts are not really sorted
-                    //TODO: try if all the same value even if valid distances? tie-breaker?
-                   
                     Vector3 cameraInOutput = Vector3.Transform(ctx.CameraModel.Unproject(forSrcPixelPt.Pixel).Position, ctx.ObsToMesh);  
                     Vector3 meshCenter = MeshOp.Bounds.Center();
                     dist = Vector3.Distance(meshCenter, cameraInOutput);

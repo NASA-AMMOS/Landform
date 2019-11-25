@@ -69,7 +69,8 @@ namespace OPS.Pipeline
                 }
                 catch
                 {
-                    //TODO: not being able to atlas can be caused by mesh complexity, which might be helped by a split
+                    //TODO: not being able to atlas can be caused by mesh complexity, which might be helped by a split 
+                    // https://github.jpl.nasa.gov/OnSight/Landform/issues/826
                     //returning false in case there's a mesh that wont atlas (degenerate triangles?)
                     //this would recurse down to single triangle tiles
                     return false;
@@ -253,7 +254,7 @@ namespace OPS.Pipeline
             return result;
         }
         //Issue #531: raycast bundle of 4 with embree
-        //BUGBUG: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
+        //Note: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
         // as the corners hit a closer mesh than intended
         public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sceneCaster, CameraModel camera,
                                                                     Matrix camToMesh, 

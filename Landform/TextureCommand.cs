@@ -45,8 +45,8 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = OPS.Pipeline.Texturing.ObsSelectionStrategyName.Greedy)]
-        public virtual OPS.Pipeline.Texturing.ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = ObsSelectionStrategyName.Greedy)]
+        public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
