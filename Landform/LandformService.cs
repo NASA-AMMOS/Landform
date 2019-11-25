@@ -147,7 +147,8 @@ namespace OPS.Landform
                 }
             }
 
-            pipeline.LogInfo("message timeout: {0}", Fmt.HMS(GetDefaultMessageTimeoutSec() * 1000));
+            int timeoutSec = messageQueue != null ? messageQueue.TimeoutSec : GetDefaultMessageTimeoutSec();
+            pipeline.LogInfo("message timeout: {0}", Fmt.HMS(timeoutSec * 1000));
             pipeline.LogInfo("max handler time: {0}", Fmt.HMS(GetMaxHandlerSec() * 1000));
             pipeline.LogInfo("max message age: {0}", Fmt.HMS(GetMaxMessageAgeSec() * 1000));
 
