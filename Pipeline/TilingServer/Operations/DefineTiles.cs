@@ -373,7 +373,7 @@ namespace OPS.Pipeline.TilingServer
             }
 
             pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);
-            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray());
+            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), msg => { pipeline.LogInfo(msg); });
         }
 
         private static ITilingScheme GetTilingScheme(TilingScheme tilingScheme)
@@ -407,8 +407,10 @@ namespace OPS.Pipeline.TilingServer
         //thus each node name encodes a full path from the root to the node
         //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme,
-                                                ITileSplitCriteria[] splitCriteria)
+                                                ITileSplitCriteria[] splitCriteria, Action<string> infoAction = null)
         {
+            var info = infoAction ?? (msg => { });
+
             SceneNode root = new SceneNode("");
             root.AddComponent(new NodeBounds(multiClipper.TotalBounds));
             Queue<SceneNode> queue = new Queue<SceneNode>();
@@ -428,6 +430,7 @@ namespace OPS.Pipeline.TilingServer
                 var curBounds = cur.GetComponent<NodeBounds>().Bounds;
                 if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
                 {
+                    info(string.Format("Splitting tile: {0}", cur.Name));
                     var childBounds = tilingScheme.Split(null, curBounds);
                     childBounds = multiClipper.FilterEmptyBounds(childBounds);
 
