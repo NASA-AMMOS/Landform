@@ -37,22 +37,15 @@ namespace OPS.Pipeline.Texturing
 
     }
 
-    public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> prunedContexts, out ConcurrentDictionary<string, double> scoresByObs)
+    public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
             //intersecting contexts
-            var visibleContexts = new List<Backproject.Context>();
-            Serial.ForEach(prunedContexts, ctx =>
-            {
-                if (ctx.FrustumHull.Contains(forPoint))
-                {
-                    visibleContexts.Add(ctx);
-                }
-            });
+            var visibleContexts = inContexts.Where(c => c.FrustumHull.Contains(forPoint));
 
             //calculate goodness: median distance between neighboring source pixels in meters on the terrain
             //smaller distance == better texture resolution
-            var localScoresByObs = new ConcurrentDictionary<string, double>();
-            Serial.ForEach(visibleContexts, ctx =>
+            //var localScoresByObs = new ConcurrentDictionary<string, double>()
+            foreach(var ctx in visibleContexts)
             {
                 CameraModel cam = (CameraModel)JsonHelper.FromJson(ctx.Obs.CameraModel);
                 PixelPoint forSrcPixelPt = new PixelPoint
@@ -71,16 +64,17 @@ namespace OPS.Pipeline.Texturing
                     Vector3 meshCenter = MeshOp.Bounds.Center();
                     dist = Vector3.Distance(meshCenter, cameraInOutput);
                 }
-
-                localScoresByObs.AddOrUpdate(ctx.Obs.Name, _ => dist, (_, __) => dist);
-            });
+                scoresByObs.Add(ctx.Obs.Name, dist);
+            };
 
             //sort contexts by decreasing quality
-            List<Backproject.Context> sortedContexts = new List<Backproject.Context>(visibleContexts);
-            sortedContexts.Sort((ctx0, ctx1) => localScoresByObs[ctx0.Obs.Name].CompareTo(localScoresByObs[ctx1.Obs.Name]));
-            scoresByObs = new ConcurrentDictionary<string, double>(localScoresByObs);
+            sortedContexts.Clear();
+            foreach (var ctx in visibleContexts)
+            {
+                sortedContexts.Add(ctx);
+            }
 
-            return sortedContexts;
+            sortedContexts.Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
         }
     }
 }

@@ -257,7 +257,7 @@ namespace OPS.Pipeline
         // as the corners hit a closer mesh than intended
         public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sceneCaster, CameraModel camera,
                                                                     Matrix camToMesh, 
-                                                                    List<Vector2> srcPixels)
+                                                                    IEnumerable<Vector2> srcPixels)
         {
             List<Vector3> result = new List<Vector3>();
 
@@ -314,21 +314,24 @@ namespace OPS.Pipeline
         {
             double shortestDistance = double.MaxValue;
 
-            var offsetPixels =
-                GetOffsetPixels(srcPixel, offset: 1.0)
+            var offsetPixels = GetOffsetPixels(srcPixel, offset: 1.0)
                 .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight);
             if (offsetPixels.Count() == 0)
             {
-                return shortestDistance;
+                return double.MaxValue;
             }
 
-            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, offsetPixels.ToList());
+            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, offsetPixels);
             foreach (var curPos in meshPositions)
             {
-                shortestDistance = Math.Min(shortestDistance, (curPos - srcPos).Length());
+               double sqDist = (curPos - srcPos).LengthSquared();
+                if (sqDist < shortestDistance)
+                {
+                    shortestDistance = sqDist;
+                }
             }
 
-            return shortestDistance;
+            return Math.Sqrt(shortestDistance);
         }
     }
 }

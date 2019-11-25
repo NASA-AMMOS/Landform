@@ -71,14 +71,17 @@ namespace OPS.Pipeline.Texturing
             }
 
             //collect a sorted list of contexts (best to worst) for each sample point
-            CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
+            foreach(var pt in sampledMesh.Vertices.Select(v => v.Position))
             {
                 string ptDebugPath = Path.Combine(localOutputPath, "Point_" + pt.X + "_" + pt.Y + "_" + pt.Z);
 
                 //exhaustively sort for each sample point
                 ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
                 refSelect.Initialize(mesh, meshOp, occlusionScene, allContexts, outputTextureResolution, quality, writeDebug, ptDebugPath);
-                var sortedContexts = refSelect.FilterAndSortContexts(pt, allContexts, out ConcurrentDictionary<string, double> ptScoresByObs);
+                Dictionary<string, double> ptScoresByObs = new Dictionary<string, double>();
+
+                List<Backproject.Context> sortedContexts = new List<Backproject.Context>(allContexts.Count());
+                refSelect.FilterAndSortContexts(pt, allContexts, sortedContexts, ptScoresByObs);
 
                 foreach (var pair in ptScoresByObs)
                 {
@@ -96,15 +99,15 @@ namespace OPS.Pipeline.Texturing
                         }
                     }
                 }
-            });
+            };
         }
 
-        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> prunedContexts, out ConcurrentDictionary<string, double> scoresByObs)
+        public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
             //find distances, save maximum for weighting
-            Dictionary<string, List<Tuple<double, ScoredPoint>>> refPtDistancesByObs = new Dictionary<string, List<Tuple<double, ScoredPoint>>>();
+            Dictionary<string, List<Tuple<double, ScoredPoint>>> refPtDistancesByObs = new Dictionary<string, List<Tuple<double, ScoredPoint>>>(inContexts.Count);
             double maxDistance = double.MinValue;
-            foreach (var ctx in prunedContexts)
+            foreach (var ctx in inContexts)
             {
                 if (!ObsToContext.ContainsKey(ctx.Obs.Name))
                     throw new Exception("Unexpected context as compared to init: "+ ctx.Obs.Name);
@@ -114,7 +117,7 @@ namespace OPS.Pipeline.Texturing
                     continue;
 
                 //collect distance between reference pt and current point
-                refPtDistancesByObs[ctx.Obs.Name] = new List<Tuple<double, ScoredPoint>>();
+                refPtDistancesByObs[ctx.Obs.Name] = new List<Tuple<double, ScoredPoint>>(ScoredRefPtsByObs[ctx.Obs.Name].Count);
                 foreach (var refScoredPt in ScoredRefPtsByObs[ctx.Obs.Name])
                 {
                     double dist = Vector3.Distance(refScoredPt.Point, forPoint);
@@ -128,7 +131,6 @@ namespace OPS.Pipeline.Texturing
             }
 
             //find best weighted score for each observation
-            Dictionary<string, double> bestWeightedScoreByObs = new Dictionary<string, double>();
             foreach (var obs in refPtDistancesByObs.Keys)
             {
                 double minWeightedScore = double.MaxValue;
@@ -138,17 +140,14 @@ namespace OPS.Pipeline.Texturing
                     double weightedScore = pt.Item1 / maxDistance * pt.Item2.Score;
                     if (weightedScore < minWeightedScore)
                     {
-                        bestWeightedScoreByObs[obs] = weightedScore;
+                        scoresByObs[obs] = weightedScore;
                     }
                 }
             }
 
-            ////sort contexts by their scores (and return them)
-            List<Backproject.Context> sortedContexts = prunedContexts.Where(c => bestWeightedScoreByObs.ContainsKey(c.Obs.Name)).ToList();
-            sortedContexts.Sort((ctx0, ctx1) => bestWeightedScoreByObs[ctx0.Obs.Name].CompareTo(bestWeightedScoreByObs[ctx1.Obs.Name]));
-            scoresByObs = new ConcurrentDictionary<string, double>(bestWeightedScoreByObs);
-            return sortedContexts;
-
+            //sort contexts by their scores (and return them)
+            sortedContexts = inContexts.Where(c => scoresByObs.ContainsKey(c.Obs.Name)).ToList();
+            sortedContexts.Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
         }
 
     }

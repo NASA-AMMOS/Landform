@@ -57,10 +57,18 @@ namespace OPS.Pipeline.Texturing
             sortedContexts.Sort((ctx0, ctx1) => ObsToScore[ctx0.Obs.Name].CompareTo(ObsToScore[ctx1.Obs.Name]));
         }
 
-        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> prunedContexts, out ConcurrentDictionary<string, double> scoresByObs)
+        public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
-            scoresByObs = ObsToScore;
-            return sortedContexts;
+            foreach (var pair in ObsToScore)
+            {
+                scoresByObs.Add(pair.Key, pair.Value);
+            }
+
+            sortedContexts.Clear();
+            foreach (var ctx in this.sortedContexts)
+            {
+                sortedContexts.Add(ctx);
+            }
         }
     }
 }

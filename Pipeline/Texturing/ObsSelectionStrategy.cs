@@ -52,6 +52,6 @@ namespace OPS.Pipeline.Texturing
                                bool writeDebug, string localOutputPath);
 
         //sorts observations from best to worst
-        public abstract List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> prunedContexts, out ConcurrentDictionary<string, double> scoresByObs);
+        public abstract void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs);
     }
 }

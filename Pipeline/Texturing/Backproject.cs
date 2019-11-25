@@ -1,4 +1,4 @@
-//#define NO_PARALLEL_RAYCASTS
+#define NO_PARALLEL_RAYCASTS
 //#define BACKPROJECT_TIMING
 
 using System;
@@ -369,11 +369,14 @@ namespace OPS.Pipeline
             }
 
             var masker = opts.mission.GetMasker();
-            ConcurrentDictionary<Pixel, ObsPixel> results = new ConcurrentDictionary<Pixel, ObsPixel>();
+            //ConcurrentDictionary<Pixel, ObsPixel> results = new ConcurrentDictionary<Pixel, ObsPixel>();
+            Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
             foreach (var samplePt in samplePoints)
             {
                 //find the strategy specific ranking of contexts for this pixel
-                var sortedContexts = opts.obsSelectionStrategy.FilterAndSortContexts(samplePt.Point, intersectingContexts, out ConcurrentDictionary<string, double> scores);
+                Dictionary<string, double> scores = new Dictionary<string, double>();
+                List<Backproject.Context> sortedContexts = new List<Backproject.Context>(intersectingContexts.Count());
+                opts.obsSelectionStrategy.FilterAndSortContexts(samplePt.Point, intersectingContexts, sortedContexts, scores);
 
                 if (sortedContexts.Any())
                 {
