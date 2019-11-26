@@ -98,7 +98,7 @@ namespace OPS.Pipeline
             {
                 //find the camera that provides the best pixel density for this sample
                 //(would be the texture we would use at this location)
-                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, destPixelPt,
+                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, clippedOp.Bounds, destPixelPt,
                                                  out CameraInstance bestCamera))
                 {
                     continue;
@@ -168,7 +168,7 @@ namespace OPS.Pipeline
         }
 
         private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
-                                                 PixelPoint pxlPt, out CameraInstance bestCamera)
+                                                 BoundingBox meshBounds, PixelPoint pxlPt, out CameraInstance bestCamera)
         {
             double minSpread = double.MaxValue;
             bestCamera = new CameraInstance();
@@ -183,8 +183,8 @@ namespace OPS.Pipeline
                 //want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = GetMinPixelSpreadInMeters(options.scInMesh, camInst.cameraModel,
                                                              camInst.cameraToMesh,
-                                                             pxlPt.Pixel, pxlPt.Point, camInst.widthPixels,
-                                                             camInst.heightPixels);
+                                                             pxlPt.Pixel, pxlPt.Point, meshBounds, 
+                                                             camInst.widthPixels, camInst.heightPixels);
                 if (curSpread < minSpread)
                 {
                     minSpread = curSpread;
@@ -257,7 +257,7 @@ namespace OPS.Pipeline
         //Note: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
         // as the corners hit a closer mesh than intended
         public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sceneCaster, CameraModel camera,
-                                                                    Matrix camToMesh, 
+                                                                    Matrix camToMesh, BoundingBox specificMeshBounds,
                                                                     IEnumerable<Vector2> srcPixels)
         {
             List<Vector3> result = new List<Vector3>();
@@ -268,7 +268,11 @@ namespace OPS.Pipeline
                 Vector3? scenePos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sceneCaster);
                 if (!scenePos.HasValue)
                     continue;
-              
+
+                //for performance, ignore points whose neighbors spill beyond the mesh of interest
+                if (ContainmentType.Contains != specificMeshBounds.Contains(scenePos.Value))
+                    continue;
+
                 result.Add(scenePos.Value);
             }
 
@@ -310,7 +314,7 @@ namespace OPS.Pipeline
         //this should give an estimate of the source textures local resolution
         //using our best approximation of the mesh to compare against other images
         public static double GetMinPixelSpreadInMeters(SceneCaster sceneCaster, CameraModel camera, Matrix camToMesh,
-                                                       Vector2 srcPixel, Vector3 srcPos,
+                                                       Vector2 srcPixel, Vector3 srcPos, BoundingBox specificMeshBounds,
                                                        int srcWidth, int srcHeight)
         {
             double shortestDistance = double.MaxValue;
@@ -322,7 +326,7 @@ namespace OPS.Pipeline
                 return double.MaxValue;
             }
 
-            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, offsetPixels);
+            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, specificMeshBounds,  offsetPixels);
             foreach (var curPos in meshPositions)
             {
                double sqDist = (curPos - srcPos).LengthSquared();

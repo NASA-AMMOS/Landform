@@ -37,7 +37,7 @@ namespace OPS.Pipeline.Texturing
             {
                 var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, samplePoints,
                                                                    ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh,
-                                                                   quality);
+                                                                   meshOp.Bounds, quality);
 
                 if (dist == double.MaxValue)
                 {

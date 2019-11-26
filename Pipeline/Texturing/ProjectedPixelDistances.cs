@@ -19,7 +19,7 @@ namespace OPS.Pipeline
     {
         static public IDictionary<string, double> //observation name => median pixel spread
             Calculate(FrameCache frameCache, SceneCaster occlusionScene,
-                      IDictionary<string, ConvexHull> obsToHull,
+                      IDictionary<string, ConvexHull> obsToHull, BoundingBox specificMeshBounds,
                       double percentagePointsToTest, string outputFrame, bool usePriors, bool onlyAligned,
                       List<PixelPoint> pointsToBackproject, IEnumerable<Observation> observations,
                       ILogger logger = null)
@@ -59,7 +59,7 @@ namespace OPS.Pipeline
                 }
 
                 CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-                double pixelSpread = CalculateForObs(occlusionScene, samples, obs, cam, obsHull, obsToOutput);
+                double pixelSpread = CalculateForObs(occlusionScene, samples, obs, cam, obsHull, obsToOutput, specificMeshBounds);
 
                 ret[obs.Name] = pixelSpread;
             }
@@ -68,7 +68,7 @@ namespace OPS.Pipeline
         }
 
         public static double CalculateForObs(SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs, CameraModel cam, ConvexHull obsHull, Matrix obsToOutput,
-            double pctPtsToSample = 1.0, bool writeDebug = false, string localDebugOutputPath = "")
+            BoundingBox specificMeshBounds, double pctPtsToSample = 1.0, bool writeDebug = false, string localDebugOutputPath = "")
         {
             int numPoints = allSamples.Count();
             int skip = numPoints / Math.Max(1, (int)(numPoints * pctPtsToSample));
@@ -93,7 +93,7 @@ namespace OPS.Pipeline
                         //Issue #523: want median or average in case glancing angle?
                         //want a term that looks for consistancy in spacing? implies dead on?
                         double dist = TextureSplitCriteria.GetMinPixelSpreadInMeters(sceneCaster, cam, obsToOutput,
-                                                      pt.Pixel, pt.Point, obs.Width, obs.Height);
+                                                      pt.Pixel, pt.Point, specificMeshBounds, obs.Width, obs.Height);
                         spreads[spreadIndex] = dist;
                     }
                     else

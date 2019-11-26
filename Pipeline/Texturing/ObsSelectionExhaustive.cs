@@ -54,7 +54,8 @@ namespace OPS.Pipeline.Texturing
                 };
 
                 double dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forSrcPixelPt },
-                                                                       ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, 1.0, WriteDebug, LocalOutputPath);
+                                                                       ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, MeshOp.Bounds,
+                                                                       1.0, WriteDebug, LocalOutputPath);
                 if(dist == double.MaxValue)
                 {
                     //if no valid samples, use distance from observation to mesh to have a sortable quality rating
