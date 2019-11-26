@@ -1,6 +1,8 @@
 #!/bin/bash
 
-landform=./Landform/bin/Release/Landform.exe
+# https://stackoverflow.com/a/246128
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+landform=$scriptdir/../Landform/bin/Release/Landform.exe
 home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
@@ -40,8 +42,10 @@ venue=local_${mission}_${sol}_${sd}
 rm -rf $storage/$venue
 
 for f in $dir/*masks.zip; do
-    mkdir -p $storage/$venue/masks
-    unzip $f -d $storage/$venue/masks
+    if [ -f $f ]; then
+      mkdir -p $storage/$venue/masks
+      unzip $f -d $storage/$venue/masks
+    fi
 done
 
 # use a clean venue
