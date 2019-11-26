@@ -1,4 +1,4 @@
-#define NO_PARALLEL_RAYCASTS
+//#define NO_PARALLEL_RAYCASTS
 //#define BACKPROJECT_TIMING
 
 using System;
