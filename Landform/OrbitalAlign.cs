@@ -66,6 +66,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
         public bool NoGenerateNormals { get; set; }
+
+        [Option(HelpText = "Debug directory to write out meshes/heightmaps. Default does not write", Default = "")]
+        public string DebugProductsDir { get; set; }
     }
 
     public class OrbitalAligner : WedgeCommand
@@ -228,8 +231,13 @@ namespace OPS.Landform
                     return rec;
                 } else
                 {
-                    Mesh mesh = BuildMeshInBaseSiteDrive(siteDrive);                
+                    Mesh mesh = BuildMeshInBaseSiteDrive(siteDrive);
                     Image img = MeshToHeightMap.BuildDem(mesh, options.SceneHeightmapRes, out double m2p, out double xOffset, out double yOffset);
+                    if (!string.IsNullOrEmpty(options.DebugProductsDir))
+                    {
+                        mesh.Save(Path.Combine(options.DebugProductsDir, siteDrive + "_mesh.obj"));
+                        img.Save<float>(Path.Combine(options.DebugProductsDir, siteDrive + "_heightmap.tif"));
+                    }
                     return SceneHeightmap.Create(pipeline, project, GetName(siteDrive, baseSiteDrive, siteDriveToWorldPriorTransforms[siteDrive].Source), img, new Vector2(xOffset, yOffset), m2p);
                 }
             };
@@ -244,17 +252,28 @@ namespace OPS.Landform
                 return image;
             };
 
-            //Transform priors from each site drive to the base site drive
-            Dictionary<string, Matrix> siteDriveToBaseSiteDrivePriorTransforms = new Dictionary<string, Matrix>();
+            //Compute pairwise distances between site drive centers
+            pipeline.LogInfo("Computing pairwise distances between site drive centers");
+            Dictionary<string, double> squaredDistances = new Dictionary<string, double>();
+            foreach(string sd1 in siteDrives)
+            {
+                SceneHeightmap m1 = FindOrCreateHeightmap(sd1);
+                foreach(string sd2 in siteDrives)
+                {
+                    SceneHeightmap m2 = FindOrCreateHeightmap(sd2);
+                    squaredDistances[sd1 + sd2] = Math.Pow(m1.OriginX - m2.OriginX, 2) + Math.Pow(m1.OriginY - m2.OriginY, 2);
+                }
+            }
+ 
             //Alignments computed for each site drive in base site drive frame 
             Dictionary<string, Matrix> baseSiteDrivePriorToBaseSiteDriveTransforms = new Dictionary<string, Matrix>();
 
             siteDriveToWorldPriorTransforms[baseSiteDrive] = frameCache.GetBestTransform(baseSiteDrive);
-            siteDriveToBaseSiteDrivePriorTransforms[baseSiteDrive] = Matrix.Identity;
             baseSiteDrivePriorToBaseSiteDriveTransforms[baseSiteDrive] = Matrix.Identity;           
 
             List<string> aligned = new List<string> { baseSiteDrive };
             List<string> unaligned = new List<string>();
+
 
             foreach (string siteDrive in siteDrives.GetRange(1, siteDrives.Count - 1))
             {
@@ -266,7 +285,8 @@ namespace OPS.Landform
                 bool success = false;
                 Matrix adjustedSiteDriveToWorld = Matrix.Identity;
 
-                foreach (string otherSiteDrive in siteDrives)
+                //Try to align to closest site drives first
+                foreach (string otherSiteDrive in siteDrives.OrderBy(sd => squaredDistances[siteDrive + sd]))
                 {
                     //Only align unalinged to aligned
                     if(!aligned.Contains(otherSiteDrive))
@@ -386,6 +406,9 @@ namespace OPS.Landform
                 }
                 Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
                 demMesh.Transform(demToBaseSiteDrive);
+                demMesh.Transform(Matrix.Invert(baseSiteDrivePriorToBaseSiteDriveTransforms["0311472"]));
+                demMesh.Transform(baseSiteDriveToWorld);
+                demMesh.Transform(Matrix.Invert(siteDriveToWorldPriorTransforms["0311472"].Transform.Mean));
                 demMesh.Save(options.DemDebugPath);
             }
 

@@ -271,6 +271,22 @@ namespace OPS.Geometry
 
             List<Vector3> sceneSamples = new List<Vector3>();
 
+            double demHorizontalOrigin = dem.Width / 2.0;
+            double demVerticalOrigin = dem.Height / 2.0;
+
+            demRowOffset = demRowOffset - sceneXOffsetsMeters[0] / demMetersPerPixel;
+            demColOffset = demColOffset + sceneYOffsetsMeters[0] / demMetersPerPixel;
+
+            double[] initialGuess = { 0, 0, 0, -1 * (demColOffset - demHorizontalOrigin) * demMetersPerPixel, -1 * (demVerticalOrigin - demRowOffset) * demMetersPerPixel }; //inverse sitedrive offset
+            double zTranslation = 0;
+            Func<double[], Matrix> arrayToTransform = new Func<double[], Matrix>((transform) =>
+            {
+                AxisAngleVector aav = new AxisAngleVector(transform[0], transform[1], transform[2]);
+                Quaternion rotation = aav.ToQuaternion();
+                Vector3 translation = new Vector3(transform[3], transform[4], 0);
+                return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
+            });
+
             for (int i = 0; i < scenemaps.Count(); i++)
             {
                 //demRowCenter, demColCenter corresponds to the origin of scene
@@ -281,12 +297,24 @@ namespace OPS.Geometry
                 //In dem space
                 //  +X = North = -Row
                 //  +Y = East  =  Col
-                double newDemRowOffset = demRowOffset - sceneXOffsetsMeters[i] / demMetersPerPixel;
-                double newDemColOffset = demColOffset + sceneYOffsetsMeters[i] / demMetersPerPixel;
+                //double newDemRowOffset = demRowOffset - sceneXOffsetsMeters[i] / demMetersPerPixel;
+                //double newDemColOffset = demColOffset + sceneYOffsetsMeters[i] / demMetersPerPixel;
                 double sceneM2P = sceneMetersPerPixel[i];
                 Matrix priorTransform = priorTransforms != null ? priorTransforms[i] : Matrix.Identity;
                 Matrix currentOffset = Matrix.CreateTranslation(sceneXOffsetsMeters[i], sceneYOffsetsMeters[i], 0);
-                priorTransform = demToSitedriveCoordinateFlip * currentOffset * priorTransform * Matrix.Invert(baseOffset) * demToSitedriveCoordinateFlip;
+                
+                //Flip coordinate orientation from dem to site drive
+                //Apply offset (meters) of current site drive
+                //Apply transform computed from prior alignment step in correct frame
+                //Apply offset (meters) back to base (first) site drive
+                //Flip back to dem coordinate orientation
+                //Apply offset to other dem
+                Matrix fullTransform = demToSitedriveCoordinateFlip
+                                        * currentOffset
+                                        * priorTransform
+                                        * Matrix.Invert(baseOffset)
+                                        * demToSitedriveCoordinateFlip
+                                        * Matrix.Invert(arrayToTransform(initialGuess));
 
                 Image scenemap = scenemaps[i];
 
@@ -299,15 +327,15 @@ namespace OPS.Geometry
                         Vector3? scenePoint = GetXYZ(scenemap, r, c);
                         if (scenePoint.HasValue)
                         {
-                            Vector3 transformedScenePoint = Vector3.Transform(scenePoint.Value, priorTransform);
+                            Vector3 transformedScenePoint = Vector3.Transform(scenePoint.Value, fullTransform);
                             Vector2? demRowCol = GetRowCol(dem, transformedScenePoint);
-                            double rowOffsetMeters = (r - scenemap.Height / 2.0 + 0.5) * sceneM2P; //TODO + 0.5 pixel??
-                            double colOffsetMeters = (c - scenemap.Width / 2.0 + 0.5) * sceneM2P;
+                            //double rowOffsetMeters = (r - scenemap.Height / 2.0 + 0.5) * sceneM2P; //TODO + 0.5 pixel??
+                            //double colOffsetMeters = (c - scenemap.Width / 2.0 + 0.5) * sceneM2P;
 
                             //Ensure that samples are taken where meshes overlap in projected space
                             if (demRowCol.HasValue) {
                                 //demRowOffset + rowOffsetMeters * demMetersPerPixel, demColOffset + colOffsetMeters * demMetersPerPixel
-                                Vector3? demPoint = GetInterpolatedXYZ(dem, newDemRowOffset + rowOffsetMeters * demMetersPerPixel, newDemColOffset + colOffsetMeters * demMetersPerPixel, minFilter, maxFilter);
+                                Vector3? demPoint = GetInterpolatedXYZ(dem, /*newDemRowOffset + rowOffsetMeters * demMetersPerPixel*/demRowCol.Value.Y, /*newDemColOffset + colOffsetMeters * demMetersPerPixel*/demRowCol.Value.X, minFilter, maxFilter);
                                 if (demPoint.HasValue)
                                 {
                                     succeeded++;
@@ -331,22 +359,15 @@ namespace OPS.Geometry
                 throw new Exception("No overlap for heightmap align.");
             }
 
-            double demHorizontalOrigin = dem.Width / 2.0;
-            double demVerticalOrigin = dem.Height / 2.0;
-
-            demRowOffset = demRowOffset - sceneXOffsetsMeters[0] / demMetersPerPixel;
-            demColOffset = demColOffset + sceneYOffsetsMeters[0] / demMetersPerPixel;
-
-            double[] guess = { 0, 0, 0, -1 * (demColOffset - demHorizontalOrigin) * demMetersPerPixel, -1 * (demVerticalOrigin - demRowOffset) * demMetersPerPixel }; //inverse sitedrive offset
+           
             double[] sigma = new double[] { Math.PI / 2880, Math.PI / 2880, Math.PI / 2880, 0.02, 0.02 };
 
             if(preserveXY)
             {
-                sigma[3] = 0;
+                sigma[2] = 0; //Prevent in plane rotation
+                sigma[3] = 0; //Prevent in plane translation
                 sigma[4] = 0;
             }
-
-            double zTranslation = 0;
 
             Func<Quaternion, Vector3, double[]> transformToArray = new Func<Quaternion, Vector3, double[]>((r, t) =>
             {
@@ -358,18 +379,10 @@ namespace OPS.Geometry
                 };
             });
 
-            Func<double[], Matrix> arrayToTransform = new Func<double[], Matrix>((transform) =>
-            {
-                AxisAngleVector aav = new AxisAngleVector(transform[0], transform[1], transform[2]);
-                Quaternion rotation = aav.ToQuaternion();
-                Vector3 translation = new Vector3(transform[3], transform[4], zTranslation);
-                return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
-            });
-
             Func<double[], double> meanZSquaredError = new Func<double[], double>((transformArray) => {
                 double error = 0;
                 //Aligning scene sample points to dem; final transform will be dem to scene. This could be refactored to avoid invert but should not make much of a computational difference
-                Matrix transformMatrix = Matrix.Invert(arrayToTransform(transformArray));
+                Matrix transformMatrix = Matrix.Invert(arrayToTransform(transformArray) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)));
                 int count = 0;
                 for (int i = 0; i < sceneSamples.Count; i++)
                 {
@@ -391,6 +404,8 @@ namespace OPS.Geometry
                 return count == 0 ? double.MaxValue : error / (double)count;
             });
 
+            double[] adjustment = new double[] { 0, 0, 0, 0, 0 };
+
             //Use a vertical projection to get height offset
             Func<double> meanZOffset = new Func<double>(() =>
             {
@@ -398,7 +413,11 @@ namespace OPS.Geometry
                 int count = 0;
                 for (int i = 0; i < sceneSamples.Count; i++)
                 {
-                    Vector3 sceneXYZ = Vector3.Transform(sceneSamples[i], Matrix.Invert(arrayToTransform(guess))); //See comment about invert in meanZError
+                    Vector3 sceneXYZ = Vector3.Transform(sceneSamples[i], 
+                        Matrix.Invert( //See comment about invert in meanZError
+                            arrayToTransform(adjustment) 
+                            * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)) //Apply rotation and xy translation, then z translation
+                        ));
                     Vector2? demRowCol = GetRowCol(dem, sceneXYZ);
                     if (demRowCol.HasValue)
                     {
@@ -429,20 +448,22 @@ namespace OPS.Geometry
 
             for (int i = 0; i < numAnnealingStages; i++)
             {
-                logger.InfoFormat("Annealing pass {0}/{1} :  Error = {2}", i + 1, numAnnealingStages, meanZSquaredError(guess));
+                logger.InfoFormat("Annealing pass {0}/{1} :  Error = {2}", i + 1, numAnnealingStages, meanZSquaredError(adjustment));
                 sa.temperatureExponent = 1.0 / (Math.Max(4, numAnnealingStages) - i);
-                double[] saTransform = sa.Minimize(meanZSquaredError, guess);
-                guess = saTransform;
+                double[] saTransform = sa.Minimize(meanZSquaredError, adjustment);
+                adjustment = saTransform;
                 zTranslation -= meanZOffset();
             }
 
-            logger.InfoFormat("Finished annealing. Final error = {0}", meanZSquaredError(guess));
+            logger.InfoFormat("Finished annealing. Final error = {0}", meanZSquaredError(adjustment));
 
             //Include dem mesh -> site drive coordinate flip in returned transform
             //Alignment operates on portion of dem corresponding to scene heightmap center, not scene origin.
             //Factor in scene heightmap offset into final dem transform.
 
-            return arrayToTransform(guess) * demToSitedriveCoordinateFlip * baseOffset; //transfrom applied before flip (row vectors)
+            return arrayToTransform(initialGuess) * arrayToTransform(adjustment) 
+                * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation))
+                * demToSitedriveCoordinateFlip * baseOffset; //transfrom applied before flip (row vectors)
         }
     }
 }
