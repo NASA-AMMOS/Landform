@@ -44,7 +44,7 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
         public string ResponseType { get; set; } = "application/xml"; //application/xml or application/json (experimental)
 
-        protected override string ConfigFilename()
+        public override string ConfigFileName()
         {
             return "places";
         }
@@ -90,8 +90,7 @@ namespace OPS.Pipeline
                 string path = config.AuthCookieFile;
                 if (path.StartsWith("~"))
                 {
-                    var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                    path = Path.Combine(home, path.Substring(2));
+                    path = Path.Combine(PathHelper.GetHomeDir(), path.Substring(2));
                 }
                 if (File.Exists(path))
                 {

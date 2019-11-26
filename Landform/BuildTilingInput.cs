@@ -1,20 +1,18 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Imaging;
-using OPS.RayTrace;
 using OPS.Geometry;
+using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
-using System.Threading;
 using OPS.Pipeline.Texturing;
+using OPS.Pipeline.TilingServer;
+using OPS.Util;
+
 namespace OPS.Landform
 {
     [Verb("build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
@@ -115,7 +113,7 @@ namespace OPS.Landform
                     RunPhase(string.Format("initialize observation selection strategy: {0}",options.ObsSelectionStrategy), InitObsSelStrategy);
                 }
 
-                if (options.LoadLODs)
+                if (options.LoadLODs && meshLODs.Count > 1)
                 {
                     RunPhase("build LOD tile meshes", BuildLODTileMeshes);
                 }
@@ -177,8 +175,10 @@ namespace OPS.Landform
                 //not just when --loadlods is given
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/199
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/713
+                //also note: below in BuildTileTexturesAndSaveTiles() we will switch texGenMode to Bake
+                //if the input mesh actually only had one LOD (we don't know that yet here)
                 texGenMode = TextureGenMode.Clip;
-                description = "clipping from source texture";
+                description = "clipping/baking from source texture";
                 options.NoBackprojectIndexImages = true;
             }
             else if (!string.IsNullOrEmpty(options.InputTexture))
@@ -190,7 +190,7 @@ namespace OPS.Landform
             else
             {
                 texGenMode = TextureGenMode.Backproject;
-                description = "backprojecting from observations";                
+                description = "backprojecting from observations";
             }
 
             if (!options.NoBackprojectIndexImages && texGenMode != TextureGenMode.Backproject)
@@ -200,8 +200,11 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0} tile textures", description);
 
-            localTexturingDebugPath = Path.Combine(localOutputPath, "Texturing");
-            PathHelper.EnsureExists(localTexturingDebugPath);
+            if (options.WriteDebug)
+            {
+                localTexturingDebugPath = Path.Combine(localOutputPath, "Texturing");
+                PathHelper.EnsureExists(localTexturingDebugPath);
+            }
 
             return true;
         }
@@ -279,7 +282,7 @@ namespace OPS.Landform
 
         private void BuildTileTree()
         {
-            if (options.LoadLODs)
+            if (options.LoadLODs && meshLODs.Count > 1)
             {
                 //use decimated versions of the mesh provided to generate a tile tree with a fixed number of levels
                 tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLODs);
@@ -327,9 +330,9 @@ namespace OPS.Landform
 
         private void BuildMeshOperator()
         {
-            if (options.LoadLODs)
+            if (options.LoadLODs && meshLODs.Count > 1)
             {
-                meshOps = new MeshOperator[meshLODs.Count()];
+                meshOps = new MeshOperator[meshLODs.Count];
                 CoreLimitedParallel.For(0, meshLODs.Count, (idxLOD) =>
                 {
                     meshOps[idxLOD] = new MeshOperator(meshLODs.ElementAt(idxLOD), buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
@@ -405,7 +408,7 @@ namespace OPS.Landform
             {
                 Interlocked.Increment(ref curLeafNum);
 
-                if (onlyTilesNamed != null && !onlyTilesNamed.Contains<string>(leaf.Name))
+                if (onlyTilesNamed != null && !onlyTilesNamed.Contains(leaf.Name))
                 {
                     return;
                 }
@@ -451,6 +454,12 @@ namespace OPS.Landform
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
                 .ToList();
             int tileCount = tilesToTexture.Count;
+
+            if (options.LoadLODs && meshLODs.Count == 1)
+            {
+                //TODO for now if the input mesh has only one LOD behave same as if --loadlods was not specified
+                texGenMode = TextureGenMode.Bake;
+            }
 
             MultiMeshClipper bakeClipper = null;
             if (texGenMode == TextureGenMode.Bake)
@@ -507,10 +516,10 @@ namespace OPS.Landform
                 else if (texGenMode == TextureGenMode.Clip)
                 {
                     MeshOperator meshOp = null;
-                    if (options.LoadLODs)
+                    if (options.LoadLODs && meshLODs.Count > 1)
                     {
                         int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
-                        int idxLOD = meshLODs.Count() - idxTreeLevel - 1;
+                        int idxLOD = meshLODs.Count - idxTreeLevel - 1;
                         meshOp = meshOps[idxLOD];
                     }
                     else

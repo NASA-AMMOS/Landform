@@ -488,98 +488,6 @@ namespace OPS.Pipeline
             obsCoverage.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
         }
 
-        // lower level function that returns backproject results
-        // for each each output pixel selects observation and source pixel
-        // taken from a set of observations known to intersect the output mesh
-        // uses the current best approach for calculating which texture should win when there are multiple choices
-        static protected void
-        BackprojectSortedContexts(PipelineCore pipeline, Project project, RoverMasker masker,
-                                       List<Context> contexts, ConvexHull meshHull,
-                                       SceneCaster sceneCaster, PixelPoint samplePoint,
-                                       IDictionary<Pixel, ObsPixel> results, Action<string> info = null,
-                                       Action<string> verbose = null)
-        {
-            info = info ?? (msg => { });
-            verbose = verbose ?? (msg => { });
-
-            int np = 1, nc = contexts.Count;
-            info(string.Format("backprojecting {0} points with {1} sorted images", Fmt.KMG(np), nc));
-
-            List<PixelPoint> samplePoints = new List<PixelPoint>() { samplePoint };
-
-#if BACKPROJECT_TIMING
-            void timing(string msg, params Object[] args)
-            {
-                info(string.Format(msg, args));
-            }
-#else
-            void timing(string msg, params Object[] args) { }
-#endif
-
-            //fill output pixels from the best source textures to the worst
-            int n = 0;
-            var remaining = new List<PixelPoint>(np);
-            foreach (var ctx in contexts)
-            {
-                int nr = 1;
-                verbose(string.Format("backprojecting into image {0}/{1} ({2}%), {3} sample points remaining",
-                                      ++n, nc, (int)(100 * ((float)n - 1) / nc), Fmt.KMG(nr)));
-
-                Stopwatch sw = Stopwatch.StartNew();
-
-                //includes user mask, invalid/missing data in orig image, spacecraft self occlusions, border pixels
-                Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
-                timing(string.Format("fetched or created image mask in {0}", Fmt.HMS(sw)));
-
-                sw.Restart();
-                var pixelsSucceeded = CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull,
-                                                      ctx.CameraModel, mask,
-                                                      samplePoints, ctx.Obs.Width, ctx.Obs.Height, sceneCaster);
-                timing(string.Format("backprojected {0} points to image {1} in {2}", Fmt.KMG(nr), n, Fmt.HMS(sw)));
-
-                if (pixelsSucceeded.Any())
-                {
-                    int ns = pixelsSucceeded.Count;
-                    timing(string.Format("{0} sample points backprojected to image {1}", Fmt.KMG(ns), n));
-
-                    sw.Restart();
-#if BACKPROJECT_TIMING
-                    long lastSpew = 0;
-                    int i = 0;
-#endif
-                    foreach (var pixelPair in pixelsSucceeded)
-                    {
-                        results.Add(SubpixelToPixel(pixelPair.Key), new ObsPixel(ctx.Obs, pixelPair.Value));
-#if BACKPROJECT_TIMING
-                        i++;
-                        var ms = sw.ElapsedMilliseconds;
-                        if (ms - lastSpew > 5000)
-                        {
-                            lastSpew = ms;
-                            timing(string.Format("recorded {0}/{1} results, {2}/s",
-                                                 FMT.KMG(i), FMT.KMG(ns), FMT.KMG(i / (ms * 1e-3))));
-                        }
-#endif
-                    }
-                    timing(string.Format("recorded {0} results in {1}", Fmt.KMG(ns), Fmt.HMS(sw)));
-
-                    sw.Restart();
-                    remaining.Clear();
-                    foreach (var pt in samplePoints)
-                    {
-                        if (!pixelsSucceeded.ContainsKey(pt.Pixel))
-                        {
-                            remaining.Add(pt);
-                        }
-                    }
-                    var tmp = samplePoints;
-                    samplePoints = remaining;
-                    remaining = tmp;
-                    timing(string.Format("filtered {0} remaining points in {1}", Fmt.KMG(samplePoints.Count), Fmt.HMS(sw)));
-                }
-            }
-        }
-
         //lowest level function that takes a set of points to backproject
         //and returns a dictionary of key:destination image pixel, value:source observation pixel
         static public IDictionary<Vector2, Vector2>
@@ -674,26 +582,7 @@ namespace OPS.Pipeline
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
             return sc.RaycastPosition(rayCamToMesh, RaycastNearMeters);
         }
-
-        //public static Vector3?[] RaycastMesh4(CameraModel camera, Matrix obsToMesh, Vector2[] pixels, SceneCaster sc)
-        //{
-        //    if(pixels.Count() != 4)
-        //    {
-        //        throw new Exception("expecting 4 source pixels for raycastmesh4");
-        //    }
-
-        //    var raysCamToMesh = pixels.Select(p => Backproject.GetRayToMesh(camera, obsToMesh, p));
-
-        //    //from embree docs:
-        //    //The implementation makes no guarantees that primitives whose hit distance is exactly at
-        //    //(or very close to) tnear or tfar are hit or missed. 
-        //    //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-        //    var hits = sc.Raycast4(raysCamToMesh.ToArray(), RaycastNearMeters);
-
-        //    //return null if missed or the position if hit
-        //    return hits.Select(hit => hit?.Position).ToArray();
-        //}
-
+     
         static public IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
                              bool onlyAligned, IEnumerable<Observation> imageObservations)

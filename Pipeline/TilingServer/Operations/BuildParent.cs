@@ -11,14 +11,10 @@ using OPS.Geometry;
 using Microsoft.Xna.Framework;
 using System.Collections.Concurrent;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.TilingServer
 {
 
-    public class BuildParentMessage : QueueMessage
+    public class BuildParentMessage : PipelineMessage
     {
         public string TileId;
         public BuildParentMessage() { }
@@ -83,7 +79,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 LogInfo("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
-                if(false == parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
+                if(!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
                                                           project.FacesPerTile, project.TileResolution,
                                                           project.GetSkirtMode(), info: msg => LogInfo(msg),
                                                           error: msg => { throw new Exception(msg); }))

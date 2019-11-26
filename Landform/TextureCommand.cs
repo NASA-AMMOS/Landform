@@ -33,6 +33,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Scene mesh, search project storage if omitted")]
         public string InputMesh { get; set; }
 
+        [Option(HelpText = "Use level of detail meshes provided in input mesh", Default = false)]
+        public bool LoadLODs { get; set; }
+
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
@@ -45,8 +48,8 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = OPS.Pipeline.Texturing.ObsSelectionStrategyName.Greedy)]
-        public virtual OPS.Pipeline.Texturing.ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = ObsSelectionStrategyName.Greedy)]
+        public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
@@ -71,6 +74,10 @@ namespace OPS.Landform
         protected Image backprojectIndex;
         protected TileList tileList;
         protected ObsSelectionStrategy obsSelStrat;
+
+        protected Mesh mesh;
+        protected SceneMesh sceneMesh;
+        protected List<Mesh> meshLODs; //populated iff --loadlods, first = highest quality
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -107,7 +114,8 @@ namespace OPS.Landform
 
             if (observationCache != null)
             {
-                var comparator = mission.GetRoverObservationComparator();
+                var comparator =
+                    mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
                 var allObs = observationCache.GetAllObservations();
                 imageObservations = comparator
                     .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
@@ -238,7 +246,8 @@ namespace OPS.Landform
 
         protected void BuildObservationImageMasks()
         {
-            var comparator = mission.GetRoverObservationComparator();
+            var comparator =
+                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
             int no = imageObservations.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(imageObservations, obs => {
@@ -293,11 +302,6 @@ namespace OPS.Landform
                 {
                     meshLODs = Mesh.LoadAllLODs(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
                     
-                    if(meshLODs.Count < 2)
-                    {
-                        throw new Exception("LoadLODs requested, but input mesh has only " + meshLODs.Count + " LODs");
-                    }
-
                     pipeline.LogInfo("Input mesh contains {0} levels of detail", meshLODs.Count);
                     for(int idxLOD = 0; idxLOD < meshLODs.Count; idxLOD++)
                     {

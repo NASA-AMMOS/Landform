@@ -1,9 +1,10 @@
+using System;
+using System.Linq;
 using CommandLine;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Util;
-using System;
-using System.Linq;
+
 
 namespace OPS.Landform
 {
@@ -85,8 +86,11 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            LoadFrameCache();
-            LoadObservationCache();
+            if (project != null)
+            {
+                LoadFrameCache();
+                LoadObservationCache();
+            }
 
             return true;
         }

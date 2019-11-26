@@ -17,7 +17,7 @@ namespace OPS.Pipeline
             RunProject(BuildParents);
         }
 
-        protected override QueueMessage MakeLeafJobMessage(List<string> leaves)
+        protected override PipelineMessage MakeLeafJobMessage(List<string> leaves)
         {
             throw new NotImplementedException();
         }

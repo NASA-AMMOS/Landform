@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 
 namespace OPS.Util
 {
@@ -19,9 +20,9 @@ namespace OPS.Util
             return "^" + Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*") + "$";
         }
 
-        public static Regex WildCardToRegularExression(string value)
+        public static Regex WildCardToRegularExression(string value, RegexOptions opts = RegexOptions.None)
         {
-            return new Regex(WildCardToRegularExressionString(value));
+            return new Regex(WildCardToRegularExressionString(value), opts);
         }
 
         public static string EnsureTrailingSlash(string str)
@@ -93,7 +94,23 @@ namespace OPS.Util
         public static string NormalizeUrl(string url, string protocol = null, bool preserveTrailingSlash = false)
         {
             url = NormalizeSlashes(url, preserveTrailingSlash);
-            return !string.IsNullOrEmpty(protocol) ? EnsureProtocol(url, protocol) : url;
+            if (!string.IsNullOrEmpty(protocol))
+            {
+                return EnsureProtocol(url, protocol);
+            }
+            else
+            {
+                int sep = url.IndexOf("://");
+                if (sep >= 0)
+                {
+                    string proto = url.Substring(0, sep);
+                    return proto.ToLower() + url.Substring(sep);
+                }
+                else
+                {
+                    return url;
+                }
+            }
         }
 
         public static string GetLastUrlPathSegment(string url, bool stripExtension = false)
@@ -268,6 +285,13 @@ namespace OPS.Util
                 pairs.Add(new int[] { spans[2 * i], spans[2 * i + 1] });
             }
             return RemoveMultiple(str, pairs);
+        }
+
+        public static string SHA1(string str, bool preserveExtension = false)
+        {
+            string ext = preserveExtension ? GetUrlExtension(str) : "";
+            var sha1 = (new SHA1Managed()).ComputeHash(Encoding.UTF8.GetBytes(str));
+            return string.Concat(sha1.Select(b => b.ToString("x2"))) + ext;
         }
     }
 }

@@ -1,14 +1,15 @@
-﻿using MathNet.Numerics.LinearAlgebra;
+﻿using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Windows.Forms;
+using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
 using OPS.Alignment;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline;
-using System;
-using System.Collections.Generic;
-using System.Drawing;
-using System.IO;
-using System.Windows.Forms;
+
 
 namespace PairViewer
 {

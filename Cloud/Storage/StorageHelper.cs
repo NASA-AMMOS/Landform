@@ -22,237 +22,47 @@ namespace OPS.Cloud
     /// </summary>
     public class StorageHelper
     {
-        class StorageStream : Stream
-        {
-            delegate void ResponseHandler(GetObjectResponse response);
-
-            long position;
-            AmazonS3Client client;
-            S3Url location;
-            byte[] buffer;
-            int bytesInBuffer;
-            long positionAtBufferRefill;
-
-            public StorageStream(AmazonS3Client client, string s3url, long startingPos, int bufferSize)
-            {
-                position = positionAtBufferRefill = startingPos;
-                bytesInBuffer = 0;
-                this.location = new S3Url(s3url);
-                this.client = client;
-                this.buffer = new byte[bufferSize];
-            }
-
-            private long GetSize()
-            {
-                var request = new ListObjectsV2Request()
-                {
-                    BucketName = location.BucketName,
-                    Prefix = location.Prefix,
-                    MaxKeys = 1
-                };
-                ListObjectsV2Response response = client.ListObjectsV2(request);
-                if (response.S3Objects.Count != 1)
-                {
-                    throw new CloudException("No object found for url " + location.Url);
-                }
-                string key = response.S3Objects[0].Key;
-                if (key != location.Prefix)
-                {
-                    throw new CloudException("Object key " + key + " + did not match url " + location.Url);
-                }
-                return response.S3Objects[0].Size;
-            }
-
-            long GetObjectResponse(ByteRange range, ResponseHandler responseHandler)
-            {
-                GetObjectRequest request = new GetObjectRequest
-                {
-                    BucketName = location.BucketName,
-                    Key = location.Prefix
-                };
-                request.ByteRange = range;
-
-                try
-                {
-                    using (GetObjectResponse response = client.GetObject(request))
-                    {
-                        responseHandler(response);
-                        return response.ContentLength;
-                    }
-                }
-                catch (AmazonS3Exception e)
-                {
-                    // We have read off the end of the stream
-                    if (e.ErrorCode == "InvalidRange" && range.Start != 0)
-                    {
-                        responseHandler(null);
-                        return 0;
-                    }
-                    throw e;
-                }
-            }
-
-            /// <summary>
-            /// Returns number of bytes read into the buffer
-            /// </summary>
-            /// <returns></returns>
-            public long RefillBuffer()
-            {
-                // Byte range is inclusive so subtract to get the end byte to read
-                long end = (position + buffer.Length) - 1;
-                positionAtBufferRefill = position;
-                long responseLength = GetObjectResponse(new ByteRange(position, end), response =>
-                {
-                    bytesInBuffer = 0;
-                    if (response == null)
-                    {
-                        return;
-                    }
-                    using (var stream = response.ResponseStream)
-                    {
-                        int bytesRead;
-                        do
-                        {
-                            bytesRead = stream.Read(buffer, bytesInBuffer, buffer.Length - bytesInBuffer);
-                            bytesInBuffer += bytesRead;
-                        } while (bytesRead != 0);
-                    }
-                });
-                return bytesInBuffer;
-            }
-
-            public override bool CanRead
-            {
-                get
-                {
-                    return true;
-                }
-            }
-
-            public override bool CanSeek
-            {
-                get
-                {
-                    return false;
-                }
-            }
-
-            public override bool CanWrite
-            {
-                get
-                {
-                    return false;
-                }
-            }
-
-            public override long Length
-            {
-                get
-                {
-                    throw new NotImplementedException();
-                }
-            }
-
-            public override long Position
-            {
-                get
-                {
-                    return position;
-                }
-
-                set
-                {
-                    throw new NotImplementedException();
-                }
-            }
-
-            public override void Flush()
-            {
-                throw new NotImplementedException();
-            }
-
-
-
-            public override int Read(byte[] output, int offset, int count)
-            {
-                // Stop reading if we reach count or the end of the file
-                int totalRead = 0;
-                if (count > 0)
-                {
-                    if ((position - positionAtBufferRefill) == bytesInBuffer)
-                    {
-                        if (RefillBuffer() == 0)
-                        {
-                            return 0;
-                        }
-                    }
-                    int readPos = (int)(position - positionAtBufferRefill);
-                    int available = bytesInBuffer - readPos;            // how much is left in current buffer
-                    int bytesToRead = Math.Min(available, count);
-                    Buffer.BlockCopy(this.buffer, readPos, output, offset, bytesToRead);
-                    count -= bytesToRead;
-                    offset += bytesToRead;
-                    position += bytesToRead;
-                    totalRead += bytesToRead;
-                }
-                return totalRead;
-            }
-
-            public override long Seek(long offset, SeekOrigin origin)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override void SetLength(long value)
-            {
-                throw new NotImplementedException();
-            }
-
-            public override void Write(byte[] buffer, int offset, int count)
-            {
-                throw new NotImplementedException();
-            }
-        }
-
-        AWSCredentials awsCredentials;
-        RegionEndpoint awsRegion;
-        ConcurrentDictionary<string, RegionEndpoint> bucketToRegion = new ConcurrentDictionary<string, RegionEndpoint>();
+        private ILog logger;
+        private bool autodetectRegion;
+        private AWSCredentials awsCredentials;
+        private RegionEndpoint awsRegion;
+        private ConcurrentDictionary<string, RegionEndpoint> bucketToRegion =
+            new ConcurrentDictionary<string, RegionEndpoint>();
 
         /// <summary>
         /// Use the given profile name to create a storage helper
         /// Profiles can be defined in the ~/.aws/credentials file
-        /// If an endpoint name such as "us-west-1" is provided that endpoint will be used for all connections
-        /// Otherwise methods will attempt to determine the region for buckets based on the bucket name in the url
-        /// Note that s3:GetBucketLocation must be enabled for automatic bucket determination to work.
+        ///
+        /// If a region name such as "us-west-1" is provided then use that
+        ///
+        /// If region name is "auto" then determine the region for buckets based on the bucket name in the url
+        /// Note that s3:GetBucketLocation must be enabled for this to work.
+        ///
+        /// Leaving awsProfileName and awsRegionName null works if there is a default profile on a user machine
+        /// or an IAM role an EC2 instance
         /// </summary>
-        /// <param name="awsProfileName"></param>
-        /// <param name="govCloud"></param>
-        public StorageHelper(string awsProfileName = null, string awsRegionName = null)
+        public StorageHelper(string awsProfileName = null, string awsRegionName = null, ILog logger = null)
         {
-            if (awsProfileName != null)
-            {
-                awsCredentials = Credentials.Get(awsProfileName);
-            }
+            this.logger = logger;
+
+            Func<string, string[], string> convertNull =
+                (s, nulls) => s == null || nulls.Any(n => n == s.ToLower()) ? null : s;
+            awsProfileName = convertNull(awsProfileName, new string[] { "", "null", "none", "auto" });
+            awsRegionName = convertNull(awsRegionName, new string[] { "", "null", "none" });
+
+            awsCredentials = awsProfileName != null ? Credentials.Get(awsProfileName) : null;
+
             if (awsRegionName != null)
             {
-                awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
+                if (awsRegionName.ToLower() == "auto")
+                {
+                    autodetectRegion = true;
+                }
+                else
+                {
+                    awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
+                }
             }
-        }
-
-        public StorageHelper()
-        {
-            //leave all the things null 
-            //This works if there is a default profile (on a user machine) or an IAM role (an EC2 instance)
-        }
-
-        //Use default credentials (or, for EC2 workers, their IAM role) if credentials are not provided 
-        private AmazonS3Client GetClient(RegionEndpoint region)
-        {
-            if (awsCredentials != null)
-            {
-                return new AmazonS3Client(awsCredentials, region);
-            }
-            return new AmazonS3Client(region);
         }
 
         /// <summary>
@@ -266,7 +76,8 @@ namespace OPS.Cloud
             return bucketToRegion.GetOrAdd(bucketName, _ =>
                     {
                         Exception ex = null;
-                        IEnumerable<RegionEndpoint> shortlist = new [] { RegionEndpoint.USWest1, RegionEndpoint.USGovCloudWest1 };
+                        IEnumerable<RegionEndpoint> shortlist =
+                        new [] { RegionEndpoint.USGovCloudWest1, RegionEndpoint.USWest1 };
                         //defaulting to try all regions works in theory but seems to be crazy slow in practice
                         foreach (var regions in new [] { shortlist /*, RegionEndpoint.EnumerableAllRegions*/ })
                         {
@@ -274,7 +85,11 @@ namespace OPS.Cloud
                             {
                                 try
                                 {
-                                    //Console.WriteLine("attempting to get region for bucket {0} using region {1}", bucketName, region);
+                                    if (logger != null)
+                                    {
+                                        logger.InfoFormat("attempting to get region for bucket {0} using region {1}",
+                                                          bucketName, region);
+                                    }
                                     AmazonS3Client client = GetClient(region);
                                     GetBucketLocationRequest request = new GetBucketLocationRequest
                                     {
@@ -285,54 +100,17 @@ namespace OPS.Cloud
                                 }
                                 catch (Exception e)
                                 {
-                                    //Console.WriteLine("failed to get region for bucket {0} using region {1}", bucketName, region);
+                                    if (logger != null)
+                                    {
+                                        logger.WarnFormat("failed to get region for bucket {0} using region {1}",
+                                                          bucketName, region);
+                                    }
                                     ex = e;
                                 }
                             }
                         }
                         throw ex;
                     });
-        }
-
-        /// <summary>
-        /// Returns a client for the given url.  Uses awsRegion if it was passed in in the constructor,
-        /// otherwise attempts to autodetect region.
-        /// </summary>
-        /// <param name="s3url"></param>
-        /// <returns></returns>
-        private AmazonS3Client GetClient(string s3url)
-        {
-            if (this.awsRegion != null)
-            {
-                return GetClient(awsRegion);
-            }
-            S3Url location = new S3Url(s3url);
-            return GetClient(GetRegion(location.BucketName));
-        }
-
-        /// <summary>
-        /// Create a list request.  Request will be recursive if delimiter is not used
-        /// </summary>
-        /// <param name="s3url"></param>
-        /// <param name="useDelimeter"></param>
-        /// <returns></returns>
-        private ListObjectsV2Request CreateListRequest(string s3url, bool useDelimeter)
-        {
-            S3Url location = new S3Url(s3url);
-            ListObjectsV2Request request = new ListObjectsV2Request
-            {
-                BucketName = location.BucketName,
-                MaxKeys = 200
-            };
-            if (location.Prefix.Length > 0)
-            {
-                request.Prefix = location.Prefix;
-            }
-            if (useDelimeter)
-            {
-                request.Delimiter = "/";
-            }
-            return request;
         }
 
         /// <summary>
@@ -382,11 +160,12 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="s3url">An s3 url specifying the key prefix to search.  This can be a complete or partial "folder" or object key.</param>
         /// <param name="pattern">Only return results matching this string pattern.  Wildcards * and ? can be used.</param>
-        /// <param name="recursive">Return all keys with this s3url prefx if set to true.  If not stop at the next folder, delimited by a forward slash in the key.</param>
-        public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true)
+        /// <param name="recursive">Return all keys with this s3url prefix if set to true.  If not stop at the next folder, delimited by a forward slash in the key.</param>
+        public IEnumerable<string> SearchObjects(string s3url, string pattern = "*", bool recursive = true, bool ignoreCase = false)
         {
             S3Url location = new S3Url(s3url);
-            var regex = StringHelper.WildCardToRegularExression(pattern);
+            var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+            var regex = StringHelper.WildCardToRegularExression(pattern, opts);
             using (var client = GetClient(s3url))
             {
                 var request = CreateListRequest(s3url, !recursive);
@@ -410,13 +189,6 @@ namespace OPS.Cloud
         public long GetFileSize(AmazonS3Client client, S3Url location)
         {           
             return GetObjectMetadata(client, location).Headers.ContentLength;
-        }
-
-        GetObjectMetadataResponse GetObjectMetadata(AmazonS3Client client, S3Url location)
-        {
-            var getObjectMetadataRequest = new GetObjectMetadataRequest() { BucketName = location.BucketName, Key = location.Prefix };
-            var meta = client.GetObjectMetadata(getObjectMetadataRequest);
-            return meta;
         }
 
         public bool FileExists(string s3url)
@@ -536,7 +308,8 @@ namespace OPS.Cloud
             using (var client = GetClient(s3url))
             {
                 S3Url location = new S3Url(s3url);
-                using (TransferUtility tu = new TransferUtility(client, new TransferUtilityConfig { ConcurrentServiceRequests = 1 }))
+                var cfg = new TransferUtilityConfig { ConcurrentServiceRequests = 1 };
+                using (TransferUtility tu = new TransferUtility(client, cfg))
                 {
                     tu.Upload(filename, location.BucketName, location.Prefix);
                 }
@@ -570,7 +343,8 @@ namespace OPS.Cloud
         /// </summary>
         /// <param name="s3url"></param>
         /// <param name="streamHandler"></param>
-        public void GetStorageStream(string s3url, Action<Stream> streamHandler, long startPosition = 0, int bufferSize = 128*1024)
+        public void GetStorageStream(string s3url, Action<Stream> streamHandler, long startPosition = 0,
+                                     int bufferSize = 128*1024)
         {
             using (var client = GetClient(s3url))
             {
@@ -587,6 +361,7 @@ namespace OPS.Cloud
         /// <returns></returns>
         public void DeleteObject(string s3Url, bool ignoreErrors = true, ILog logger = null)
         {
+            logger = logger ?? this.logger;
             try
             {
                 using (var client = GetClient(s3Url))
@@ -603,7 +378,7 @@ namespace OPS.Cloud
                 }
                 else if (logger != null)
                 {
-                    logger.Warn(string.Format("error deleting S3 object {0}: {1}", s3Url, e.Message));
+                    logger.WarnFormat("error deleting S3 object {0}: {1}", s3Url, e.Message);
                 }
             }
         }
@@ -615,6 +390,7 @@ namespace OPS.Cloud
         public void DeleteObjects(string s3Url, string pattern = "*", bool recursive = true,
                                   bool ignoreErrors = true, ILog logger = null)
         {
+            logger = logger ?? this.logger;
             try
             {
                 IEnumerable<string> objects = SearchObjects(s3Url, pattern, recursive);
@@ -656,8 +432,258 @@ namespace OPS.Cloud
                 }
                 else if (logger != null)
                 {
-                    logger.Warn(string.Format("error searching objects with prefix {0}: {1}", s3Url, e.Message));
+                    logger.WarnFormat("error searching objects with prefix {0}: {1}", s3Url, e.Message);
                 }
+            }
+        }
+
+        private AmazonS3Client GetClient(string s3url)
+        {
+            RegionEndpoint region = awsRegion;
+            if (region == null && autodetectRegion)
+            {
+                region = GetRegion((new S3Url(s3url)).BucketName);
+            }
+            return GetClient(region);
+        }
+
+        private AmazonS3Client GetClient(RegionEndpoint region)
+        {
+            if (awsCredentials != null && region != null)
+            {
+                return new AmazonS3Client(awsCredentials, region);
+            }
+            else if (region != null)
+            {
+                return new AmazonS3Client(region);
+            }
+            else if (awsCredentials != null)
+            {
+                return new AmazonS3Client(awsCredentials);
+            }
+            else
+            {
+                return new AmazonS3Client();
+            }
+        }
+
+        /// <summary>
+        /// Create a list request.  Request will be recursive if delimiter is not used
+        /// </summary>
+        private ListObjectsV2Request CreateListRequest(string s3url, bool useDelimeter)
+        {
+            S3Url location = new S3Url(s3url);
+            ListObjectsV2Request request = new ListObjectsV2Request
+            {
+                BucketName = location.BucketName,
+                MaxKeys = 200
+            };
+            if (location.Prefix.Length > 0)
+            {
+                request.Prefix = location.Prefix;
+            }
+            if (useDelimeter)
+            {
+                request.Delimiter = "/";
+            }
+            return request;
+        }
+
+        private GetObjectMetadataResponse GetObjectMetadata(AmazonS3Client client, S3Url location)
+        {
+            var getObjectMetadataRequest =
+                new GetObjectMetadataRequest() { BucketName = location.BucketName, Key = location.Prefix };
+            var meta = client.GetObjectMetadata(getObjectMetadataRequest);
+            return meta;
+        }
+
+        public class StorageStream : Stream
+        {
+            delegate void ResponseHandler(GetObjectResponse response);
+
+            private long position;
+            private AmazonS3Client client;
+            private S3Url location;
+            private byte[] buffer;
+            private int bytesInBuffer;
+            private long positionAtBufferRefill;
+
+            public StorageStream(AmazonS3Client client, string s3url, long startingPos, int bufferSize)
+            {
+                position = positionAtBufferRefill = startingPos;
+                bytesInBuffer = 0;
+                this.location = new S3Url(s3url);
+                this.client = client;
+                this.buffer = new byte[bufferSize];
+            }
+
+            private long GetSize()
+            {
+                var request = new ListObjectsV2Request()
+                {
+                    BucketName = location.BucketName,
+                    Prefix = location.Prefix,
+                    MaxKeys = 1
+                };
+                ListObjectsV2Response response = client.ListObjectsV2(request);
+                if (response.S3Objects.Count != 1)
+                {
+                    throw new CloudException("No object found for url " + location.Url);
+                }
+                string key = response.S3Objects[0].Key;
+                if (key != location.Prefix)
+                {
+                    throw new CloudException("Object key " + key + " + did not match url " + location.Url);
+                }
+                return response.S3Objects[0].Size;
+            }
+
+            private long GetObjectResponse(ByteRange range, ResponseHandler responseHandler)
+            {
+                GetObjectRequest request = new GetObjectRequest
+                {
+                    BucketName = location.BucketName,
+                    Key = location.Prefix
+                };
+                request.ByteRange = range;
+
+                try
+                {
+                    using (GetObjectResponse response = client.GetObject(request))
+                    {
+                        responseHandler(response);
+                        return response.ContentLength;
+                    }
+                }
+                catch (AmazonS3Exception e)
+                {
+                    // We have read off the end of the stream
+                    if (e.ErrorCode == "InvalidRange" && range.Start != 0)
+                    {
+                        responseHandler(null);
+                        return 0;
+                    }
+                    throw e;
+                }
+            }
+
+            /// <summary>
+            /// Returns number of bytes read into the buffer
+            /// </summary>
+            /// <returns></returns>
+            public long RefillBuffer()
+            {
+                // Byte range is inclusive so subtract to get the end byte to read
+                long end = (position + buffer.Length) - 1;
+                positionAtBufferRefill = position;
+                long responseLength = GetObjectResponse(new ByteRange(position, end), response =>
+                {
+                    bytesInBuffer = 0;
+                    if (response == null)
+                    {
+                        return;
+                    }
+                    using (var stream = response.ResponseStream)
+                    {
+                        int bytesRead;
+                        do
+                        {
+                            bytesRead = stream.Read(buffer, bytesInBuffer, buffer.Length - bytesInBuffer);
+                            bytesInBuffer += bytesRead;
+                        } while (bytesRead != 0);
+                    }
+                });
+                return bytesInBuffer;
+            }
+
+            public override bool CanRead
+            {
+                get
+                {
+                    return true;
+                }
+            }
+
+            public override bool CanSeek
+            {
+                get
+                {
+                    return false;
+                }
+            }
+
+            public override bool CanWrite
+            {
+                get
+                {
+                    return false;
+                }
+            }
+
+            public override long Length
+            {
+                get
+                {
+                    throw new NotImplementedException();
+                }
+            }
+
+            public override long Position
+            {
+                get
+                {
+                    return position;
+                }
+
+                set
+                {
+                    throw new NotImplementedException();
+                }
+            }
+
+            public override void Flush()
+            {
+                throw new NotImplementedException();
+            }
+
+            public override int Read(byte[] output, int offset, int count)
+            {
+                // Stop reading if we reach count or the end of the file
+                int totalRead = 0;
+                if (count > 0)
+                {
+                    if ((position - positionAtBufferRefill) == bytesInBuffer)
+                    {
+                        if (RefillBuffer() == 0)
+                        {
+                            return 0;
+                        }
+                    }
+                    int readPos = (int)(position - positionAtBufferRefill);
+                    int available = bytesInBuffer - readPos;            // how much is left in current buffer
+                    int bytesToRead = Math.Min(available, count);
+                    Buffer.BlockCopy(this.buffer, readPos, output, offset, bytesToRead);
+                    count -= bytesToRead;
+                    offset += bytesToRead;
+                    position += bytesToRead;
+                    totalRead += bytesToRead;
+                }
+                return totalRead;
+            }
+
+            public override long Seek(long offset, SeekOrigin origin)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void SetLength(long value)
+            {
+                throw new NotImplementedException();
+            }
+
+            public override void Write(byte[] buffer, int offset, int count)
+            {
+                throw new NotImplementedException();
             }
         }
     }

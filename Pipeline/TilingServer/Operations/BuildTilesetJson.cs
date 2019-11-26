@@ -1,14 +1,11 @@
-﻿using Newtonsoft.Json;
+﻿using System.IO;
+using Newtonsoft.Json;
 using OPS.Geometry;
 using OPS.Util;
-using System.IO;
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
 
 namespace OPS.Pipeline.TilingServer
 {
-    public class BuildTilesetJsonMessage : QueueMessage
+    public class BuildTilesetJsonMessage : PipelineMessage
     {
         public BuildTilesetJsonMessage() { }
         public BuildTilesetJsonMessage(string projectName) : base(projectName) { }

@@ -86,7 +86,9 @@ namespace OPS.Geometry
 
                 rc = NaiveAtlas(mesh, out outU, out outV, out indices, out outVertexRemap);
                 if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
+                {
                     return null;
+                }
             }
             if (indices.Length % 3 != 0)
             {
@@ -194,7 +196,7 @@ namespace OPS.Geometry
                 var theta = Math.Acos(cosTheta); // guaranteed positive since that's the range of acos (which, with cosTheta being positive, implies 0 <= theta <= pi/2)
                 tag.uv2 = new Vector2(p0p2Length * cosTheta, p0p2Length * Math.Sin(theta));
 
-                if(tag.uv2.Y == 0)
+                if (tag.uv2.Y == 0)
                 {
                     outU = null;
                     outV = null;
