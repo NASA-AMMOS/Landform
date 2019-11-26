@@ -383,6 +383,12 @@ namespace OPS.LandformUtil
                 base.GetMission();
         }
 
+        protected override void SetOutDir(string outDir)
+        {
+            //do nothing - we don't write to outputFolder or localOutputPath
+            //and leaving them null tidys up the spew a bit
+        }
+
         protected bool FileExists(string url)
         {
             return LandformShell.FileExists(pipeline, storageHelper, url);
