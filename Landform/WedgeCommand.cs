@@ -162,8 +162,8 @@ namespace OPS.Landform
                 indexedImages[obs.Index] = obs;
             }
 
-            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
-                             num, DescribeObservationFilter(), project.Name,
+            pipeline.LogInfo("loaded {0}{1} observations ({2} images) in project {3}{4}{5}",
+                             num, DescribeObservationFilter(), imageObservations.Count, project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
         }

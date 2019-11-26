@@ -305,8 +305,9 @@ namespace OPS.LandformUtil
                 string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
                 //mesh decimation blocksize
-                int mbs = WedgeObservations.AutoDecimate(obs.Points != null ? obs.Points : obs.Normals,
-                                                        options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
+                int mbs = WedgeObservations.AutoDecimate(obs.Points != null ? obs.Points : obs.Normals, //null ok
+                                                         options.DecimateWedgeMeshes,
+                                                         options.TargetWedgeMeshResolution);
 
                 if (mbs > 1 && mbs != options.DecimateWedgeMeshes)
                 {
@@ -336,8 +337,9 @@ namespace OPS.LandformUtil
                 validNormals[obs.FrameName] = numNormals;
                 validTriangles[obs.FrameName] = numTriangles;
 
-                int ibs = WedgeObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages,
-                                                        options.TargetWedgeImageResolution);
+                int ibs = WedgeObservations.AutoDecimate(obs.Texture, //null ok
+                                                         options.DecimateWedgeImages,
+                                                         options.TargetWedgeImageResolution);
 
                 Image img = null;
                 if (buildWedgeImages && obs.Texture != null)
