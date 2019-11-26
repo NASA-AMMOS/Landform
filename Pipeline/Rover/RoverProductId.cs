@@ -45,83 +45,49 @@ namespace OPS.Pipeline
             this.Version = ParseVersion(version);
         }
 
-        public static RoverProductId Parse(string productId, MissionSpecific mission = null, bool throwOnFail = true)
+        public static RoverProductId Parse(string id, MissionSpecific mission = null, bool throwOnFail = true)
         {
-            string basename = StringHelper.StripUrlExtension(productId);
-
-            RoverProductId fail(string reason)
-            {
-                if (throwOnFail)
-                {
-                    throw new Exception("failed to parse rover product ID \"" + productId +
-                                        "\" with base length " + basename.Length + ": " + reason);
-                }
-                return null;
-            }
-
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
             try
             {
-                //MSL unified mesh IDs can be from 32 to 36 chars long
-                //Unfortunately regular MSL IDs are 36 chars long
-                //first try as unified
-                //also, TODO for now the M2020 SIS for unified mesh product IDs is incomplete
-                //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
-                if (basename.Length >= MSLUnifiedMeshProductId.MIN_LENGTH &&
-                    basename.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
-                {
-                    var unified = MSLUnifiedMeshProductId.Parse(basename);
-                    if (unified != null)
-                    {
-                        return unified;
-                    }
-                }
-                
                 if (mission != null)
                 {
-                    if (mission is MissionMSL)
-                    {
-                        if (basename.Length == MSLOPGSProductId.LENGTH)
-                        {
-                            return MSLOPGSProductId.Parse(basename);
-                        }
-                        else if (basename.Length == MSLMSSSProductId.LENGTH)
-                        {
-                            return MSLMSSSProductId.Parse(basename);
-                        }
-                        else
-                        {
-                            return fail("unexpected length");
-                        }
-                    }
-                    else if (mission is MissionM2020)
-                    {
-                        if (basename.Length == M2020OPGSProductId.LENGTH)
-                        {
-                            return M2020OPGSProductId.Parse(basename);
-                        }
-                        else
-                        {
-                            return fail("unexpected length");
-                        }
-                    }
-                    else
-                    {
-                        return fail("unknown mission \"" + mission.GetType().Name + "\"");
-                    }
+                    return mission.ParseProductId(id);
                 }
                 else
                 {
-                    switch (basename.Length)
+                    //MSL unified mesh IDs can be from 32 to 36 chars long
+                    //Unfortunately regular MSL IDs are 36 chars long - first try as unified
+                    //also, TODO for now the M2020 SIS for unified mesh product IDs is incomplete
+                    //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
+                    //https://github.jpl.nasa.gov/OnSight/Landform/issues/793
+                    if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH &&
+                        id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
                     {
-                        case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(basename);
-                        case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(basename);
-                        case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(basename);
-                        default: return fail("unexpected length");
+                        var unified = MSLUnifiedMeshProductId.Parse(id);
+                        if (unified != null)
+                        {
+                            return unified;
+                        }
+                    }
+                    
+                    switch (id.Length)
+                    {
+                        case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(id);
+                        case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(id);
+                        case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(id);
+                        default: throw new Exception("unexpected length");
                     }
                 }
-            } catch (Exception ex)
+            }
+            catch (Exception ex)
             {
-                return fail(ex.Message);
+                if (throwOnFail)
+                {
+                    throw new Exception(string.Format("failed to parse product ID \"{0}\" (length {1}): {2}",
+                                                      id, id.Length, ex.Message));
+                }
+                return null;
             }
         }
 
@@ -309,6 +275,15 @@ namespace OPS.Pipeline
             this.SiteDrive = new SiteDrive(site, drive);
         }
 
+        protected OPGSProductId(string fullId, RoverProductProducer producer, RoverProductType productType,
+                                string camera, string geometry, string color, string version, string size,
+                                int site, int drive)
+            : base(fullId, producer, productType, camera, geometry, color, version)
+        {
+            this.Size = ParseSize(size);
+            this.SiteDrive = new SiteDrive(site, drive);
+        }
+
         protected abstract RoverProductSize ParseSize(string size);
 
         protected override RoverProductType ParseProductType(string productType)
@@ -332,6 +307,14 @@ namespace OPS.Pipeline
         public readonly string Spec;
 
         protected MSLOPGSProductIdBase(string fullId, string producer, string productType, string camera,
+                                       string geometry, string color, string version, string size, int site, int drive,
+                                       string spec)
+            : base(fullId, ParseProducer(producer), productType, camera, geometry, color, version, size, site, drive)
+        {
+            this.Spec = spec;
+        }
+
+        protected MSLOPGSProductIdBase(string fullId, string producer, RoverProductType productType, string camera,
                                        string geometry, string color, string version, string size, int site, int drive,
                                        string spec)
             : base(fullId, ParseProducer(producer), productType, camera, geometry, color, version, size, site, drive)
@@ -487,7 +470,8 @@ namespace OPS.Pipeline
                                           string cameras, string geometry, string version, string size,
                                           int site, int drive, string spec, string eye, int sol,
                                           bool multiSol, bool multiSite, bool multiDrive, string meshId)
-            : base(fullId, producer, "XYZ", cameras + eye, geometry, /* color */ "", version, size, site, drive, spec)
+            : base(fullId, producer, RoverProductType.Points, cameras + eye, geometry, /* color */ "", version, size,
+                   site, drive, spec)
         {
             this.Cameras = ParseCameras(cameras, eye);
             this.TextureProductType = ParseProductType(textureProductType);

@@ -9,13 +9,9 @@ using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Util;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.TilingServer
 {
-    public class DefineTilesMessage : QueueMessage
+    public class DefineTilesMessage : PipelineMessage
     {
         public DefineTilesMessage() { }
         public DefineTilesMessage(string projectName) : base(projectName) { }

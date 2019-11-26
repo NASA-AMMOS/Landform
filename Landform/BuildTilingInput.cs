@@ -113,7 +113,7 @@ namespace OPS.Landform
                     RunPhase(string.Format("initialize observation selection strategy: {0}",options.ObsSelectionStrategy), InitObsSelStrategy);
                 }
 
-                if (options.LoadLODs)
+                if (options.LoadLODs && meshLODs.Count > 1)
                 {
                     RunPhase("build LOD tile meshes", BuildLODTileMeshes);
                 }
@@ -175,8 +175,10 @@ namespace OPS.Landform
                 //not just when --loadlods is given
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/199
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/713
+                //also note: below in BuildTileTexturesAndSaveTiles() we will switch texGenMode to Bake
+                //if the input mesh actually only had one LOD (we don't know that yet here)
                 texGenMode = TextureGenMode.Clip;
-                description = "clipping from source texture";
+                description = "clipping/baking from source texture";
                 options.NoBackprojectIndexImages = true;
             }
             else if (!string.IsNullOrEmpty(options.InputTexture))
@@ -280,7 +282,7 @@ namespace OPS.Landform
 
         private void BuildTileTree()
         {
-            if (options.LoadLODs)
+            if (options.LoadLODs && meshLODs.Count > 1)
             {
                 //use decimated versions of the mesh provided to generate a tile tree with a fixed number of levels
                 tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLODs);
@@ -328,9 +330,9 @@ namespace OPS.Landform
 
         private void BuildMeshOperator()
         {
-            if (options.LoadLODs)
+            if (options.LoadLODs && meshLODs.Count > 1)
             {
-                meshOps = new MeshOperator[meshLODs.Count()];
+                meshOps = new MeshOperator[meshLODs.Count];
                 CoreLimitedParallel.For(0, meshLODs.Count, (idxLOD) =>
                 {
                     meshOps[idxLOD] = new MeshOperator(meshLODs.ElementAt(idxLOD), buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
@@ -453,6 +455,12 @@ namespace OPS.Landform
                 .ToList();
             int tileCount = tilesToTexture.Count;
 
+            if (options.LoadLODs && meshLODs.Count == 1)
+            {
+                //TODO for now if the input mesh has only one LOD behave same as if --loadlods was not specified
+                texGenMode = TextureGenMode.Bake;
+            }
+
             MultiMeshClipper bakeClipper = null;
             if (texGenMode == TextureGenMode.Bake)
             {
@@ -508,10 +516,10 @@ namespace OPS.Landform
                 else if (texGenMode == TextureGenMode.Clip)
                 {
                     MeshOperator meshOp = null;
-                    if (options.LoadLODs)
+                    if (options.LoadLODs && meshLODs.Count > 1)
                     {
                         int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
-                        int idxLOD = meshLODs.Count() - idxTreeLevel - 1;
+                        int idxLOD = meshLODs.Count - idxTreeLevel - 1;
                         meshOp = meshOps[idxLOD];
                     }
                     else

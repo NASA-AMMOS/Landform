@@ -30,6 +30,8 @@ namespace OPS.Landform
 
     public class BuildTileset : TilingCommand
     {
+        public const string TILESET_DIR = "tiling/TileSet";
+
         private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
         private const int MAX_LEAF_GROUP_SIZE = 32;
@@ -98,7 +100,7 @@ namespace OPS.Landform
 
             withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
 
-            tilesetFolder = DecorateOutDir(OUT_DIR + "Set");
+            tilesetFolder = DecorateOutDir(TILESET_DIR);
 
             return true;
         }

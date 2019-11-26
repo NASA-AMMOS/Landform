@@ -24,6 +24,10 @@ namespace OPS.Pipeline
             this.ext = ext;
         }
 
+        public RoverObservationComparator()
+            : this(preferMSSS: false, preferLinear: true, preferColor: true, preferEyeForGeometry: RoverStereoEye.Left)
+        {}
+
         /// <summary>
         /// 0 if a and b are equivalently good
         /// negative if a is "better" than b

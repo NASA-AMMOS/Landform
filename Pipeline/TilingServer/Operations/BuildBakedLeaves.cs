@@ -11,14 +11,10 @@ using OPS.Geometry;
 using Microsoft.Xna.Framework;
 using System.Collections.Concurrent;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.TilingServer
 {
 
-    public class BuildBakedLeavesMessage : QueueMessage
+    public class BuildBakedLeavesMessage : PipelineMessage
     {
         public List<string> TileIds;
         public BuildBakedLeavesMessage() { }

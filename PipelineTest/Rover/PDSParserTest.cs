@@ -42,7 +42,7 @@ namespace PipelineTest
                 {
                     Assert.AreEqual(rmc[i], m.MotionCounter[i]);
                 }
-                Assert.AreEqual("0003101094", m.SiteDrive);
+                Assert.AreEqual("0311094", m.SiteDrive);
                 Assert.AreEqual(606, m.PlanetDayNumber);
 
                 var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
@@ -60,7 +60,6 @@ namespace PipelineTest
                 Assert.AreEqual(0.631446, articulation.MastElevation);
             }
 
-          
             {
                 string filename = Path.Combine("TestData", "img", @"NLB_451649560RNGLF0311330NCAM12813M1.IMG");
                 var md = new PDSMetadata(filename);
@@ -89,7 +88,7 @@ namespace PipelineTest
                 {
                     Assert.AreEqual(rmc[i], m.MotionCounter[i]);
                 }
-                Assert.AreEqual("0003101330", m.SiteDrive);
+                Assert.AreEqual("0311330", m.SiteDrive);
                 Assert.AreEqual(610, m.PlanetDayNumber);
 
                 var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
@@ -107,7 +106,6 @@ namespace PipelineTest
                 Assert.AreEqual(1.97266, articulation.MastElevation);
                 Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.DerivedImageRefFrame);
             }
-
 
             {
                 string filename = Path.Combine("TestData", "img", @"0608ML0025660260301542E01_DRCX.IMG");
@@ -136,7 +134,7 @@ namespace PipelineTest
                 {
                     Assert.AreEqual(rmc[i], m.MotionCounter[i]);
                 }
-                Assert.AreEqual("0003101256", m.SiteDrive);
+                Assert.AreEqual("0311256", m.SiteDrive);
                 Assert.AreEqual(608, m.PlanetDayNumber);
 
                 var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
@@ -152,10 +150,7 @@ namespace PipelineTest
                 Assert.AreEqual(-0.013007, articulation.LeftRockerAngle);
                 Assert.AreEqual(4.092333, articulation.MastAzimuth);
                 Assert.AreEqual(1.127138, articulation.MastElevation);
-
             }
         }
     }
-
-
 }

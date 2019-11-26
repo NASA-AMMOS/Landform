@@ -34,13 +34,19 @@ namespace OPS.Landform
         public bool WriteDebug { get; set; }
 
         [Option(HelpText = "Output directory, or omit to save to project storage", Default = null)]
-        public string OutputFolder { get; set; }
+        public virtual string OutputFolder { get; set; }
 
         [Option(HelpText = "Output mesh format, e.g. ply, obj, help for list", Default = "ply")]
-        public string MeshFormat { get; set; }
+        public virtual string MeshFormat { get; set; }
 
         [Option(HelpText = "Output image format, e.g. png, jpg, help for list", Default = "png")]
-        public string ImageFormat { get; set; }
+        public virtual string ImageFormat { get; set; }
+
+        [Option(Default = null, HelpText = "Override default config dir (defaults to user home dir)")]
+        public string ConfigDir { get; set; }
+
+        [Option(Default = null, HelpText = "Override default config folder (defaults to .landform)")]
+        public string ConfigFolder { get; set; }
     }
 
     public class LandformCommand
@@ -67,6 +73,15 @@ namespace OPS.Landform
         {
             this.lcopts = lcopts;
 
+            if (!string.IsNullOrEmpty(lcopts.ConfigDir))
+            {
+                Config.ConfigDir = lcopts.ConfigDir;
+            }
+            if (!string.IsNullOrEmpty(lcopts.ConfigFolder)) 
+            {
+                Config.ConfigFolder = lcopts.ConfigFolder;
+            }
+
             if (lcopts.Cloud)
             {
                 pipeline = new CloudPipeline(lcopts, initQueues: false);
@@ -75,7 +90,13 @@ namespace OPS.Landform
             {
                 pipeline = new LocalPipeline(lcopts);
             }
+
             PDSSerializer.DataPath = pipeline.PDSDataPath;
+
+            if (!pipeline.Quiet)
+            {
+                CommandHelper.DumpConfig(pipeline.Logger, pipeline.Config);
+            }
         }
 
         protected void StartStopwatch()
@@ -83,11 +104,23 @@ namespace OPS.Landform
             stopwatch = Stopwatch.StartNew();
         }
 
-        protected void StopStopwatch()
+        protected void StopStopwatch(bool quiet = false, bool brief = false)
         {
             stopwatch.Stop();
+
+            if (quiet)
+            {
+                return;
+            }
+
             var totalMS = stopwatch.ElapsedMilliseconds + pipeline.InitMSPerPhase.Values.Sum();
             pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(totalMS));
+
+            if (brief)
+            {
+                return;
+            }
+
             foreach (var table in new[] { pipeline.InitMSPerPhase, msPerPhase })
             {
                 foreach (var entry in table)
@@ -95,14 +128,21 @@ namespace OPS.Landform
                     pipeline.LogInfo("{0} {1}", Fmt.HMS(entry.Value), entry.Key);
                 }
             }
+
             pipeline.DumpStats();
+
             int ndr = PathHelper.NumDeleteRetries;
             if (ndr > 0)
             {
                 pipeline.LogWarn("{0} file delete retries", ndr);
             }
-            pipeline.LogInfo("local output path: {0}", localOutputPath);
-            if (pipeline is CloudPipeline)
+
+            if (!string.IsNullOrEmpty(localOutputPath))
+            {
+                pipeline.LogInfo("local output path: {0}", localOutputPath);
+            }
+
+            if (!string.IsNullOrEmpty(outputFolder) && pipeline is CloudPipeline && project != null)
             {
                 pipeline.LogInfo("cloud output path: {0}", pipeline.GetStorageUrl(outputFolder, project.Name));
             }
@@ -128,6 +168,10 @@ namespace OPS.Landform
 
         protected virtual Project GetProject()
         {
+            if (string.IsNullOrEmpty(lcopts.ProjectName))
+            {
+                return null;
+            }
             var project = Project.Find(pipeline, lcopts.ProjectName);
             if (project == null)
             {
@@ -139,12 +183,13 @@ namespace OPS.Landform
 
         protected virtual MissionSpecific GetMission()
         {
-            return MissionSpecific.GetInstance(project.Mission);
+            return project != null ? MissionSpecific.GetInstance(project.Mission) : null;
         }
 
         protected virtual RoverMasker GetMasker()
         {
-            return mission.GetMasker();
+            
+            return mission != null ? mission.GetMasker() : null;
         }
 
         protected virtual bool DeleteLocalProductsBeforeRedo()
@@ -155,7 +200,7 @@ namespace OPS.Landform
         protected virtual void SetOutDir(string outDir)
         {
             outputFolder = outDir;
-            localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project.Name);
+            localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project != null ? project.Name : "");
             if (lcopts.Redo && Directory.Exists(localOutputPath) && DeleteLocalProductsBeforeRedo())
             {
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);

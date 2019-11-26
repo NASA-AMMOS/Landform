@@ -91,6 +91,12 @@
     <None Include="TestData\mesh\cloudcompare_bin_nc_.ply">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\mesh\m2020-tactical-event-example.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <None Include="TestData\mesh\m2020-tactical-event-example2.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\mesh\meshlab_ascii_nct.ply">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -163,6 +169,9 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="TestData\img\testPattern.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="TestData\img\tt4-image-blending.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="TestData\mesh\raptor.jpg">

@@ -5,9 +5,9 @@ using Amazon;
 using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using log4net;
 using Newtonsoft.Json;
 using OPS.Util;
+using OPS.MathExtensions;
 
 namespace OPS.Cloud
 {
@@ -25,27 +25,12 @@ namespace OPS.Cloud
         [JsonIgnore]
         public double ApproxFirstReceiveMS = -1;
 
-        //approx latest time we received this message
+        //approx time we received this message
         //this may be a lower bounds
         //note: other receivers may have received it even later
         //ms since UTC epoch
         [JsonIgnore]
-        public double ApproxLastReceiveMS = -1;
-
-        public string ProjectName;
-
-        public QueueMessage() { }
-        public QueueMessage(string projectName) { ProjectName = projectName; }
-
-        public string Info()
-        {
-            var typeName = GetType().Name;
-            if (typeName.EndsWith("Message"))
-            {
-                typeName = typeName.Substring(0, typeName.Length - "Message".Length);
-            }
-            return string.Format("[{0}] {1} {2}", ProjectName, typeName, MessageId);
-        }
+        public double ApproxReceiveMS = -1;
     }
 
     public class MessageQueue
@@ -54,22 +39,29 @@ namespace OPS.Cloud
 
         public string Name { get; private set; }
         public int TimeoutSec { get; private set; }
+        public bool LandformOwned { get; private set; }
 
-        private ILog logger;
+        private ILogger logger;
         private string url;
+        private bool autoTypes;
         private AmazonSQSClient client;
 
         public MessageQueue(string name, string awsProfileName = null, string awsRegionName = null,
-                            int timeoutSec = DEF_TIMEOUT_SEC, ILog logger = null, bool quiet = false)
+                            int timeoutSec = DEF_TIMEOUT_SEC, ILogger logger = null, bool quiet = false,
+                            bool landformOwned = true, bool autoTypes = true)
         {
-            this.logger = logger != null ? logger : LogManager.GetLogger(typeof(MessageQueue));
+            this.logger = logger;
 
             if (string.IsNullOrEmpty(name))
             {
                 throw new ArgumentException("queue name cannot be empty");
             }
 
-            if (!name.ToLower().StartsWith("landform-"))
+            this.autoTypes = autoTypes;
+
+            this.LandformOwned = landformOwned;
+
+            if (landformOwned && !name.ToLower().StartsWith("landform-"))
             {
                 name = "landform-" + name;
             }
@@ -96,24 +88,38 @@ namespace OPS.Cloud
                 var res = client.GetQueueAttributes(req);
                 if (!quiet)
                 {
-                    logger.InfoFormat("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
-                                      Name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
+                    logger.LogInfo("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
+                                   Name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
                 }
                 if (res.VisibilityTimeout != timeoutSec)
                 {
-                    logger.InfoFormat("updating visibility timeout for queue \"{0}\" from {1}s to {2}s",
-                                      Name, res.VisibilityTimeout, timeoutSec);
-                    var attrs = new Dictionary<string, string>();
-                    attrs["VisibilityTimeout"] = timeoutSec.ToString();
-                    client.SetQueueAttributes(url, attrs);
+                    logger.LogWarn("visibility timeout for queue \"{0}\" is {1}s, expected {2}s",
+                                   Name, res.VisibilityTimeout, timeoutSec);
+                    if (landformOwned)
+                    {
+                        var attrs = new Dictionary<string, string>();
+                        attrs["VisibilityTimeout"] = timeoutSec.ToString();
+                        client.SetQueueAttributes(url, attrs);
+                    }
+                    else
+                    {
+                        TimeoutSec = res.VisibilityTimeout;
+                    }
                 }
             }
             catch (QueueDoesNotExistException)
             {
-                logger.InfoFormat("creating queue \"{0}\"", Name);
-                var req = new CreateQueueRequest() { QueueName = Name };
-                req.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
-                url = client.CreateQueue(req).QueueUrl;
+                if (landformOwned)
+                {
+                    logger.LogInfo("creating queue \"{0}\"", Name);
+                    var req = new CreateQueueRequest() { QueueName = Name };
+                    req.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
+                    url = client.CreateQueue(req).QueueUrl;
+                }
+                else
+                {
+                    throw;
+                }
             }
         }
 
@@ -124,7 +130,12 @@ namespace OPS.Cloud
         
         public void Enqueue(QueueMessage message)
         {
-            client.SendMessage(new SendMessageRequest(url, JsonHelper.ToJson(message)));
+            Enqueue(JsonHelper.ToJson(message, autoTypes: autoTypes));
+        }
+
+        public void Enqueue(string json)
+        {
+            client.SendMessage(new SendMessageRequest(url, json));
         }
 
         public void UpdateTimeout(QueueMessage m, int timeoutSec)
@@ -141,13 +152,18 @@ namespace OPS.Cloud
             client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
         }
 
-        public QueueMessage DequeueOne(int waitSec = 0)
+        public T DequeueOne<T>(int waitSec = 0) where T : class
         {
-            var msgs = Dequeue(1, waitSec);
+            var msgs = Dequeue<T>(1, waitSec);
             return msgs.Length > 0 ? msgs[0] : null;
         }
 
-        public QueueMessage[] Dequeue(int maxMessages = 1, int waitSec = 0)
+        public QueueMessage DequeueOne(int waitSec = 0)
+        {
+            return DequeueOne<QueueMessage>(waitSec);
+        }
+
+        public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0) where T : class
         {
             var req = new ReceiveMessageRequest
             {
@@ -169,7 +185,7 @@ namespace OPS.Cloud
             }
             catch (OverLimitException e)
             {
-                logger.Error("client over limit: " + e.Message, e);
+                logger.LogError("client over limit: {0}", e.Message);
                 throw;
             }
 
@@ -177,35 +193,33 @@ namespace OPS.Cloud
             {
                 try
                 {
-                    var m = (QueueMessage)JsonHelper.FromJson(msg.Body);
-                    m.MessageId = msg.MessageId;
-                    m.ReceiptHandle = msg.ReceiptHandle;
-                    string ts = null;
-                    if (msg.Attributes != null &&
-                        msg.Attributes.TryGetValue("ApproximateFirstReceiveTimestamp", out ts))
+                    T m = JsonHelper.FromJson<T>(msg.Body, autoTypes: autoTypes);
+                    if (m is QueueMessage)
                     {
-                        try
+                        var qm = m as QueueMessage;
+                        qm.MessageId = msg.MessageId;
+                        qm.ReceiptHandle = msg.ReceiptHandle;
+                        string ts = null;
+                        if (msg.Attributes != null &&
+                            msg.Attributes.TryGetValue("ApproximateFirstReceiveTimestamp", out ts))
                         {
-                            m.ApproxFirstReceiveMS = double.Parse(ts);
+                            double.TryParse(ts, out qm.ApproxFirstReceiveMS);
                         }
-                        catch (Exception)
-                        {
-                        }
+                        qm.ApproxReceiveMS = Math.Max(now, qm.ApproxFirstReceiveMS);
                     }
-                    m.ApproxLastReceiveMS = Math.Max(now, m.ApproxFirstReceiveMS);
                     return m;
                 }
                 catch (Exception e)
                 {
                     
-                    logger.Error("invalid message '" + msg.Body + "' in " + Name + " (deleting): " + e.Message);
+                    logger.LogError("invalid message '{0}' in {1} (deleting): {2}", msg.Body, Name, e.Message);
                     try
                     {
                         DeleteMessage(msg.ReceiptHandle);
                     }
                     catch (Exception e2)
                     {
-                        logger.Error("error deleting message: " + e2.Message);
+                        logger.LogError("error deleting message: {0}", e2.Message);
                     }
                     return null;
                 }
@@ -228,17 +242,13 @@ namespace OPS.Cloud
 
         public static AmazonSQSClient GetClient(string awsProfileName = null, string awsRegionName = null)
         {
-            AWSCredentials awsCredentials = null;
-            if (awsProfileName != null)
-            {
-                awsCredentials = Credentials.Get(awsProfileName);
-            }
+            string[] nulls = { "", "null", "none", "auto" };
+            Func<string, string> convertNull = s => s == null || nulls.Any(n => n == s.ToLower()) ? null : s;
+            awsProfileName = convertNull(awsProfileName);
+            awsRegionName = convertNull(awsRegionName);
 
-            RegionEndpoint awsRegion = null;
-            if (awsRegionName != null)
-            {
-                awsRegion = RegionEndpoint.GetBySystemName(awsRegionName);
-            }
+            AWSCredentials awsCredentials = awsProfileName != null ? Credentials.Get(awsProfileName) : null;
+            RegionEndpoint awsRegion = awsRegionName != null ? RegionEndpoint.GetBySystemName(awsRegionName) : null;
 
             if (awsCredentials != null && awsRegion != null)
             {

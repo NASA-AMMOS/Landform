@@ -12,13 +12,9 @@ using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline
 {
-    public class PipelineCoreOptions
+    public class PipelineCoreOptions : CommandHelper.OptionsBase
     {
         [Option(Default = false, HelpText = "Clear download cache at startup")]
         public bool ClearCache { get; set; }
@@ -38,6 +34,12 @@ namespace OPS.Pipeline
         [Option(Default = null, HelpText = "Override default log filename")]
         public string LogFile { get; set; }
 
+        [Option(Default = null, HelpText = "Override default log directory")]
+        public string LogDir { get; set; }
+
+        [Option(Default = null, HelpText = "Override default temp dir")]
+        public string TempDir { get; set; }
+
         [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
         public bool SingleThreaded { get; set; }
 
@@ -46,6 +48,26 @@ namespace OPS.Pipeline
 
         [Option(Default = false, HelpText = "user masks are inverted: 0 means invalid, nonzero means valid")]
         public bool UserMasksInverted { get; set; }
+    }
+
+    //TODO: refactor so that local codepath does not have cloud dependencies
+    //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
+    public class PipelineMessage : OPS.Cloud.QueueMessage
+    {
+        public string ProjectName;
+
+        public PipelineMessage() { }
+        public PipelineMessage(string projectName) { ProjectName = projectName; }
+
+        public string Info()
+        {
+            var typeName = GetType().Name;
+            if (typeName.EndsWith("Message"))
+            {
+                typeName = typeName.Substring(0, typeName.Length - "Message".Length);
+            }
+            return string.Format("[{0}] {1} {2}", ProjectName, typeName, MessageId);
+        }
     }
 
     /**
@@ -141,12 +163,17 @@ namespace OPS.Pipeline
             this.StackTraces = options.StackTraces;
 
             if (string.IsNullOrEmpty(storageUrl)) throw new Exception("storage URL must be specified");
-            this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.ToLower().Trim());
+            this.StorageUrl = StringHelper.NormalizeUrl(storageUrl.Trim());
 
             if (string.IsNullOrEmpty(venue)) throw new Exception("venue must be specified");
-            this.Venue = venue.ToLower().Replace('\\','/').Trim().Trim(new char[] {'/'});
+            this.Venue = venue.Replace('\\','/').Trim().Trim(new char[] {'/'});
 
             this.StorageUrlWithVenue = this.StorageUrl + "/" + this.Venue;
+
+            if (!string.IsNullOrEmpty(options.TempDir))
+            {
+                TemporaryFile.TemporaryDirectory = options.TempDir;
+            }
 
             if (logger != null)
             {
@@ -154,7 +181,8 @@ namespace OPS.Pipeline
             }
             else
             {
-                Logging.ConfigureLogging(Quiet || quietInit, options.Debug, options.LogFile);
+                Logging.ConfigureLogging(Config.FullCommand, Quiet || quietInit, options.Debug,
+                                         options.LogFile, options.LogDir);
                 this.Logger = LogManager.GetLogger(GetType());
             }
 
@@ -361,7 +389,7 @@ namespace OPS.Pipeline
         protected void CheckStorageUrl(string url, bool withVenue = true)
         {
             string prefix = withVenue ? StorageUrlWithVenue : StorageUrl;
-            if (string.IsNullOrEmpty(url) || !url.ToLower().StartsWith(prefix))
+            if (string.IsNullOrEmpty(url) || !url.StartsWith(prefix, ignoreCase: true, culture: null))
             {
                 throw new Exception(string.Format("storage URL {0} does not start with {1}", url, prefix));
             }
@@ -378,6 +406,7 @@ namespace OPS.Pipeline
             var ret = givenFolder;
             if (string.IsNullOrEmpty(givenFolder))
             {
+                //empty strings are ignored
                 ret = Path.Combine(LocalPipelineConfig.Instance.StorageDir, Venue, defaultSubpath, project);
             }
             return StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(ret));
@@ -406,7 +435,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="file">path to file on disk</param>
         /// <param name="url">destination URL, must start with StorageURL/Venue</param>
-        public abstract void SaveFile(string file, string url);
+        public abstract void SaveFile(string file, string url, bool constrainToStorage = true);
 
         /// <summary>
         /// Delete a persisted file.
@@ -444,7 +473,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="url">base URL to search, if constrainToStorage = true must start with StorageURL/Venue</param>
         public abstract IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
-                                                        bool constrainToStorage = false);
+                                                        bool ignoreCase = false, bool constrainToStorage = false);
 
         //****************** Data Product API *****************
 
@@ -611,7 +640,7 @@ namespace OPS.Pipeline
             return ScanDatabase<T>(dict);
         }
 
-        //****************** Logging API *****************
+        //****************** Logging API (implements OPS.Util.ILogger) *****************
 
         public void LogInfo(string msg, params Object[] args)
         {
@@ -647,16 +676,10 @@ namespace OPS.Pipeline
             Logger.ErrorFormat(msg, args);
         }
 
-        /// <summary>
-        /// for a non aggregate exception, default is to just spew its message
-        /// because that is commonly going to be enough and may be user visible (e.g. invalid command line args)
-        /// for an aggregate we spew the message and stack trace of the first inner exception
-        /// because that is most likely an unexpected error that needs to be debugged
-        /// </summary>
         public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
                                  bool aggregateStackTrace = true)
         {
-            LogError("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + " ") : "", ex.Message);
+            LogError("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + ": ") : "", ex.Message);
 
             if (stackTrace || Debug || StackTraces)
             {
@@ -710,18 +733,18 @@ namespace OPS.Pipeline
             }
         }
 
-        protected string DownloadCachePath(string project, string filename)
+        public string DownloadCachePath(string project = null, string filename = null)
         {
             return Path.Combine(DownloadCache, project ?? "", filename ?? ""); //ignores empty components
         }
 
         //****************** Message Queue API *****************
 
-        public delegate bool MessageEnqueued(QueueMessage message);
+        public delegate bool MessageEnqueued(PipelineMessage message);
         public event MessageEnqueued EnqueuedToMaster;
         public event MessageEnqueued EnqueuedToWorkers;
         
-        public void EnqueueToMaster(QueueMessage message)
+        public void EnqueueToMaster(PipelineMessage message)
         {
             if (EnqueuedToMaster == null || EnqueuedToMaster(message))
             {
@@ -729,9 +752,9 @@ namespace OPS.Pipeline
             }
         }
 
-        protected abstract void EnqueueToMasterImpl(QueueMessage message);
+        protected abstract void EnqueueToMasterImpl(PipelineMessage message);
 
-        public void EnqueueToWorkers(QueueMessage message)
+        public void EnqueueToWorkers(PipelineMessage message)
         {
             if (EnqueuedToWorkers == null || EnqueuedToWorkers(message))
             {
@@ -739,7 +762,7 @@ namespace OPS.Pipeline
             }
         }
 
-        protected abstract void EnqueueToWorkersImpl(QueueMessage message);
+        protected abstract void EnqueueToWorkersImpl(PipelineMessage message);
     }
 }
         

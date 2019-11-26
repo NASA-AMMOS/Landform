@@ -1,4 +1,7 @@
 ﻿using System;
+using System.IO;
+using System.Collections.Generic;
+using System.Linq;
 using OPS.Util;
 
 namespace OPS.Pipeline
@@ -6,28 +9,28 @@ namespace OPS.Pipeline
     public class CloudPipelineConfig : SingletonConfig<CloudPipelineConfig>
     {
         [ConfigEnvironmentVariable("LANDFORM_VENUE")]
-        public string Venue;
+        public string Venue; //see GetDefaultVenue()
 
         [ConfigEnvironmentVariable("LANDFORM_AWS_REGION")]
-        public string AWSRegion;
+        public string AWSRegion = null; //use default system region
 
         [ConfigEnvironmentVariable("LANDFORM_AWS_PROFILE")]
-        public string AWSProfile;
+        public string AWSProfile = null; //use default system credentials (e.g. from IAM profile on EC2 instance)
 
         [ConfigEnvironmentVariable("LANDFORM_S3_URL")]
-        public string S3Url;
+        public string S3Url = "s3://landform/cloud-pipeline";
 
         //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_PROFILE")]
-        public string MSLICEAWSProfile;
+        public string MSLICEAWSProfile = "mslice";
 
         //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_AWS_REGION")]
-        public string MSLICEAWSRegion;
+        public string MSLICEAWSRegion = "us-west-1";
 
         //TODO MSL specific
         [ConfigEnvironmentVariable("LANDFORM_MSLICE_S3_URL")]
-        public string MSLICES3Url;
+        public string MSLICES3Url = "s3://red-product";
 
         [ConfigEnvironmentVariable("LANDFORM_IMAGE_MEM_CACHE")]
         public int ImageMemCache = 100;
@@ -37,17 +40,28 @@ namespace OPS.Pipeline
 
         //0 to use all available cores, N to use up to N, -M to reserve M
         [ConfigEnvironmentVariable("LANDFORM_MAX_CORES")]
-        public int MaxCores;
+        public int MaxCores = 0;
 
         //negative to use a time-dependent random seed
         [ConfigEnvironmentVariable("LANDFORM_RANDOM_SEED")]
-        public int RandomSeed = -1; //default to -1 not 0
+        public int RandomSeed = -1;
 
         //enable legacy compatibility (read only)
         [ConfigEnvironmentVariable("LANDFORM_LEGACY_COMPAT")]
-        public bool LegacyCompat;
+        public bool LegacyCompat = false;
 
-        protected override string ConfigFilename()
+        public CloudPipelineConfig()
+        {
+            Venue = GetDefaultVenue();
+        }
+
+        public static string GetDefaultVenue()
+        {
+            return string.Format("landform-dev-{0}-{1}",
+                                 Environment.UserName.ToLower(), Environment.MachineName.ToLower());
+        }
+
+        public override string ConfigFileName()
         {
             return "landform-cloud";
         }
@@ -58,13 +72,9 @@ namespace OPS.Pipeline
             {
                 throw new Exception("undefined venue name in config");
             }
-            if (string.IsNullOrEmpty(AWSRegion))
-            {
-                throw new Exception("undefined AWS region in config"); 
-            }
             if (string.IsNullOrEmpty(S3Url))
             {
-                throw new Exception("undefined S3 url in config");
+                throw new Exception("undefined storage URL in config");
             }
         }
     }

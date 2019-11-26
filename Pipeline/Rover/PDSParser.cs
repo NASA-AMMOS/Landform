@@ -304,7 +304,7 @@ namespace OPS.Pipeline
                 {
                     return null;
                 }
-                return mc[0].ToString().PadLeft(5, '0') + mc[1].ToString().PadLeft(5, '0');
+                return (new SiteDrive(mc[0], mc[1])).ToString();
             }
         }
 
