@@ -3,13 +3,14 @@
 # https://stackoverflow.com/a/246128
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 landform=$scriptdir/../Landform/bin/Release/Landform.exe
+landformUtil=$scriptdir/../LandformUtil/bin/Release/LandformUtil.exe
 home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 #dest=s3://BUCKET/ods/VENUE/sol/SOL/ids/tileset
 
 if [ $# -lt 4 ]; then
-    echo "USAGE: processContextual.sh DIR MISSION SOL SSSDDDD[,SSSDDDD[,...]]"
+    echo "USAGE: processContextual.sh DIR MISSION SOL SSSDDDD[,SSSDDDD[,...]] [--nomanifest]"
     exit 1
 fi
 
@@ -61,8 +62,16 @@ rm -rf $proj
 mv $storage/$venue/tiling/TileSet/${sd}Frame/best/$proj .
 mv $proj/tileset.json $proj/${proj}_tileset.json
 
+# create/update scene manifest here where we have access to the contextual mesh alignment project database
+if [ "$5" != "--nomanifest" ]; then
+    $landformUtil update-scene-manifest $proj --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd
+fi
+
 rm -rf $storage/$venue
 
 #aws s3 sync $proj $dest/$proj --profile=credss-default
+
+#mf=${proj}_scene.json
+#aws s3 sync $mf $dest/$mf --profile=credss-default
 
 if [ -f $config.BAK ]; then cp $config.BAK $config; fi
