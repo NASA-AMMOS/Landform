@@ -24,13 +24,13 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Scene mesh texture image to bake into tiles, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
-        [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.0)]
+        [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.03)]
         public double SplitByTexturePctToTest { get; set; }
 
         [Option(HelpText = "Percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = 0.5)]
         public double SplitByTexturePctSatisfied { get; set; }
 
-        [Option(HelpText = "Area of source pixels mapped to a single destination pixel that would trigger a split", Default = 4.5)]
+        [Option(HelpText = "Area of source pixels mapped to a single destination pixel that would trigger a split", Default = 8.5)]
         public double SplitByTextureSamplingRatio { get; set; }
 
         [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]

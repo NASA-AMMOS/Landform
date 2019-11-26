@@ -45,7 +45,7 @@ namespace OPS.Landform
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.5)]
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
         [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = ObsSelectionStrategyName.Spatial)]
