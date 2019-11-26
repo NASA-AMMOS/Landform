@@ -62,6 +62,10 @@ namespace OPS.Util
                 {
                     return;
                 }
+                if (evt.Data.IndexOf("error:", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    esb.AppendLine(evt.Data);
+                }
                 if (captureOutput)
                 {
                     osb.AppendLine(evt.Data);
