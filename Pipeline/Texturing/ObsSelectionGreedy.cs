@@ -58,9 +58,12 @@ namespace OPS.Pipeline.Texturing
 
         public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
-            foreach (var pair in ObsToScore)
+            if (scoresByObs != null)
             {
-                scoresByObs.Add(pair.Key, pair.Value);
+                foreach (var pair in ObsToScore)
+                {
+                    scoresByObs.Add(pair.Key, pair.Value);
+                }
             }
 
             sortedContexts.Clear();
