@@ -121,6 +121,14 @@ namespace OPS.Util
             }
             //be robust to the case that URL is actually a windows abomination, but without allocating
             int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            if (stripExtension)
+            {
+                int lastDot = url.LastIndexOf('.');
+                if (lastDot >= 0 && lastDot > lastSlash) //ok: lastSlash < 0
+                {
+                    url = url.Substring(0, lastDot);
+                }
+            }
             if (lastSlash < 0)
             {
                 return url;
@@ -129,16 +137,7 @@ namespace OPS.Util
             {
                 return "";
             }
-            string ret = url.Substring(lastSlash + 1);
-            if (!stripExtension)
-            {
-                return ret;
-            }
-            else
-            {
-                int lastDot = ret.LastIndexOf('.');
-                return lastDot < 0 ? ret : ret.Substring(0, lastDot);
-            }
+            return url.Substring(lastSlash + 1);
         }
 
         public static string StripLastUrlPathSegment(string url)
@@ -165,7 +164,7 @@ namespace OPS.Util
             //be robust to the case that URL is actually a windows abomination, but without allocating
             int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
             int lastDot = url.LastIndexOf('.');
-            if (lastDot > lastSlash)
+            if (lastDot >= 0 && lastDot > lastSlash) //ok: lastSlash < 0
             {
                 return url.Substring(lastDot);
             }
@@ -184,7 +183,7 @@ namespace OPS.Util
             //be robust to the case that URL is actually a windows abomination, but without allocating
             int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
             int lastDot = url.LastIndexOf('.');
-            if (lastDot > lastSlash)
+            if (lastDot >= 0 && lastDot > lastSlash) //ok: lastSlash < 0
             {
                 return url.Substring(0, lastDot);
             }

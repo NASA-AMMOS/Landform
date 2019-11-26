@@ -383,7 +383,7 @@ namespace OPS.Landform
             {
                 return meshUrl.Substring(0, rdrIdx + rdrSubdir.Length) + tilesetSubdir;
             }
-            return StringHelper.StripLastUrlPathSegment(meshUrl) + tilesetSubdir;
+            return StringHelper.StripLastUrlPathSegment(meshUrl) + "/" + tilesetSubdir;
         }
 
         private void SaveTileset(string venue, string project, string meshUrl)
