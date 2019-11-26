@@ -374,9 +374,8 @@ namespace OPS.Pipeline
             for (int idx = 0; idx < samplePoints.Count; idx++)
             {               
                 //find the strategy specific ranking of contexts for this pixel
-                Dictionary<string, double> scores = new Dictionary<string, double>();
                 List<Context> sortedContexts = new List<Context>(intersectingContexts.Count());
-                opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts, sortedContexts, scores);
+                opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts, sortedContexts, null);
                 sortedContextBySample.Add(idx, sortedContexts);
             }
 

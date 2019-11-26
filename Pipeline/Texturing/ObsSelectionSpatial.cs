@@ -131,33 +131,31 @@ namespace OPS.Pipeline.Texturing
                         double weightedScore = distSq * pt.Score;
                         if (weightedScore < minWeightedScore)
                         {
-                            if (!scoresByObsIndex.ContainsKey(ctx.Obs.Index))
-                            {
-                                scoresByObsIndex.Add(ctx.Obs.Index, weightedScore);
-                            }
-                            else
-                            {
-                                scoresByObsIndex[ctx.Obs.Index] = weightedScore;
-                            }
+                            minWeightedScore = weightedScore;
                         }
+                    }
+
+                    if (!scoresByObsIndex.ContainsKey(ctx.Obs.Index))
+                    {
+                        scoresByObsIndex.Add(ctx.Obs.Index, minWeightedScore);
+                        sortedContexts.Add(ctx);
+                    }
+                    else
+                    {
+                        scoresByObsIndex[ctx.Obs.Index] = minWeightedScore;
                     }
                 }
             }
 
-            //sort contexts by their scores (and return them)
-            foreach(var inCtx in inContexts)
-            {
-                if (scoresByObsIndex.ContainsKey(inCtx.Obs.Index))
-                {
-                    sortedContexts.Add(inCtx);
-                }
-            }
-            
             sortedContexts.Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
-            
-            foreach(var ctx in sortedContexts)
+
+            //optionally return scores
+            if (scoresByObs != null)
             {
-                scoresByObs.Add(ctx.Obs.Name, scoresByObsIndex[ctx.Obs.Index]);
+                foreach (var ctx in sortedContexts)
+                {
+                    scoresByObs.Add(ctx.Obs.Name, scoresByObsIndex[ctx.Obs.Index]);
+                }
             }
         }
     }
