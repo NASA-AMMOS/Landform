@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Xml;
@@ -24,9 +23,6 @@ namespace OPS.Landform
     {
         [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSSSDDDDD", Default = "auto")]
         public virtual string MeshFrame { get; set; }
-
-        [Option(HelpText = "Use level of detail meshes provided in input mesh instead of decimation", Default = false)]
-        public bool LoadLODs { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -34,10 +30,6 @@ namespace OPS.Landform
         protected GeometryCommandOptions gcopts;
 
         protected string meshFrame;
-
-        protected Mesh mesh;
-        protected List<Mesh> meshLODs;  //the full set of levels of detail for the mesh with the first being highest quality and the last being worst quality
-        protected SceneMesh sceneMesh;
 
         public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {
@@ -88,12 +80,12 @@ namespace OPS.Landform
         {
             meshFrame = GetMeshFrame().ToLower().Trim();
 
-            string missionRoot = mission.RootFrameName();
+            string missionRoot = mission != null ? mission.RootFrameName() : null;
 
             var specials =
                 new string[] { "auto", "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
 
-            bool isSiteDrive = (new Regex("\\d{10}")).IsMatch(meshFrame);
+            bool isSiteDrive = SiteDrive.IsSiteDriveString(meshFrame);
             bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
 
             if (!isSiteDrive && !isSpecial)
@@ -121,12 +113,15 @@ namespace OPS.Landform
 
             if (meshFrame == "mission_root" || meshFrame == missionRoot)
             {
+                if (missionRoot == null)
+                {
+                    throw new Exception("mission root output requested but mission not specified");
+                }
                 if (string.IsNullOrEmpty(effectiveRootFrame))
                 {
                     //this can happen if there were no frames to load or the frame cache was not loaded
                     throw new Exception("mission root output requested but no frames or frame cache not loaded");
                 }
-
                 if (effectiveRootFrame != missionRoot)
                 {
                     throw new Exception(string.Format("mission root output {0} requested but effective root is {1}",

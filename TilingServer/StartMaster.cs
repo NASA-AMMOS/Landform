@@ -93,7 +93,7 @@ namespace OPS.TilingServer
             while (true)
             {
                 //only take one message at a time when we are ready to process it
-                var m = MasterQueue.DequeueOne();
+                var m = MasterQueue.DequeueOne<PipelineMessage>();
                 Stopwatch sw = new Stopwatch();
                 sw.Start();
                 if (m != null)

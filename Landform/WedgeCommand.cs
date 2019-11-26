@@ -97,8 +97,11 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            LoadFrameCache();
-            LoadObservationCache();
+            if (project != null)
+            {
+                LoadFrameCache();
+                LoadObservationCache();
+            }
 
             return true;
         }

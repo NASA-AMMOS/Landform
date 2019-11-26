@@ -12,7 +12,7 @@ namespace OPS.Pipeline
         public GenericTilingStateMachine(PipelineCore pipeline, string projectName) : base(pipeline, projectName)
         { }
 
-        protected override QueueMessage MakeLeafJobMessage(List<string> leaves)
+        protected override PipelineMessage MakeLeafJobMessage(List<string> leaves)
         {
             return new BuildBakedLeavesMessage(projectName) { TileIds = leaves };
         }

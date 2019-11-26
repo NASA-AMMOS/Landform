@@ -4,12 +4,13 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OPS.Util;
+using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4 }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM }
 
     public abstract class MissionSpecific
     {
@@ -22,6 +23,7 @@ namespace OPS.Pipeline
                 case Mission.M2020: return new MissionM2020();
                 case Mission.ROASTT19: return new MissionROASTT19();
                 case Mission.TT4: return new MissionTT4();
+                case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -31,7 +33,7 @@ namespace OPS.Pipeline
             return GetInstance((Mission)Enum.Parse(typeof(Mission), mission, ignoreCase: false));
         }
 
-        public abstract string Name();
+        public abstract Mission GetMission();
 
         public virtual string RootFrameName()
         {
@@ -65,7 +67,7 @@ namespace OPS.Pipeline
 
         public virtual RoverProductType GetProductType(string productId)
         {
-            return RoverProductId.Parse(productId, this).ProductType;
+            return ParseProductId(productId).ProductType;
         } 
 
         public virtual RoverProductType GetProductType(PDSParser parser)
@@ -450,6 +452,8 @@ namespace OPS.Pipeline
                     (RoverProduct.IsGeometry(prodType) && UseGeometryProducts(cam)));
         }
 
+        public abstract RoverProductId ParseProductId(string id);
+
         /// <summary>
         /// uses the Allow*() APIs so missions can specialize by just overriding those
         /// </summary>
@@ -665,6 +669,97 @@ namespace OPS.Pipeline
         {
             return "credss-default";
         }
+
+        /// <summary>
+        /// Get mission specific tactical mesh SQS queue name.  
+        /// Does not get called if --queuename is specified.
+        /// </summary>
+        public virtual string GetTacticalMeshQueueName()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Get mission specific tactical mesh SQS fail queue name.  
+        /// Does not get called if --failqueuename is specified.
+        /// Return null or empty to disable tactical mesh fail queue.
+        /// </summary>
+        public virtual string GetTacticalMeshFailQueueName()
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Pull a tactical mesh tiling message off the queue.
+        /// The message type can be a mission specific subclass of QueueMessage.
+        /// Does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
+        public virtual QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Returns null unless msg is a valid and recognized tactical mesh queue message.
+        /// Each tactical mesh queue message must contain at most one valid URL.
+        /// If a mission produces tactical meshes in more than one format (e.g. IV and OBJ)
+        /// then when filter = true return non-null only for one of those, ideally the one written last.
+        /// </summary>
+        public virtual string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg, bool filter = true,
+                                                                 ILogger logger = null)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// This is only used for injecting a message into the queue for testing.
+        /// Does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
+        public virtual QueueMessage ParseTacticalMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Kill tactical mesh tileset processes after this amount of time.
+        /// </summary>
+        public virtual int GetTacticalMeshQueueMaxHandlerSec()
+        {
+            return 10 * 60; //10 minutes
+        }
+
+        /// <summary>
+        /// Give up processing a tactical mesh this long after first attempt to process it.
+        /// </summary>
+        public virtual int GetTacticalMeshQueueMessageMaxAgeSec()
+        {
+            return 60 * 60; //1 hour
+        }
+
+        /// <summary>
+        /// Get comma separated list of tactical mesh file extensions.
+        /// Not cases sensitive, leading dots will be added automatically.
+        /// In priority order so if a mesh is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetTacticalMeshExts()
+        {
+            //TODO for now it'd be nice to prefer IV until we implement per-LOD OBJs
+            //but IV import is not working when deployed on EC2
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/749
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/816
+            //return "iv,obj";
+            return "obj";
+        }
+
+        /// <summary>
+        /// Get comma separated list of tactical image file extensions.
+        /// Not cases sensitive, leading dots will be added automatically.
+        /// In priority order so if an image is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetTacticalImageExts()
+        {
+            return "img,png";
+        }
     }
 
     public class MissionMSL : MissionSpecific
@@ -673,9 +768,9 @@ namespace OPS.Pipeline
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
 
-        public override string Name()
+        public override Mission GetMission()
         {
-            return "MSL";
+            return Mission.MSL;
         }
 
         public override RoverProductType GetProductType(PDSParser parser)
@@ -695,7 +790,7 @@ namespace OPS.Pipeline
             //example 0609MR0025690030401020E01_DRCL
             return (parser.GeometricProjection == RoverProductGeometry.Linearized) ||
                 ((parser.ProducingInstitution == RoverProductProducer.MSSS) &&
-                 (RoverProductId.Parse(parser.ProductIdString, this).Geometry == RoverProductGeometry.Linearized));
+                 (ParseProductId(parser.ProductIdString).Geometry == RoverProductGeometry.Linearized));
         }
 
         public override double GetSensorPixelSizeMM(RoverProductCamera camera)
@@ -783,6 +878,29 @@ namespace OPS.Pipeline
         public override bool AllowLegacyManifestDB()
         {
             return true;
+        }
+
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+
+            //MSL unified mesh IDs can be from 32 to 36 chars long
+            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
+            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            {
+                var unified = MSLUnifiedMeshProductId.Parse(id);
+                if (unified != null)
+                {
+                    return unified;
+                }
+            }
+
+            switch (id.Length)
+            {
+                case MSLOPGSProductId.LENGTH: return MSLOPGSProductId.Parse(id);
+                case MSLMSSSProductId.LENGTH: return MSLMSSSProductId.Parse(id);
+                default: throw new Exception("unexpected length");
+            }
         }
 
         public override bool CheckProductId(RoverProductId id, out string reason)
@@ -888,9 +1006,9 @@ namespace OPS.Pipeline
         public const int VERSION_FIELD = 52;
         public const int VERSION_FIELD_LENGTH = 2;
 
-        public override string Name()
+        public override Mission GetMission()
         {
-            return "M2020";
+            return Mission.M2020;
         }
 
         //some images have invalid PLANET_DAY_NUMBER
@@ -903,7 +1021,7 @@ namespace OPS.Pipeline
             }
             catch (MetadataException)
             {
-                return RoverProductId.Parse(parser.ProductIdString, this).GetSol();
+                return ParseProductId(parser.ProductIdString).GetSol();
             }
         }
 
@@ -1082,6 +1200,31 @@ namespace OPS.Pipeline
             return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
         }
 
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+
+            //TODO for now the M2020 SIS for unified mesh product IDs is incomplete
+            //and M2020 datasets we're working with so far that have unified meshes seem to use the MSL format
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/793
+            //MSL unified mesh IDs can be from 32 to 36 chars long
+            //Unfortunately regular MSL IDs are 36 chars long - first try as unified
+            if (id.Length >= MSLUnifiedMeshProductId.MIN_LENGTH && id.Length <= MSLUnifiedMeshProductId.MAX_LENGTH)
+            {
+                var unified = MSLUnifiedMeshProductId.Parse(id);
+                if (unified != null)
+                {
+                    return unified;
+                }
+            }
+
+            switch (id.Length)
+            {
+                case M2020OPGSProductId.LENGTH: return M2020OPGSProductId.Parse(id);
+                default: throw new Exception("unexpected length");
+            }
+        }
+
         public override bool CheckProductId(RoverProductId id, out string reason)
         {
             if (!base.CheckProductId(id, out reason))
@@ -1142,21 +1285,100 @@ namespace OPS.Pipeline
             }
             yield break;
         }
+
+        public override string GetTacticalMeshQueueName()
+        {
+            throw new NotImplementedException(); //TODO testing with m20-ids-g-sqs-landform-lftest1
+        }
+
+        public override string GetTacticalMeshFailQueueName()
+        {
+            return "m20-ids-g-sqs-landform-tactical-fail";
+        }
+
+        public override QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
+        {
+            return queue.DequeueOne<SNSMessageWrapper>();
+        }
+
+        public override string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg, bool filter = true,
+                                                                  ILogger logger = null)
+        {
+            if (!(msg is SNSMessageWrapper))
+            {
+                throw new Exception("M2020 tactical mesh queue message does not have SNS wrapper");
+            }
+
+            var s3Msg = JsonHelper.FromJson<S3EventMessage>(((SNSMessageWrapper)msg).Message);
+            if (s3Msg.Records.Count != 1)
+            {
+                throw new Exception(string.Format("M2020 tactical mesh queue message has {0} records, expected 1",
+                                                  s3Msg.Records.Count));
+            }
+
+            var s3EventRecord = s3Msg.Records[0];
+            string expected = "ObjectCreated:Put";
+            if (s3EventRecord.eventName != expected)
+            {
+                throw new Exception(string.Format("M2020 tactical mesh queue message event name \"{0}\", " +
+                                                  "expected \"{1}\"", s3EventRecord.eventName, expected));
+            }
+
+            var s3EventData = s3EventRecord.s3;
+            if (s3EventData == null)
+            {
+                throw new Exception("M2020 tactical mesh queue message has no S3EventData");
+            }
+
+            if (s3EventData.bucket == null)
+            {
+                throw new Exception("M2020 tactical mesh queue message has no S3 bucket");
+            }
+
+            if (s3EventData.obj == null)
+            {
+                throw new Exception("M2020 tactical mesh queue message has no S3 object");
+            }
+
+            string url = string.Format("s3://{0}/{1}", s3EventData.bucket.name,
+                                       s3EventData.obj.key); //already url encoded
+
+            if (filter && !url.EndsWith(".obj", ignoreCase: true, culture: null))
+            {
+                if (logger != null)
+                {
+                    logger.LogInfo("ignoring M2020 tactical mesh queue message (not OBJ) {0}", url);
+                }
+                return null; //OBJ is written last, only keep OBJ messages
+            }
+
+            return url;
+        }
+
+        public override QueueMessage ParseTacticalMeshQueueMessage(string json)
+        {
+            return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+        }
     }
 
     public class MissionROASTT19 : MissionM2020 
     {
+        public override Mission GetMission()
+        {
+            return Mission.ROASTT19;
+        }
+
         // ROASTT19: bug prevents RMC from being used for frame names. This workaround
         // will break multiple images with different filters resolving to same frame.
         public override string RoverMotionCounter(PDSParser parser)
         {          
-            return ((M2020OPGSProductId)RoverProductId.Parse(parser.ProductIdString, this)).GetConcatenatedTimeString();
+            return ((M2020OPGSProductId)ParseProductId(parser.ProductIdString)).GetConcatenatedTimeString();
         }
 
         // ROASTT19: for some images the INSTRUMENT_ID says LEFT when it should say RIGHT, so use PRODUCT_ID instead
         public override RoverProductCamera GetCamera(PDSParser parser)
         {
-            return TranslateCamera(RoverProductId.Parse(parser.ProductIdString, this).Camera);
+            return TranslateCamera(ParseProductId(parser.ProductIdString).Camera);
         }
     }
 
@@ -1164,6 +1386,11 @@ namespace OPS.Pipeline
     {
         public const int SEQUENCE_FIELD = 35; 
         public const int SEQUENCE_FIELD_LENGTH = 9; 
+
+        public override Mission GetMission()
+        {
+            return Mission.TT4;
+        }
 
         //TT4: sequence number is bumped for different variants
         public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
@@ -1174,6 +1401,78 @@ namespace OPS.Pipeline
             }
             yield return new int[] { SEQUENCE_FIELD, SEQUENCE_FIELD_LENGTH };
             yield break;
+        }
+    }
+
+    public class MissionScarecrowEECAM : MissionM2020
+    {
+        private class ScarecrowEECAMUnifiedMesh : OPGSProductId
+        {
+            public const int LENGTH = 10;
+
+            protected ScarecrowEECAMUnifiedMesh(string fullId, int site, int drive)
+                : base(fullId, RoverProductProducer.OPGS, RoverProductType.Points, camera: "NL", geometry: "L",
+                       color: "", version: "0", size: "", site: site, drive: drive) 
+            { }
+
+            public static ScarecrowEECAMUnifiedMesh Parse(string id)
+            {
+                id = StringHelper.StripUrlExtension(id);
+                if (id.Length != LENGTH)
+                {
+                    return null;
+                }
+
+                string siteStr = id.Substring(3, 3);
+                string driveStr = id.Substring(6, 4);
+
+                if (!int.TryParse(siteStr, out int site) || !int.TryParse(driveStr, out int drive))
+                {
+                    return null;
+                }
+                
+                return new ScarecrowEECAMUnifiedMesh(id, site, drive);
+            }
+
+            public override bool IsSingleFrame()
+            {
+                return false;
+            }
+            
+            public override bool IsSingleCamera()
+            {
+                return true;
+            }
+            
+            public override bool IsSingleSiteDrive()
+            {
+                return true;
+            }
+
+            protected override RoverProductColor ParseColor(string color, string camera)
+            {
+                return RoverProductColor.Unknown;
+            }
+
+            protected override RoverProductSize ParseSize(string size)
+            {
+                return RoverProductSize.Regular;
+            }
+
+            public override int GetSol()
+            {
+                return 0;
+            }
+        }
+
+        public override RoverProductId ParseProductId(string id)
+        {
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+            if (id.Length == ScarecrowEECAMUnifiedMesh.LENGTH)
+            {
+                return ScarecrowEECAMUnifiedMesh.Parse(id);
+            }
+            return base.ParseProductId(id);
         }
     }
 }

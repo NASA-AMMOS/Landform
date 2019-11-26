@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using log4net;
 using CommandLine;
@@ -23,8 +22,8 @@ namespace OPS.Pipeline
 
         public override bool LegacyCompat { get { return (Config as CloudPipelineConfig).LegacyCompat; } }
 
-        private readonly string awsProfile;
-        private readonly string awsRegion;
+        public readonly string AWSProfile;
+        public readonly string AWSRegion;
 
         private readonly IAmazonDynamoDB dynamoClient;
         private readonly DynamoDBContext dynamoContext;
@@ -54,14 +53,12 @@ namespace OPS.Pipeline
                 NumberHelper.RandomSeed = cloudConfig.RandomSeed;
             }
 
-            string convertNull(string s) { return s == "" || s == "null" ? null : s; }
-
-            awsProfile = convertNull(cloudConfig.AWSProfile);
-            awsRegion = convertNull(cloudConfig.AWSRegion);
+            AWSProfile = cloudConfig.AWSProfile;
+            AWSRegion = cloudConfig.AWSRegion;
 
             if (enableS3)
             {
-                defaultStorage = new StorageHelper(awsProfile, awsRegion);
+                defaultStorage = new StorageHelper(AWSProfile, AWSRegion);
             }
 
             Func<string, string> makePrefix = (pfx) => {
@@ -89,7 +86,7 @@ namespace OPS.Pipeline
             if (enableDynamo)
             {
                 this.tablePrefix = makePrefix(tablePrefix);
-                dynamoContext = DBUtil.MakeContext(this.tablePrefix, awsProfile, awsRegion);
+                dynamoContext = DBUtil.MakeContext(this.tablePrefix, AWSProfile, AWSRegion);
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
                 if (initTables)
                 {
@@ -108,11 +105,10 @@ namespace OPS.Pipeline
             }
 
             //TODO MSL specific
-            string msliceAWSProfile = convertNull(cloudConfig.MSLICEAWSProfile);
-            string msliceAWSRegion = convertNull(cloudConfig.MSLICEAWSRegion);
-            if (OPS.Cloud.Credentials.Exists(msliceAWSProfile) && !string.IsNullOrEmpty(cloudConfig.MSLICES3Url))
+            if (!string.IsNullOrEmpty(cloudConfig.MSLICES3Url))
             {
-                storageSelect.Add(cloudConfig.MSLICES3Url, new StorageHelper(msliceAWSProfile, msliceAWSRegion));
+                storageSelect.Add(cloudConfig.MSLICES3Url,
+                                  new StorageHelper(cloudConfig.MSLICEAWSProfile, cloudConfig.MSLICEAWSRegion));
             }
         }
 
@@ -121,10 +117,10 @@ namespace OPS.Pipeline
             base.DumpConfig();
             var cloudConfig = (CloudPipelineConfig)Config;
             //not using LogInfo() to print even if Quiet = true
-            Logger.InfoFormat("AWS region: {0}", cloudConfig.AWSRegion);
-            Logger.InfoFormat("AWS profile: {0}", cloudConfig.AWSProfile);
-            Logger.InfoFormat("MSLICE AWS profile: {0}", cloudConfig.MSLICEAWSProfile);
-            Logger.InfoFormat("MSLICE AWS region: {0}", cloudConfig.MSLICEAWSRegion);
+            Logger.InfoFormat("AWS profile: {0}", cloudConfig.AWSProfile ?? "null");
+            Logger.InfoFormat("AWS region: {0}", cloudConfig.AWSRegion ?? "null");
+            Logger.InfoFormat("MSLICE AWS profile: {0}", cloudConfig.MSLICEAWSProfile ?? "null");
+            Logger.InfoFormat("MSLICE AWS region: {0}", cloudConfig.MSLICEAWSRegion ?? "null");
             Logger.InfoFormat("MSLICE S3 URL: {0}", cloudConfig.MSLICES3Url);
         }
 
@@ -204,22 +200,19 @@ namespace OPS.Pipeline
             url = CheckUrl(url, constrainToStorage);
             if (filename == null)
             {
-                var hash = SHA1.Create().ComputeHash(Encoding.UTF8.GetBytes(url));
-                filename = new Guid(hash.Take(16).ToArray()).ToString() + Path.GetExtension(url);
+                filename = StringHelper.SHA1(url, preserveExtension: true);
             }
-
             string cachedFile = DownloadCachePath(cacheFolder, filename);
             if (!File.Exists(cachedFile))
             {
                 TemporaryFile.GetAndMove(cachedFile, tmpFile => DownloadFile(url, tmpFile));
             }
-
             return cachedFile;
         }
 
-        public override void SaveFile(string file, string url)
+        public override void SaveFile(string file, string url, bool constrainToStorage = true)
         {
-            UploadFile(file, CheckUrl(url));
+            UploadFile(file, CheckUrl(url, constrainToStorage));
         }
 
         public override void DeleteFile(string url, bool ignoreErrors = true)
@@ -242,10 +235,10 @@ namespace OPS.Pipeline
         }
         
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
-                                                        bool constrainToStorage = false)
+                                                        bool ignoreCase = false, bool constrainToStorage = false)
         {
             url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
-            return GetStorageHelper(url).SearchObjects(url, globPattern, recursive);
+            return GetStorageHelper(url).SearchObjects(url, globPattern, recursive, ignoreCase);
         }
 
         private void InitializeDatabase(bool quiet = false)
@@ -337,22 +330,22 @@ namespace OPS.Pipeline
         public MessageQueue MasterQueue { get; private set; }
         public MessageQueue WorkerQueue { get; private set; }
 
-        protected override void EnqueueToMasterImpl(QueueMessage message)
+        protected override void EnqueueToMasterImpl(PipelineMessage message)
         {
             MasterQueue.Enqueue(message);
         }
 
-        protected override void EnqueueToWorkersImpl(QueueMessage message)
+        protected override void EnqueueToWorkersImpl(PipelineMessage message)
         {
             WorkerQueue.Enqueue(message);
         }
 
         private void InitializeQueues(bool quiet = false)
         {
-            MasterQueue = new MessageQueue(queuePrefix + "master", awsProfile, awsRegion, MASTER_QUEUE_TIMEOUT_SEC,
-                                           logger: Logger, quiet: quiet);
-            WorkerQueue = new MessageQueue(queuePrefix + "worker", awsProfile, awsRegion, WORKER_QUEUE_TIMEOUT_SEC,
-                                           logger: Logger, quiet: quiet);
+            MasterQueue = new MessageQueue(queuePrefix + "master", AWSProfile, AWSRegion, MASTER_QUEUE_TIMEOUT_SEC,
+                                           this, quiet: quiet);
+            WorkerQueue = new MessageQueue(queuePrefix + "worker", AWSProfile, AWSRegion, WORKER_QUEUE_TIMEOUT_SEC,
+                                           this, quiet: quiet);
             if (!quiet)
             {
                 LogInfo("queues initialized");
@@ -361,7 +354,7 @@ namespace OPS.Pipeline
 
         public void DeleteQueues()
         {
-            var client = MessageQueue.GetClient(awsProfile, awsRegion);
+            var client = MessageQueue.GetClient(AWSProfile, AWSRegion);
             MessageQueue.DeleteQueue(client, queuePrefix + "master");
             MessageQueue.DeleteQueue(client, queuePrefix + "worker");
         }

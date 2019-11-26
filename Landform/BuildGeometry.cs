@@ -52,6 +52,8 @@ namespace OPS.Landform
         private Observation[] onlyForObs;
         private RoverStereoEye stereoEye;
 
+        private Mesh mesh;
+        private SceneMesh sceneMesh;
         private BoundingBox meshBounds;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)

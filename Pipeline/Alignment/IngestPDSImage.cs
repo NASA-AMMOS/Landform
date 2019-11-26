@@ -321,10 +321,10 @@ namespace OPS.Pipeline
         }
 
         //this function returns local_level to site
-        //TODO: after all sites are processed the matrices can be fixed up to provide current site to root (first site) by chaining
+        //after all sites are processed the matrices will be fixed up to provide current site to root by chaining
+        //see FrameCache.ChainPriors() which is called from IngestAlignmentInputs
         private UncertainRigidTransform GetSiteDriveToSiteTransformFromPDS(PDSParser parser)
         {            
-            var siteDrive = new SiteDrive(parser.SiteDrive);
             Vector3 siteToLocalLevel = parser.OriginOffset;
 
             // TODO: examine values here

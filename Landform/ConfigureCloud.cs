@@ -11,7 +11,7 @@ using OPS.Pipeline;
 namespace OPS.Landform
 {
     [Verb("configure-cloud", HelpText = "Configures Landform cloud")]
-    public class ConfigureCloudOptions : PipelineCoreOptions
+    public class ConfigureCloudOptions : ConfigureBaseOptions
     {
         //NOTE: any non-null default values for options will short circuit the Prompt() functionality
         //because it can't differentiate an option that got its value as a default
@@ -22,9 +22,6 @@ namespace OPS.Landform
         //
         //instead of specifying non-null defaults here, please note them in docs/cloud-pipeline.md
 
-        [Option(Default = null, HelpText = "Venue name")]
-        public string Venue { get; set; }
-        
         [Option(Default = null, HelpText = "S3 url")]
         public string S3Url { get; set; }
 
@@ -43,12 +40,6 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "MSLICE S3 url")]
         public string MSLICES3Url { get; set; }
 
-        [Option(Default = null, HelpText = "0 or unset to use all available cores, N to use up to N, -M to reserve M")]
-        public string MaxCores { get; set; }
-
-        [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
-        public string RandomSeed { get; set; }
-
         [Option(Default = null, HelpText = "legacy compatibility (read only) true/false")]
         public string LegacyCompat { get; set; }
 
@@ -62,12 +53,11 @@ namespace OPS.Landform
         public string WorkerExecutable { get; set; }
     }
 
-    public class ConfigureCloud
+    public class ConfigureCloud : ConfigureBase
     {
         private ConfigureCloudOptions options;
-        private static ILog logger = LogManager.GetLogger(typeof(ConfigureCloud));
 
-        public ConfigureCloud(ConfigureCloudOptions options)
+        public ConfigureCloud(ConfigureCloudOptions options) : base(options)
         {
             this.options = options;
         }
@@ -75,13 +65,6 @@ namespace OPS.Landform
         public int Run()
         {
             CloudPipelineConfig config = new CloudPipelineConfig();
-
-            if (string.IsNullOrEmpty(config.Venue))
-            {
-                //default unless overridden by command line option or console input
-                config.Venue = string.Format("landform-dev-{0}-{1}",
-                                             Environment.UserName.ToLower(), Environment.MachineName.ToLower());
-            }
 
             config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
             config.S3Url = ConsoleHelper.Prompt("S3 url", options.S3Url, config.S3Url);
@@ -101,7 +84,7 @@ namespace OPS.Landform
 
             config.Validate();
 
-            var cfgPath = config.ConfigFilepath();
+            var cfgPath = config.ConfigFilePath();
             if (!options.NoPersist)
             {
                 logger.Info("persisting config to " + cfgPath);

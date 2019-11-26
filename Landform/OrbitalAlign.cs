@@ -18,7 +18,7 @@ using OPS.Imaging.Imaging;
 
 namespace OPS.Landform
 {
-    [Verb("orbitalalign", HelpText = "")]
+    [Verb("orbital-align", HelpText = "")]
     public class OrbitalAlignerOptions : WedgeCommandOptions
     {
         [Value(1, Required = true, Default = 1, HelpText = "Size of a pixel in the DEM in meters")]
@@ -154,12 +154,16 @@ namespace OPS.Landform
             };
 
             //Choose the highest priority site drive as the base for alignment
-            string baseSiteDrive = options.BaseSiteDrive;
-            if (String.IsNullOrEmpty(baseSiteDrive))
+            SiteDrive bsd;
+            if (String.IsNullOrEmpty(options.BaseSiteDrive))
             {
                 sortSiteDrives(options.BaseSiteDrivePriority);
-                baseSiteDrive = siteDrives[0];
+                bsd = new SiteDrive(siteDrives[0]);
+            } else
+            {
+                bsd = new SiteDrive(options.BaseSiteDrive); //Allow either SSSDDDD or SSSSSDDDDD
             }
+            string baseSiteDrive = bsd.ToString();
             siteDrives.Remove(baseSiteDrive);
 
             pipeline.LogInfo("Base site drive for alignment is {0}", baseSiteDrive);
@@ -177,6 +181,7 @@ namespace OPS.Landform
             foreach(string siteDrive in siteDrives)
             {
                 siteDriveToWorldPriorTransforms[siteDrive] = frameCache.GetBestTransform(siteDrive);
+                pipeline.LogInfo("Read in {0} transform for site drive {1}", siteDriveToWorldPriorTransforms[siteDrive].Source, siteDrive);
             }
 
             Matrix baseSiteDriveToWorld = siteDriveToWorldPriorTransforms[baseSiteDrive].Transform.Mean;

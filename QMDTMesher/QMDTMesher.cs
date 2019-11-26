@@ -50,8 +50,6 @@ namespace QMDTMesher
 
         static void Main(string[] args)
         {
-            //TODO centralize log4net initialization to uniformly handle --quiet and --logfile command line opts
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/308
             Logging.ConfigureLogging();
 
             // Register filetype handlers
