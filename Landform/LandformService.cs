@@ -363,7 +363,7 @@ namespace OPS.Landform
                             }
                             catch (Exception msgException)
                             {
-                                pipeline.LogException(msgException, "error handling message");
+                                pipeline.LogException(msgException, "error handling " + desc);
                             }
                             
                             currentMessage = null;

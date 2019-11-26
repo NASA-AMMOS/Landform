@@ -55,14 +55,14 @@ namespace OPS.Util
             //OutputText = p.StandardOutput.ReadToEnd();
             //ErrorText = p.StandardError.ReadToEnd();
 
-            var osb = captureOutput ? new StringBuilder() : null;
-            var esb = captureOutput ? new StringBuilder() : null;
+            var osb = new StringBuilder();
+            var esb = new StringBuilder();
             process.OutputDataReceived += (_, evt) => {
                 if (string.IsNullOrEmpty(evt.Data))
                 {
                     return;
                 }
-                if (osb != null)
+                if (captureOutput)
                 {
                     osb.AppendLine(evt.Data);
                 }
@@ -76,11 +76,8 @@ namespace OPS.Util
                 {
                     return;
                 }
-                if (esb != null)
-                {
-                    esb.AppendLine(evt.Data);
-                }
-                else
+                esb.AppendLine(evt.Data);
+                if (!captureOutput)
                 {
                     Console.Error.WriteLine(evt.Data);
                 }
@@ -99,8 +96,8 @@ namespace OPS.Util
             if (captureOutput)
             {
                 OutputText = osb.ToString();
-                ErrorText = esb.ToString();
             }
+            ErrorText = esb.ToString();
 
             int code = process.ExitCode;
             process.Close();
