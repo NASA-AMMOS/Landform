@@ -327,9 +327,9 @@ namespace OPS.Landform
                 currentProcess = null;
                 if (code != 0) //code = -1 if killed
                 {
+                    string err = (runner.ErrorText ?? "").TrimEnd('\r', '\n');
                     throw new Exception(string.Format("command \"{0}\" failed with code {1}{2}", cmd, code,
-                                                      !string.IsNullOrEmpty(runner.ErrorText) ?
-                                                      (Environment.NewLine + runner.ErrorText) : ""));
+                                                      err != "" ? (Environment.NewLine + err) : ""));
                 }
             }
         }
