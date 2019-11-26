@@ -263,8 +263,6 @@ namespace OPS.LandformUtil
 
                 RunPhase("load manifest", LoadManifest);
 
-                RunPhase("index manifest", IndexManifest);
-
                 if (!options.NoContextual)
                 {
                     RunPhase("update contextual mesh manifest", UpdateContextualMeshManifest);
@@ -409,14 +407,34 @@ namespace OPS.LandformUtil
 
         private void LoadManifest()
         {
+            tilesets.Clear();
+            images.Clear();
+            frames.Clear();
+
             if (FileExists(options.ManifestFile))
             {
-                    pipeline.LogInfo("loading existing manifest file {0}", options.ManifestFile);
-                    sceneManifest = JsonHelper.FromJson<SceneManifest>(File.ReadAllText(GetFile(options.ManifestFile)));
-                    if (sceneManifest.version != MANIFEST_VERSION)
-                    {
-                        pipeline.LogWarn("manifest version {0} != {1}", sceneManifest.version, MANIFEST_VERSION);
-                    }
+                pipeline.LogInfo("loading existing manifest file {0}", options.ManifestFile);
+                sceneManifest = JsonHelper.FromJson<SceneManifest>(File.ReadAllText(GetFile(options.ManifestFile)));
+                if (sceneManifest.version != MANIFEST_VERSION)
+                {
+                    pipeline.LogWarn("manifest version {0} != {1}", sceneManifest.version, MANIFEST_VERSION);
+                }
+                    
+                foreach (var tileset in sceneManifest.tilesets)
+                {
+                    tilesets[tileset.id] = tileset;
+                }
+                foreach (var image in sceneManifest.images)
+                {
+                    images[image.id] = image;
+                }
+                foreach (var frame in sceneManifest.frames)
+                {
+                    frames[frame.id] = frame;
+                }
+
+                pipeline.LogInfo("loaded manifest with {0} tilesets, {1} images, {2} frames",
+                                 sceneManifest.tilesets.Count, sceneManifest.images.Count, sceneManifest.frames.Count);
             }
             else
             {
@@ -436,6 +454,9 @@ namespace OPS.LandformUtil
                     File.WriteAllText(f, json);
                     SaveFile(f, options.ManifestFile);
                 });
+
+            pipeline.LogInfo("saved manifest with {0} tilesets, {1} images, {2} frames",
+                             sceneManifest.tilesets.Count, sceneManifest.images.Count, sceneManifest.frames.Count);
         }
 
         private void CullOrphanImagesAndFrames()
@@ -494,25 +515,6 @@ namespace OPS.LandformUtil
                 {
                     frames.Remove(id);
                 }
-            }
-        }
-
-        private void IndexManifest()
-        {
-            tilesets.Clear();
-            foreach (var tileset in sceneManifest.tilesets)
-            {
-                tilesets[tileset.id] = tileset;
-            }
-            images.Clear();
-            foreach (var image in sceneManifest.images)
-            {
-                images[image.id] = image;
-            }
-            frames.Clear();
-            foreach (var frame in sceneManifest.frames)
-            {
-                frames[frame.id] = frame;
             }
         }
 
