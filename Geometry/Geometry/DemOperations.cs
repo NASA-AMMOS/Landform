@@ -360,7 +360,7 @@ namespace OPS.Geometry
 
             if(preserveXY)
             {
-                //sigma[2] = 0; //Prevent in plane rotation
+                sigma[2] = 0; //Prevent in plane rotation
                 sigma[3] = 0; //Prevent in plane translation
                 sigma[4] = 0;
             }
