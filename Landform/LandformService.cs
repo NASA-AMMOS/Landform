@@ -60,7 +60,7 @@ namespace OPS.Landform
         public const double DEF_HEARTBEAT_REL_PERIOD = 0.333;
         public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
-        public const int DEF_DEQUEUE_THROTTLE_SEC = 1;
+        public const int DEF_DEQUEUE_THROTTLE_MS = 1;
         public const int SERVICE_LOOP_RETRY_SEC = 60;
 
         protected LandformServiceOptions lvopts;
@@ -228,9 +228,9 @@ namespace OPS.Landform
             return  lvopts.MaxMessageAgeSec > 0 ? lvopts.MaxMessageAgeSec : DEF_MAX_MESSAGE_AGE_SEC;
         }
 
-        protected virtual int GetDequeueThrottleSec()
+        protected virtual int GetDequeueThrottleMS()
         {
-            return DEF_DEQUEUE_THROTTLE_SEC;
+            return DEF_DEQUEUE_THROTTLE_MS;
         }
 
         protected virtual double GetHeartbeatRelPeriod()
@@ -330,10 +330,10 @@ namespace OPS.Landform
 
         private void ServiceLoop()
         {
-            int throttleSec = GetDequeueThrottleSec();
+            int throttleMS = GetDequeueThrottleMS();
             int maxAgeSec = GetMaxMessageAgeSec();
-            pipeline.LogInfo("running service loop on message queue {0}, throttle {1}s",
-                             messageQueue.Name, throttleSec);
+            pipeline.LogInfo("running service loop on message queue {0}, throttle {1}ms",
+                             messageQueue.Name, throttleMS);
             while (true)
             {
                 try
@@ -404,7 +404,7 @@ namespace OPS.Landform
                     }
 
                     double elapsedSec = UTCTime.Now() - startSec;
-                    SleepSec(throttleSec - elapsedSec);
+                    SleepSec((0.001 * throttleMS) - elapsedSec);
                 }
                 catch (Exception serviceException)
                 {
