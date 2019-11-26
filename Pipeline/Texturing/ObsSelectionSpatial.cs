@@ -69,10 +69,15 @@ namespace OPS.Pipeline.Texturing
                 ObsToContext.Add(ctx.Obs.Name, ctx);
             }
 
+            string ptDebugPath = localOutputPath;
+
             //collect a sorted list of contexts (best to worst) for each sample point
             CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
             {
-                string ptDebugPath = Path.Combine(localOutputPath, "Point_" + pt.X + "_" + pt.Y + "_" + pt.Z);
+                if (writeDebug)
+                {
+                    ptDebugPath = Path.Combine(localOutputPath, "Point_" + pt.X + "_" + pt.Y + "_" + pt.Z);
+                }
 
                 //exhaustively sort for each sample point
                 ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
