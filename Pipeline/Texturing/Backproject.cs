@@ -371,12 +371,19 @@ namespace OPS.Pipeline
 
             info("getting per pixel sortings of contexts");
             Dictionary<int, List<Context>> sortedContextBySample = new Dictionary<int, List<Context>>(samplePoints.Count);
+            int maxCandidateDepth = 0;
             for (int idx = 0; idx < samplePoints.Count; idx++)
             {               
                 //find the strategy specific ranking of contexts for this pixel
                 List<Context> sortedContexts = new List<Context>(intersectingContexts.Count());
                 opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts, sortedContexts, null);
                 sortedContextBySample.Add(idx, sortedContexts);
+
+                int numSortedContexts = sortedContexts.Count();
+                if (numSortedContexts > maxCandidateDepth)
+                {
+                    maxCandidateDepth = numSortedContexts;
+                }
             }
 
             info("selecting winning contexts");
@@ -385,7 +392,7 @@ namespace OPS.Pipeline
 
             int candidateDepth = 0;
             var remainingIndices = Enumerable.Range(0, samplePoints.Count());
-            while (remainingIndices.Count() > 0)
+            while (remainingIndices.Count() > 0 && candidateDepth < maxCandidateDepth)
             {
                 // remove pixels who had all candidate contexts fail
                 remainingIndices = remainingIndices.Where(idx => sortedContextBySample[idx].Count() > candidateDepth);
@@ -414,6 +421,8 @@ namespace OPS.Pipeline
                     //remove winners from list to do
                     remainingIndices = remainingIndices.Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel));
                 }
+
+                maxCandidateDepth = remainingIndices.Select(idx => sortedContextBySample[idx].Count()).Max();
                 candidateDepth++;
             }
 
