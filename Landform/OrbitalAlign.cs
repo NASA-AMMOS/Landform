@@ -180,14 +180,17 @@ namespace OPS.Landform
             Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
 
             //Site drive to world priors
-            Dictionary<string, FrameTransform> siteDriveToWorldPriorTransforms = new Dictionary<string, FrameTransform>();
+            Dictionary<string, TransformSource> siteDrivePriorSources = new Dictionary<string, TransformSource>();
+            Dictionary<string, Matrix> siteDriveToWorldPriorTransforms = new Dictionary<string, Matrix>();
             foreach(string siteDrive in siteDrives)
             {
-                siteDriveToWorldPriorTransforms[siteDrive] = frameCache.GetBestTransform(siteDrive);
-                pipeline.LogInfo("Read in {0} transform for site drive {1}", siteDriveToWorldPriorTransforms[siteDrive].Source, siteDrive);
+                var rec = frameCache.GetBestTransform(siteDrive);
+                siteDriveToWorldPriorTransforms[siteDrive] = rec.Transform.Mean;
+                siteDrivePriorSources[siteDrive] = rec.Source;
+                pipeline.LogInfo("Read in {0} transform for site drive {1}", rec.Source, siteDrive);
             }
 
-            Matrix baseSiteDriveToWorld = siteDriveToWorldPriorTransforms[baseSiteDrive].Transform.Mean;
+            Matrix baseSiteDriveToWorld = siteDriveToWorldPriorTransforms[baseSiteDrive];
 
             Func<string, Mesh> BuildMesh = (siteDrive) =>
             {
@@ -214,7 +217,7 @@ namespace OPS.Landform
             Func<string, Mesh> BuildMeshInBaseSiteDrive = (siteDrive) =>
             {
                 var ret = BuildMesh(siteDrive);
-                ret.Transform(siteDriveToWorldPriorTransforms[siteDrive].Transform.Mean);
+                ret.Transform(siteDriveToWorldPriorTransforms[siteDrive]);
                 ret.Transform(Matrix.Invert(baseSiteDriveToWorld));
                 return ret;
             };
@@ -225,7 +228,7 @@ namespace OPS.Landform
             //Create a heightmap record for site drive in base site drive frame
             Func<string, SceneHeightmap> FindOrCreateHeightmap = (siteDrive) =>
             {
-                SceneHeightmap rec = SceneHeightmap.Find(pipeline, project.Name, GetName(siteDrive, baseSiteDrive, siteDriveToWorldPriorTransforms[siteDrive].Source));
+                SceneHeightmap rec = SceneHeightmap.Find(pipeline, project.Name, GetName(siteDrive, baseSiteDrive, siteDrivePriorSources[siteDrive]));
                 if (rec != null)
                 {
                     return rec;
@@ -238,7 +241,7 @@ namespace OPS.Landform
                         mesh.Save(Path.Combine(options.DebugProductsDir, siteDrive + "_mesh.obj"));
                         img.Save<float>(Path.Combine(options.DebugProductsDir, siteDrive + "_heightmap.tif"));
                     }
-                    return SceneHeightmap.Create(pipeline, project, GetName(siteDrive, baseSiteDrive, siteDriveToWorldPriorTransforms[siteDrive].Source), img, new Vector2(xOffset, yOffset), m2p);
+                    return SceneHeightmap.Create(pipeline, project, GetName(siteDrive, baseSiteDrive, siteDrivePriorSources[siteDrive]), img, new Vector2(xOffset, yOffset), m2p);
                 }
             };
 
@@ -267,13 +270,10 @@ namespace OPS.Landform
  
             //Alignments computed for each site drive in base site drive frame 
             Dictionary<string, Matrix> baseSiteDrivePriorToBaseSiteDriveTransforms = new Dictionary<string, Matrix>();
-
-            siteDriveToWorldPriorTransforms[baseSiteDrive] = frameCache.GetBestTransform(baseSiteDrive);
             baseSiteDrivePriorToBaseSiteDriveTransforms[baseSiteDrive] = Matrix.Identity;           
 
             List<string> aligned = new List<string> { baseSiteDrive };
             List<string> unaligned = new List<string>();
-
 
             foreach (string siteDrive in siteDrives.GetRange(1, siteDrives.Count - 1))
             {
@@ -357,7 +357,7 @@ namespace OPS.Landform
                 //2. Composing this transform with the inverse of base site drive to world gets all site drives into a "prior" base site drive frame (diferent for each site drive)
                 //3. We do alignment in these base site drive frames, computing adjustments from each site drives' prior base site drive to the agreed upon global base site drive frame.
                 //4. We then convert back to world.
-                var adjustedSiteDriveToWorld = siteDriveToWorldPriorTransforms[siteDrive].Transform.Mean
+                var adjustedSiteDriveToWorld = siteDriveToWorldPriorTransforms[siteDrive]
                                                * Matrix.Invert(baseSiteDriveToWorld)
                                                * baseSiteDrivePriorToBaseSiteDriveTransforms[siteDrive]
                                                * baseSiteDriveToWorld;
@@ -406,9 +406,7 @@ namespace OPS.Landform
                 }
                 Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
                 demMesh.Transform(demToBaseSiteDrive);
-                demMesh.Transform(Matrix.Invert(baseSiteDrivePriorToBaseSiteDriveTransforms["0311472"]));
-                demMesh.Transform(baseSiteDriveToWorld);
-                demMesh.Transform(Matrix.Invert(siteDriveToWorldPriorTransforms["0311472"].Transform.Mean));
+                demMesh.Transform(baseSiteDriveToWorld);               
                 demMesh.Save(options.DemDebugPath);
             }
 
