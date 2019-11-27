@@ -163,13 +163,14 @@ namespace OPS.Pipeline
                                                         bool ignoreCase = false, bool constrainToStorage = false)
         {
             //ensures url starts with "file://", replaces backslashes
+            //LogInfo("SearchFiles url={0}", url);
             url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
+            //LogInfo("SearchFiles (normalized) url={0}", url);
             int sep = url.LastIndexOf('/');
             string dir = null, stem = null;
             if (sep == 6 || sep == url.Length-1)
             {
                 dir = url;
-                stem = "";
             }
             else
             {
@@ -188,7 +189,7 @@ namespace OPS.Pipeline
             }
             dir = StringHelper.EnsureTrailingSlash(dir);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-            var regex = StringHelper.WildCardToRegularExression(stem + globPattern, opts);
+            var regex = StringHelper.WildCardToRegularExression(globPattern, opts);
             //LogInfo("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
             //         dir, stem, globPattern, recursive, regex);
             foreach (var f in PathHelper.ListFiles(dir, recursive: recursive))
@@ -199,11 +200,16 @@ namespace OPS.Pipeline
                 int firstSlash = path.IndexOf('/');
                 if (firstSlash >= 0)
                 {
+                    //our contract is to apply globPattern specifically to the "path" part of the URL
+                    //for example a http URL would berak up like http://SERVER.DOMAIN/PATH
+                    //but here we're dealing with file URLs and we haven't prepended the "file://" part yet
+                    //but we have an absolute path = fn = e.g. "C:/foo/bar" or "/foo/bar"
+                    //there is no SERVER part but we want to chop off "C:/" or "/"
                     path = path.Substring(firstSlash + 1); // unlikely, but ok: "foo/" -> ""
                 }
                 //e.g. path = "foo/bar"
                 //LogInfo(path);
-                if (regex.IsMatch(path))
+                if (regex.IsMatch(path) && (stem == null || StringHelper.GetLastUrlPathSegment(path).StartsWith(stem)))
                 {
                     var ret = "file://" + fn; //e.g. "file://C:/foo/bar", "file:///foo/bar"
                     //LogInfo(ret);
