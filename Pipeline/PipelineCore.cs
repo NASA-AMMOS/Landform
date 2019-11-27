@@ -343,7 +343,7 @@ namespace OPS.Pipeline
             {
                 dir = GetStorageUrl("masks");
             }
-            StringHelper.EnsureTrailingSlash(dir);
+            dir = StringHelper.EnsureTrailingSlash(dir);
             userMasks = new ConcurrentDictionary<string, string>();
             string[] suffixes = new [] { "_inverted", "_mask" };
             foreach (var url in SearchFiles(dir))
