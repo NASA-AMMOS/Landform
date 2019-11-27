@@ -161,7 +161,7 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
-            pipeline.DeleteProjectCache(Name);
+            pipeline.DeleteCacheFolder(Name);
 
             if (!string.IsNullOrEmpty(ExportDir))
             {

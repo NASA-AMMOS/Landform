@@ -376,14 +376,19 @@ namespace OPS.Landform
             {
                 return outputFolder;
             }
+            return MakeTilesetUrlFromRDRUrl(meshUrl);
+        }
+
+        public static string MakeTilesetUrlFromRDRUrl(string rdrUrl)
+        {
             string rdrSubdir = "/rdr/";
             string tilesetSubdir = "tileset";
-            int rdrIdx = StringHelper.NormalizeSlashes(meshUrl).ToLower().LastIndexOf(rdrSubdir);
+            int rdrIdx = StringHelper.NormalizeSlashes(rdrUrl).ToLower().LastIndexOf(rdrSubdir);
             if (rdrIdx >= 0)
             {
-                return meshUrl.Substring(0, rdrIdx + rdrSubdir.Length) + tilesetSubdir;
+                return rdrUrl.Substring(0, rdrIdx + rdrSubdir.Length) + tilesetSubdir;
             }
-            return StringHelper.StripLastUrlPathSegment(meshUrl) + "/" + tilesetSubdir;
+            return StringHelper.StripLastUrlPathSegment(rdrUrl) + "/" + tilesetSubdir;
         }
 
         private void SaveTileset(string venue, string project, string meshUrl)

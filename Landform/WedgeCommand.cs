@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using CommandLine;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
@@ -57,6 +58,9 @@ namespace OPS.Landform
 
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
+
+        protected List<Observation> imageObservations;
+        protected Dictionary<int, Observation> indexedImages;
 
         protected string effectiveRootFrame;
 
@@ -145,10 +149,51 @@ namespace OPS.Landform
                         (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
                         (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera))));
 
-            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
-                             num, DescribeObservationFilter(), project.Name,
+            var comparator =
+                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
+            var allObs = observationCache.GetAllObservations();
+            imageObservations = comparator
+                .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
+                .Cast<Observation>()
+                .ToList();
+            indexedImages = new Dictionary<int, Observation>();
+            foreach (var obs in imageObservations)
+            {
+                indexedImages[obs.Index] = obs;
+            }
+
+            pipeline.LogInfo("loaded {0}{1} observations ({2} images) in project {3}{4}{5}",
+                             num, DescribeObservationFilter(), imageObservations.Count, project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
+        }
+
+        protected List<WedgeObservations> CollectWedgeObservations(WedgeObservations.CollectOptions opts,
+                                                                   string stereoEyeStr)
+        {
+            var wedgeObservations = WedgeObservations.Collect(frameCache, observationCache, opts)
+                .Where(obs => !obs.Empty)
+                .OrderBy(obs => obs.FrameName)
+                .OrderBy(obs => obs.Day)
+                .OrderBy(obs => obs.StereoFrameName)
+                .ToList();
+            
+            var stereoEye = RoverStereoPair.ParseEyeForGeometry(stereoEyeStr, mission);
+            if (stereoEye != RoverStereoEye.Any)
+            {
+                var geometryObservations = wedgeObservations
+                    .Where(obs => obs.Points != null || obs.Range != null)
+                    .GroupBy(obs => obs.StereoFrameName)
+                    .Select(group => WedgeObservations.FilterForEye(group, stereoEye, obs => obs))
+                    .Where(obs => obs != null)
+                    .ToList();
+                wedgeObservations = wedgeObservations
+                    .Where(obs => obs.Points == null && obs.Range == null)
+                    .ToList();
+                wedgeObservations.AddRange(geometryObservations);
+            }
+
+            return wedgeObservations;
         }
     }
 }

@@ -391,7 +391,7 @@ namespace OPS.Landform
 
                     index[0, r, c] = obsIndex;
 
-                    var obs = obsIndex >= Observation.MIN_INDEX ? indexedObservations[obsIndex] : null;
+                    var obs = obsIndex >= Observation.MIN_INDEX ? indexedImages[obsIndex] : null;
 
                     bool hasGray = obs != null;
                     bool hasColor = obs != null && obs.Bands == 3;
@@ -499,7 +499,7 @@ namespace OPS.Landform
                 }
             }
             
-            int no = indexedObservations.Count;
+            int no = indexedImages.Count;
             var strat = options.BlendStrategy;
             pipeline.LogInfo("creating blended images for {0} observations{1}",
                              no, strat != BlendStrategy.None ? (", strategy " + strat) : "");
@@ -516,7 +516,7 @@ namespace OPS.Landform
             double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
 
             int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(indexedObservations, entry => {
+            CoreLimitedParallel.ForEach(indexedImages, entry => {
 
                     int obsIndex = entry.Key;
                     Observation obs = entry.Value;
@@ -788,7 +788,7 @@ namespace OPS.Landform
                 string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);
-                var results = Backproject.BuildResultsFromIndex(index, indexedObservations);
+                var results = Backproject.BuildResultsFromIndex(index, indexedImages);
                 var texture = new Image(3, index.Width, index.Height);
                 Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
                                               fallbackToOriginal: true);

@@ -67,8 +67,6 @@ namespace OPS.Landform
 
         protected int resolution;
         protected IDictionary<string, ConvexHull> obsToHull;
-        protected List<Observation> imageObservations;
-        protected Dictionary<int, Observation> indexedObservations;
         protected SceneCaster sceneCaster;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
         protected Image backprojectIndex;
@@ -112,23 +110,8 @@ namespace OPS.Landform
                 pipeline.LogWarn("resolution {0} not a power of two", resolution);
             }
 
-            if (observationCache != null)
-            {
-                var comparator =
-                    mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
-                var allObs = observationCache.GetAllObservations();
-                imageObservations = comparator
-                    .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
-                    .Cast<Observation>()
-                    .ToList();
-                indexedObservations = new Dictionary<int, Observation>();
-                foreach (var obs in imageObservations)
-                {
-                    indexedObservations[obs.Index] = obs;
-                }
-            }
-
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+
             return true;
         }
 
@@ -491,7 +474,7 @@ namespace OPS.Landform
         protected void BuildBackprojectResultsFromIndex()
         {
             pipeline.LogInfo("building backproject results from index");
-            backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedObservations);
+            backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages);
         }
 
         protected Image BuildBackprojectTexture(TextureVariant textureVariant)

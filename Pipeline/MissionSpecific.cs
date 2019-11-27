@@ -1478,6 +1478,11 @@ namespace OPS.Pipeline
                 return RoverProductColor.Unknown;
             }
 
+            public override string AsThumbnail()
+            {
+                throw new NotImplementedException();
+            }
+
             protected override RoverProductSize ParseSize(string size)
             {
                 return RoverProductSize.Regular;

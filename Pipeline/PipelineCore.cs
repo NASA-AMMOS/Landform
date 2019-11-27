@@ -722,12 +722,12 @@ namespace OPS.Pipeline
             }
         }
 
-        public void DeleteProjectCache(string project)
+        public void DeleteCacheFolder(string folder)
         {
-            var projectCache = Path.Combine(DownloadCache, project);
-            if (Directory.Exists(projectCache))
+            var dir = Path.Combine(DownloadCache, folder);
+            if (Directory.Exists(dir))
             {
-                Directory.Delete(projectCache, true);
+                Directory.Delete(dir, true);
             }
         }
 
@@ -739,9 +739,9 @@ namespace OPS.Pipeline
             }
         }
 
-        public string DownloadCachePath(string project = null, string filename = null)
+        public string DownloadCachePath(string folder = null, string filename = null)
         {
-            return Path.Combine(DownloadCache, project ?? "", filename ?? ""); //ignores empty components
+            return Path.Combine(DownloadCache, folder ?? "", filename ?? ""); //ignores empty components
         }
 
         //****************** Message Queue API *****************

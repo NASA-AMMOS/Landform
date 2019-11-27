@@ -188,17 +188,25 @@ namespace OPS.Pipeline
             }
             dir = StringHelper.EnsureTrailingSlash(dir);
             var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
-            var regex = StringHelper.WildCardToRegularExression(dir + stem + globPattern, opts);
-            //LogDebug("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
+            var regex = StringHelper.WildCardToRegularExression(stem + globPattern, opts);
+            //LogInfo("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
             //         dir, stem, globPattern, recursive, regex);
             foreach (var f in PathHelper.ListFiles(dir, recursive: recursive))
             {
                 var fn = f.FullName.Replace('\\', '/');
-                //LogDebug(fn);
-                if (regex.IsMatch(fn))
+                //e.g. fn = "C:/foo/bar", fn = "/foo/bar"
+                string path = fn;
+                int firstSlash = path.IndexOf('/');
+                if (firstSlash >= 0)
                 {
-                    var ret = "file://" + fn;
-                    //LogDebug(ret);
+                    path = path.Substring(firstSlash + 1); // unlikely, but ok: "foo/" -> ""
+                }
+                //e.g. path = "foo/bar"
+                //LogInfo(path);
+                if (regex.IsMatch(path))
+                {
+                    var ret = "file://" + fn; //e.g. "file://C:/foo/bar", "file:///foo/bar"
+                    //LogInfo(ret);
                     yield return ret;
                 }
             }
