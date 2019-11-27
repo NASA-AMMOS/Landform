@@ -174,6 +174,11 @@ namespace OPS.Pipeline
 
             info(string.Format("atlasing mesh with UVAtlas, texture resolution {0}", textureSize));
             mesh = UVAtlas.Atlas(mesh, textureSize, textureSize);
+            if(mesh == null)
+            {
+                info("failed to atlas mesh for texture bake");
+                return null;
+            }
 
             info("baking texture");
             var img = TextureBaker.Bake(mesh, textureSize, textureSize);

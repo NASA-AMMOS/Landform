@@ -79,10 +79,13 @@ namespace OPS.Pipeline.TilingServer
             {
                 LogInfo("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
-                parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
+                if(!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
                                                           project.FacesPerTile, project.TileResolution,
                                                           project.GetSkirtMode(), info: msg => LogInfo(msg),
-                                                          error: msg => { throw new Exception(msg); });
+                                                          error: msg => { throw new Exception(msg); }))
+                {
+                    throw new Exception("failed to build parent from children");
+                }
                 var pair = parentSceneNode.GetComponent<MeshImagePair>();
                 parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
                 parent.SaveMesh(pair, pipeline, project);

@@ -1,18 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Threading;
-using System.Text.RegularExpressions;
-using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.Model;
-using Amazon.DynamoDBv2;
 using MathNet.Numerics.LinearAlgebra;
 using Newtonsoft.Json;
-using OPS.Geometry;
 using OPS.Cloud;
+using OPS.Geometry;
+
 
 namespace OPS.Pipeline.AlignmentServer
 {

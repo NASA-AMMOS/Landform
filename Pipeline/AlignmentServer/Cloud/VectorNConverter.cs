@@ -1,9 +1,8 @@
 ﻿using System;
-using System.Reflection;
-using MathNet.Numerics.LinearAlgebra;
-using Newtonsoft.Json;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
+using MathNet.Numerics.LinearAlgebra;
+using Newtonsoft.Json;
 
 namespace OPS.Pipeline.AlignmentServer
 {

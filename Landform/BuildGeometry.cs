@@ -1,21 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
-using System.Diagnostics;
 using CommandLine;
 using Microsoft.Xna.Framework;
-using Newtonsoft.Json;
-using OPS.Util;
-using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Pipeline.TilingServer;
 
 namespace OPS.Landform
 {
@@ -38,9 +27,13 @@ namespace OPS.Landform
 
         [Option(HelpText = "Only emit faces that intersect these observations, comma separated (disables database save)", Default = null)]
         public string OnlyFacesForObs { get; set; }
+       
+        [Option(HelpText = "Bounds to use if PreClipPointCloud is specified preclip input point clouds to box XY size in meters", Default = 0)]
+        public double PreClipExtent { get; set; }
 
-        [Option(HelpText = "Clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
+        [Option(HelpText = "Post meshing clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
+     
     }
 
     public class BuildGeometry : GeometryCommand
@@ -122,10 +115,33 @@ namespace OPS.Landform
             return " meshing";
         }
 
+        //potentially mission specific: assumes z-down/up 
+        BoundingBox BoundsFromXYExtent(Vector3 center, double extent, double minZ, double maxZ)
+        {
+            double halfExtent = extent * 0.5;
+
+            Vector3 min = center + new Vector3(-halfExtent, -halfExtent, 0);
+            Vector3 max = center + new Vector3(halfExtent, halfExtent, 0);
+
+            min.Z = minZ;
+            max.Z = maxZ;
+
+            return new BoundingBox(min, max);
+        }
+        
         private void BuildMesh()
         {
-            mesh = Pipeline.TilingServer.BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds, frameCache, observationCache,
-                                              meshFrame, options.UsePriors, options.OnlyAligned,
+            BoundingBox? preClipBounds = null;
+            if (options.PreClipExtent > 0)
+            {              
+                double safeVerticalClipMeters = 1000;
+                Vector3 center = Vector3.Zero;
+                preClipBounds = BoundsFromXYExtent(center, options.PreClipExtent, -safeVerticalClipMeters, safeVerticalClipMeters);
+            }
+
+            mesh = OPS.Pipeline.TilingServer.BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
+                                              frameCache, observationCache, meshFrame, options.UsePriors,
+                                              options.OnlyAligned, preClipBounds,
                                               options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
 
@@ -143,10 +159,10 @@ namespace OPS.Landform
             if (options.ClipExtent > 0)
             {
                 pipeline.LogInfo("clipping mesh to {0} meter box around origin in XY plane", options.ClipExtent);
-                double halfExtent = options.ClipExtent * 0.5;
-                Vector3 min = new Vector3(-halfExtent, -halfExtent, meshBounds.Min.Z);
-                Vector3 max = new Vector3(halfExtent, halfExtent, meshBounds.Max.Z);
-                mesh = Mesh.Clip(mesh, new BoundingBox(min, max));
+
+                Vector3 center = Vector3.Zero;
+                BoundingBox bbox = BoundsFromXYExtent(center, options.ClipExtent, meshBounds.Min.Z, meshBounds.Max.Z);
+                mesh = Mesh.Clip(mesh, bbox);
             }
 
             if (mesh.Faces.Count == 0)

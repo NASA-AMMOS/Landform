@@ -47,7 +47,7 @@ namespace OPS.Pipeline.TilingServer
             LogInfo("building mesh");
             Mesh surfacedMesh = BuildMesh(pipeline, projectName, out BoundingBox pointBounds, frameCache,
                                           observationCache, "root", usePriors: false, noPriors: false,
-                                          onlyForCameras: null, useCleverCombine: false, stereoEye: RoverStereoEye.Left,
+                                           preclipBounds:new BoundingBox(), onlyForCameras: null, useCleverCombine: false, stereoEye: RoverStereoEye.Left,
                                           info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); });
             if (surfacedMesh == null || surfacedMesh.Vertices.Count == 0)
             {
@@ -79,11 +79,12 @@ namespace OPS.Pipeline.TilingServer
 
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
-                                     bool usePriors, bool noPriors, string onlyForCameras = null,
-                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,
-                                     int decimate = 1, int targetPointCloudResolution = 1024,
-                                     Action<string> info = null, Action<string> verbose = null,
-                                     Action<string> warn = null, Action<string> error = null)
+                                     bool usePriors, bool noPriors, BoundingBox? preclipBounds = null, string onlyForCameras = null,
+                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,  int decimate = 1, 
+                                     int targetPointCloudResolution = 1024,
+                                     Action<string> info = null,
+                                     Action<string> verbose = null, Action<string> warn = null,
+                                     Action<string> error = null)
         {
             pointBounds = new BoundingBox();
 
@@ -137,6 +138,11 @@ namespace OPS.Pipeline.TilingServer
 
             var meshOpts = new WedgeObservations.MeshOptions() { Frame = outputFrame, ScaleNormalsByConfidence = true };
 
+            if(preclipBounds.HasValue && preclipBounds.Value.MaxDimension() > 0)
+            {
+                info(string.Format("preclipping input point clouds"));
+            }
+
             info("building wedge point clouds");
             var obsToMesh = new ConcurrentDictionary<string, Mesh>();
             int no = observations.Count;
@@ -165,13 +171,27 @@ namespace OPS.Pipeline.TilingServer
                         Interlocked.Increment(ref nf);
                         return;
                     }
-                    
+
                     if (mesh.ContainsZeroLengthNormals())
                     {
                         warn(string.Format("pointcloud for observation {0} has zero length normals", obs.Name));
                         Interlocked.Decrement(ref np);
                         Interlocked.Increment(ref nf);
                         return;
+                    }
+
+                    if(preclipBounds.HasValue && preclipBounds.Value.MaxDimension() > 0)
+                    {
+                        var meshOp = new MeshOperator(mesh, false, true, false);
+                        mesh = meshOp.Clip(preclipBounds.Value);
+
+                        if (!mesh.HasVertices)
+                        {
+                            warn(string.Format("preclipping pointcloud for observation {0} has removed the pointcloud entirely", obs.Name));
+                            Interlocked.Decrement(ref np);
+                            Interlocked.Increment(ref nf);
+                            return;
+                        }
                     }
 
                     obsToMesh.AddOrUpdate(obs.Points.Name, _ => mesh, (_, __) => mesh);

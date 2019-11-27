@@ -1,9 +1,7 @@
 ﻿using System;
 using Amazon.DynamoDBv2.DataModel;
-using Amazon.DynamoDBv2.Model;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
-using OPS.Cloud;
 using OPS.Geometry;
 
 namespace OPS.Pipeline.AlignmentServer

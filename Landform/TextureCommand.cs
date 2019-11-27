@@ -15,6 +15,7 @@ using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Landform
 {
@@ -44,12 +45,12 @@ namespace OPS.Landform
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
-        public virtual double BackprojectGoodnessSamplingPct { get; set; }
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
+        public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
-        public virtual double BackprojectBatchGridSize { get; set; }
-
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = ObsSelectionStrategyName.Spatial)]
+        public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
+        
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
 
@@ -72,6 +73,7 @@ namespace OPS.Landform
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
         protected Image backprojectIndex;
         protected TileList tileList;
+        protected ObsSelectionStrategy obsSelStrat;
 
         protected Mesh mesh;
         protected SceneMesh sceneMesh;
@@ -126,6 +128,7 @@ namespace OPS.Landform
                 }
             }
 
+            obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
             return true;
         }
 
@@ -420,14 +423,14 @@ namespace OPS.Landform
             BackprojectObservations(logging: true);
         }
 
-        protected void BackprojectObservations(bool logging, bool verbose = false)
+        protected void BackprojectObservations(bool logging, bool verbose = false, string meshName = "",  string debugOutputPath = "")
         {
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            backprojectResults = BackprojectObservations(mesh, logging, verbose);
+            backprojectResults = BackprojectObservations(mesh, logging, verbose, meshName, debugOutputPath);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false)
+            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "", OPS.Pipeline.Texturing.ObsSelectionStrategy obsObverride = null)
         {
             verbose |= pipeline.Verbose;
             logging |= verbose;
@@ -442,17 +445,25 @@ namespace OPS.Landform
                 mesh = mesh,
                 meshFrame = meshFrame,
                 resolution = resolution,
-                batchGridSize = tcopts.BackprojectBatchGridSize,
-                sceneCaster = sceneCaster,
+                sceneOcclusion = sceneCaster,
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
-                quality = tcopts.BackprojectGoodnessSamplingPct,
+                quality = tcopts.BackprojectQuality,
+                writeDebug = tcopts.WriteDebug,
+                localDebugOutputPath = Path.Combine(debugOutputPath ?? localOutputPath, meshName),
+                obsSelectionStrategy = obsObverride ?? obsSelStrat,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
+
+            if(opts.writeDebug)
+            {
+                PathHelper.EnsureExists(opts.localDebugOutputPath);
+            }
+
             return Backproject.BackprojectObservations(opts);
         }
 

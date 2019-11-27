@@ -1,13 +1,7 @@
-﻿using log4net;
+﻿using System.IO;
 using Newtonsoft.Json;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using OPS.Util;
 using OPS.Geometry;
+using OPS.Util;
 
 namespace OPS.Pipeline.TilingServer
 {

@@ -1,14 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Amazon;
+using Amazon.Runtime;
 using Amazon.SQS;
 using Amazon.SQS.Model;
-using Amazon.Runtime;
-using OPS.Util;
 using Newtonsoft.Json;
+using OPS.Util;
 using OPS.MathExtensions;
 
 namespace OPS.Cloud

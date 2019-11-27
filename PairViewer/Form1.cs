@@ -1,21 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Data;
 using System.Drawing;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using OPS.Imaging;
-using OPS.Geometry;
-using OPS.Pipeline;
-using OPS.Alignment;
-using Microsoft.Xna.Framework;
-using MathNet.Numerics.LinearAlgebra;
 using System.IO;
-using Newtonsoft.Json;
-using log4net;
+using System.Windows.Forms;
+using MathNet.Numerics.LinearAlgebra;
+using Microsoft.Xna.Framework;
+using OPS.Alignment;
+using OPS.Geometry;
+using OPS.Imaging;
+using OPS.Pipeline;
+
 
 namespace PairViewer
 {
