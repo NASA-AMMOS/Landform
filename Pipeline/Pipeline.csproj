@@ -170,6 +170,7 @@
     <Compile Include="AlignmentServer\Cloud\OverlapCache.cs" />
     <Compile Include="AlignmentServer\Cloud\Project.cs" />
     <Compile Include="AlignmentServer\Cloud\RoverObservation.cs" />
+    <Compile Include="AlignmentServer\Cloud\SceneHeightmap.cs" />
     <Compile Include="AlignmentServer\Cloud\SceneMesh.cs" />
     <Compile Include="AlignmentServer\Cloud\SpatialIndex.cs" />
     <Compile Include="AlignmentServer\Cloud\SpatialMatches.cs" />

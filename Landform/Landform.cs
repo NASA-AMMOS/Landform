@@ -28,6 +28,7 @@ namespace OPS.Landform
                     { typeof(FetchDataOptions), typeof(FetchData) },
                     { typeof(IngestOptions), typeof(Ingest) },
                     { typeof(BEVAlignerOptions), typeof(BEVAligner) },
+                    { typeof(OrbitalAlignerOptions), typeof(OrbitalAligner) },
                     { typeof(AgisoftAlignerOptions), typeof(AgisoftAligner) },
                     { typeof(BuildGeometryOptions), typeof(BuildGeometry) },
                     { typeof(BuildTilesetOptions), typeof(BuildTileset) },

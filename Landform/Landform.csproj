@@ -168,6 +168,7 @@
     <Compile Include="BuildTilingInput.cs" />
     <Compile Include="BuildTileset.cs" />
     <Compile Include="Ingest.cs" />
+    <Compile Include="OrbitalAlign.cs" />
     <Compile Include="LandformService.cs" />
     <Compile Include="LandformShell.cs" />
     <Compile Include="ProcessTactical.cs" />

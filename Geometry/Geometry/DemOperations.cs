@@ -15,6 +15,12 @@ namespace OPS.Geometry
     {
         static ILog logger = LogManager.GetLogger(typeof(DemOperations));
 
+        //Swap x, y and negate z
+        public static Matrix demToSitedriveCoordinateFlip = new Matrix(0, 1, 0, 0,
+                                                                       1, 0, 0, 0,
+                                                                       0, 0, -1, 0,
+                                                                       0, 0, 0, 1);
+
         /// <summary>
         /// Do bilinear interpolation with potentially null points. x and y should be horizontal and vertical offset from the top left corner respectively, see diagram.
         /// </summary>
@@ -41,7 +47,7 @@ namespace OPS.Geometry
         /// 
         ///  Returns the interpolated value at point P by summing the values at each corner, weighted by the area to the far corner.
         ///  If a corner is missing, its contribution is ignored in the weighted average.
- 
+
         public static Vector3? Interpolate(double x, double y, Vector3? tl, Vector3? tr, Vector3? bl, Vector3? br)
         {
             Vector3 ret = new Vector3(0, 0, 0);
@@ -74,6 +80,55 @@ namespace OPS.Geometry
             {
                 return null;
             }
+        }
+
+        public static Vector3? GetInterpolatedXYZ(Image dem, double r, double c, double minFilter, double maxFilter = 1000000)
+        {
+            //r -= 0.5; //Correct for half pixel offset in projection
+            //c -= 0.5;
+            Vector3? tl = GetXYZ(dem, (int)r, (int)c);
+            Vector3? tr = GetXYZ(dem, (int)r, (int)Math.Ceiling(c));
+            Vector3? bl = GetXYZ(dem, (int)Math.Ceiling(r), (int)c);
+            Vector3? br = GetXYZ(dem, (int)Math.Ceiling(r), (int)Math.Ceiling(c));
+            return Interpolate(c - (int)c, r - (int)r, tl, tr, bl, br);
+        }
+
+        /// <summary>
+        /// Unprojects passed in row, col in dem to return an xyz. Will return null if index is out of bounds, or point should be masked out.
+        /// </summary>
+        /// <param name="dem"></param>
+        /// <param name="mask"></param>
+        /// <param name="row"></param>
+        /// <param name="col"></param>
+        /// <param name="filterValues"></param>
+        /// <returns></returns>
+        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, double scale = 1, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
+        {
+            if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || !dem.IsValid(row, col)) //respect input image mask if it has one
+            {
+                return null;
+            }
+
+            double value = dem[0, row, col];
+            if (!filterValues || value >= minFilter && value <= maxFilter)
+            {
+                if (mask != null && !mask.isValid(row, col))
+                {
+                    return null;
+                }
+                return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value * scale);
+            }
+            return null;
+        }
+
+        public static Vector3? GetXYZ(Image dem, int row, int col, double scale = 1, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
+        {
+            return GetXYZ(dem, null, row, col, scale, filterValues, minFilter, maxFilter);
+        }
+
+        public static Vector2? GetRowCol(Image dem, Vector3 xyz)
+        {
+            return dem.CameraModel.Project(xyz, out double range);
         }
 
         /// <summary>
@@ -151,133 +206,164 @@ namespace OPS.Geometry
             return ret;
         }
 
-        /// <summary>
-        /// Unprojects passed in row, col in dem to return an xyz. Will return null if index is out of bounds, or point should be masked out.
-        /// </summary>
-        /// <param name="dem"></param>
-        /// <param name="mask"></param>
-        /// <param name="row"></param>
-        /// <param name="col"></param>
-        /// <param name="filterValues"></param>
-        /// <returns></returns>
-        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, double scale = 1, bool filterValues = true, double minFilter=-1000000, double maxFilter=1000000)
+        public static Matrix? AlignSceneToScene(Image scenemap, double sceneXOffsetMeters, double sceneYOffsetMeters, double sceneMetersPerPixel, Image otherScenemap, double otherSceneXOffsetMeters, double otherSceneYOffsetMeters, double otherSceneMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000)
         {
-            if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || !dem.IsValid(row, col)) //respect input image mask if it has one
+            return AlignScenesToScene(new Image[] { scenemap }, new double[] { sceneXOffsetMeters }, new double[] { sceneYOffsetMeters }, new double[] { sceneMetersPerPixel }, otherScenemap, otherSceneXOffsetMeters, otherSceneYOffsetMeters, otherSceneMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, minFilter, maxFilter);
+        }
+
+        public static Matrix? AlignScenesToScene(Image[] scenemaps, double[] sceneXOffsetsMeters, double[] sceneYOffsetsMeters, double[] sceneMetersPerPixel, Image otherScenemap, double otherSceneXOffsetMeters, double otherSceneYOffsetMeters, double otherSceneMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000)
+        {
+            double centerToOriginRows = otherSceneXOffsetMeters / otherSceneMetersPerPixel;
+            double centerToOriginCols = -1 * otherSceneYOffsetMeters / otherSceneMetersPerPixel;
+            double rowOrigin = otherScenemap.Height / 2.0 + centerToOriginRows;
+            double colOrigin = otherScenemap.Width / 2.0 + centerToOriginCols;
+            Matrix? otherDemToScene = AlignScenesToDem(scenemaps, sceneXOffsetsMeters, sceneYOffsetsMeters, sceneMetersPerPixel, otherScenemap, rowOrigin, colOrigin, otherSceneMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, minFilter, maxFilter);
+            if (otherDemToScene == null)
             {
                 return null;
             }
-
-            double value = dem[0, row, col];
-            if (!filterValues || value >= minFilter && value <= maxFilter)
+            else
             {
-                if (mask != null && !mask.isValid(row, col))
-                {
-                   return null;
-                }
-                return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value * scale);
-            }         
-            return null;
+                Matrix offset = Matrix.CreateTranslation(-1 * otherSceneXOffsetMeters, -1 * otherSceneYOffsetMeters, 0);
+                return offset * demToSitedriveCoordinateFlip * otherDemToScene;
+            }
         }
 
-        public static Vector3? GetXYZ(Image dem, int row, int col, double scale = 1, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
+        public static Matrix? AlignSceneToDem(Image scenemap, double sceneXOffsetMeters, double sceneYOffsetMeters, double sceneMetersPerPixel, Image dem, double demRowOffset, double demColOffset, double demMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, Matrix[] priorTransforms = null)
         {
-            return GetXYZ(dem, null, row, col, scale, filterValues, minFilter, maxFilter);
-        }
-
-        public static Vector2? GetRowCol(Image dem, Vector3 xyz)
-        {
-            return dem.CameraModel.Project(xyz, out double range);
+            return AlignScenesToDem(new[] { scenemap }, new[] { sceneXOffsetMeters }, new[] { sceneYOffsetMeters }, new[] { sceneMetersPerPixel }, dem, demRowOffset, demColOffset, demMetersPerPixel, preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, priorTransforms);
         }
 
         /// <summary>
-        /// Align dem to given scene (centered approximately at rowCenter, colCenter in the dem). Algorithm only uses distance from sample dem points in a width x height box around given center to the mesh as fitness function.
+        /// Returns alignment from dem to first passed in scenemap (using samples from full list)
         /// </summary>
-        /// <param name="scene"></param>
+        /// <param name="scenemaps"></param>
+        /// <param name="sceneXOffsetsMeters"></param>
+        /// <param name="sceneYOffsetsMeters"></param>
+        /// <param name="sceneMetersPerPixel"></param>
         /// <param name="dem"></param>
-        /// <param name="rowCenter"></param>
-        /// <param name="colCenter"></param>
-        /// <param name="width"></param>
-        /// <param name="height"></param>
-        /// <param name="metersPerPixel"></param>
-        /// <param name="alignSamples"></param>
-        /// <param name="zOffsetGuess"></param>
-        /// <param name="sceneHeightmapPath"></param>
+        /// <param name="newDemRowOffset"></param>
+        /// <param name="newDemColOffset"></param>
+        /// <param name="demMetersPerPixel"></param>
+        /// <param name="preserveXY"></param>
+        /// <param name="minOverlap"></param>
+        /// <param name="targetHeightmapRes"></param>
+        /// <param name="minFilter"></param>
+        /// <param name="maxFilter"></param>
         /// <returns></returns>
-        public static Matrix Align(Mesh scene, Image dem, double rowCenter, double colCenter, int width, int height, double metersPerPixel, out List<Vector3> alignSamples, double zOffsetGuess = 0, double percentToKeep=1.0, string sceneHeightmapPath = "")
+        public static Matrix? AlignScenesToDem(Image[] scenemaps, double[] sceneXOffsetsMeters, double[] sceneYOffsetsMeters, double[] sceneMetersPerPixel, Image dem, double demRowOffset, double demColOffset, double demMetersPerPixel, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, Matrix[] priorTransforms = null)
         {
             Random rand = NumberHelper.MakeRandomGenerator();
 
-            if (dem.CameraModel == null)
+            int sceneCount = scenemaps.Count();
+
+            if(sceneXOffsetsMeters.Count() != sceneCount ||
+               sceneYOffsetsMeters.Count() != sceneCount ||
+               sceneMetersPerPixel.Count() != sceneCount)
             {
-                dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, metersPerPixel);
+                throw new Exception("Number of scenemaps does not match number of offsets.");
             }
 
-            double demRowCenterDouble = rowCenter;
-            double demColCenterDouble = colCenter;
-            int demRowCenterInt = (int)demRowCenterDouble;
-            int demColCenterInt = (int)demColCenterDouble;
+            Matrix baseOffset = Matrix.CreateTranslation(new Vector3(sceneXOffsetsMeters[0], sceneYOffsetsMeters[0], 0)); //In site drive
 
-            //Correspond to Int centers above
-            //Scene +X = North = -Row
-            //Scene +Y = East = Col
-            //Signs flip becuase casting subtracts difference above
-            double sceneXCenter = demRowCenterDouble - demRowCenterInt - 0.5; //Correct fractional pixel offset to dem origin, and half pixel offset from projection
-            double sceneYCenter = -1 * (demColCenterDouble - demColCenterInt) + 0.5;
-
-	        //TODO: Issue 645 - Currently setting new scene heightmap origin at fractional pixel offset to be pixel aligned with given dem. 
-
-            //Assume width/height are even and round down otherwise. This allows assuming even number of pixels to either side of origin.
-	        int rowRadiusPixels = (int)Math.Ceiling(height / 2.0);
-            int xRadiusPixels = rowRadiusPixels;
-            int colRadiusPixels = (int)Math.Ceiling(width / 2.0);
-            int yRadiusPixels = colRadiusPixels;
-
-            double xRadiusMeters = xRadiusPixels * metersPerPixel;
-            double rowRadiusMeters = xRadiusMeters;
-            double yRadiusMeters = yRadiusPixels * metersPerPixel;
-            double colRadiusMeters = yRadiusMeters;
-
-            BoundingBox sceneBounds = new BoundingBox(new Vector3(sceneXCenter - xRadiusMeters, sceneYCenter - yRadiusMeters, 0), new Vector3(sceneXCenter + xRadiusMeters, sceneYCenter + yRadiusMeters, 0));
-
-            Image scenemap = MeshToHeightMap.BuildDem(scene, sceneBounds, 2 * xRadiusPixels, 2 * yRadiusPixels);
-            if (sceneHeightmapPath != "")
-            {
-                scenemap.Save<float>(sceneHeightmapPath);
-            }
-            scenemap.CameraModel = new OrthographicCameraModel(Matrix.Identity, scenemap.Width, scenemap.Height, metersPerPixel);
+            int succeeded = 0;
+            int total = 0;
 
             List<Vector3> sceneSamples = new List<Vector3>();
 
-            for (int r = 0; r < scenemap.Height; r++)
+            double demHorizontalOrigin = dem.Width / 2.0;
+            double demVerticalOrigin = dem.Height / 2.0;
+
+            demRowOffset = demRowOffset - sceneXOffsetsMeters[0] / demMetersPerPixel;
+            demColOffset = demColOffset + sceneYOffsetsMeters[0] / demMetersPerPixel;
+
+            double[] adjustment = { 0, 0, 0, -1 * (demColOffset - demHorizontalOrigin) * demMetersPerPixel, -1 * (demVerticalOrigin - demRowOffset) * demMetersPerPixel }; //inverse sitedrive offset
+            double zTranslation = 0;
+            Func<double[], Matrix> arrayToTransform = new Func<double[], Matrix>((transform) =>
             {
-                for (int c = 0; c < scenemap.Width; c++)
+                AxisAngleVector aav = new AxisAngleVector(transform[0], transform[1], transform[2]);
+                Quaternion rotation = aav.ToQuaternion();
+                Vector3 translation = new Vector3(transform[3], transform[4], 0);
+                return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
+            });
+
+            for (int i = 0; i < scenemaps.Count(); i++)
+            {
+                //demRowCenter, demColCenter corresponds to the origin of scene
+                //Heightmap image center has an offset (not the origin)
+                //Therefore we move the dem center to match the scene heightmap center
+                //This translation is undone in the outputted transform
+
+                //In dem space
+                //  +X = North = -Row
+                //  +Y = East  =  Col
+                double sceneM2P = sceneMetersPerPixel[i];
+                Matrix priorTransform = priorTransforms != null ? priorTransforms[i] : Matrix.Identity;
+                Matrix currentOffset = Matrix.CreateTranslation(sceneXOffsetsMeters[i], sceneYOffsetsMeters[i], 0);
+
+                //Flip coordinate orientation from dem to site drive
+                //Apply offset (meters) of current site drive
+                //Apply transform computed from prior alignment step in correct frame
+                //Apply offset (meters) back to base (first) site drive
+                //Flip back to dem coordinate orientation
+                //Apply offset to other dem
+                Matrix fullTransform = demToSitedriveCoordinateFlip
+                                        * currentOffset
+                                        * priorTransform
+                                        * Matrix.Invert(baseOffset)
+                                        * demToSitedriveCoordinateFlip;
+
+                Image scenemap = scenemaps[i];
+
+                scenemap.CameraModel = new OrthographicCameraModel(Matrix.Identity, scenemap.Width, scenemap.Height, sceneM2P);
+
+                for (int r = 0; r < scenemap.Height; r++)
                 {
-                    Vector3? scenePoint = GetXYZ(scenemap, r, c);
-                    if (scenePoint.HasValue)
+                    for (int c = 0; c < scenemap.Width; c++)
                     {
-                        Vector3? demPoint = GetXYZ(dem, demRowCenterInt - rowRadiusPixels + r, demColCenterInt - colRadiusPixels + c);
-                        //Ensure that samples are taken where meshes overlap in projected space
-                        if (demPoint.HasValue && rand.NextDouble() < percentToKeep)
+                        Vector3? scenePoint = GetXYZ(scenemap, r, c);
+                        if (scenePoint.HasValue)
                         {
-                            sceneSamples.Add(scenePoint.Value);
+                            Vector3 sceneSample = Vector3.Transform(scenePoint.Value, fullTransform);
+                            Vector3 adjustedSceneSample = Vector3.Transform(sceneSample, Matrix.Invert(arrayToTransform(adjustment)));
+                            Vector2? demRowCol = GetRowCol(dem, adjustedSceneSample);
+
+                            //Ensure that samples are taken where meshes overlap in projected space
+                            if (demRowCol.HasValue) {
+                                //demRowOffset + rowOffsetMeters * demMetersPerPixel, demColOffset + colOffsetMeters * demMetersPerPixel
+                                Vector3? demPoint = GetInterpolatedXYZ(dem, demRowCol.Value.Y, demRowCol.Value.X, minFilter, maxFilter);
+                                if (demPoint.HasValue)
+                                {
+                                    succeeded++;
+                                    sceneSamples.Add(sceneSample);
+                                }
+                            }
+                            total++;
                         }
                     }
                 }
             }
 
-            if(sceneSamples.Count < 1)
+            if (succeeded / (double)total < minOverlap)
             {
-                throw new Exception("Alignment found no samples. Check for sufficient overlap or consider increasing sample percentage.");
+                logger.InfoFormat("Overlap {0}/{1} is insufficient. Min ratio is {2}", succeeded, total, minOverlap);
+                return null;
             }
 
-            alignSamples = sceneSamples;
+            if (succeeded == 0)
+            {
+                throw new Exception("No overlap for heightmap align.");
+            }
 
-            double demHorizontalOrigin = dem.Width / 2.0;
-            double demVerticalOrigin = dem.Height / 2.0;
-
-            double[] guess = { 0, 0, 0, -1 * (demColCenterInt - demHorizontalOrigin) * metersPerPixel, -1 * (demVerticalOrigin - demRowCenterInt) * metersPerPixel }; //inverse sitedrive offset
+           
             double[] sigma = new double[] { Math.PI / 2880, Math.PI / 2880, Math.PI / 2880, 0.02, 0.02 };
-            double zTranslation = -1 * zOffsetGuess;
+
+            if(preserveXY)
+            {
+                sigma[2] = 0; //Prevent in plane rotation
+                sigma[3] = 0; //Prevent in plane translation
+                sigma[4] = 0;
+            }
 
             Func<Quaternion, Vector3, double[]> transformToArray = new Func<Quaternion, Vector3, double[]>((r, t) =>
             {
@@ -289,20 +375,10 @@ namespace OPS.Geometry
                 };
             });
 
-            Func<double[], Matrix> arrayToTransform = new Func<double[], Matrix>((transform) =>
-            {
-                AxisAngleVector aav = new AxisAngleVector(transform[0], transform[1], transform[2]);
-                Quaternion rotation = aav.ToQuaternion();
-                Vector3 translation = new Vector3(transform[3], transform[4], zTranslation);
-                return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
-            });
-
-            //TODO: Could instead use a 2d projection with uv face tree, possibly more efficient (2d search instead of 3d), but would only use vertical projection rather than minimum distance
             Func<double[], double> meanZSquaredError = new Func<double[], double>((transformArray) => {
-
                 double error = 0;
                 //Aligning scene sample points to dem; final transform will be dem to scene. This could be refactored to avoid invert but should not make much of a computational difference
-                Matrix transformMatrix = Matrix.Invert(arrayToTransform(transformArray));
+                Matrix transformMatrix = Matrix.Invert(arrayToTransform(transformArray) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)));
                 int count = 0;
                 for (int i = 0; i < sceneSamples.Count; i++)
                 {
@@ -312,16 +388,7 @@ namespace OPS.Geometry
                     if (demRowCol.HasValue)
                     {
                         //Unproject to get dem height
-                        double xFractionalOffset = demRowCol.Value.X - (int)demRowCol.Value.X;
-                        double yFractionalOffset = demRowCol.Value.Y - (int)demRowCol.Value.Y;
-                        int row = (int)demRowCol.Value.Y;
-                        int col = (int)demRowCol.Value.X;
-                        Vector3? demXYZ = Interpolate(xFractionalOffset, yFractionalOffset, 
-                                GetXYZ(dem, row, col),
-                                GetXYZ(dem, row, col + 1),
-                                GetXYZ(dem, row + 1, col),
-                                GetXYZ(dem, row + 1, col + 1)
-                            );
+                        Vector3? demXYZ = GetInterpolatedXYZ(dem, demRowCol.Value.Y, demRowCol.Value.X, minFilter, maxFilter);
                         //TODO: Issue 644 - better way to handle when the scene samples no longer hit the dem? Should be rare for orbital but could be a problem for more general use case
                         if (demXYZ.HasValue) {
                             double zOff = sceneXYZ.Z - demXYZ.Value.Z;
@@ -340,11 +407,15 @@ namespace OPS.Geometry
                 int count = 0;
                 for (int i = 0; i < sceneSamples.Count; i++)
                 {
-                    Vector3 sceneXYZ = Vector3.Transform(sceneSamples[i], Matrix.Invert(arrayToTransform(guess))); //See comment about invert in meanZError
+                    Vector3 sceneXYZ = Vector3.Transform(sceneSamples[i], 
+                        Matrix.Invert( //See comment about invert in meanZError
+                            arrayToTransform(adjustment) 
+                            * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)) //Apply rotation and xy translation, then z translation
+                        ));
                     Vector2? demRowCol = GetRowCol(dem, sceneXYZ);
                     if (demRowCol.HasValue)
                     {
-                        Vector3? demXYZ = GetXYZ(dem, (int)demRowCol.Value.Y, (int)demRowCol.Value.X);
+                        Vector3? demXYZ = GetInterpolatedXYZ(dem, demRowCol.Value.Y, demRowCol.Value.X, minFilter, maxFilter); //TODO: check half pixel on interpolate
                         if (demXYZ.HasValue)
                         {
                             x += demXYZ.Value.Z - sceneXYZ.Z;
@@ -355,22 +426,38 @@ namespace OPS.Geometry
                 return count == 0 ? 0 : x / (double)count;
             });
 
+            zTranslation = -1 * meanZOffset();
+
             SimulatedAnnealing sa = new SimulatedAnnealing();
-            sa.maxIterations = 100;
-            sa.verbose = true;
-            sa.temperatureScale = 1;
-            sa.probabilityScale = 100;
-            int numAnnealStages = 100;
-            for (int i = 0; i < numAnnealStages; i++)
+            if (saOpts == null)
             {
-                logger.InfoFormat("Annealing pass {0}", i + 1);
-                sa.temperatureExponent = 1.0 / (Math.Max(4, numAnnealStages) - i);
-                double[] newTrans = sa.Minimize(meanZSquaredError, guess, sigma);
-                guess = newTrans;
-                zTranslation += meanZOffset();
+                saOpts = new SimulatedAnnealingOptions();
+                saOpts.maxIterations = 400;
+                saOpts.verbose = false;
+                saOpts.temperatureScale = 1;
+                saOpts.probabilityScale = 100;
+                saOpts.sigma = sigma;
+            }
+            sa.opts = saOpts;
+
+            for (int i = 0; i < numAnnealingStages; i++)
+            {
+                logger.InfoFormat("Annealing pass {0}/{1} :  Error = {2}", i + 1, numAnnealingStages, meanZSquaredError(adjustment));
+                sa.temperatureExponent = 1.0 / (Math.Max(4, numAnnealingStages) - i);
+                double[] saTransform = sa.Minimize(meanZSquaredError, adjustment);
+                adjustment = saTransform;
+                zTranslation -= meanZOffset();
             }
 
-            return arrayToTransform(guess);
+            logger.InfoFormat("Finished annealing. Final error = {0}", meanZSquaredError(adjustment));
+
+            //Include dem mesh -> site drive coordinate flip in returned transform
+            //Alignment operates on portion of dem corresponding to scene heightmap center, not scene origin.
+            //Factor in scene heightmap offset into final dem transform.
+
+            return arrayToTransform(adjustment) 
+                * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation))
+                * demToSitedriveCoordinateFlip * baseOffset; //transfrom applied before flip (row vectors)
         }
     }
 }
