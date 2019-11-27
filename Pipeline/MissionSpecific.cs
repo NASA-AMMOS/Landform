@@ -1317,11 +1317,11 @@ namespace OPS.Pipeline
             }
 
             var s3EventRecord = s3Msg.Records[0];
-            string expected = "ObjectCreated:Put";
-            if (s3EventRecord.eventName != expected)
+            string prefix = "ObjectCreated";
+            if (!s3EventRecord.eventName.StartsWith(prefix))
             {
                 throw new Exception(string.Format("M2020 tactical mesh queue message event name \"{0}\", " +
-                                                  "expected \"{1}\"", s3EventRecord.eventName, expected));
+                                                  "expected \"{1}*\"", s3EventRecord.eventName, prefix));
             }
 
             var s3EventData = s3EventRecord.s3;
@@ -1343,13 +1343,37 @@ namespace OPS.Pipeline
             string url = string.Format("s3://{0}/{1}", s3EventData.bucket.name,
                                        s3EventData.obj.key); //already url encoded
 
-            if (filter && !url.EndsWith(".obj", ignoreCase: true, culture: null))
+            if (filter)
             {
-                if (logger != null)
+                //OBJ is written last, only keep OBJ messages
+                if (!url.EndsWith(".obj", ignoreCase: true, culture: null))
                 {
-                    logger.LogInfo("ignoring M2020 tactical mesh queue message (not OBJ) {0}", url);
+                    if (logger != null)
+                    {
+                        logger.LogInfo("ignoring M2020 tactical mesh queue message (not OBJ) {0}", url);
+                    }
+                    return null;
                 }
-                return null; //OBJ is written last, only keep OBJ messages
+
+                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var id = RoverProductId.Parse(idStr, this, throwOnFail: false) as M2020OPGSProductId;
+                if (id == null)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("ignoring M2020 tactical mesh queue message (bad product ID) {0}", url);
+                    }
+                    return null;
+                }
+
+                if (id.Size == RoverProductSize.Thumbnail)
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("ignoring M2020 tactical mesh queue message (thumbnail) {0}", url);
+                    }
+                    return null;
+                }
             }
 
             return url;
