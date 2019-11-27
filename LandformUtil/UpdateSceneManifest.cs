@@ -20,6 +20,36 @@ using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
 using OPS.Landform;
 
+/// <summary>
+/// Utility to create or update a tileset scene manifest.
+///
+/// TODO: we probably want to generate manifests as part of BuildTileset
+/// https://github.jpl.nasa.gov/OnSight/Landform/issues/836
+///
+/// The scene manifest is a json file that lists one or more tilesets, images, and coordinate frames.
+/// https://github.jpl.nasa.gov/OnSight/Landform/wiki/Generic-Scene-File-Specification
+///
+/// This tool will add/update entries for both or either tactical and contextual mesh tilesets.
+/// It expects the tilesets to already exist, but only uses their filenames.
+///
+/// If the manifest already exists it will be updated.
+/// Tilesets, images, and frames not involved with the current invocation will pass through.
+///
+/// For tactical mesh tilesets, the filename FOO_tileset.json is parsed to get the product ID FOO.
+/// The corresponding raster image PDS RDR is then found and loaded to get the camera frame and coordinate frame info.
+/// No Landform database or project needs to exist for tactical mesh tilesets.
+///
+/// For contextual mesh tilesets a Landform project must be provided
+/// and is used to determine the set of images and their adjusted poses.
+///
+/// The tilesets (tactical and contextual) must all have the same parent directory
+/// and may either be local files on disk or on S3 (even without --cloud).
+///
+/// The RDRs must be available (for both tactical and contextual) so that their URIs can be embedded in the manifest.
+/// They can also be either local files on disk or on S3 (even without --cloud).
+///
+/// The manifest file can also be either a local file on disk or on S3 (even without --cloud).
+/// </summary>
 namespace OPS.LandformUtil
 {
     [Verb("update-scene-manifest", HelpText = "update scene manifest")]
