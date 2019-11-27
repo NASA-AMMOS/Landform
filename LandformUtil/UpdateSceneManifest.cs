@@ -203,13 +203,14 @@ namespace OPS.LandformUtil
 
             public string GetUri(string ext)
             {
-                ext = Extensions.Where(ex => ex.EndsWith(ext, ignoreCase: true, culture: null)).FirstOrDefault();
-                if (string.IsNullOrEmpty(ext))
+                string fullExt =
+                    Extensions.Where(ex => ex.EndsWith(ext, ignoreCase: true, culture: null)).FirstOrDefault();
+                if (string.IsNullOrEmpty(fullExt))
                 {
                     throw new Exception(string.Format("no ext {0} in RDR set {1}, available: {2}",
                                                       ext, BaseUri, string.Join(", ", Extensions)));
                 }
-                return BaseUri + ext;
+                return BaseUri + fullExt;
             }
         }
 
