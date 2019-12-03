@@ -29,6 +29,12 @@ namespace OPS.Cloud
         private ConcurrentDictionary<string, RegionEndpoint> bucketToRegion =
             new ConcurrentDictionary<string, RegionEndpoint>();
 
+        public static string ConvertS3URLToHttps(string url)
+        {
+            S3Url location = new S3Url(url);
+            return string.Format("https://{0}.s3.amazonaws.com/{1}", location.BucketName, location.Path);
+        }
+
         /// <summary>
         /// Use the given profile name to create a storage helper
         /// Profiles can be defined in the ~/.aws/credentials file
