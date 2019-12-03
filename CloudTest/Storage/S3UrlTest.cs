@@ -16,19 +16,19 @@ namespace CloudTest
             Assert.AreEqual("s3://bucket/prefix/", url.Url);
             url = new S3Url("s3://bucket/prefix");
             Assert.AreEqual("bucket", url.BucketName);
-            Assert.AreEqual("prefix", url.Prefix);
+            Assert.AreEqual("prefix", url.Path);
             url = new S3Url("s3://bucket/prefix/");
             Assert.AreEqual("bucket", url.BucketName);
-            Assert.AreEqual("prefix/", url.Prefix);
+            Assert.AreEqual("prefix/", url.Path);
             url.BucketName = "differentBucket";
-            url.Prefix = "different/prefix/name/";
+            url.Path = "different/prefix/name/";
             Assert.AreEqual("s3://differentBucket/different/prefix/name/", url.Url);
             url.Url = "s3://mrbucket/is/buckets/of/fun/";
             Assert.AreEqual("mrbucket", url.BucketName);
-            Assert.AreEqual("is/buckets/of/fun/", url.Prefix);
+            Assert.AreEqual("is/buckets/of/fun/", url.Path);
             url.Url = "s3://mrbucket/is/buckets/of/fun/file.gif";
             Assert.AreEqual("mrbucket", url.BucketName);
-            Assert.AreEqual("is/buckets/of/fun/file.gif", url.Prefix);
+            Assert.AreEqual("is/buckets/of/fun/file.gif", url.Path);
         }
     }
 }
