@@ -251,19 +251,11 @@
     <Compile Include="Rover\SolDateTime.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />
     <Compile Include="Rover\SiteDrive.cs" />
-    <Compile Include="Tiling\BaselineAtlaser.cs" />
-    <Compile Include="Tiling\BaselineImageProducer.cs" />
     <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
-    <Compile Include="Tiling\DefaultLeafTileContentProducer.cs" />
-    <Compile Include="Tiling\DefaultParentTileContentProducer.cs" />
     <Compile Include="Tiling\FaceSplitCriteria.cs" />
-    <Compile Include="Tiling\IContentProducer.cs" />
-    <Compile Include="Tiling\IImageProducer.cs" />
-    <Compile Include="Tiling\IMeshAtlaser.cs" />
     <Compile Include="Tiling\ITileSplitCriteria.cs" />
     <Compile Include="Tiling\LegacyScene.cs" />
     <Compile Include="Tiling\MeshImagePair.cs" />
-    <Compile Include="Tiling\MeshTiler.cs" />
     <Compile Include="Rover\PDSParser.cs" />
     <Compile Include="Rover\PDSParserException.cs" />
     <Compile Include="Rover\RoverProductId.cs" />
@@ -273,7 +265,6 @@
     <Compile Include="Tiling\MultiMeshClipper.cs" />
     <Compile Include="Tiling\MultiMeshClipperInput.cs" />
     <Compile Include="Tiling\OctreeTilingScheme.cs" />
-    <Compile Include="Tiling\PrecomputedLODParentTileContentProducer.cs" />
     <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
     <Compile Include="Tiling\ITilingScheme.cs" />
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
