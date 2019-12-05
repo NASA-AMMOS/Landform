@@ -218,9 +218,11 @@ namespace OPS.Pipeline
                 //let's define the functionality such that if the caller supplied a stem
                 //then we should only return paths that start with dir and stem
 
+                bool matchesRegex = regex.IsMatch(path);
+                bool matchesStem = stem == null || fn.StartsWith(dir + stem, ignoreCase, null);
                 //LogInfo("SearchFiles path={0}, regex={1}, matchesRegex={2}, matchesStem={3}",
-                //        path, regex, regex.IsMatch(path), stem == null || fn.StartsWith(dir + stem, ignoreCase, null));
-                if (regex.IsMatch(path) && (stem == null || fn.StartsWith(dir + stem, ignoreCase, null)))
+                //        path, regex, matchesRegex, matchesStem);
+                if (matchesRegex && matchesStem)
                 {
                     var ret = "file://" + fn; //e.g. "file://C:/foo/bar", "file:///foo/bar"
                     yield return ret;
