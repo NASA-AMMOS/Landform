@@ -371,7 +371,7 @@ namespace OPS.Landform
                             StopStopwatch(brief: true);
                         }
 
-                        if (tooOld)
+                        if (accepted && tooOld)
                         {
                             pipeline.LogError("{0} too old ({1} > {2}), removing from queue, {3} fail queue",
                                               desc, Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec),
