@@ -7,7 +7,7 @@ using OPS.Imaging;
 namespace OPS.LandformUtil
 {
 
-    [Verb("convertpds", HelpText = "Convert PDS images to different format")]
+    [Verb("convert-pds", HelpText = "Convert PDS images to different format")]
     public class PDSImageConverterOptions
     {
         [Option('t', "type", Required = false, HelpText = "Output file type, available types: jpg, tif, default is png")]
