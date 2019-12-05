@@ -45,7 +45,7 @@ namespace OPS.LandformUtil
             else if(options.ImagePath.EndsWith(".IMG"))
             {
                 images = new string[] {  options.ImagePath };
-                destPath = Path.GetDirectoryName(options.ImagePath);
+                destPath = Path.GetDirectoryName(options.ImagePath); //destPath="" if ImagePath was a bare filename
             }
             if(options.OutputPath != null)
             {
@@ -54,14 +54,18 @@ namespace OPS.LandformUtil
 
             if (images.Length == 0) { return 0; }
 
-            Directory.CreateDirectory(destPath);
+            if (!string.IsNullOrEmpty(destPath))
+            {
+                Directory.CreateDirectory(destPath);
+            }
+
             for (int i = 0; i < images.Length; i++)
             {
                 string imagePath = images[i];
                 Image newImage = Image.Load(imagePath);
                 string imageName = Path.GetFileNameWithoutExtension(imagePath); 
                 string newImageName = imageName + '.' + outputType;
-                newImage.Save<byte>(Path.Combine(destPath, newImageName));
+                newImage.Save<byte>(Path.Combine(destPath, newImageName)); //destPath="" ok
             }          
             return 0;
         }
