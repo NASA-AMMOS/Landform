@@ -10,14 +10,14 @@ namespace OPS.LandformUtil
     [Verb("convert-pds", HelpText = "Convert PDS images to different format")]
     public class PDSImageConverterOptions
     {
-        [Option('t', "type", Required = false, HelpText = "Output file type, available types: jpg, tif, default is png")]
-        public string OutputType { get; set; }
-
         [Value(0, Required = true, HelpText = "Path to file or directory to be converted")]
         public string ImagePath { get; set; }
 
         [Option('o', "output", Required = false, HelpText = "Output path of converted images")]
         public string OutputPath { get; set; }
+
+        [Option('t', "type", Required = false, HelpText = "Output file type, available types: jpg, tif, default is png")]
+        public string OutputType { get; set; }
     }
 
     public class PDSImageConverter
