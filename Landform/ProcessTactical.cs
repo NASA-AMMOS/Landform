@@ -388,7 +388,18 @@ namespace OPS.Landform
             {
                 return rdrUrl.Substring(0, rdrIdx + rdrSubdir.Length) + tilesetSubdir;
             }
-            return StringHelper.StripLastUrlPathSegment(rdrUrl) + "/" + tilesetSubdir;
+            else
+            {
+                string dir = StringHelper.StripLastUrlPathSegment(rdrUrl);
+                if (dir != rdrUrl)
+                {
+                    return dir + "/" + tilesetSubdir;
+                }
+                else
+                {
+                    return tilesetSubdir; //rdrUrl had only one path segment, i.e. it was a filename with no path
+                }
+            }
         }
 
         private void SaveTileset(string venue, string project, string meshUrl)
