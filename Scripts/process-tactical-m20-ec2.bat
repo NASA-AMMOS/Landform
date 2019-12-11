@@ -37,6 +37,14 @@ if not "%LANDFORM_TACTICAL_LOG_DIR%"=="" set logdir=%LANDFORM_TACTICAL_LOG_DIR%
 set tmpdir=c:\temp\landform-tactical
 if not "%LANDFORM_TACTICAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_TACTICAL_TEMP_DIR%
 
+set ivcatdir=%bindir%\ivcat-for-ec2
+set appsdir=%bindir%\ExternalApps
+if exist %ivcatdir%\ (
+@echo on
+del %appsdir%\ivcat.*
+copy /Y %ivcatdir%\* %appsdir% 
+)
+
 @echo on
 
 %bindir%\Landform.exe configure-local --venue=local --storagedir=%storagedir% --maxcores=0 --randomseed=-1 %quiet%
