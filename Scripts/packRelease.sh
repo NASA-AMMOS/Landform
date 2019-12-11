@@ -13,9 +13,16 @@ echo "clearing output directory $dir"
 rm -rf $dir
 mkdir $dir
 
-for src in TilingServer/bin/Release LandformUtil/bin/Release Landform/bin/Release Dependencies Scripts Utils; do
-    echo "copying $src to $dir"
+#copy without subdirs
+for src in TilingServer/bin/Release LandformUtil/bin/Release Landform/bin/Release; do
+    echo "copying $src/* to $dir"
     cp -R $src/* $dir
+done
+
+#copy with subdirs
+for src in Dependencies Scripts Utils ivcat-for-ec2; do
+    echo "copying $src to $dir"
+    cp -R $src $dir
 done
 
 rm -rf $dir/log
