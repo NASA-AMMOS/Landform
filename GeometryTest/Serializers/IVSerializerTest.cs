@@ -14,7 +14,7 @@ namespace GeometryThirdpartyTest
         public void OpenInventorReadTest()
         {
             string filepath = Path.Combine("TestData", "mesh", "MLF_474203921RASLS0450000MCAM03804M1.iv");
-            var meshes = OpenInventorSerializer.ReadAllLODs(filepath);
+            var meshes = (new IVSerializer()).LoadAllLODs(filepath);
             Assert.AreEqual(2, meshes.Count);
             Assert.AreEqual(3175, meshes[0].Vertices.Count);
             Assert.AreEqual(6784, meshes[0].Faces.Count);
@@ -27,7 +27,7 @@ namespace GeometryThirdpartyTest
             Assert.IsFalse(meshes[1].HasColors);
             Assert.IsFalse(meshes[1].HasNormals);
 
-            var m = OpenInventorSerializer.ReadBestLOD(filepath);
+            var m = (new IVSerializer()).Load(filepath);
             Assert.AreEqual(3175, m.Vertices.Count);
             Assert.AreEqual(6784, m.Faces.Count);
             Assert.IsTrue(m.HasUVs);

@@ -125,6 +125,7 @@
     <Compile Include="Serializers\GLBSerializer.cs" />
     <Compile Include="Serializers\GLTFStructure.cs" />
     <Compile Include="Serializers\GLTFSerializer.cs" />
+    <Compile Include="Serializers\IVSerializer.cs" />
     <Compile Include="Serializers\MeshSerializer.cs" />
     <Compile Include="Serializers\MeshSerializerException.cs" />
     <Compile Include="Serializers\MeshSerializers.cs" />
