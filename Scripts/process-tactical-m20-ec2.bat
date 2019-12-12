@@ -37,12 +37,10 @@ if not "%LANDFORM_TACTICAL_LOG_DIR%"=="" set logdir=%LANDFORM_TACTICAL_LOG_DIR%
 set tmpdir=c:\temp\landform-tactical
 if not "%LANDFORM_TACTICAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_TACTICAL_TEMP_DIR%
 
-set ivcatdir=%bindir%\ivcat-for-ec2
 set appsdir=%bindir%\ExternalApps
-if exist %ivcatdir%\ (
+if exist %appsdir%\opengl32-for-ivcat.dll (
 @echo on
-del %appsdir%\ivcat.*
-copy /Y %ivcatdir%\* %appsdir% 
+move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 )
 
 @echo on
