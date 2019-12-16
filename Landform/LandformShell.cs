@@ -315,6 +315,11 @@ namespace OPS.Landform
 
         protected void RunCommand(string cmd, params string[] args)
         {
+            RunCommand(null, cmd, args);
+        }
+
+        protected void RunCommand(HashSet<string> flags, string cmd, params string[] args)
+        {
             cmd = cmd + " " + string.Join(" ", args);
             var stdFlags = new Dictionary<string, bool>()
                 {
@@ -328,6 +333,13 @@ namespace OPS.Landform
                     { "--stacktraces", lsopts.StackTraces },
                     { "--singlethreaded", lsopts.SingleThreaded }
                 };
+            foreach (var entry in stdFlags)
+            {
+                if ((flags == null || flags.Contains(entry.Key)) && entry.Value)
+                {
+                    cmd += " " + entry.Key;
+                }
+            }
             var stdArgs = new Dictionary<string, string>()
                 {
                     { "--logfile", logFile }, //already handles --logdir
@@ -403,7 +415,8 @@ namespace OPS.Landform
 
         protected void Configure(string venue)
         {
-            RunCommand("configure-local", "--venue", venue, "--storagedir", storageDir,
+            var flags = new HashSet<string>() { "--quiet", "--debug" };
+            RunCommand(flags, "configure-local", "--venue", venue, "--storagedir", storageDir,
                        "--maxcores", lsopts.MaxCores.ToString(), "--randomseed", lsopts.RandomSeed.ToString());
         }
 
