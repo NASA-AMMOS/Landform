@@ -323,7 +323,7 @@ namespace OPS.Geometry
         /// returns all the center locations of pixels (paired with the mesh points) that had valid texels in the atlas
         /// </summary>
         /// <param name="textureResolution">resolution of texture to collect points for</param>        
-        public List<PixelPoint> SampleUVSpace(int widthPixels, int heightPixels)
+        public List<PixelPoint> SampleUVSpace(int widthPixels, int heightPixels, bool sorted = false)
         {
             if (!HasUVs)
             {
@@ -350,9 +350,14 @@ namespace OPS.Geometry
                     }
                 });
 
-            return pixelToPoint
-                .Select(entry => new PixelPoint() { Pixel = entry.Key, Point = entry.Value })
-                .ToList();
+            var results = pixelToPoint.Select(entry => new PixelPoint() { Pixel = entry.Key, Point = entry.Value }).ToList();
+
+            if(sorted)
+            {
+                results.Sort((p1, p2) => p1.Pixel.Y == p2.Pixel.Y ? p1.Pixel.X.CompareTo(p2.Pixel.X) : p1.Pixel.Y.CompareTo(p2.Pixel.Y));
+            }
+
+            return results;
         }
 
         /// <summary>
@@ -370,7 +375,7 @@ namespace OPS.Geometry
                 throw new Exception("valid subsample pcts need to be greater than zero");
             }
 
-            List<PixelPoint> pts = SampleUVSpace(widthPixels, heightPixels);
+            List<PixelPoint> pts = SampleUVSpace(widthPixels, heightPixels, true);
 
             //simple sample which skips enough points to return the requested amount of points
             int subsampledPts = Math.Max(1, (int)(pts.Count * pct));
