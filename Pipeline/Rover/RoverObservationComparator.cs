@@ -29,7 +29,8 @@ namespace OPS.Pipeline
         {}
 
         public RoverObservationComparator(RoverObservationComparator other)
-            : this(preferMSSS: other.preferMSSSToOPGS, preferLinear: other.preferLinearToNonlinear, preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry)
+            : this(preferMSSS: other.preferMSSSToOPGS, preferLinear: other.preferLinearToNonlinear, 
+                  preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry, ext: other.ext)
         { }
 
         /// <summary>
@@ -263,6 +264,14 @@ namespace OPS.Pipeline
                 return ids.Where(id => !hasXYZ || id.ProductType != RoverProductType.Range);
             }
 
+            //IEnumerable<RoverProductId> filterGeometry(IEnumerable<RoverProductId> ids, bool preferLinearToNonlinear)
+            //{
+            //    bool hasLinear = ids.Any(id => id.Geometry == RoverProductGeometry.Linearized);
+            //    bool hasNonlinear = ids.Any(id => id.Geometry == RoverProductGeometry.Raw);
+            //    return ids.Where(id => !hasLinear || !hasNonlinear ||
+            //                     (preferLinearToNonlinear && id.Geometry == RoverProductGeometry.Linearized) ||
+            //                     (!preferLinearToNonlinear && id.Geometry == RoverProductGeometry.Raw));
+            //}
 
             IEnumerable<RoverProductId> filterColor(IEnumerable<RoverProductId> ids, bool preferColorToGrayscale)
             {
@@ -321,6 +330,14 @@ namespace OPS.Pipeline
                     .SelectMany(ids => filterRNG(ids))
                     .ToList();
 
+                //if (mission != null && mission.AllowLinear() && mission.AllowNonlinear())
+                //{
+                //    bool preferLinearToNonlinear = mission.PreferLinearToNonlinear();
+                //    filtered = filtered
+                //        .GroupBy(id => id.GetPartialId(mission, includeGeometry: false, includeVariants: false))
+                //        .SelectMany(ids => filterGeometry(ids, preferLinearToNonlinear))
+                //        .ToList();
+                //}
 
                 //if both color and grayscale are available, keep the preferred one
                 //also if multiple grayscale bands are available, keep the preferred one
