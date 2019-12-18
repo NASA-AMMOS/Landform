@@ -277,7 +277,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowNonlinear()
         {
-            return false;
+            return true;
         }
 
         /// <summary>
