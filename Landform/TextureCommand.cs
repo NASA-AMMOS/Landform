@@ -113,9 +113,8 @@ namespace OPS.Landform
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
             
             // the observation selection strategy has an opportunity to independently define its preference for linear or nonlinear images
-            var obsSelectionStrategy = obsSelStrat;
             var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
-            comparator.SetPreferLinearToNonlinear(obsSelectionStrategy.PreferLinearToNonlinear());
+            comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
             imageObservations = comparator
                 .KeepBestRoverObservations(imageObservations, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
                 .Cast<Observation>()
