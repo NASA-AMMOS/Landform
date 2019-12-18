@@ -25,6 +25,7 @@ namespace OPS.LandformUtil
                 {
                     { typeof(LocalObservationProductsOptions), typeof(LocalObservationProducts) },
                     { typeof(ConvertPDSOptions), typeof(ConvertPDS) },
+                    { typeof(ConvertIVOptions), typeof(ConvertIV) },
                     { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },
                     { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },
                     { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
