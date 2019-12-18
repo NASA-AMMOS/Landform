@@ -152,10 +152,8 @@ namespace OPS.Landform
             var comparator =
                 mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
             var allObs = observationCache.GetAllObservations();
-            imageObservations = comparator
-                .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
-                .Cast<Observation>()
-                .ToList();
+            imageObservations = allObs.Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
+
             indexedImages = new Dictionary<int, Observation>();
             foreach (var obs in imageObservations)
             {
