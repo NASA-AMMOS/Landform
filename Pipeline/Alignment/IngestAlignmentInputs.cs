@@ -227,12 +227,6 @@ namespace OPS.Pipeline
                 .Cast<RoverObservation>()
                 .ToList();
             na = filteredObs.Count;
-            var comparator = mission.GetRoverObservationComparator();
-            filteredObs = comparator
-                .KeepBestRoverObservations(filteredObs, pipeline.Verbose ? pipeline : null)
-                .ToList();
-            pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
-            na = filteredObs.Count;
 
             var obsNames = new HashSet<string>();
             obsNames.UnionWith(filteredObs.Select(obs => obs.Name));
