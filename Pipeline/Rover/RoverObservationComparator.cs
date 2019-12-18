@@ -28,6 +28,10 @@ namespace OPS.Pipeline
             : this(preferMSSS: false, preferLinear: true, preferColor: true, preferEyeForGeometry: RoverStereoEye.Left)
         {}
 
+        public RoverObservationComparator(RoverObservationComparator other)
+            : this(preferMSSS: other.preferMSSSToOPGS, preferLinear: other.preferLinearToNonlinear, preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry)
+        { }
+
         /// <summary>
         /// 0 if a and b are equivalently good
         /// negative if a is "better" than b
@@ -350,6 +354,11 @@ namespace OPS.Pipeline
             }
 
             yield break;
+        }
+
+        public void SetPreferLinearToNonlinear(bool preferLinear)
+        {
+            preferLinearToNonlinear = preferLinear;
         }
     }
 }
