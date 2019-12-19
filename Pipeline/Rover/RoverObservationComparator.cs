@@ -359,15 +359,6 @@ namespace OPS.Pipeline
                 return ids.Where(id => !hasXYZ || id.ProductType != RoverProductType.Range);
             }
 
-            //IEnumerable<RoverProductId> filterGeometry(IEnumerable<RoverProductId> ids, bool preferLinearToNonlinear)
-            //{
-            //    bool hasLinear = ids.Any(id => id.Geometry == RoverProductGeometry.Linearized);
-            //    bool hasNonlinear = ids.Any(id => id.Geometry == RoverProductGeometry.Raw);
-            //    return ids.Where(id => !hasLinear || !hasNonlinear ||
-            //                     (preferLinearToNonlinear && id.Geometry == RoverProductGeometry.Linearized) ||
-            //                     (!preferLinearToNonlinear && id.Geometry == RoverProductGeometry.Raw));
-            //}
-
             IEnumerable<RoverProductId> filterColor(IEnumerable<RoverProductId> ids, bool preferColorToGrayscale)
             {
                 bool hasColor = ids.Any(id => id.Color == RoverProductColor.FullColor);
@@ -424,15 +415,6 @@ namespace OPS.Pipeline
                     .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
                     .SelectMany(ids => filterRNG(ids))
                     .ToList();
-
-                //if (mission != null && mission.AllowLinear() && mission.AllowNonlinear())
-                //{
-                //    bool preferLinearToNonlinear = mission.PreferLinearToNonlinear();
-                //    filtered = filtered
-                //        .GroupBy(id => id.GetPartialId(mission, includeGeometry: false, includeVariants: false))
-                //        .SelectMany(ids => filterGeometry(ids, preferLinearToNonlinear))
-                //        .ToList();
-                //}
 
                 //if both color and grayscale are available, keep the preferred one
                 //also if multiple grayscale bands are available, keep the preferred one
