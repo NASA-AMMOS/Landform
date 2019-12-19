@@ -59,9 +59,6 @@ namespace OPS.Landform
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
 
-        protected List<Observation> imageObservations;
-        protected Dictionary<int, Observation> indexedImages;
-
         protected string effectiveRootFrame;
 
         protected WedgeCommand(WedgeCommandOptions wcopts) : base(wcopts)
@@ -148,20 +145,9 @@ namespace OPS.Landform
                         (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
                         (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
                         (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera))));
-
-            var comparator =
-                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
-            var allObs = observationCache.GetAllObservations();
-            imageObservations = allObs.Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
-
-            indexedImages = new Dictionary<int, Observation>();
-            foreach (var obs in imageObservations)
-            {
-                indexedImages[obs.Index] = obs;
-            }
-
-            pipeline.LogInfo("loaded {0}{1} observations ({2} images) in project {3}{4}{5}",
-                             num, DescribeObservationFilter(), imageObservations.Count, project.Name,
+    
+            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
+                             num, DescribeObservationFilter(), project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
         }

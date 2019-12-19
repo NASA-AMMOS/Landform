@@ -72,6 +72,8 @@ namespace OPS.Landform
         protected Image backprojectIndex;
         protected TileList tileList;
         protected ObsSelectionStrategy obsSelStrat;
+        protected List<Observation> imageObservations;
+        protected Dictionary<int, Observation> indexedImages;
 
         protected Mesh mesh;
         protected SceneMesh sceneMesh;
@@ -111,7 +113,18 @@ namespace OPS.Landform
             }
 
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
-            
+
+            //load image observations and index them
+            imageObservations = observationCache.GetAllObservations().Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
+
+            indexedImages = new Dictionary<int, Observation>();
+            foreach (var obs in imageObservations)
+            {
+                indexedImages[obs.Index] = obs;
+            }
+
+            pipeline.LogInfo("image observations contains {0} images", imageObservations.Count);
+
             // the observation selection strategy has an opportunity to independently define its preference for linear or nonlinear images
             var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
             comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
