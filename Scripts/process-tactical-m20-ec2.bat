@@ -12,7 +12,7 @@ if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
 set failqueue=m20-ids-g-sqs-landform-lftest1-fail
 if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
 
-set meshformat=obj
+set meshformat=iv
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
 
 set awsprofile=none
