@@ -220,17 +220,6 @@ namespace OPS.Pipeline
                 .OrderBy(o => o, this);
         }
 
-        public RoverObservation GetBestRoverObservation(IEnumerable<Observation> observations,
-                                                        params RoverProductType[] types)
-        {
-            return observations
-                .Where(o => o is RoverObservation)
-                .Cast<RoverObservation>()
-                .Where(o => types.Length == 0 || types.Any(t => t == o.ObservationType))
-                .OrderBy(o => o, this)
-                .FirstOrDefault();
-        }
-
         public enum KeepLinearVariants { Best, Both };
 
         public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations, KeepLinearVariants keepLinVariants,
