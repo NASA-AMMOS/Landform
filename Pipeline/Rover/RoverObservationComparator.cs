@@ -257,9 +257,9 @@ namespace OPS.Pipeline
                                           String.Join("\n  ", group.Select(o => o.ToString())));
                     }
 
-                    if (group.Count() > 1 ||                                                                      //have more than one image
-                        keepLinVariants == KeepLinearVariants.Both ||                                             //want both flavors of linearity if appropriate
-                        0 == Compare(group.ElementAt(0), group.ElementAt(1), CompareCriteria.Color_Grayscale) ||  //no higher priority difference than linearity between the first two images
+                    if (group.Count() > 1 &&                                                                      //have more than one image
+                        keepLinVariants == KeepLinearVariants.Both &&                                             //want both flavors of linearity if appropriate
+                        0 == Compare(group.ElementAt(0), group.ElementAt(1), CompareCriteria.Color_Grayscale) &&  //no higher priority difference than linearity between the first two images
                         0 != Compare(group.ElementAt(0), group.ElementAt(1), CompareCriteria.Linear_NonLinear))   //differ in linearity
                     {
                         return group.Take(2); 
