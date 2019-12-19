@@ -179,7 +179,6 @@
     <Compile Include="AlignmentServer\DB\VectorNConverter.cs" />
     <Compile Include="AlignmentServer\Operations\DetectFeatures.cs" />
     <Compile Include="AlignmentServer\Operations\MatchImages.cs" />
-    <Compile Include="Alignment\BirdsEyeViewing.cs" />
     <Compile Include="Alignment\BuildSceneGraph.cs" />
     <Compile Include="Alignment\BundleAdjusting.cs" />
     <Compile Include="Alignment\DeltaRangeImage.cs" />

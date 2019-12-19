@@ -86,8 +86,8 @@ namespace OPS.Landform
         [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = BlendMode.Max)]
         public BlendMode BEVBlending { get; set; }
 
-        [Option(HelpText = "Birds eye view coloring (Texture, Tilt, Elevation}", Default = BirdsEyeViewing.ColorMode.Tilt)]
-        public BirdsEyeViewing.ColorMode BEVColoring { get; set; }
+        [Option(HelpText = "Birds eye view coloring (Texture, Tilt, Elevation}", Default = BirdsEyeView.ColorMode.Tilt)]
+        public BirdsEyeView.ColorMode BEVColoring { get; set; }
 
         [Option(HelpText = "Birds eye view sparse invalidation blocksize, relative to largest image dimension if < 1, disabled if 0", Default = 0.005)]
         public double BEVSparseBlocksize { get; set; }
@@ -366,8 +366,8 @@ namespace OPS.Landform
                                                            options.OnlyForCameras, mission)
             {
                 RequirePoints = true,
-                RequireNormals = options.BEVColoring == BirdsEyeViewing.ColorMode.Tilt && options.NoGenerateNormals,
-                RequireTextures = options.BEVColoring == BirdsEyeViewing.ColorMode.Texture,
+                RequireNormals = options.BEVColoring == BirdsEyeView.ColorMode.Tilt && options.NoGenerateNormals,
+                RequireTextures = options.BEVColoring == BirdsEyeView.ColorMode.Texture,
                 IncludeForAlignment = true,
                 IncludeForMeshing = false,
                 IncludeForTexturing = false,
@@ -447,7 +447,7 @@ namespace OPS.Landform
                     Mesh mesh = obs.BuildOrganizedMesh(pipeline, frameCache, masker, mo);
 
                     Image img = null;
-                    if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture && obs.Texture != null)
+                    if (options.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
                     {
                         img = pipeline.LoadImage(obs.Texture.Url);
                         int ibs = WedgeObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages, options.TargetWedgeImageResolution);
@@ -506,7 +506,7 @@ namespace OPS.Landform
 
                         var siteDrive = pair.Key;
                         var bev = pair.Value;
-                        if (!options.StretchContrast && options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
+                        if (!options.StretchContrast && options.BEVColoring == BirdsEyeView.ColorMode.Elevation)
                         {
                             bev = new Image(bev);
                             bev.ScaleValues((float)min, (float)max, 0, 1);
@@ -592,7 +592,7 @@ namespace OPS.Landform
                     .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
                     .ToArray();
                     
-                    if (options.BEVColoring == BirdsEyeViewing.ColorMode.Texture)
+                    if (options.BEVColoring == BirdsEyeView.ColorMode.Texture)
                     {
                         var pair = Mesh.MergeMeshesAndTextures(inputs);
                         mesh = pair.Item1;
@@ -605,13 +605,13 @@ namespace OPS.Landform
                     
                     switch (options.BEVColoring)
                     {
-                        case BirdsEyeViewing.ColorMode.Texture: break;
-                        case BirdsEyeViewing.ColorMode.Tilt:
+                        case BirdsEyeView.ColorMode.Texture: break;
+                        case BirdsEyeView.ColorMode.Tilt:
                         {
                             mesh.ColorByNormals(TiltMode.InvAcos);
                             break;
                         }
-                        case BirdsEyeViewing.ColorMode.Elevation:
+                        case BirdsEyeView.ColorMode.Elevation:
                         {
                             mesh.ColorByElevation(absolute: true);
                             break;
@@ -672,7 +672,7 @@ namespace OPS.Landform
                         var bev = bevs[siteDrive];
                         var origin = bevOrigins[siteDrive];
 
-                        if (options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation &&
+                        if (options.BEVColoring == BirdsEyeView.ColorMode.Elevation &&
                             options.BEVBlending == BlendMode.Average)
                         {
                             dems[siteDrive] = new Image(bev); //deep copy - BEV may later be post-processed
@@ -788,7 +788,7 @@ namespace OPS.Landform
             max = double.NegativeInfinity;
             double mean = 0;
             double stddev = 0;
-            if (options.StretchContrast || options.BEVColoring == BirdsEyeViewing.ColorMode.Elevation)
+            if (options.StretchContrast || options.BEVColoring == BirdsEyeView.ColorMode.Elevation)
             {
                 CollectBEVStats(out n, out min, out max, out mean, out stddev);
             }

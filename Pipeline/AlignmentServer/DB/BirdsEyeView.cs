@@ -17,13 +17,15 @@ namespace OPS.Pipeline.AlignmentServer
     [DynamoDBWriteCapacity(50, 100)]
     public class BirdsEyeView
     {
+        public enum ColorMode { Texture, Tilt, Elevation };
+
         [DynamoDBRangeKey]
         public string ProjectName;
 
         [DynamoDBHashKey]
         public string Name;
 
-        public BirdsEyeViewing.ColorMode Coloring;
+        public ColorMode Coloring;
 
         public BlendMode Blending;
 
@@ -73,7 +75,7 @@ namespace OPS.Pipeline.AlignmentServer
         public BirdsEyeView() { }
 
         protected BirdsEyeView(string projectName, string name, Guid bevGuid, Guid demGuid, Guid maskGuid,
-                               Vector2 origin, int width, int height, BirdsEyeViewing.ColorMode coloring,
+                               Vector2 origin, int width, int height, ColorMode coloring,
                                BlendMode blending, double metersPerPixel, double sparseBlockSize,
                                double minValidBlockRatio, int inpaint, int smoothing, int decimation)
             
@@ -99,7 +101,7 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         public static BirdsEyeView Create(PipelineCore pipeline, Project project, string name, Image bev, Image dem,
-                                          Image mask, Vector2 origin, BirdsEyeViewing.ColorMode coloring,
+                                          Image mask, Vector2 origin, ColorMode coloring,
                                           BlendMode blending, double metersPerPixel, double sparseBlockSize,
                                           double minValidBlockRatio, int inpaint, int smoothing, int decimation)
         {

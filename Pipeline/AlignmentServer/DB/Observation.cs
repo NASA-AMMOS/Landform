@@ -6,7 +6,6 @@ using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Util;
 
-
 namespace OPS.Pipeline.AlignmentServer
 {
     public enum TextureVariant { Original, Blurred, Blended };
