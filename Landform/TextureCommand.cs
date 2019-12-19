@@ -129,7 +129,7 @@ namespace OPS.Landform
             var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
             comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
             imageObservations = comparator
-                .KeepBestRoverObservations(imageObservations, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
+                .KeepBestRoverObservations(imageObservations, RoverObservationComparator.KeepLinearVariants.Best, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
                 .Cast<Observation>()
                 .ToList();
 
