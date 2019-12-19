@@ -200,6 +200,17 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// whether to allow PDS .LBL files
+        /// for some missions these exist and can be useful
+        /// for other missions these exist but are something else entirely
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/829
+        /// </summary>
+        public virtual bool AllowPDSLabelFiles()
+        {
+            return false;
+        }
+
+        /// <summary>
         /// whether to allow priors from MSLLocations
         /// </summary>
         public virtual bool AllowLocationsDB()
@@ -868,6 +879,11 @@ namespace OPS.Pipeline
         public override bool IsArmcam(RoverProductCamera cam)
         {
             return cam == RoverProductCamera.MAHLI;
+        }
+
+        public override bool AllowPDSLabelFiles()
+        {
+            return true;
         }
 
         public override bool AllowLocationsDB()
