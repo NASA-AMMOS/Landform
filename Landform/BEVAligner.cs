@@ -30,14 +30,8 @@ namespace OPS.Landform
     public enum CalfMode { None, Centroid, Temporal };
 
     [Verb("bev-align", HelpText = "birds eye view alignment")]
-    public class BEVAlignerOptions : WedgeCommandOptions
+    public class BEVAlignerOptions : BEVCommandOptions
     {
-        [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
-        public override int TargetWedgeImageResolution { get; set; }
-
-        [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
-        public override int TargetWedgeMeshResolution { get; set; }
-
         [Option(HelpText = "Option disabled for this command - always loads priors", Default = true)]
         public override bool UsePriors { get; set; }
 
@@ -46,9 +40,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Option disabled for this command - always loads priors", Default = null)]
         public override string AdjustedTransformSources { get; set; }
-
-        [Option(HelpText = "Stereo eye to prefer", Default = "auto")]
-        public string StereoEye { get; set; }
 
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
@@ -68,45 +59,6 @@ namespace OPS.Landform
         [Option(HelpText = "Stop after detecting features", Default = false)]
         public bool OnlyDetectFeatures { get; set; }
 
-        [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
-        public double MaxTriangleAspect { get; set; }
-
-        [Option(HelpText = "Disable generating organized mesh normals when normal image missing", Default = false)]
-        public bool NoGenerateNormals { get; set; }
-
-        [Option(HelpText = "Birds eye view meters per pixel", Default = 0.005)]
-        public double BEVMetersPerPixel { get; set; }
-
-        [Option(HelpText = "Birds eye view max radius in meters from site drive origin, 0 or negative for unlimited", Default = 20)]
-        public double MaxBEVRadius { get; set; }
-
-        [Option(HelpText = "Max dense BEV image dimension, 0 or negative to use max heap allocation size", Default = 0)]
-        public int SparseImageThreshold { get; set; }
-
-        [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = BlendMode.Max)]
-        public BlendMode BEVBlending { get; set; }
-
-        [Option(HelpText = "Birds eye view coloring (Texture, Tilt, Elevation}", Default = BirdsEyeView.ColorMode.Tilt)]
-        public BirdsEyeView.ColorMode BEVColoring { get; set; }
-
-        [Option(HelpText = "Birds eye view sparse invalidation blocksize, relative to largest image dimension if < 1, disabled if 0", Default = 0.005)]
-        public double BEVSparseBlocksize { get; set; }
-
-        [Option(HelpText = "Birds eye view sparse invalidation block threshold", Default = 0.8)]
-        public double BEVMinValidBlockRatio { get; set; }
-
-        [Option(HelpText = "Birds eye view smoothing box size (should be odd)", Default = 1)]
-        public int BEVSmoothing { get; set; }
-
-        [Option(HelpText = "Birds eye view decimation", Default = 2)]
-        public int BEVDecimation { get; set; }
-
-        [Option(HelpText = "Inpaint birds eye view images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
-        public int BEVInpaint { get; set; }
-
-        [Option(HelpText = "Threshold BEV images at this level", Default = 0)]
-        public double BEVThreshold { get; set; }
-
         [Option(HelpText = "Detector type", Default = FeatureDetector.DetectorType.FAST)]
         public FeatureDetector.DetectorType DetectorType { get; set; }
 
@@ -121,9 +73,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Minimum feature response", Default = 10)]
         public double MinFeatureResponse { get; set; }
-
-        [Option(HelpText = "Recompute existing BEVs", Default = false)]
-        public bool RedoBEVs { get; set; }
 
         [Option(HelpText = "Recompute existing features", Default = false)]
         public bool RedoFeatures { get; set; }
@@ -161,44 +110,19 @@ namespace OPS.Landform
         [Option(HelpText = "Max RANSAC good matches", Default = 500)]
         public int MaxRansacMatches { get; set; }
 
-        [Option(HelpText = "Optimize contrast", Default = true)]
-        public bool StretchContrast { get; set; }
-
-        [Option(HelpText = "Optimize color contrast number of standard deviations", Default = 2)]
-        public double StretchStdDevs { get; set; }
-
         [Option(HelpText = "Spatial outlier number of mean absolute deviations", Default = 5)]
         public double SpatialOutlierMADs { get; set; }
     }
 
-    public class BEVAligner : WedgeCommand
+    public class BEVAligner : BEVCommand
     {
         private const string OUT_DIR = "alignment/AdjustProducts";
 
         private BEVAlignerOptions options;
 
-        private List<WedgeObservations> meshObservations;
-
-        //WedgeCommand.siteDrives is an array of SiteDrive corresponding to the OnlyForSiteDrives option
-        //LocalBEVAligner.siteDrives is a sorted array of the sitedrives to be aligned
-        protected new string[] siteDrives;
-
-        //sitedrive name => (observation, mesh, image), (observation, mesh, image), ...
-        private ConcurrentDictionary<string, ConcurrentBag<Tuple<string, Mesh, Image>>> mergeInputs =
-            new ConcurrentDictionary<string, ConcurrentBag<Tuple<string, Mesh, Image>>>();
-
-        //sitedrive name => BEV image
-        private ConcurrentDictionary<string, Image> bevs = new ConcurrentDictionary<string, Image>();
-
-        //sitedrive name => DEM image
-        private ConcurrentDictionary<string, Image> dems = new ConcurrentDictionary<string, Image>();
-
-        //sitedrive name => pixel in BEV image corresponding to world frame origin, based on priors
-        private ConcurrentDictionary<string, Vector2> bevOrigins = new ConcurrentDictionary<string, Vector2>();
-
-        //sitedrive name => features sorted by increasing distance to origin of sitedrive
-        private ConcurrentDictionary<string, ImageFeature[]> features =
-            new ConcurrentDictionary<string, ImageFeature[]>();
+        //sitedrive => features sorted by increasing distance to origin of sitedrive
+        private ConcurrentDictionary<SiteDrive, ImageFeature[]> features =
+            new ConcurrentDictionary<SiteDrive, ImageFeature[]>();
 
         //modelSiteDrive-dataSiteDrive => feature matches
         private ConcurrentDictionary<string, FeatureMatch[]> matches =
@@ -213,64 +137,8 @@ namespace OPS.Landform
             new ConcurrentDictionary<string, SpatialMatch[]>();
 
         //(modelSiteDrive, dataSiteDrive), (modelSiteDrive, dataSiteDrive), ...
-        List<Tuple<string, string>> siteDrivePairs = new List<Tuple<string, string>>();
+        List<Tuple<SiteDrive, SiteDrive>> siteDrivePairs = new List<Tuple<SiteDrive, SiteDrive>>();
         
-        private double MetersPerPixel { get { return options.BEVMetersPerPixel * options.BEVDecimation; } }
-        private double PixelsPerMeter { get { return 1 / MetersPerPixel; } }
-
-        private Matrix SiteDriveTransform(string siteDrive)
-        {
-            return frameCache.GetBestPrior(siteDrive).Transform.Mean;
-        }
-
-        /// <summary>
-        /// map a 3D point in meters from a given site drive to a 2D pint in pixels in a given site drive
-        /// </summary>
-        private Vector2 PointToPixel(Vector3 srcPoint, string srcSiteDrive, string dstSiteDrive)
-        {
-            var srcToRoot = SiteDriveTransform(srcSiteDrive);
-            var ptInRoot = Vector3.Transform(srcPoint, srcToRoot);
-            var pixelInRoot = ptInRoot * PixelsPerMeter;
-            return bevOrigins[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
-        }
-
-        private static System.Drawing.PointF ToPointF(Vector2 v)
-        {
-            return new System.Drawing.PointF((float)v.X, (float)v.Y);
-        }
-
-        private static LineSegment2DF ToLineSegment2DF(Vector2 a, Vector2 b)
-        {
-            return new LineSegment2DF(ToPointF(a), ToPointF(b));
-        }
-
-        //return the index of the first entry in distances that is >= distance
-        //yes there is a built-in Array.BinarySearch()
-        //but here we can control behavior when distance is not actually present in distances
-        private static int BinarySearch(double[] distances, double distance)
-        {
-            int l = 0, u = distances.Length - 1;
-            while (u - l > 1)
-            {
-                var m = (u + l) / 2;
-                if (distance <= distances[m])
-                {
-                    u = m;
-                }
-                else
-                {
-                    l = m;
-                }
-            }
-            return u;
-        }
-
-        private int BEVArea(string siteDrive)
-        {
-            var bev = bevs[siteDrive];
-            return bev.Width * bev.Height;
-        }
-
         public BEVAligner(BEVAlignerOptions options) : base(options)
         {
             this.options = options;
@@ -294,8 +162,7 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                pipeline.LogInfo("computing birds eye view alignment for {0} observations, {1} site drives",
-                             meshObservations.Count, siteDrives.Length);
+                pipeline.LogInfo("computing birds eye view alignment for {0} site drives", siteDrives.Length);
 
                 RunPhase("load or render birds eye views", LoadOrRenderBEVs); //observations -> bevs, dems
 
@@ -362,502 +229,12 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            var opts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
-                                                           options.OnlyForCameras, mission)
-            {
-                RequirePoints = true,
-                RequireNormals = options.BEVColoring == BirdsEyeView.ColorMode.Tilt && options.NoGenerateNormals,
-                RequireTextures = options.BEVColoring == BirdsEyeView.ColorMode.Texture,
-                IncludeForAlignment = true,
-                IncludeForMeshing = false,
-                IncludeForTexturing = false,
-                RequirePriorTransform = true,
-                TargetFrame = "root"
-            };
-            meshObservations = WedgeObservations.Collect(frameCache, observationCache, opts);
-
-            var stereoEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
-            if (stereoEye != RoverStereoEye.Any)
-            {
-                meshObservations = WedgeObservations.FilterForEye(meshObservations, stereoEye).ToList(); 
-            }
-        
-            //for now lexicographically sort siteDrives so that older ones come before newer
-            //just to give a canonical order
-            //later in ComputePairs we may change the order depending on options
-            siteDrives = meshObservations
-                .Select(obs => obs.SiteDrive.ToString())
-                .Distinct()
-                .OrderBy(sd => sd)
-                .ToArray();
-
             if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
             {
                 throw new Exception("at least two site drives required");
             }
 
             return true;
-        }
-
-        protected override bool ObservationFilter(RoverObservation obs)
-        {
-            return obs.UseForAlignment;
-        }
-
-        protected override string DescribeObservationFilter()
-        {
-            return " alignment";
-        }
-
-        /// <summary>
-        /// populates mergeInputs with individual wedge meshes and textures from observations
-        /// </summary>
-        private void BuildWedgeMeshes()
-        {
-            double startSec = UTCTime.Now();
-            int no = meshObservations.Count;
-            pipeline.LogInfo("creating wedge meshes for {0} observations...", no);
-
-            var meshOpts = new WedgeObservations.MeshOptions()
-                {
-                    Frame = "root",
-                    UsePriors = true,
-                    MaxTriangleAspect = options.MaxTriangleAspect,
-                    GenerateNormals = !options.NoGenerateNormals
-                };
-
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(meshObservations, obs => { 
-
-                    Interlocked.Increment(ref np);
-
-                    if (!options.NoProgress)
-                    {
-                        pipeline.LogInfo("computing products for {0} observations in parallel, completed {1}/{2}",
-                                         np, nc, no);
-                    }
-
-                    int mbs = WedgeObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
-                    if (mbs > 1 && mbs != options.DecimateWedgeMeshes)
-                    {
-                        pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
-                    }
-                    var mo = meshOpts.Clone();
-                    mo.Decimate = mbs;
-                    Mesh mesh = obs.BuildOrganizedMesh(pipeline, frameCache, masker, mo);
-
-                    Image img = null;
-                    if (options.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
-                    {
-                        img = pipeline.LoadImage(obs.Texture.Url);
-                        int ibs = WedgeObservations.AutoDecimate(obs.Texture, options.DecimateWedgeImages, options.TargetWedgeImageResolution);
-                        if (ibs > 1)
-                        {
-                            if (ibs != options.DecimateWedgeImages)
-                            {
-                                pipeline.LogVerbose("auto decimating wedge image {0} with blocksize {1}", obs.Name, ibs);
-                            }
-                            img = img.Decimated(ibs);
-                        }
-                    }
-
-                    var input = new Tuple<string, Mesh, Image>(obs.Points.Name, mesh, img);
-                    mergeInputs.AddOrUpdate(obs.SiteDrive.ToString(),
-                                            _ => new ConcurrentBag<Tuple<string, Mesh, Image>>(new [] { input }),
-                                            (_, bag) => { bag.Add(input); return bag; });
-
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
-                });
-
-            pipeline.LogInfo("created wedge meshes for {0} observations ({1:F3}s)", nc, UTCTime.Now() - startSec);
-        }
-
-        /// <summary>
-        /// populates bevs, dems, and bevOrigins from database or observations
-        /// </summary>
-        private void LoadOrRenderBEVs()
-        {
-            if (options.RedoBEVs || !LoadBEVs())
-            {
-                BuildWedgeMeshes();
-                RenderBEVs();
-                if (!options.NoSave)
-                {
-                    SaveBEVs();
-                }
-            }
-
-            PostProcessBEVs(out double min, out double max);
-
-            if (options.WriteDebug)
-            {
-                double startSec = UTCTime.Now();
-                int np = 0, nc = 0;
-                CoreLimitedParallel.ForEach(bevs, pair => {
-
-                        Interlocked.Increment(ref np);
-
-                        if (!options.NoProgress)
-                        {
-                            pipeline.LogInfo("saving {0} birds eye view images in parallel, completed {1}/{2}",
-                                             np, nc, bevs.Count);
-                        }
-
-                        var siteDrive = pair.Key;
-                        var bev = pair.Value;
-                        if (!options.StretchContrast && options.BEVColoring == BirdsEyeView.ColorMode.Elevation)
-                        {
-                            bev = new Image(bev);
-                            bev.ScaleValues((float)min, (float)max, 0, 1);
-                        }
-                        SaveImage(bev, siteDrive + "_BEV");
-
-                        Interlocked.Decrement(ref np);
-                        Interlocked.Increment(ref nc);
-                    });
-                pipeline.LogInfo("saved {0} birds eye view images ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
-            }
-        }
-
-        /// <summary>
-        /// render any BEV and DEM images that were not loaded from database
-        /// </summary>
-        private void RenderBEVs()
-        {
-            double startSec = UTCTime.Now();
-            var bevsNeeded = siteDrives.Where(sd => !bevs.ContainsKey(sd) || !dems.ContainsKey(sd)).ToArray();
-            pipeline.LogInfo("rendering {0} birds eye views...", bevsNeeded.Length);
-
-            var bevOptions = new Rasterizer.BEVOptions
-            {
-                BlendMode = options.BEVBlending,
-                MetersPerPixel = options.BEVMetersPerPixel,
-                SparseBlockSize = options.BEVSparseBlocksize,
-                MinSparseBlockValidRatio = options.BEVMinValidBlockRatio,
-                Inpaint = options.BEVInpaint,
-                Blur = options.BEVSmoothing,
-                Decimate = options.BEVDecimation,
-                MaxRadiusMeters = options.MaxBEVRadius,
-                RadiusRelativeToOrigin = true,
-                ImageFactory = (bands, width, height) =>
-                {
-                    string err = null;
-                    if (options.SparseImageThreshold > 0 && width > options.SparseImageThreshold)
-                    {
-                        err = string.Format("width {0} > {1}", width, options.SparseImageThreshold);
-                    }
-                    if (options.SparseImageThreshold > 0 && err == null && height > options.SparseImageThreshold)
-                    {
-                        err = string.Format("height {0} > {1}", height, options.SparseImageThreshold);
-                    }
-                    if (err == null)
-                    {
-                        err = Image.CheckSize(bands, width, height);
-                    }
-                    if (string.IsNullOrEmpty(err))
-                    {
-                        return new Image(bands, width, height);
-                    }
-                    else
-                    {
-                        pipeline.LogVerbose("using sparse image to render {0}x{1} {2} band birds eye view: {3}",
-                                            width, height, bands, err);
-                        return new SparseImage(bands, width, height);
-                    }
-                }
-            };
-
-            var demOptions = bevOptions.Clone();
-            demOptions.BlendMode = BlendMode.Average;
-
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(bevsNeeded, siteDrive => {
-
-                    Interlocked.Increment(ref np);
-
-                    if (!options.NoProgress)
-                    {
-                        pipeline.LogInfo("rendering {0} birds eye views in parallel, completed {1}/{2}",
-                                         np, nc, bevsNeeded.Length);
-                    }
-
-                    Mesh mesh = null;
-                    Image img = null;
-
-                    //ensure inputs are in a canonical order particularly for BEVBlending = Over
-                    var inputs = mergeInputs[siteDrive]
-                    .OrderBy(inp => inp.Item1) //order by observation name
-                    .Distinct() //ConcurrentBag is not necessarily a set
-                    .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
-                    .ToArray();
-                    
-                    if (options.BEVColoring == BirdsEyeView.ColorMode.Texture)
-                    {
-                        var pair = Mesh.MergeMeshesAndTextures(inputs);
-                        mesh = pair.Item1;
-                        img = pair.Item2;
-                    }
-                    else
-                    {
-                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item1).ToArray());
-                    }
-                    
-                    switch (options.BEVColoring)
-                    {
-                        case BirdsEyeView.ColorMode.Texture: break;
-                        case BirdsEyeView.ColorMode.Tilt:
-                        {
-                            mesh.ColorByNormals(TiltMode.InvAcos);
-                            break;
-                        }
-                        case BirdsEyeView.ColorMode.Elevation:
-                        {
-                            mesh.ColorByElevation(absolute: true);
-                            break;
-                        }
-                    }
-                    
-                    if (options.WriteDebug)
-                    {
-                        string name = siteDrive + "_BEV_Mesh";
-                        if (img != null)
-                        {
-                            SaveImage(img, name);
-                        }
-                        SaveMesh(mesh, name, img != null ? (name + imageExt) : null);
-                    }
-
-                    var sdToWorld = frameCache.GetBestTransform(siteDrive).Transform.Mean;
-                    var sdOrigin = Vector3.Transform(Vector3.Zero, sdToWorld);
-                    var sdOriginPixel = new Vector2(sdOrigin.X, sdOrigin.Y) / options.BEVMetersPerPixel;
-
-                    if (!bevs.ContainsKey(siteDrive))
-                    {
-                        pipeline.LogVerbose("rendering birds eye view for site drive {0}...", siteDrive);
-                        Vector2 origin = sdOriginPixel;
-                        var bev = Rasterizer.RenderBirdsEyeView(mesh, img, ref origin, bevOptions);
-                        
-                        pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
-                                            "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
-                                            "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}, " +
-                                            "max radius {12}m",
-                                            siteDrive, bev.Width, bev.Height, (int)origin.X, (int)origin.Y,
-                                            options.BEVMetersPerPixel, MetersPerPixel, options.BEVSparseBlocksize,
-                                            options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
-                                            options.BEVDecimation, options.MaxBEVRadius);
-
-                        try
-                        {
-                            if (bev is SparseImage)
-                            {
-                                bev = (bev as SparseImage).Densify();
-                                pipeline.LogVerbose("densified {0}x{1} birds eye view for site drive {2}",
-                                                    bev.Width, bev.Height, siteDrive);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            throw new Exception(string.Format("cannot densify birds eye view for site drive {0}, " +
-                                                              "try increasing BEV decimation (currently {1}): {2}",
-                                                              siteDrive, options.BEVDecimation, ex.Message));
-                        }
-
-                        bevs[siteDrive] = bev;
-                        bevOrigins[siteDrive] = origin;
-                    }
-
-                    if (!dems.ContainsKey(siteDrive))
-                    {
-                        var bev = bevs[siteDrive];
-                        var origin = bevOrigins[siteDrive];
-
-                        if (options.BEVColoring == BirdsEyeView.ColorMode.Elevation &&
-                            options.BEVBlending == BlendMode.Average)
-                        {
-                            dems[siteDrive] = new Image(bev); //deep copy - BEV may later be post-processed
-                        }
-                        else
-                        {
-                            mesh.ColorByElevation(absolute: true);
-                            Vector2 demOrigin = sdOriginPixel;
-                            var dem = Rasterizer.RenderBirdsEyeView(mesh, null, ref demOrigin, demOptions);
-                            if (dem.Width != bev.Width || dem.Height != bev.Height)
-                            {
-                                throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
-                                                                  dem.Width, dem.Height, bev.Width, bev.Height));
-                            }
-
-                            if (demOrigin != origin)
-                            {
-                                throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
-                                                                  demOrigin, origin));
-                            }
-
-                            try
-                            {
-                                if (dem is SparseImage)
-                                {
-                                    dem = (dem as SparseImage).Densify();
-                                    pipeline.LogVerbose("densified {0}x{1} DEM for site drive {2}",
-                                                        dem.Width, dem.Height, siteDrive);
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                throw new Exception(string.Format("cannot densify DEM for site drive {0}, " +
-                                                                  "try increasing BEV decimation (currently {1}): {2}",
-                                                                  siteDrive, options.BEVDecimation, ex.Message));
-                            }
-
-                            dems[siteDrive] = dem;
-                        }
-                    }
-                        
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
-                });
-
-            pipeline.LogInfo("generated {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
-        }
-
-        /// <summary>
-        /// populate bevs, dems, and bevOrigins from database
-        /// returns true iff all were loaded successfully
-        /// </summary>
-        private bool LoadBEVs()
-        {
-            double startSec = UTCTime.Now();
-            CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
-                    var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
-                    if (rec != null &&
-                        rec.Coloring == options.BEVColoring &&
-                        rec.Blending == options.BEVBlending &&
-                        rec.MetersPerPixel == options.BEVMetersPerPixel &&
-                        rec.SparseBlockSize == options.BEVSparseBlocksize &&
-                        rec.MinValidBlockRatio == options.BEVMinValidBlockRatio &&
-                        rec.Inpaint == options.BEVInpaint &&
-                        rec.Smoothing == options.BEVSmoothing &&
-                        rec.Decimation == options.BEVDecimation)
-                    {
-                        var bev = pipeline.GetDataProduct<TiffDataProduct>(project, rec.BEVGuid).Image;
-                        var dem = pipeline.GetDataProduct<TiffDataProduct>(project, rec.DEMGuid).Image;
-                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, rec.MaskGuid).Image;
-                        bev.UnionMask(mask, new float[] { 1 });
-                        dem.UnionMask(mask, new float[] { 1 });
-                        bevs[siteDrive] = bev;
-                        dems[siteDrive] = dem;
-                        bevOrigins[siteDrive] = new Vector2(rec.OriginX, rec.OriginY);
-                    }
-                });
-            pipeline.LogInfo("loaded {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
-            return bevs.Count == siteDrives.Length;
-        }
-
-        /// <summary>
-        /// save bevs, dems, and associated metadata to database
-        /// </summary>
-        private void SaveBEVs()
-        {
-            double startSec = UTCTime.Now();
-            pipeline.LogInfo("saving {0} birds eye views...", bevs.Count);
-            CoreLimitedParallel.ForEach(bevs, pair => {
-                    var siteDrive = pair.Key;
-                    var bev = pair.Value;
-                    var dem = dems[siteDrive];
-                    var mask = bev.MaskToImage();
-                    var origin = bevOrigins[siteDrive];
-                    BirdsEyeView.Create(pipeline, project, siteDrive, bev, dem, mask, origin, options.BEVColoring,
-                                        options.BEVBlending, options.BEVMetersPerPixel, options.BEVSparseBlocksize,
-                                        options.BEVMinValidBlockRatio, options.BEVInpaint, options.BEVSmoothing,
-                                        options.BEVDecimation);
-                });
-            pipeline.LogInfo("saved {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
-        }
-
-        /// <summary>
-        /// apply optional image processing (e.g. contrast stretching, thresholding) to BEVs
-        /// </summary>
-        private void PostProcessBEVs(out double min, out double max)
-        {
-            double startSec = UTCTime.Now();
-            pipeline.LogInfo("post processing {0} birds eye views...", bevs.Count);
-
-            int n = 0;
-            min = double.PositiveInfinity;
-            max = double.NegativeInfinity;
-            double mean = 0;
-            double stddev = 0;
-            if (options.StretchContrast || options.BEVColoring == BirdsEyeView.ColorMode.Elevation)
-            {
-                CollectBEVStats(out n, out min, out max, out mean, out stddev);
-            }
-
-            if (options.StretchContrast)
-            {
-                double lower = Math.Max(mean - stddev * options.StretchStdDevs, min);
-                double upper = Math.Min(mean + stddev * options.StretchStdDevs, max);
-                pipeline.LogInfo("stretching [{0}, {1}] -> [0, 1] ({2} stddev)", lower, upper, options.StretchStdDevs);
-                foreach (var bev in bevs.Values)
-                {
-                    bev.ScaleValues((float)lower, (float)upper, 0, 1);
-                }
-            }
-
-            if (options.BEVThreshold > 0)
-            {
-                pipeline.LogInfo("thresholding to {0}", options.BEVThreshold);
-                foreach (var bev in bevs.Values)
-                {
-                    bev.ApplyInPlace(v => v > options.BEVThreshold ? 1 : 0);
-                }
-            }
-
-            pipeline.LogInfo("post processed {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
-        }
-
-        /// <summary>
-        /// collect combined stats across all BEVs  
-        /// n - total number of valid pixels
-        /// min, max, mean, stddev - stats for valid pixel values
-        /// </summary>
-        private void CollectBEVStats(out int n, out double min, out double max, out double mean, out double stddev)
-        {
-            double startSec = UTCTime.Now();
-            pipeline.LogInfo("collecting combined stats for {0} birds eye views...", bevs.Count);
-
-            n = 0;
-            min = double.PositiveInfinity;
-            max = double.NegativeInfinity;
-            mean = 0;
-            foreach (var bev in bevs.Values)
-            {
-                foreach (ImageCoordinate ic in bev.Coordinates(includeInvalidValues: false))
-                {
-                    var v = bev[0, ic.Row, ic.Col];
-                    min = Math.Min(min, v);
-                    max = Math.Max(max, v);
-                    mean += v;
-                    n++;
-                }
-            }
-            mean /= n;
-            
-            double variance = 0;
-            foreach (var bev in bevs.Values)
-            {
-                foreach (ImageCoordinate ic in bev.Coordinates(includeInvalidValues: false))
-                {
-                    var d = bev[0, ic.Row, ic.Col] - mean;
-                    variance += d * d;
-                }
-            }
-            variance /= n;
-            stddev = Math.Sqrt(variance);
-
-            pipeline.LogInfo("{0} valid pixels, min {1:F3}, max {2:F3}, mean {3:F3}, stddev {4:F3}",
-                             n, min, max, mean, stddev);
-            pipeline.LogInfo("collected stats for {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
         }
 
         /// <summary>
@@ -876,6 +253,31 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
+                double crossRadius = 0.05 * PixelsPerMeter, circleRadius = 0.5 * PixelsPerMeter;
+                void drawOrigin(Image<Bgr, byte> img, Vector2 pixel, Vector3 color)
+                {
+                    System.Drawing.PointF toPointF(Vector2 v)
+                    {
+                        return new System.Drawing.PointF((float)v.X, (float)v.Y);
+                    }
+                    LineSegment2DF toLineSegment2DF(Vector2 a, Vector2 b)
+                    {
+                        return new LineSegment2DF(toPointF(a), toPointF(b));
+                    }
+                    var bgr = new Bgr((float)color.X * 255, (float)color.Y * 255, (float)color.Z * 255); //actually RGB
+                    if (crossRadius > 0)
+                    {
+                        var cr = crossRadius;
+                        img.Draw(toLineSegment2DF(pixel + new Vector2(-cr, 0), pixel + new Vector2(cr, 0)), bgr, 2);
+                        img.Draw(toLineSegment2DF(pixel + new Vector2(0, -cr), pixel + new Vector2(0, cr)), bgr, 2);
+                    }
+                    if (circleRadius > 0)
+                    {
+                        var cr = circleRadius;
+                        img.Draw(new CircleF(toPointF(pixel), (float)cr), bgr, 2);
+                    }
+                }
+
                 double startSec = UTCTime.Now();
                 int np = 0, nc = 0;
                 CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
@@ -888,14 +290,15 @@ namespace OPS.Landform
                         var bev = bevs[siteDrive];
                         var mask = bev.MaskToImage(valid: 1, invalid: 0);
                         var feat = features[siteDrive];
-                        var img = FeatureDetecting.DrawFeaturesEmgu(bev, mask, feat, siteDrive, stretch: false);
+                        var img = FeatureDetecting.DrawFeaturesEmgu(bev, mask, feat, siteDrive.ToString(),
+                                                                    stretch: false);
                         foreach (var otherSiteDrive in siteDrives)
                         {
                             var pixel = PointToPixel(Vector3.Zero, otherSiteDrive, siteDrive);
                             var color = new Vector3(otherSiteDrive != siteDrive ? 0 : 1,
                                                     otherSiteDrive != siteDrive ? 1 : 0,
                                                     0);
-                            DrawOrigin(img, pixel, color);
+                            drawOrigin(img, pixel, color);
                         }
                         SaveImage(img.ToOPSImage(), siteDrive + "_BEV_Features");
                         Interlocked.Decrement(ref np);
@@ -903,26 +306,6 @@ namespace OPS.Landform
                     });
                 pipeline.LogInfo("saved {0} birds eye view feature images ({1:F3}s)", siteDrives.Length,
                                  UTCTime.Now() - startSec);
-            }
-        }
-
-        /// <summary>
-        /// draw a cross and/or a circle at a given pixel
-        /// </summary>
-        private void DrawOrigin(Image<Bgr, byte> img, Vector2 pixel, Vector3 color,
-                                double crossRadius = 0.05, double circleRadius = 0.5)
-        {
-            var bgr = new Bgr((float)color.X * 255, (float)color.Y * 255, (float)color.Z * 255); //actually RGB
-            if (crossRadius > 0)
-            {
-                var cr = crossRadius * PixelsPerMeter;
-                img.Draw(ToLineSegment2DF(pixel + new Vector2(-cr, 0), pixel + new Vector2(cr, 0)), bgr, 2);
-                img.Draw(ToLineSegment2DF(pixel + new Vector2(0, -cr), pixel + new Vector2(0, cr)), bgr, 2);
-            }
-            if (circleRadius > 0)
-            {
-                var cr = circleRadius * PixelsPerMeter;
-                img.Draw(new CircleF(ToPointF(pixel), (float)cr), bgr, 2);
             }
         }
 
@@ -997,7 +380,7 @@ namespace OPS.Landform
         {
             double startSec = UTCTime.Now();
             CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
-                    var rec = BirdsEyeViewFeatures.Find(pipeline, project.Name, siteDrive);
+                    var rec = BirdsEyeViewFeatures.Find(pipeline, project.Name, siteDrive.ToString());
                     if (rec != null &&
                         rec.DetectorType == options.DetectorType &&
                         rec.MinFeatureResponse == options.MinFeatureResponse &&
@@ -1022,7 +405,7 @@ namespace OPS.Landform
             CoreLimitedParallel.ForEach(features, pair => {
                     var siteDrive = pair.Key;
                     var features = pair.Value;
-                    BirdsEyeViewFeatures.Create(pipeline, project, siteDrive, features, options.DetectorType,
+                    BirdsEyeViewFeatures.Create(pipeline, project, siteDrive.ToString(), features, options.DetectorType,
                                                 options.MinFeatureResponse, options.MaxFeaturesPerImage,
                                                 options.FeatureExtraInvalidRadius, options.FASTThreshold);
                 });
@@ -1033,13 +416,34 @@ namespace OPS.Landform
         /// populates matches[modelSiteDrive-dataSiteDrive] from features
         /// assumes features[siteDrive] are sorted by increasing distance to origin of siteDrive
         /// </summary>
-        private int MatchFeatures(string modelSiteDrive, string dataSiteDrive)
+        private int MatchFeatures(SiteDrive modelSiteDrive, SiteDrive dataSiteDrive)
         {
             double startSec = UTCTime.Now();
             pipeline.LogInfo("matching features in birds eye views for site drives {0} (model) and  {1} (data)...",
                              modelSiteDrive, dataSiteDrive);
 
-            IEnumerable<FeatureMatch> matchPair(string model, string data)
+            //return the index of the first entry in distances that is >= distance
+            //yes there is a built-in Array.BinarySearch()
+            //but here we can control behavior when distance is not actually present in distances
+            int binarySearch(double[] distances, double distance)
+            {
+                int l = 0, u = distances.Length - 1;
+                while (u - l > 1)
+                {
+                    var m = (u + l) / 2;
+                    if (distance <= distances[m])
+                    {
+                        u = m;
+                    }
+                    else
+                    {
+                        l = m;
+                    }
+                }
+                return u;
+            }
+            
+            IEnumerable<FeatureMatch> matchPair(SiteDrive model, SiteDrive data)
             {
                 var modelFeatures = features[model];
                 var dataFeatures = features[data];
@@ -1065,8 +469,8 @@ namespace OPS.Landform
                     var df = dataFeatures[i];
                     var dfInModel = dataOriginInModel + (df.Location - dataOrigin);
                     var r = Vector2.Distance(dfInModel, modelOrigin);
-                    int minSearchIndex = BinarySearch(modelDistances, r - radius);
-                    int maxSearchIndex = BinarySearch(modelDistances, r + radius) - 1;
+                    int minSearchIndex = binarySearch(modelDistances, r - radius);
+                    int maxSearchIndex = binarySearch(modelDistances, r + radius) - 1;
                     if (maxSearchIndex >= minSearchIndex)
                     {
                         var match =
@@ -1136,7 +540,7 @@ namespace OPS.Landform
         /// <summary>
         /// populates ransacMatches[modelSiteDrive-dataSiteDrive] from corresponding matches and features
         /// </summary>
-        private int RansacMatches(string modelSiteDrive, string dataSiteDrive)
+        private int RansacMatches(SiteDrive modelSiteDrive, SiteDrive dataSiteDrive)
         {
             var pair = modelSiteDrive + "-" + dataSiteDrive;
             var matchArray = matches[pair];
@@ -1383,7 +787,7 @@ namespace OPS.Landform
         /// <summary>
         /// compute spatialMatches from ransacMatches, features, and dems
         /// </summary>
-        private int SpatializeMatches(string modelSiteDrive, string dataSiteDrive)
+        private int SpatializeMatches(SiteDrive modelSiteDrive, SiteDrive dataSiteDrive)
         {
             var modelFeatures = features[modelSiteDrive];
             var dataFeatures = features[dataSiteDrive];
@@ -1486,7 +890,7 @@ namespace OPS.Landform
             {
                 for (int j = i + 1; j < siteDrives.Length; j++)
                 {
-                    siteDrivePairs.Add(new Tuple<string, string>(siteDrives[i], siteDrives[j]));
+                    siteDrivePairs.Add(new Tuple<SiteDrive, SiteDrive>(siteDrives[i], siteDrives[j]));
                 }
             }
 
@@ -1547,7 +951,7 @@ namespace OPS.Landform
                                                    matches[pairName]
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
                                                    .ToArray(),
-                                                   model, data, stretch: false),
+                                                   model.ToString(), data.ToString(), stretch: false),
                                       pairName + "_BEV_Matches");
                         }
 
@@ -1558,7 +962,7 @@ namespace OPS.Landform
                                                    ransacMatches[pairName]
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
                                                    .ToArray(),
-                                                   model, data, stretch: false),
+                                                   model.ToString(), data.ToString(), stretch: false),
                                       pairName + "_BEV_RANSAC_Matches");
                         }
 
@@ -1577,7 +981,7 @@ namespace OPS.Landform
                                  UTCTime.Now() - startSec);
             }
 
-            var good = new HashSet<string>();
+            var good = new HashSet<SiteDrive>();
             foreach (var pair in siteDrivePairs)
             {
                 var model = pair.Item1;
@@ -1698,8 +1102,8 @@ namespace OPS.Landform
         {
             double startSec = UTCTime.Now();
             CoreLimitedParallel.ForEach(siteDrivePairs, pair => {
-                    var model = pair.Item1;
-                    var data = pair.Item2;
+                    var model = pair.Item1.ToString();
+                    var data = pair.Item2.ToString();
                     var pairName = model + "-" + data;
                     FeatureMatches.Create(pipeline, project, pairName, model, data, matches[pairName]);
                     FeatureMatches.Create(pipeline, project, pairName + "_RANSAC", model, data, ransacMatches[pairName]);
@@ -1710,20 +1114,21 @@ namespace OPS.Landform
 
         private class Node
         {
-            public string Name;
-            public Node Parent;
-            public List<Node> Children = new List<Node>();
-            public int Depth; //length of path along ancestor chain to world
-            public Matrix Transform; //to parent
-            public Matrix? WorldTransform; //to world
-            public Node(string name)
+            public SiteDrive siteDrive;
+            public Node parent;
+            public List<Node> children = new List<Node>();
+            public int depth; //length of path along ancestor chain to world
+            public Matrix transform; //to parent
+            public Matrix? worldTransform; //to world
+
+            public Node(SiteDrive siteDrive)
             {
-                this.Name = name;
+                this.siteDrive = siteDrive;
             }
         }
         private List<Node> nodes = new List<Node>();
-        private Dictionary<string, Node> siteDriveToNode = new Dictionary<string, Node>();
-        private HashSet<string> fixedNodes = new HashSet<string>();
+        private Dictionary<SiteDrive, Node> siteDriveToNode = new Dictionary<SiteDrive, Node>();
+        private HashSet<SiteDrive> fixedNodes = new HashSet<SiteDrive>();
 
         /// <summary>
         /// build graph of sitedrive nodes  
@@ -1743,7 +1148,7 @@ namespace OPS.Landform
 
             var fx = StringHelper.ParseList(options.FixSiteDrives);
 
-            var specials = new Dictionary<string, string>();
+            var specials = new Dictionary<string, SiteDrive>();
             specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
             specials["oldest"] = siteDrives.OrderBy(sd => sd).FirstOrDefault();
             specials["largest"] = siteDrives.OrderByDescending(sd => BEVArea(sd)).FirstOrDefault();
@@ -1751,14 +1156,14 @@ namespace OPS.Landform
 
             for (int i = 0; i < fx.Length; i++)
             {
-                var sd = fx[i].ToLower();
+                var sd = fx[i];
                 if (specials.ContainsKey(sd))
                 {
-                    fx[i] = specials[sd];
+                    fx[i] = specials[sd].ToString();
                 }
             }
 
-            fixedNodes.UnionWith(fx);
+            fixedNodes.UnionWith(fx.Select(sd => new SiteDrive(sd)));
 
             foreach (var pair in siteDrivePairs)
             {
@@ -1769,8 +1174,8 @@ namespace OPS.Landform
                 {
                     var parent = siteDriveToNode[model];
                     var child = siteDriveToNode[data];
-                    parent.Children.Add(child);
-                    child.Parent = parent; //for now any parent will do
+                    parent.children.Add(child);
+                    child.parent = parent; //for now any parent will do
                 }
             }
         }
@@ -1780,12 +1185,12 @@ namespace OPS.Landform
         /// </summary>
         private void SaveTransforms(IEnumerable<Node> aligned, TransformSource transformSource)
         {
-            var unaligned = new HashSet<string>(siteDrives);
+            var unaligned = new HashSet<SiteDrive>(siteDrives);
             foreach (var node in aligned)
             {
-                unaligned.Remove(node.Name);
-                var ut = new UncertainRigidTransform(node.WorldTransform.Value);
-                var frame = frameCache.GetFrame(node.Name);
+                unaligned.Remove(node.siteDrive);
+                var ut = new UncertainRigidTransform(node.worldTransform.Value);
+                var frame = frameCache.GetFrame(node.siteDrive.ToString());
                 var ft = FrameTransform.FindOrCreate(pipeline, frame, transformSource, ut);
                 ft.Transform = ut;
                 ft.Save(pipeline);
@@ -1798,11 +1203,11 @@ namespace OPS.Landform
                 {
                     frame.Save(pipeline);
                 }
-                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", transformSource, node.Name);
+                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", transformSource, node.siteDrive);
             }
             foreach (var sd in unaligned)
             {
-                var frame = frameCache.GetFrame(sd);
+                var frame = frameCache.GetFrame(sd.ToString());
                 bool removed = false;
                 lock (frame.Transforms)
                 {
@@ -1829,20 +1234,20 @@ namespace OPS.Landform
                 return;
             }
 
-            var calfNames = new HashSet<string>(siteDrives);
+            var calfSDs = new HashSet<SiteDrive>(siteDrives);
             foreach (var node in aligned)
             {
-                calfNames.Remove(node.Name);
-                calfNames.Remove(node.Parent.Name);
+                calfSDs.Remove(node.siteDrive);
+                calfSDs.Remove(node.parent.siteDrive);
             }
 
-            var calves = calfNames.Select(name => siteDriveToNode[name]);
+            var calves = calfSDs.Select(name => siteDriveToNode[name]);
 
             switch (options.CalfMode)
             {
                 case CalfMode.Centroid:
                     {
-                        var centroid = new Dictionary<string, Vector2>();
+                        var centroid = new Dictionary<SiteDrive, Vector2>();
                         foreach (var sd in siteDrives)
                         {
                             var c = new Vector2(bevs[sd].Width, bevs[sd].Height) * 0.5;
@@ -1854,14 +1259,14 @@ namespace OPS.Landform
                             Node closestParent = null;
                             foreach (var node in aligned)
                             {
-                                var d2 = Vector2.DistanceSquared(centroid[calf.Name], centroid[node.Name]);
+                                var d2 = Vector2.DistanceSquared(centroid[calf.siteDrive], centroid[node.siteDrive]);
                                 if (d2 < closestDistSq)
                                 {
                                     closestDistSq = d2;
                                     closestParent = node;
                                 }
                             }
-                            calf.Parent = closestParent;
+                            calf.parent = closestParent;
                         }
                         break;
                     }
@@ -1874,14 +1279,14 @@ namespace OPS.Landform
                             Node closestParent = null;
                             foreach (var node in aligned)
                             {
-                                var d = Math.Abs((int)(new SiteDrive(calf.Name)) - (int)(new SiteDrive(node.Name)));
+                                var d = Math.Abs((int)(calf.siteDrive) - (int)(node.siteDrive));
                                 if (d < closestDist)
                                 {
                                     closestDist = d;
                                     closestParent = node;
                                 }
                             }
-                            calf.Parent = closestParent;
+                            calf.parent = closestParent;
                         }
                         break;
                     }
@@ -1889,37 +1294,36 @@ namespace OPS.Landform
 
             foreach (var calf in calves)
             {
-                if (calf.Parent != null)
+                if (calf.parent != null)
                 {
-                    var calfToWorldPrior = SiteDriveTransform(calf.Name);
-                    var parentToWorldPrior = SiteDriveTransform(calf.Parent.Name);
+                    var calfToWorldPrior = SiteDrivePrior(calf.siteDrive);
+                    var parentToWorldPrior = SiteDrivePrior(calf.parent.siteDrive);
                     //row matrix transforms compose left to right
                     var calfToParent = calfToWorldPrior * Matrix.Invert(parentToWorldPrior);
-                    calf.WorldTransform = calfToParent * calf.Parent.WorldTransform.Value;
-                    
+                    calf.worldTransform = calfToParent * calf.parent.worldTransform.Value;
                 }
                 else
                 {
-                    calf.WorldTransform = null;
+                    calf.worldTransform = null;
                 }
             }
 
             pipeline.LogInfo("birds eye view calf mode: {0}", options.CalfMode);
-            var calvesFor = new Dictionary<string, List<string>>();
+            var calvesFor = new Dictionary<SiteDrive, List<SiteDrive>>();
             foreach (var calf in calves)
             {
-                if (calf.Parent != null)
+                if (calf.parent != null)
                 {
-                    if (!calvesFor.ContainsKey(calf.Parent.Name))
+                    if (!calvesFor.ContainsKey(calf.parent.siteDrive))
                     {
-                        calvesFor[calf.Parent.Name] = new List<string>();
+                        calvesFor[calf.parent.siteDrive] = new List<SiteDrive>();
                     }
-                    calvesFor[calf.Parent.Name].Add(calf.Name);
+                    calvesFor[calf.parent.siteDrive].Add(calf.siteDrive);
                 }
             }
 
             pipeline.LogInfo("{0} birds eye view calves: {1}",
-                             calves.Count(), String.Join(", ", calves.Select(n => n.Name)));
+                             calves.Count(), String.Join(", ", calves.Select(n => n.siteDrive)));
 
             foreach (var parent in calvesFor.Keys)
             {
@@ -1929,7 +1333,7 @@ namespace OPS.Landform
 
             if (!options.NoSave)
             {
-                SaveTransforms(calves.Where(calf => calf.WorldTransform.HasValue), TransformSource.LandformBEVCalf);
+                SaveTransforms(calves.Where(calf => calf.worldTransform.HasValue), TransformSource.LandformBEVCalf);
             }
         }
                 
@@ -1961,13 +1365,13 @@ namespace OPS.Landform
 
             foreach (var node in nodes)
             {
-                node.WorldTransform = SiteDriveTransform(node.Name);
+                node.worldTransform = SiteDrivePrior(node.siteDrive);
             }
 
             var nodesToAlign = new List<Node>();
             foreach (var node in nodes)
             {
-                if ((node.Parent != null || node.Children.Count > 0) && !fixedNodes.Contains(node.Name))
+                if ((node.parent != null || node.children.Count > 0) && !fixedNodes.Contains(node.siteDrive))
                 {
                     nodesToAlign.Add(node);
                 }
@@ -2007,23 +1411,23 @@ namespace OPS.Landform
             //the best parent is the one to follow to get to a root along a best path
             foreach (var node in nodes)
             {
-                node.Depth = maximal ? int.MinValue : int.MaxValue;
+                node.depth = maximal ? int.MinValue : int.MaxValue;
             }
-            foreach (var node in nodes.Where(n => n.Parent == null))
+            foreach (var node in nodes.Where(n => n.parent == null))
             {
-                node.Depth = 0;
+                node.depth = 0;
                 var queue = new Queue<Node>();
                 queue.Enqueue(node);
                 while (queue.Count > 0)
                 {
                     var parent = queue.Dequeue();
-                    var depth = parent.Depth + 1;
-                    foreach (var child in parent.Children)
+                    var depth = parent.depth + 1;
+                    foreach (var child in parent.children)
                     {
-                        if ((maximal && child.Depth < depth) || (!maximal && child.Depth > depth))
+                        if ((maximal && child.depth < depth) || (!maximal && child.depth > depth))
                         {
-                            child.Parent = parent;
-                            child.Depth = depth;
+                            child.parent = parent;
+                            child.depth = depth;
                             queue.Enqueue(child);
                         }
                     }
@@ -2033,11 +1437,11 @@ namespace OPS.Landform
             var closures = new HashSet<string>();
             foreach (var node in nodes)
             {
-                foreach (var child in node.Children)
+                foreach (var child in node.children)
                 {
-                    if (child.Parent != node)
+                    if (child.parent != node)
                     {
-                        closures.Add(node.Name + "-" + child.Name);
+                        closures.Add(node.siteDrive + "-" + child.siteDrive);
                     }
                 }
             }
@@ -2046,8 +1450,8 @@ namespace OPS.Landform
             //align every node to its a parent
             //a node has a parent iff we found enough ransac matches from that node to a higher-priority sitedrive
             var nodesToAlign = nodes
-                .Where(n => n.Parent != null)
-                .Where(n => !fixedNodes.Contains(n.Name))
+                .Where(n => n.parent != null)
+                .Where(n => !fixedNodes.Contains(n.siteDrive))
                 .ToList();
             pipeline.LogInfo("pairwise aligning {0} site drives", nodesToAlign.Count);
             int nc = 0, np = 0;
@@ -2062,16 +1466,16 @@ namespace OPS.Landform
                                          np, nc, nodesToAlign.Count);
                     }
 
-                    var model = node.Parent.Name;
-                    var data = node.Name;
+                    var model = node.parent.siteDrive;
+                    var data = node.siteDrive;
                     
-                    var modelToRootPrior = SiteDriveTransform(model);
-                    var dataToRootPrior = SiteDriveTransform(data);
+                    var modelToRootPrior = SiteDrivePrior(model);
+                    var dataToRootPrior = SiteDrivePrior(data);
                     var rootToModelPrior = Matrix.Invert(modelToRootPrior);
                     
                     //the spatial matches are in root frame, transform them to model prior frame
-                    var pairName = model + "-" + data;
-                    var sm = spatialMatches[pairName];
+                    var pair = model + "-" + data;
+                    var sm = spatialMatches[pair];
                     var modelPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToModelPrior)).ToArray();
                     var dataPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToModelPrior)).ToArray();
                     
@@ -2086,15 +1490,15 @@ namespace OPS.Landform
                     var residual = Procrustes.CalculateRigid(dataPts, modelPts, out Matrix adj);
                     
                     pipeline.LogInfo("aligned {0} ({1} matches), residual {2}->{3}m",
-                                     pairName, sm.Length, priorResidual, residual);
+                                     pair, sm.Length, priorResidual, residual);
 
-                    aligned.Add(pairName);
+                    aligned.Add(pair);
                     
                     //row matrix transforms compose left to right
                     var dataToModelPrior = dataToRootPrior * rootToModelPrior;
                     
                     //adjusted transform taking points in data frame to points in model frame
-                    node.Transform = dataToModelPrior * adj;
+                    node.transform = dataToModelPrior * adj;
 
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
@@ -2103,14 +1507,14 @@ namespace OPS.Landform
             //compute a world transform for each node (i.e. sitedrive to root transform)
             //for a node with no parent this is just the prior
             //otherwise it's the concatenation of adjusted transforms along ancestor chain from node to world
-            foreach (var node in nodes.Where(n => n.Parent == null))
+            foreach (var node in nodes.Where(n => n.parent == null))
             {
-                node.WorldTransform = SiteDriveTransform(node.Name);
+                node.worldTransform = SiteDrivePrior(node.siteDrive);
             }
             foreach (var node in nodesToAlign)
             {
                 var stack = new Stack<Node>();
-                for (var n = node; n.WorldTransform == null; n = n.Parent)
+                for (var n = node; n.worldTransform == null; n = n.parent)
                 {
                     stack.Push(node);
                 }
@@ -2118,7 +1522,7 @@ namespace OPS.Landform
                 {
                     var n = stack.Pop();
                     //row matrix transforms compose left to right
-                    n.WorldTransform = n.Transform * n.Parent.WorldTransform.Value;
+                    n.worldTransform = n.transform * n.parent.worldTransform.Value;
                 }
             }
 
@@ -2127,9 +1531,9 @@ namespace OPS.Landform
                 SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
             }
 
-            var roots = nodesToAlign.Select(n => n.Parent).Where(n => n.Parent == null).Distinct();
+            var roots = nodesToAlign.Select(n => n.parent).Where(n => n.parent == null).Distinct();
             pipeline.LogInfo("{0} birds eye view roots: {1}",
-                             roots.Count(), String.Join(", ", roots.Select(node => node.Name)));
+                             roots.Count(), String.Join(", ", roots.Select(node => node.siteDrive)));
 
             if (!options.NoSave)
             {
