@@ -117,14 +117,6 @@ namespace OPS.Landform
             //load image observations and index them
             imageObservations = observationCache.GetAllObservations().Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
 
-            indexedImages = new Dictionary<int, Observation>();
-            foreach (var obs in imageObservations)
-            {
-                indexedImages[obs.Index] = obs;
-            }
-
-            pipeline.LogInfo("image observations contains {0} images", imageObservations.Count);
-
             // the observation selection strategy has an opportunity to independently define its preference for linear or nonlinear images
             var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
             comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
@@ -132,6 +124,14 @@ namespace OPS.Landform
                 .KeepBestRoverObservations(imageObservations, RoverObservationComparator.KeepLinearVariants.Best, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
                 .Cast<Observation>()
                 .ToList();
+
+            pipeline.LogInfo("image observations contains {0} images", imageObservations.Count);
+
+            indexedImages = new Dictionary<int, Observation>();
+            foreach (var obs in imageObservations)
+            {
+                indexedImages[obs.Index] = obs;
+            }
 
             return true;
         }
