@@ -5,6 +5,8 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using Amazon.DynamoDBv2.DataModel;
+using Newtonsoft.Json;
+using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -19,40 +21,74 @@ namespace OPS.Pipeline.AlignmentServer
     {
         public enum ColorMode { Texture, Tilt, Elevation };
 
+        public class BEVOptions : Rasterizer.BEVOptions
+        {
+            public int DecimateWedgeMeshes; //Wedge mesh decimation blocksize, 0 to disable, -1 for auto
+            public int TargetWedgeMeshResolution; //used when DecimateWedgeMeshes = -1 (auto)
+            public int DecimateWedgeImages; //Wedge image decimation blocksize, 0 to disable, -1 for auto
+            public int TargetWedgeImageResolution; //used when DecimateWedgeImages = -1 (auto)
+            public ColorMode Coloring;
+        }
+
         [DynamoDBRangeKey]
         public string ProjectName;
 
         [DynamoDBHashKey]
-        public string Name;
+        public string Name; //sitedrive in form SSSDDDD
 
-        public ColorMode Coloring;
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public SiteDrive SiteDrive
+        {
+            get { return new SiteDrive(Name); }
+        }
 
-        public BlendMode Blending;
+        public long CreationTime; //UTC ms since epoch when this BEV was created
 
-        public double MetersPerPixel;
+        public string CreationOptions; //BirdsEyeView.BEVOptions JSON
 
-        public double SparseBlockSize;
+        public double MetersPerPixel; //effective meters per pixel (BEVOptions.MetersPerPixel * BEVOptions.Decimate)
 
-        public double MinValidBlockRatio;
+        //pixel in BEV & DEM images corresponding to project root frame origin using transform priors
+        public double RootOriginXPixels;
+        public double RootOriginYPixels;
 
-        public int Inpaint;
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public Vector2 RootOriginPixel
+        {
+            get { return new Vector2(RootOriginXPixels, RootOriginYPixels); }
+        }
 
-        public int Smoothing;
+        //pixel in BEV & DEM images corresponding to SiteDrive frame origin
+        public double SiteDriveOriginXPixels;
+        public double SiteDriveOriginYPixels;
 
-        public int Decimation;
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public Vector2 SiteDriveOriginPixel
+        {
+            get { return new Vector2(SiteDriveOriginXPixels, SiteDriveOriginYPixels); }
+        }
 
-        public double OriginX;
+        //dimensions of BEV, DEM, and mask images
+        public int WidthPixels;
+        public int HeightPixels;
 
-        public double OriginY;
+        [DynamoDBIgnore]
+        [JsonIgnore]
+        public int AreaPixels
+        {
+            get { return WidthPixels * HeightPixels; }
+        }
 
-        public int Width;
-
-        public int Height;
-
+        //BEV, DEM, and mask images always correspond to each other 1:1
+        //they are always rendered using transform priors at the resolution given by MetersPerPixel
+        //use SiteDriveOriginPixel for site-drive relative alignment, or if a site-drive transform is known
+        //use RootOriginPixel for absolute alignment using transform priors
+        //typically project root frame is also mission root (site 1, drive 0) which enables orbital alignment
         public Guid BEVGuid;
-
         public Guid DEMGuid;
-
         public Guid MaskGuid;
 
         protected void IsValid()
@@ -64,52 +100,42 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 throw new Exception("missing required property in BirdsEyeView");
             }
-            if (MetersPerPixel <= 0 || SparseBlockSize < 0 || MinValidBlockRatio < 0 ||
-                Inpaint < 0 || Decimation < 1 || Smoothing < 0 || Width <= 0 || Height <= 0)
-            {
-                throw new Exception("invalid property in BirdsEyeView");
-            }
         }
 
         //This constructor must be public for DynamoDb but should not be used
         public BirdsEyeView() { }
 
-        protected BirdsEyeView(string projectName, string name, Guid bevGuid, Guid demGuid, Guid maskGuid,
-                               Vector2 origin, int width, int height, ColorMode coloring,
-                               BlendMode blending, double metersPerPixel, double sparseBlockSize,
-                               double minValidBlockRatio, int inpaint, int smoothing, int decimation)
-            
+        protected BirdsEyeView(string projectName, SiteDrive siteDrive, BEVOptions bevOptions,
+                               Guid bevGuid, Guid demGuid, Guid maskGuid,
+                               Vector2 rootOriginPixels, Vector2 siteDriveOriginPixels,
+                               int widthPixels, int heightPixels)
         {
-            this.ProjectName = projectName;
-            this.Name = name;
-            this.Coloring = coloring;
-            this.Blending = blending;
-            this.MetersPerPixel = metersPerPixel;
-            this.SparseBlockSize = sparseBlockSize;
-            this.MinValidBlockRatio = minValidBlockRatio;
-            this.Inpaint = inpaint;
-            this.Smoothing = smoothing;
-            this.Decimation = decimation;
-            this.OriginX = origin.X;
-            this.OriginY = origin.Y;
-            this.Width = width;
-            this.Height = height;
-            this.BEVGuid = bevGuid;
-            this.DEMGuid = demGuid;
-            this.MaskGuid = maskGuid;
+            ProjectName = projectName;
+            Name = siteDrive.ToString();
+            CreationTime = (long)UTCTime.NowMS();
+            CreationOptions = JsonHelper.ToJson(bevOptions);
+            MetersPerPixel = bevOptions.MetersPerPixel * bevOptions.Decimate;
+            RootOriginXPixels = rootOriginPixels.X;
+            RootOriginYPixels = rootOriginPixels.Y;
+            SiteDriveOriginXPixels= siteDriveOriginPixels.X;
+            SiteDriveOriginYPixels = siteDriveOriginPixels.Y;
+            WidthPixels = widthPixels;
+            HeightPixels = heightPixels;
+            BEVGuid = bevGuid;
+            DEMGuid = demGuid;
+            MaskGuid = maskGuid;
             IsValid();
         }
 
-        public static BirdsEyeView Create(PipelineCore pipeline, Project project, string name, Image bev, Image dem,
-                                          Image mask, Vector2 origin, ColorMode coloring,
-                                          BlendMode blending, double metersPerPixel, double sparseBlockSize,
-                                          double minValidBlockRatio, int inpaint, int smoothing, int decimation)
+        public static BirdsEyeView Create(PipelineCore pipeline, Project project, SiteDrive siteDrive,
+                                          BEVOptions bevOptions, Image bev, Image dem, Image mask,
+                                          Vector2 rootOriginPixels, Vector2 siteDriveOriginPixels)
         {
             int width = bev.Width;
             int height = bev.Height;
-            if (dem.Width != width || dem.Height != height)
+            if (dem.Width != width || dem.Height != height || mask.Width != width || mask.Height != height)
             {
-                throw new ArgumentException("DEM dimensions must match BEV");
+                throw new ArgumentException("DEM and mask dimensions must match BEV");
             }
             var bevProd = new TiffDataProduct(bev);
             var demProd = new TiffDataProduct(dem);
@@ -117,9 +143,8 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDataProduct(project, bevProd);
             pipeline.SaveDataProduct(project, demProd);
             pipeline.SaveDataProduct(project, maskProd);
-            var ret = new BirdsEyeView(project.Name, name, bevProd.Guid, demProd.Guid, maskProd.Guid, origin,
-                                       width, height, coloring, blending, metersPerPixel, sparseBlockSize,
-                                       minValidBlockRatio, inpaint, smoothing, decimation);
+            var ret = new BirdsEyeView(project.Name, siteDrive, bevOptions, bevProd.Guid, demProd.Guid, maskProd.Guid,
+                                       rootOriginPixels, siteDriveOriginPixels, width, height);
             ret.Save(pipeline);
             return ret;
         }
@@ -130,9 +155,14 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDatabaseItem(this);
         }
 
-        public static BirdsEyeView Find(PipelineCore pipeline, string projectName, string name)
+        public static BirdsEyeView Find(PipelineCore pipeline, string projectName, SiteDrive siteDrive)
         {
-            return pipeline.LoadDatabaseItem<BirdsEyeView>(name, projectName);
+            return Find(pipeline, projectName, siteDrive.ToString());
+        }
+
+        public static BirdsEyeView Find(PipelineCore pipeline, string projectName, string siteDrive)
+        {
+            return pipeline.LoadDatabaseItem<BirdsEyeView>(siteDrive, projectName);
         }
 
         public static IEnumerable<BirdsEyeView> Find(PipelineCore pipeline, string projectName)

@@ -343,7 +343,7 @@ namespace OPS.Landform
                                          np, nc, siteDrives.Length);
                     }
 
-                    var origin = PointToPixel(Vector3.Zero, siteDrive, siteDrive);
+                    var origin = sdOriginPixel[siteDrive];
 
                     FeatureDetector.FeatureSortKey sortByDistance =
                     (SIFTFeature f) => Vector2.DistanceSquared(f.Location, origin);
@@ -449,10 +449,10 @@ namespace OPS.Landform
                 var dataFeatures = features[data];
 
                 //pixel corresponding to origin of model sitedrive in model BEV
-                var modelOrigin = PointToPixel(Vector3.Zero, model, model);
+                var modelOrigin = sdOriginPixel[model];
 
                 //pixel corresponding to origin of data sitedrive in data BEV
-                var dataOrigin = PointToPixel(Vector3.Zero, data, data);
+                var dataOrigin = sdOriginPixel[data];
 
                 //pixel corresponding to origin of data sitedrive in model BEV
                 var dataOriginInModel = PointToPixel(Vector3.Zero, data, model);
@@ -554,10 +554,10 @@ namespace OPS.Landform
             var dataFeatures = features[dataSiteDrive];
 
             //pixel corresponding to origin of model sitedrive in model BEV
-            var modelOrigin = PointToPixel(Vector3.Zero, modelSiteDrive, modelSiteDrive);
+            var modelOrigin = sdOriginPixel[modelSiteDrive];
 
             //pixel corresponding to origin of data sitedrive in data BEV
-            var dataOrigin = PointToPixel(Vector3.Zero, dataSiteDrive, dataSiteDrive);
+            var dataOrigin = sdOriginPixel[dataSiteDrive];
 
             //pixel corresponding to origin of data sitedrive in model BEV
             var dataOriginInModel = PointToPixel(Vector3.Zero, dataSiteDrive, modelSiteDrive);
@@ -793,10 +793,10 @@ namespace OPS.Landform
             var dataFeatures = features[dataSiteDrive];
 
             //pixel corresponding to world origin in model BEV
-            var modelOrigin = bevOrigins[modelSiteDrive];
+            var modelOrigin = rootOriginPixel[modelSiteDrive];
 
             //pixel corresponding to world origin in data BEV
-            var dataOrigin = bevOrigins[dataSiteDrive];
+            var dataOrigin = rootOriginPixel[dataSiteDrive];
 
             var modelDEM = dems[modelSiteDrive];
             var dataDEM = dems[dataSiteDrive];
@@ -873,12 +873,12 @@ namespace OPS.Landform
                 }
                 case SiteDrivePriority.BiggestFirst:
                 {
-                    siteDrives = siteDrives.OrderByDescending(sd => BEVArea(sd)).ToArray();
+                    siteDrives = siteDrives.OrderByDescending(sd => bevs[sd].Area).ToArray();
                     break;
                 }
                 case SiteDrivePriority.SmallestFirst:
                 {
-                    siteDrives = siteDrives.OrderBy(sd => BEVArea(sd)).ToArray();
+                    siteDrives = siteDrives.OrderBy(sd => bevs[sd].Area).ToArray();
                     break;
                 }
             }
@@ -1151,8 +1151,8 @@ namespace OPS.Landform
             var specials = new Dictionary<string, SiteDrive>();
             specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
             specials["oldest"] = siteDrives.OrderBy(sd => sd).FirstOrDefault();
-            specials["largest"] = siteDrives.OrderByDescending(sd => BEVArea(sd)).FirstOrDefault();
-            specials["smallest"] = siteDrives.OrderBy(sd => BEVArea(sd)).FirstOrDefault();
+            specials["largest"] = siteDrives.OrderByDescending(sd => bevs[sd].Area).FirstOrDefault();
+            specials["smallest"] = siteDrives.OrderBy(sd => bevs[sd].Area).FirstOrDefault();
 
             for (int i = 0; i < fx.Length; i++)
             {
@@ -1251,7 +1251,7 @@ namespace OPS.Landform
                         foreach (var sd in siteDrives)
                         {
                             var c = new Vector2(bevs[sd].Width, bevs[sd].Height) * 0.5;
-                            centroid[sd] = c - bevOrigins[sd];
+                            centroid[sd] = c - rootOriginPixel[sd];
                         }
                         foreach (var calf in calves)
                         {

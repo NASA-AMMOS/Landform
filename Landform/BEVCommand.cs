@@ -80,21 +80,32 @@ namespace OPS.Landform
     {
         private BEVCommandOptions bcopts;
 
-        //observations grouped by wedge, only loaded if necessary (or call CollectWedgeObservations())
+        protected BirdsEyeView.BEVOptions bevOptions;
+
+        //observations grouped by wedge
+        //populated by CollectWedgeObservations()
         protected List<WedgeObservations> wedgeObservations;
 
         //sitedrive => (observation, mesh, image), (observation, mesh, image), ...
+        //populated by BuildWedgeMeshes()
         protected ConcurrentDictionary<SiteDrive, ConcurrentBag<Tuple<string, Mesh, Image>>> wedgeMeshes =
             new ConcurrentDictionary<SiteDrive, ConcurrentBag<Tuple<string, Mesh, Image>>>();
 
         //sitedrive => BEV image
+        //populated by LoadOrRenderBEVs()
         protected ConcurrentDictionary<SiteDrive, Image> bevs = new ConcurrentDictionary<SiteDrive, Image>();
 
         //sitedrive => DEM image
+        //populated by LoadOrRenderBEVs()
         protected ConcurrentDictionary<SiteDrive, Image> dems = new ConcurrentDictionary<SiteDrive, Image>();
 
-        //sitedrive => pixel in BEV image corresponding to world frame origin, based on priors
-        protected ConcurrentDictionary<SiteDrive, Vector2> bevOrigins = new ConcurrentDictionary<SiteDrive, Vector2>();
+        //sitedrive => pixel in BEV & DEM image corresponding to project root frame origin, based on priors
+        protected ConcurrentDictionary<SiteDrive, Vector2> rootOriginPixel =
+            new ConcurrentDictionary<SiteDrive, Vector2>();
+
+        //sitedrive => pixel in BEV & DEM image corresponding to site drive frame origin, based on priors
+        protected ConcurrentDictionary<SiteDrive, Vector2> sdOriginPixel =
+            new ConcurrentDictionary<SiteDrive, Vector2>();
 
         protected double MetersPerPixel { get { return bcopts.BEVMetersPerPixel * bcopts.BEVDecimation; } }
         protected double PixelsPerMeter { get { return 1 / MetersPerPixel; } }
@@ -115,13 +126,7 @@ namespace OPS.Landform
             var srcToRoot = SiteDrivePrior(srcSiteDrive);
             var ptInRoot = Vector3.Transform(srcPoint, srcToRoot);
             var pixelInRoot = ptInRoot * PixelsPerMeter;
-            return bevOrigins[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
-        }
-
-        protected int BEVArea(SiteDrive siteDrive)
-        {
-            var bev = bevs[siteDrive];
-            return bev.Width * bev.Height;
+            return rootOriginPixel[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
         }
 
         public BEVCommand(BEVAlignerOptions options) : base(options)
@@ -146,6 +151,52 @@ namespace OPS.Landform
             //lexicographically sort siteDrives so that older ones come before newer just to give a canonical order
             siteDrives = siteDrives.Distinct().OrderBy(sd => sd).ToArray();
             
+            bevOptions = new BirdsEyeView.BEVOptions
+            {
+                BlendMode = bcopts.BEVBlending,
+                MetersPerPixel = bcopts.BEVMetersPerPixel,
+                SparseBlockSize = bcopts.BEVSparseBlocksize,
+                MinSparseBlockValidRatio = bcopts.BEVMinValidBlockRatio,
+                Inpaint = bcopts.BEVInpaint,
+                Blur = bcopts.BEVSmoothing,
+                Decimate = bcopts.BEVDecimation,
+                MaxRadiusMeters = bcopts.MaxBEVRadius,
+                RadiusRelativeToOrigin = true,
+
+                ImageFactory = (bands, width, height) =>
+                {
+                    string err = null;
+                    if (bcopts.SparseImageThreshold > 0 && width > bcopts.SparseImageThreshold)
+                    {
+                        err = string.Format("width {0} > {1}", width, bcopts.SparseImageThreshold);
+                    }
+                    if (bcopts.SparseImageThreshold > 0 && err == null && height > bcopts.SparseImageThreshold)
+                    {
+                        err = string.Format("height {0} > {1}", height, bcopts.SparseImageThreshold);
+                    }
+                    if (err == null)
+                    {
+                        err = Image.CheckSize(bands, width, height);
+                    }
+                    if (string.IsNullOrEmpty(err))
+                    {
+                        return new Image(bands, width, height);
+                    }
+                    else
+                    {
+                        pipeline.LogVerbose("using sparse image to render {0}x{1} {2} band birds eye view: {3}",
+                                            width, height, bands, err);
+                        return new SparseImage(bands, width, height);
+                    }
+                },
+
+                DecimateWedgeMeshes = bcopts.DecimateWedgeMeshes,
+                TargetWedgeMeshResolution = bcopts.TargetWedgeMeshResolution,
+                DecimateWedgeImages = bcopts.DecimateWedgeImages,
+                TargetWedgeImageResolution = bcopts.TargetWedgeImageResolution,
+                Coloring = bcopts.BEVColoring
+            };
+
             return true;
         }
 
@@ -253,7 +304,7 @@ namespace OPS.Landform
         }
 
         /// <summary>
-        /// populates bevs, dems, and bevOrigins from database or observations
+        /// populates bevs, dems, rootOriginPixel, and sdOriginPixel from database or observations
         /// </summary>
         protected void LoadOrRenderBEVs()
         {
@@ -307,45 +358,6 @@ namespace OPS.Landform
             double startSec = UTCTime.Now();
             var bevsNeeded = siteDrives.Where(sd => !bevs.ContainsKey(sd) || !dems.ContainsKey(sd)).ToArray();
             pipeline.LogInfo("rendering {0} birds eye views...", bevsNeeded.Length);
-
-            var bevOptions = new Rasterizer.BEVOptions
-            {
-                BlendMode = bcopts.BEVBlending,
-                MetersPerPixel = bcopts.BEVMetersPerPixel,
-                SparseBlockSize = bcopts.BEVSparseBlocksize,
-                MinSparseBlockValidRatio = bcopts.BEVMinValidBlockRatio,
-                Inpaint = bcopts.BEVInpaint,
-                Blur = bcopts.BEVSmoothing,
-                Decimate = bcopts.BEVDecimation,
-                MaxRadiusMeters = bcopts.MaxBEVRadius,
-                RadiusRelativeToOrigin = true,
-                ImageFactory = (bands, width, height) =>
-                {
-                    string err = null;
-                    if (bcopts.SparseImageThreshold > 0 && width > bcopts.SparseImageThreshold)
-                    {
-                        err = string.Format("width {0} > {1}", width, bcopts.SparseImageThreshold);
-                    }
-                    if (bcopts.SparseImageThreshold > 0 && err == null && height > bcopts.SparseImageThreshold)
-                    {
-                        err = string.Format("height {0} > {1}", height, bcopts.SparseImageThreshold);
-                    }
-                    if (err == null)
-                    {
-                        err = Image.CheckSize(bands, width, height);
-                    }
-                    if (string.IsNullOrEmpty(err))
-                    {
-                        return new Image(bands, width, height);
-                    }
-                    else
-                    {
-                        pipeline.LogVerbose("using sparse image to render {0}x{1} {2} band birds eye view: {3}",
-                                            width, height, bands, err);
-                        return new SparseImage(bands, width, height);
-                    }
-                }
-            };
 
             var demOptions = bevOptions.Clone();
             demOptions.BlendMode = BlendMode.Average;
@@ -408,13 +420,27 @@ namespace OPS.Landform
                     }
 
                     var sdToWorld = SiteDrivePrior(siteDrive);
-                    var sdOrigin = Vector3.Transform(Vector3.Zero, sdToWorld);
-                    var sdOriginPixel = new Vector2(sdOrigin.X, sdOrigin.Y) / bcopts.BEVMetersPerPixel;
+                    var sdCenter = Vector3.Transform(Vector3.Zero, sdToWorld);
+                    var sdCenterPixel = new Vector2(sdCenter.X, sdCenter.Y) / bcopts.BEVMetersPerPixel;
 
                     if (!bevs.ContainsKey(siteDrive))
                     {
                         pipeline.LogVerbose("rendering birds eye view for site drive {0}...", siteDrive);
-                        Vector2 origin = sdOriginPixel;
+
+                        //"origin" param to Rasterizer.RenderBirdsEyeView() has different semantics on input vs output
+                        //
+                        //on input it defines the pixel about which bevOptions.MaxRadiusMeters applies
+                        //(since bevOptions.RadiusRelativeToOrigin = true)
+                        //we set it as the pixel to which the origin of sitedrive frame would project
+                        //this is in naieve BEV image coordinates
+                        //without decimation, restriction to mesh bounds, or sparse block trimming
+                        //
+                        //on output it is the pixel to which the origin of mesh frame would project
+                        //and mesh frame is project root frame (WedgeObservations.MeshOptions.Frame = "root")
+                        //this is in the actual output BEV image coordinates
+                        //including decimation, restriction to mesh bounds, and sparse block trimming
+
+                        Vector2 origin = sdCenterPixel;
                         var bev = Rasterizer.RenderBirdsEyeView(mesh, img, ref origin, bevOptions);
                         
                         pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
@@ -425,7 +451,6 @@ namespace OPS.Landform
                                             bcopts.BEVMetersPerPixel, MetersPerPixel, bcopts.BEVSparseBlocksize,
                                             bcopts.BEVMinValidBlockRatio, bcopts.BEVInpaint, bcopts.BEVSmoothing,
                                             bcopts.BEVDecimation, bcopts.MaxBEVRadius);
-
                         try
                         {
                             if (bev is SparseImage)
@@ -443,13 +468,18 @@ namespace OPS.Landform
                         }
 
                         bevs[siteDrive] = bev;
-                        bevOrigins[siteDrive] = origin;
+
+                        rootOriginPixel[siteDrive] = origin;
+
+                        //careful, it would not be right to say sdOriginPixel[siteDrive] = origin + sdCenterPixel
+                        //because sdCenterPixel doesn't account for
+                        //BEV image decimation, restriction to mesh bounds, or sparse block trimming
+                        sdOriginPixel[siteDrive] = PointToPixel(Vector3.Zero, siteDrive, siteDrive);
                     }
 
                     if (!dems.ContainsKey(siteDrive))
                     {
                         var bev = bevs[siteDrive];
-                        var origin = bevOrigins[siteDrive];
 
                         if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Elevation &&
                             bcopts.BEVBlending == BlendMode.Average)
@@ -459,18 +489,20 @@ namespace OPS.Landform
                         else
                         {
                             mesh.ColorByElevation(absolute: true);
-                            Vector2 demOrigin = sdOriginPixel;
-                            var dem = Rasterizer.RenderBirdsEyeView(mesh, null, ref demOrigin, demOptions);
+
+                            Vector2 origin = sdCenterPixel;
+                            var dem = Rasterizer.RenderBirdsEyeView(mesh, null, ref origin, demOptions);
+
                             if (dem.Width != bev.Width || dem.Height != bev.Height)
                             {
                                 throw new Exception(string.Format("DEM dimensions {0}x{1} don't match BEV {2}x{3}",
                                                                   dem.Width, dem.Height, bev.Width, bev.Height));
                             }
 
-                            if (demOrigin != origin)
+                            if (origin != rootOriginPixel[siteDrive])
                             {
                                 throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
-                                                                  demOrigin, origin));
+                                                                  origin, rootOriginPixel[siteDrive]));
                             }
 
                             try
@@ -501,23 +533,15 @@ namespace OPS.Landform
         }
 
         /// <summary>
-        /// populate bevs, dems, and bevOrigins from database
+        /// populate bevs, dems, rootOriginPixel, and sdOriginPixel from database
         /// returns true iff all were loaded successfully
         /// </summary>
         protected bool LoadBEVs()
         {
             double startSec = UTCTime.Now();
             CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
-                    var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive.ToString());
-                    if (rec != null &&
-                        rec.Coloring == bcopts.BEVColoring &&
-                        rec.Blending == bcopts.BEVBlending &&
-                        rec.MetersPerPixel == bcopts.BEVMetersPerPixel &&
-                        rec.SparseBlockSize == bcopts.BEVSparseBlocksize &&
-                        rec.MinValidBlockRatio == bcopts.BEVMinValidBlockRatio &&
-                        rec.Inpaint == bcopts.BEVInpaint &&
-                        rec.Smoothing == bcopts.BEVSmoothing &&
-                        rec.Decimation == bcopts.BEVDecimation)
+                    var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
+                    if (rec != null && rec.CreationOptions == JsonHelper.ToJson(bevOptions))
                     {
                         var bev = pipeline.GetDataProduct<TiffDataProduct>(project, rec.BEVGuid).Image;
                         var dem = pipeline.GetDataProduct<TiffDataProduct>(project, rec.DEMGuid).Image;
@@ -526,7 +550,8 @@ namespace OPS.Landform
                         dem.UnionMask(mask, new float[] { 1 });
                         bevs[siteDrive] = bev;
                         dems[siteDrive] = dem;
-                        bevOrigins[siteDrive] = new Vector2(rec.OriginX, rec.OriginY);
+                        rootOriginPixel[siteDrive] = rec.RootOriginPixel;
+                        sdOriginPixel[siteDrive] = rec.SiteDriveOriginPixel;
                     }
                 });
             pipeline.LogInfo("loaded {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
@@ -534,7 +559,7 @@ namespace OPS.Landform
         }
 
         /// <summary>
-        /// save bevs, dems, and associated metadata to database
+        /// save bevs, dems, rootOriginPixel, and sdOriginPixel to database
         /// </summary>
         protected void SaveBEVs()
         {
@@ -545,11 +570,9 @@ namespace OPS.Landform
                     var bev = pair.Value;
                     var dem = dems[siteDrive];
                     var mask = bev.MaskToImage();
-                    var origin = bevOrigins[siteDrive];
-                    BirdsEyeView.Create(pipeline, project, siteDrive.ToString(), bev, dem, mask, origin,
-                                        bcopts.BEVColoring, bcopts.BEVBlending, bcopts.BEVMetersPerPixel,
-                                        bcopts.BEVSparseBlocksize, bcopts.BEVMinValidBlockRatio, bcopts.BEVInpaint,
-                                        bcopts.BEVSmoothing, bcopts.BEVDecimation);
+                    var rootOrigin = rootOriginPixel[siteDrive];
+                    var sdOrigin = sdOriginPixel[siteDrive];
+                    BirdsEyeView.Create(pipeline, project, siteDrive, bevOptions, bev, dem, mask, rootOrigin, sdOrigin);
                 });
             pipeline.LogInfo("saved {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
         }
