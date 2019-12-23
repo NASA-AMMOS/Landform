@@ -105,10 +105,10 @@ namespace OPS.Pipeline
                 {
                     return preferColorToGrayscale ? 1 : -1;
                 }
-                //else if (a.Bands == 1 && b.Bands == 1)
-                //{
-                //    return RoverProduct.BandPreference(a.Color) - RoverProduct.BandPreference(b.Color);
-                //}
+                else if (a.Color != b.Color)
+                {
+                    return RoverProduct.BandPreference(a.Color) - RoverProduct.BandPreference(b.Color);
+                }
             }
 
             if (finalCrit == CompareCriteria.Color_Grayscale)
@@ -251,23 +251,33 @@ namespace OPS.Pipeline
                 {
                     group = group.OrderBy(o => o, this);
 
+                    if (group.Count() > 1 &&                                                                      //have more than one image
+                        keepLinVariants == KeepLinearVariants.Both)                                               //want both flavors of linearity if appropriate
+                    {
+                        RoverObservation best = group.ElementAt(0);
+                        RoverObservation bestOtherLinearity = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
+
+                        if (bestOtherLinearity != null &&                                               //item with other linearity exists in group
+                            0 == Compare(best, bestOtherLinearity, CompareCriteria.Color_Grayscale))   //no higher priority difference than linearity between the first two images
+                        {
+                            if (logger != null)
+                            {
+                                logger.LogVerbose("keeping first two of\n {0}",
+                                            String.Join("\n  ", group.Select(o => o.ToString())));
+                            }
+
+                            return new List<RoverObservation>(2) { best, bestOtherLinearity };
+                        }
+                    }
+                   
                     if (logger != null && group.Count() > 1)
                     {
                         logger.LogVerbose("keeping only first of\n  {0}",
-                                          String.Join("\n  ", group.Select(o => o.ToString())));
+                                        String.Join("\n  ", group.Select(o => o.ToString())));
                     }
 
-                    if (group.Count() > 1 &&                                                                      //have more than one image
-                        keepLinVariants == KeepLinearVariants.Both &&                                             //want both flavors of linearity if appropriate
-                        0 == Compare(group.ElementAt(0), group.ElementAt(1), CompareCriteria.Color_Grayscale) &&  //no higher priority difference than linearity between the first two images
-                        0 != Compare(group.ElementAt(0), group.ElementAt(1), CompareCriteria.Linear_NonLinear))   //differ in linearity
-                    {
-                        return group.Take(2); 
-                    }
-                    else
-                    {
-                        return group.Take(1);
-                    }
+                    return group.Take(1);
+                    
                 }
 
                 var grouped = observations
