@@ -254,20 +254,13 @@ namespace OPS.Pipeline
                     
                 }
 
-                var grouped = observations
+                return observations
                     .Where(obs => obs is RoverObservation)
                     .Cast<RoverObservation>()
                     .Where(o => types.Any(t => t == o.ObservationType))
                     .Where(o => filter == null || filter(o))
-                    .GroupBy(o => o.FrameName);
-
-                List<RoverObservation> result = new List<RoverObservation>();
-                foreach(var group in grouped)
-                {
-                    result.AddRange(filterGroup(group));
-                }
-
-                return result;
+                    .GroupBy(o => o.FrameName)
+                    .SelectMany(group => filterGroup(group));
             }
             else if(keepLinVariants == KeepLinearVariants.Both)
             {
