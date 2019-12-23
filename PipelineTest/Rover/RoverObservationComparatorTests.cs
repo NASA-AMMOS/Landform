@@ -183,23 +183,23 @@ namespace RoverTest
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
-            RoverObservation obsNonLin = RoverObservation.Create(pipeline, frame, "ObsNonLin", filename, new CAHVORE(),
-                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 3, 31, 1330,
+            RoverObservation obsNonLinV2 = RoverObservation.Create(pipeline, frame, "ObsNonLin", filename, new CAHVORE(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 2, 3, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
             Assert.IsTrue(obsLinV1.IsLinear);
             Assert.IsTrue(obsLinV2.IsLinear);
-            Assert.IsTrue(!obsNonLin.IsLinear);
+            Assert.IsTrue(!obsNonLinV2.IsLinear);
           
             RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false, preferLinear: true, preferColor: true,
                                           preferEyeForGeometry: RoverStereoEye.Left);
 
-            List<Observation> allObs = new List<Observation>(3) { obsLinV1, obsNonLin, obsLinV2 };
+            List<Observation> allObs = new List<Observation>(3) { obsLinV1, obsNonLinV2, obsLinV2 };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
             Assert.IsTrue(result.Count() == 2);
             Assert.IsTrue(result.First() == obsLinV2);
-            Assert.IsTrue(result.ElementAt(1) == obsNonLin);
+            Assert.IsTrue(result.ElementAt(1) == obsNonLinV2);
         }
     }
 }
