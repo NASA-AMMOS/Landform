@@ -132,13 +132,14 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="BenchmarkS3.cs" />
+    <Compile Include="ConvertIV.cs" />
     <Compile Include="DEM2Mesh.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="LandformUtil.cs" />
     <Compile Include="LimberDMGDriver.cs" />
     <Compile Include="ConvertToASTTRO.cs" />
     <Compile Include="LocalObservationProducts.cs" />
-    <Compile Include="PDSImageConverter.cs" />
+    <Compile Include="ConvertPDS.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="UpdateSceneManifest.cs" />
   </ItemGroup>
