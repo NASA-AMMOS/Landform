@@ -245,7 +245,10 @@ namespace OPS.Landform
             if (!options.NoPDS)
             {
                 acceptedExtensions.Add(".IMG");
-                acceptedExtensions.Add(".LBL");
+                if (mission != null && mission.AllowPDSLabelFiles())
+                {
+                    acceptedExtensions.Add(".LBL");
+                }
             }
             if (options.WithVIC)
             {
