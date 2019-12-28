@@ -250,6 +250,7 @@ namespace OPS.Landform
                 {
                     Frame = "root",
                     UsePriors = true,
+                    ApplyTexture = bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture,
                     MaxTriangleAspect = bcopts.MaxTriangleAspect,
                     GenerateNormals = !bcopts.NoGenerateNormals
                 };

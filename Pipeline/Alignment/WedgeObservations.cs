@@ -52,51 +52,48 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (Points != null) return Points.Name;
-                if (Range != null) return Range.Name;
-                if (Texture != null) return Texture.Name;
-                if (Normals != null) return Normals.Name;
-                return "(empty)"; //so we can at least format exceptions
+                var obs = Obs;
+                return obs != null ? obs.Name : "(empty)"; //so we can at least format exceptions
             }
         }
 
-        public string FrameName
-        {
-            get
-            {
-                if (Points != null) return Points.FrameName;
-                if (Range != null) return Range.FrameName;
-                if (Texture != null) return Texture.FrameName;
-                if (Normals != null) return Normals.FrameName;
-                throw new InvalidOperationException("can't get frame name of an empty MeshObservation");
-            }
-        }
+        public string FrameName { get { return RoverObs.FrameName; } }
 
-        public int Day
-        {
-            get
-            {
-                if (Points != null) return Points.Day;
-                if (Range != null) return Range.Day;
-                if (Texture != null) return Texture.Day;
-                if (Normals != null) return Normals.Day;
-                throw new InvalidOperationException("can't get day of an empty MeshObservation");
-            }
-        }
+        public int Day { get { return RoverObs.Day; } }
 
         public string StereoFrameName { get { return RoverObs.StereoFrameName; } }
 
         public RoverStereoEye StereoEye { get { return RoverObs.StereoEye; } }
 
+        /// <summary>
+        /// Get a representative Observation for this wedge, null if none.
+        /// </summary>
+        public Observation Obs
+        {
+            get
+            {
+                return
+                    Points != null ? Points :
+                    Range != null ? Range :
+                    Texture != null ? Texture :
+                    Normals != null ? Normals :
+                    null;
+            }
+        }
+
+        /// <summary>
+        /// Get a representative RoverObservation for this wedge, exception if none.
+        /// </summary>
         public RoverObservation RoverObs
         {
             get
             {
-                if (Points != null) return (RoverObservation)Points;
-                if (Range != null) return (RoverObservation)Range;
-                if (Texture != null) return (RoverObservation)Texture;
-                if (Normals != null) return (RoverObservation)Normals;
-                throw new InvalidOperationException("can't get RoverObservation of an empty MeshObservation");
+                var obs = Obs;
+                if (obs != null)
+                {
+                    return (RoverObservation)obs;
+                }
+                throw new InvalidOperationException("no observations for wedge");
             }
         }        
         
@@ -168,8 +165,8 @@ namespace OPS.Pipeline
         /// returns null if the required observation types are not found for the frame
         /// </summary>
         public static WedgeObservations CollectForFrame(string frameName, FrameCache frameCache,
-                                                       ObservationCache observationCache,
-                                                       CollectOptions opts = null)
+                                                        ObservationCache observationCache,
+                                                        CollectOptions opts = null)
         {
             if (opts == null)
             {

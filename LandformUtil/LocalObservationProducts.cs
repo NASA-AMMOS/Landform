@@ -381,7 +381,7 @@ namespace OPS.LandformUtil
                                      options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
                                      stretch: options.StretchContrast, nStddev: options.StretchStdDev);
                     }
-                    SaveMesh(mesh, sdPrefix + obs.Name, img != null ? (obs.Name + imageExt) : null);
+                    SaveMesh(mesh, sdPrefix + obs.Name, (withTextures && img != null) ? (obs.Name + imageExt) : null);
                 }
                 
                 Image mask = null;
@@ -479,7 +479,8 @@ namespace OPS.LandformUtil
             pipeline.LogInfo("generated products for {0} observations", no);
         }
 
-        private Mesh BuildWedgeMesh(WedgeObservations obs, WedgeObservations.MeshOptions mo, out int numPoints, out int numNormals)
+        private Mesh BuildWedgeMesh(WedgeObservations obs, WedgeObservations.MeshOptions mo,
+                                    out int numPoints, out int numNormals)
         {
             Mesh mesh = null;
             if (options.PointCloud)
@@ -487,7 +488,6 @@ namespace OPS.LandformUtil
                 pipeline.LogVerbose("building point cloud for {0}", obs.Name);
                 mesh = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
                 obs.CountValid(out numPoints, out numNormals);
-                
             }
             else
             {
@@ -506,8 +506,8 @@ namespace OPS.LandformUtil
                 
                 if (mesh == null)
                 {
-                    pipeline.LogWarn("{0} reconstruction failed on observation {1} ({2} valid points, {3} valid normals): {4}",
-                                     options.ReconstructionMethod, obs.Name, numPoints, numNormals,
+                    pipeline.LogWarn("meshing failed on obs {0} ({1} reconstruction, {2} points, {3} normals): {4}",
+                                     obs.Name, options.ReconstructionMethod, numPoints, numNormals,
                                      ex != null ? ex.Message : "insufficient data or unknown error");
                 }
             }
@@ -712,18 +712,25 @@ namespace OPS.LandformUtil
                 Image img = null;
                 try
                 {
-                    var pair = Mesh.MergeMeshesAndTextures(inputs
-                                                           .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
-                                                           .ToArray());
-                    mesh = pair.Item1;
-                    img = pair.Item2;
+                    if (withTextures)
+                    {
+                        var pair = Mesh.MergeMeshesAndTextures(inputs
+                                                               .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
+                                                               .ToArray());
+                        mesh = pair.Item1;
+                        img = pair.Item2;
+                    }
+                    else
+                    {
+                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item2).ToArray());
+                    }
                 }
                 catch (Exception ex)
                 {
                     pipeline.LogWarn("error creating merged mesh for site drive {0}: {1}", siteDrive, ex.Message);
                 }
                 
-                if (mesh != null && options.ColorMeshesBy != MeshColor.None && options.ColorMeshesBy != MeshColor.Texture)
+                if (mesh != null && img == null && options.ColorMeshesBy != MeshColor.None)
                 {
                     mesh.ColorBy(options.ColorMeshesBy,
                                  options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
