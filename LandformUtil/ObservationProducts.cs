@@ -19,8 +19,8 @@ using OPS.Landform;
 
 namespace OPS.LandformUtil
 {
-    [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
-    public class LocalObservationProductsOptions : GeometryCommandOptions
+    [Verb("observation-products", HelpText = "create observation mesh and image products")]
+    public class ObservationProductsOptions : GeometryCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
@@ -131,9 +131,9 @@ namespace OPS.LandformUtil
         public bool DeltaRangeImages { get; set;}
     } 
 
-    public class LocalObservationProducts : GeometryCommand
+    public class ObservationProducts : GeometryCommand
     {
-        private LocalObservationProductsOptions options;
+        private ObservationProductsOptions options;
 
         private bool withTextures;
         private bool buildWedgeMeshes;
@@ -145,7 +145,7 @@ namespace OPS.LandformUtil
         private ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>> mergeInputs =
             new ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>>();
         
-        public LocalObservationProducts(LocalObservationProductsOptions options) : base(options)
+        public ObservationProducts(ObservationProductsOptions options) : base(options)
         {
             this.options = options;
 
