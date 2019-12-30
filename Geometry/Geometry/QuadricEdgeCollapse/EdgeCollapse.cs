@@ -65,6 +65,8 @@ namespace OPS.Geometry
         /// <returns></returns>
         public static Mesh QuadricEdgeCollapse(Mesh mesh, int targetNumFaces, double perimeterPenaltyFactor = 1, bool preserveTopology = true, bool weightByArea = false, bool avoidFlips = false, double flipThreshold = -1.0, bool avoidSmallTris = false, double angleThreshold = 0.25, List<Vertex> notTouched = null, double accuracyThreshold = -1)
         {
+            mesh = new Mesh(mesh); //deep copy
+
             mesh.HasUVs = false;
             mesh.HasColors = false;
             mesh.HasNormals = false;

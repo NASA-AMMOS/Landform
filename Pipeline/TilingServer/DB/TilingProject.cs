@@ -79,7 +79,7 @@ namespace OPS.Pipeline.TilingServer
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
-                                MeshReconMethod reconMethod, int faces, int resolution, string projectType,
+                                MeshReconstructionMethod reconMethod, int faces, int resolution, string projectType,
                                 string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
             : this()
         {
@@ -99,9 +99,9 @@ namespace OPS.Pipeline.TilingServer
 
 
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
-                                           SkirtMode skirtMode, MeshReconMethod reconMethod, int faces, int resolution,
-                                           string projectType, string exportMeshFormat, string exportImageFormat,
-                                           int maxLeafGroupSize)
+                                           SkirtMode skirtMode, MeshReconstructionMethod reconMethod, int faces,
+                                           int resolution, string projectType, string exportMeshFormat,
+                                           string exportImageFormat, int maxLeafGroupSize)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
                                                       projectType, exportMeshFormat, exportImageFormat,
@@ -206,9 +206,9 @@ namespace OPS.Pipeline.TilingServer
             return (SkirtMode)Enum.Parse(typeof(SkirtMode), SkirtMode, true);
         }
 
-        public MeshReconMethod GetReconMethod()
+        public MeshReconstructionMethod GetReconMethod()
         {
-            return (MeshReconMethod)Enum.Parse(typeof(MeshReconMethod), ReconMethod, true);
+            return (MeshReconstructionMethod)Enum.Parse(typeof(MeshReconstructionMethod), ReconMethod, true);
         }
 
         public List<string> LoadNodeIds(PipelineCore pipeline)

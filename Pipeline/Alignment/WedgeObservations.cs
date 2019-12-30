@@ -17,8 +17,6 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum ReconstructionMethod { Organized, Poisson, FSSR }
-
     /// <summary>
     /// collects the Observations in the same frame that contribute to building a mesh
     /// also known as a "wedge"
@@ -593,13 +591,13 @@ namespace OPS.Pipeline
         /// dispatches to the different Build*() functions  
         /// </summary>
         public Mesh BuildMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts,
-                              ReconstructionMethod method)
+                              MeshReconstructionMethod method = MeshReconstructionMethod.Organized)
         {
             switch (method)
             {
-                case ReconstructionMethod.Organized: return BuildOrganizedMesh(pipeline, frameCache, masker, opts);
-                case ReconstructionMethod.Poisson: return BuildPoissonMesh(pipeline, frameCache, masker, opts);
-                case ReconstructionMethod.FSSR: return BuildFSSRMesh(pipeline, frameCache, masker, opts);
+                case MeshReconstructionMethod.Organized: return BuildOrganizedMesh(pipeline, frameCache, masker, opts);
+                case MeshReconstructionMethod.Poisson: return BuildPoissonMesh(pipeline, frameCache, masker, opts);
+                case MeshReconstructionMethod.FSSR: return BuildFSSRMesh(pipeline, frameCache, masker, opts);
                 default: throw new ArgumentException("unknown method: " + method);
             }
         }

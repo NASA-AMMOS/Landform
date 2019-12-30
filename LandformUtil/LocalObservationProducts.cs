@@ -55,8 +55,8 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
 
-        [Option(HelpText = "Triangle mesh reconstruction method (Organized, Poisson, or FSSR)", Default = ReconstructionMethod.Organized)]
-        public ReconstructionMethod ReconstructionMethod { get; set; }
+        [Option(HelpText = "Wedge reconstruction method (Organized, Poisson, or FSSR)", Default = MeshReconstructionMethod.Organized)]
+        public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
         public double MaxTriangleAspect { get; set; }
