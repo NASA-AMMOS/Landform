@@ -27,6 +27,12 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer", Default = "auto")]
         public string StereoEye { get; set; }
 
+        [Option(HelpText = "Always reconstruct wedge triangle meshes", Default = false)]
+        public bool AlwaysReconstructWedgeMeshes { get; set; }
+
+        [Option(HelpText = "Wedge reconstruction method (Organized, Poisson, or FSSR)", Default = MeshReconstructionMethod.Organized)]
+        public MeshReconstructionMethod ReconstructionMethod { get; set; }
+
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
         public double MaxTriangleAspect { get; set; }
 
@@ -215,8 +221,10 @@ namespace OPS.Landform
             var opts = new WedgeObservations.CollectOptions(bcopts.OnlyForSiteDrives, bcopts.OnlyForFrames,
                                                             bcopts.OnlyForCameras, mission)
             {
-                RequirePoints = true,
-                RequireNormals = bcopts.BEVColoring == BirdsEyeView.ColorMode.Tilt && bcopts.NoGenerateNormals,
+                RequireMeshable = true,
+                RequirePoints = bcopts.AlwaysReconstructWedgeMeshes,
+                RequireNormals = bcopts.BEVColoring == BirdsEyeView.ColorMode.Tilt &&
+                bcopts.AlwaysReconstructWedgeMeshes && bcopts.NoGenerateNormals,
                 RequireTextures = bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture,
                 IncludeForAlignment = true,
                 IncludeForMeshing = false,
@@ -252,7 +260,8 @@ namespace OPS.Landform
                     UsePriors = true,
                     ApplyTexture = bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture,
                     MaxTriangleAspect = bcopts.MaxTriangleAspect,
-                    GenerateNormals = !bcopts.NoGenerateNormals
+                    GenerateNormals = !bcopts.NoGenerateNormals,
+                    MeshDecimator = bcopts.MeshDecimator
                 };
 
             int np = 0, nc = 0;
@@ -266,7 +275,9 @@ namespace OPS.Landform
                                          np, nc, no);
                     }
 
-                    int mbs = WedgeObservations.AutoDecimate(obs.Points, bcopts.DecimateWedgeMeshes,
+                    var mbsObs = (obs.HasMesh && !bcopts.AlwaysReconstructWedgeMeshes) ? obs.Texture : obs.Points;
+                    int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
+                                                             bcopts.DecimateWedgeMeshes,
                                                              bcopts.TargetWedgeMeshResolution);
                     if (mbs > 1 && mbs != bcopts.DecimateWedgeMeshes)
                     {
@@ -274,7 +285,8 @@ namespace OPS.Landform
                     }
                     var mo = meshOpts.Clone();
                     mo.Decimate = mbs;
-                    Mesh mesh = obs.BuildOrganizedMesh(pipeline, frameCache, masker, mo);
+                    Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo,
+                                              bcopts.AlwaysReconstructWedgeMeshes, bcopts.ReconstructionMethod);
 
                     Image img = null;
                     if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
@@ -400,6 +412,10 @@ namespace OPS.Landform
                         case BirdsEyeView.ColorMode.Texture: break;
                         case BirdsEyeView.ColorMode.Tilt:
                         {
+                            if (!mesh.HasNormals && !bcopts.NoGenerateNormals)
+                            {
+                                mesh.GenerateVertexNormals();
+                            }
                             mesh.ColorByNormals(TiltMode.InvAcos);
                             break;
                         }

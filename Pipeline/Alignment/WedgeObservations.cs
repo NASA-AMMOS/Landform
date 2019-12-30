@@ -23,6 +23,8 @@ namespace OPS.Pipeline
     /// </summary>
     public class WedgeObservations
     {
+        public const double LOAD_MESH_DECIMATE_TOL = 0.1;
+
         public Observation Points; //if XYZ is not available but RNG is, this will be the RNG
         public Observation Range; //only set if RNG is available
         public Observation Normals; //only set if UVW is available
@@ -102,34 +104,67 @@ namespace OPS.Pipeline
 
         public RoverProductCamera Camera { get { return RoverObs.Camera; } }
 
+        //allowed mesh file extensions, lowercase, not including leading dots, in priority order, defaults to iv, obj
+        public string[] MeshExts = new string[] { "iv", "obj" };
+
+        public bool HasMesh {
+            get
+            {
+                if (Texture == null || Texture.AlternateExtensions == null)
+                {
+                    return false;
+                }
+                lock (Texture.AlternateExtensions)
+                {
+                    return Texture.AlternateExtensions
+                        .Any(ext => MeshExts.Any(me => ext.Equals(me, StringComparison.OrdinalIgnoreCase)));
+                }
+            }
+        }
+
+        public bool Meshable { get { return Points != null || HasMesh; } }
+
         public class CollectOptions
         {
-            public bool RequirePoints = true;
-            public bool RequireNormals = true;
+            public bool RequireMeshable = false;
+            public bool RequirePoints = false;
+            public bool RequireNormals = false;
             public bool RequireTextures = false;
 
-            public bool IncludeForAlignment = true;
-            public bool IncludeForMeshing = true;
+            public bool IncludeForAlignment = false;
+            public bool IncludeForMeshing = false;
             public bool IncludeForTexturing = false;
 
             public SiteDrive[] OnlyForSiteDrives = null;
             public RoverProductCamera[] OnlyForCameras = null;
             public string[] OnlyForFrames = null;
 
-            //require that there is a priors-only transform chain from the frame of the MeshObservations to TargetFrame
+            //require priors-only transform chain from the frame of the MeshObservations to TargetFrame (if non null)
             public bool RequirePriorTransform = false;
 
-            //require that there is a transform chain including at least one adjusted transform
-            //from the frame of the MeshObservations to TargetFrame
+            //require a transform chain including at least one adjusted transform
+            //from the frame of the MeshObservations to TargetFrame (if non null)
             public bool RequireAdjustedTransform = false;
 
-            //require that there is a transform chain from the frame of the MeshObservations to TargetFrame
+            //require a transform chain from the frame of the MeshObservations to TargetFrame (if non null)
             public bool RequireAnyTransform = true;
 
+            //target frame for Require*Transform options, or null to disable
             public string TargetFrame = null;
 
+            //used to disambiguate observations if non-null
+            //automatically set if mission is supplied to constructor
             public IComparer<RoverObservation> Comparator = null;
+
+            //used to disambiguate observations if non-null
+            //automatically set if mission is supplied to constructor
+            //otherwise defaults to prefer linearized
             public RoverProductGeometry[] LinearPreference = null;
+
+            //allowed mesh file extensions, lowercase, not including leading dots, in priority order
+            //automatically set if mission is supplied to constructor
+            //otherwise defaults to iv, obj
+            public string[] MeshExts = null;
 
             public CollectOptions(string onlyForSiteDrives = null, string onlyForFrames = null,
                                   string onlyForCameras = null, MissionSpecific mission = null)
@@ -153,6 +188,12 @@ namespace OPS.Pipeline
                 {
                     Comparator =  mission.GetRoverObservationComparator();
                     LinearPreference = mission.GetLinearPreference();
+                    MeshExts = mission.GetTacticalMeshExts()
+                        .Split(',')
+                        .Select(ext => ext.ToLower().TrimStart('.'))
+                        .Where(ext => !string.IsNullOrEmpty(ext))
+                        .Distinct()
+                        .ToArray();
                 }
             }
         }
@@ -211,6 +252,11 @@ namespace OPS.Pipeline
 
                 var ret = new WedgeObservations();
 
+                if (opts.MeshExts != null)
+                {
+                    ret.MeshExts = opts.MeshExts;
+                }
+
                 ret.Range = linObs.Find(obs => obs.ObservationType == RoverProductType.Range);
 
                 ret.Points = linObs.Find(obs => obs.ObservationType == RoverProductType.Points);
@@ -231,6 +277,11 @@ namespace OPS.Pipeline
 
                 ret.Texture = linObs.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (opts.RequireTextures && ret.Texture == null)
+                {
+                    continue;
+                }
+
+                if (opts.RequireMeshable && !ret.Meshable)
                 {
                     continue;
                 }
@@ -311,6 +362,8 @@ namespace OPS.Pipeline
             public double MaxTriangleAspect = 20; //organized mesh only
             public bool GenerateNormals = true; //organized mesh only
             public double IsolatedPointSize = 0; //organized mesh only
+
+            public MeshDecimationMethod MeshDecimator = MeshDecimationMethod.MeshLab; //used by LoadMesh()
 
             public MeshOptions Clone()
             {
@@ -485,7 +538,7 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            if (opts.ApplyTexture && TextureImage != null)
+            if (!mesh.HasUVs && opts.ApplyTexture && TextureImage != null)
             {
                 mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
             }
@@ -499,6 +552,72 @@ namespace OPS.Pipeline
             mesh.Transform(xform.Mean);
 
             return mesh;
+        }
+
+        /// <summary>
+        /// load mesh product associated with Texture observation
+        /// returns finest LOD with at most 1 + LOAD_MESH_DECIMATE_TOL times a full decimated organized mesh
+        /// if no available LODs satisfy that requirement then the coarsest LOD will be further decimated
+        /// </summary>
+        public Mesh LoadMesh(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts)
+        {
+            if (!HasMesh)
+            {
+                pipeline.LogWarn("no loadable mesh for {0}", Name);
+                return null;
+            }
+
+            //find extension that matches first in MeshExts priority order
+            //use the value from AlternateExtensions which is case sensitive, not MeshExts which is not
+            string meshExt = null;
+            var exts = Texture.AlternateExtensions;
+            lock (exts)
+            {
+                meshExt = MeshExts
+                    .Select(me => exts.FirstOrDefault(ext => ext.Equals(me, StringComparison.OrdinalIgnoreCase)))
+                    .Where(ext => !string.IsNullOrEmpty(ext))
+                    .First(); //guaranteed to work because HasMesh is true
+            }
+
+            string meshUrl = StringHelper.StripUrlExtension(Texture.Url) + "." + meshExt;
+
+            pipeline.LogDebug("loading wedge mesh {0}", meshUrl);
+
+            var lodMeshes = Mesh.LoadAllLODs(pipeline.GetFileCached(meshUrl, "meshes"))
+                .OrderByDescending(m => m.Faces.Count)
+                .ToList();
+
+            if (lodMeshes.Count == 0)
+            {
+                pipeline.LogWarn("no loadable mesh LODs for {0}", Name);
+                return null;
+            }
+
+            pipeline.LogDebug("loaded {0} LODs for wedge mesh {0}", lodMeshes.Count, meshUrl);
+
+            int maxTris =  (Texture.Width - 1) * (Texture.Height - 1) * 2; //polycount of full organized mesh
+            if (opts.Decimate > 1)
+            {
+                maxTris /= opts.Decimate; //polycount of full decimated organized mesh
+            }
+
+            int threshold = (int)((1 + LOAD_MESH_DECIMATE_TOL) * maxTris);
+            int lod = lodMeshes.FindIndex(m => m.Faces.Count <= threshold);
+            Mesh mesh = lod >= 0 ? lodMeshes[lod] : null;
+
+            if (mesh == null)
+            {
+                pipeline.LogDebug("decimating coarsest loaded LOD {0} to {1} tris with {2} for wedge mesh {3}",
+                                  lodMeshes.Count - 1, Fmt.KMG(maxTris), opts.MeshDecimator, meshUrl);
+                mesh = lodMeshes.Last().Decimate(maxTris, opts.MeshDecimator);
+            }
+            else
+            {
+                pipeline.LogDebug("using loaded LOD {0} ({1} tris) of wedge mesh {2}",
+                                  lod, Fmt.KMG(mesh.Faces.Count), meshUrl);
+            }
+
+            return FinishMesh(pipeline, frameCache, opts, mesh);
         }
 
         /// <summary>
@@ -591,8 +710,18 @@ namespace OPS.Pipeline
         /// dispatches to the different Build*() functions  
         /// </summary>
         public Mesh BuildMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts,
+                              bool alwaysReconstruct = false,
                               MeshReconstructionMethod method = MeshReconstructionMethod.Organized)
         {
+            if (!Meshable)
+            {
+                pipeline.LogWarn("{0} not meshable", Name);
+                return null;
+            }
+            if (HasMesh && !alwaysReconstruct)
+            {
+                return LoadMesh(pipeline, frameCache, opts);
+            }
             switch (method)
             {
                 case MeshReconstructionMethod.Organized: return BuildOrganizedMesh(pipeline, frameCache, masker, opts);

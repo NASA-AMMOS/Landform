@@ -749,7 +749,7 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Get comma separated list of tactical mesh file extensions.
-        /// Not cases sensitive, leading dots will be added automatically.
+        /// Not case sensitive, leading dots will be added automatically.
         /// In priority order so if a mesh is available in multiple formats the first one found will be used.
         /// </summary>
         public virtual string GetTacticalMeshExts()
@@ -761,7 +761,7 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Get comma separated list of tactical image file extensions.
-        /// Not cases sensitive, leading dots will be added automatically.
+        /// Not case sensitive, leading dots will be added automatically.
         /// In priority order so if an image is available in multiple formats the first one found will be used.
         /// </summary>
         public virtual string GetTacticalImageExts()

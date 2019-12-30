@@ -55,6 +55,9 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
 
+        [Option(HelpText = "Always reconstruct wedge triangle meshes", Default = false)]
+        public bool AlwaysReconstructWedgeMeshes { get; set; }
+
         [Option(HelpText = "Wedge reconstruction method (Organized, Poisson, or FSSR)", Default = MeshReconstructionMethod.Organized)]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
@@ -274,7 +277,6 @@ namespace OPS.LandformUtil
             var validNormals = new ConcurrentDictionary<string, int>();
             var validTriangles = new ConcurrentDictionary<string, int>();
             var faceStats = new ConcurrentDictionary<string, Mesh.FaceStats>();
-            var generatedNormals = new ConcurrentDictionary<string, bool>();
             var wedgeDecimation = new ConcurrentDictionary<string, int>();
 
             var meshOpts = new WedgeObservations.MeshOptions()
@@ -287,7 +289,8 @@ namespace OPS.LandformUtil
                     ApplyTexture = withTextures,
                     MaxTriangleAspect = options.MaxTriangleAspect,
                     IsolatedPointSize = options.IsolatedPointSize,
-                    GenerateNormals = !options.NoGenerateNormals
+                    GenerateNormals = !options.NoGenerateNormals,
+                    MeshDecimator = options.MeshDecimator
                 };
 
             int np = 0, nc = 0;
@@ -305,7 +308,8 @@ namespace OPS.LandformUtil
                 string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
                 //mesh decimation blocksize
-                int mbs = WedgeObservations.AutoDecimate(obs.Points != null ? obs.Points : obs.Normals, //null ok
+                var mbsObs = (obs.HasMesh && !options.AlwaysReconstructWedgeMeshes) ? obs.Texture : obs.Points;
+                int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
                                                          options.DecimateWedgeMeshes,
                                                          options.TargetWedgeMeshResolution);
 
@@ -320,14 +324,13 @@ namespace OPS.LandformUtil
 
                 int numPoints = 0, numNormals = 0, numTriangles = 0;
                 Mesh mesh = null;
-                if (buildWedgeMeshes && obs.Points != null)
+                if (buildWedgeMeshes && obs.Meshable)
                 {
                     mesh = BuildWedgeMesh(obs, mo, out numPoints, out numNormals);
                 }
 
                 if (mesh != null)
                 {
-                    generatedNormals[obs.FrameName] = mesh.HasNormals && numNormals == 0;
                     numTriangles = mesh.Faces.Count;
                     pipeline.LogVerbose("collecting face stats for {0}", obs.Name);
                     faceStats[obs.FrameName] = mesh.CollectFaceStats();
@@ -460,13 +463,10 @@ namespace OPS.LandformUtil
                 if (buildWedgeMeshes)
                 {
                     var fn = obs.FrameName;
-                    pipeline.LogInfo("{0}: {1} points, {2} normals{3}, {4} triangles{5}{6}{7}{8}",
-                                     fn, validPoints[fn], validNormals[fn],
-                                     generatedNormals.ContainsKey(fn) && generatedNormals[fn] ? " (generated)" : "",
-                                     validTriangles[fn],
+                    pipeline.LogInfo("{0}: {1} points, {2} normals, {3} triangles{4}{5}{6}{7}",
+                                     fn, validPoints[fn], validNormals[fn], validTriangles[fn],
                                      wedgeDecimation[fn] > 1 ?
-                                     string.Format(" after {0}x decimation", wedgeDecimation[fn])
-                                     : "",
+                                     string.Format(" ({0}x decimation)", wedgeDecimation[fn]) : "",
                                      faceStats.ContainsKey(fn) ? Environment.NewLine + faceStats[fn].ToString() : "",
                                      Environment.NewLine, obs.ToString(pipeline));
                 }
@@ -491,11 +491,12 @@ namespace OPS.LandformUtil
             }
             else
             {
-                pipeline.LogVerbose("building {0} triangle mesh for {1}", options.ReconstructionMethod, obs.Name);
+                pipeline.LogVerbose("building triangle mesh for {0}", obs.Name);
                 Exception ex = null;
                 try
                 {
-                    mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, options.ReconstructionMethod);
+                    mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, options.AlwaysReconstructWedgeMeshes,
+                                         options.ReconstructionMethod);
                 }
                 catch (Exception e)
                 {
@@ -503,6 +504,15 @@ namespace OPS.LandformUtil
                 }
                 
                 obs.CountValid(out numPoints, out numNormals);
+
+                if (mesh != null)
+                {
+                    numPoints = Math.Max(numPoints, mesh.Vertices.Count);
+                    if (mesh.HasNormals)
+                    {
+                        numNormals = Math.Max(numPoints, mesh.Vertices.Count);
+                    }
+                }
                 
                 if (mesh == null)
                 {
