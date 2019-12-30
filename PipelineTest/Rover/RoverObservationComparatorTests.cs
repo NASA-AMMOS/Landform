@@ -201,5 +201,42 @@ namespace RoverTest
             Assert.IsTrue(result.First() == obsLinV2);
             Assert.IsTrue(result.ElementAt(1) == obsNonLinV2);
         }
+
+        [TestMethod()]
+        public void TestDiffProducersRoverObservationsTest()
+        {
+            // prepare input data
+            LocalPipelineConfig config = new LocalPipelineConfig();
+            config.Venue = "KeepBestRoverObservationsTest";
+            config.StorageDir = StringHelper.NormalizeUrl(".", "file://");
+            config.MaxCores = 1;
+            config.RandomSeed = 0;
+            LocalPipeline pipeline = new LocalPipeline(new PipelineCoreOptions(), config);
+
+            string filename = Path.Combine("TestData", "img", "dummy.IMG");
+
+            string projectName = "unittest";
+
+            Frame root = new Frame();
+            Frame frame = Frame.Create(pipeline, projectName, "Frame", root, false);
+
+            RoverObservation obsLinV2 = RoverObservation.Create(pipeline, frame, "ObsLinV2", filename, new CAHV(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 2, 2, 31, 1330,
+                                                  RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.MSSS,
+                                                  RoverProductColor.Grayscale, false);
+
+            RoverObservation obsNonLinV2 = RoverObservation.Create(pipeline, frame, "ObsNonLin", filename, new CAHVORE(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 2, 3, 31, 1330,
+                                                  RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
+                                                  RoverProductColor.Grayscale, false);
+
+            RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false, preferLinear: true, preferColor: true,
+                                          preferEyeForGeometry: RoverStereoEye.Left);
+
+            List<Observation> allObs = new List<Observation>(3) { obsNonLinV2, obsLinV2 };
+            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
+            Assert.IsTrue(result.Count() == 1);
+            Assert.IsTrue(result.First() == obsNonLinV2);
+        }
     }
 }
