@@ -32,6 +32,7 @@ namespace OPS.Geometry
     }
 
 
+
     public static class EdgeCollapse
     {
         //Flag to enable checks for bad mesh topology (not geometry) in the graph structure after each collapse. Note that without preserveTopology, perimeter checks will fail, but others should succeed.
