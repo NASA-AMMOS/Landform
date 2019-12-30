@@ -7,6 +7,7 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -760,6 +761,8 @@ namespace OPS.Pipeline
         {
             return "img,png";
         }
+
+        public abstract Matrix GetDemToBevTransform(string siteDrive, BirdsEyeView bev, int demWidth, int demHeight, string demPath);
     }
 
     public class MissionMSL : MissionSpecific
@@ -993,6 +996,40 @@ namespace OPS.Pipeline
             }
 
             return true;
+        }
+
+        const double DemMetersPerPixel = 1;
+
+        public override Matrix GetDemToBevTransform(string siteDrive, BirdsEyeView bev, int demWidth, int demHeight, string demPath)
+        {
+            //Get the pixel in the dem corresponding to the site drive center
+            MSLPlaces places = new MSLPlaces();
+            Vector2 latlon = places.GetEstimatedLatLon(new SiteDrive(siteDrive));
+            GDALDEM gdalDem = GDALDEM.MarsDEM(demPath);
+            Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
+
+            Matrix flipY = new Matrix(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+
+            //Get site drive origin in dem space
+            Vector3 demSDOriginXYZ = new Vector3((demWidth / 2.0 - colRowOffset.X) * DemMetersPerPixel,
+                                                 (demHeight / 2.0 - colRowOffset.Y) * DemMetersPerPixel,
+                                                 0);
+
+            //Get site drive origin in bev space
+            Vector3 bevSDOriginXYZ = new Vector3((bev.Width / 2.0 - bev.OriginX) * bev.MetersPerPixel,
+                                                 (bev.Height / 2.0 - bev.OriginY) * bev.MetersPerPixel,
+                                                 0);
+
+            //Move dem origin to bev origin
+            Matrix demToBevTranslation = Matrix.CreateTranslation(bevSDOriginXYZ - demSDOriginXYZ);
+
+            //90 Degree clockwise rotation about bev origin
+            //This is because the dem uses +X = Up, +Y = Right, instead of bev which is +X = Right, +Y = Down
+            Matrix demToBevRotation = Matrix.CreateTranslation( -1 * bevSDOriginXYZ) 
+                                      * new Matrix(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+                                      * Matrix.CreateTranslation(bevSDOriginXYZ);
+
+            return flipY * demToBevTranslation * demToBevRotation * flipY; //translate then rotate
         }
     }
 
@@ -1382,6 +1419,11 @@ namespace OPS.Pipeline
         public override QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+        }
+
+        public override Matrix GetDemToBevTransform(string siteDrive, BirdsEyeView bev, int demWidth, int demHeight, string demPath)
+        {
+            throw new NotImplementedException();
         }
     }
 
