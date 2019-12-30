@@ -38,6 +38,9 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Url;
 
+        //case sensitive, without leading dots
+        public HashSet<string> AlternateExtensions = new HashSet<string>(); //MT safety: lock before accessing
+
         public Guid MaskGuid; //combines rover mask, user mask, invalid/missing pixels, and border
 
         public Guid FeaturesGuid;
