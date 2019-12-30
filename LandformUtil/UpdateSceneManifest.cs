@@ -100,10 +100,10 @@ namespace OPS.LandformUtil
         [Option(Required = false, Default = "png,img", HelpText = "Comma separated priority list of image RDR file extensions")]
         public string ImageRDRExts { get; set; }
 
-        [Option(HelpText = "Don't convert file:// URIs to relative paths", Default = false)]
+        [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
         public bool NoRelativeFileURIs { get; set; }
 
-        [Option(HelpText = "convert s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
+        [Option(HelpText = "convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
         public bool RelativeS3URIs { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = false)]
@@ -629,7 +629,7 @@ namespace OPS.LandformUtil
             pipeline.LogInfo("indexed {0}/{1} RDRs", kept, total);
         }
 
-        private string ConvertURI(string uri)
+        private string ConvertURI(string uri, bool allowRelative = true)
         {
             string getRelativeUri(string str)
             {
@@ -639,28 +639,18 @@ namespace OPS.LandformUtil
             }
             if (uri.StartsWith("s3://"))
             {
-                if (options.RelativeS3URIs)
+                if (allowRelative && options.RelativeS3URIs)
                 {
-                    uri = getRelativeUri(uri);
+                    return getRelativeUri(uri);
                 }
                 else
                 {
-                    string tmp = StringHelper.StripProtocol(uri);
-                    int slash = tmp.IndexOf("/");
-                    string bucket = slash > 0 ? tmp.Substring(0, slash) : null;
-                    string path = slash > 0 && slash < tmp.Length - 1 ? tmp.Substring(slash + 1) : null;
-                    if (!string.IsNullOrEmpty(bucket) && !string.IsNullOrEmpty(path))
-                    {
-                        uri = string.Format("https://{0}.s3.amazonaws.com/{1}", bucket, path);
-                    }
+                    return StorageHelper.ConvertS3URLToHttps(uri);
                 }
             }
-            else if (uri.StartsWith("file://"))
+            else if (uri.StartsWith("file://") && allowRelative && !options.NoRelativeFileURIs)
             {
-                if (!options.NoRelativeFileURIs)
-                {
-                    uri = getRelativeUri(uri);
-                }
+                return getRelativeUri(uri);
             }
             return uri;
         }
@@ -682,7 +672,7 @@ namespace OPS.LandformUtil
                         {
                             if (ContainsExt(rdr.Extensions, ext))
                             {
-                                image.uri = ConvertURI(rdr.GetUri(ext));
+                                image.uri = ConvertURI(rdr.GetUri(ext), allowRelative: false);
                                 break;
                             }
                         }
@@ -701,7 +691,7 @@ namespace OPS.LandformUtil
                         {
                             if (ContainsExt(rdr.Extensions, ext))
                             {
-                                image.thumbnail = ConvertURI(rdr.GetUri(ext));
+                                image.thumbnail = ConvertURI(rdr.GetUri(ext), allowRelative: false);
                                 break;
                             }
                         }

@@ -897,6 +897,22 @@ namespace OPS.Pipeline
             string producer = productId.Substring(51, 1);
             string version = productId.Substring(52, 2);
 
+            //ts0Str is 4 characters
+            //nominally it's a 4 digit sol
+            //but during cruise and for ground tests either the first or last char can be a letter indicating the year
+            //A=2017, B=2018, C=2019, etc
+            //the remaining three characters are digits indicating day of year
+            //whether the letter is first or last has a meaning, see the SIS
+            //we'll just keep the digits as a proxy for sol in such cases
+            if (!char.IsDigit(ts0Str, 0))
+            {
+                ts0Str = ts0Str.Substring(1);
+            }
+            else if (!char.IsDigit(ts0Str, ts0Str.Length - 1))
+            {
+                ts0Str = ts0Str.Substring(0, ts0Str.Length - 1);
+            }
+            
             if (!int.TryParse(ts0Str, out int ts0) ||
                 !int.TryParse(ts1Str, out int ts1) ||
                 !int.TryParse(ts2Str, out int ts2) ||

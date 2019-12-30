@@ -137,7 +137,7 @@ Start-Process -WorkingDirectory c:\landform c:\landform\{5} startworker
                                  config.Venue, //0
                                  config.S3Url, //1
                                  url.BucketName, //2
-                                 url.Prefix, //3
+                                 url.Path, //3
                                  config.AWSRegion, //4
                                  options.WorkerExecutable); //5
 

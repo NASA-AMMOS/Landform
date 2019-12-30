@@ -208,11 +208,23 @@ namespace OPS.Pipeline
                     path = path.Substring(firstSlash + 1); // unlikely, but ok: "foo/" -> ""
                 }
                 //e.g. path = "foo/bar"
-                //LogInfo(path);
-                if (regex.IsMatch(path) && (stem == null || StringHelper.GetLastUrlPathSegment(path).StartsWith(stem)))
+
+                //if the search url ended in / (or \) then stem is null
+                //otherwise we need to check if the relative path starting from dir starts with the supplied stem
+                //it's hard to imagine why fn wouldn't start with dir
+                //but sometimes there are stranger things than are dreamt of in a given philosophy
+                //especially when dealing with filesystems and absolute paths
+                //it's a corner case and a gray area
+                //let's define the functionality such that if the caller supplied a stem
+                //then we should only return paths that start with dir and stem
+
+                bool matchesRegex = regex.IsMatch(path);
+                bool matchesStem = stem == null || fn.StartsWith(dir + stem, ignoreCase, null);
+                //LogInfo("SearchFiles path={0}, regex={1}, matchesRegex={2}, matchesStem={3}",
+                //        path, regex, matchesRegex, matchesStem);
+                if (matchesRegex && matchesStem)
                 {
                     var ret = "file://" + fn; //e.g. "file://C:/foo/bar", "file:///foo/bar"
-                    //LogInfo(ret);
                     yield return ret;
                 }
             }

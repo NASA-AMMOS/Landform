@@ -29,6 +29,12 @@ namespace OPS.Cloud
         private ConcurrentDictionary<string, RegionEndpoint> bucketToRegion =
             new ConcurrentDictionary<string, RegionEndpoint>();
 
+        public static string ConvertS3URLToHttps(string url)
+        {
+            S3Url location = new S3Url(url);
+            return string.Format("https://{0}.s3.amazonaws.com/{1}", location.BucketName, location.Path);
+        }
+
         /// <summary>
         /// Use the given profile name to create a storage helper
         /// Profiles can be defined in the ~/.aws/credentials file
@@ -140,9 +146,9 @@ namespace OPS.Cloud
                         // Remove the location prefix from the returned results for the regex check
                         var prefix = obj.Key;
                         var regexPrefix = prefix;
-                        if (!string.IsNullOrEmpty(location.Prefix))
+                        if (!string.IsNullOrEmpty(location.Path))
                         {
-                            regexPrefix = regexPrefix.Replace(location.Prefix, "");
+                            regexPrefix = regexPrefix.Replace(location.Path, "");
                         }
                         if (regex.IsMatch(regexPrefix))
                         {
@@ -196,7 +202,7 @@ namespace OPS.Cloud
             using (var client = GetClient(s3url))
             {
                 S3Url location = new S3Url(s3url);
-                return new S3FileInfo(client, location.BucketName, location.Prefix).Exists;
+                return new S3FileInfo(client, location.BucketName, location.Path).Exists;
                 
             }
         }
@@ -254,7 +260,7 @@ namespace OPS.Cloud
                 S3Url location = new S3Url(s3url);
                 using (TransferUtility tu = new TransferUtility(client))
                 {
-                    tu.Download(filename, location.BucketName, location.Prefix);
+                    tu.Download(filename, location.BucketName, location.Path);
                 }
                 expectedSize = GetFileSize(client, location);
                 downloadedSize = new FileInfo(filename).Length;
@@ -274,7 +280,7 @@ namespace OPS.Cloud
                 S3Url location = new S3Url(s3url);
                 using (TransferUtility tu = new TransferUtility(client))
                 {
-                    tu.DownloadDirectory(location.BucketName, location.Prefix, directory);
+                    tu.DownloadDirectory(location.BucketName, location.Path, directory);
                 }
             }
         }
@@ -291,7 +297,7 @@ namespace OPS.Cloud
                 S3Url location = new S3Url(s3url);
                 using (TransferUtility tu = new TransferUtility(client))
                 {
-                    tu.Upload(filename, location.BucketName, location.Prefix);
+                    tu.Upload(filename, location.BucketName, location.Path);
                 }
             }
         }
@@ -311,7 +317,7 @@ namespace OPS.Cloud
                 var cfg = new TransferUtilityConfig { ConcurrentServiceRequests = 1 };
                 using (TransferUtility tu = new TransferUtility(client, cfg))
                 {
-                    tu.Upload(filename, location.BucketName, location.Prefix);
+                    tu.Upload(filename, location.BucketName, location.Path);
                 }
             }
         }
@@ -330,7 +336,7 @@ namespace OPS.Cloud
             {
                 TransferUtility tu = new TransferUtility(client);
                 S3Url location = new S3Url(s3url);
-                using (var s = tu.OpenStream(location.BucketName, location.Prefix))
+                using (var s = tu.OpenStream(location.BucketName, location.Path))
                 {
                     streamHandler(s);
                 }
@@ -367,7 +373,7 @@ namespace OPS.Cloud
                 using (var client = GetClient(s3Url))
                 {
                     S3Url location = new S3Url(s3Url);
-                    client.DeleteObject(location.BucketName, location.Prefix);
+                    client.DeleteObject(location.BucketName, location.Path);
                 }
             }
             catch (Exception e)
@@ -416,7 +422,7 @@ namespace OPS.Cloud
                 DeleteObjectsRequest request = new DeleteObjectsRequest
                 {
                     BucketName = (new S3Url(s3Url)).BucketName,
-                    Objects = objects.Select(obj => new KeyVersion{ Key = (new S3Url(obj)).Prefix }).ToList()
+                    Objects = objects.Select(obj => new KeyVersion{ Key = (new S3Url(obj)).Path }).ToList()
                 };
                 
                 using (var client = GetClient(s3Url))
@@ -478,9 +484,9 @@ namespace OPS.Cloud
                 BucketName = location.BucketName,
                 MaxKeys = 200
             };
-            if (location.Prefix.Length > 0)
+            if (location.Path.Length > 0)
             {
-                request.Prefix = location.Prefix;
+                request.Prefix = location.Path;
             }
             if (useDelimeter)
             {
@@ -492,7 +498,7 @@ namespace OPS.Cloud
         private GetObjectMetadataResponse GetObjectMetadata(AmazonS3Client client, S3Url location)
         {
             var getObjectMetadataRequest =
-                new GetObjectMetadataRequest() { BucketName = location.BucketName, Key = location.Prefix };
+                new GetObjectMetadataRequest() { BucketName = location.BucketName, Key = location.Path };
             var meta = client.GetObjectMetadata(getObjectMetadataRequest);
             return meta;
         }
@@ -522,7 +528,7 @@ namespace OPS.Cloud
                 var request = new ListObjectsV2Request()
                 {
                     BucketName = location.BucketName,
-                    Prefix = location.Prefix,
+                    Prefix = location.Path,
                     MaxKeys = 1
                 };
                 ListObjectsV2Response response = client.ListObjectsV2(request);
@@ -531,7 +537,7 @@ namespace OPS.Cloud
                     throw new CloudException("No object found for url " + location.Url);
                 }
                 string key = response.S3Objects[0].Key;
-                if (key != location.Prefix)
+                if (key != location.Path)
                 {
                     throw new CloudException("Object key " + key + " + did not match url " + location.Url);
                 }
@@ -543,7 +549,7 @@ namespace OPS.Cloud
                 GetObjectRequest request = new GetObjectRequest
                 {
                     BucketName = location.BucketName,
-                    Key = location.Prefix
+                    Key = location.Path
                 };
                 request.ByteRange = range;
 
