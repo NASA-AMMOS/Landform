@@ -1248,6 +1248,7 @@ namespace OPS.Pipeline
                     var stereoPartner = camspec.Substring(0, 1);
                     if (stereoPartner != "_")
                     {
+                        //TODO: issue #883
                         reason = "stereo partner " + stereoPartner;
                     }
                 }
