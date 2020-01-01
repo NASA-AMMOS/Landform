@@ -97,6 +97,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
         public bool RespectUnifiedMeshStereoEye { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Don't generalize unified meshes to all geometries (nonlinear, linearized)")]
+        public bool RespectUnifiedMeshGeometry { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
 
@@ -333,9 +336,35 @@ namespace OPS.Landform
                     }
                 }
 
+                bool equivalentIds(string idA, string idB)
+                {
+                    if (!options.RespectUnifiedMeshGeometry && id.GetGeometrySpan(out int gms, out int gml))
+                    {
+                        //remove geometry field from IDs
+                        idA = idA.Substring(0, gms) + idA.Substring(gms + gml);
+                        idB = idB.Substring(0, gms) + idB.Substring(gms + gml);
+                        //also remove the stereo partner field
+                        //so that if the unified mesh is linearized and lists just one stereo partner
+                        //then all stereo partners are allowed
+                        //or if the unified mesh is nonlinear then all linearized variants are allowed
+                        //regardless of stereo partner
+                        if (id.GetStereoPartnerSpan(out int sps, out int spl))
+                        {
+                            if (sps > gms)
+                            {
+                                sps -= gml;
+                            }
+                            idA = idA.Substring(0, sps) + idA.Substring(sps + spl);
+                            idB = idB.Substring(0, sps) + idB.Substring(sps + spl);
+                        }
+                    }
+                    return idA == idB;
+                }
+
                 foreach (var entry in ums)
                 {
-                    if (entry.Value.Wedges.Contains(entry.Key == id.Camera ? idStr : ocIdStr))
+                    string expectedId = entry.Key == id.Camera ? idStr : ocIdStr;
+                    if (entry.Value.Wedges.Any(wedgeId => equivalentIds(expectedId, wedgeId)))
                     {
                         return true;
                     }
