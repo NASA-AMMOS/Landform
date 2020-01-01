@@ -27,6 +27,14 @@ namespace OPS.Imaging
         public int Width { get; protected set; }
         public int Height { get; protected set; }
 
+        public int Area
+        {
+            get
+            {
+                return Width * Height;
+            }
+        }
+
         private T[][] data;
 
         /// <summary>
