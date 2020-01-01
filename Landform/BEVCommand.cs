@@ -129,7 +129,7 @@ namespace OPS.Landform
             return rootOriginPixel[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
         }
 
-        public BEVCommand(BEVAlignerOptions options) : base(options)
+        public BEVCommand(BEVCommandOptions options) : base(options)
         {
             this.bcopts = options;
         }
