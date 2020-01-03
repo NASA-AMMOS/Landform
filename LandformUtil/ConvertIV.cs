@@ -19,8 +19,8 @@ namespace OPS.LandformUtil
         [Option("all-lods", Required = false, HelpText = "Convert all LODs")]
         public bool AllLODs { get; set; }
 
-        [Option("output", Required = false, HelpText = "Output path, omit to use same directory as input")]
-        public string OutputPath { get; set; }
+        [Option("output", Required = false, HelpText = "Output directory, omit to use same directory as input")]
+        public string OutputDir { get; set; }
 
         [Option("type", Required = false, Default = "ply", HelpText = "Output file type (ply, obj)")]
         public string OutputType { get; set; }
@@ -46,30 +46,30 @@ namespace OPS.LandformUtil
             }
 
             string[] files = null;
-            string destPath = null;
+            string destDir = null;
 
             if (Directory.Exists(options.InputPath))
             {
                 files = Directory.GetFiles(options.InputPath, "*.iv");
-                destPath = options.InputPath;
+                destDir = options.InputPath;
             }
             else
             {
                 files = new string[] {  options.InputPath };
-                destPath = Path.GetDirectoryName(options.InputPath); //destPath="" if InputPath was a bare filename
+                destDir = Path.GetDirectoryName(options.InputPath); //destDir="" if InputPath was a bare filename
             }
 
-            if (options.OutputPath != null)
+            if (options.OutputDir != null)
             {
-                destPath = options.OutputPath;
+                destDir = options.OutputDir;
             }
 
             if (files != null && files.Length > 0)
             {
 
-                if (!string.IsNullOrEmpty(destPath))
+                if (!string.IsNullOrEmpty(destDir))
                 {
-                    Directory.CreateDirectory(destPath);
+                    Directory.CreateDirectory(destDir);
                 }
 
                 string ext = "." + options.OutputType;
@@ -83,12 +83,12 @@ namespace OPS.LandformUtil
                         for (int lod = 0; lod < lodMeshes.Count; lod++)
                         {
                             string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
-                            lodMeshes[lod].Save(Path.Combine(destPath, dest), tf); //destPath="" ok
+                            lodMeshes[lod].Save(Path.Combine(destDir, dest), tf); //destDir="" ok
                         }
                     }
                     else
                     {
-                        Mesh.Load(files[i]).Save(Path.Combine(destPath, bn + ext), tf); //destPath="" ok
+                        Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tf); //destDir="" ok
                     }
                 }          
             }

@@ -13,8 +13,8 @@ namespace OPS.LandformUtil
         [Value(0, Required = true, HelpText = "Path to IMG file or directory to be converted")]
         public string Inputpath { get; set; }
 
-        [Option("output", Required = false, HelpText = "Output path, omit to use same directory as input")]
-        public string OutputPath { get; set; }
+        [Option("output", Required = false, HelpText = "Output directory, omit to use same directory as input")]
+        public string OutputDir { get; set; }
 
         [Option("type", Required = false, Default = "png", HelpText = "Output file type (jpg, png, tif)")]
         public string OutputType { get; set; }
@@ -40,37 +40,37 @@ namespace OPS.LandformUtil
             }
 
             string[] files = null;
-            string destPath = null;
+            string destDir = null;
 
             if (Directory.Exists(options.Inputpath))
             {
                 files = Directory.GetFiles(options.Inputpath, "*.IMG");
-                destPath = options.Inputpath;
+                destDir = options.Inputpath;
             }
             else
             {
                 files = new string[] {  options.Inputpath };
-                destPath = Path.GetDirectoryName(options.Inputpath); //destPath="" if Inputpath was a bare filename
+                destDir = Path.GetDirectoryName(options.Inputpath); //destDir="" if Inputpath was a bare filename
             }
 
-            if (options.OutputPath != null)
+            if (options.OutputDir != null)
             {
-                destPath = options.OutputPath;
+                destDir = options.OutputDir;
             }
 
             if (files != null && files.Length > 0)
             {
 
-                if (!string.IsNullOrEmpty(destPath))
+                if (!string.IsNullOrEmpty(destDir))
                 {
-                    Directory.CreateDirectory(destPath);
+                    Directory.CreateDirectory(destDir);
                 }
 
                 string ext = "." + options.OutputType;
                 for (int i = 0; i < files.Length; i++)
                 {
                     string bn = Path.GetFileNameWithoutExtension(files[i]);
-                    Image.Load(files[i]).Save<byte>(Path.Combine(destPath, bn + ext)); //destPath="" ok
+                    Image.Load(files[i]).Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
                 }          
             }
 
