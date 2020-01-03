@@ -394,7 +394,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public double VerticleFOV
+        public double VerticalFOV
         {
             get
             {
