@@ -584,11 +584,20 @@ namespace OPS.Pipeline
 
             string meshUrl = StringHelper.StripUrlExtension(Texture.Url) + "." + meshExt;
 
-            pipeline.LogDebug("loading wedge mesh {0}", meshUrl);
+            pipeline.LogVerbose("loading wedge mesh {0}", meshUrl);
 
-            var lodMeshes = Mesh.LoadAllLODs(pipeline.GetFileCached(meshUrl, "meshes"))
-                .OrderByDescending(m => m.Faces.Count)
-                .ToList();
+            List<Mesh> lodMeshes = null;
+            try
+            {
+                lodMeshes = Mesh.LoadAllLODs(pipeline.GetFileCached(meshUrl, "meshes"))
+                    .OrderByDescending(m => m.Faces.Count)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, "error loading wedge mesh " + meshUrl);
+                return null;
+            }
 
             if (lodMeshes.Count == 0)
             {
@@ -596,28 +605,31 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            pipeline.LogDebug("loaded {0} LODs for wedge mesh {0}", lodMeshes.Count, meshUrl);
+            pipeline.LogVerbose("loaded {0} LODs for wedge mesh {1}", lodMeshes.Count, meshUrl);
 
-            int maxTris =  (Texture.Width - 1) * (Texture.Height - 1) * 2; //polycount of full organized mesh
-            if (opts.Decimate > 1)
-            {
-                maxTris /= opts.Decimate; //polycount of full decimated organized mesh
-            }
-
+            int fullTris = (Texture.Width - 1) * (Texture.Height - 1) * 2; //polycount of full organized mesh
+            int maxTris = opts.Decimate <= 1 ? fullTris : fullTris / opts.Decimate;
             int threshold = (int)((1 + LOAD_MESH_DECIMATE_TOL) * maxTris);
-            int lod = lodMeshes.FindIndex(m => m.Faces.Count <= threshold);
-            Mesh mesh = lod >= 0 ? lodMeshes[lod] : null;
 
-            if (mesh == null)
+            string msg = string.Format("{0}x{1} observation: max {2} tris, {3} tris at {4}x decimation, " +
+                                       "{5} threshold: {6}",
+                                       Texture.Width, Texture.Height, Fmt.KMG(fullTris), Fmt.KMG(maxTris),
+                                       opts.Decimate, 1 + LOAD_MESH_DECIMATE_TOL, Fmt.KMG(threshold));
+
+            int lod = lodMeshes.FindIndex(m => m.Faces.Count <= threshold);
+            Mesh mesh = null;
+            if (lod >= 0)
             {
-                pipeline.LogDebug("decimating coarsest loaded LOD {0} to {1} tris with {2} for wedge mesh {3}",
-                                  lodMeshes.Count - 1, Fmt.KMG(maxTris), opts.MeshDecimator, meshUrl);
-                mesh = lodMeshes.Last().Decimate(maxTris, opts.MeshDecimator);
+                mesh = lodMeshes[lod];
+                pipeline.LogVerbose("{0}; using loaded LOD {1} ({2} <= {3} tris) of wedge mesh {4}",
+                                    msg, lod, Fmt.KMG(mesh.Faces.Count), Fmt.KMG(threshold), meshUrl);
             }
             else
             {
-                pipeline.LogDebug("using loaded LOD {0} ({1} tris) of wedge mesh {2}",
-                                  lod, Fmt.KMG(mesh.Faces.Count), meshUrl);
+                mesh = lodMeshes.Last().Decimate(maxTris, opts.MeshDecimator);
+                pipeline.LogVerbose("{0}; decimated coarsest LOD {1} ({2} <= {3} tris) with {4} for wedge mesh {5}",
+                                    msg, lodMeshes.Count - 1, Fmt.KMG(mesh.Faces.Count), Fmt.KMG(maxTris),
+                                    opts.MeshDecimator, meshUrl);
             }
 
             //FinishMesh() will need TextureImage if it's going to project texture coordinates
