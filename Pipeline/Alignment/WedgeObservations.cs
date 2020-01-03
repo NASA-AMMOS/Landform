@@ -349,6 +349,9 @@ namespace OPS.Pipeline
         public class MeshOptions
         {
             public string Frame = "root"; //output coordinate frame, see FrameCache.GetObservationTransform()
+
+            public string LoadedFrame = "site"; //coordinate frame of meshes loaded from existing file
+
             public bool UsePriors = false; //only use priors transforms
             public bool OnlyAligned = false; //only use aligned transforms
 
@@ -529,8 +532,8 @@ namespace OPS.Pipeline
             numNormals = NormalsImage != null ? NormalsImage.CountValid(MaskImage) : 0;
         }
 
-        private Mesh FinishMesh(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts, Mesh mesh,
-                                bool requireFaces = true)
+        private Mesh FinishMesh(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts, Observation refObs,
+                                Mesh mesh, bool requireFaces = true)
         {
             if (mesh == null || !mesh.HasVertices || (requireFaces && !mesh.HasFaces))
             {
@@ -543,10 +546,10 @@ namespace OPS.Pipeline
                 mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
             }
 
-            var xform = frameCache.GetObservationTransform(Points, opts.Frame, opts.UsePriors, opts.OnlyAligned);
+            var xform = frameCache.GetObservationTransform(refObs, opts.Frame, opts.UsePriors, opts.OnlyAligned);
             if (xform == null)
             {
-                pipeline.LogWarn("failed to find transform for {0}", Name);
+                pipeline.LogWarn("failed to find {0} transform for {1}", opts.Frame, refObs.Name);
                 return null; 
             }
             mesh.Transform(xform.Mean);
@@ -617,7 +620,24 @@ namespace OPS.Pipeline
                                   lod, Fmt.KMG(mesh.Faces.Count), meshUrl);
             }
 
-            return FinishMesh(pipeline, frameCache, opts, mesh);
+            //FinishMesh() will need TextureImage if it's going to project texture coordinates
+            //in the common case that opts.LoadedFrame = "site"
+            //the image will be needed anyway by frameCache.GetObservationTransform() in the block below
+            //(and will likely still be in the pipeline image memcache)
+            if (!mesh.HasUVs && opts.ApplyTexture && TextureImage == null)
+            {
+                TextureImage = pipeline.LoadImage(Texture.Url);
+            }
+
+            var xform = frameCache.GetObservationTransform(Texture, opts.LoadedFrame, opts.UsePriors, opts.OnlyAligned);
+            if (xform == null)
+            {
+                pipeline.LogWarn("failed to find {0} transform for {1}", opts.LoadedFrame, Texture.Name);
+                return null; 
+            }
+            mesh.Transform(Matrix.Invert(xform.Mean)); //transform mesh into Texture observation frame
+
+            return FinishMesh(pipeline, frameCache, opts, Texture, mesh);
         }
 
         /// <summary>
@@ -631,7 +651,7 @@ namespace OPS.Pipeline
             if (PointsImage != null)
             {
                 var mesh = OrganizedPointCloud.BuildPointCloudMesh(PointsImage, NormalsImage, MaskImage);
-                return FinishMesh(pipeline, frameCache, opts, mesh, requireFaces: false);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh, requireFaces: false);
             }
             else
             {
@@ -656,7 +676,7 @@ namespace OPS.Pipeline
                                                                   opts.MaxTriangleAspect, generateUV,
                                                                   opts.GenerateNormals, CameraCenter,
                                                                   opts.IsolatedPointSize);
-                return FinishMesh(pipeline, frameCache, opts, mesh);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else
             {
@@ -677,7 +697,7 @@ namespace OPS.Pipeline
             {
                 var mesh = PoissonReconstruction.Reconstruct(PointsImage, NormalsImage, MaskImage,
                                                              opts.ScaleNormalsByConfidence);
-                return FinishMesh(pipeline, frameCache, opts, mesh);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else
             {
@@ -697,7 +717,7 @@ namespace OPS.Pipeline
             if (PointsImage != null && NormalsImage != null)
             {
                 var mesh = FSSR.Reconstruct(PointsImage, NormalsImage, MaskImage);
-                return FinishMesh(pipeline, frameCache, opts, mesh);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else
             {

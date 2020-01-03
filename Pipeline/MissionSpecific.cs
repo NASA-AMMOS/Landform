@@ -760,6 +760,15 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// Get frame of tactical meshes as loaded from file.
+        /// Should be one of the frame meta-names accepted by FrameCache.GetObservationTransform().
+        /// </summary>
+        public virtual string GetTacticalMeshFrame()
+        {
+            return "site";
+        }
+
+        /// <summary>
         /// Get comma separated list of tactical image file extensions.
         /// Not case sensitive, leading dots will be added automatically.
         /// In priority order so if an image is available in multiple formats the first one found will be used.

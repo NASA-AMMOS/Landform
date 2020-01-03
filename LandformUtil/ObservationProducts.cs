@@ -282,6 +282,7 @@ namespace OPS.LandformUtil
             var meshOpts = new WedgeObservations.MeshOptions()
                 {
                     Frame = meshFrame,
+                    LoadedFrame = mission.GetTacticalMeshFrame(),
                     UsePriors = options.UsePriors,
                     OnlyAligned = options.OnlyAligned,
                     Decimate = options.DecimateWedgeMeshes,

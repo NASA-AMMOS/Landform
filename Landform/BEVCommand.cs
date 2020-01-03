@@ -257,6 +257,7 @@ namespace OPS.Landform
             var meshOpts = new WedgeObservations.MeshOptions()
                 {
                     Frame = "root",
+                    LoadedFrame = mission.GetTacticalMeshFrame(),
                     UsePriors = true,
                     ApplyTexture = bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture,
                     MaxTriangleAspect = bcopts.MaxTriangleAspect,
