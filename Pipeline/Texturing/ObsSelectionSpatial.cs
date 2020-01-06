@@ -133,6 +133,11 @@ namespace OPS.Pipeline.Texturing
                     {
                         //heuristic: assigns equal value to distance from sample point and the min pixel spread on the terrain
                         double distSq = Vector3.DistanceSquared(pt.Point, forPoint);
+                        if(pt.Score == double.MaxValue)
+                        {
+                            continue;
+                        }
+
                         double weightedScore = distSq * pt.Score;
                         if (weightedScore < minWeightedScore)
                         {
