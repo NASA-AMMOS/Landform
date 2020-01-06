@@ -104,7 +104,8 @@ namespace OPS.Pipeline
             return new RoverObservationComparator(PreferMSSSToOPGS(),
                                                   PreferLinearToNonlinear(),
                                                   PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry());
+                                                  PreferEyeForGeometry(),
+                                                  this);
         }
 
         /// <summary>
@@ -1106,6 +1107,7 @@ namespace OPS.Pipeline
                                                   PreferLinearToNonlinear(),
                                                   PreferColorToGrayscale(),
                                                   PreferEyeForGeometry(),
+                                                  this,
                                                   ext);
         }
 

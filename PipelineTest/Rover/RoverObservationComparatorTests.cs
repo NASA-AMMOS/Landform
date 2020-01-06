@@ -26,18 +26,23 @@ namespace RoverTest
             config.RandomSeed = 0;
             LocalPipeline pipeline = new LocalPipeline(new PipelineCoreOptions(), config);
 
-            string filenameLin = Path.Combine("TestData", "img", "dummy.IMG");  //Doesn't exist.
+            string filenameLin = "NRB_449704993RASLM0301254NCAM00536M_.IMG";
+            string filePathLin = Path.Combine("TestData", "img", filenameLin);  //Doesn't exist.
+
+            string filenameNonLin = "NRB_449704993RAS_M0301254NCAM00536M_.IMG";
+            string filePathNonLin = Path.Combine("TestData", "img", filenameLin);  //Doesn't exist.
+
             string projectName = "unittest";
 
             Frame root = new Frame();
             Frame frame = Frame.Create(pipeline, projectName, "Framen", root, false);
 
-            RoverObservation obsLin = RoverObservation.Create(pipeline, frame, "ObsLin", filenameLin, new CAHV(),
+            RoverObservation obsLin = RoverObservation.Create(pipeline, frame, filenameLin, filePathLin, new CAHV(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 1, 1, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
-            RoverObservation obsNonLin = RoverObservation.Create(pipeline, frame, "ObsNonLin", filenameLin, new CAHVORE(),
+            RoverObservation obsNonLin = RoverObservation.Create(pipeline, frame, filenameNonLin, filePathNonLin, new CAHVORE(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 1, 2, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
@@ -46,7 +51,7 @@ namespace RoverTest
             Assert.IsTrue(!obsNonLin.IsLinear);
 
             RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false, preferLinear: true, preferColor: true,
-                                          preferEyeForGeometry: RoverStereoEye.Left);
+                                          preferEyeForGeometry: RoverStereoEye.Left, mission:new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(2) { obsLin, obsNonLin };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Best);
@@ -71,18 +76,23 @@ namespace RoverTest
             config.RandomSeed = 0;
             LocalPipeline pipeline = new LocalPipeline(new PipelineCoreOptions(), config);
 
-            string filenameLin = Path.Combine("TestData", "img", "dummy.IMG"); //Doesn't exist.
+            string filenameLin = "NRB_449704993RASLM0301254NCAM00536M_.IMG";
+            string filePathLin = Path.Combine("TestData", "img", filenameLin);  //Doesn't exist.
+
+            string filenameNonLin = "NRB_449704993RAS_M0301254NCAM00536M_.IMG";
+            string filePathNonLin = Path.Combine("TestData", "img", filenameNonLin);  //Doesn't exist.
+
             string projectName = "unittest";
 
             Frame root = new Frame();
             Frame frame = Frame.Create(pipeline, projectName, "Framen", root, false);
 
-            RoverObservation obsLin = RoverObservation.Create(pipeline, frame, "ObsLin", filenameLin, new CAHV(),
+            RoverObservation obsLin = RoverObservation.Create(pipeline, frame, filenameLin, filePathLin, new CAHV(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 1, 1, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
-            RoverObservation obsNonLin = RoverObservation.Create(pipeline, frame, "ObsNonLin", filenameLin, new CAHVORE(),
+            RoverObservation obsNonLin = RoverObservation.Create(pipeline, frame, filenameNonLin, filePathNonLin, new CAHVORE(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 1, 2, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
@@ -91,7 +101,7 @@ namespace RoverTest
             Assert.IsTrue(!obsNonLin.IsLinear);
 
             RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false, preferLinear: true, preferColor: true,
-                                          preferEyeForGeometry: RoverStereoEye.Left);
+                                          preferEyeForGeometry: RoverStereoEye.Left, mission: new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(2) { obsLin, obsNonLin };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
@@ -116,24 +126,28 @@ namespace RoverTest
             config.RandomSeed = 0;
             LocalPipeline pipeline = new LocalPipeline(new PipelineCoreOptions(), config);
 
-            string filename = Path.Combine("TestData", "img", "dummy.IMG");
-         
+            string filenameLin = "NRB_449704993RASLM0301254NCAM00536M_.IMG";
+            string filePathLin = Path.Combine("TestData", "img", filenameLin);  //Doesn't exist.
+
+            string filenameNonLin = "NRB_449704993RAS_M0301254NCAM00536M_.IMG";
+            string filePathNonLin = Path.Combine("TestData", "img", filenameNonLin);  //Doesn't exist.
+
             string projectName = "unittest";
 
             Frame root = new Frame();
             Frame frame = Frame.Create(pipeline, projectName, "Frame", root, false);
 
-            RoverObservation obsLinBW = RoverObservation.Create(pipeline, frame, "ObsLinBW", filename, new CAHV(),
+            RoverObservation obsLinBW = RoverObservation.Create(pipeline, frame, filenameLin, filePathLin, new CAHV(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 1, 1, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
-            RoverObservation obsLinCol = RoverObservation.Create(pipeline, frame, "ObsLinCol", filename, new CAHV(),
+            RoverObservation obsLinCol = RoverObservation.Create(pipeline, frame, filenameLin, filePathLin, new CAHV(),
                                                   true, true, true, 1024, 1024, 3, 16, 609, 1, 2, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.FullColor, false);
 
-            RoverObservation obsNonLin = RoverObservation.Create(pipeline, frame, "ObsNonLin", filename, new CAHVORE(),
+            RoverObservation obsNonLin = RoverObservation.Create(pipeline, frame, filenameNonLin, filePathNonLin, new CAHVORE(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 1, 3, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
@@ -147,7 +161,7 @@ namespace RoverTest
             Assert.IsTrue(obsNonLin.Color == RoverProductColor.Grayscale);
 
             RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false, preferLinear: true, preferColor: true,
-                                          preferEyeForGeometry: RoverStereoEye.Left);
+                                          preferEyeForGeometry: RoverStereoEye.Left, mission:new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsLinBW, obsNonLin, obsLinCol };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Best);
@@ -173,17 +187,26 @@ namespace RoverTest
             Frame root = new Frame();
             Frame frame = Frame.Create(pipeline, projectName, "Frame", root, false);
 
-            RoverObservation obsLinV1 = RoverObservation.Create(pipeline, frame, "ObsLinV1", filename, new CAHV(),
+            string filenameLin1 = "NRB_449704993RASLM0301254NCAM00536M1.IMG";
+            string filePathLin1 = Path.Combine("TestData", "img", filenameLin1);  //Doesn't exist.
+
+            string filenameLin2 = "NRB_449704993RASLM0301254NCAM00536M2.IMG";
+            string filePathLin2 = Path.Combine("TestData", "img", filenameLin2);  //Doesn't exist.
+
+            string filenameNonLin = "NRB_449704993RAS_M0301254NCAM00536M2.IMG";
+            string filePathNonLin = Path.Combine("TestData", "img", filenameNonLin);  //Doesn't exist.
+
+            RoverObservation obsLinV1 = RoverObservation.Create(pipeline, frame, filenameLin1, filePathLin1, new CAHV(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 1, 1, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
-            RoverObservation obsLinV2 = RoverObservation.Create(pipeline, frame, "ObsLinV2", filename, new CAHV(),
+            RoverObservation obsLinV2 = RoverObservation.Create(pipeline, frame, filenameLin2, filePathLin2, new CAHV(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 2, 2, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
-            RoverObservation obsNonLinV2 = RoverObservation.Create(pipeline, frame, "ObsNonLin", filename, new CAHVORE(),
+            RoverObservation obsNonLinV2 = RoverObservation.Create(pipeline, frame, filenameNonLin, filePathNonLin, new CAHVORE(),
                                                   true, true, true, 1024, 1024, 1, 16, 609, 2, 3, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
@@ -193,7 +216,7 @@ namespace RoverTest
             Assert.IsTrue(!obsNonLinV2.IsLinear);
           
             RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false, preferLinear: true, preferColor: true,
-                                          preferEyeForGeometry: RoverStereoEye.Left);
+                                          preferEyeForGeometry: RoverStereoEye.Left, mission:new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsLinV1, obsNonLinV2, obsLinV2 };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
@@ -213,25 +236,29 @@ namespace RoverTest
             config.RandomSeed = 0;
             LocalPipeline pipeline = new LocalPipeline(new PipelineCoreOptions(), config);
 
-            string filename = Path.Combine("TestData", "img", "dummy.IMG");
+            string filenameLin = "0609ML0025670000301546E01_DRCX.IMG";  //msss name for the same image
+            string filePathLin = Path.Combine("TestData", "img", filenameLin);  //Doesn't exist.
+
+            string filenameNonLin = "MLF_451556453RAS_S0311256MCAM02567M1.IMG"; //opgs name for the same image
+            string filePathNonLin = Path.Combine("TestData", "img", filenameNonLin);  //Doesn't exist.
 
             string projectName = "unittest";
 
             Frame root = new Frame();
             Frame frame = Frame.Create(pipeline, projectName, "Frame", root, false);
 
-            RoverObservation obsLinV2 = RoverObservation.Create(pipeline, frame, "ObsLinV2", filename, new CAHV(),
-                                                  true, true, true, 1024, 1024, 1, 16, 609, 2, 2, 31, 1330,
+            RoverObservation obsLinV2 = RoverObservation.Create(pipeline, frame, filenameLin, filePathLin, new CAHV(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 2, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.MSSS,
                                                   RoverProductColor.Grayscale, false);
 
-            RoverObservation obsNonLinV2 = RoverObservation.Create(pipeline, frame, "ObsNonLin", filename, new CAHVORE(),
-                                                  true, true, true, 1024, 1024, 1, 16, 609, 2, 3, 31, 1330,
+            RoverObservation obsNonLinV2 = RoverObservation.Create(pipeline, frame, filenameNonLin, filePathNonLin, new CAHVORE(),
+                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 3, 31, 1330,
                                                   RoverProductType.Image, RoverProductCamera.NavcamLeft, RoverProductProducer.OPGS,
                                                   RoverProductColor.Grayscale, false);
 
             RoverObservationComparator comp = new RoverObservationComparator(preferMSSS: false, preferLinear: true, preferColor: true,
-                                          preferEyeForGeometry: RoverStereoEye.Left);
+                                          preferEyeForGeometry: RoverStereoEye.Left, mission: new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsNonLinV2, obsLinV2 };
             var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
