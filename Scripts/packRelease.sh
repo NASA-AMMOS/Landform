@@ -20,7 +20,7 @@ for src in TilingServer/bin/Release LandformUtil/bin/Release Landform/bin/Releas
 done
 
 #copy with subdirs
-for src in Dependencies Scripts Utils ivcat-for-ec2; do
+for src in Dependencies Scripts Utils; do
     echo "copying $src to $dir"
     cp -R $src $dir
 done

@@ -54,7 +54,7 @@ namespace QMDTMesher
 
             // Register filetype handlers
             new DAESerializer().Register();
-            new OpenInventorSerializer().Register();
+            new IVSerializer().Register();
             new DracoSerializer().Register();
 
             //Configure gdal (uncomment below if image load/save is needed)

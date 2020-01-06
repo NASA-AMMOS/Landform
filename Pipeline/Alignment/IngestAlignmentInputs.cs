@@ -165,22 +165,26 @@ namespace OPS.Pipeline
                 }
             };
 
-            //if there are any LBL files ingest them first
-            //because they will generally refer to other IMG files containing the actual image data
-            //and for each pair (foo.LBL, foo.IMG) we want to mark both URLs as done
-            //because below we're going to also ingest all IMG files
-            //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
-            //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
             HashSet<string> urls = new HashSet<string>();
-            foreach (var entry in BaseUrls)
-            {
-                pipeline.LogInfo("{0}ingesting input LBL files from {1} for alignment project {2}",
-                                 entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive));
-            }
-            nt = urls.Count();
-            CoreLimitedParallel.ForEach(urls, ingestUrl);
 
+            if (mission.AllowPDSLabelFiles())
+            {
+                //if there are any LBL files ingest them first
+                //because they will generally refer to other IMG files containing the actual image data
+                //and for each pair (foo.LBL, foo.IMG) we want to mark both URLs as done
+                //because below we're going to also ingest all IMG files
+                //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
+                //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
+                foreach (var entry in BaseUrls)
+                {
+                    pipeline.LogInfo("{0}ingesting input LBL files from {1} for alignment project {2}",
+                                     entry.Recursive ? "recursively " : "", entry.Url, project.Name);
+                    urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive));
+                }
+                nt = urls.Count();
+                CoreLimitedParallel.ForEach(urls, ingestUrl);
+            }
+                
             urls.Clear();
             foreach (var entry in BaseUrls)
             {

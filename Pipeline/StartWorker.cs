@@ -89,7 +89,7 @@ namespace OPS.Pipeline
             DumpConfig();
 
             // Register filetype handlers
-            new OpenInventorSerializer().Register();
+            new IVSerializer().Register();
             new DracoSerializer().Register();
             //Configure gdal
             GdalConfiguration.ConfigureGdal();

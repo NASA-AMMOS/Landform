@@ -3,7 +3,7 @@
 mission=${LANDFORM_TACTICAL_MISSION:-M2020}
 queue=${LANDFORM_TACTICAL_QUEUE:-m20-ids-g-sqs-landform-lftest1}
 failqueue=${LANDFORM_TACTICAL_FAIL_QUEUE:-m20-ids-g-sqs-landform-lftest1-fail}
-meshformat=${LANDFORM_TACTICAL_MESH_FORMAT:-obj}
+meshformat=${LANDFORM_TACTICAL_MESH_FORMAT:-iv}
 
 bindir=./Landform/bin/Release
 storagedir=c:/Users/$USERNAME/Documents/landform-storage
