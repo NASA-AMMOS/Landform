@@ -176,6 +176,7 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TextureCommand.cs" />
     <Compile Include="TilingCommand.cs" />
+    <Compile Include="UpdateSceneManifest.cs" />
     <Compile Include="WedgeCommand.cs" />
   </ItemGroup>
   <ItemGroup>

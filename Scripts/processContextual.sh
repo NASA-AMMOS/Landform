@@ -3,7 +3,6 @@
 # https://stackoverflow.com/a/246128
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 landform=$scriptdir/../Landform/bin/Release/Landform.exe
-landformUtil=$scriptdir/../LandformUtil/bin/Release/LandformUtil.exe
 home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
@@ -39,6 +38,7 @@ trap "cleanup" INT
 
 proj=${sol}_${sd}
 venue=local_${mission}_${sol}_${sd}
+tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 
 rm -rf $storage/$venue
 
@@ -58,20 +58,18 @@ $landform build-tiling-input $proj
 $landform blend-images $proj
 $landform build-tileset $proj
 
-rm -rf $proj
-mv $storage/$venue/tiling/TileSet/${sd}Frame/best/$proj .
-mv $proj/tileset.json $proj/${proj}_tileset.json
-
 # create/update scene manifest here where we have access to the contextual mesh alignment project database
 if [ "$5" != "--nomanifest" ]; then
-    $landformUtil update-scene-manifest $proj --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd
+    $landform update-scene-manifest $proj --manifestfile $tileset_dir/scene.json --notactical --nourls --sol=$sol --sitedrive=$sd
 fi
+
+rm -rf $proj
+mv $tileset_dir .
+mv $proj/tileset.json $proj/${proj}_tileset.json
+mv $proj/scene.json $proj/${proj}_scene.json
 
 rm -rf $storage/$venue
 
 #aws s3 sync $proj $dest/$proj --profile=credss-default
-
-#mf=${proj}_scene.json
-#aws s3 sync $mf $dest/$mf --profile=credss-default
 
 if [ -f $config.BAK ]; then cp $config.BAK $config; fi

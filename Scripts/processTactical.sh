@@ -43,6 +43,7 @@ for f in ${dir}/*.${meshext}; do
     img=$bn.${imgext}
     proj=${bn##*/}
     venue=local_${mission}_${proj}
+    tileset_dir=$storage/$venue/tiling/TileSet/passthroughFrame/best/$proj
     if [ -f $mesh ] && [ -f $img ]; then
 
         #use a clean venue for each wedge
@@ -51,10 +52,12 @@ for f in ${dir}/*.${meshext}; do
         $landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
         $landform build-tiling-input --loadlods --mission $mission --inputmesh $mesh --inputtexture $img
         $landform build-tileset $proj
+        $landform update-scene-manifest --mission $mission --manifestfile $tileset_dir/scene.json --nocontextual --nourls --tacticalpdsfile $img 
 
         rm -rf $proj
-        mv $storage/$venue/tiling/TileSet/passthroughFrame/best/$proj .
+        mv $tileset_dir .
         mv $proj/tileset.json $proj/${proj}_tileset.json
+        mv $proj/scene.json $proj/${proj}_scene.json
 
         rm -rf $storage/$venue
 

@@ -23,9 +23,6 @@ using OPS.Landform;
 /// <summary>
 /// Utility to create or update a tileset scene manifest.
 ///
-/// TODO: we probably want to generate manifests as part of BuildTileset
-/// https://github.jpl.nasa.gov/OnSight/Landform/issues/836
-///
 /// The scene manifest is a json file that lists one or more tilesets, images, and coordinate frames.
 /// https://github.jpl.nasa.gov/OnSight/Landform/wiki/Generic-Scene-File-Specification
 ///
@@ -50,7 +47,7 @@ using OPS.Landform;
 ///
 /// The manifest file can also be either a local file on disk or on S3 (even without --cloud).
 /// </summary>
-namespace OPS.LandformUtil
+namespace OPS.Landform
 {
     [Verb("update-scene-manifest", HelpText = "update scene manifest")]
     public class UpdateSceneManifestOptions : WedgeCommandOptions
