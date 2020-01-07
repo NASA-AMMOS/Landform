@@ -13,7 +13,7 @@ namespace OPS.LandformUtil
         [Value(0, Required = true, HelpText = "Path to file or directory to be converted")]
         public string InputPath { get; set; }
 
-        [Option("texture", Required = false, HelpText = "Texture image file")]
+        [Option("texture", Required = false, Default = "png", HelpText = "Texture image file or extension")]
         public string TextureFile { get; set; }
 
         [Option("all-lods", Required = false, HelpText = "Convert all LODs")]
@@ -73,22 +73,51 @@ namespace OPS.LandformUtil
                 }
 
                 string ext = "." + options.OutputType;
+
                 string tf = options.TextureFile;
+                string tfExt = Path.GetExtension(tf);
+                if (string.IsNullOrEmpty(tfExt))
+                {
+                    tfExt = tf;
+                }
+                if (!string.IsNullOrEmpty(tfExt))
+                {
+                    tfExt = tfExt.TrimStart('.');
+                    tfExt = "." + tfExt;
+                }
+                
                 for (int i = 0; i < files.Length; i++)
                 {
                     string bn = Path.GetFileNameWithoutExtension(files[i]);
+                    string tft = tf;
+                    if (!string.IsNullOrEmpty(tfExt) && files.Length > 1)
+                    {
+                        tft = Path.ChangeExtension(files[i], tfExt);
+                        if (!File.Exists(tft))
+                        {
+                            tft = tf;
+                        }
+                        if (!File.Exists(tft))
+                        {
+                            tft = null;
+                        }
+                        if (tft != null)
+                        {
+                            tft = Path.GetFileName(tft);
+                        }
+                    }
                     if (options.AllLODs)
                     {
                         var lodMeshes = Mesh.LoadAllLODs(files[i]);
                         for (int lod = 0; lod < lodMeshes.Count; lod++)
                         {
                             string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
-                            lodMeshes[lod].Save(Path.Combine(destDir, dest), tf); //destDir="" ok
+                            lodMeshes[lod].Save(Path.Combine(destDir, dest), tft); //destDir="" ok
                         }
                     }
                     else
                     {
-                        Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tf); //destDir="" ok
+                        Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
                     }
                 }          
             }
