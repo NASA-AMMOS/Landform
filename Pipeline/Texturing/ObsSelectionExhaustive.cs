@@ -40,7 +40,10 @@ namespace OPS.Pipeline.Texturing
     public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
             sortedContexts.Clear();
-            scoresByObs.Clear();
+            if (scoresByObs != null)
+            {
+                scoresByObs.Clear();
+            }
 
             //intersecting contexts
             var visibleContexts = inContexts.Where(c => c.FrustumHull.Contains(forPoint));

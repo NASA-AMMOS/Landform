@@ -115,6 +115,12 @@ namespace OPS.Pipeline.Texturing
 
         public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
+            sortedContexts.Clear();
+            if (scoresByObs != null)
+            {
+                scoresByObs.Clear();
+            }
+
             Dictionary<int, double> scoresByObsIndex = new Dictionary<int, double>(inContexts.Count());
 
             foreach (var ctx in inContexts)
@@ -131,29 +137,26 @@ namespace OPS.Pipeline.Texturing
                    
                     foreach (var pt in ScoredRefPtsByObs[ctx.Obs.Name])
                     {
-                        //heuristic: assigns equal value to distance from sample point and the min pixel spread on the terrain
-                        double distSq = Vector3.DistanceSquared(pt.Point, forPoint);
-                        if(pt.Score == double.MaxValue)
+                        if (pt.Score == double.MaxValue)
                         {
-                            continue;
+                            throw new Exception("invalid score provided");
                         }
 
-                        double weightedScore = distSq * pt.Score;
+                        //heuristic: makes a quality metric from the min pixel spread on the terrain and the squared distance to ther reference pt
+                        double distanceToRefPtSq = Vector3.DistanceSquared(pt.Point, forPoint);
+                        double weightedScore = distanceToRefPtSq * pt.Score;
                         if (weightedScore < minWeightedScore)
                         {
                             minWeightedScore = weightedScore;
                         }
                     }
-
-                    if (!scoresByObsIndex.ContainsKey(ctx.Obs.Index))
+                    
+                    if (minWeightedScore != double.MaxValue)
                     {
                         scoresByObsIndex.Add(ctx.Obs.Index, minWeightedScore);
                         sortedContexts.Add(ctx);
                     }
-                    else
-                    {
-                        scoresByObsIndex[ctx.Obs.Index] = minWeightedScore;
-                    }
+                    
                 }
             }
 
