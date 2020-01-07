@@ -201,6 +201,12 @@ namespace OPS.Pipeline
             return false;
         }
 
+        public virtual bool GetStereoPartnerSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
         public string GetPartialId(int start, int length)
         {
             return FullId.Substring(start, length);
@@ -1014,6 +1020,21 @@ namespace OPS.Pipeline
             start = 0;
             length = 2;
             return true;
+        }
+
+        public override bool GetStereoPartnerSpan(out int start, out int length)
+        {
+            if (Camera != RoverProductCamera.PIXELMCC)
+            {
+                start = 44;
+                length = 1;
+                return true;
+            }
+            else
+            {
+                start = length = -1;
+                return false;
+            }
         }
 
         public override bool GetSizeSpan(out int start, out int length)
