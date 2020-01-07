@@ -12,25 +12,28 @@ namespace OPS.Pipeline
         private bool preferMSSSToOPGS, preferLinearToNonlinear, preferColorToGrayscale;
         private RoverStereoEye preferEyeForGeometry;
         private Func<RoverObservation, RoverObservation, int> ext;
-        
+        private MissionSpecific mission;
+
         public RoverObservationComparator(bool preferMSSS, bool preferLinear, bool preferColor,
                                           RoverStereoEye preferEyeForGeometry,
+                                          MissionSpecific mission,
                                           Func<RoverObservation, RoverObservation, int> ext = null)
         {
             this.preferMSSSToOPGS = preferMSSS;
             this.preferLinearToNonlinear = preferLinear;
             this.preferColorToGrayscale = preferColor;
             this.preferEyeForGeometry = preferEyeForGeometry;
+            this.mission = mission;
             this.ext = ext;
         }
 
         public RoverObservationComparator()
-            : this(preferMSSS: false, preferLinear: true, preferColor: true, preferEyeForGeometry: RoverStereoEye.Left)
+            : this(preferMSSS: false, preferLinear: true, preferColor: true, preferEyeForGeometry: RoverStereoEye.Left, mission:null)
         {}
 
         public RoverObservationComparator(RoverObservationComparator other)
             : this(preferMSSS: other.preferMSSSToOPGS, preferLinear: other.preferLinearToNonlinear, 
-                  preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry, ext: other.ext)
+                  preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry, mission: other.mission, ext: other.ext)
         { }
 
         public enum CompareCriteria
@@ -229,19 +232,31 @@ namespace OPS.Pipeline
                     {
                         RoverObservation best = group.ElementAt(0);
                         RoverObservation bestOtherLinearity = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
-
-                        if (bestOtherLinearity != null &&                                               //item with other linearity exists in group
-                            0 == CompareExcept(best, bestOtherLinearity, 
-                                         CompareCriteria.Linear_NonLinear,CompareCriteria.Name))   //observations are identical except linearity (and name)
+                        
+                        if (bestOtherLinearity != null)
                         {
-                            if (logger != null)
-                            {
-                                logger.LogVerbose("keeping first two of\n {0}",
-                                            String.Join("\n  ", group.Select(o => o.ToString())));
-                            }
+                            //protect against sort comparator returning 0 for different products (don't sort doesn't mean equal)
+                            // compare the best two images of each linearity using product ids to make sure that is all that is different
+                            string bestPartial = RoverProductId.Parse(best.Name,mission).GetPartialId(mission, includeVersion: true,
+                                           includeProductType: true, includeGeometry: false,
+                                           includeColorFilter: true, includeInstrument: true,
+                                           includeVariants: true);
+                            string bestOtherLinPartial = RoverProductId.Parse(bestOtherLinearity.Name, mission).GetPartialId(mission, includeVersion: true,
+                                           includeProductType: true, includeGeometry: false,
+                                           includeColorFilter: true, includeInstrument: true,
+                                           includeVariants: true);
 
-                            return new List<RoverObservation>(2) { best, bestOtherLinearity };
-                        }
+                            if (0 == string.Compare(bestPartial, bestOtherLinPartial))
+                            {
+                                if (logger != null)
+                                {
+                                    logger.LogVerbose("keeping first two of\n {0}",
+                                                String.Join("\n  ", group.Select(o => o.ToString())));
+                                }
+
+                                return new List<RoverObservation>(2) { best, bestOtherLinearity };
+                            }
+                        }            
                     }
                    
                     if (logger != null && group.Count() > 1)

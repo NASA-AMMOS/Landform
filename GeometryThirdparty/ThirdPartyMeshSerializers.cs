@@ -6,7 +6,6 @@ namespace OPS.Geometry
         {
             new DAESerializer().Register();
             new DracoSerializer().Register();
-            new OpenInventorSerializer().Register();
             //new OPS.Geometry.Experimental.AssimpSerializer().Register();
         }
     }

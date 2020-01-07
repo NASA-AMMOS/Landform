@@ -104,7 +104,8 @@ namespace OPS.Pipeline
             return new RoverObservationComparator(PreferMSSSToOPGS(),
                                                   PreferLinearToNonlinear(),
                                                   PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry());
+                                                  PreferEyeForGeometry(),
+                                                  this);
         }
 
         /// <summary>
@@ -197,6 +198,17 @@ namespace OPS.Pipeline
         public virtual string ClassifyCamera(string cam)
         {
             return ClassifyCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+        }
+
+        /// <summary>
+        /// whether to allow PDS .LBL files
+        /// for some missions these exist and can be useful
+        /// for other missions these exist but are something else entirely
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/829
+        /// </summary>
+        public virtual bool AllowPDSLabelFiles()
+        {
+            return false;
         }
 
         /// <summary>
@@ -743,12 +755,9 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual string GetTacticalMeshExts()
         {
-            //TODO for now it'd be nice to prefer IV until we implement per-LOD OBJs
-            //but IV import is not working when deployed on EC2
+            //prefer IV until we implement per-LOD OBJs
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/749
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/816
-            //return "iv,obj";
-            return "obj";
+            return "iv,obj";
         }
 
         /// <summary>
@@ -868,6 +877,11 @@ namespace OPS.Pipeline
         public override bool IsArmcam(RoverProductCamera cam)
         {
             return cam == RoverProductCamera.MAHLI;
+        }
+
+        public override bool AllowPDSLabelFiles()
+        {
+            return true;
         }
 
         public override bool AllowLocationsDB()
@@ -1106,6 +1120,7 @@ namespace OPS.Pipeline
                                                   PreferLinearToNonlinear(),
                                                   PreferColorToGrayscale(),
                                                   PreferEyeForGeometry(),
+                                                  this,
                                                   ext);
         }
 
