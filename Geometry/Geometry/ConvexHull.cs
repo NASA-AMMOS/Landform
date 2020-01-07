@@ -128,7 +128,7 @@ namespace OPS.Geometry
                     double y = (height - 1.0) * (j / (subdiv - 1.0));
                     Ray ray = camera.Unproject(new Vector2(x, y));
 
-                    pts.Add(ray.Position); //camera pupil can vary per-pixel in CAHVORE
+                    pts.Add(ray.Position + nearClip * ray.Direction); //camera pupil can vary per-pixel in CAHVORE
                     pts.Add(ray.Position + farClip * ray.Direction); 
                 }
             }

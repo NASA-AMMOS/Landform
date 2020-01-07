@@ -240,11 +240,11 @@ namespace OPS.Pipeline
                             string bestPartial = RoverProductId.Parse(best.Name,mission).GetPartialId(mission, includeVersion: true,
                                            includeProductType: true, includeGeometry: false,
                                            includeColorFilter: true, includeInstrument: true,
-                                           includeVariants: false);
+                                           includeVariants: true);
                             string bestOtherLinPartial = RoverProductId.Parse(bestOtherLinearity.Name, mission).GetPartialId(mission, includeVersion: true,
                                            includeProductType: true, includeGeometry: false,
                                            includeColorFilter: true, includeInstrument: true,
-                                           includeVariants: false);
+                                           includeVariants: true);
 
                             if (0 == string.Compare(bestPartial, bestOtherLinPartial))
                             {
