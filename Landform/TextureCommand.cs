@@ -363,21 +363,20 @@ namespace OPS.Landform
         {
             if (sceneMesh.TileListGuid == Guid.Empty)
             {
-                throw new Exception(string.Format("scene mesh {0} has no leaf list, run local-build-leaves",
-                                                  sceneMesh.Name));
+                throw new Exception(string.Format("scene mesh {0} has no tile list", sceneMesh.Name));
             }
 
             tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
 
             if (tileList.MeshFrame != meshFrame)
             {
-                throw new Exception(string.Format("leaf list is in frame {0}, expected {1}",
+                throw new Exception(string.Format("tile list in frame {0}, expected {1}",
                                                   tileList.MeshFrame, meshFrame));
             }
 
             if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
-                throw new Exception("leaf list is empty");
+                throw new Exception("leaf list empty");
             }
         }
 

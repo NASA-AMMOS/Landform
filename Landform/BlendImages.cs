@@ -226,7 +226,7 @@ namespace OPS.Landform
 
             if (!tileList.HasIndexImages)
             {
-                throw new Exception("leaf list missing index images, run local-build-leaves");
+                throw new Exception("tile list missing backproject index images");
             }
         }
 

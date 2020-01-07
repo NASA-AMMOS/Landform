@@ -103,8 +103,14 @@ namespace OPS.Landform
         [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
         public bool NoRelativeFileURIs { get; set; }
 
-        [Option(HelpText = "convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
+        [Option(HelpText = "Convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
         public bool RelativeS3URIs { get; set; }
+
+        [Option(HelpText = "Cull images with no backprojected pixels from contextual mesh manifest", Default = false)]
+        public bool CullImagesWithoutBackprojectedPixels { get; set; }
+
+        [Option(HelpText = "Don't cull images that don't intersect scene mesh hull from contextual mesh manifest", Default = false)]
+        public bool NoFilterImagesToMeshHull { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
@@ -514,32 +520,108 @@ namespace OPS.Landform
                 .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
                 .ToList();
 
-            if (sceneMesh == null)
+            var backprojectedPixels = new Dictionary<int, int>();
+
+            if (sceneMesh != null)
             {
-                pipeline.LogWarn("no {0} scene mesh in frame {1} in project {2}, using all {3} images in project",
-                                 MeshVariant.Default, options.SiteDrive, project.Name, images.Count);
+                bool gotBPP = false;
+                if (sceneMesh.TileListGuid != Guid.Empty)
+                {
+                    try
+                    {
+                        var tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
+                        
+                        if (tileList.MeshFrame != sceneMesh.Frame)
+                        {
+                            throw new Exception(string.Format("tile list in frame {0}, expected {1}",
+                                                              tileList.MeshFrame, sceneMesh.Frame));
+                        }
+                        
+                        if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
+                        {
+                            throw new Exception("leaf list empty");
+                        }
+                        
+                        if (!tileList.HasIndexImages)
+                        {
+                            throw new Exception("tile list missing backproject index images");
+                        }
+
+                        pipeline.LogInfo("counting backprojected pixels from {0} leaves", tileList.LeafNames.Count);
+
+                        string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+                        CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
+                        {
+                            string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                            string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
+                            var leafIndex = pipeline.LoadImage(indexUrl);
+                            for (int r = 0; r < leafIndex.Height; r++)
+                            {
+                                for (int c = 0; c < leafIndex.Width; c++)
+                                {
+                                    int obsIndex = (int)(leafIndex[0, r, c]);
+                                    if (obsIndex >= Observation.MIN_INDEX)
+                                    {
+                                        if (!backprojectedPixels.ContainsKey(obsIndex))
+                                        {
+                                            backprojectedPixels[obsIndex] = 1;
+                                        }
+                                        else
+                                        {
+                                            backprojectedPixels[obsIndex] = backprojectedPixels[obsIndex] + 1;
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                        gotBPP = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogWarn("error counting backprojected pixels: {0}", ex.Message);
+                    }
+                }
+                else
+                {
+                    pipeline.LogWarn("cannot count backprojected pixels, scene mesh {0} has no tile list",
+                                     sceneMesh.Name);
+                }
+                if (gotBPP && options.CullImagesWithoutBackprojectedPixels)
+                {
+                    int origCount = images.Count;
+                    images = images.Where(obs => backprojectedPixels.ContainsKey(obs.Index)).ToList();
+                    pipeline.LogInfo("culled {0} of {1} images with no backprojected pixels",
+                                     origCount - images.Count, origCount);
+                }
+                else if (!options.NoFilterImagesToMeshHull)
+                {
+                    pipeline.LogInfo("loading scene mesh from database to filter images");
+                    var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                    var meshHull = new ConvexHull(mesh);
+                    
+                    pipeline.LogInfo("testing {0} image frusta for intersection with scene mesh hull", images.Count);
+                    var obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, options.SiteDrive,
+                                                                 options.UsePriors, options.OnlyAligned, images);
+                    var tmp = new ConcurrentBag<string>();
+                    CoreLimitedParallel.ForEach(images, obs =>
+                    {
+                        if (!obsToHull.ContainsKey(obs.Name) || meshHull.Intersects(obsToHull[obs.Name]))
+                        {
+                            tmp.Add(obs.Name);
+                        }
+                    });
+                    var keepers = new HashSet<string>();
+                    keepers.UnionWith(tmp);
+                    pipeline.LogInfo("culled {0} of {1} images that did not intersect mesh hull",
+                                     images.Count - keepers.Count, images.Count);
+                    images = images.Where(obs => keepers.Contains(obs.Name)).ToList();
+                }
             }
             else
             {
-                pipeline.LogInfo("loading scene mesh from database to filter images");
-                var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                var meshHull = new ConvexHull(mesh);
-
-                pipeline.LogInfo("testing {0} image frusta for intersection with scene mesh hull", images.Count);
-                var obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, options.SiteDrive,
-                                                             options.UsePriors, options.OnlyAligned, images);
-                var tmp = new ConcurrentBag<string>();
-                CoreLimitedParallel.ForEach(images, obs =>
-                {
-                    if (!obsToHull.ContainsKey(obs.Name) || meshHull.Intersects(obsToHull[obs.Name]))
-                    {
-                        tmp.Add(obs.Name);
-                    }
-                });
-                var keepers = new HashSet<string>();
-                keepers.UnionWith(tmp);
-                pipeline.LogInfo("keeping {0} of {1} observations", keepers.Count, images.Count);
-                images = images.Where(obs => keepers.Contains(obs.Name)).ToList();
+                pipeline.LogWarn("no {0} scene mesh in frame {1} in project {2}, using all {3} images, " +
+                                 "cannot count backprojected pixels",
+                                 MeshVariant.Default, options.SiteDrive, project.Name, images.Count);
             }
 
             foreach (var obs in images)
@@ -547,9 +629,9 @@ namespace OPS.Landform
                 rdrSols.Add(obs.Day);
             }
 
-            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive, 
+            sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
                                                        frameCache, options.UsePriors, options.OnlyAligned,
-                                                       images, pipeline);
+                                                       images, backprojectedPixels, pipeline);
         }
 
         private void UpdateTacticalMeshManifests()

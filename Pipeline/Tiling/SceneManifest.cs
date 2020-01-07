@@ -34,16 +34,16 @@ namespace OPS.Pipeline
     public class ImageManifest
     {
         public string id;
+        public string product_id;
         public string uri;
         public string thumbnail;
         public string frame_id;
+        public int index;
+        public int backprojected_pixels;
         public int width;
         public int height;
         public int bands;
         public CameraModelManifest model;
-        
-        [JsonIgnore]
-        public string product_id;
     }
 
     public class FrameManifest
@@ -406,6 +406,8 @@ namespace OPS.Pipeline
             image.uri = null; //see UpdateImageURIs()
             image.thumbnail = null; //see UpdateImageURIs()
             image.frame_id = imageFrameId;
+            image.index = 0;
+            image.backprojected_pixels = 0;
             image.width = parser.metadata.Width;
             image.height = parser.metadata.Height;
             image.bands = parser.metadata.Bands;
@@ -426,7 +428,8 @@ namespace OPS.Pipeline
 
         public void AddOrUpdateContextualTileset(string tilesetId, string tilesetUrl, string siteDrive,
                                                  FrameCache frameCache, bool usePriors, bool onlyAligned,
-                                                 List<Observation> images, ILogger logger = null)
+                                                 List<Observation> images,
+                                                 Dictionary<int, int> backprojectedPixels = null, ILogger logger = null)
         {
             if (logger != null)
             {
@@ -447,6 +450,7 @@ namespace OPS.Pipeline
                 logger.LogInfo("creating or updating {0} image manifests", images.Count);
             }
 
+            var bpp = backprojectedPixels;
             tileset.image_ids.Clear();
             foreach (var obs in images)
             {
@@ -458,6 +462,8 @@ namespace OPS.Pipeline
                 image.uri = null; //see SceneManifestHelper.UpdateImageURIs()
                 image.thumbnail = null; //see SceneManifestHelper.UpdateImageURIs()
                 image.frame_id = "contextual_" + obs.FrameName;
+                image.index = obs.Index;
+                image.backprojected_pixels = bpp != null && bpp.ContainsKey(obs.Index) ? bpp[obs.Index] : 0;
                 image.width = obs.Width;
                 image.height = obs.Height;
                 image.bands = obs.Bands;
