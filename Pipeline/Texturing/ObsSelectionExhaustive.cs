@@ -39,12 +39,14 @@ namespace OPS.Pipeline.Texturing
 
     public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {
+            sortedContexts.Clear();
+            scoresByObs.Clear();
+
             //intersecting contexts
             var visibleContexts = inContexts.Where(c => c.FrustumHull.Contains(forPoint));
-
+            
             //calculate goodness: median distance between neighboring source pixels in meters on the terrain
             //smaller distance == better texture resolution
-            //var localScoresByObs = new ConcurrentDictionary<string, double>()
             foreach (var ctx in visibleContexts)
             {
                 double dist = double.MaxValue;
@@ -78,17 +80,16 @@ namespace OPS.Pipeline.Texturing
                         dist = Vector3.Distance(meshCenter, cameraInOutput);
                     }
                 }
-            
-                scoresByObs.Add(ctx.Obs.Name, dist);
+
+                //no valid measurement, ignore image
+                if (dist != double.MaxValue)
+                {
+                    scoresByObs.Add(ctx.Obs.Name, dist);
+                    sortedContexts.Add(ctx);
+                }
             };
-
+            
             //sort contexts by decreasing quality
-            sortedContexts.Clear();
-            foreach (var ctx in visibleContexts)
-            {
-                sortedContexts.Add(ctx);
-            }
-
             sortedContexts.Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
         }
     }

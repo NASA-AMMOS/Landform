@@ -92,7 +92,7 @@ namespace OPS.Pipeline.Texturing
                     scoredRefPtsByObs[pair.Key].Add(new ObsSelectionStrategy.ScoredPoint(pt, pair.Value));
                 }
 
-                if (writeDebug)
+                if (writeDebug && sortedContexts.Count() > 0)
                 {
                     using (StreamWriter sw = new StreamWriter(Path.Combine(localOutputPath, "RefScoresForPoint_" + pt.X + "_" + pt.Y + "_" + pt.Z + ".txt")))
                     {
