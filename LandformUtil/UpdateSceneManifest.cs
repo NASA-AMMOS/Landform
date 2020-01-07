@@ -106,143 +106,13 @@ namespace OPS.LandformUtil
         [Option(HelpText = "convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
         public bool RelativeS3URIs { get; set; }
 
-        [Option(HelpText = "Option disabled for this command", Default = false)]
-        public override bool NoSave { get; set; }
-
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
     } 
 
     public class UpdateSceneManifest : WedgeCommand
     {
-        public const string MANIFEST_VERSION = "1.0";
         public const string WILDCARD = "#####";
-
-        private class CameraModelManifest
-        {
-            public string type;
-            public double[] C;
-            public double[] A;
-            public double[] H;
-            public double[] V;
-            public double[] O;
-            public double[] R;
-            public double[] E;
-            public double linearityMode;
-
-            public CameraModelManifest() { } //for deserialization
-
-            public CameraModelManifest(CameraModel cmod)
-            {
-                if (!(cmod is CAHV))
-                {
-                    throw new ArgumentException("only CAHV[OR[E]] camera models are supported");
-                }
-                type = cmod.GetType().Name;
-                var cahv = cmod as CAHV;
-                C = cahv.C.ToDoubleArray();
-                A = cahv.A.ToDoubleArray();
-                H = cahv.H.ToDoubleArray();
-                V = cahv.V.ToDoubleArray();
-                if (cmod is CAHVOR)
-                {
-                    var cahvor = cmod as CAHVOR;
-                    O = cahvor.O.ToDoubleArray();
-                    R = cahvor.R.ToDoubleArray();
-                }
-                if (cmod is CAHVORE)
-                {
-                    var cahvore = cmod as CAHVORE;
-                    E = cahvore.E.ToDoubleArray();
-                    linearityMode = cahvore.linearityMode.Linearity;
-                }
-            }
-        }
-
-        private class TilesetManifest
-        {
-            public string id;
-            public List<string> image_ids = new List<string>();
-            public string uri;
-            public string frame_id;
-            public List<string> groups = new List<string>(); //instrument type, unified mesh, contextual mesh
-            public bool show = true;
-        }
-
-        private class ImageManifest
-        {
-            public string id;
-            public string uri;
-            public string thumbnail;
-            public string frame_id;
-            public int width;
-            public int height;
-            public int bands;
-            public CameraModelManifest model;
-
-            [JsonIgnore]
-            public string product_id;
-        }
-
-        private class FrameManifest
-        {
-            public string id;
-            public string parent_id;
-            public double[] translation;
-            public double[] rotation;
-
-            public FrameManifest()
-            {
-                SetTranslation(new Vector3(0, 0, 0));
-                SetRotation(Quaternion.Identity);
-            }
-
-            public void SetTranslation(Vector3 t)
-            {
-                translation = t.ToDoubleArray();
-            }
-
-            public void SetRotation(Quaternion r)
-            {
-                rotation = new double[] { r.X, r.Y, r.Z, r.W };
-            }
-        }
-
-        private class SceneManifest
-        {
-            public string version = UpdateSceneManifest.MANIFEST_VERSION;
-            public List<TilesetManifest> tilesets = new List<TilesetManifest>();
-            public List<ImageManifest> images = new List<ImageManifest>();
-            public List<FrameManifest> frames = new List<FrameManifest>();
-        }
-
-        private static bool ContainsExt(List<string> exts, string ext)
-        {
-            return exts.Any(ex => ex.EndsWith(ext, ignoreCase: true, culture: null));
-        }
-
-        private class RDRSet
-        {
-            public readonly string BaseUri;
-            public List<string> Extensions = new List<string>();
-
-            public RDRSet(string baseUri)
-            {
-                this.BaseUri = baseUri;
-            }
-
-            public string GetUri(string ext)
-            {
-                string fullExt =
-                    Extensions.Where(ex => ex.EndsWith(ext, ignoreCase: true, culture: null)).FirstOrDefault();
-                if (string.IsNullOrEmpty(fullExt))
-                {
-                    throw new Exception(string.Format("no ext {0} in RDR set {1}, available: {2}",
-                                                      ext, BaseUri, string.Join(", ", Extensions)));
-                }
-                return BaseUri + fullExt;
-            }
-        }
 
         private UpdateSceneManifestOptions options;
 
@@ -265,14 +135,53 @@ namespace OPS.LandformUtil
         protected List<string> imageExts;
         protected List<string> pdsExts;
 
-        private SceneManifest sceneManifest;
+        private SceneManifestHelper sceneManifest;
 
-        //indexed by id
-        private Dictionary<string, TilesetManifest> tilesets = new Dictionary<string, TilesetManifest>();
-        private Dictionary<string, ImageManifest> images = new Dictionary<string, ImageManifest>();
-        private Dictionary<string, FrameManifest> frames = new Dictionary<string, FrameManifest>();
+        private class RDRSet : IURLFileSet
+        {
+            public readonly string BaseUri;
 
-        private Dictionary<string, RDRSet> rdrs = new Dictionary<string, RDRSet>(); //indexed by product id
+            private HashSet<string> extensions = new HashSet<string>(); //without leading dot
+
+            public RDRSet(string baseUri)
+            {
+                this.BaseUri = baseUri;
+            }
+
+            public string GetUrlWithExtension(string ext)
+            {
+                ext = ext.TrimStart('.');
+                string actualExt = extensions
+                    .Where(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                    .FirstOrDefault();
+                if (string.IsNullOrEmpty(actualExt))
+                {
+                    throw new Exception(string.Format("no ext {0} in RDR set {1}, available: {2}",
+                                                      ext, BaseUri, string.Join(", ", extensions)));
+                }
+                return BaseUri + "." + actualExt;
+            }
+
+            public bool HasUrlExtension(string ext)
+            {
+                ext = ext.TrimStart('.');
+                return extensions.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase));
+            }
+
+            public IEnumerable<string> GetUrlExtensions()
+            {
+                foreach (var ext in extensions)
+                {
+                    yield return ext;
+                }
+            }
+
+            public bool AddExtension(string ext)
+            {
+                return extensions.Add(ext.TrimStart('.'));
+            }
+        }
+        private Dictionary<string, IURLFileSet> rdrs = new Dictionary<string, IURLFileSet>(); //indexed by product id
 
         private HashSet<int> rdrSols = new HashSet<int>(); //full set of sols for which to index RDRs
 
@@ -292,7 +201,7 @@ namespace OPS.LandformUtil
                     return 0; //help
                 }
 
-                RunPhase("load manifest", LoadManifest);
+                RunPhase("load or create manifest", LoadOrCreateManifest);
 
                 if (!options.NoContextual)
                 {
@@ -309,9 +218,9 @@ namespace OPS.LandformUtil
                     RunPhase("update tactical mesh manifests", UpdateTacticalMeshManifests);
                 }
 
-                RunPhase("cull orphan images and frames", CullOrphanImagesAndFrames);
+                RunPhase("cull orphan images and frames", () => sceneManifest.CullOrphanImagesAndFrames(pipeline));
 
-                RunPhase("update image URIs", UpdateImageURIs);
+                RunPhase("update image URIs", () => sceneManifest.UpdateImageURIs(imageExts, rdrs, mission, pipeline));
 
                 RunPhase("save manifest", SaveManifest);
             }
@@ -383,11 +292,6 @@ namespace OPS.LandformUtil
                 throw new Exception("--onlyforsitedrives not implemented for this command");
             }
 
-            if (options.NoSave)
-            {
-                throw new Exception("--nosave not implemented for this command");
-            }
-
             if (!ParseArgumentsAndLoadCaches("tiling/SceneManifest"))
             {
                 return false; // help
@@ -442,133 +346,43 @@ namespace OPS.LandformUtil
             LandformShell.SaveFile(pipeline, storageHelper, file, url);
         }
 
-        private void LoadManifest()
+        private void LoadOrCreateManifest()
         {
-            tilesets.Clear();
-            images.Clear();
-            frames.Clear();
-
             if (FileExists(options.ManifestFile))
             {
                 pipeline.LogInfo("loading existing manifest file {0}", options.ManifestFile);
-                sceneManifest = JsonHelper.FromJson<SceneManifest>(File.ReadAllText(GetFile(options.ManifestFile)));
-                if (sceneManifest.version != MANIFEST_VERSION)
-                {
-                    pipeline.LogWarn("manifest version {0} != {1}", sceneManifest.version, MANIFEST_VERSION);
-                }
-                    
-                foreach (var tileset in sceneManifest.tilesets)
-                {
-                    tilesets[tileset.id] = tileset;
-                }
-                foreach (var image in sceneManifest.images)
-                {
-                    images[image.id] = image;
-                }
-                foreach (var frame in sceneManifest.frames)
-                {
-                    frames[frame.id] = frame;
-                }
-
-                pipeline.LogInfo("loaded manifest with {0} tilesets, {1} images, {2} frames",
-                                 sceneManifest.tilesets.Count, sceneManifest.images.Count, sceneManifest.frames.Count);
+                sceneManifest = SceneManifestHelper.Load(GetFile(options.ManifestFile), pipeline);
+                pipeline.LogInfo("loaded manifest: {0}", sceneManifest.Summary());
             }
             else
             {
                 pipeline.LogInfo("creating new manifest");
-                sceneManifest = new SceneManifest();
+                sceneManifest = SceneManifestHelper.Create();
             }
         }
 
         private void SaveManifest()
         {
             pipeline.LogInfo("{0} manifest file {1}",
-                             FileExists(options.ManifestFile) ? "overwriting" : "creating", options.ManifestFile);
+                             (options.NoSave ? "dry " : "") +
+                             (FileExists(options.ManifestFile) ? "overwriting" : "creating"), options.ManifestFile);
 
-            string json = JsonHelper.ToJson(sceneManifest, indent: true, autoTypes: false, ignoreNulls: true);
-
-            TemporaryFile.GetAndDelete(".json", f => {
-                    File.WriteAllText(f, json);
-                    SaveFile(f, options.ManifestFile);
-                });
-
-            pipeline.LogInfo("saved manifest with {0} tilesets, {1} images, {2} frames",
-                             sceneManifest.tilesets.Count, sceneManifest.images.Count, sceneManifest.frames.Count);
-        }
-
-        private void CullOrphanImagesAndFrames()
-        {
-            var liveImageIds = new HashSet<string>();
-            var liveFrameIds = new HashSet<string>();
-
-            foreach (var tileset in sceneManifest.tilesets)
+            if (!options.NoSave)
             {
-                liveImageIds.UnionWith(tileset.image_ids);
-                liveFrameIds.Add(tileset.frame_id);
+                TemporaryFile.GetAndDelete(".json", f => {
+                        File.WriteAllText(f, sceneManifest.ToJson());
+                        SaveFile(f, options.ManifestFile);
+                    });
             }
-
-            var orphanImageIds = sceneManifest.images
-                .Select(image => image.id)
-                .Where(id => !liveImageIds.Contains(id))
-                .ToList();
-
-            sceneManifest.images = sceneManifest.images.Where(image => liveImageIds.Contains(image.id)).ToList();
-
-            if (orphanImageIds.Count > 0)
-            {
-                pipeline.LogInfo("culled {0} orphan images from manifest", orphanImageIds.Count);
-                foreach (var id in orphanImageIds)
-                {
-                    images.Remove(id);
-                }
-            }
-
-            foreach (var image in sceneManifest.images)
-            {
-                liveFrameIds.Add(image.frame_id);
-            }
-            foreach (var frame in sceneManifest.frames)
-            {
-                if (liveFrameIds.Contains(frame.id))
-                {
-                    for (var f = frame; !string.IsNullOrEmpty(f.parent_id); f = frames[f.parent_id])
-                    {
-                        liveFrameIds.Add(f.parent_id);
-                    }
-                }
-            }
-
-            var orphanFrameIds = sceneManifest.frames
-                .Select(frame => frame.id)
-                .Where(id => !liveFrameIds.Contains(id))
-                .ToList();
-
-            sceneManifest.frames = sceneManifest.frames.Where(frame => liveFrameIds.Contains(frame.id)).ToList();
-
-            if (orphanFrameIds.Count > 0)
-            {
-                pipeline.LogInfo("culled {0} orphan frames from manifest", orphanFrameIds.Count);
-                foreach (var id in orphanFrameIds)
-                {
-                    frames.Remove(id);
-                }
-            }
-        }
-
-        private OPGSProductId ParseProductID(string id)
-        {
-            if (string.IsNullOrEmpty(id))
-            {
-                return null;
-            }
-            return RoverProductId.Parse(id, mission, throwOnFail: false) as OPGSProductId;
+            
+            pipeline.LogInfo("{0}saved manifest: {1}", options.NoSave ? "dry " : "", sceneManifest.Summary());
         }
 
         private void IndexRDRs()
         {
-            var exts = imageExts.Concat(pdsExts).ToList();
+            var exts = imageExts.Concat(pdsExts).ToList(); //includes leading dot
             int wildcardIndex = options.RDRDir.IndexOf(WILDCARD);
-            int total = 0;
+            int total = 0, kept = 0;
             foreach (int sol in rdrSols.OrderBy(sol => sol))
             {
                 string dir = options.RDRDir;
@@ -586,10 +400,11 @@ namespace OPS.LandformUtil
                 foreach (var url in SearchFiles(dir, pat, recursive: true, ignoreCase: true))
                 {
                     total++;
-                    var ext = StringHelper.GetUrlExtension(url);
-                    if (ContainsExt(exts, ext))
+                    var ext = StringHelper.GetUrlExtension(url); //includes leading dot
+                    if (exts.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase)))
                     {
-                        var id = ParseProductID(StringHelper.GetLastUrlPathSegment(url, stripExtension: true));
+                        var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                         if (id != null && id.IsSingleFrame())
                         {
                             string baseUri = StringHelper.StripUrlExtension(url);
@@ -597,172 +412,31 @@ namespace OPS.LandformUtil
                             {
                                 rdrs[id.FullId] = new RDRSet(baseUri);
                             }
-                            var rdr = rdrs[id.FullId];
-                            if (baseUri == rdr.BaseUri)
+                            var rdrSet = (RDRSet)(rdrs[id.FullId]);
+                            if (baseUri == rdrSet.BaseUri)
                             {
-                                rdr.Extensions.Add(ext);
+                                if (rdrSet.AddExtension(ext))
+                                {
+                                    kept++;
+                                }
                             }
                             //normally we expect all RDRs for a given unique product ID to be in the same directory
                             //however it's possible e.g. for wedge meshes that there is data duplication across sols
                             //else
                             //{
-                            //    pipeline.LogWarn("found RDR {0} but already indexed {1}{2}",
-                            //                     url, rdr.BaseUri, rdr.Extensions[0]);
+                            //    pipeline.LogWarn("found RDR {0} but already indexed {1}.*", url, rdr.BaseUri);
                             //}
                         }
                     }
                 }
             }
-
-            int kept = 0;
-            foreach (var rdr in rdrs.Values)
-            {
-                if (rdr.Extensions.Count > 1)
-                {
-                    var unique = new HashSet<string>();
-                    unique.UnionWith(rdr.Extensions);
-                    rdr.Extensions = unique.ToList();
-                }
-                kept += rdr.Extensions.Count;
-            }
-
             pipeline.LogInfo("indexed {0}/{1} RDRs", kept, total);
         }
 
-        private string ConvertURI(string uri, bool allowRelative = true)
+        private string ConvertURI(string uri)
         {
-            string getRelativeUri(string str)
-            {
-                string file = StringHelper.GetLastUrlPathSegment(str);
-                string dir = StringHelper.GetLastUrlPathSegment(StringHelper.StripLastUrlPathSegment(str));
-                return dir + "/" + file;
-            }
-            if (uri.StartsWith("s3://"))
-            {
-                if (allowRelative && options.RelativeS3URIs)
-                {
-                    return getRelativeUri(uri);
-                }
-                else
-                {
-                    return StorageHelper.ConvertS3URLToHttps(uri);
-                }
-            }
-            else if (uri.StartsWith("file://") && allowRelative && !options.NoRelativeFileURIs)
-            {
-                return getRelativeUri(uri);
-            }
-            return uri;
-        }
-
-        private void UpdateImageURIs()
-        {
-            foreach (var image in sceneManifest.images)
-            {
-                image.uri = null;
-                image.thumbnail = null;
-
-                var id = ParseProductID(image.product_id);
-                if (id != null)
-                {
-                    if (rdrs.ContainsKey(id.FullId))
-                    {
-                        var rdr = rdrs[id.FullId];
-                        foreach (var ext in imageExts)
-                        {
-                            if (ContainsExt(rdr.Extensions, ext))
-                            {
-                                image.uri = ConvertURI(rdr.GetUri(ext), allowRelative: false);
-                                break;
-                            }
-                        }
-                    }
-                    
-                    if (image.uri == null)
-                    {
-                        pipeline.LogWarn("no PNG or IMG for {0} ({1})", image.id, id.FullId);
-                    }
-
-                    var thumbId = id.AsThumbnail();
-                    if (rdrs.ContainsKey(thumbId))
-                    {
-                        var rdr = rdrs[thumbId];
-                        foreach (var ext in imageExts)
-                        {
-                            if (ContainsExt(rdr.Extensions, ext))
-                            {
-                                image.thumbnail = ConvertURI(rdr.GetUri(ext), allowRelative: false);
-                                break;
-                            }
-                        }
-                    }
-
-                    if (image.thumbnail == null)
-                    {
-                        pipeline.LogWarn("no PNG or IMG thumbnail for {0} ({1})", image.id, thumbId);
-                    }
-                }
-                else
-                {
-                    pipeline.LogWarn("invalid OPGS product ID \"{0}\" for image {1}",
-                                     image.product_id ?? "(null)", image.id);
-                }
-            }
-        }
-
-        private TilesetManifest GetOrAddTileset(string id)
-        {
-            if (tilesets.ContainsKey(id))
-            {
-                return tilesets[id];
-            }
-            var tileset = new TilesetManifest() { id = id };
-            tilesets[id] = tileset;
-            sceneManifest.tilesets.Add(tileset);
-            return tileset;
-        }
-
-        private bool RemoveTileset(string id)
-        {
-            if (tilesets.Remove(id))
-            {
-                sceneManifest.tilesets = sceneManifest.tilesets.Where(tileset => tileset.id != id).ToList();
-                return true;
-            }
-            return false;
-        }
-
-        private ImageManifest GetOrAddImage(string id)
-        {
-            if (images.ContainsKey(id))
-            {
-                return images[id];
-            }
-            var image = new ImageManifest() { id = id };
-            images[id] = image;
-            sceneManifest.images.Add(image);
-            return image;
-        }
-
-        private FrameManifest GetOrAddFrame(string id)
-        {
-            if (frames.ContainsKey(id))
-            {
-                return frames[id];
-            }
-            var frame = new FrameManifest() { id = id };
-            frames[id] = frame;
-            sceneManifest.frames.Add(frame);
-            return frame;
-        }
-
-        private FrameManifest GetOrAddSiteDriveFrame()
-        {
-            var frame = GetOrAddFrame("sitedrive_" + options.SiteDrive);
-            //sitedrive frame has identity transform, it's the root of the frame hierarchy in the scene manifest
-            frame.SetTranslation(new Vector3(0, 0, 0));
-            frame.SetRotation(Quaternion.Identity);
-            return frame;
+            return SceneManifestHelper.ConvertURI(uri, relativeS3: options.RelativeS3URIs,
+                                                  relativeFile: !options.NoRelativeFileURIs);
         }
 
         private void UpdateContextualMeshManifest()
@@ -772,26 +446,15 @@ namespace OPS.LandformUtil
             //rather than just prepend options.TilesetDir, which might be a relative path, call the search API
             //because that will canonicalize the absolute URL to the tileset
             string pat = string.Format("*{0}/{0}_tileset.json", id);
-            string url = SearchFiles(options.TilesetDir, pat, recursive: true, ignoreCase: true).FirstOrDefault();
+            var tilesetUrl = SearchFiles(options.TilesetDir, pat, recursive: true, ignoreCase: true).FirstOrDefault();
 
-            if (string.IsNullOrEmpty(url) || !FileExists(url))
+            if (string.IsNullOrEmpty(tilesetUrl) || !FileExists(tilesetUrl))
             {
-                bool removed = RemoveTileset(id);
+                bool removed = sceneManifest.RemoveTileset(id);
                 pipeline.LogWarn("contextual mesh tileset \"{0}\" not found{1}",
-                                 url ?? "(null)", removed ? " (removed from manifest)" : "");
+                                 tilesetUrl ?? "(null)", removed ? " (removed from manifest)" : "");
                 return;
             }
-
-            pipeline.LogInfo("{0} manifest for contextual mesh tileset {1}",
-                             tilesets.ContainsKey(id) ? "updating" : "adding", url);
-
-            var sdFrame = GetOrAddSiteDriveFrame();
-
-            var tileset = GetOrAddTileset(id);
-            tileset.uri = ConvertURI(url);
-            tileset.frame_id = sdFrame.id; //contextual mesh is always in sitedrive frame
-            tileset.groups.Clear();
-            tileset.groups.Add("contextual");
 
             SceneMesh sceneMesh = null;
             foreach (var name in project.GetSceneMeshes())
@@ -836,37 +499,14 @@ namespace OPS.LandformUtil
                 filteredImages = imageObservations.Where(obs => keepers.Contains(obs.Name)).ToList();
             }
 
-            pipeline.LogInfo("creating or updating {0} image manifests", filteredImages.Count);
-            tileset.image_ids.Clear();
             foreach (var obs in filteredImages)
             {
-                //differentiate image manifest for contextual vs tactical
-                //even for same image product ID
-                //as the contextual mesh image may have an aligned coordinate frame
-                var image = GetOrAddImage("contextual_" + obs.Name);
-                image.product_id = obs.Name;
-                image.uri = null; //see UpdateImageURIs()
-                image.thumbnail = null; //see UpdateImageURIs()
-                image.frame_id = "contextual_" + obs.FrameName;
-                image.width = obs.Width;
-                image.height = obs.Height;
-                image.bands = obs.Bands;
-                image.model = new CameraModelManifest(JsonHelper.FromJson<CameraModel>(obs.CameraModel));
-
-                tileset.image_ids.Add(image.id);
-
-                if (!frames.ContainsKey(image.frame_id))
-                {
-                    var frame = GetOrAddFrame(image.frame_id);
-                    frame.parent_id = sdFrame.id;
-                    var xform = frameCache.GetObservationTransform(obs, options.SiteDrive,
-                                                                   options.UsePriors, options.OnlyAligned);
-                    frame.SetTranslation(xform.MeanTranslation);
-                    frame.SetRotation(xform.MeanRotation);
-                }
-
                 rdrSols.Add(obs.Day);
             }
+
+            sceneManifest.AddOrUpdateContextualTileset(id, ConvertURI(tilesetUrl), options.SiteDrive, 
+                                                       frameCache, options.UsePriors, options.OnlyAligned,
+                                                       filteredImages, pipeline);
         }
 
         private void UpdateTacticalMeshManifests()
@@ -879,7 +519,7 @@ namespace OPS.LandformUtil
                 idStr = idStr.Length >= suffix.Length ? idStr.Substring(0, idStr.Length - suffix.Length) : idStr;
                 if (idStr != contextualId)
                 {
-                    var id = ParseProductID(idStr);
+                    var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                     if (id != null)
                     {
                         UpdateTacticalMeshManifest(id, url);
@@ -892,13 +532,13 @@ namespace OPS.LandformUtil
             }
         }
 
-        private void UpdateTacticalMeshManifest(OPGSProductId id, string url)
+        private void UpdateTacticalMeshManifest(RoverProductId id, string tilesetUrl)
         {
-            if (string.IsNullOrEmpty(url) || !FileExists(url))
+            if (string.IsNullOrEmpty(tilesetUrl) || !FileExists(tilesetUrl))
             {
-                bool removed = RemoveTileset(id.FullId);
+                bool removed = sceneManifest.RemoveTileset(id.FullId);
                 pipeline.LogWarn("tactical mesh tileset \"{0}\" not found{1}",
-                                 url ?? "(null)", removed ? " (removed from manifest)" : "");
+                                 tilesetUrl ?? "(null)", removed ? " (removed from manifest)" : "");
                 return;
             }
 
@@ -908,9 +548,9 @@ namespace OPS.LandformUtil
                 var rdrSet = rdrs[id.FullId];
                 foreach (var ext in pdsExts)
                 {
-                    if (ContainsExt(rdrSet.Extensions, ext))
+                    if (rdrSet.HasUrlExtension(ext))
                     {
-                        pdsFile = rdrSet.GetUri(ext);
+                        pdsFile = rdrSet.GetUrlWithExtension(ext);
                         break;
                     }
                 }
@@ -918,7 +558,7 @@ namespace OPS.LandformUtil
 
             if (pdsFile == null)
             {
-                bool removed = RemoveTileset(id.FullId);
+                bool removed = sceneManifest.RemoveTileset(id.FullId);
                 pipeline.LogWarn("no PDS RDR found for {0} in any of the following formats: {1}{2}",
                                  id.FullId, string.Join(", ", pdsExts), removed ? " (removed from manifest)" : "");
                 return;
@@ -930,47 +570,13 @@ namespace OPS.LandformUtil
 
             if (parser.SiteDrive != options.SiteDrive)
             {
-                bool removed = RemoveTileset(id.FullId);
-                pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}",
-                                 url, parser.SiteDrive, options.SiteDrive, removed ? " (removed from manifest)" : "");
+                bool removed = sceneManifest.RemoveTileset(id.FullId);
+                pipeline.LogWarn("tactical mesh tileset {0} sitedrive {1} != {2}{3}", tilesetUrl, parser.SiteDrive,
+                                 options.SiteDrive, removed ? " (removed from manifest)" : "");
                 return;
             }
-            
-            pipeline.LogInfo("{0} manifest for tactical mesh tileset {1}",
-                             tilesets.ContainsKey(id.FullId) ? "updating" : "adding", url);
 
-            var sdFrame = GetOrAddSiteDriveFrame();
-
-            var meshFrameId = string.Format("site_{0:D3}", parser.Site); //tactical meshes are always in site frame
-            var imageFrameId = mission.GetObservationFrameName(parser);
-
-            var tileset = GetOrAddTileset(id.FullId);
-            tileset.uri = ConvertURI(url);
-            tileset.frame_id = meshFrameId;
-            tileset.groups.Clear();
-            tileset.groups.Add(RoverStereoPair.GetStereoCamera(id.Camera).ToString());
-            tileset.image_ids.Clear();
-            tileset.image_ids.Add(id.FullId);
-
-            var image = GetOrAddImage(id.FullId);
-            image.product_id = id.FullId;
-            image.uri = null; //see UpdateImageURIs()
-            image.thumbnail = null; //see UpdateImageURIs()
-            image.frame_id = imageFrameId;
-            image.width = metadata.Width;
-            image.height = metadata.Height;
-            image.bands = metadata.Bands;
-            image.model = new CameraModelManifest(metadata.CameraModel);
-
-            var meshFrame = GetOrAddFrame(meshFrameId);
-            meshFrame.parent_id = sdFrame.id;
-            meshFrame.SetTranslation(-parser.OriginOffset); //site -> sitedrive (aka local_level)
-            meshFrame.SetRotation(Quaternion.Identity);
-            
-            var imageFrame = GetOrAddFrame(imageFrameId);
-            imageFrame.parent_id = sdFrame.id;
-            imageFrame.SetTranslation(new Vector3(0, 0, 0));
-            imageFrame.SetRotation(parser.RoverOriginRotation); //rover -> sitedrive (aka local_level)
+            sceneManifest.AddOrUpdateTacticalTileset(ConvertURI(tilesetUrl), parser, mission, pipeline);
         }
     }
 }

@@ -47,7 +47,17 @@ namespace OPS.Pipeline
 
         public static RoverProductId Parse(string id, MissionSpecific mission = null, bool throwOnFail = true)
         {
-            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true); //ok if id null or empty
+
+            if (string.IsNullOrEmpty(id))
+            {
+                if (throwOnFail)
+                {
+                    throw new ArgumentException("null or empty product ID");
+                }
+                return null;
+            }
+
             try
             {
                 if (mission != null)

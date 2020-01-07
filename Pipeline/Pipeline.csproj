@@ -248,6 +248,7 @@
     <Compile Include="Rover\CuriosityRoverModel.cs" />
     <Compile Include="Rover\RoverReachability.cs" />
     <Compile Include="Rover\SolDateTime.cs" />
+    <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />
     <Compile Include="Rover\SiteDrive.cs" />
     <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
