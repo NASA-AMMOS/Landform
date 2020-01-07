@@ -91,10 +91,7 @@ namespace OPS.LandformUtil
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
-        //TODO disabling lbl files for now as they are not what they seem
-        //https://github.jpl.nasa.gov/OnSight/Landform/issues/829
-        //[Option(Required = false, Default = "lbl,img", HelpText = "Comma separated priority list of PDS RDR file extensions")]
-        [Option(Required = false, Default = "img", HelpText = "Comma separated priority list of PDS RDR file extensions")]
+        [Option(Required = false, Default = "img,vic", HelpText = "Comma separated priority list of PDS RDR file extensions")]
         public string PDSRDRExts { get; set; }
 
         [Option(Required = false, Default = "png,img", HelpText = "Comma separated priority list of image RDR file extensions")]
