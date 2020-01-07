@@ -104,7 +104,8 @@ namespace OPS.Pipeline
             return new RoverObservationComparator(PreferMSSSToOPGS(),
                                                   PreferLinearToNonlinear(),
                                                   PreferColorToGrayscale(),
-                                                  PreferEyeForGeometry());
+                                                  PreferEyeForGeometry(),
+                                                  this);
         }
 
         /// <summary>
@@ -288,7 +289,7 @@ namespace OPS.Pipeline
         /// </summary>
         public virtual bool AllowNonlinear()
         {
-            return false;
+            return true;
         }
 
         /// <summary>
@@ -1119,6 +1120,7 @@ namespace OPS.Pipeline
                                                   PreferLinearToNonlinear(),
                                                   PreferColorToGrayscale(),
                                                   PreferEyeForGeometry(),
+                                                  this,
                                                   ext);
         }
 
@@ -1261,6 +1263,7 @@ namespace OPS.Pipeline
                     var stereoPartner = camspec.Substring(0, 1);
                     if (stereoPartner != "_")
                     {
+                        //TODO: issue #883
                         reason = "stereo partner " + stereoPartner;
                     }
                 }

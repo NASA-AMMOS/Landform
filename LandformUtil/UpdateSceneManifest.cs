@@ -804,6 +804,8 @@ namespace OPS.LandformUtil
                 }
             }
 
+            var imageObservations = observationCache.GetAllObservations().Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
+
             var filteredImages = imageObservations;
             if (sceneMesh == null)
             {

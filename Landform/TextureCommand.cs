@@ -72,6 +72,8 @@ namespace OPS.Landform
         protected Image backprojectIndex;
         protected TileList tileList;
         protected ObsSelectionStrategy obsSelStrat;
+        protected List<Observation> imageObservations;
+        protected Dictionary<int, Observation> indexedImages;
 
         protected Mesh mesh;
         protected SceneMesh sceneMesh;
@@ -111,6 +113,25 @@ namespace OPS.Landform
             }
 
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+
+            //load image observations and index them
+            imageObservations = observationCache.GetAllObservations().Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
+
+            // the observation selection strategy has an opportunity to independently define its preference for linear or nonlinear images
+            var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
+            comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
+            imageObservations = comparator
+                .KeepBestRoverObservations(imageObservations, RoverObservationComparator.KeepLinearVariants.Best, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
+                .Cast<Observation>()
+                .ToList();
+
+            pipeline.LogInfo("image observations contains {0} images", imageObservations.Count);
+
+            indexedImages = new Dictionary<int, Observation>();
+            foreach (var obs in imageObservations)
+            {
+                indexedImages[obs.Index] = obs;
+            }
 
             return true;
         }
@@ -252,7 +273,7 @@ namespace OPS.Landform
                     Image img = pipeline.LoadImage(obs.Url);
 
                     var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
-                    var maskObs = comparator.GetBestRoverObservation(off, RoverProductType.RoverMask);
+                    var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.KeepLinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault();
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
 

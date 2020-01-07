@@ -198,8 +198,8 @@ namespace OPS.LandformUtil
         {
             string manifestPath = null;
             {
-                var RASLRecords = imageObservations.Select(x => new FileRecord(new System.Uri(x.Url).LocalPath));
-                CreateLegacyScene(RASLRecords, localOutputPath, out manifestPath, meshFrame, project.Name);
+                var imageRecords = imageObservations.Select(x => new FileRecord(new System.Uri(x.Url).LocalPath));
+                CreateLegacyScene(imageRecords, localOutputPath, out manifestPath, meshFrame, project.Name);
             }
 
             pipeline.LogInfo("ASTTRO scene manifest written at: {0}", manifestPath);

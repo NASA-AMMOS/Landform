@@ -45,25 +45,40 @@ namespace OPS.Pipeline.Texturing
             //calculate goodness: median distance between neighboring source pixels in meters on the terrain
             //smaller distance == better texture resolution
             //var localScoresByObs = new ConcurrentDictionary<string, double>()
-            foreach(var ctx in visibleContexts)
+            foreach (var ctx in visibleContexts)
             {
-                PixelPoint forSrcPixelPt = new PixelPoint
-                {
-                    Pixel = ctx.CameraModel.Project(Vector3.Transform(forPoint, ctx.MeshToObs), out double range),
-                    Point = forPoint
-                };
+                double dist = double.MaxValue;
 
-                double dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forSrcPixelPt },
-                                                                       ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, MeshOp.Bounds,
-                                                                       1.0, WriteDebug, LocalOutputPath);
-                if(dist == double.MaxValue)
+                var pixel = ctx.CameraModel.Project(Vector3.Transform(forPoint, ctx.MeshToObs), out double range);
+
+                //frustum hull in nonlinear case is poorly fitting, points can be in hull that are not in image
+                // these cause the camera model to break down so we can't do unproject with thouse pixels
+                if (pixel.X < 0 || pixel.X >= ctx.Obs.Width || pixel.Y < 0 || pixel.Y >= ctx.Obs.Height)
                 {
-                    //if no valid samples, use distance from observation to mesh to have a sortable quality rating
-                    //  (that's much bigger than per valid inter-pixel distances), otherwise contexts are not really sorted
-                    Vector3 cameraInOutput = Vector3.Transform(ctx.CameraModel.Unproject(forSrcPixelPt.Pixel).Position, ctx.ObsToMesh);  
-                    Vector3 meshCenter = MeshOp.Bounds.Center();
-                    dist = Vector3.Distance(meshCenter, cameraInOutput);
+                    dist = double.MaxValue;
                 }
+                else
+                {
+                    PixelPoint forSrcPixelPt = new PixelPoint
+                    {
+                        Pixel = pixel,
+                        Point = forPoint
+                    };
+
+                     dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forSrcPixelPt },
+                                                                           ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, MeshOp.Bounds,
+                                                                           1.0, WriteDebug, LocalOutputPath);
+
+                    if (dist == double.MaxValue)
+                    {
+                        //if no valid samples, use distance from observation to mesh to have a sortable quality rating
+                        //  (that's much bigger than per valid inter-pixel distances), otherwise contexts are not really sorted
+                        Vector3 cameraInOutput = Vector3.Transform(ctx.CameraModel.Unproject(forSrcPixelPt.Pixel).Position, ctx.ObsToMesh);
+                        Vector3 meshCenter = MeshOp.Bounds.Center();
+                        dist = Vector3.Distance(meshCenter, cameraInOutput);
+                    }
+                }
+            
                 scoresByObs.Add(ctx.Obs.Name, dist);
             };
 

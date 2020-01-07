@@ -231,9 +231,14 @@ namespace OPS.Pipeline
                 .Cast<RoverObservation>()
                 .ToList();
             na = filteredObs.Count;
+
+            // if linear and nonlinear images are allowed this code will keep for each observation either:
+            // 1) one image: the best image (regardless of linearity) if the image contents are different in higher priority compares than linearity
+            // 2) two images: one of each linarity if the image contents are equivalent up to the linearity test. this condition defers the decision
+            //    to a sort by systems that have a strong preference for linear or nonlinear rather than an explicit early culling here.
             var comparator = mission.GetRoverObservationComparator();
-            filteredObs = comparator
-                .KeepBestRoverObservations(filteredObs, pipeline.Verbose ? pipeline : null)
+                     filteredObs = comparator
+                .KeepBestRoverObservations(filteredObs, RoverObservationComparator.KeepLinearVariants.Both, pipeline.Verbose ? pipeline : null)
                 .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
             na = filteredObs.Count;
