@@ -70,11 +70,11 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Download RGB products")]
         public bool WithRGB { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Download OBJ products")]
-        public bool WithOBJ { get; set; }
+        [Option(Required = false, Default = false, HelpText = "Don't download OBJ products")]
+        public bool NoOBJ { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Download IV products")]
-        public bool WithIV { get; set; }
+        [Option(Required = false, Default = false, HelpText = "Don't download IV products")]
+        public bool NoIV { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Download VIC products")]
         public bool WithVIC { get; set; }
@@ -265,12 +265,12 @@ namespace OPS.Landform
             {
                 acceptedExtensions.Add(".RGB");
             }
-            if (options.WithOBJ)
+            if (!options.NoOBJ)
             {
                 acceptedExtensions.Add(".OBJ");
                 acceptedExtensions.Add(".MTL");
             }
-            if (options.WithIV)
+            if (!options.NoIV)
             {
                 acceptedExtensions.Add(".IV");
             }

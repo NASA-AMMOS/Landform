@@ -6,10 +6,12 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using log4net;
+using MathNet.Numerics.LinearAlgebra;
 using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
@@ -18,6 +20,29 @@ namespace OPS.Pipeline
         public readonly Image Image;
         public readonly PDSMetadata Metadata;
         public readonly PDSParser Parser;
+
+        /// <summary>
+        /// local_level to site
+        /// </summary>
+        public static UncertainRigidTransform GetSiteDriveToSiteTransformFromPDS(PDSParser parser)
+        {            
+            if (!parser.RoverCoordinateSystemRelativeToSite)
+            {
+                throw new Exception("rover frame not relative to site frame");
+            }
+
+            // TODO: examine values here
+            double degSqr = Math.Pow(Math.PI / 180, 2);
+            var covariance = CreateMatrix
+                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
+
+            return new UncertainRigidTransform(Matrix.CreateTranslation(parser.OriginOffset), covariance);
+        }
+
+        public static UncertainRigidTransform GetSiteDriveToSiteTransformFromPDS(Image img)
+        {
+            return GetSiteDriveToSiteTransformFromPDS(new PDSParser((PDSMetadata)img.Metadata));
+        }
 
         /// <summary>
         /// img must have PDSMetadata  

@@ -97,7 +97,7 @@ namespace OPS.Geometry
     /// * a DefNode is DEF Name RegularNode where DEF is the string "DEF" and Name is a string
     /// * a UseNode is USE Name where USE is the string "USE" and Name is a string
     /// 
-    /// Typical structure of IDS wedge mesh:
+    /// Typical structure of IDS wedge mesh (multiple LevelOfDetail nodes are treated as patches to be merged):
     /// 
     /// Header
     /// Separator {
@@ -437,20 +437,29 @@ namespace OPS.Geometry
                     throw new IOException("end of file while searching for LevelOfDetail");
                 }
 
-                var meshes = new List<Mesh>();
-
+                var lodMeshes = new List<List<Mesh>>();
                 var vertices = new List<Vector3>();
                 var texCoords = new List<Vector2>();
                 var triStripIndices = new List<int>();
 
                 curNode = NodeType.None;
                 curField = FieldName.None;
+                int lod = 0, patch = 0;
+
                 while (tokenizer.MoveNext())
                 {
                     parseNodeType();
                     parseFieldName();
 
-                    if (curNode == NodeType.Coordinate3 && curField == FieldName.point)
+                    if (curNode == NodeType.LevelOfDetail)
+                    {
+                        //Console.WriteLine("read {0} LODs in patch {1}", lod, patch);
+                        lod = 0;
+                        patch++;
+                        curNode = NodeType.None;
+                        curField = FieldName.None;
+                    }
+                    else if (curNode == NodeType.Coordinate3 && curField == FieldName.point)
                     {
                         parseList<Vector3>(vertices, parseV3, "Coordinate3.point");
                         curField = FieldName.None;
@@ -463,27 +472,13 @@ namespace OPS.Geometry
                     else if (curNode == NodeType.IndexedTriangleStripSet && curField == FieldName.coordIndex)
                     {
                         parseList<int>(triStripIndices, (s, _) => int.Parse(s), "IndexedTriangleStripSet.coordIndex");
+                        AddLODMesh(ref lod, lodMeshes, vertices, texCoords, triStripIndices);
                         curField = FieldName.None;
-                        if (vertices.Count == 0 || texCoords.Count == 0)
-                        {
-                            throw new Exception("missing vertices or texcoords for LOD " + meshes.Count);
-                        }
-                        meshes.Add(ToMesh(meshes.Count, vertices, texCoords, triStripIndices));
-                        vertices.Clear();
-                        texCoords.Clear();
-                        triStripIndices.Clear();
                     }
                 }
+                //Console.WriteLine("read {0} LODs in patch {1}", lod, patch);
 
-                //I think we should really expect meshes.Count == screenArea.Count
-                //unfortunately there are examples (e.g. MSL mastcam meshes like the one in our TestData)
-                //where that is not true
-                //if (meshes.Count != screenArea.Count)
-                //{
-                //    throw new Exception(string.Format("expected {0} LODs, got {1}", screenArea.Count, meshes.Count));
-                //}
-
-                return meshes;
+                return MergeLODMeshes(lodMeshes, screenArea.Count);
             }
         }
 
@@ -745,49 +740,91 @@ namespace OPS.Geometry
                     throw new IOException("end of file while searching for LevelOfDetail");
                 }
 
-                var meshes = new List<Mesh>();
-
+                var lodMeshes = new List<List<Mesh>>();
                 var vertices = new List<Vector3>();
                 var texCoords = new List<Vector2>();
                 var triStripIndices = new List<int>();
 
+                int lod = 0, patch = 0;
+
                 while (readNextIdentifier())
                 {
-                    if (curNode == NodeType.Coordinate3 && curField == FieldName.point)
+                    if (curNode == NodeType.LevelOfDetail)
+                    {
+                        //Console.WriteLine("read {0} LODs in patch {1}", lod, patch);
+                        lod = 0;
+                        patch++;
+                        curNode = NodeType.None;
+                        curField = FieldName.None;
+                    }
+                    else if (curNode == NodeType.Coordinate3 && curField == FieldName.point)
                     {
                         parseList<Vector3>(vertices, 3, parseV3, "Coordinate3.point");
+                        curField = FieldName.None;
                     }
                     else if (curNode == NodeType.TextureCoordinate2 && curField == FieldName.point)
                     {
                         parseList<Vector2>(texCoords, 2, parseV2, "TextureCoordinate2.point");
+                        curField = FieldName.None;
                     }
                     else if (curNode == NodeType.IndexedTriangleStripSet && curField == FieldName.coordIndex)
                     {
                         parseList<int>(triStripIndices, 1, v => v[0], "IndexedTriangleStripSet.coordIndex");
-                        if (vertices.Count == 0 || texCoords.Count == 0)
-                        {
-                            throw new Exception("missing vertices or texcoords for LOD " + meshes.Count);
-                        }
-                        meshes.Add(ToMesh(meshes.Count, vertices, texCoords, triStripIndices));
-                        vertices.Clear();
-                        texCoords.Clear();
-                        triStripIndices.Clear();
+                        AddLODMesh(ref lod, lodMeshes, vertices, texCoords, triStripIndices);
+                        curField = FieldName.None;
                     }
-                    curField = FieldName.None;
                 }
+                //Console.WriteLine("read {0} LODs in patch {1}", lod, patch);
 
-                //I think we should really expect meshes.Count == screenArea.Count
-                //unfortunately there are examples (e.g. MSL mastcam meshes like the one in our TestData)
-                //where that is not true
-                //if (meshes.Count != screenArea.Count)
-                //{
-                //    throw new Exception(string.Format("expected {0} LODs, got {1}", screenArea.Count, meshes.Count));
-                //}
-
-                return meshes;
+                return MergeLODMeshes(lodMeshes, screenArea.Count);
             }
         }
 
+        private void AddLODMesh(ref int lod, List<List<Mesh>> lodMeshes, List<Vector3> vertices,
+                                List<Vector2> texCoords, List<int> triStripIndices)
+        {
+            if (triStripIndices.Count > 0 && (vertices.Count == 0 || texCoords.Count == 0))
+            {
+                throw new Exception("missing vertices or texcoords for LOD " + lod);
+            }
+            if (lod >= lodMeshes.Count)
+            {
+                lodMeshes.Add(new List<Mesh>());
+            }
+            lodMeshes[lod].Add(ToMesh(lod, vertices, texCoords, triStripIndices));
+            vertices.Clear();
+            texCoords.Clear();
+            triStripIndices.Clear();
+            lod++;
+        }
+
+        private List<Mesh> MergeLODMeshes(List<List<Mesh>> lodMeshes, int expectedNumLOD)
+        {
+            List<Mesh> meshes = new List<Mesh>();
+            for (int i = 0; i < lodMeshes.Count; i++)
+            {
+                var patchMeshes = lodMeshes[i];
+                if (patchMeshes.Count > 1)
+                {
+                    meshes.Add(Mesh.Merge(patchMeshes.ToArray()));
+                }
+                else if (patchMeshes.Count == 1)
+                {
+                    meshes.Add(patchMeshes.First());
+                }
+            }
+
+            //I think we should really expect meshes.Count == screenArea.Count
+            //unfortunately there are examples (e.g. MSL mastcam meshes like the one in our TestData)
+            //where that is not true
+            //if (meshes.Count != expectedNumLOD)
+            //{
+            //    throw new Exception(string.Format("expected {0} LODs, got {1}", expectedNumLOD, meshes.Count));
+            //}
+
+            return meshes;
+        }
+            
         private Mesh ToMesh(int lod, List<Vector3> vertexPositions, List<Vector2> texCoords, List<int> triStripIndices)
         {
             var mesh = new Mesh(hasUVs: true);
