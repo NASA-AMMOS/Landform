@@ -41,6 +41,12 @@ namespace OPS.Pipeline
         private static Dictionary<string, RoverProductCamera> pdsCameraTypes =
             new Dictionary<string, RoverProductCamera>()
         {
+            { "FRONT_HAZCAM_LEFT_A", RoverProductCamera.FrontHazcamLeft },     //M2020
+            { "FRONT_HAZCAM_RIGHT_A", RoverProductCamera.FrontHazcamRight },   //M2020
+            { "FRONT_HAZCAM_LEFT_B", RoverProductCamera.FrontHazcamLeft },     //M2020
+            { "FRONT_HAZCAM_RIGHT_B", RoverProductCamera.FrontHazcamRight },   //M2020
+            { "REAR_HAZCAM_LEFT", RoverProductCamera.RearHazcamLeft },         //M2020
+            { "REAR_HAZCAM_RIGHT", RoverProductCamera.RearHazcamRight },       //M2020
             { "FHAZ_LEFT_A", RoverProductCamera.FrontHazcamLeft },
             { "FHAZ_LEFT_B ", RoverProductCamera.FrontHazcamLeft },
             { "FHAZ_RIGHT_A", RoverProductCamera.FrontHazcamRight },
