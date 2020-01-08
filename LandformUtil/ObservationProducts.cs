@@ -273,9 +273,9 @@ namespace OPS.LandformUtil
                              sds.Length > 0 ? (" for site drive(s) " + String.Join(",", sds)) : "", localOutputPath);
 
             //indexed by frame name
-            var validPoints = new ConcurrentDictionary<string, int>();
-            var validNormals = new ConcurrentDictionary<string, int>();
-            var validTriangles = new ConcurrentDictionary<string, int>();
+            var numPoints = new ConcurrentDictionary<string, int>();
+            var numNormals = new ConcurrentDictionary<string, int>();
+            var numTriangles = new ConcurrentDictionary<string, int>();
             var faceStats = new ConcurrentDictionary<string, Mesh.FaceStats>();
             var wedgeDecimation = new ConcurrentDictionary<string, int>();
 
@@ -323,23 +323,51 @@ namespace OPS.LandformUtil
                 var mo = meshOpts.Clone();
                 mo.Decimate = mbs;
 
-                int numPoints = 0, numNormals = 0, numTriangles = 0;
+                int npts = 0, nn = 0, nt = 0;
                 Mesh mesh = null;
                 if (buildWedgeMeshes && obs.Meshable)
                 {
-                    mesh = BuildWedgeMesh(obs, mo, out numPoints, out numNormals);
+                    Exception ex = null;
+                    try
+                    {
+                        mesh = BuildWedgeMesh(obs, mo);
+                    }
+                    catch (Exception e)
+                    {
+                        ex = e;
+                    }
+
+                    //try to count valid points and normals in the observation images now
+                    //after the mesh has been built because that would have loaded the points and normals images
+                    //however they may not have been loaded if the mesh itself was loaded from disk (e.g. IV or OBJ)
+                    //but in that case the best we can do is use the vertex count of the mesh itself
+                    obs.CountValid(out npts, out nn);
+
+                    if (mesh != null)
+                    {
+                        if (npts == 0)
+                        {
+                            npts = mesh.Vertices.Count;
+                        }
+                        if (nn == 0 && mesh.HasNormals)
+                        {
+                            nn = mesh.Vertices.Count;
+                        }
+                        nt = mesh.Faces.Count;
+                        pipeline.LogVerbose("collecting face stats for {0}", obs.Name);
+                        faceStats[obs.FrameName] = mesh.CollectFaceStats();
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("meshing failed on obs {0} ({1} reconstruction, {2} points, {3} normals): {4}",
+                                         obs.Name, options.ReconstructionMethod, npts, nn,
+                                         ex != null ? ex.Message : "insufficient data or unknown error");
+                    }
                 }
 
-                if (mesh != null)
-                {
-                    numTriangles = mesh.Faces.Count;
-                    pipeline.LogVerbose("collecting face stats for {0}", obs.Name);
-                    faceStats[obs.FrameName] = mesh.CollectFaceStats();
-                }
-
-                validPoints[obs.FrameName] = numPoints;
-                validNormals[obs.FrameName] = numNormals;
-                validTriangles[obs.FrameName] = numTriangles;
+                numPoints[obs.FrameName] = npts;
+                numNormals[obs.FrameName] = nn;
+                numTriangles[obs.FrameName] = nt;
 
                 int ibs = WedgeObservations.AutoDecimate(obs.Texture, //null ok
                                                          options.DecimateWedgeImages,
@@ -465,7 +493,7 @@ namespace OPS.LandformUtil
                 {
                     var fn = obs.FrameName;
                     pipeline.LogInfo("{0}: {1} points, {2} normals, {3} triangles{4}{5}{6}{7}",
-                                     fn, validPoints[fn], validNormals[fn], validTriangles[fn],
+                                     fn, numPoints[fn], numNormals[fn], numTriangles[fn],
                                      wedgeDecimation[fn] > 1 ?
                                      string.Format(" ({0}x decimation)", wedgeDecimation[fn]) : "",
                                      faceStats.ContainsKey(fn) ? Environment.NewLine + faceStats[fn].ToString() : "",
@@ -480,49 +508,19 @@ namespace OPS.LandformUtil
             pipeline.LogInfo("generated products for {0} observations", no);
         }
 
-        private Mesh BuildWedgeMesh(WedgeObservations obs, WedgeObservations.MeshOptions mo,
-                                    out int numPoints, out int numNormals)
+        private Mesh BuildWedgeMesh(WedgeObservations obs, WedgeObservations.MeshOptions mo)
         {
-            Mesh mesh = null;
             if (options.PointCloud)
             {
                 pipeline.LogVerbose("building point cloud for {0}", obs.Name);
-                mesh = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
-                obs.CountValid(out numPoints, out numNormals);
+                return obs.BuildPointCloud(pipeline, frameCache, masker, mo);
             }
             else
             {
                 pipeline.LogVerbose("building triangle mesh for {0}", obs.Name);
-                Exception ex = null;
-                try
-                {
-                    mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, options.AlwaysReconstructWedgeMeshes,
-                                         options.ReconstructionMethod);
-                }
-                catch (Exception e)
-                {
-                    ex = e;
-                }
-                
-                obs.CountValid(out numPoints, out numNormals);
-
-                if (mesh != null)
-                {
-                    numPoints = Math.Max(numPoints, mesh.Vertices.Count);
-                    if (mesh.HasNormals)
-                    {
-                        numNormals = Math.Max(numPoints, mesh.Vertices.Count);
-                    }
-                }
-                
-                if (mesh == null)
-                {
-                    pipeline.LogWarn("meshing failed on obs {0} ({1} reconstruction, {2} points, {3} normals): {4}",
-                                     obs.Name, options.ReconstructionMethod, numPoints, numNormals,
-                                     ex != null ? ex.Message : "insufficient data or unknown error");
-                }
+                return obs.BuildMesh(pipeline, frameCache, masker, mo, options.AlwaysReconstructWedgeMeshes,
+                                     options.ReconstructionMethod);
             }
-            return mesh;
         }
 
         private Image BuildWedgeImage(WedgeObservations obs, int ibs)
