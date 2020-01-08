@@ -24,11 +24,12 @@ namespace OPS.Pipeline
     public class TilesetManifest
     {
         public string id;
-        public List<string> image_ids = new List<string>();
         public string uri;
         public string frame_id;
-        public List<string> groups = new List<string>(); //instrument type, unified mesh, contextual mesh
         public bool show = true;
+        public List<int> sols = new List<int>();
+        public List<string> image_ids = new List<string>();
+        public List<string> groups = new List<string>(); //instrument type, unified mesh, contextual mesh
     }
 
     public class ImageManifest
@@ -113,6 +114,8 @@ namespace OPS.Pipeline
 
     public class SceneManifestHelper
     {
+        public const string TILESET_SUFFIX = "_tileset";
+
         public SceneManifest sceneManifest;
     
         //indexed by id
@@ -310,20 +313,29 @@ namespace OPS.Pipeline
             return uri;
         }
 
+        public void UpdateTilesetURIs(Dictionary<string, IURLFileSet> rdrs)
+        {
+            foreach (var tileset in sceneManifest.tilesets)
+            {
+                string id = tileset.id + TILESET_SUFFIX;
+                if (rdrs.ContainsKey(id) && rdrs[id].HasUrlExtension("json"))
+                {
+                    tileset.uri = ConvertURI(rdrs[id].GetUrlWithExtension("json"));
+                }
+            }
+        }
+           
         public void UpdateImageURIs(List<string> imageExts, Dictionary<string, IURLFileSet> rdrs,
-                                    MissionSpecific mission = null, ILogger logger = null)
+                                    MissionSpecific mission = null)
         {
             foreach (var image in sceneManifest.images)
             {
-                image.uri = null;
-                image.thumbnail = null;
-
                 var id = RoverProductId.Parse(image.product_id, mission, throwOnFail: false);
                 if (id != null)
                 {
-                    if (rdrs.ContainsKey(id.FullId))
+                    if (rdrs.ContainsKey(image.product_id))
                     {
-                        var rdrSet = rdrs[id.FullId];
+                        var rdrSet = rdrs[image.product_id];
                         foreach (var ext in imageExts)
                         {
                             if (rdrSet.HasUrlExtension(ext))
@@ -332,11 +344,6 @@ namespace OPS.Pipeline
                                 break;
                             }
                         }
-                    }
-                    
-                    if (image.uri == null && logger != null)
-                    {
-                        logger.LogWarn("no image RDR for {0} ({1})", image.id, id.FullId);
                     }
 
                     string thumbId = "(null)";
@@ -356,16 +363,6 @@ namespace OPS.Pipeline
                             }
                         }
                     }
-                        
-                    if (image.thumbnail == null && logger != null)
-                    {
-                        logger.LogWarn("no thumbnail RDR {0} for image {1} ({2})", thumbId, image.id, image.product_id);
-                    }
-                }
-                else if (logger != null)
-                {
-                    logger.LogWarn("invalid OPGS product ID \"{0}\" for image {1}",
-                                   image.product_id ?? "(null)", image.id);
                 }
             }
         }
@@ -400,6 +397,8 @@ namespace OPS.Pipeline
             tileset.groups.Add(camera.ToString());
             tileset.image_ids.Clear();
             tileset.image_ids.Add(productId);
+            tileset.sols.Clear();
+            tileset.sols.Add(parser.PlanetDayNumber);
 
             var image = GetOrAddImage(productId);
             image.product_id = productId;
@@ -452,6 +451,7 @@ namespace OPS.Pipeline
 
             var bpp = backprojectedPixels;
             tileset.image_ids.Clear();
+            var sols = new HashSet<int>();
             foreach (var obs in images)
             {
                 //differentiate image manifest for contextual vs tactical
@@ -479,7 +479,11 @@ namespace OPS.Pipeline
                     frame.SetTranslation(xform.MeanTranslation);
                     frame.SetRotation(xform.MeanRotation);
                 }
+
+                sols.Add(obs.Day);
             }
+            tileset.sols.Clear();
+            tileset.sols.AddRange(sols);
         }
     }
 }

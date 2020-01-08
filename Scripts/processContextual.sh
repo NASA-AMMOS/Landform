@@ -58,8 +58,9 @@ $landform build-tiling-input $proj
 $landform blend-images $proj
 $landform build-tileset $proj
 
-# create/update scene manifest here where we have access to the contextual mesh alignment project database
+# create/update scene manifests here where we have access to the contextual mesh alignment project database
 if [ "$5" != "--nomanifest" ]; then
+    # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
     $landform update-scene-manifest $proj --manifestfile $tileset_dir/scene.json --notactical --nourls --sol=$sol --sitedrive=$sd
 fi
 
@@ -67,6 +68,13 @@ rm -rf $proj
 mv $tileset_dir .
 mv $proj/tileset.json $proj/${proj}_tileset.json
 mv $proj/scene.json $proj/${proj}_scene.json
+
+if [ "$5" != "--nomanifest" ]; then
+    # this scene manifest contains both the contextual mesh tileset
+    # as well as any sibling tactical mesh tilesets that already exist
+    # and it has local file:// URLs
+    $landform update-scene-manifest $proj --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd
+fi
 
 rm -rf $storage/$venue
 

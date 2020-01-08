@@ -39,13 +39,51 @@ using OPS.Landform;
 /// For contextual mesh tilesets a Landform project must be provided
 /// and is used to determine the set of images and their adjusted poses.
 ///
-/// The tilesets (tactical and contextual) must all have the same parent directory
+/// The tilesets (tactical and contextual) must all have the same parent directory --tilesetdir
 /// and may either be local files on disk or on S3 (even without --cloud).
 ///
-/// The RDRs must be available (for both tactical and contextual) so that their URIs can be embedded in the manifest.
+/// Unless --nourls is specified the RDRs must be available (for both tactical and contextual) under --rdrdir.
 /// They can also be either local files on disk or on S3 (even without --cloud).
 ///
 /// The manifest file can also be either a local file on disk or on S3 (even without --cloud).
+///
+/// Examples:
+///
+/// * add/update tactical tileset for path/to/rdrs/image.IMG without URLs to path/to/tileset/scene.json
+///   (does not access network)
+///   update-scene-manifest --mission M2020 --manifestfile path/to/tileset/scene.json --nocontextual --nourls
+///   --tacticalpdsfile path/to/rdrs/image.IMG
+///
+/// * add/update contextual tileset for project 00007_0010023 without URLs to path/to/tileset/scene.json
+///   (does not access network)
+///   update-scene-manifest 00007_0010023 --manifestfile path/to/tileset/scene.json --notactical --nourls
+///                         --sol=7 --sitedrive=0010023
+///
+/// * add/update tactical tileset for wedge ID without URLs
+///   to s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json :
+///   update-scene-manifest --mission M2020 --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json
+///   --nocontextual --nourls
+///
+/// * add/update contextual tileset for project 00700_0010005 without URLs
+///   to s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005/00700_0010005_scene.json:
+///   update-scene-manifest 00700_0010005 --manifestfile
+///                         s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005/00700_0010005_scene.json
+///                         --notactical -nourls --sol=700 --sitedrive=0010005
+///
+/// * add/update all tactical tilesets under s3://bucket/path/sol/00700/ids/rdr/tileset including URLs
+///   to s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json:
+///   update-scene-manifest --mission M2020 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset --nocontextual
+///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
+///
+/// * add/update contextual tileset for project 00700_0010005 including URLs
+///   to s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json:
+///   update-scene-manifest 00700_0010005 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset --notactical
+///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
+///
+/// * add/update URLs in s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json:
+///   update-scene-manifest --mission M2020 --nocontextual --notactical
+///                         --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json
+///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr
 /// </summary>
 namespace OPS.Landform
 {
@@ -58,7 +96,7 @@ namespace OPS.Landform
         [Option(HelpText = "Mission name, required without project name", Default = null)]
         public string Mission { get; set; }
 
-        [Option(HelpText = "Path/URL to directory containing existing tilesets", Default = null)]
+        [Option(HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile", Default = null)]
         public string TilesetDir { get; set; }
 
         [Option(HelpText = "Path/URL to existing RDRs with sol replaced with #####, required unless both --nourls and --tacticalpdsfile are specified", Default = null)]
@@ -112,6 +150,9 @@ namespace OPS.Landform
         [Option(HelpText = "Don't cull images that don't intersect scene mesh hull from contextual mesh manifest", Default = false)]
         public bool NoFilterImagesToMeshHull { get; set; }
 
+        [Option(HelpText = "Don't cull unreferenced image and frame manifests", Default = false)]
+        public bool NoCullOrphanImagesAndFrames { get; set; }
+
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
     } 
@@ -119,6 +160,7 @@ namespace OPS.Landform
     public class UpdateSceneManifest : WedgeCommand
     {
         public const string WILDCARD = "#####";
+        public const string SCENE_SUFFIX = "_scene";
 
         private UpdateSceneManifestOptions options;
 
@@ -181,7 +223,7 @@ namespace OPS.Landform
                     yield return ext;
                 }
             }
-
+ 
             public bool AddExtension(string ext)
             {
                 return extensions.Add(ext.TrimStart('.'));
@@ -228,12 +270,14 @@ namespace OPS.Landform
                     RunPhase("update tactical mesh manifests", UpdateTacticalMeshManifests);
                 }
 
-                RunPhase("cull orphan images and frames", () => sceneManifest.CullOrphanImagesAndFrames(pipeline));
+                if (!options.NoCullOrphanImagesAndFrames)
+                {
+                    RunPhase("cull orphan images and frames", () => sceneManifest.CullOrphanImagesAndFrames(pipeline));
+                }
 
                 if (!options.NoURLs)
                 {
-                    RunPhase("update image URIs",
-                             () => sceneManifest.UpdateImageURIs(imageExts, rdrs, mission, pipeline));
+                    RunPhase("add/update URLs", UpdateURLs);
                 }
 
                 RunPhase("save manifest", SaveManifest);
@@ -261,24 +305,38 @@ namespace OPS.Landform
                 throw new Exception("--mission must be specified if project name is omitted");
             }
 
-            if (string.IsNullOrEmpty(options.ManifestFile) || (!options.NoContextual && !options.NoURLs) ||
-                (!options.NoTactical && (string.IsNullOrEmpty(options.TacticalPDSFile) || !options.NoURLs)))
+            if (!string.IsNullOrEmpty(options.ManifestFile))
             {
-                if (string.IsNullOrEmpty(options.TilesetDir))
-                {
-                    throw new Exception("--tilesetdir required");
-                }
+                options.ManifestFile = StringHelper.NormalizeUrl(options.ManifestFile);
+                pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
+            }
+
+            if (string.IsNullOrEmpty(options.TilesetDir) && !string.IsNullOrEmpty(options.ManifestFile))
+            {
+                options.TilesetDir = StringHelper.StripLastUrlPathSegment(options.ManifestFile);
+            }
+
+            if ((string.IsNullOrEmpty(options.ManifestFile) || (!options.NoContextual && !options.NoURLs) ||
+                (!options.NoTactical && (string.IsNullOrEmpty(options.TacticalPDSFile) || !options.NoURLs))) &&
+                string.IsNullOrEmpty(options.TilesetDir))
+            {
+                throw new Exception("--tilesetdir required");
+            }
+
+            if (!string.IsNullOrEmpty(options.TilesetDir))
+            {
                 options.TilesetDir = StringHelper.NormalizeUrl(options.TilesetDir, preserveTrailingSlash: false) + "/";
                 pipeline.LogInfo("tileset dir: {0}", options.TilesetDir);
             }
 
             searchForRDRs = !options.NoURLs || (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSFile));
-            if (searchForRDRs)
+            if (searchForRDRs && string.IsNullOrEmpty(options.RDRDir))
             {
-                if (string.IsNullOrEmpty(options.RDRDir))
-                {
-                    throw new Exception("--rdrdir required");
-                }
+                throw new Exception("--rdrdir required");
+            }
+
+            if (!string.IsNullOrEmpty(options.RDRDir))
+            {
                 int firstWildcard = options.RDRDir.IndexOf(WILDCARD);
                 int lastWildcard = options.RDRDir.LastIndexOf(WILDCARD);
                 if (firstWildcard >= 0 && firstWildcard != lastWildcard)
@@ -289,24 +347,26 @@ namespace OPS.Landform
                 pipeline.LogInfo("RDR dir: {0}", options.RDRDir);
             }
 
-            if (string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual ||
-                (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSFile)))
+            if ((string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual) && options.Sol < 0)
             {
-                if (options.Sol < 0)
-                {
-                    throw new Exception("nonnegative --sol required");
-                }
+                throw new Exception("nonnegative --sol required");
+            }
+
+            if (options.Sol >= 0)
+            {
                 pipeline.LogInfo("sol: {0}", options.Sol);
                 rdrSols.Add(options.Sol);
             }
 
-            if (string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual ||
-                (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSFile)))
+            if ((string.IsNullOrEmpty(options.ManifestFile) || !options.NoContextual ||
+                (!options.NoTactical && string.IsNullOrEmpty(options.TacticalPDSFile))) &&
+                string.IsNullOrEmpty(options.SiteDrive))
             {
-                if (string.IsNullOrEmpty(options.SiteDrive))
-                {
-                    throw new Exception("--sitedrive required");
-                }
+                throw new Exception("--sitedrive required");
+            }
+
+            if (!string.IsNullOrEmpty(options.SiteDrive))
+            {
                 if (!SiteDrive.IsSiteDriveString(options.SiteDrive))
                 {
                     throw new Exception(string.Format("\"{0}\" not recognized as a sitedrive", options.SiteDrive));
@@ -315,18 +375,21 @@ namespace OPS.Landform
                 pipeline.LogInfo("site drive: {0}", options.SiteDrive);
             }
 
-            if (!string.IsNullOrEmpty(options.ManifestFile))
+            if (string.IsNullOrEmpty(options.ManifestFile))
             {
-                options.ManifestFile = StringHelper.NormalizeUrl(options.ManifestFile);
+                if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
+                    SiteDrive.IsSiteDriveString(options.SiteDrive))
+                {
+                    options.ManifestFile = string.Format("{0}{1:D5}_{2}{3}.json", options.TilesetDir, options.Sol,
+                                                         options.SiteDrive, SCENE_SUFFIX);
+                    pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
+                }
+                else
+                {
+                    throw new Exception("--tilesetdir, --sol, and --sitedrive required to infer --manifestfile");
+                }
             }
-            else
-            {
-                options.ManifestFile = string.Format("{0}{1:D5}_{2}_scene.json",
-                                                     options.TilesetDir, options.Sol, options.SiteDrive);
-            }
-            pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
 
-            
             imageExts = LandformShell.ParseExts(options.ImageRDRExts);
             pipeline.LogInfo("image extensions: {0}", string.Join(", ", imageExts));
 
@@ -427,55 +490,88 @@ namespace OPS.Landform
         private void IndexRDRs()
         {
             var exts = imageExts.Concat(pdsExts).ToList(); //includes leading dot
+
             int wildcardIndex = options.RDRDir.IndexOf(WILDCARD);
+
             int total = 0, kept = 0;
-            foreach (int sol in rdrSols.OrderBy(sol => sol))
+
+            void addRDR(string id, string baseUri, string ext)
             {
-                string dir = options.RDRDir;
-                string pat = "*";
-                if (wildcardIndex >= 0)
+                if (!rdrs.ContainsKey(id))
                 {
-                    dir = dir.Replace(WILDCARD, string.Format("{0:D5}", sol));
+                    rdrs[id] = new RDRSet(baseUri);
                 }
-                else
+                var rdrSet = (RDRSet)(rdrs[id]);
+                if (baseUri == rdrSet.BaseUri)
                 {
-                    //handle case where options.RDRDir is a base directory
-                    pat = string.Format("*/sol/{0:D5}/*", sol);
+                    if (rdrSet.AddExtension(ext))
+                    {
+                        kept++;
+                    }
                 }
+                //normally we expect all RDRs for a given unique product ID to be in the same directory
+                //however it's possible e.g. for wedge meshes that there is data duplication across sols
+                //else
+                //{
+                //    pipeline.LogWarn("found RDR {0} but already indexed {1}.*", url, rdr.BaseUri);
+                //}
+            }
+
+            void searchRDRs(string dir, string pat)
+            {
                 pipeline.LogInfo("searching for RDRs under {0}, pattern {1}", dir, pat);
                 foreach (var url in SearchFiles(dir, pat, recursive: true, ignoreCase: true))
                 {
-                    total++;
-                    var ext = StringHelper.GetUrlExtension(url); //includes leading dot
-                    if (exts.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase)))
+                    string ext = StringHelper.GetUrlExtension(url); //includes leading dot
+                    string baseUri = StringHelper.StripUrlExtension(url);
+                    string idStr = StringHelper.GetLastUrlPathSegment(baseUri);
+                    if (idStr.EndsWith(SceneManifestHelper.TILESET_SUFFIX))
                     {
-                        var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                        if (id != null && id.IsSingleFrame())
+                        addRDR(idStr, baseUri, ext); //don't strip "_tileset" suffix from id
+                    }
+                    else
+                    {
+                        if (exts.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase)))
                         {
-                            string baseUri = StringHelper.StripUrlExtension(url);
-                            if (!rdrs.ContainsKey(id.FullId))
+                            var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                            if (id != null && id.IsSingleFrame())
                             {
-                                rdrs[id.FullId] = new RDRSet(baseUri);
+                                addRDR(idStr, baseUri, ext);
                             }
-                            var rdrSet = (RDRSet)(rdrs[id.FullId]);
-                            if (baseUri == rdrSet.BaseUri)
-                            {
-                                if (rdrSet.AddExtension(ext))
-                                {
-                                    kept++;
-                                }
-                            }
-                            //normally we expect all RDRs for a given unique product ID to be in the same directory
-                            //however it's possible e.g. for wedge meshes that there is data duplication across sols
-                            //else
-                            //{
-                            //    pipeline.LogWarn("found RDR {0} but already indexed {1}.*", url, rdr.BaseUri);
-                            //}
                         }
                     }
+                    total++;
                 }
             }
+
+            foreach (var tileset in sceneManifest.tilesets.Values)
+            {
+                rdrSols.UnionWith(tileset.sols);
+            }
+
+            if (rdrSols.Count == 0)
+            {
+                searchRDRs(options.RDRDir, "*");
+            }
+            else
+            {
+                foreach (int sol in rdrSols.OrderBy(sol => sol))
+                {
+                    string dir = options.RDRDir;
+                    string pat = "*";
+                    if (wildcardIndex >= 0)
+                    {
+                        dir = dir.Replace(WILDCARD, string.Format("{0:D5}", sol));
+                    }
+                    else
+                    {
+                        //handle case where options.RDRDir is a base directory
+                        pat = string.Format("*/sol/{0:D5}/*", sol);
+                    }
+                    searchRDRs(dir, pat);
+                }
+            }
+
             pipeline.LogInfo("indexed {0}/{1} RDRs", kept, total);
         }
 
@@ -485,24 +581,27 @@ namespace OPS.Landform
                                                   relativeFile: !options.NoRelativeFileURIs);
         }
 
+        private string GetExistingTileset(string tilesetId)
+        {
+            //rather than just prepend options.TilesetDir, which might be a relative path, call the search API
+            //because that will canonicalize the absolute URL to the tileset
+            string pat = string.Format("*{0}/{0}{1}.json", tilesetId, SceneManifestHelper.TILESET_SUFFIX);
+            string url = SearchFiles(options.TilesetDir, pat, recursive: true, ignoreCase: true).FirstOrDefault();
+            if (url == null)
+            {
+                bool removed = sceneManifest.RemoveTileset(tilesetId);
+                pipeline.LogWarn("tileset {0} not found{1}", tilesetId, removed ? " (removed from manifest)" : "");
+            }
+            return url != null ? ConvertURI(url) : null;
+        }
+
         private void UpdateContextualMeshManifest()
         {
             string tilesetId = string.Format("{0:D5}_{1}", options.Sol, options.SiteDrive);
             string tilesetUrl = null;
             if (!options.NoURLs)
             {
-                //rather than just prepend options.TilesetDir, which might be a relative path, call the search API
-                //because that will canonicalize the absolute URL to the tileset
-                string pat = string.Format("*{0}/{0}_tileset.json", tilesetId);
-                tilesetUrl = SearchFiles(options.TilesetDir, pat, recursive: true, ignoreCase: true).FirstOrDefault();
-                if (tilesetUrl == null || !FileExists(tilesetUrl))
-                {
-                    bool removed = sceneManifest.RemoveTileset(tilesetId);
-                    pipeline.LogWarn("contextual mesh tileset \"{0}\" not found{1}",
-                                     tilesetUrl ?? "(null)", removed ? " (removed from manifest)" : "");
-                    return;
-                }
-                tilesetUrl = ConvertURI(tilesetUrl);
+                tilesetUrl = GetExistingTileset(tilesetId);
             }
 
             SceneMesh sceneMesh = null;
@@ -624,11 +723,6 @@ namespace OPS.Landform
                                  MeshVariant.Default, options.SiteDrive, project.Name, images.Count);
             }
 
-            foreach (var obs in images)
-            {
-                rdrSols.Add(obs.Day);
-            }
-
             sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
                                                        frameCache, options.UsePriors, options.OnlyAligned,
                                                        images, backprojectedPixels, pipeline);
@@ -638,46 +732,69 @@ namespace OPS.Landform
         {
             if (string.IsNullOrEmpty(options.TacticalPDSFile))
             {
-                string suffix = "_tileset.json";
-                string contextualId = string.Format("{0:D5}_{1}", options.Sol, options.SiteDrive);
-                foreach (var url in SearchFiles(options.TilesetDir, "*" + suffix, recursive: true, ignoreCase: true))
+                string contextualId = null;
+                if (options.Sol >= 0 && !string.IsNullOrEmpty(options.SiteDrive))
                 {
-                    string idStr = StringHelper.GetLastUrlPathSegment(url);
-                    idStr = idStr.Length >= suffix.Length ? idStr.Substring(0, idStr.Length - suffix.Length) : idStr;
-                    if (idStr != contextualId)
-                    {
-                        var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
-                        if (id != null)
-                        {
-                            string pdsFile = null;
-                            if (rdrs.ContainsKey(id.FullId))
-                            {
-                                var rdrSet = rdrs[id.FullId];
-                                foreach (var ext in pdsExts)
-                                {
-                                    if (rdrSet.HasUrlExtension(ext))
-                                    {
-                                        pdsFile = rdrSet.GetUrlWithExtension(ext);
-                                        break;
-                                    }
-                                }
-                            }
-                            
-                            if (pdsFile == null)
-                            {
-                                bool removed = sceneManifest.RemoveTileset(id.FullId);
-                                pipeline.LogWarn("no PDS RDR found for {0} in any of the following formats: {1}{2}",
-                                                 id.FullId, string.Join(", ", pdsExts),
-                                                 removed ? " (removed from manifest)" : "");
-                                return;
-                            }
+                    contextualId = string.Format("{0:D5}_{1}", options.Sol, options.SiteDrive);
+                }
 
-                            UpdateTacticalMeshManifest(pdsFile, !options.NoURLs ? ConvertURI(url) : null);
-                        }
-                        else
+                bool update(string id, string url)
+                {
+                    if (id == contextualId)
+                    {
+                        return false;
+                    }
+                    if (RoverProductId.Parse(id, mission, throwOnFail: false) == null)
+                    {
+                        pipeline.LogWarn("not recognized as a tactical mesh tileset: \"{0}\"", id);
+                        return false;
+                    }
+                    string pdsFile = null;
+                    if (rdrs.ContainsKey(id))
+                    {
+                        var rdrSet = rdrs[id];
+                        foreach (var ext in pdsExts)
                         {
-                            pipeline.LogWarn("{0} not recognized as a tactical mesh tileset", url);
+                            if (rdrSet.HasUrlExtension(ext))
+                            {
+                                pdsFile = rdrSet.GetUrlWithExtension(ext);
+                                break;
+                            }
                         }
+                    }
+                    if (pdsFile != null)
+                    {
+                        UpdateTacticalMeshManifest(pdsFile, !options.NoURLs ? url : null);
+                        return true;
+                    }
+                    else
+                    {
+                        bool removed = sceneManifest.RemoveTileset(id);
+                        pipeline.LogWarn("no PDS RDR found for {0} in any of the following formats: {1}{2}",
+                                         id, string.Join(", ", pdsExts), removed ? " (removed from manifest)" : "");
+                        return false;
+                    }
+                }
+
+                string sfx = SCENE_SUFFIX + ".json";
+                bool doSearch = true;
+                if (options.ManifestFile.EndsWith(sfx))
+                {
+                    string id = StringHelper.StripSuffix(StringHelper.GetLastUrlPathSegment(options.ManifestFile), sfx);
+                    string url = GetExistingTileset(id);
+                    if (url != null)
+                    {
+                        doSearch = !update(id, url);
+                    }
+                }
+
+                if (doSearch)
+                {
+                    sfx = SceneManifestHelper.TILESET_SUFFIX + ".json";
+                    foreach (var url in SearchFiles(options.TilesetDir, "*" + sfx, recursive: true, ignoreCase: true))
+                    {
+                        string id = StringHelper.StripSuffix(StringHelper.GetLastUrlPathSegment(url), sfx);
+                        update(id, ConvertURI(url));
                     }
                 }
             }
@@ -687,19 +804,12 @@ namespace OPS.Landform
             }
             else
             {
-                string tilesetId = StringHelper.GetLastUrlPathSegment(options.TacticalPDSFile, stripExtension: true);
-                //rather than just prepend options.TilesetDir, which might be a relative path, call the search API
-                //because that will canonicalize the absolute URL to the tileset
-                string pat = string.Format("*{0}/{0}_tileset.json", tilesetId);
-                string url = SearchFiles(options.TilesetDir, pat, recursive: true, ignoreCase: true).FirstOrDefault();
-                if (url == null || !FileExists(url))
+                string id = StringHelper.GetLastUrlPathSegment(options.TacticalPDSFile, stripExtension: true);
+                string url = GetExistingTileset(id);
+                if (url != null)
                 {
-                    bool removed = sceneManifest.RemoveTileset(tilesetId);
-                    pipeline.LogWarn("tactical mesh tileset \"{0}\" not found{1}",
-                                     url ?? "(null)", removed ? " (removed from manifest)" : "");
-                    return;
+                    UpdateTacticalMeshManifest(options.TacticalPDSFile, url);
                 }
-                UpdateTacticalMeshManifest(options.TacticalPDSFile,  ConvertURI(url));
             }
         }
 
@@ -719,6 +829,12 @@ namespace OPS.Landform
             }
 
             sceneManifest.AddOrUpdateTacticalTileset(tilesetUrl, parser, mission, pipeline);
+        }
+
+        private void UpdateURLs()
+        {
+            sceneManifest.UpdateTilesetURIs(rdrs);
+            sceneManifest.UpdateImageURIs(imageExts, rdrs, mission);
         }
     }
 }
