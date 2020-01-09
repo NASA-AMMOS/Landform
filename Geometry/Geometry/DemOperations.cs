@@ -114,9 +114,7 @@ namespace OPS.Geometry
                 {
                     return null;
                 }
-                var ret = dem.CameraModel.Unproject(new Vector2(col, row), -1 * value * scale);
-                //ret.Y *= -1;
-                return ret;
+                return dem.CameraModel.Unproject(new Vector2(col, row), -1 * value * scale);
             }
             return null;
         }
