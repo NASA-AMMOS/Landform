@@ -8,6 +8,7 @@ using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
 using Microsoft.Xna.Framework;
+using System.IO;
 
 namespace OPS.Pipeline
 {
@@ -762,7 +763,27 @@ namespace OPS.Pipeline
             return "img,png";
         }
 
-        public abstract Matrix GetDemToBevTransform(string siteDrive, BirdsEyeView bev, int demWidth, int demHeight, string demPath);
+        public virtual Matrix GetDemToSiteDriveOffset(SiteDrive siteDrive)
+        {
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(GetDemPath()));
+            if (s.GetType() != typeof(GDALSerializer))
+            {
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+            ((GDALSerializer)s).GetMetadata(GetDemPath(), out int bands, out int width, out int height);
+
+            Vector2 colRowOffset = GetSiteDriveOriginPixelInDem(siteDrive);
+
+            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - width / 2.0) * GetDemMetersPerPixel(),
+                                                 -1 * (colRowOffset.Y - height / 2.0) * GetDemMetersPerPixel(),
+                                                 0);
+
+            return Matrix.CreateTranslation(-1 * demSDOriginXYZ);
+        }
+
+        public abstract string GetDemPath();
+        public abstract float GetDemMetersPerPixel();
+        public abstract Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive);
     }
 
     public class MissionMSL : MissionSpecific
@@ -998,38 +1019,35 @@ namespace OPS.Pipeline
             return true;
         }
 
-        const double DemMetersPerPixel = 1;
-
-        public override Matrix GetDemToBevTransform(string siteDrive, BirdsEyeView bev, int demWidth, int demHeight, string demPath)
+        public override float GetDemMetersPerPixel()
         {
-            //Get the pixel in the dem corresponding to the site drive center
+            return 1;
+        }
+
+        public override string GetDemPath()
+        {
+            string demPath = Environment.GetEnvironmentVariable("DemPath");
+            if (String.IsNullOrEmpty(demPath))
+            {
+                var userDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var defaultDemPath = Path.Combine(userDir, "Downloads/windjana/out_deltaradii_smg_1m.tif");
+                Environment.SetEnvironmentVariable("DemPath", defaultDemPath);
+                demPath = defaultDemPath;
+            }
+            if(!File.Exists(demPath))
+            {
+                throw new FileNotFoundException("Dem not found at " + demPath);
+            }
+            return demPath;
+        }
+
+        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive)
+        {
             MSLPlaces places = new MSLPlaces();
-            Vector2 latlon = places.GetEstimatedLatLon(new SiteDrive(siteDrive));
-            GDALDEM gdalDem = GDALDEM.MarsDEM(demPath);
+            Vector2 latlon = places.GetEstimatedLatLon(siteDrive);
+            GDALDEM gdalDem = GDALDEM.MarsDEM(this.GetDemPath());
             Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
-
-            Matrix flipY = new Matrix(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-
-            //Get site drive origin in dem space
-            Vector3 demSDOriginXYZ = new Vector3((demWidth / 2.0 - colRowOffset.X) * DemMetersPerPixel,
-                                                 (demHeight / 2.0 - colRowOffset.Y) * DemMetersPerPixel,
-                                                 0);
-
-            //Get site drive origin in bev space
-            Vector3 bevSDOriginXYZ = new Vector3((bev.Width / 2.0 - bev.OriginX) * bev.MetersPerPixel,
-                                                 (bev.Height / 2.0 - bev.OriginY) * bev.MetersPerPixel,
-                                                 0);
-
-            //Move dem origin to bev origin
-            Matrix demToBevTranslation = Matrix.CreateTranslation(bevSDOriginXYZ - demSDOriginXYZ);
-
-            //90 Degree clockwise rotation about bev origin
-            //This is because the dem uses +X = Up, +Y = Right, instead of bev which is +X = Right, +Y = Down
-            Matrix demToBevRotation = Matrix.CreateTranslation( -1 * bevSDOriginXYZ) 
-                                      * new Matrix(0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
-                                      * Matrix.CreateTranslation(bevSDOriginXYZ);
-
-            return flipY * demToBevTranslation * demToBevRotation * flipY; //translate then rotate
+            return new Vector2(colRowOffset.X, colRowOffset.Y);
         }
     }
 
@@ -1421,7 +1439,17 @@ namespace OPS.Pipeline
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
         }
 
-        public override Matrix GetDemToBevTransform(string siteDrive, BirdsEyeView bev, int demWidth, int demHeight, string demPath)
+        public override string GetDemPath()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override float GetDemMetersPerPixel()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive)
         {
             throw new NotImplementedException();
         }
