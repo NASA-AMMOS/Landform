@@ -7,6 +7,7 @@ home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 #dest=s3://BUCKET/ods/VENUE/sol/SOL/ids/tileset
+do_cleanup=true
 
 if [ $# -lt 2 ]; then
     echo "USAGE: processTactical.sh DIR MISSION [MESHEXT [IMGEXT]]"
@@ -28,11 +29,11 @@ fi
 
 echo "processing ${mission} ${meshext}/${imgext} tactical meshes from ${dir}"
 
-if [ -f $config ]; then cp $config $config.BAK; fi
+if [ "$do_cleanup" -a -f $config ]; then cp $config $config.BAK; fi
 
 # exit script on ctrl-c
 cleanup() {
-    if [ -f $config.BAK ]; then cp $config.BAK $config; fi
+    if [ "$do_cleanup" -a -f $config.BAK ]; then cp $config.BAK $config; fi
     exit 1
 }
 trap "cleanup" INT
@@ -47,7 +48,7 @@ for f in ${dir}/*.${meshext}; do
     if [ -f $mesh ] && [ -f $img ]; then
 
         #use a clean venue for each wedge
-        rm -rf $storage/$venue
+        if [ "$do_cleanup" ]; then rm -rf $storage/$venue; fi
 
         $landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
         $landform build-tiling-input --loadlods --mission $mission --inputmesh $mesh --inputtexture $img
@@ -55,15 +56,15 @@ for f in ${dir}/*.${meshext}; do
         $landform update-scene-manifest --mission $mission --manifestfile $tileset_dir/scene.json --nocontextual --nourls --tacticalpdsfile $img 
 
         rm -rf $proj
-        mv $tileset_dir .
+        cp -R $tileset_dir .
         mv $proj/tileset.json $proj/${proj}_tileset.json
         mv $proj/scene.json $proj/${proj}_scene.json
 
-        rm -rf $storage/$venue
+        if [ "$do_cleanup" ]; then rm -rf $storage/$venue; fi
 
         #aws s3 sync $proj $dest/$proj --profile=credss-default
     fi
 done
 
-if [ -f $config.BAK ]; then cp $config.BAK $config; fi
+if [ "$do_cleanup" -a -f $config.BAK ]; then cp $config.BAK $config; fi
 

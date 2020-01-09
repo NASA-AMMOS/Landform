@@ -384,7 +384,7 @@ namespace OPS.Pipeline
                 throw new Exception(string.Format("unhandled tactical mesh frame {0} (not site)", tmFrame));
             }
 
-            var camera = RoverStereoPair.GetStereoCamera(RoverCamera.FromRDRInstrumentID(parser.InstrumentId));
+            var camera = RoverStereoPair.GetStereoCamera(RoverCamera.FromPDSInstrumentID(parser.InstrumentId));
 
             var meshFrameId = string.Format("site_{0:D3}", parser.Site);
             var imageFrameId = mission.GetObservationFrameName(parser);

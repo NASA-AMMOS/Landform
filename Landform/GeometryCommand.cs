@@ -74,10 +74,15 @@ namespace OPS.Landform
         {
             meshFrame = GetMeshFrame().ToLower().Trim();
 
+            if (meshFrame == "auto")
+            {
+                meshFrame = GetAutoMeshFrame();
+            }
+                
             string missionRoot = mission != null ? mission.RootFrameName() : null;
 
             var specials =
-                new string[] { "auto", "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
+                new string[] { "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
 
             bool isSiteDrive = SiteDrive.IsSiteDriveString(meshFrame);
             bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
@@ -87,11 +92,6 @@ namespace OPS.Landform
                 throw new Exception("unsupported mesh frame: " + meshFrame);
             }
 
-            if (meshFrame == "auto")
-            {
-                meshFrame = GetAutoMeshFrame();
-            }
-                
             var origMeshFrame = meshFrame;
             if (meshFrame == "passthrough")
             {

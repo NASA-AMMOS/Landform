@@ -88,7 +88,7 @@ using OPS.Landform;
 namespace OPS.Landform
 {
     [Verb("update-scene-manifest", HelpText = "update scene manifest")]
-    public class UpdateSceneManifestOptions : WedgeCommandOptions
+    public class UpdateSceneManifestOptions : GeometryCommandOptions
     {
         [Value(0, HelpText = "Project name, optional if --nocontextual", Default = null)]
         public override string ProjectName { get; set; }
@@ -155,9 +155,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = null)]
+        public override string MeshFrame { get; set; }
     } 
 
-    public class UpdateSceneManifest : WedgeCommand
+    public class UpdateSceneManifest : GeometryCommand
     {
         public const string WILDCARD = "#####";
         public const string SCENE_SUFFIX = "_scene";
@@ -401,6 +404,11 @@ namespace OPS.Landform
                 throw new Exception("--onlyforsitedrives not implemented for this command");
             }
 
+            if (!string.IsNullOrEmpty(options.MeshFrame))
+            {
+                throw new Exception("--meshframe not implemented for this command");
+            }
+
             if (!ParseArgumentsAndLoadCaches("tiling/SceneManifest"))
             {
                 return false; // help
@@ -419,6 +427,11 @@ namespace OPS.Landform
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
             return true;
+        }
+
+        protected override string GetMeshFrame()
+        {
+            return options.SiteDrive;
         }
 
         protected override MissionSpecific GetMission()

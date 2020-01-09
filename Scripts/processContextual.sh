@@ -7,6 +7,8 @@ home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 #dest=s3://BUCKET/ods/VENUE/sol/SOL/ids/tileset
+#do_cleanup=true
+do_cleanup=
 
 if [ $# -lt 4 ]; then
     echo "USAGE: processContextual.sh DIR MISSION SOL SSSDDDD[,SSSDDDD[,...]] [--nomanifest]"
@@ -27,11 +29,11 @@ done
 
 echo "processing ${mission} contextual mesh for sitedrive ${sd} in sol ${sol} from ${dir}"
 
-if [ -f $config ]; then cp $config $config.BAK; fi
+if [ "$do_cleanup" -a -f $config ]; then cp $config $config.BAK; fi
 
 # exit script on ctrl-c
 cleanup() {
-    if [ -f $config.BAK ]; then cp $config.BAK $config; fi
+    if [ "$do_cleanup" -a -f $config.BAK ]; then cp $config.BAK $config; fi
     exit 1
 }
 trap "cleanup" INT
@@ -40,7 +42,7 @@ proj=${sol}_${sd}
 venue=local_${mission}_${sol}_${sd}
 tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 
-rm -rf $storage/$venue
+if [ "$do_cleanup" ]; then rm -rf $storage/$venue; fi
 
 for f in $dir/*masks.zip; do
     if [ -f $f ]; then
@@ -65,7 +67,7 @@ if [ "$5" != "--nomanifest" ]; then
 fi
 
 rm -rf $proj
-mv $tileset_dir .
+cp -R $tileset_dir .
 mv $proj/tileset.json $proj/${proj}_tileset.json
 mv $proj/scene.json $proj/${proj}_scene.json
 
@@ -76,8 +78,8 @@ if [ "$5" != "--nomanifest" ]; then
     $landform update-scene-manifest $proj --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd
 fi
 
-rm -rf $storage/$venue
+if [ "$do_cleanup" ]; then rm -rf $storage/$venue; fi
 
 #aws s3 sync $proj $dest/$proj --profile=credss-default
 
-if [ -f $config.BAK ]; then cp $config.BAK $config; fi
+if [ "$do_cleanup" -a -f $config.BAK ]; then cp $config.BAK $config; fi
