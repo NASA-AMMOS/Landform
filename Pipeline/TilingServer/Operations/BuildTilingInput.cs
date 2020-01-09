@@ -241,6 +241,47 @@ namespace OPS.Pipeline.TilingServer
             //significant memory usage
             obsToMesh.Clear();
 
+            //Add Orbital
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+
+            const int orbitalRadius = 200; //Add 100 x 100 meter orbital
+            const double filterRadius = 1.0; //Remove orbital points within 1m of surface data
+            const string orbitalFrameName = "Orbital";
+
+            //Create 2D spatial lookup
+            VertexKDTree kdtree = new VertexKDTree(aggregatePointCloud.Vertices.Select(
+                v => new Vertex(v.Position.X, v.Position.Y, 0)).ToList());
+
+            SparseImage dem = new SparseImage(mission.GetDemPath());
+
+            Matrix demToWorld = frameCache.GetBestTransform(orbitalFrameName).Transform.Mean;
+            //Get subset of dem around sitedrive
+            Vector2 center = mission.GetSiteDriveOriginPixelInDem(observations[0].SiteDrive);
+            int pixelRadius = (int)(orbitalRadius / mission.GetDemMetersPerPixel());
+            int baseC = (int)Math.Max(center.X - pixelRadius, 0);
+            int baseR = (int)Math.Max(center.Y - pixelRadius, 0);
+            int pixelWidth = (int)Math.Min(center.X + pixelRadius, dem.Width) - baseC;
+            int pixelHeight = (int)Math.Min(center.Y + pixelRadius, dem.Height) - baseR;
+
+            for (int r = 0; r < 2 * pixelRadius; r++)
+            {
+                for (int c = 0; c < 2 * pixelRadius; c++)
+                {
+                    var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c);
+                    if (pos.HasValue)
+                    {
+                        if (kdtree.NearestDistance(new Vector3(pos.Value.X, pos.Value.Y, 0), filterRadius, 1).Count() == 0)
+                        {
+                            Vertex v = new Vertex();
+                            v.Position = pos.Value;
+                            aggregatePointCloud.Vertices.Add(v);
+                        }
+                    }
+                }
+            }
+
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
+
             // build the large mesh from the aggregate point cloud using poisson reconstruction
             if (aggregatePointCloud.Vertices.Count == 0)
             {
