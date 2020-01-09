@@ -7,8 +7,8 @@ home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 #dest=s3://BUCKET/ods/VENUE/sol/SOL/ids/tileset
-#do_cleanup=true
-do_cleanup=
+do_cleanup=true
+#do_cleanup=
 
 if [ $# -lt 4 ]; then
     echo "USAGE: processContextual.sh DIR MISSION SOL SSSDDDD[,SSSDDDD[,...]] [--nomanifest]"

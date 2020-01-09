@@ -72,7 +72,14 @@ namespace OPS.Landform
 
         private void HandleSpecialMeshFrames()
         {
-            meshFrame = GetMeshFrame().ToLower().Trim();
+            meshFrame = GetMeshFrame();
+
+            if (string.IsNullOrEmpty(meshFrame))
+            {
+                return;
+            }
+
+            meshFrame = meshFrame.ToLower().Trim();
 
             if (meshFrame == "auto")
             {

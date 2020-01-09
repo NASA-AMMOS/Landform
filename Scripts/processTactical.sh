@@ -8,6 +8,7 @@ storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 #dest=s3://BUCKET/ods/VENUE/sol/SOL/ids/tileset
 do_cleanup=true
+#do_cleanup=
 
 if [ $# -lt 2 ]; then
     echo "USAGE: processTactical.sh DIR MISSION [MESHEXT [IMGEXT]]"
