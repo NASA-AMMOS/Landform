@@ -253,7 +253,8 @@ namespace OPS.Landform
                     Matrix sceneToWorld = CreateBEVToWorldMatrix(siteDrive);
                     Matrix otherSceneToWorld = CreateBEVToWorldMatrix(otherSiteDrive);
 
-                    var temp = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld, options.PreserveXY, options.NumAnnealingStages, null, 0.5, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum);
+                    var temp = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld, options.PreserveXY,
+                        options.NumAnnealingStages, null, 0.5, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum);
                     if (!temp.HasValue)
                     {
                         continue;
@@ -284,11 +285,13 @@ namespace OPS.Landform
             
             //First do naive vertical alignment in base site drive since transform to world may have slight rotation (not commutative)
             Matrix zCorrectedPrior = demToBaseSiteDrive *
-                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive, false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive,
+                false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
 
             //Run alignment for dem in world frame
             Matrix demToWorldPrior = zCorrectedPrior * frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean;      
-            Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, false, options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+            Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, false, 
+                options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
             Matrix demToWorld = demToWorldPrior * demWorldPriorToWorld;
 
             //Align remaining sitedrives to dem

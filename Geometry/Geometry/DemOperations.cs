@@ -324,8 +324,10 @@ namespace OPS.Geometry
 
             Func<double[], double> meanZSquaredError = new Func<double[], double>((transformArray) => {
                 double error = 0;
-                //Aligning scene sample points to dem; final transform will be dem to scene. This could be refactored to avoid invert but should not make much of a computational difference
-                Matrix currentTransformAdjustment = Matrix.Invert(arrayToTransform(transformArray) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)));
+                //Aligning scene sample points to dem; final transform will be dem to scene.
+                //This could be refactored to avoid invert but should not make much of a computational difference
+                Matrix currentTransformAdjustment = Matrix.Invert(arrayToTransform(transformArray)
+                                                    * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)));
                 int count = 0;
                 int pos = 0;
                 int neg = 0;
