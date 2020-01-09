@@ -23,7 +23,7 @@ namespace OPS.LandformUtil
 
             var verbs = new Dictionary<Type, Type>()
                 {
-                    { typeof(LocalObservationProductsOptions), typeof(LocalObservationProducts) },
+                    { typeof(ObservationProductsOptions), typeof(ObservationProducts) },
                     { typeof(ConvertPDSOptions), typeof(ConvertPDS) },
                     { typeof(ConvertIVOptions), typeof(ConvertIV) },
                     { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },

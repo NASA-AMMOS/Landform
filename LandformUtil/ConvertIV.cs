@@ -13,14 +13,14 @@ namespace OPS.LandformUtil
         [Value(0, Required = true, HelpText = "Path to file or directory to be converted")]
         public string InputPath { get; set; }
 
-        [Option("texture", Required = false, HelpText = "Texture image file")]
+        [Option("texture", Required = false, Default = "png", HelpText = "Texture image file or extension")]
         public string TextureFile { get; set; }
 
         [Option("all-lods", Required = false, HelpText = "Convert all LODs")]
         public bool AllLODs { get; set; }
 
-        [Option("output", Required = false, HelpText = "Output path, omit to use same directory as input")]
-        public string OutputPath { get; set; }
+        [Option("output", Required = false, HelpText = "Output directory, omit to use same directory as input")]
+        public string OutputDir { get; set; }
 
         [Option("type", Required = false, Default = "ply", HelpText = "Output file type (ply, obj)")]
         public string OutputType { get; set; }
@@ -46,49 +46,78 @@ namespace OPS.LandformUtil
             }
 
             string[] files = null;
-            string destPath = null;
+            string destDir = null;
 
             if (Directory.Exists(options.InputPath))
             {
                 files = Directory.GetFiles(options.InputPath, "*.iv");
-                destPath = options.InputPath;
+                destDir = options.InputPath;
             }
             else
             {
                 files = new string[] {  options.InputPath };
-                destPath = Path.GetDirectoryName(options.InputPath); //destPath="" if InputPath was a bare filename
+                destDir = Path.GetDirectoryName(options.InputPath); //destDir="" if InputPath was a bare filename
             }
 
-            if (options.OutputPath != null)
+            if (options.OutputDir != null)
             {
-                destPath = options.OutputPath;
+                destDir = options.OutputDir;
             }
 
             if (files != null && files.Length > 0)
             {
 
-                if (!string.IsNullOrEmpty(destPath))
+                if (!string.IsNullOrEmpty(destDir))
                 {
-                    Directory.CreateDirectory(destPath);
+                    Directory.CreateDirectory(destDir);
                 }
 
                 string ext = "." + options.OutputType;
+
                 string tf = options.TextureFile;
+                string tfExt = Path.GetExtension(tf);
+                if (string.IsNullOrEmpty(tfExt))
+                {
+                    tfExt = tf;
+                }
+                if (!string.IsNullOrEmpty(tfExt))
+                {
+                    tfExt = tfExt.TrimStart('.');
+                    tfExt = "." + tfExt;
+                }
+                
                 for (int i = 0; i < files.Length; i++)
                 {
                     string bn = Path.GetFileNameWithoutExtension(files[i]);
+                    string tft = tf;
+                    if (!string.IsNullOrEmpty(tfExt) && files.Length > 1)
+                    {
+                        tft = Path.ChangeExtension(files[i], tfExt);
+                        if (!File.Exists(tft))
+                        {
+                            tft = tf;
+                        }
+                        if (!File.Exists(tft))
+                        {
+                            tft = null;
+                        }
+                        if (tft != null)
+                        {
+                            tft = Path.GetFileName(tft);
+                        }
+                    }
                     if (options.AllLODs)
                     {
                         var lodMeshes = Mesh.LoadAllLODs(files[i]);
                         for (int lod = 0; lod < lodMeshes.Count; lod++)
                         {
                             string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
-                            lodMeshes[lod].Save(Path.Combine(destPath, dest), tf); //destPath="" ok
+                            lodMeshes[lod].Save(Path.Combine(destDir, dest), tft); //destDir="" ok
                         }
                     }
                     else
                     {
-                        Mesh.Load(files[i]).Save(Path.Combine(destPath, bn + ext), tf); //destPath="" ok
+                        Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
                     }
                 }          
             }

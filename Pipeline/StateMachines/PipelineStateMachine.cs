@@ -202,7 +202,7 @@ namespace OPS.Pipeline
             if (project == null)
             {
                 LogInfo("creating project");
-                TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconMethod,
+                TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconstructionMethod,
                                      m.FacesPerTile, m.TileResolution, m.ProjectType,
                                      m.ExportMeshFormat, m.ExportImageFormat, m.MaxLeafGroupSize);
             }
@@ -620,7 +620,7 @@ namespace OPS.Pipeline
     {
         public TilingScheme TilingScheme;
         public SkirtMode SkirtMode;
-        public MeshReconMethod ReconMethod;
+        public MeshReconstructionMethod ReconstructionMethod;
         public int FacesPerTile;
         public int TileResolution;
         public string ProjectType;

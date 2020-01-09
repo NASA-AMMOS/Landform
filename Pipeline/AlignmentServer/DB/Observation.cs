@@ -36,7 +36,10 @@ namespace OPS.Pipeline.AlignmentServer
         [DynamoDBHashKey]
         public string Name;
 
-        public string Url;
+        public string Url; //PDS or VICAR image with metadata that loads as PDSMetadata
+
+        //for Url, case sensitive, without leading dots
+        public HashSet<string> AlternateExtensions = new HashSet<string>(); //MT safety: lock before accessing
 
         public Guid MaskGuid; //combines rover mask, user mask, invalid/missing pixels, and border
 

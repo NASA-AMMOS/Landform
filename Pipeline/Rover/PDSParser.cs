@@ -251,6 +251,24 @@ namespace OPS.Pipeline
             }
         }
 
+        public bool RoverCoordinateSystemRelativeToSite
+        {
+            get
+            {
+                foreach (string group in new string[] { "ROVER_COORDINATE_SYSTEM", "ROVER_COORDINATE_SYSTEM_PARMS" })
+                {
+                    if (metadata.HasGroup(group))
+                    {
+                        string rcsn = "REFERENCE_COORD_SYSTEM_NAME"; 
+                        string rcsi = "REFERENCE_COORD_SYSTEM_INDEX";
+                        return metadata.HasKey(group, rcsn) && metadata.ReadAsString(group, rcsn) == "SITE_FRAME" &&
+                            metadata.HasKey(group, rcsi) && metadata.ReadAsInt(group, rcsi) == Site;
+                    }
+                }
+                return false;
+            }
+        }
+
         public bool HasSiteCoordinateSystem
         {
             get
@@ -394,7 +412,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public double VerticleFOV
+        public double VerticalFOV
         {
             get
             {

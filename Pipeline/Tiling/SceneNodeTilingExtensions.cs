@@ -138,8 +138,8 @@ namespace OPS.Pipeline
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
         public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root,
-                                                     MeshReconMethod reconstructionMethod, int maxFaceCountTarget,
-                                                     int maxTextureSize, SkirtMode? skirtAxis,
+                                                     MeshReconstructionMethod reconstructionMethod,
+                                                     int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis,
                                                      double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
                                                      Action<string> info = null, Action<string> error = null)
         {
@@ -201,7 +201,7 @@ namespace OPS.Pipeline
                     }
                 }
                 info("decimating parent tile mesh");
-                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget,
+                combinedDecimated = combinedFull.ResampleDecimation(maxFaceCountTarget, reconstructionMethod,
                                                                     clippingBounds: minimumBounds,
                                                                     cornerDirection: cornerDirection);
             }
