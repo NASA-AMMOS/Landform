@@ -1024,17 +1024,11 @@ namespace OPS.Pipeline
 
         public override bool GetStereoPartnerSpan(out int start, out int length)
         {
-            if (Camera != RoverProductCamera.PIXELMCC)
-            {
-                start = 44;
-                length = 1;
-                return true;
-            }
-            else
-            {
-                start = length = -1;
-                return false;
-            }
+            //Note: PIXL MCC does not have a stereo partner field in its product ID
+            //but we don't support that instrument
+            start = 44;
+            length = 1;
+            return true;
         }
 
         public override bool GetSizeSpan(out int start, out int length)
