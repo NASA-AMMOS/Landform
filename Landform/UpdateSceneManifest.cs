@@ -62,7 +62,8 @@ using OPS.Landform;
 /// * add/update tactical tileset for wedge ID without URLs
 ///   to s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json :
 ///   update-scene-manifest --mission M2020 --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json
-///   --nocontextual --nourls
+///                         --tacticalpdsfile s3://bucket/path/sol/00700/ids/rdr/ncam/ID.IMG
+///                         --nocontextual --nourls
 ///
 /// * add/update contextual tileset for project 00700_0010005 without URLs
 ///   to s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005/00700_0010005_scene.json:
