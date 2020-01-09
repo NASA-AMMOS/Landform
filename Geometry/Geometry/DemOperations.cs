@@ -129,11 +129,6 @@ namespace OPS.Geometry
             return dem.CameraModel.Project(xyz, out double range);
         }
 
-        public static Vector2 GetBevRowCol(Image dem, Vector3 xyz, double originR, double originC, double metersPerPixel)
-        {
-            return new Vector2(xyz.X / metersPerPixel - originC, xyz.Y / metersPerPixel - originR);
-        }
-
         /// <summary>
         /// Given Image dem, find corners that are not masked out. Optionally enter top left corner and a size parameter to get corners of a subregion.
         /// May not return a full set of vertices (potentially none) if image heavily masked
@@ -209,9 +204,9 @@ namespace OPS.Geometry
             return ret;
         }
 
-        public static Matrix? AlignSceneToDem(Image scenemap, Matrix sceneToWorld, Image dem, Matrix demToWorld, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, double samplePercent = 0.01)
+        public static Matrix? AlignSceneToDem(Image scenemap, Matrix sceneToWorld, Image dem, Matrix demToWorld, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
         {
-            return AlignScenesToDem(new[] { scenemap }, new[] { sceneToWorld }, dem, demToWorld, preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, samplePercent);
+            return AlignScenesToDem(new[] { scenemap }, new[] { sceneToWorld }, dem, demToWorld, preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, sampleLimit);
         }
 
         /// <summary>
@@ -231,14 +226,12 @@ namespace OPS.Geometry
         /// <param name="minFilter"></param>
         /// <param name="maxFilter"></param>
         /// <returns></returns>
-        public static Matrix? AlignScenesToDem(Image[] scenemaps, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, double samplePercent = 0.01)
+        public static Matrix? AlignScenesToDem(Image[] scenemaps, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
         {
             if(sceneToWorlds.Count() != scenemaps.Count())
             {
                 throw new Exception("Number of scenemaps does not match number of priors.");
             }
-
-            //Matrix baseOffset = Matrix.CreateTranslation(new Vector3(sceneColOffsets[0], sceneRowOffsets[0], 0)); //In site drive
 
             int succeeded = 0;
             int total = 0;
@@ -255,21 +248,18 @@ namespace OPS.Geometry
                 return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
             });
 
-            var random = NumberHelper.MakeRandomGenerator();
-
             for (int i = 0; i < scenemaps.Count(); i++)
             {
                 Image scenemap = scenemaps[i];
 
-                for (int r = 0; r < scenemap.Height; r++)
+                double skip = Math.Sqrt(scenemap.Height * scenemap.Width / sampleLimit);
+                skip = Math.Max(skip, 1);
+
+                for (int r = 0; r < scenemap.Height / skip; r++)
                 {
-                    for (int c = 0; c < scenemap.Width; c++)
+                    for (int c = 0; c < scenemap.Width / skip; c++)
                     {
-                        if(random.NextDouble() > samplePercent)
-                        {
-                            continue;
-                        }
-                        Vector3? scenePoint = GetXYZ(scenemap, r, c);
+                        Vector3? scenePoint = GetXYZ(scenemap, (int)Math.Min(r * skip, scenemap.Height - 1), (int)Math.Min(c * skip, scenemap.Width - 1));
                         if (scenePoint.HasValue)
                         {
                             Vector3 worldPoint = Vector3.Transform(scenePoint.Value, sceneToWorlds[i]);
@@ -297,7 +287,15 @@ namespace OPS.Geometry
                 return null;
             } else
             {
-                logger.InfoFormat("Proceeding with overlap {0}/{1}", succeeded, total);
+                //Trim outliers
+                int initialSampleCount = samples.Count;
+                samples = samples.OrderBy(s => s.Z).ToList();
+                double median = samples[samples.Count / 2].Z;
+                var deviations = samples.Select(s => Math.Abs(s.Z - median)).ToArray();
+                double mad = deviations.OrderBy(x => x).ToArray()[samples.Count / 2];
+                samples = samples.Where(s => Math.Abs(s.Z - median) < 20 * mad).ToList();
+                logger.InfoFormat("Trimmed {0} outliers", initialSampleCount - samples.Count);
+                logger.InfoFormat("Proceeding with {0}/{1} overlapping samples", succeeded, total);        
             }
 
             if (succeeded == 0)

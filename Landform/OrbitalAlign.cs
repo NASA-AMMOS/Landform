@@ -33,7 +33,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = 1, HelpText = "Scaler to convert dem values to verticle meters.")]
         public float VerticalScale { get; set; }
 
-        [Option(Required = false, Default = true, HelpText = "If true, only allow rotation/vertical adjustment between scenes.")]
+        [Option(Required = false, Default = true, HelpText = "If true, only allow rotation/vertical adjustment between scenes unless aligned to Dem.")]
         public bool PreserveXY { get; set; }
 
         [Option(Required = false, Default = -1000000, HelpText = "Dem values less than this will be ignored")]
@@ -48,7 +48,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = 0.5f, HelpText = "The minimum sample percentage overlap between site drives required to run alignment. (Align to orbital if all site drive options fail)")]
         public float MinOverlapPercent { get; set; }
 
-        [Option(HelpText = "Debug option to write out the clipped dem in world frame after alignment. Default does not write", Default = "")]
+        [Option(Required = false, Default = 5000, HelpText = "Maximum number of samples to use when aligning SD -> SD")]
+        public int TargetSampleNum { get; set; }
+
+        [Option(HelpText = "Debug option to write out the clipped dem in base site drive frame after alignment. Default does not write", Default = "")]
         public string WriteClippedDemToPath { get; set; }
     }
 
@@ -57,8 +60,6 @@ namespace OPS.Landform
         private OrbitalAlignerOptions options;
 
         private const string OUT_DIR = "orbital/Products";
-
-        private const int NumAnnealingStages = 8;
 
         protected new List<SiteDrive> siteDrives;
 
@@ -252,7 +253,7 @@ namespace OPS.Landform
                     Matrix sceneToWorld = CreateBEVToWorldMatrix(siteDrive);
                     Matrix otherSceneToWorld = CreateBEVToWorldMatrix(otherSiteDrive);
 
-                    var temp = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld, options.PreserveXY, NumAnnealingStages, null, 0.5, options.DEMMinFilter, options.DEMMaxFilter);
+                    var temp = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld, options.PreserveXY, options.NumAnnealingStages, null, 0.5, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum);
                     if (!temp.HasValue)
                     {
                         continue;
@@ -283,11 +284,11 @@ namespace OPS.Landform
             
             //First do naive vertical alignment in base site drive since transform to world may have slight rotation (not commutative)
             Matrix zCorrectedPrior = demToBaseSiteDrive *
-                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive, true, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter).Value;
+                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive, false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
 
             //Run alignment for dem in world frame
             Matrix demToWorldPrior = zCorrectedPrior * frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean;      
-            Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, true, NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter).Value;
+            Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, false, options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
             Matrix demToWorld = demToWorldPrior * demWorldPriorToWorld;
 
             //Align remaining sitedrives to dem
@@ -298,7 +299,7 @@ namespace OPS.Landform
 
                 Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
                 Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
-                    options.PreserveXY, 8, null, 0, options.DEMMinFilter, options.DEMMaxFilter).Value;
+                    false, 8, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
                 worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
             }
 
@@ -357,7 +358,7 @@ namespace OPS.Landform
                     }
                 }
                 Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
-                demMesh.Transform(demToWorld);     
+                demMesh.Transform(demToWorld * Matrix.Invert(frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean));     
                 demMesh.Save(options.WriteClippedDemToPath);
             }
 
