@@ -1152,6 +1152,9 @@ namespace OPS.Pipeline
                 .ToList();
 
             //EECAM downsampling A,L,M,N (prefer higher, precedence over version, downsample, and compression)
+            //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
+            //though also see https://github.jpl.nasa.gov/OnSight/Landform/issues/891
             products = products
                 .GroupBy(id => id.GetPartialId(this, includeVariants: false))
                 .SelectMany(ids => filterEECAM(ids, EECAM_DOWNSAMPLE_FIELD))
