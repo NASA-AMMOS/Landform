@@ -64,13 +64,12 @@ namespace OPS.Landform
 
         private enum TextureGenMode
         {
-            None,           //generate just mesh with no textures
-            Clip,           //generate tile textures by clipping regions out of the source texture and offsetting uvs
-            Bake,           //generate tile textures by re-atlassing tiles at a desired resolution and resampling source texture
-            Backproject     //generate tile textures by choosing the 'best' data from a number of observations that viewed the mesh
+            None,       //generate just mesh with no textures
+            Clip,       //generate tile textures by clipping regions out of the source texture and offsetting uvs
+            Bake,       //generate tile textures by atlassing tiles and sampling source texture at a desired resolution
+            Backproject //generate tile textures by choosing the best data from observations that viewed the mesh
         };
-
-        TextureGenMode texGenMode = TextureGenMode.None;
+        private TextureGenMode texGenMode = TextureGenMode.None;
 
         private Image sceneTexture;
         private SceneNode tileTree;
@@ -102,7 +101,8 @@ namespace OPS.Landform
                     RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
 
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip || texGenMode == TextureGenMode.Bake));
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
+                                                                texGenMode == TextureGenMode.Bake));
 
                 if (texGenMode == TextureGenMode.Backproject)
                 {
@@ -130,7 +130,7 @@ namespace OPS.Landform
                 }
 
                 RunPhase(string.Format("{0}save tiles", withTextures ? "build tile textures and " : ""),
-                        BuildTileTexturesAndSaveTiles);
+                         BuildTileTexturesAndSaveTiles);
             }
             catch (Exception ex)
             {
@@ -303,6 +303,22 @@ namespace OPS.Landform
                 SplitByTextureOpts texSplitOpts = null;
                 if (texGenMode == TextureGenMode.Backproject && options.SplitByTexturePctToTest > 0)
                 {
+                    CameraInstance toCameraInstance(Observation obs)
+                    {
+                        var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
+                        if (xform == null)
+                        {
+                            return null;
+                        }
+                        CameraInstance camInst = new CameraInstance();
+                        camInst.cameraToMesh = xform.Mean;
+                        camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
+                        camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                        camInst.hullInMesh = obsToHull[obs.Name];
+                        camInst.widthPixels = obs.Width;
+                        camInst.heightPixels = obs.Height;
+                        return camInst;
+                    }
                     texSplitOpts = new SplitByTextureOpts()
                     {
                         pctPixelsToTest = options.SplitByTexturePctToTest,
@@ -312,7 +328,7 @@ namespace OPS.Landform
                         scInMesh = sceneCaster,
                         cameraInstances =
                         imageObservations
-                        .Select(obs => ToCameraInstance((RoverObservation)obs))
+                        .Select(obs => toCameraInstance(obs))
                         .ToArray(),
                     };
                 }
@@ -324,28 +340,12 @@ namespace OPS.Landform
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
         }
 
-        private CameraInstance ToCameraInstance(RoverObservation obs)
-        {
-            var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
-            if (xform == null)
-            {
-                return null;
-            }
-            CameraInstance camInst = new CameraInstance();
-            camInst.cameraToMesh = xform.Mean;
-            camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
-            camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-            camInst.hullInMesh = obsToHull[obs.Name];
-            camInst.widthPixels = obs.Width;
-            camInst.heightPixels = obs.Height;
-            return camInst;
-        }
-
         private void BuildLODTileMeshes()
         {
             if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
             {
-                throw new NotImplementedException("only for tile not implemented for LODs yet"); //could be done by seeing if the tile's name starts with the same digits (subtree over named tile)
+                //could be done by seeing if the tile's name starts with the same digits (subtree over named tile)
+                throw new NotImplementedException("only for tile not implemented for LODs yet");
             }
 
             int numFailed = 0;

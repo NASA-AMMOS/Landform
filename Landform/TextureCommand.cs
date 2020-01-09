@@ -48,7 +48,7 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = ObsSelectionStrategyName.Spatial)]
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Greedy, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
         public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
@@ -216,7 +216,7 @@ namespace OPS.Landform
             {
                 if (obs.BlendedGuid == Guid.Empty)
                 {
-                    throw new Exception(string.Format("no blended texture for observation {0}, run local-blend-images", obs.Name));
+                    throw new Exception(string.Format("no blended texture for {0}, run blend-images", obs.Name));
                 }
             }
         }
