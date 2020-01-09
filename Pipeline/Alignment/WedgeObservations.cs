@@ -107,20 +107,30 @@ namespace OPS.Pipeline
         //allowed mesh file extensions, lowercase, not including leading dots, in priority order, defaults to iv, obj
         public string[] MeshExts = new string[] { "iv", "obj" };
 
-        public bool HasMesh {
+        public Observation MeshObservation
+        {
             get
             {
-                if (Texture == null || Texture.AlternateExtensions == null)
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/896
+                foreach (var obs in new Observation[] { Points, Texture })
                 {
-                    return false;
+                    if (obs != null && obs.AlternateExtensions != null)
+                    {
+                        lock (obs.AlternateExtensions)
+                        {
+                            if (obs.AlternateExtensions
+                                .Any(ext => MeshExts.Any(me => ext.Equals(me, StringComparison.OrdinalIgnoreCase))))
+                            {
+                                return obs;
+                            }
+                        }
+                    }
                 }
-                lock (Texture.AlternateExtensions)
-                {
-                    return Texture.AlternateExtensions
-                        .Any(ext => MeshExts.Any(me => ext.Equals(me, StringComparison.OrdinalIgnoreCase)));
-                }
+                return null;
             }
         }
+
+        public bool HasMesh { get { return MeshObservation != null; } }
 
         public bool Meshable { get { return Points != null || HasMesh; } }
 
@@ -558,13 +568,15 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// load mesh product associated with Texture observation
+        /// load mesh product associated with MeshObservation
         /// returns finest LOD with at most 1 + LOAD_MESH_DECIMATE_TOL times a full decimated organized mesh
         /// if no available LODs satisfy that requirement then the coarsest LOD will be further decimated
         /// </summary>
         public Mesh LoadMesh(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts)
         {
-            if (!HasMesh)
+            var meshObs = MeshObservation;
+
+            if (meshObs == null)
             {
                 pipeline.LogWarn("no loadable mesh for {0}", Name);
                 return null;
@@ -573,7 +585,7 @@ namespace OPS.Pipeline
             //find extension that matches first in MeshExts priority order
             //use the value from AlternateExtensions which is case sensitive, not MeshExts which is not
             string meshExt = null;
-            var exts = Texture.AlternateExtensions;
+            var exts = meshObs.AlternateExtensions;
             lock (exts)
             {
                 meshExt = MeshExts
@@ -582,7 +594,7 @@ namespace OPS.Pipeline
                     .First(); //guaranteed to work because HasMesh is true
             }
 
-            string meshUrl = StringHelper.StripUrlExtension(Texture.Url) + "." + meshExt;
+            string meshUrl = StringHelper.StripUrlExtension(meshObs.Url) + "." + meshExt;
 
             pipeline.LogVerbose("loading wedge mesh {0}", meshUrl);
 
@@ -607,13 +619,13 @@ namespace OPS.Pipeline
 
             pipeline.LogVerbose("loaded {0} LODs for wedge mesh {1}", lodMeshes.Count, meshUrl);
 
-            int fullTris = (Texture.Width - 1) * (Texture.Height - 1) * 2; //polycount of full organized mesh
+            int fullTris = (meshObs.Width - 1) * (meshObs.Height - 1) * 2; //polycount of full organized mesh
             int maxTris = opts.Decimate <= 1 ? fullTris : fullTris / opts.Decimate;
             int threshold = (int)((1 + LOAD_MESH_DECIMATE_TOL) * maxTris);
 
             string msg = string.Format("{0}x{1} observation: max {2} tris, {3} tris at {4}x decimation, " +
                                        "{5} threshold: {6}",
-                                       Texture.Width, Texture.Height, Fmt.KMG(fullTris), Fmt.KMG(maxTris),
+                                       meshObs.Width, meshObs.Height, Fmt.KMG(fullTris), Fmt.KMG(maxTris),
                                        opts.Decimate, 1 + LOAD_MESH_DECIMATE_TOL, Fmt.KMG(threshold));
 
             int lod = lodMeshes.FindIndex(m => m.Faces.Count <= threshold);
@@ -641,15 +653,15 @@ namespace OPS.Pipeline
                 TextureImage = pipeline.LoadImage(Texture.Url);
             }
 
-            var xform = frameCache.GetObservationTransform(Texture, opts.LoadedFrame, opts.UsePriors, opts.OnlyAligned);
+            var xform = frameCache.GetObservationTransform(meshObs, opts.LoadedFrame, opts.UsePriors, opts.OnlyAligned);
             if (xform == null)
             {
-                pipeline.LogWarn("failed to find {0} transform for {1}", opts.LoadedFrame, Texture.Name);
+                pipeline.LogWarn("failed to find {0} transform for {1}", opts.LoadedFrame, meshObs.Name);
                 return null; 
             }
-            mesh.Transform(Matrix.Invert(xform.Mean)); //transform mesh into Texture observation frame
+            mesh.Transform(Matrix.Invert(xform.Mean)); //transform mesh into meshObs observation frame
 
-            return FinishMesh(pipeline, frameCache, opts, Texture, mesh);
+            return FinishMesh(pipeline, frameCache, opts, meshObs, mesh);
         }
 
         /// <summary>
