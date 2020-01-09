@@ -10,7 +10,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTTDEC12 }
 
     public abstract class MissionSpecific
     {
@@ -24,6 +24,7 @@ namespace OPS.Pipeline
                 case Mission.ROASTT19: return new MissionROASTT19();
                 case Mission.TT4: return new MissionTT4();
                 case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM();
+                case Mission.ROASTTDEC12: return new MissionROASTTDec12();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -1407,6 +1408,27 @@ namespace OPS.Pipeline
         public override QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+        }
+    }
+
+    public class MissionROASTTDec12 : MissionM2020
+    {
+        public override Mission GetMission()
+        {
+            return Mission.ROASTTDEC12;
+        }
+        //ROASTTDEC12: RSM counter not incremented in dataset
+        public override string GetObservationFrameName(PDSParser parser)
+        {
+            double[] angles = parser.metadata.ReadAsDoubleArray("RSM_ARTICULATION_STATE", "ARTICULATION_DEVICE_ANGLE");
+            var name = string.Format("{0}_{1}", GetCamera(parser), RoverMotionCounter(parser));
+
+            //first two angles are mast
+            foreach (var angle in angles.Take(2))
+            {
+                name += "_" + angle.ToString();
+            }
+            return name;
         }
     }
 

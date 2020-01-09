@@ -250,7 +250,7 @@ namespace OPS.Pipeline
                             {
                                 if (logger != null)
                                 {
-                                    logger.LogVerbose("keeping first two of\n {0}",
+                                    logger.LogVerbose("keeping {0} and {1} of\n {2}", best.Name, bestOtherLinearity.Name,
                                                 String.Join("\n  ", group.Select(o => o.ToString())));
                                 }
 
@@ -261,7 +261,7 @@ namespace OPS.Pipeline
                    
                     if (logger != null && group.Count() > 1)
                     {
-                        logger.LogVerbose("keeping only first of\n  {0}",
+                        logger.LogVerbose("keeping only {0} of\n {1}", group.First().Name,
                                         String.Join("\n  ", group.Select(o => o.ToString())));
                     }
 
