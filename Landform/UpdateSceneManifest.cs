@@ -154,6 +154,12 @@ namespace OPS.Landform
         [Option(HelpText = "Don't cull unreferenced image and frame manifests", Default = false)]
         public bool NoCullOrphanImagesAndFrames { get; set; }
 
+        [Option(HelpText = "Don't prefer RDRs outside the browse subdirectory", Default = false)]
+        public bool NoPreferNonBrowseRDRs { get; set; }
+
+        [Option(HelpText = "Don't allow using RDRs in the browse subdirectory", Default = false)]
+        public bool NoAllowBrowseRDRs { get; set; }
+
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
 
@@ -194,14 +200,22 @@ namespace OPS.Landform
             //ext without leading dot -> url
             private Dictionary<string, string> urls = new Dictionary<string, string>();
 
+            public static bool allowBrowse;
+            public static bool preferNonBrowse;
+
             public int Count { get { return urls.Count; } }
+
+            public string GetActualExtension(string ext)
+            {
+                ext = ext.TrimStart('.');
+                return urls.Keys
+                    .Where(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                    .FirstOrDefault();
+            }
 
             public string GetUrlWithExtension(string ext)
             {
-                ext = ext.TrimStart('.');
-                string actualExt = urls.Keys
-                    .Where(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase))
-                    .FirstOrDefault();
+                string actualExt = GetActualExtension(ext);
                 if (string.IsNullOrEmpty(actualExt))
                 {
                     throw new Exception(string.Format("no ext {0} in RDR set, available: {1}",
@@ -226,7 +240,22 @@ namespace OPS.Landform
  
             public void Add(string url)
             {
-                urls[StringHelper.GetUrlExtension(url).TrimStart('.')] = url;
+                string ext = StringHelper.GetUrlExtension(url).TrimStart('.');
+                string existingExt = GetActualExtension(ext);
+                bool isBrowse = url.IndexOf("/browse/") >= 0;
+                if (isBrowse && !allowBrowse)
+                {
+                    return;
+                }
+                if (isBrowse && preferNonBrowse && existingExt != null && urls[existingExt].IndexOf("/browse/") < 0)
+                {
+                    return;
+                }
+                if (existingExt != null)
+                {
+                    urls.Remove(existingExt); //avoid indexing both PNG and png
+                }
+                urls[ext] = url;
             }
         }
         private Dictionary<string, IURLFileSet> rdrs = new Dictionary<string, IURLFileSet>(); //indexed by product id
@@ -422,6 +451,9 @@ namespace OPS.Landform
                 cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
                 mission != null ? mission.GetDefaultAWSRegion() : "null";
             pipeline.LogInfo("AWS region: {0}", awsRegion);
+
+            RDRSet.allowBrowse = !options.NoAllowBrowseRDRs;
+            RDRSet.preferNonBrowse = !options.NoPreferNonBrowseRDRs;
 
             return true;
         }
