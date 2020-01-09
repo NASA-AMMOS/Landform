@@ -191,46 +191,42 @@ namespace OPS.Landform
 
         private class RDRSet : IURLFileSet
         {
-            public readonly string BaseUri;
+            //ext without leading dot -> url
+            private Dictionary<string, string> urls = new Dictionary<string, string>();
 
-            private HashSet<string> extensions = new HashSet<string>(); //without leading dot
-
-            public RDRSet(string baseUri)
-            {
-                this.BaseUri = baseUri;
-            }
+            public int Count { get { return urls.Count; } }
 
             public string GetUrlWithExtension(string ext)
             {
                 ext = ext.TrimStart('.');
-                string actualExt = extensions
+                string actualExt = urls.Keys
                     .Where(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase))
                     .FirstOrDefault();
                 if (string.IsNullOrEmpty(actualExt))
                 {
-                    throw new Exception(string.Format("no ext {0} in RDR set {1}, available: {2}",
-                                                      ext, BaseUri, string.Join(", ", extensions)));
+                    throw new Exception(string.Format("no ext {0} in RDR set, available: {1}",
+                                                      ext, string.Join(", ", urls.Keys)));
                 }
-                return BaseUri + "." + actualExt;
+                return urls[actualExt];
             }
 
             public bool HasUrlExtension(string ext)
             {
                 ext = ext.TrimStart('.');
-                return extensions.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase));
+                return urls.Keys.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase));
             }
 
             public IEnumerable<string> GetUrlExtensions()
             {
-                foreach (var ext in extensions)
+                foreach (var ext in urls.Keys)
                 {
                     yield return ext;
                 }
             }
  
-            public bool AddExtension(string ext)
+            public void Add(string url)
             {
-                return extensions.Add(ext.TrimStart('.'));
+                urls[StringHelper.GetUrlExtension(url).TrimStart('.')] = url;
             }
         }
         private Dictionary<string, IURLFileSet> rdrs = new Dictionary<string, IURLFileSet>(); //indexed by product id
@@ -507,28 +503,15 @@ namespace OPS.Landform
 
             int wildcardIndex = options.RDRDir.IndexOf(WILDCARD);
 
-            int total = 0, kept = 0;
+            int total = 0;
 
-            void addRDR(string id, string baseUri, string ext)
+            void addRDR(string id, string url)
             {
                 if (!rdrs.ContainsKey(id))
                 {
-                    rdrs[id] = new RDRSet(baseUri);
+                    rdrs[id] = new RDRSet();
                 }
-                var rdrSet = (RDRSet)(rdrs[id]);
-                if (baseUri == rdrSet.BaseUri)
-                {
-                    if (rdrSet.AddExtension(ext))
-                    {
-                        kept++;
-                    }
-                }
-                //normally we expect all RDRs for a given unique product ID to be in the same directory
-                //however it's possible e.g. for wedge meshes that there is data duplication across sols
-                //else
-                //{
-                //    pipeline.LogWarn("found RDR {0} but already indexed {1}.*", url, rdr.BaseUri);
-                //}
+                ((RDRSet)(rdrs[id])).Add(url);
             }
 
             void searchRDRs(string dir, string pat)
@@ -537,11 +520,10 @@ namespace OPS.Landform
                 foreach (var url in SearchFiles(dir, pat, recursive: true, ignoreCase: true))
                 {
                     string ext = StringHelper.GetUrlExtension(url); //includes leading dot
-                    string baseUri = StringHelper.StripUrlExtension(url);
-                    string idStr = StringHelper.GetLastUrlPathSegment(baseUri);
+                    string idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
                     if (idStr.EndsWith(SceneManifestHelper.TILESET_SUFFIX))
                     {
-                        addRDR(idStr, baseUri, ext); //don't strip "_tileset" suffix from id
+                        addRDR(idStr, url); //don't strip "_tileset" suffix from id
                     }
                     else
                     {
@@ -550,7 +532,7 @@ namespace OPS.Landform
                             var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                             if (id != null && id.IsSingleFrame())
                             {
-                                addRDR(idStr, baseUri, ext);
+                                addRDR(idStr, url);
                             }
                         }
                     }
@@ -586,7 +568,7 @@ namespace OPS.Landform
                 }
             }
 
-            pipeline.LogInfo("indexed {0}/{1} RDRs", kept, total);
+            pipeline.LogInfo("indexed {0}/{1} RDRs", rdrs.Values.Sum(r => ((RDRSet)r).Count), total);
         }
 
         private string ConvertURI(string uri)
@@ -795,10 +777,13 @@ namespace OPS.Landform
                 if (options.ManifestFile.EndsWith(sfx))
                 {
                     string id = StringHelper.StripSuffix(StringHelper.GetLastUrlPathSegment(options.ManifestFile), sfx);
-                    string url = GetExistingTileset(id);
-                    if (url != null)
+                    if (RoverProductId.Parse(id, mission, throwOnFail: false) != null)
                     {
-                        doSearch = !update(id, url);
+                        string url = GetExistingTileset(id);
+                        if (url != null)
+                        {
+                            doSearch = !update(id, url);
+                        }
                     }
                 }
 

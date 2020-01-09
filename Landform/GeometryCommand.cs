@@ -169,16 +169,10 @@ namespace OPS.Landform
                 isSiteDrive = true;
             }
 
-            if (isSiteDrive)
+            //some workflows do not load frame cache, for example updating scene manifest for tactical meshes
+            if (isSiteDrive && frameCache != null && !frameCache.ContainsFrame(meshFrame))
             {
-                if (frameCache == null)
-                {
-                    throw new Exception("frame cache not loaded, cannot resolve frame: " + meshFrame);
-                }
-                if (!frameCache.ContainsFrame(meshFrame))
-                {
-                    throw new Exception("sitedrive frame not found: " + meshFrame);
-                }
+                throw new Exception("sitedrive frame not found: " + meshFrame);
             }
 
             pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
