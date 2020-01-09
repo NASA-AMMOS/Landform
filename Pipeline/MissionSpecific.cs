@@ -56,14 +56,14 @@ namespace OPS.Pipeline
             return cam;
         }
 
-        public virtual RoverProductCamera GetCamera(string instrumentId)
-        {
-            return TranslateCamera(RoverCamera.FromPDSInstrumentID(instrumentId));
-        } 
-
         public virtual RoverProductCamera GetCamera(PDSParser parser)
         {
-            return GetCamera(parser.InstrumentId);
+            var cam = RoverCamera.FromPDSInstrumentID(parser.InstrumentId);
+            if (cam == RoverProductCamera.Unknown)
+            {
+                cam = ParseProductId(parser.ProductIdString).Camera;
+            }
+            return TranslateCamera(cam);
         }
 
         public virtual RoverProductType GetProductType(string productId)
@@ -1053,7 +1053,7 @@ namespace OPS.Pipeline
         {
             switch (cam)
             {
-                //ML and MR in RDR product names for M2020 really mean MastcamZ not Mastcam
+                //in early datasets ML and MR in RDR product names for M2020 really mean MastcamZ not Mastcam
                 //and in any case M2020 has only MastcamZ not Mastcam
                 case RoverProductCamera.MastcamLeft: return RoverProductCamera.MastcamZLeft;
                 case RoverProductCamera.MastcamRight: return RoverProductCamera.MastcamZRight;
@@ -1220,7 +1220,10 @@ namespace OPS.Pipeline
 
         public override bool IsArmcam(RoverProductCamera camera)
         {
-            return camera == RoverProductCamera.PIXELMCC;
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/897
+            return camera == RoverProductCamera.SHERLOCACI ||
+                camera == RoverProductCamera.SHERLOCWATSON ||
+                camera == RoverProductCamera.SHERLOCWATSONLeft || camera == RoverProductCamera.SHERLOCWATSONRight;
         }
 
         public override bool AllowPlacesDB()
@@ -1266,6 +1269,7 @@ namespace OPS.Pipeline
                 string spec = opgsId.Spec.ToUpper();
                 if (spec != "_")
                 {
+                    //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/895
                     reason = "special processing " + spec;
                     return false;
                 }
@@ -1276,7 +1280,7 @@ namespace OPS.Pipeline
                     var stereoPartner = camspec.Substring(0, 1);
                     if (stereoPartner != "_")
                     {
-                        //TODO: issue #883
+                        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/883
                         reason = "stereo partner " + stereoPartner;
                     }
                 }
