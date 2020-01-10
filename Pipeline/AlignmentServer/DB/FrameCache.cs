@@ -717,6 +717,10 @@ namespace OPS.Pipeline.AlignmentServer
             int firstSite = -1;
             foreach (var frame in GetAllFrames())
             {
+                if(frame.Name == "Orbital")
+                {
+                    continue;
+                }
                 var parent = frame.ParentName != null ? GetFrame(frame.ParentName) : null;
                 if (parent != null && parent.ParentName == null) //parent is root frame -> frame is a siteDriveFrame
                 {

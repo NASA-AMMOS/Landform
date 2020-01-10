@@ -7,6 +7,8 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
+using System.IO;
 
 namespace OPS.Pipeline
 {
@@ -779,6 +781,28 @@ namespace OPS.Pipeline
         {
             return "img,png";
         }
+
+        public virtual Matrix GetDemToSiteDriveOffset(SiteDrive siteDrive)
+        {
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(GetDemPath()));
+            if (s.GetType() != typeof(GDALSerializer))
+            {
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+            ((GDALSerializer)s).GetMetadata(GetDemPath(), out int bands, out int width, out int height);
+
+            Vector2 colRowOffset = GetSiteDriveOriginPixelInDem(siteDrive);
+
+            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - width / 2.0) * GetDemMetersPerPixel(),
+                                                 -1 * (colRowOffset.Y - height / 2.0) * GetDemMetersPerPixel(),
+                                                 0);
+
+            return Matrix.CreateTranslation(-1 * demSDOriginXYZ);
+        }
+
+        public abstract string GetDemPath();
+        public abstract float GetDemMetersPerPixel();
+        public abstract Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive);
     }
 
     public class MissionMSL : MissionSpecific
@@ -1017,6 +1041,37 @@ namespace OPS.Pipeline
             }
 
             return true;
+        }
+
+        public override float GetDemMetersPerPixel()
+        {
+            return 1;
+        }
+
+        public override string GetDemPath()
+        {
+            string demPath = Environment.GetEnvironmentVariable("DemPath");
+            if (String.IsNullOrEmpty(demPath))
+            {
+                var userDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                var defaultDemPath = Path.Combine(userDir, "Downloads/windjana/out_deltaradii_smg_1m.tif");
+                Environment.SetEnvironmentVariable("DemPath", defaultDemPath);
+                demPath = defaultDemPath;
+            }
+            if(!File.Exists(demPath))
+            {
+                throw new FileNotFoundException("Dem not found at " + demPath);
+            }
+            return demPath;
+        }
+
+        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive)
+        {
+            MSLPlaces places = new MSLPlaces();
+            Vector2 latlon = places.GetEstimatedLatLon(siteDrive);
+            GDALDEM gdalDem = GDALDEM.MarsDEM(this.GetDemPath());
+            Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
+            return new Vector2(colRowOffset.X, colRowOffset.Y);
         }
     }
 
@@ -1415,6 +1470,21 @@ namespace OPS.Pipeline
         public override QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+        }
+
+        public override string GetDemPath()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override float GetDemMetersPerPixel()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive)
+        {
+            throw new NotImplementedException();
         }
     }
 

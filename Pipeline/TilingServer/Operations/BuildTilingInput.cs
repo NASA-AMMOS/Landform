@@ -253,6 +253,7 @@ namespace OPS.Pipeline.TilingServer
                 v => new Vertex(v.Position.X, v.Position.Y, 0)).ToList());
 
             SparseImage dem = new SparseImage(mission.GetDemPath());
+            dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
 
             Matrix demToWorld = frameCache.GetBestTransform(orbitalFrameName).Transform.Mean;
             //Get subset of dem around sitedrive
