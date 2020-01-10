@@ -763,27 +763,34 @@ namespace OPS.Pipeline
             return "img,png";
         }
 
-        public virtual Matrix GetDemToSiteDriveOffset(SiteDrive siteDrive)
+        private int demWidth = -1; //Lazily computed
+        private int demHeight = -1;
+
+        public virtual Matrix GetDemToSiteDriveOffset(SiteDrive siteDrive, string demFilePath = null)
         {
-            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(GetDemPath()));
+            demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath : //override by cmdline opt
+                Path.Combine(LocalPipelineConfig.Instance.StorageDir, GetMission().ToString(), OrbitalConfig.Instance.DEMRelPath);
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
             if (s.GetType() != typeof(GDALSerializer))
             {
                 throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
             }
-            ((GDALSerializer)s).GetMetadata(GetDemPath(), out int bands, out int width, out int height);
+            if (demWidth == -1)
+            {
+                ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out demWidth, out demHeight);
+            }
 
-            Vector2 colRowOffset = GetSiteDriveOriginPixelInDem(siteDrive);
+            Vector2 colRowOffset = GetSiteDriveOriginPixelInDem(siteDrive, demFilePath);
 
-            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - width / 2.0) * GetDemMetersPerPixel(),
-                                                 -1 * (colRowOffset.Y - height / 2.0) * GetDemMetersPerPixel(),
+            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - demWidth / 2.0) * GetDemMetersPerPixel(),
+                                                 -1 * (colRowOffset.Y - demHeight / 2.0) * GetDemMetersPerPixel(),
                                                  0);
 
             return Matrix.CreateTranslation(-1 * demSDOriginXYZ);
         }
 
-        public abstract string GetDemPath();
         public abstract float GetDemMetersPerPixel();
-        public abstract Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive);
+        public abstract Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath=null);
     }
 
     public class MissionMSL : MissionSpecific
@@ -1024,28 +1031,18 @@ namespace OPS.Pipeline
             return 1;
         }
 
-        public override string GetDemPath()
-        {
-            string demPath = Environment.GetEnvironmentVariable("DemPath");
-            if (String.IsNullOrEmpty(demPath))
-            {
-                var userDir = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                var defaultDemPath = Path.Combine(userDir, "Downloads/windjana/out_deltaradii_smg_1m.tif");
-                Environment.SetEnvironmentVariable("DemPath", defaultDemPath);
-                demPath = defaultDemPath;
-            }
-            if(!File.Exists(demPath))
-            {
-                throw new FileNotFoundException("Dem not found at " + demPath);
-            }
-            return demPath;
-        }
+        private GDALDEM gdalDem = null;
 
-        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive)
+        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath = null)
         {
             MSLPlaces places = new MSLPlaces();
             Vector2 latlon = places.GetEstimatedLatLon(siteDrive);
-            GDALDEM gdalDem = GDALDEM.MarsDEM(this.GetDemPath());
+            if(gdalDem == null)
+            {
+                demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath : //override by cmdline opt
+                    Path.Combine(LocalPipelineConfig.Instance.StorageDir, GetMission().ToString(), OrbitalConfig.Instance.DEMRelPath);
+                gdalDem = GDALDEM.MarsDEM(demFilePath);
+            }
             Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
             return new Vector2(colRowOffset.X, colRowOffset.Y);
         }
@@ -1439,17 +1436,12 @@ namespace OPS.Pipeline
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
         }
 
-        public override string GetDemPath()
-        {
-            throw new NotImplementedException();
-        }
-
         public override float GetDemMetersPerPixel()
         {
             throw new NotImplementedException();
         }
 
-        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive)
+        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath = null)
         {
             throw new NotImplementedException();
         }

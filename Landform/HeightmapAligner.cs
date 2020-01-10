@@ -18,8 +18,8 @@ using OPS.Imaging.Imaging;
 
 namespace OPS.Landform
 {
-    [Verb("orbital-align", HelpText = "")]
-    public class OrbitalAlignerOptions : BEVCommandOptions
+    [Verb("heightmap-align", HelpText = "")]
+    public class HeightmapAlignerOptions : BEVCommandOptions
     {
         [Option(HelpText = "Manually specify a base site drive to align others to. By default BaseSiteDrivePriority will be used to pick the base site drive", Default = "")]
         public string BaseSiteDrive { get; set; }
@@ -51,19 +51,22 @@ namespace OPS.Landform
         [Option(Required = false, Default = 5000, HelpText = "Maximum number of samples to use when aligning SD -> SD")]
         public int TargetSampleNum { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Override default dem location from config")]
+        public string OrbitalDEM { get; set; }
+
         [Option(HelpText = "Debug option to write out the clipped dem in base site drive frame after alignment. Default does not write", Default = "")]
         public string WriteClippedDemToPath { get; set; }
     }
 
-    public class OrbitalAligner : BEVCommand
+    public class HeightmapAligner : BEVCommand
     {
-        private OrbitalAlignerOptions options;
+        private HeightmapAlignerOptions options;
 
         private const string OUT_DIR = "orbital/Products";
 
         protected new List<SiteDrive> siteDrives;
 
-        public OrbitalAligner(OrbitalAlignerOptions options) : base(options)
+        public HeightmapAligner(HeightmapAlignerOptions options) : base(options)
         {
             this.options = options;
         }
@@ -75,13 +78,6 @@ namespace OPS.Landform
         public int Run()
         {
             this.ParseArgumentsAndLoadCaches(OUT_DIR);
-
-            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(mission.GetDemPath()));
-            if (s.GetType() != typeof(GDALSerializer))
-            {
-                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
-            }
-            ((GDALSerializer)s).GetMetadata(mission.GetDemPath(), out int bands, out int width, out int height);
 
             if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
@@ -107,12 +103,6 @@ namespace OPS.Landform
                 .Distinct()
                 .OrderByDescending(sd => sd)
                 .ToList();
-
-            var dem = new SparseDEMImage(mission.GetDemPath());
-            if (dem.CameraModel == null)
-            {
-                dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
-            }
 
             LoadOrRenderBEVs();
 
@@ -275,41 +265,103 @@ namespace OPS.Landform
                 }
             }
 
-            //Align dem to all aligned site drives
-            pipeline.LogInfo("Beginning alignment for DEM");
+            string demFilePath = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : //override by cmdline opt
+                Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
 
-            var alignedImages = aligned.Select(sd => dems[sd]).ToArray();
-            Matrix[] bevsToWorld = aligned.Select(sd => CreateBEVToWorldMatrix(sd) * worldPriorToWorldTransforms[sd]).ToArray();
+            bool runOrbitalAlign = true;
+            SparseDEMImage dem = null;
+            Matrix demToBaseSiteDrive = Matrix.Identity;
 
-            Matrix demToBaseSiteDrive = mission.GetDemToSiteDriveOffset(baseSiteDrive) * DemOperations.demToSitedriveCoordinateFlip;
-            
-            //First do naive vertical alignment in base site drive since transform to world may have slight rotation (not commutative)
-            Matrix zCorrectedPrior = demToBaseSiteDrive *
-                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive,
-                false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
-
-            //Run alignment for dem in world frame
-            Matrix demToWorldPrior = zCorrectedPrior * frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean;      
-            Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, false, 
-                options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
-            Matrix demToWorld = demToWorldPrior * demWorldPriorToWorld;
-
-            //Align remaining sitedrives to dem
-            foreach(SiteDrive siteDrive in unaligned)
+            try
             {
-                pipeline.LogInfo("Aligning site drive {0} to DEM.", siteDrive);
-                var image = dems[siteDrive];
+                ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
+                if (s.GetType() != typeof(GDALSerializer))
+                {
+                    throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+                }
+                ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out int width, out int height);
+                dem = new SparseDEMImage(demFilePath);
+                if (dem.CameraModel == null)
+                {
+                    dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
+                }
+                demToBaseSiteDrive = mission.GetDemToSiteDriveOffset(baseSiteDrive, demFilePath) * DemOperations.demToSitedriveCoordinateFlip;
+            }
+            catch
+            {
+                pipeline.LogWarn("FAILED to load orbital DEM with priors. Check filepath and places access.");
+                runOrbitalAlign = false;
+            }
 
-                Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
-                Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
-                    false, 8, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
-                worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
+            //Align dem to all aligned site drives
+            if (runOrbitalAlign)
+            {
+                pipeline.LogInfo("Beginning alignment for DEM");
+
+                var alignedImages = aligned.Select(sd => dems[sd]).ToArray();
+                Matrix[] bevsToWorld = aligned.Select(sd => CreateBEVToWorldMatrix(sd) * worldPriorToWorldTransforms[sd]).ToArray();            
+
+                //First do naive vertical alignment in base site drive since transform to world may have slight rotation (not commutative)
+                Matrix zCorrectedPrior = demToBaseSiteDrive *
+                    DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive,
+                    false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+
+                //Run alignment for dem in world frame
+                Matrix demToWorldPrior = zCorrectedPrior * frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean;
+                Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, false,
+                    options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+                Matrix demToWorld = demToWorldPrior * demWorldPriorToWorld;
+
+                //Align remaining sitedrives to dem
+                foreach (SiteDrive siteDrive in unaligned)
+                {
+                    pipeline.LogInfo("Aligning site drive {0} to DEM.", siteDrive);
+                    var image = dems[siteDrive];
+
+                    Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
+                    Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
+                        false, 8, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+                    worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
+                }
+
+                if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))
+                {
+                    Vector2 sdOriginPixel = mission.GetSiteDriveOriginPixelInDem(baseSiteDrive);
+
+                    //Get subset of dem around sitedrive
+                    int pixelRadius = (int)(200 / mission.GetDemMetersPerPixel());
+                    int baseC = (int)Math.Max(sdOriginPixel.X - pixelRadius, 0);
+                    int baseR = (int)Math.Max(sdOriginPixel.Y - pixelRadius, 0);
+                    int pixelWidth = (int)Math.Min(sdOriginPixel.X + pixelRadius, dem.Width) - baseC;
+                    int pixelHeight = (int)Math.Min(sdOriginPixel.Y + pixelRadius, dem.Height) - baseR;
+
+                    //Create dem mesh in root site drive frame
+                    Mesh demPointCloud = new Mesh();
+                    for (int r = 0; r < pixelHeight; r++)
+                    {
+                        for (int c = 0; c < pixelWidth; c++)
+                        {
+                            var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c, options.VerticalScale, true, options.DEMMinFilter, options.DEMMaxFilter);
+                            if (pos.HasValue)
+                            {
+                                Vertex v = new Vertex();
+                                v.Position = pos.Value;
+                                v.UV = dem.PixelToUV(new Vector2(baseC + c, baseR + r));
+                                demPointCloud.Vertices.Add(v);
+                            }
+                        }
+                    }
+                    Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
+                    demMesh.Transform(demToWorld * Matrix.Invert(frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean));
+                    demMesh.Save(options.WriteClippedDemToPath);
+                }
             }
 
             foreach (SiteDrive siteDrive in siteDrives)
             {
                 if(!worldPriorToWorldTransforms.ContainsKey(siteDrive))
                 {
+                    pipeline.LogWarn("Failed to generate {0} transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
                     continue;
                 }
 
@@ -331,38 +383,6 @@ namespace OPS.Landform
                     frame.Save(pipeline);
                 }
                 pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
-            }
-
-            if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))
-            {
-                Vector2 sdOriginPixel = mission.GetSiteDriveOriginPixelInDem(baseSiteDrive);
-
-                //Get subset of dem around sitedrive
-                int pixelRadius = (int)(200 / mission.GetDemMetersPerPixel());
-                int baseC = (int)Math.Max(sdOriginPixel.X - pixelRadius, 0);
-                int baseR = (int)Math.Max(sdOriginPixel.Y - pixelRadius, 0);
-                int pixelWidth = (int)Math.Min(sdOriginPixel.X + pixelRadius, dem.Width) - baseC;
-                int pixelHeight = (int)Math.Min(sdOriginPixel.Y + pixelRadius, dem.Height) - baseR;
-
-                //Create dem mesh in root site drive frame
-                Mesh demPointCloud = new Mesh();
-                for (int r = 0; r < pixelHeight; r++)
-                {
-                    for (int c = 0; c < pixelWidth; c++)
-                    {
-                        var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c, options.VerticalScale, true, options.DEMMinFilter, options.DEMMaxFilter);
-                        if (pos.HasValue)
-                        {
-                            Vertex v = new Vertex();
-                            v.Position = pos.Value;
-                            v.UV = dem.PixelToUV(new Vector2(baseC + c, baseR + r));
-                            demPointCloud.Vertices.Add(v);
-                        }
-                    }
-                }
-                Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
-                demMesh.Transform(demToWorld * Matrix.Invert(frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean));     
-                demMesh.Save(options.WriteClippedDemToPath);
             }
 
             return 0;
