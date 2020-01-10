@@ -54,10 +54,10 @@ using OPS.Landform;
 ///   update-scene-manifest --mission M2020 --manifestfile path/to/tileset/scene.json --nocontextual --nourls
 ///   --tacticalpdsfile path/to/rdrs/image.IMG
 ///
-/// * add/update contextual tileset for project 00007_0010023 without URLs to path/to/tileset/scene.json
+/// * add/update contextual tileset for project 0700_0010023 without URLs to path/to/tileset/scene.json
 ///   (does not access network)
-///   update-scene-manifest 00007_0010023 --manifestfile path/to/tileset/scene.json --notactical --nourls
-///                         --sol=7 --sitedrive=0010023
+///   update-scene-manifest 0700_0010023 --manifestfile path/to/tileset/scene.json --notactical --nourls
+///                         --sol=700 --sitedrive=0010023
 ///
 /// * add/update tactical tileset for wedge ID without URLs
 ///   to s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json :
@@ -65,25 +65,25 @@ using OPS.Landform;
 ///                         --tacticalpdsfile s3://bucket/path/sol/00700/ids/rdr/ncam/ID.IMG
 ///                         --nocontextual --nourls
 ///
-/// * add/update contextual tileset for project 00700_0010005 without URLs
-///   to s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005/00700_0010005_scene.json:
+/// * add/update contextual tileset for project 0700_0010005 without URLs
+///   to s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005/0700_0010005_scene.json:
 ///   update-scene-manifest 00700_0010005 --manifestfile
-///                         s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005/00700_0010005_scene.json
+///                         s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005/0700_0010005_scene.json
 ///                         --notactical -nourls --sol=700 --sitedrive=0010005
 ///
 /// * add/update all tactical tilesets under s3://bucket/path/sol/00700/ids/rdr/tileset including URLs
-///   to s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json:
+///   to s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
 ///   update-scene-manifest --mission M2020 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset --nocontextual
 ///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
 ///
-/// * add/update contextual tileset for project 00700_0010005 including URLs
-///   to s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json:
-///   update-scene-manifest 00700_0010005 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset --notactical
+/// * add/update contextual tileset for project 0700_0010005 including URLs
+///   to s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
+///   update-scene-manifest 0700_0010005 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset --notactical
 ///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
 ///
-/// * add/update URLs in s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json:
+/// * add/update URLs in s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
 ///   update-scene-manifest --mission M2020 --nocontextual --notactical
-///                         --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/00700_0010005_scene.json
+///                         --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json
 ///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr
 /// </summary>
 namespace OPS.Landform
@@ -169,6 +169,7 @@ namespace OPS.Landform
 
     public class UpdateSceneManifest : GeometryCommand
     {
+        //NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4 chars
         public const string WILDCARD = "#####";
         public const string SCENE_SUFFIX = "_scene";
 
@@ -409,7 +410,7 @@ namespace OPS.Landform
                 if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
                     SiteDrive.IsSiteDriveString(options.SiteDrive))
                 {
-                    options.ManifestFile = string.Format("{0}{1:D5}_{2}{3}.json", options.TilesetDir, options.Sol,
+                    options.ManifestFile = string.Format("{0}{1:D4}_{2}{3}.json", options.TilesetDir, options.Sol,
                                                          options.SiteDrive, SCENE_SUFFIX);
                     pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
                 }
@@ -589,12 +590,12 @@ namespace OPS.Landform
                     string pat = "*";
                     if (wildcardIndex >= 0)
                     {
-                        dir = dir.Replace(WILDCARD, string.Format("{0:D5}", sol));
+                        dir = dir.Replace(WILDCARD, string.Format("{0:D" + WILDCARD.Length + "}", sol));
                     }
                     else
                     {
                         //handle case where options.RDRDir is a base directory
-                        pat = string.Format("*/sol/{0:D5}/*", sol);
+                        pat = string.Format("*/sol/{0:D" + WILDCARD.Length + "}/*", sol);
                     }
                     searchRDRs(dir, pat);
                 }
@@ -625,7 +626,7 @@ namespace OPS.Landform
 
         private void UpdateContextualMeshManifest()
         {
-            string tilesetId = string.Format("{0:D5}_{1}", options.Sol, options.SiteDrive);
+            string tilesetId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
             string tilesetUrl = null;
             if (!options.NoURLs)
             {
@@ -763,7 +764,7 @@ namespace OPS.Landform
                 string contextualId = null;
                 if (options.Sol >= 0 && !string.IsNullOrEmpty(options.SiteDrive))
                 {
-                    contextualId = string.Format("{0:D5}_{1}", options.Sol, options.SiteDrive);
+                    contextualId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
                 }
 
                 bool update(string id, string url)

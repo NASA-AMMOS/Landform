@@ -11,7 +11,7 @@ do_cleanup=true
 #do_cleanup=
 
 if [ $# -lt 4 ]; then
-    echo "USAGE: processContextual.sh DIR MISSION SOL SSSDDDD[,SSSDDDD[,...]] [--nomanifest]"
+    echo "USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest]"
     exit 1
 fi
 
