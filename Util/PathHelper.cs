@@ -58,15 +58,27 @@ namespace OPS.Util
         }
 
         /// <summary>
-        /// Checks to see if a directory exists and creates it if not.
+        /// Checks to see if a directory exists and creates it (and all ancestors) if not.
         /// </summary>
         /// <param name="directory">path to desired directory</param>
         public static void EnsureExists(string directory)
         {
-            if (!Directory.Exists(directory))
+            if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
             {
                 Directory.CreateDirectory(directory);
             }
+        }
+
+        /// <summary>
+        /// Ensure the directory part of directory/file exists.
+        /// Creates it and all ancestors if not.
+        /// Handles cases where file contains a subpath or is null, empty, or omitted.
+        /// </summary>
+        public static string EnsureDir(string directory, string file = null)
+        {
+            file = Path.Combine(directory, file ?? ""); //skips empty strings
+            EnsureExists(Path.GetDirectoryName(file));
+            return file;
         }
 
         /// <summary>

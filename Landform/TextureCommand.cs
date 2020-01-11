@@ -66,10 +66,16 @@ namespace OPS.Landform
         protected TextureCommandOptions tcopts;
 
         protected int resolution;
+
         protected IDictionary<string, ConvexHull> obsToHull;
+
         protected SceneCaster sceneCaster;
+
+        protected ObsSelectionStrategy backprojectStrategy;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
+        protected string backprojectDebugDir;
         protected Image backprojectIndex;
+
         protected TileList tileList;
         protected ObsSelectionStrategy obsSelStrat;
         protected List<Observation> imageObservations;
@@ -78,6 +84,7 @@ namespace OPS.Landform
         protected Mesh mesh;
         protected SceneMesh sceneMesh;
         protected List<Mesh> meshLODs; //populated iff --loadlods, first = highest quality
+        protected MeshOperator[] meshOps;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -113,6 +120,7 @@ namespace OPS.Landform
             }
 
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+            backprojectDebugDir = Path.Combine(localOutputPath, "Backproject");
 
             //some workflows do not load observations, for example tiling an M2020 tactical mesh
             if (observationCache != null)
@@ -415,6 +423,22 @@ namespace OPS.Landform
             sceneCaster.Build();
         }
 
+        protected void BuildMeshOperator()
+        {
+            if (tcopts.LoadLODs && meshLODs.Count > 1)
+            {
+                meshOps = new MeshOperator[meshLODs.Count];
+                CoreLimitedParallel.For(0, meshLODs.Count, (idxLOD) =>
+                {
+                    meshOps[idxLOD] = new MeshOperator(meshLODs.ElementAt(idxLOD), buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+                });
+            }
+            else
+            {
+                meshOps = new MeshOperator[] { new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false) };
+            }
+        }
+
         protected void BuildObsHulls()
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
@@ -428,23 +452,36 @@ namespace OPS.Landform
             }
         }
 
-        //not using arg default to simplify higher level calls to RunPhase()
-        protected void BackprojectObservations()
+        protected void InitBackprojectStrategy()
         {
-            BackprojectObservations(logging: true);
+            if (meshOps.Length < 1 || meshOps[0] == null)
+            {
+                throw new Exception("must build mesh operator before initializing backproject strategy");
+            }
+            pipeline.LogInfo("initializing backproject observation seletion strategy {0} for {1} observations",
+                             tcopts.ObsSelectionStrategy, imageObservations.Count);
+            backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+            var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
+                                                     observationCache, meshFrame, tcopts.UsePriors,
+                                                     tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
+            backprojectStrategy.Initialize(mesh, meshOps[0], sceneCaster, contexts, tcopts.TextureResolution,
+                                           tcopts.BackprojectQuality, tcopts.WriteDebug, backprojectDebugDir);
         }
 
-        protected void BackprojectObservations(bool logging, bool verbose = false, string meshName = "",  string debugOutputPath = "")
+        protected void BackprojectObservations()
         {
+            if (backprojectStrategy == null)
+            {
+                InitBackprojectStrategy();
+            }
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            backprojectResults = BackprojectObservations(mesh, logging, verbose, meshName, debugOutputPath);
+            BackprojectObservations(mesh, backprojectStrategy);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "", OPS.Pipeline.Texturing.ObsSelectionStrategy obsObverride = null)
+            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, string debugSubdir = "")
         {
-            verbose |= pipeline.Verbose;
-            logging |= verbose;
+            bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
             {
                 pipeline = pipeline,
@@ -461,20 +498,14 @@ namespace OPS.Landform
                 onlyAligned = tcopts.OnlyAligned,
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteDebug,
-                localDebugOutputPath = Path.Combine(debugOutputPath ?? localOutputPath, meshName),
-                obsSelectionStrategy = obsObverride ?? obsSelStrat,
+                localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
+                obsSelectionStrategy = strategy,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
-                progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },
+                progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
-
-            if(opts.writeDebug)
-            {
-                PathHelper.EnsureExists(opts.localDebugOutputPath);
-            }
-
             return Backproject.BackprojectObservations(opts);
         }
 

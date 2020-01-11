@@ -74,8 +74,6 @@ namespace OPS.Landform
 
         private Image sceneTexture;
         private SceneNode tileTree;
-        private MeshOperator[] meshOps;
-        string localTexturingDebugPath;
 
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -116,11 +114,6 @@ namespace OPS.Landform
                 RunPhase("build tile tree", BuildTileTree);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
 
-                if (texGenMode == TextureGenMode.Backproject)
-                {
-                    RunPhase(string.Format("initialize observation selection strategy: {0}",options.ObsSelectionStrategy), InitObsSelStrategy);
-                }
-
                 if (options.LoadLODs && meshLODs.Count > 1)
                 {
                     RunPhase("build LOD tile meshes", BuildLODTileMeshes);
@@ -128,6 +121,12 @@ namespace OPS.Landform
                 else
                 {
                     RunPhase("build leaf meshes", BuildLeafMeshes);
+                }
+
+                if (withTextures && texGenMode == TextureGenMode.Backproject &&
+                    options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
+                {
+                    RunPhase("build backproject strategy", InitBackprojectStrategy);
                 }
 
                 RunPhase(string.Format("{0}save tiles", withTextures ? "build tile textures and " : ""),
@@ -169,21 +168,6 @@ namespace OPS.Landform
             }
         }
             
-        // runs an exhaustive backproject on a subset of points sampled on the surface of the mesh to refer to later
-        private void InitObsSelStrategy()
-        {
-            //precalculate datastructures for backproject
-            var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
-                                                     observationCache, meshFrame, options.UsePriors, options.OnlyAligned,
-                                                     msg => pipeline.LogWarn(msg));
-
-
-            if (options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
-            {
-                obsSelStrat.Initialize(mesh, meshOps[0], sceneCaster, contexts, options.TextureResolution, options.BackprojectQuality, options.WriteDebug, localTexturingDebugPath);
-            }
-        }
-
         protected override bool ParseArgumentsAndLoadCaches()
         {
             if (!base.ParseArgumentsAndLoadCaches())
@@ -232,12 +216,6 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("{0} tile textures", description);
-
-            if (options.WriteDebug)
-            {
-                localTexturingDebugPath = Path.Combine(localOutputPath, "Texturing");
-                PathHelper.EnsureExists(localTexturingDebugPath);
-            }
 
             return true;
         }
@@ -361,22 +339,6 @@ namespace OPS.Landform
             camInst.widthPixels = obs.Width;
             camInst.heightPixels = obs.Height;
             return camInst;
-        }
-
-        private void BuildMeshOperator()
-        {
-            if (options.LoadLODs && meshLODs.Count > 1)
-            {
-                meshOps = new MeshOperator[meshLODs.Count];
-                CoreLimitedParallel.For(0, meshLODs.Count, (idxLOD) =>
-                {
-                    meshOps[idxLOD] = new MeshOperator(meshLODs.ElementAt(idxLOD), buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-                });
-            }
-            else
-            {
-                meshOps = new MeshOperator[] { new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false) };
-            }
         }
 
         private void BuildLODTileMeshes()
@@ -749,22 +711,25 @@ namespace OPS.Landform
         {
             try
             {
-                bool logging = pipeline.Verbose || pipeline.Debug;
-
-                ObsSelectionStrategy stratOverride = null;
-                if (options.ObsSelectionStrategy == ObsSelectionStrategyName.Greedy)
+                var strategy = backprojectStrategy;
+                if (strategy == null)
                 {
-                    ConvexHull tileHull = new ConvexHull(mesh);
-                    MeshOperator tileOp = new MeshOperator(mesh);
-                    var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
-                                                                observationCache, meshFrame, options.UsePriors, options.OnlyAligned,
-                                                                msg => pipeline.LogWarn(msg)).Where(c => obsToHull.ContainsKey(c.Obs.Name) && tileHull.Intersects(obsToHull[c.Obs.Name])).ToList();
-
-                    stratOverride = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                    stratOverride.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution, options.BackprojectQuality, options.WriteDebug, localTexturingDebugPath);
+                    //no global selection strategy, create one local to this tile
+                    strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
+                    var tileHull = new ConvexHull(mesh);
+                    var tileOp = new MeshOperator(mesh);
+                    var tileObs = imageObservations
+                        .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
+                        .ToList();
+                    var contexts =
+                        Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
+                                                  options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
+                    strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
+                                        options.BackprojectQuality, options.WriteDebug,
+                                        Path.Combine(backprojectDebugDir, node.Name));
                 }
                 
-                var backprojectResults = BackprojectObservations(mesh, logging, meshName: node.Name, debugOutputPath:localTexturingDebugPath, obsObverride: stratOverride ?? null);
+                var backprojectResults = BackprojectObservations(mesh, strategy, node.Name);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)
