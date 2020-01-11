@@ -20,7 +20,7 @@ async function createProject(req, res) {
       reconstructionmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       facespertile: { type: 'int' },
       tileresolution: { type: 'int' },
-      projecttype: { type: 'enum', options: ['GenericTiling', 'MSL'] },
+      projecttype: { type: 'enum', options: ['GenericTiling'] },
       exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
       exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
       maxleafgroupsize: { type: 'int' },

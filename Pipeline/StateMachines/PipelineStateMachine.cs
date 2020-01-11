@@ -17,12 +17,11 @@ namespace OPS.Pipeline
 
         public const double DEF_LONG_TASK_WARN_SEC = 5 * 60;
 
-        public enum ProjectType { GenericTiling, MSL, ParentTiling };
+        public enum ProjectType { GenericTiling, ParentTiling };
 
         public static Dictionary<ProjectType, Type> StateMachines = new Dictionary<ProjectType, Type>()
         {
             { ProjectType.GenericTiling, typeof(GenericTilingStateMachine) },
-            { ProjectType.MSL, typeof(MSLStateMachine) },
             { ProjectType.ParentTiling, typeof(ParentTilingStateMachine) },
         };
 
