@@ -847,6 +847,10 @@ namespace OPS.Landform
 
         private void UpdateTacticalMeshManifest(string pdsFile, string tilesetUrl = null)
         {
+            if (!FileExists(pdsFile))
+            {
+                throw new Exception(string.Format("cannot load PDS metadata from {0}: file not found", pdsFile));
+            }
             pipeline.LogInfo("loading PDS metadata from {0}", pdsFile);
             var metadata = new PDSMetadata(GetFile(pdsFile));
             var parser = new PDSParser(metadata);
