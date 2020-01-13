@@ -236,7 +236,6 @@
     <Compile Include="TilingServer\Operations\BuildLeaves.cs" />
     <Compile Include="TilingServer\Operations\BuildParent.cs" />
     <Compile Include="TilingServer\Operations\BuildTilesetJson.cs" />
-    <Compile Include="TilingServer\Operations\BuildTilingInput.cs" />
     <Compile Include="TilingServer\Operations\ChunkInput.cs" />
     <Compile Include="TilingServer\Operations\DefineTiles.cs" />
     <Compile Include="TilingServer\DB\TilingInputChunk.cs" />

@@ -64,7 +64,6 @@ namespace OPS.Pipeline
         public static TypeDispatcher MakeDispatcher(PipelineCore pipeline)
         {
             var ret = new TypeDispatcher()
-                .Case((BuildTilingInputMessage m) => new BuildTilingInput(pipeline, m).Process())
                 .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
                 .Case((ChunkInputMessage m) => new ChunkInput(pipeline, m).Process())
                 .Case((BuildLeavesMessage m) => new BuildLeaves(pipeline, m).Process())
