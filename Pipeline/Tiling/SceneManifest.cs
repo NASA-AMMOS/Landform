@@ -116,8 +116,10 @@ namespace OPS.Pipeline
     {
         public const string TILESET_SUFFIX = "_tileset";
 
-        public SceneManifest sceneManifest;
+        public string s3Proxy;
     
+        public SceneManifest sceneManifest;
+
         //indexed by id
         public Dictionary<string, TilesetManifest> tilesets = new Dictionary<string, TilesetManifest>();
         public Dictionary<string, ImageManifest> images = new Dictionary<string, ImageManifest>();
@@ -287,7 +289,8 @@ namespace OPS.Pipeline
             }
         }
 
-        public static string ConvertURI(string uri, bool relativeS3 = false, bool relativeFile = false)
+        public static string ConvertURI(string uri, bool relativeS3 = false, bool relativeFile = false,
+                                        string s3Proxy = null)
         {
             string getRelativeUri(string str)
             {
@@ -303,7 +306,7 @@ namespace OPS.Pipeline
                 }
                 else
                 {
-                    return StorageHelper.ConvertS3URLToHttps(uri);
+                    return StorageHelper.ConvertS3URLToHttps(uri, s3Proxy);
                 }
             }
             else if (uri.StartsWith("file://") && relativeFile)
@@ -320,7 +323,7 @@ namespace OPS.Pipeline
                 string id = tileset.id + TILESET_SUFFIX;
                 if (rdrs.ContainsKey(id) && rdrs[id].HasUrlExtension("json"))
                 {
-                    tileset.uri = ConvertURI(rdrs[id].GetUrlWithExtension("json"));
+                    tileset.uri = ConvertURI(rdrs[id].GetUrlWithExtension("json"), s3Proxy: s3Proxy);
                 }
             }
         }
@@ -340,7 +343,7 @@ namespace OPS.Pipeline
                         {
                             if (rdrSet.HasUrlExtension(ext))
                             {
-                                image.uri = ConvertURI(rdrSet.GetUrlWithExtension(ext));
+                                image.uri = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: s3Proxy);
                                 break;
                             }
                         }
@@ -357,7 +360,7 @@ namespace OPS.Pipeline
                             {
                                 if (rdrSet.HasUrlExtension(ext))
                                 {
-                                    image.thumbnail = ConvertURI(rdrSet.GetUrlWithExtension(ext));
+                                    image.thumbnail = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: s3Proxy);
                                     break;
                                 }
                             }

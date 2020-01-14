@@ -779,6 +779,14 @@ namespace OPS.Pipeline
         {
             return "img,png";
         }
+
+        /// <summary>
+        /// Get S3 proxy for use in StorageHelper.ConvertS3URLToHttps()  
+        /// </summary>
+        public virtual string GetS3Proxy()
+        {
+            return null;
+        }
     }
 
     public class MissionMSL : MissionSpecific
@@ -1415,6 +1423,11 @@ namespace OPS.Pipeline
         public override QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+        }
+
+        public override string GetS3Proxy()
+        {
+            return "https://data.m20-dev.jpl.nasa.gov";
         }
     }
 

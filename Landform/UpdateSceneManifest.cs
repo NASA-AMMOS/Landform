@@ -511,6 +511,10 @@ namespace OPS.Landform
                 pipeline.LogInfo("creating new manifest");
                 sceneManifest = SceneManifestHelper.Create();
             }
+            if (mission != null)
+            {
+                sceneManifest.s3Proxy = mission.GetS3Proxy();
+            }
         }
 
         private void SaveManifest()
@@ -606,8 +610,8 @@ namespace OPS.Landform
 
         private string ConvertURI(string uri)
         {
-            return SceneManifestHelper.ConvertURI(uri, relativeS3: options.RelativeS3URIs,
-                                                  relativeFile: !options.NoRelativeFileURIs);
+            return SceneManifestHelper.ConvertURI(uri, options.RelativeS3URIs, !options.NoRelativeFileURIs,
+                                                  sceneManifest.s3Proxy);
         }
 
         private string GetExistingTileset(string tilesetId)
