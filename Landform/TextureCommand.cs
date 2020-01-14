@@ -39,9 +39,6 @@ namespace OPS.Landform
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
-        [Option(HelpText = "Output texture resolution, should be power of two", Default = 4096)]
-        public virtual int TextureResolution { get; set; }
-
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
@@ -76,8 +73,6 @@ namespace OPS.Landform
     public class TextureCommand : GeometryCommand
     {
         protected TextureCommandOptions tcopts;
-
-        protected int resolution;
 
         protected IDictionary<string, ConvexHull> obsToHull;
 
@@ -139,12 +134,6 @@ namespace OPS.Landform
             {
                 pipeline.LogWarn("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
                 tcopts.NoOrbital = true;
-            }
-
-            resolution = tcopts.TextureResolution;
-            if (resolution > 0 && (resolution & (resolution - 1)) != 0)
-            {
-                pipeline.LogWarn("resolution {0} not a power of two", resolution);
             }
 
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
@@ -596,16 +585,17 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, sceneTextureResolution,
+                                           tcopts.BackprojectQuality);
         }
 
         protected void BackprojectObservations()
         {
-            backprojectResults = BackprojectObservations(mesh);
+            backprojectResults = BackprojectObservations(mesh, sceneTextureResolution);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, string debugSubdir = "", bool quiet = false)
+            BackprojectObservations(Mesh mesh, int resolution, string debugSubdir = "", bool quiet = false)
         {
             if (backprojectStrategy == null)
             {
@@ -672,7 +662,7 @@ namespace OPS.Landform
         protected void BuildBackprojectIndex()
         {
             pipeline.LogInfo("creating backproject index");
-            backprojectIndex = new Image(3, resolution, resolution);
+            backprojectIndex = new Image(3, sceneTextureResolution, sceneTextureResolution);
             Backproject.FillIndexImage(backprojectResults, backprojectIndex);
 
             if (!tcopts.NoSave)
@@ -729,7 +719,7 @@ namespace OPS.Landform
             //then the full-scene texture we're going to generate should be the same resolution
             //in most cases the resolution should match tcopts.TextureResolution
             //but in some workflows, such as blend-after-texture with a lower res blend, it may not
-            int width = resolution, height = resolution;
+            int width = sceneTextureResolution, height = sceneTextureResolution;
             if (backprojectIndex != null)
             {
                 width = backprojectIndex.Width;

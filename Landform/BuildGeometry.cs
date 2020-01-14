@@ -169,7 +169,7 @@ namespace OPS.Landform
         public bool GenerateUVs { get; set; }
 
         [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
-        public int TextureResolution { get; set; }
+        public override int TextureResolution { get; set; }
 
         [Option(HelpText = "Max texture charts, 0 for unlimited", Default = 0)]
         public int MaxTextureCharts { get; set; }
@@ -282,7 +282,7 @@ namespace OPS.Landform
 
                 if (options.GenerateUVs)
                 {
-                    RunPhase("atlas mesh", () => AtlasMesh(options.TextureResolution));
+                    RunPhase("atlas mesh", () => AtlasMesh(sceneTextureResolution));
                 }
 
                 RunPhase("save mesh", SaveMesh);

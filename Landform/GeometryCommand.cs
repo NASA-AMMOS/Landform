@@ -18,6 +18,9 @@ namespace OPS.Landform
     {
         [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
         public virtual string MeshFrame { get; set; }
+
+        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 4096)]
+        public virtual int TextureResolution { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -25,6 +28,7 @@ namespace OPS.Landform
         protected GeometryCommandOptions gcopts;
 
         protected string meshFrame;
+        protected int sceneTextureResolution;
 
         public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {
@@ -42,6 +46,12 @@ namespace OPS.Landform
             HandleSpecialMeshFrames();
 
             SetOutDir(DecorateOutDir(outDir));
+
+            sceneTextureResolution = gcopts.TextureResolution;
+            if (!NumberHelper.IsPowerOfTwo(sceneTextureResolution))
+            {
+                pipeline.LogWarn("scene texture resolution {0} not a power of two", sceneTextureResolution);
+            }
 
             return true;
         }

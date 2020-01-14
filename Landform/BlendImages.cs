@@ -433,10 +433,10 @@ namespace OPS.Landform
                 pipeline.LogInfo("loading blurred texture from database");
                 var texGuid = sceneMesh.BlurredTextureGuid;
                 blurredTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
-                if (blurredTexture.Width != resolution || blurredTexture.Height != resolution)
+                if (blurredTexture.Width != sceneTextureResolution || blurredTexture.Height != sceneTextureResolution)
                 {
                     throw new Exception(string.Format("existing blurred texture or index not {0}x{0}, " +
-                                                      "re-run with --redoblurredtexture", resolution, resolution));
+                                                      "re-run with --redoblurredtexture", sceneTextureResolution));
                 }
                 if (options.WriteDebug)
                 {
@@ -479,7 +479,7 @@ namespace OPS.Landform
 
             blurredTexture = BuildBackprojectTexture(TextureVariant.Blurred);
 
-            pipeline.LogInfo("created {0}x{0} blurred texture", resolution);
+            pipeline.LogInfo("created {0}x{0} blurred texture", sceneTextureResolution);
         }
 
         private void LoadOrBuildBlendedTexture()
@@ -508,14 +508,14 @@ namespace OPS.Landform
 
             pipeline.LogInfo("stitching {0}x{0} image with LimberDMG, residual epsilon {1}, {2} relaxation steps, " +
                              "{3} multigrid iterations, lambda {4}",
-                             resolution, options.ResidualEpsilon, options.NumRelaxationSteps,
+                             sceneTextureResolution, options.ResidualEpsilon, options.NumRelaxationSteps,
                              options.NumMultigridIterations, options.Lambda);
 
-            Image index = new Image(1, resolution, resolution);
-            Image flags = new Image(3, resolution, resolution);
-            for (int r = 0; r < resolution; r++)
+            Image index = new Image(1, sceneTextureResolution, sceneTextureResolution);
+            Image flags = new Image(3, sceneTextureResolution, sceneTextureResolution);
+            for (int r = 0; r < sceneTextureResolution; r++)
             {
-                for (int c = 0; c < resolution; c++)
+                for (int c = 0; c < sceneTextureResolution; c++)
                 {
                     int obsIndex = (int)backprojectIndex[0, r, c];
 
@@ -554,7 +554,7 @@ namespace OPS.Landform
                                     msg => pipeline.LogVerbose(msg));
             blendedTexture = dmg.StitchImage(blurredTexture, index, flags);
 
-            pipeline.LogInfo("created {0}x{0} blended texture", resolution);
+            pipeline.LogInfo("created {0}x{0} blended texture", sceneTextureResolution);
 
             if (!options.NoSave)
             {
@@ -574,9 +574,9 @@ namespace OPS.Landform
             //obs index => (obsCol, obsRow) => (sumBlendedR, sumBlendedG, sumBlendedB, num)
             var winners = new Dictionary<int, Dictionary<Vector2, Vector4>>();
             
-            for (int r = 0; r < resolution; r++)
+            for (int r = 0; r < sceneTextureResolution; r++)
             {
-                for (int c = 0; c < resolution; c++)
+                for (int c = 0; c < sceneTextureResolution; c++)
                 {
                     int obsIndex = (int)backprojectIndex[0, r, c];
 
@@ -884,19 +884,19 @@ namespace OPS.Landform
             var boundsSize = bounds.Value.Size();
             pipeline.LogInfo("scene mesh XY plane bounds: {0:F3}x{1:F3}", boundsSize.X, boundsSize.Y);
 
-            backprojectIndex = new Image(3, resolution, resolution);
+            backprojectIndex = new Image(3, sceneTextureResolution, sceneTextureResolution);
 
             var opts = Rasterizer.Options.DirectToImage(backprojectIndex);
 
             double maxDim = Math.Max(boundsSize.X, boundsSize.Y);
-            opts.MetersPerPixel = maxDim / resolution;
+            opts.MetersPerPixel = maxDim / sceneTextureResolution;
 
             opts.CameraLocation = bounds.Value.Center();
             mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation,
                                                             out opts.RightInImage, out opts.DownInImage);
             
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
-                             resolution, tileList.LeafNames.Count, opts.MetersPerPixel);
+                             sceneTextureResolution, tileList.LeafNames.Count, opts.MetersPerPixel);
 
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
@@ -935,19 +935,20 @@ namespace OPS.Landform
             var boundsSize = bounds.Size();
             pipeline.LogInfo("scene mesh XY plane bounds: {0:F3}x{1:F3}", boundsSize.X, boundsSize.Y);
 
-            var reprojectedBackprojectIndex = new Image(3, resolution, resolution);
+            var reprojectedBackprojectIndex = new Image(3, sceneTextureResolution, sceneTextureResolution);
 
             var opts = Rasterizer.Options.DirectToImage(reprojectedBackprojectIndex);
 
             double maxDim = Math.Max(boundsSize.X, boundsSize.Y);
-            opts.MetersPerPixel = maxDim / resolution;
+            opts.MetersPerPixel = maxDim / sceneTextureResolution;
 
             opts.CameraLocation = bounds.Center();
             mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation,
                                                             out opts.RightInImage, out opts.DownInImage);
             
             pipeline.LogInfo("reprojecting {0}x{1} backproject index to {2}x{2}, {3:F5} meters/pixel",
-                             backprojectIndex.Width, backprojectIndex.Height, resolution, opts.MetersPerPixel);
+                             backprojectIndex.Width, backprojectIndex.Height, sceneTextureResolution,
+                             opts.MetersPerPixel);
 
             MaskBackprojectIndex();
 
