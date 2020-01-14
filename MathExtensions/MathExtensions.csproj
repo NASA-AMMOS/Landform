@@ -55,6 +55,7 @@
     <Compile Include="Statistics\ThunkContext.cs" />
     <Compile Include="Statistics\UnscentedTransform.cs" />
     <Compile Include="Statistics\VectorThunk.cs" />
+    <Compile Include="XNAExtensions.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Xna\Xna.csproj">

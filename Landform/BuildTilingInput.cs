@@ -312,7 +312,7 @@ namespace OPS.Landform
                         CameraInstance camInst = new CameraInstance();
                         camInst.cameraToMesh = xform.Mean;
                         camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
-                        camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                        camInst.cameraModel = obs.CameraModel;
                         camInst.hullInMesh = obsToHull[obs.Name];
                         camInst.widthPixels = obs.Width;
                         camInst.heightPixels = obs.Height;

@@ -1,39 +1,40 @@
-﻿using System;
+using System;
 using Amazon.DynamoDBv2.DataModel;
 using Amazon.DynamoDBv2.DocumentModel;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
+using OPS.MathExtensions;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    public class Vector3Converter : JsonConverter, IPropertyConverter
+    public class XNAMatrixConverter : JsonConverter, IPropertyConverter
     {
-        public override bool CanRead { get { return true; } } 
+        public override bool CanRead { get { return true; } }
         public override bool CanWrite { get { return true; } }
 
         public override bool CanConvert(Type objectType)
         {
-            return objectType == typeof(Vector3);
+            return objectType == typeof(Matrix);
         }
 
         public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
         {
-            serializer.Serialize(writer, ((Vector3)value).ToDoubleArray());
+            serializer.Serialize(writer, ((Matrix)value).ToDoubleArray());
         }
         
         public override object ReadJson(JsonReader reader, Type type, object existing, JsonSerializer serializer)
         {
-            return new Vector3(serializer.Deserialize<double[]>(reader));
+            return XNAExtensions.MatrixFromArray(serializer.Deserialize<double[]>(reader));
         }
 
         public object FromEntry(DynamoDBEntry entry)
         {
-            return new Vector3(JsonConvert.DeserializeObject<double[]>(entry.AsString()));
+            return XNAExtensions.MatrixFromArray(JsonConvert.DeserializeObject<double[]>(entry.AsString()));
         }
 
         public DynamoDBEntry ToEntry(object value)
         {
-            return JsonConvert.SerializeObject(((Vector3)value).ToDoubleArray());
+            return JsonConvert.SerializeObject(((Matrix)value).ToDoubleArray());
         }
     }
 }

@@ -72,39 +72,12 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Index;
 
-        [DynamoDBIgnore]
-        [JsonIgnore]
-        private string _cameraModel;
+        [DynamoDBProperty("CameraModel", typeof(CameraModelConverter))]
+        [JsonConverter(typeof(CameraModelConverter))]
+        public CameraModel CameraModel;
 
-        public string CameraModel {
-            get
-            {
-                return _cameraModel;
-            }
-            set
-            {
-                _cameraModel = value;
-                _linear = null;
-            }
-        }
-
-        [DynamoDBIgnore]
         [JsonIgnore]
-        private bool? _linear;
-
-        [DynamoDBIgnore]
-        [JsonIgnore]
-        public bool IsLinear
-        {
-            get
-            {
-                if (!_linear.HasValue)
-                {
-                    _linear = ((CameraModel)JsonHelper.FromJson(CameraModel)).Linear;
-                }
-                return _linear.Value;
-            }
-        }
+        public bool IsLinear { get { return CameraModel.Linear; } }
 
         /// Add required fields here 
         protected void IsValid()
@@ -135,7 +108,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.FeaturesGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
-            this.CameraModel = JsonHelper.ToJson(cameraModel);
+            this.CameraModel = cameraModel;
             this.UseForAlignment = useForAlignment;
             this.UseForMeshing = useForMeshing;
             this.UseForTexturing = useForTexturing;
@@ -256,14 +229,13 @@ namespace OPS.Pipeline.AlignmentServer
 
         public virtual string ToString(bool brief)
         {
-            var cm = (CameraModel)JsonHelper.FromJson(CameraModel);
             return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}{7}{8}Size={9}x{10}, Bands={11}, " +
                                  "Bits={12}, Day={13}, Version={14}, Index={15}",
                                  Name, FrameName, //0, 1
                                  brief ? "" : string.Format("Url={0}, ", Url), //2
                                  brief ? "" : string.Format("Project={0}, ", ProjectName), //3
-                                 cm.GetType().Name, //4
-                                 cm.Linear ? "linear" : "nonlinear", //5
+                                 CameraModel.GetType().Name, //4
+                                 IsLinear ? "linear" : "nonlinear", //5
                                  brief ? "" : string.Format("UseForAlignment={0}, ", UseForAlignment), //6
                                  brief ? "" : string.Format("UseForMeshing={0}, ", UseForMeshing), //7
                                  brief ? "" : string.Format("UseForTexturing={0}, ", UseForTexturing), //8

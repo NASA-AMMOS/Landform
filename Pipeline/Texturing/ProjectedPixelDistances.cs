@@ -60,7 +60,7 @@ namespace OPS.Pipeline
                                       );
                 }
 
-                CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                CameraModel cam = obs.CameraModel;
                 double pixelSpread = CalculateForObs(occlusionScene, samples, obs, cam, obsHull, obsToOutput, specificMeshBounds);
 
                 ret[obs.Name] = pixelSpread;
