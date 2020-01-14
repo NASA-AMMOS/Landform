@@ -116,43 +116,43 @@ namespace OPS.Pipeline
     {
         public const string TILESET_SUFFIX = "_tileset";
 
-        public string s3Proxy;
+        public string S3Proxy;
     
-        public SceneManifest sceneManifest;
+        public SceneManifest SceneManifest;
 
         //indexed by id
-        public Dictionary<string, TilesetManifest> tilesets = new Dictionary<string, TilesetManifest>();
-        public Dictionary<string, ImageManifest> images = new Dictionary<string, ImageManifest>();
-        public Dictionary<string, FrameManifest> frames = new Dictionary<string, FrameManifest>();
+        public Dictionary<string, TilesetManifest> Tilesets = new Dictionary<string, TilesetManifest>();
+        public Dictionary<string, ImageManifest> Images = new Dictionary<string, ImageManifest>();
+        public Dictionary<string, FrameManifest> Frames = new Dictionary<string, FrameManifest>();
 
         public static SceneManifestHelper Create()
         {
-            return new SceneManifestHelper() { sceneManifest = new SceneManifest() };
+            return new SceneManifestHelper() { SceneManifest = new SceneManifest() };
         }
 
         public static SceneManifestHelper Load(string file, ILogger logger = null)
         {
             var helper = new SceneManifestHelper()
                 {
-                    sceneManifest = JsonHelper.FromJson<SceneManifest>(File.ReadAllText(file))
+                    SceneManifest = JsonHelper.FromJson<SceneManifest>(File.ReadAllText(file))
                 };
             
-            if (helper.sceneManifest.version != SceneManifest.VERSION && logger != null)
+            if (helper.SceneManifest.version != SceneManifest.VERSION && logger != null)
             {
-                logger.LogWarn("manifest version {0} != {1}", helper.sceneManifest.version, SceneManifest.VERSION);
+                logger.LogWarn("manifest version {0} != {1}", helper.SceneManifest.version, SceneManifest.VERSION);
             }
             
-            foreach (var tileset in helper.sceneManifest.tilesets)
+            foreach (var tileset in helper.SceneManifest.tilesets)
             {
-                helper.tilesets[tileset.id] = tileset;
+                helper.Tilesets[tileset.id] = tileset;
             }
-            foreach (var image in helper.sceneManifest.images)
+            foreach (var image in helper.SceneManifest.images)
             {
-                helper.images[image.id] = image;
+                helper.Images[image.id] = image;
             }
-            foreach (var frame in helper.sceneManifest.frames)
+            foreach (var frame in helper.SceneManifest.frames)
             {
-                helper.frames[frame.id] = frame;
+                helper.Frames[frame.id] = frame;
             }
 
             return helper;
@@ -160,32 +160,32 @@ namespace OPS.Pipeline
 
         public string ToJson()
         {
-            return JsonHelper.ToJson(sceneManifest, indent: true, autoTypes: false, ignoreNulls: true);
+            return JsonHelper.ToJson(SceneManifest, indent: true, autoTypes: false, ignoreNulls: true);
         }
 
         public string Summary()
         {
             return string.Format("{0} tilesets, {1} images, {2} frames",
-                                 sceneManifest.tilesets.Count, sceneManifest.images.Count, sceneManifest.frames.Count);
+                                 SceneManifest.tilesets.Count, SceneManifest.images.Count, SceneManifest.frames.Count);
         }
 
         public TilesetManifest GetOrAddTileset(string id)
         {
-            if (tilesets.ContainsKey(id))
+            if (Tilesets.ContainsKey(id))
             {
-                return tilesets[id];
+                return Tilesets[id];
             }
             var tileset = new TilesetManifest() { id = id };
-            tilesets[id] = tileset;
-            sceneManifest.tilesets.Add(tileset);
+            Tilesets[id] = tileset;
+            SceneManifest.tilesets.Add(tileset);
             return tileset;
         }
 
         public bool RemoveTileset(string id)
         {
-            if (tilesets.Remove(id))
+            if (Tilesets.Remove(id))
             {
-                sceneManifest.tilesets = sceneManifest.tilesets.Where(tileset => tileset.id != id).ToList();
+                SceneManifest.tilesets = SceneManifest.tilesets.Where(tileset => tileset.id != id).ToList();
                 return true;
             }
             return false;
@@ -193,25 +193,25 @@ namespace OPS.Pipeline
 
         public ImageManifest GetOrAddImage(string id)
         {
-            if (images.ContainsKey(id))
+            if (Images.ContainsKey(id))
             {
-                return images[id];
+                return Images[id];
             }
             var image = new ImageManifest() { id = id };
-            images[id] = image;
-            sceneManifest.images.Add(image);
+            Images[id] = image;
+            SceneManifest.images.Add(image);
             return image;
         }
 
         public FrameManifest GetOrAddFrame(string id)
         {
-            if (frames.ContainsKey(id))
+            if (Frames.ContainsKey(id))
             {
-                return frames[id];
+                return Frames[id];
             }
             var frame = new FrameManifest() { id = id };
-            frames[id] = frame;
-            sceneManifest.frames.Add(frame);
+            Frames[id] = frame;
+            SceneManifest.frames.Add(frame);
             return frame;
         }
 
@@ -229,18 +229,18 @@ namespace OPS.Pipeline
             var liveImageIds = new HashSet<string>();
             var liveFrameIds = new HashSet<string>();
 
-            foreach (var tileset in sceneManifest.tilesets)
+            foreach (var tileset in SceneManifest.tilesets)
             {
                 liveImageIds.UnionWith(tileset.image_ids);
                 liveFrameIds.Add(tileset.frame_id);
             }
 
-            var orphanImageIds = sceneManifest.images
+            var orphanImageIds = SceneManifest.images
                 .Select(image => image.id)
                 .Where(id => !liveImageIds.Contains(id))
                 .ToList();
 
-            sceneManifest.images = sceneManifest.images.Where(image => liveImageIds.Contains(image.id)).ToList();
+            SceneManifest.images = SceneManifest.images.Where(image => liveImageIds.Contains(image.id)).ToList();
 
             if (orphanImageIds.Count > 0)
             {
@@ -250,31 +250,31 @@ namespace OPS.Pipeline
                 }
                 foreach (var id in orphanImageIds)
                 {
-                    images.Remove(id);
+                    Images.Remove(id);
                 }
             }
 
-            foreach (var image in sceneManifest.images)
+            foreach (var image in SceneManifest.images)
             {
                 liveFrameIds.Add(image.frame_id);
             }
-            foreach (var frame in sceneManifest.frames)
+            foreach (var frame in SceneManifest.frames)
             {
                 if (liveFrameIds.Contains(frame.id))
                 {
-                    for (var f = frame; !string.IsNullOrEmpty(f.parent_id); f = frames[f.parent_id])
+                    for (var f = frame; !string.IsNullOrEmpty(f.parent_id); f = Frames[f.parent_id])
                     {
                         liveFrameIds.Add(f.parent_id);
                     }
                 }
             }
 
-            var orphanFrameIds = sceneManifest.frames
+            var orphanFrameIds = SceneManifest.frames
                 .Select(frame => frame.id)
                 .Where(id => !liveFrameIds.Contains(id))
                 .ToList();
 
-            sceneManifest.frames = sceneManifest.frames.Where(frame => liveFrameIds.Contains(frame.id)).ToList();
+            SceneManifest.frames = SceneManifest.frames.Where(frame => liveFrameIds.Contains(frame.id)).ToList();
 
             if (orphanFrameIds.Count > 0)
             {
@@ -284,7 +284,7 @@ namespace OPS.Pipeline
                 }
                 foreach (var id in orphanFrameIds)
                 {
-                    frames.Remove(id);
+                    Frames.Remove(id);
                 }
             }
         }
@@ -318,12 +318,12 @@ namespace OPS.Pipeline
 
         public void UpdateTilesetURIs(Dictionary<string, IURLFileSet> rdrs)
         {
-            foreach (var tileset in sceneManifest.tilesets)
+            foreach (var tileset in SceneManifest.tilesets)
             {
                 string id = tileset.id + TILESET_SUFFIX;
                 if (rdrs.ContainsKey(id) && rdrs[id].HasUrlExtension("json"))
                 {
-                    tileset.uri = ConvertURI(rdrs[id].GetUrlWithExtension("json"), s3Proxy: s3Proxy);
+                    tileset.uri = ConvertURI(rdrs[id].GetUrlWithExtension("json"), s3Proxy: S3Proxy);
                 }
             }
         }
@@ -331,7 +331,7 @@ namespace OPS.Pipeline
         public void UpdateImageURIs(List<string> imageExts, Dictionary<string, IURLFileSet> rdrs,
                                     MissionSpecific mission = null)
         {
-            foreach (var image in sceneManifest.images)
+            foreach (var image in SceneManifest.images)
             {
                 var id = RoverProductId.Parse(image.product_id, mission, throwOnFail: false);
                 if (id != null)
@@ -343,7 +343,7 @@ namespace OPS.Pipeline
                         {
                             if (rdrSet.HasUrlExtension(ext))
                             {
-                                image.uri = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: s3Proxy);
+                                image.uri = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: S3Proxy);
                                 break;
                             }
                         }
@@ -360,7 +360,7 @@ namespace OPS.Pipeline
                             {
                                 if (rdrSet.HasUrlExtension(ext))
                                 {
-                                    image.thumbnail = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: s3Proxy);
+                                    image.thumbnail = ConvertURI(rdrSet.GetUrlWithExtension(ext), s3Proxy: S3Proxy);
                                     break;
                                 }
                             }
@@ -378,7 +378,7 @@ namespace OPS.Pipeline
             if (logger != null)
             {
                 logger.LogInfo("{0} manifest for tactical mesh tileset {1}",
-                               tilesets.ContainsKey(productId) ? "updating" : "adding", productId);
+                               Tilesets.ContainsKey(productId) ? "updating" : "adding", productId);
             }
 
             string tmFrame = mission.GetTacticalMeshFrame();
@@ -436,7 +436,7 @@ namespace OPS.Pipeline
             if (logger != null)
             {
                 logger.LogInfo("{0} manifest for contextual mesh tileset {1}",
-                               tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId);
+                               Tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId);
             }
 
             var sdFrame = GetOrAddSiteDriveFrame(siteDrive);
@@ -474,7 +474,7 @@ namespace OPS.Pipeline
 
                 tileset.image_ids.Add(image.id);
 
-                if (!frames.ContainsKey(image.frame_id))
+                if (!Frames.ContainsKey(image.frame_id))
                 {
                     var frame = GetOrAddFrame(image.frame_id);
                     frame.parent_id = sdFrame.id;

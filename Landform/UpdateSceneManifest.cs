@@ -513,7 +513,7 @@ namespace OPS.Landform
             }
             if (mission != null)
             {
-                sceneManifest.s3Proxy = mission.GetS3Proxy();
+                sceneManifest.S3Proxy = mission.GetS3Proxy();
             }
         }
 
@@ -577,7 +577,7 @@ namespace OPS.Landform
                 }
             }
 
-            foreach (var tileset in sceneManifest.tilesets.Values)
+            foreach (var tileset in sceneManifest.Tilesets.Values)
             {
                 rdrSols.UnionWith(tileset.sols);
             }
@@ -611,7 +611,7 @@ namespace OPS.Landform
         private string ConvertURI(string uri)
         {
             return SceneManifestHelper.ConvertURI(uri, options.RelativeS3URIs, !options.NoRelativeFileURIs,
-                                                  sceneManifest.s3Proxy);
+                                                  sceneManifest.S3Proxy);
         }
 
         private string GetExistingTileset(string tilesetId)
