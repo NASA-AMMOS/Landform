@@ -65,6 +65,8 @@ namespace OPS.Pipeline.TilingServer
 
         public int MaxLeafGroupSize;
 
+        public string ProductPath;
+
         public string ExportDir = "www"; //disable exporting meshes and images if null or empty
 
         public string ExportMeshFormat = null; //disable exporting meshes if null or empty
@@ -82,6 +84,8 @@ namespace OPS.Pipeline.TilingServer
         public string TilesetMeshFormat = "b3dm"; //but pointclouds will be saved as pnts
 
         public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
+
+        public Guid TextureProjectorGuid;
 
         public static string ToExt(string fmt)
         {
@@ -103,7 +107,8 @@ namespace OPS.Pipeline.TilingServer
                                 MeshReconstructionMethod reconstructionMethod, int faces,
                                 int textureResolution, TextureMode textureMode, 
                                 PipelineStateMachine.ProjectType projectType,
-                                string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
+                                string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize,
+                                string productPath)
         {
             Name = name;
             TilingScheme = tilingScheme;
@@ -117,6 +122,7 @@ namespace OPS.Pipeline.TilingServer
             ExportMeshFormat = exportMeshFormat;
             ExportImageFormat = exportImageFormat;
             MaxLeafGroupSize = maxLeafGroupSize;
+            ProductPath = productPath;
             IsValid();
         }
 
@@ -124,12 +130,12 @@ namespace OPS.Pipeline.TilingServer
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconstructionMethod reconstructionMethod,
                                            int faces, int textureResolution, TextureMode textureMode,
-                                           PipelineStateMachine.ProjectType projectType,
-                                           string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
+                                           PipelineStateMachine.ProjectType projectType, string exportMeshFormat,
+                                           string exportImageFormat, int maxLeafGroupSize, string productPath)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconstructionMethod, faces,
                                                       textureResolution, textureMode, projectType, exportMeshFormat,
-                                                      exportImageFormat, maxLeafGroupSize);
+                                                      exportImageFormat, maxLeafGroupSize, productPath);
             project.Save(pipeline);
             return project;
         }

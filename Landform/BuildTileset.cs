@@ -178,7 +178,7 @@ namespace OPS.Landform
                                                      options.SkirtMode, options.ReconstructionMethod,
                                                      options.FacesPerTile, tileResolution, texMode, projectType,
                                                      options.ExportMeshFormat, options.ExportImageFormat,
-                                                     maxTileGroupSize);
+                                                     maxTileGroupSize, project.ProductPath);
 
                 tilingProject.ExportDir = null;
                 if (!string.IsNullOrEmpty(options.ExportMeshFormat) || !string.IsNullOrEmpty(options.ExportImageFormat))
@@ -197,11 +197,16 @@ namespace OPS.Landform
                 //typically in b3dm / jpg formats
                 tilingProject.TilesetDir = tilesetFolder;
 
+                tilingProject.TextureProjectorGuid = sceneMesh.TextureProjectorGuid;
+
                 tilingProject.StartedRunning = false;
                 tilingProject.FinishedRunning = false;
 
                 tilingProject.Save(pipeline);
             }
+
+            pipeline.LogInfo("texture projection {0}",
+                             tilingProject.TextureProjectorGuid != Guid.Empty ? "enabled" : "disabled");
 
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
             pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",

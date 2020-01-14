@@ -149,6 +149,7 @@ namespace OPS.Pipeline
         public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root,
                                                      MeshReconstructionMethod reconstructionMethod,
                                                      int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis,
+                                                     TextureProjector textureProjector = null,
                                                      double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
                                                      Action<string> info = null, Action<string> error = null)
         {
@@ -229,12 +230,23 @@ namespace OPS.Pipeline
             Image img = null;
             if (size != 0)
             {
-                info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
-                combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
-                if (combinedDecimated == null)
+                if (textureProjector != null)
                 {
-                    error("failed to atlas combined children meshes");
-                    return false;
+                    info(string.Format("atlasing parent tile with texture projection"));
+                    combinedDecimated.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
+                                                     textureProjector.CameraModel,
+                                                     meshToImage: textureProjector.MeshToImage);
+                    combinedDecimated.RescaleUVs();
+                }
+                else
+                {
+                    info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
+                    combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
+                    if (combinedDecimated == null)
+                    {
+                        error("failed to atlas parent tile with UVAtlas");
+                        return false;
+                    }
                 }
 
                 info("baking parent tile texture");

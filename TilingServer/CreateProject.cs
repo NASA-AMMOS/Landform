@@ -139,6 +139,8 @@ namespace OPS.TilingServer
                 return 1; //argument error
             }
 
+            string productUrl = pipeline.GetStorageUrl(InitializeAlignmentProject.DATA_PRODUCT_DIR, options.ProjectName);
+
             pipeline.EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
                                      {
                                          TilingScheme = options.TilingScheme,
@@ -150,7 +152,8 @@ namespace OPS.TilingServer
                                          TextureMode = options.TextureMode,
                                          ExportMeshFormat = exMeshFmt,
                                          ExportImageFormat = exImageFmt,
-                                         MaxLeafGroupSize = options.MaxLeafGroupSize
+                                         MaxLeafGroupSize = options.MaxLeafGroupSize,
+                                         ProductPath = productUrl
                                      });
 
             if (!options.NoWait)

@@ -550,6 +550,11 @@ namespace OPS.Pipeline
             return GetDataProduct<T>(project.ProductPath, guid, project.Name);
         }
 
+        public T GetDataProduct<T>(TilingProject project, Guid guid) where T : DataProduct, new()
+        {
+            return GetDataProduct<T>(project.ProductPath, guid, project.Name);
+        }
+
         /// <summary>
         /// Save a data product.
         /// </summary>
