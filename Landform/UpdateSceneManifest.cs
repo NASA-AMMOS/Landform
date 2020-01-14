@@ -136,7 +136,7 @@ namespace OPS.Landform
         [Option(Default = "img,vic", HelpText = "Comma separated priority list of PDS RDR file extensions")]
         public string PDSRDRExts { get; set; }
 
-        [Option(Default = "png,img", HelpText = "Comma separated priority list of image RDR file extensions")]
+        [Option(Default = "img,png", HelpText = "Comma separated priority list of image RDR file extensions")]
         public string ImageRDRExts { get; set; }
 
         [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
