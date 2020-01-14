@@ -26,6 +26,9 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer (auto, left, right, any)", Default = "auto")]
         public string StereoEye { get; set; }
 
+        //[Option(HelpText = "Texture resolution for generating UVs, should be power of two", Default = 4096)]
+        //public override int TextureResolution { get; set; }
+
         [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
 

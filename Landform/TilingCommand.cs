@@ -20,7 +20,7 @@ namespace OPS.Landform
     public class TilingCommandOptions : TextureCommandOptions
     {
         [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 256)]
-        public override int TextureResolution { get; set; }
+        public int TileResolution { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
         public bool NoTextures { get; set; }
@@ -38,6 +38,7 @@ namespace OPS.Landform
 
         protected TilingCommandOptions tilingOpts;
 
+        protected int tileResolution;
         protected bool withTextures;
         protected bool localSave;
         protected bool cloudSave;
@@ -58,7 +59,14 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            withTextures = !tilingOpts.NoTextures && resolution != 0;
+            tileResolution = tilingOpts.TileResolution;
+
+            if (!NumberHelper.IsPowerOfTwo(tileResolution))
+            {
+                pipeline.LogWarn("tile texture resolution {0} not a power of two", tileResolution);
+            }
+
+            withTextures = !tilingOpts.NoTextures && tileResolution != 0;
 
             localSave = tilingOpts.WriteDebug || (!tilingOpts.NoSave && pipeline is LocalPipeline);
             cloudSave = !tilingOpts.NoSave && pipeline is CloudPipeline;

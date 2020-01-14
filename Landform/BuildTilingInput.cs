@@ -187,7 +187,7 @@ namespace OPS.Landform
 
             if (options.TextureMode.ToLower() == "auto")
             {
-                if (!withTextures || resolution == 0)
+                if (!withTextures)
                 {
                     textureMode = TextureMode.None;
                 }
@@ -201,21 +201,42 @@ namespace OPS.Landform
                 throw new Exception(string.Format("unknown texture mode \"{0}\"", options.TextureMode));
             }
 
-            if (resolution < 0 && textureMode != TextureMode.Clip)
+            if (tileResolution < 0 && textureMode != TextureMode.Clip)
             {
-                resolution = DEF_MAX_TEXTURE_RESOLUTION;
+                tileResolution = DEF_MAX_TEXTURE_RESOLUTION;
             }
 
-            pipeline.LogInfo("texture mode: {0}, resolution {1}", textureMode, resolution);
+            pipeline.LogInfo("texture mode: {0}, resolution {1}", textureMode, tileResolution);
 
             return true;
         }
 
         private bool DisableDatabase()
         {
-            return !string.IsNullOrEmpty(options.InputMesh) &&
-                (!string.IsNullOrEmpty(options.InputTexture) ||
-                 options.NoTextures || options.TextureResolution == 0 || options.TextureMode.ToLower() == "none");
+            //this is called by hooks from base base.ParseArgumentsAndLoadCaches()
+            //so don't use anything that wouldn't be availale yet in that context
+
+            if (string.IsNullOrEmpty(options.InputMesh))
+            {
+                return false;
+            }
+
+            if (options.NoTextures || options.TileResolution == 0 || options.TextureMode.ToLower() == "none")
+            {
+                return true;
+            }
+
+            if (options.TextureMode.ToLower() == "backproject")
+            {
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(options.InputTexture))
+            {
+                return false;
+            }
+
+            return true;
         }
 
         protected override Project GetProject()
@@ -352,7 +373,7 @@ namespace OPS.Landform
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
                         splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
                         useApproximateTileSplit = !options.NoApproxTileSplit,
-                        tileResolution = resolution,
+                        tileResolution = tileResolution,
                         scInMesh = sceneCaster,
                         cameraInstances =
                         imageObservations
@@ -491,7 +512,7 @@ namespace OPS.Landform
                 textureMode == TextureMode.Clip ? "clipping" :
                 "no";
 
-            pipeline.LogInfo("processing {0} tiles, {1} {2}x{2} {3} textures{4}", tileCount, texMsg, resolution,
+            pipeline.LogInfo("processing {0} tiles, {1} {2}x{2} {3} textures{4}", tileCount, texMsg, tileResolution,
                              options.TextureVariant,
                              options.TextureVariant != TextureVariant.Original ?
                              " (falling back to " + TextureVariant.Original + ")" : "");
@@ -534,7 +555,7 @@ namespace OPS.Landform
                 Image index = null;
                 if (textureMode == TextureMode.Bake)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogVerbose(msg));
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
                     if (newMP != null)
                     {
                         mp.Mesh = newMP.Mesh;
@@ -543,12 +564,12 @@ namespace OPS.Landform
                 }
                 else if (textureMode == TextureMode.Backproject)
                 {
-                    index = !options.NoBackprojectIndexImages ? new Image(3, resolution, resolution) : null;
+                    index = !options.NoBackprojectIndexImages ? new Image(3, tileResolution, tileResolution) : null;
                     mp.Image = BackprojectTile(tile, mp.Mesh, index);
                 }
                 else if (textureMode == TextureMode.Clip)
                 {
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, resolution);
+                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, tileResolution);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }
@@ -756,7 +777,7 @@ namespace OPS.Landform
         {
             try
             {
-                var backprojectResults = BackprojectObservations(mesh, options.TextureResolution, debugSubdir: node.Name);
+                var backprojectResults = BackprojectObservations(mesh, tileResolution, debugSubdir: node.Name);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)
@@ -769,7 +790,7 @@ namespace OPS.Landform
                     Backproject.FillIndexImage(backprojectResults, index);
                 }
 
-                Image image = new Image(3, resolution, resolution);
+                Image image = new Image(3, tileResolution, tileResolution);
                 Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
                                               !options.DontInpaint, fallbackToOriginal: true);
                 return image;
