@@ -48,6 +48,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid TileListGuid;
 
+        public Guid TextureProjectorGuid;
+
         protected void IsValid()
         {
             if (!(ProjectName != null && Name != null && Frame != null))
@@ -81,6 +83,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.BlurredTextureGuid = Guid.Empty;
             this.BlendedTextureGuid = Guid.Empty;
             this.TileListGuid = Guid.Empty;
+            this.TextureProjectorGuid = Guid.Empty;
             IsValid();
         }
 

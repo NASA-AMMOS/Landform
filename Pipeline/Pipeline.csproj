@@ -196,6 +196,7 @@
     <Compile Include="Alignment\NodeObservation.cs" />
     <Compile Include="CloudPipeline.cs" />
     <Compile Include="CloudPipelineConfig.cs" />
+    <Compile Include="DataProducts\TextureProjector.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
     <Compile Include="OrbitalConfig.cs" />
