@@ -159,11 +159,13 @@
   <ItemGroup>
     <Compile Include="AlignmentServer\DB\BirdsEyeView.cs" />
     <Compile Include="AlignmentServer\DB\BirdsEyeViewFeatures.cs" />
+    <Compile Include="AlignmentServer\DB\CameraModelConverter.cs" />
     <Compile Include="AlignmentServer\DB\FeatureMatches.cs" />
     <Compile Include="AlignmentServer\DB\Frame.cs" />
     <Compile Include="AlignmentServer\DB\FrameCache.cs" />
     <Compile Include="AlignmentServer\DB\FrameGeohash.cs" />
     <Compile Include="AlignmentServer\DB\FrameTransform.cs" />
+    <Compile Include="AlignmentServer\DB\XNAMatrixConverter.cs" />
     <Compile Include="AlignmentServer\DB\Observation.cs" />
     <Compile Include="AlignmentServer\DB\ObservationCache.cs" />
     <Compile Include="AlignmentServer\DB\OrbitalObservation.cs" />

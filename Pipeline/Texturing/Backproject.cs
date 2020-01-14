@@ -49,7 +49,7 @@ namespace OPS.Pipeline
                 FrustumHull = frustumHull;
                 ObsToMesh = obsToMesh.Mean;
                 MeshToObs = Matrix.Invert(ObsToMesh);
-                CameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                CameraModel = obs.CameraModel;
             }
         }
 
@@ -598,7 +598,7 @@ namespace OPS.Pipeline
             Image srcImg = opts.pipeline.LoadImage(obs.Url);
 
             Image obsCoverage = new Image(3, obs.Width, obs.Height);
-            CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+            CameraModel cam = obs.CameraModel;
             Matrix obsToMeshMat = obsToMesh;
             for (int idxRow = 0; idxRow < obs.Height; idxRow++)
             {

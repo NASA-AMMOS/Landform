@@ -571,7 +571,7 @@ namespace OPS.Landform
                 {
                     clouds.Add(entry.Value);
                     var pointsObs = observationCache.GetObservation(entry.Key);
-                    var pointsCam = ((CameraModel)JsonHelper.FromJson(pointsObs.CameraModel)) as CAHV;
+                    var pointsCam = pointsObs.CameraModel as CAHV;
                     var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
                                                                        options.UsePriors, options.OnlyAligned);
                     //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null

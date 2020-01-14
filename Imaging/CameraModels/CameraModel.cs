@@ -1,8 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using OPS.Util;
 using Microsoft.Xna.Framework;
 
 namespace OPS.Imaging
@@ -60,5 +59,15 @@ namespace OPS.Imaging
         /// This is not necessarily the direction through the middle pixel of your image.
         /// </summary>
         public abstract Vector3 ImagePlaneNormal { get; }
+
+        public string Serialize()
+        {
+            return JsonHelper.ToJson(this);
+        }
+
+        public static CameraModel Deserialize(string str)
+        {
+            return (CameraModel)JsonHelper.FromJson(str);
+        }
     }
 }

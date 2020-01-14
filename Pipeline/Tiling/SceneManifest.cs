@@ -523,7 +523,7 @@ namespace OPS.Pipeline
                 image.width = obs.Width;
                 image.height = obs.Height;
                 image.bands = obs.Bands;
-                image.model = new CameraModelManifest(JsonHelper.FromJson<CameraModel>(obs.CameraModel));
+                image.model = new CameraModelManifest(obs.CameraModel);
 
                 tileset.image_ids.Add(image.id);
 

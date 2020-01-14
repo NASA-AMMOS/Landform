@@ -172,7 +172,7 @@ namespace OPS.Pipeline
                         numFeatures++;
                     }
                     var img = node.AddComponent<NodeImage>();
-                    img.CameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                    img.CameraModel = obs.CameraModel;
                     img.Size = new Vector2(obs.Width, obs.Height);
                     img.Url = obs.Url;
                 }
