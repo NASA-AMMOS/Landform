@@ -39,9 +39,6 @@ namespace OPS.Landform
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
-        [Option(HelpText = "Output texture resolution, should be power of two", Default = 4096)]
-        public virtual int TextureResolution { get; set; }
-
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
@@ -64,8 +61,6 @@ namespace OPS.Landform
     public class TextureCommand : GeometryCommand
     {
         protected TextureCommandOptions tcopts;
-
-        protected int resolution;
 
         protected IDictionary<string, ConvexHull> obsToHull;
 
@@ -113,12 +108,6 @@ namespace OPS.Landform
             if (!base.ParseArgumentsAndLoadCaches(outDir))
             {
                 return false; //help
-            }
-
-            resolution = tcopts.TextureResolution;
-            if (resolution > 0 && (resolution & (resolution - 1)) != 0)
-            {
-                pipeline.LogWarn("resolution {0} not a power of two", resolution);
             }
 
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
@@ -477,7 +466,7 @@ namespace OPS.Landform
         protected void BackprojectObservations()
         {
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            BackprojectObservations(mesh, resolution);
+            BackprojectObservations(mesh, sceneTextureResolution);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel> BackprojectObservations(Mesh mesh, int resolution,
@@ -518,7 +507,7 @@ namespace OPS.Landform
         protected void BuildBackprojectIndex()
         {
             pipeline.LogInfo("creating backproject index");
-            backprojectIndex = new Image(3, resolution, resolution);
+            backprojectIndex = new Image(3, sceneTextureResolution, sceneTextureResolution);
             Backproject.FillIndexImage(backprojectResults, backprojectIndex);
 
             if (!tcopts.NoSave)
@@ -545,7 +534,7 @@ namespace OPS.Landform
         protected Image BuildBackprojectTexture(TextureVariant textureVariant)
         {
             pipeline.LogInfo("creating backproject texture");
-            Image texture = new Image(3, resolution, resolution);
+            Image texture = new Image(3, sceneTextureResolution, sceneTextureResolution);
             Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant,
                                           fallbackToOriginal: false);
 

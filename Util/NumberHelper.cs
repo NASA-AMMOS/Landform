@@ -40,6 +40,11 @@ namespace OPS.Util
                 return new Random();
             }
         }
+
+        public static bool IsPowerOfTwo(int value)
+        {
+            value = Math.Abs(value);
+            return (value & (value - 1)) == 0;
+        }
     }
-    
 }
