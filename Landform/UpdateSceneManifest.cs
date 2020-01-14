@@ -133,10 +133,10 @@ namespace OPS.Landform
         [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
-        [Option(Default = "img,vic", HelpText = "Comma separated priority list of PDS RDR file extensions")]
+        [Option(Default = "mission", HelpText = "Comma separated priority list of PDS RDR file extensions")]
         public string PDSRDRExts { get; set; }
 
-        [Option(Default = "img,png", HelpText = "Comma separated priority list of image RDR file extensions")]
+        [Option(Default = "mission", HelpText = "Comma separated priority list of image RDR file extensions")]
         public string ImageRDRExts { get; set; }
 
         [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
@@ -428,12 +428,6 @@ namespace OPS.Landform
                 }
             }
 
-            imageExts = LandformShell.ParseExts(options.ImageRDRExts);
-            pipeline.LogInfo("image extensions: {0}", string.Join(", ", imageExts));
-
-            pdsExts = LandformShell.ParseExts(options.PDSRDRExts);
-            pipeline.LogInfo("PDS extensions: {0}", string.Join(", ", pdsExts));
-
             if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
             {
                 throw new Exception("--onlyforsitedrives not implemented for this command");
@@ -448,17 +442,33 @@ namespace OPS.Landform
             {
                 return false; // help
             }
-            
+
+            //mission has now been initialized
+
+            if (string.IsNullOrEmpty(options.ImageRDRExts) || options.ImageRDRExts.ToLower() == "mission")
+            {
+                options.ImageRDRExts = mission.GetSceneManifestImageRDRExts();
+            }
+            imageExts = StringHelper.ParseExts(options.ImageRDRExts);
+            pipeline.LogInfo("image extensions: {0}", string.Join(", ", imageExts));
+
+            if (string.IsNullOrEmpty(options.PDSRDRExts) || options.PDSRDRExts.ToLower() == "mission")
+            {
+                options.PDSRDRExts = mission.GetPDSExts();
+            }
+            pdsExts = StringHelper.ParseExts(options.PDSRDRExts);
+            pipeline.LogInfo("PDS extensions: {0}", string.Join(", ", pdsExts));
+
             var cp = pipeline as CloudPipeline;
 
             awsProfile = !string.IsNullOrEmpty(options.AWSProfile) ? options.AWSProfile :
                 cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
-                mission != null ? mission.GetDefaultAWSProfile() : "null";
+                mission.GetDefaultAWSProfile();
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(options.AWSRegion) ? options.AWSRegion :
                 cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
-                mission != null ? mission.GetDefaultAWSRegion() : "null";
+                mission.GetDefaultAWSRegion();
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
             RDRSet.allowBrowse = !options.NoAllowBrowseRDRs;

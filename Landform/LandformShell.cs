@@ -178,25 +178,12 @@ namespace OPS.Landform
 
         protected virtual List<string> GetMeshExts()
         {
-            return ParseExts(lsopts.MeshFormat, bothCases: !lsopts.CaseSensitiveSearch);
+            return StringHelper.ParseExts(lsopts.MeshFormat, bothCases: !lsopts.CaseSensitiveSearch);
         }
 
         protected virtual List<string> GetImageExts()
         {
-            return ParseExts(lsopts.ImageFormat, bothCases: !lsopts.CaseSensitiveSearch);
-        }
-
-        public static List<string> ParseExts(string extsStr, bool bothCases = false)
-        { 
-            var exts = StringHelper.ParseList(extsStr)
-                .Select(p => p.StartsWith(".") ? p : "." + p)
-                .ToList();
-            if (bothCases)
-            {
-                //this will find *.img and *.IMG but not *.iMg - balance between performance and completeness
-                exts = exts.SelectMany(ext => new string[] { ext.ToLower(), ext.ToUpper() }).ToList();
-            }
-            return exts;
+            return StringHelper.ParseExts(lsopts.ImageFormat, bothCases: !lsopts.CaseSensitiveSearch);
         }
 
         protected bool FileExists(string url)

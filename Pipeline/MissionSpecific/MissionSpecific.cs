@@ -770,12 +770,38 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Get comma separated list of tactical image file extensions.
-        /// Not case sensitive, leading dots will be added automatically.
-        /// In priority order so if an image is available in multiple formats the first one found will be used.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
         /// </summary>
         public virtual string GetTacticalImageExts()
         {
             return "img,png";
+        }
+
+        /// <summary>
+        /// Get comma separated list of PDS file extensions.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetPDSExts()
+        {
+            string exts = "img";
+            if (AllowPDSLabelFiles())
+            {
+                exts += ",lbl";
+            }
+            exts += ",vic";
+            return exts;
+        }
+
+        /// <summary>
+        /// Get comma separated list of image RDR file extensions to use in scene manfests.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetSceneManifestImageRDRExts()
+        {
+            return "img,png,jpg";
         }
 
         /// <summary>

@@ -248,13 +248,13 @@ namespace OPS.Landform
         protected override List<string> GetMeshExts()
         {
             var exts = options.MeshFormat.ToLower() == "mission" ? mission.GetTacticalMeshExts() : options.MeshFormat;
-            return ParseExts(exts, bothCases: false); //don't want to check both cases, handled by option in search
+            return StringHelper.ParseExts(exts, bothCases: false); //cases handled by option in search
         }
 
         protected override List<string> GetImageExts()
         {
             var exts = options.ImageFormat.ToLower() == "mission" ? mission.GetTacticalImageExts() : options.ImageFormat;
-            return ParseExts(exts, bothCases: !options.CaseSensitiveSearch);
+            return StringHelper.ParseExts(exts, bothCases: !options.CaseSensitiveSearch);
         }
 
         private void IndexMeshes()
