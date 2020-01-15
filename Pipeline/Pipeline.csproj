@@ -196,6 +196,8 @@
     <Compile Include="CloudPipelineConfig.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
+    <Compile Include="MissionSpecific\MissionM2020.cs" />
+    <Compile Include="MissionSpecific\MissionMSL.cs" />
     <Compile Include="PipelineOperation.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\FeatureMatchesDataProduct.cs" />
@@ -206,16 +208,16 @@
     <Compile Include="DataProducts\PngDataProduct.cs" />
     <Compile Include="LocalPipeline.cs" />
     <Compile Include="LocalPipelineConfig.cs" />
-    <Compile Include="MissionSpecific.cs" />
+    <Compile Include="MissionSpecific\MissionSpecific.cs" />
     <Compile Include="PipelineCore.cs" />
     <Compile Include="PipelineExecutive.cs" />
     <Compile Include="PipelineRoutine.cs" />
-    <Compile Include="Rover\LegacyManifest.cs" />
-    <Compile Include="Rover\MSLPlaces.cs" />
-    <Compile Include="Rover\PDSImage.cs" />
-    <Compile Include="Rover\RoverMasker.cs" />
-    <Compile Include="Rover\RoverObservationComparator.cs" />
-    <Compile Include="Rover\UnifiedMesh.cs" />
+    <Compile Include="MissionSpecific\LegacyManifest.cs" />
+    <Compile Include="MissionSpecific\MSLPlaces.cs" />
+    <Compile Include="MissionSpecific\PDSImage.cs" />
+    <Compile Include="MissionSpecific\RoverMasker.cs" />
+    <Compile Include="MissionSpecific\RoverObservationComparator.cs" />
+    <Compile Include="MissionSpecific\UnifiedMesh.cs" />
     <Compile Include="StartWorker.cs" />
     <Compile Include="StateMachines\GenericTilingStateMachine.cs" />
     <Compile Include="StateMachines\MSLStateMachine.cs" />
@@ -243,24 +245,25 @@
     <Compile Include="DataProducts\ComputedCorrespondence.cs" />
     <Compile Include="DataProducts\DetectedFeatures.cs" />
     <Compile Include="GdalConfiguration.cs" />
-    <Compile Include="Rover\MSLLocations.cs" />
-    <Compile Include="Rover\RoverCoordinateSystem.cs" />
-    <Compile Include="Rover\CuriosityRoverModel.cs" />
-    <Compile Include="Rover\RoverReachability.cs" />
-    <Compile Include="Rover\SolDateTime.cs" />
+    <Compile Include="MissionSpecific\MSLLocations.cs" />
+    <Compile Include="MissionSpecific\RoverCoordinateSystem.cs" />
+    <Compile Include="MissionSpecific\CuriosityRoverModel.cs" />
+    <Compile Include="MissionSpecific\RoverReachability.cs" />
+    <Compile Include="MissionSpecific\SolDateTime.cs" />
+    <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />
-    <Compile Include="Rover\SiteDrive.cs" />
+    <Compile Include="MissionSpecific\SiteDrive.cs" />
     <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
     <Compile Include="Tiling\FaceSplitCriteria.cs" />
     <Compile Include="Tiling\ITileSplitCriteria.cs" />
     <Compile Include="Tiling\LegacyScene.cs" />
     <Compile Include="Tiling\MeshImagePair.cs" />
-    <Compile Include="Rover\PDSParser.cs" />
-    <Compile Include="Rover\PDSParserException.cs" />
-    <Compile Include="Rover\RoverProductId.cs" />
-    <Compile Include="Rover\PDSRoverArticulationParser.cs" />
+    <Compile Include="MissionSpecific\PDSParser.cs" />
+    <Compile Include="MissionSpecific\PDSParserException.cs" />
+    <Compile Include="MissionSpecific\RoverProductId.cs" />
+    <Compile Include="MissionSpecific\PDSRoverArticulationParser.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Rover\RoverProductEnum.cs" />
+    <Compile Include="MissionSpecific\RoverProductEnum.cs" />
     <Compile Include="Tiling\MultiMeshClipper.cs" />
     <Compile Include="Tiling\MultiMeshClipperInput.cs" />
     <Compile Include="Tiling\OctreeTilingScheme.cs" />
@@ -278,34 +281,34 @@
     <None Include="app.config" />
     <None Include="OpenTK.dll.config" />
     <None Include="packages.config" />
-    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm01.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm01.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm02.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm02.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm03.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm03.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm04.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm04.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\Arm05.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Arm05.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\Body.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\Body.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\LeftBogie.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\LeftBogie.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\LeftRocker.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\LeftRocker.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\RightBogie.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\RightBogie.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="Rover\Resources\CuriosityMaskGeometry\RightRocker.obj">
+    <None Include="MissionSpecific\Resources\CuriosityMaskGeometry\RightRocker.obj">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

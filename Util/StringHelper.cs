@@ -199,6 +199,18 @@ namespace OPS.Util
             return Regex.Replace(str, @"\p{C}+", string.Empty);
         }
 
+        public static string StripSuffix(string str, string sfx)
+        {
+            if (!string.IsNullOrEmpty(str) && !string.IsNullOrEmpty(sfx) && str.EndsWith(sfx))
+            {
+                return str.Substring(0, str.Length - sfx.Length);
+            }
+            else
+            {
+                return str;
+            }
+        }
+
         /// <summary>
         /// Parse a list of strings (posibly null).
         /// Returns array of zero or more whitespace trimmed non-empty substrings.

@@ -29,10 +29,17 @@ namespace OPS.Cloud
         private ConcurrentDictionary<string, RegionEndpoint> bucketToRegion =
             new ConcurrentDictionary<string, RegionEndpoint>();
 
-        public static string ConvertS3URLToHttps(string url)
+        public static string ConvertS3URLToHttps(string url, string proxy = null)
         {
             S3Url location = new S3Url(url);
-            return string.Format("https://{0}.s3.amazonaws.com/{1}", location.BucketName, location.Path);
+            if (string.IsNullOrEmpty(proxy))
+            {
+                return string.Format("https://{0}.s3.amazonaws.com/{1}", location.BucketName, location.Path);
+            }
+            else
+            {
+                return string.Format("{0}/{1}/{2}", proxy, location.BucketName, location.Path);
+            }
         }
 
         /// <summary>

@@ -30,7 +30,6 @@ namespace OPS.LandformUtil
                     { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },
                     { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
                     { typeof(ConvertToASTTROOptions), typeof(ConvertToASTTRO) },
-                    { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
                 };
 
             return CommandHelper.RunFromCommandline(args, verbs);

@@ -114,23 +114,30 @@ namespace OPS.Landform
 
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
-            //load image observations and index them
-            imageObservations = observationCache.GetAllObservations().Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
-
-            // the observation selection strategy has an opportunity to independently define its preference for linear or nonlinear images
-            var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
-            comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
-            imageObservations = comparator
-                .KeepBestRoverObservations(imageObservations, RoverObservationComparator.KeepLinearVariants.Best, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
-                .Cast<Observation>()
-                .ToList();
-
-            pipeline.LogInfo("image observations contains {0} images", imageObservations.Count);
-
-            indexedImages = new Dictionary<int, Observation>();
-            foreach (var obs in imageObservations)
+            //some workflows do not load observations, for example tiling an M2020 tactical mesh
+            if (observationCache != null)
             {
-                indexedImages[obs.Index] = obs;
+                imageObservations = observationCache.GetAllObservations()
+                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
+                    .ToList();
+                
+                //the observation selection strategy has an opportunity to independently define its preference
+                //for linear or nonlinear images
+                var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
+                comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
+                imageObservations = comparator
+                    .KeepBestRoverObservations(imageObservations, RoverObservationComparator.KeepLinearVariants.Best,
+                                           pipeline.Verbose ? pipeline : null, RoverProductType.Image)
+                    .Cast<Observation>()
+                    .ToList();
+                
+                pipeline.LogInfo("{0} image observations", imageObservations.Count);
+                
+                indexedImages = new Dictionary<int, Observation>();
+                foreach (var obs in imageObservations)
+                {
+                    indexedImages[obs.Index] = obs;
+                }
             }
 
             return true;
@@ -363,21 +370,20 @@ namespace OPS.Landform
         {
             if (sceneMesh.TileListGuid == Guid.Empty)
             {
-                throw new Exception(string.Format("scene mesh {0} has no leaf list, run local-build-leaves",
-                                                  sceneMesh.Name));
+                throw new Exception(string.Format("scene mesh {0} has no tile list", sceneMesh.Name));
             }
 
             tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);
 
             if (tileList.MeshFrame != meshFrame)
             {
-                throw new Exception(string.Format("leaf list is in frame {0}, expected {1}",
+                throw new Exception(string.Format("tile list in frame {0}, expected {1}",
                                                   tileList.MeshFrame, meshFrame));
             }
 
             if (tileList.LeafNames == null || tileList.LeafNames.Count == 0)
             {
-                throw new Exception("leaf list is empty");
+                throw new Exception("leaf list empty");
             }
         }
 
