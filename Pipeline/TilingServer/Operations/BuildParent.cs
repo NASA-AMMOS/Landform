@@ -83,14 +83,21 @@ namespace OPS.Pipeline.TilingServer
                 int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.TextureResolution;
 
                 TextureProjector textureProjector = null;
+                Image textureImage = null;
                 if (project.TextureProjectorGuid != Guid.Empty)
                 {
                     textureProjector = pipeline.GetDataProduct<TextureProjector>(project, project.TextureProjectorGuid);
+                    var texGuid = textureProjector.TextureGuid;
+                    if (project.TextureMode == TextureMode.Clip && texGuid != Guid.Empty)
+                    {
+                        textureImage = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                    }
                 }
 
                 if (!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.ReconstructionMethod,
-                                                               project.FacesPerTile, maxTextureSize,
-                                                               project.SkirtMode, textureProjector,
+                                                               project.FacesPerTile, project.SkirtMode,
+                                                               project.TextureMode, maxTextureSize,
+                                                               textureProjector, textureImage,
                                                                info: msg => LogInfo(msg),
                                                                error: msg => { throw new Exception(msg); }))
                 {

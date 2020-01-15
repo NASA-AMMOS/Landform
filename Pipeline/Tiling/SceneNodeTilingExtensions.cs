@@ -6,9 +6,10 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
-using OPS.Util;
+using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
 {
@@ -66,8 +67,8 @@ namespace OPS.Pipeline
             return result;
         }
 
-        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds,
-                                                      int maxTextureSize = int.MaxValue)
+        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> childMeshImagePairs,
+                                                      BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
         {
             if (maxTextureSize == 0)
             {
@@ -81,7 +82,7 @@ namespace OPS.Pipeline
             // and calculate the area the triangles occupy in units of pixels.  Sum all
             // the areas and round up to nearest power of two to decide size of the new tile
             double totalPixels = 0;
-            foreach (var p in pairs)
+            foreach (var p in childMeshImagePairs)
             {
                 var clipped = Mesh.Clip(p.Mesh, cropBounds);
                 totalPixels += TextureBaker.ComputePixelArea(clipped, p.Image);
@@ -107,7 +108,8 @@ namespace OPS.Pipeline
             return node.Children.All(n => n.HasComponent<MeshImagePair>());
         }
 
-        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static List<SceneNode> FindNodesRequiredForParent
+            (this SceneNode node, SceneNode root, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
             BoundingBox tmp;
             return FindNodesRequiredForParent(node, root, out tmp, childBoundSearchRatio);
@@ -127,7 +129,9 @@ namespace OPS.Pipeline
         ///
         /// NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
         /// </summary>
-        public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, out BoundingBox searchBounds, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static List<SceneNode> FindNodesRequiredForParent
+            (this SceneNode node, SceneNode root, out BoundingBox searchBounds,
+             double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
             int childDepth = node.Children.First().Transform.Depth();
             searchBounds = node.ChildBounds();
@@ -146,34 +150,43 @@ namespace OPS.Pipeline
         /// <param name="maxTextureSize"></param>
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
-        public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root,
-                                                     MeshReconstructionMethod reconstructionMethod,
-                                                     int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis,
-                                                     TextureProjector textureProjector = null,
-                                                     double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
-                                                     Action<string> info = null, Action<string> error = null)
+        public static bool BuildGeometryFromChildren
+            (this SceneNode node, SceneNode root, MeshReconstructionMethod reconstructionMethod,
+             int maxFaceCountTarget, SkirtMode? skirtAxis, TextureMode textureMode, int maxTextureSize,
+             TextureProjector textureProjector = null, Image textureImage = null,
+             double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
+             Action<string> info = null, Action<string> error = null)
         {
             info = info ?? (msg => {});
             error = error ?? (msg => {});
 
             info("merging child meshes");
 
-            BoundingBox searchBounds;
-            var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
-            var pairs = childNodes.Where(n => n.HasComponent<MeshImagePair>()).Select(n => n.GetComponent<MeshImagePair>());
-            var childMeshes = pairs.Where(p => p.Mesh != null).Select(p => p.Mesh);
+            var children = FindNodesRequiredForParent(node, root, out BoundingBox searchBounds, childBoundSearchRatio);
+
+            var childMeshImagePairs = children
+                .Where(n => n.HasComponent<MeshImagePair>())
+                .Select(n => n.GetComponent<MeshImagePair>());
+
+            var childMeshes = childMeshImagePairs
+                .Where(p => p.Mesh != null)
+                .Select(p => p.Mesh);
             
-            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean:true, normalize:true);
+            Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean: true, normalize: true);
             if (!combinedFull.HasNormals)
             {
                 combinedFull.GenerateVertexNormals();
             }
+
+            // Compute an enlargedMinBounds instead of just using searchBounds
+            // because in the tiling server "BuildParent" routine we construct a flat tree
+            // with just the parent node and all of its dependents as children.
+            // As a result "ChildBounds" is no longer a reliable measure.
+            // This is pretty nuanced and could potentially benefit from a refactor in the future.
             BoundingBox minimumBounds = node.GetComponent<NodeBounds>().Bounds;
-            // Note that we compute an enlargedMinBounds instead of just using searchBounds because in the tiling server "BuildParent" routine we
-            // construct a flat tree with just the parent node and all of its dependence as children.  As a result "ChildBounds" is no longer a reliable
-            // measure.  This is pretty nuanced and could potentially benefit from a refactor in the future
             BoundingBox enlargedMinBounds = BoundingBoxExtensions.Scale(minimumBounds, childBoundSearchRatio);
             combinedFull = Mesh.Clip(combinedFull, enlargedMinBounds);
+
             combinedFull.NormalizeNormals();
 
             Mesh combinedDecimated = null;
@@ -197,17 +210,11 @@ namespace OPS.Pipeline
                 Vector3? cornerDirection = null;
                 if (skirtAxis.HasValue)
                 {
-                    if (skirtAxis.Value == SkirtMode.X)
+                    switch (skirtAxis.Value)
                     {
-                        cornerDirection = Vector3.UnitX;
-                    }
-                    else if (skirtAxis.Value == SkirtMode.Y)
-                    {
-                        cornerDirection = Vector3.UnitY;
-                    }
-                    else if (skirtAxis.Value == SkirtMode.Z)
-                    {
-                        cornerDirection = Vector3.UnitZ;
+                        case SkirtMode.X: cornerDirection = Vector3.UnitX; break;
+                        case SkirtMode.Y: cornerDirection = Vector3.UnitY; break;
+                        case SkirtMode.Z: cornerDirection = Vector3.UnitZ; break;
                     }
                 }
                 info("decimating parent tile mesh");
@@ -225,8 +232,11 @@ namespace OPS.Pipeline
             double geometricError = combinedDecimated.HausdorffDistance(accuracy, fullClipped);
             geoError.Error = Math.Max(geoError.Error, geometricError);
 
-            //we always bake parent tile textures, regardless of project.TextureMode
-            int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
+            int size = 0;
+            if (textureMode != TextureMode.None)
+            {
+                size = ComputeParentTileResolution(childMeshImagePairs, combinedDecimated.Bounds(), maxTextureSize);
+            }
             Image img = null;
             if (size != 0)
             {
@@ -236,7 +246,10 @@ namespace OPS.Pipeline
                     combinedDecimated.ProjectTexture(textureProjector.ImageWidth, textureProjector.ImageHeight,
                                                      textureProjector.CameraModel,
                                                      meshToImage: textureProjector.MeshToImage);
-                    combinedDecimated.RescaleUVs();
+                    if (textureMode != TextureMode.Clip || textureImage == null)
+                    {
+                        combinedDecimated.RescaleUVsForTexture(size, size);
+                    }
                 }
                 else
                 {
@@ -249,8 +262,23 @@ namespace OPS.Pipeline
                     }
                 }
 
-                info("baking parent tile texture");
-                img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
+                if (textureMode == TextureMode.Clip && textureProjector != null && textureImage != null)
+                {
+                    var pair = TexturedMeshClipper.RemapMeshClipImage(combinedDecimated, textureImage, size);
+                    combinedDecimated = pair.Mesh;
+                    img = pair.Image;
+                }
+                else
+                {
+                    //we need to bake parent tile textures even when textureMode is Clip
+                    //unless we also have a texture projector to assign appropriate UVs
+                    info("baking parent tile texture");
+                    img = TextureBaker.BakeTexture(childMeshImagePairs.ToArray(), combinedDecimated, size, size);
+                    //note that if textureMode is clip then leaf tile textures may have actually been clipped
+                    //even though we are baking here
+                    //because leave tiles can take their UVs from the input meshes
+                    //but a parent tile can only get usable UVs for clipping by texture projection
+                }
 
                 // Estimate the size of a pixel for this texture
                 // If this is greater than the geometric error use it instead

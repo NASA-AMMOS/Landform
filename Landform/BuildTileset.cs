@@ -65,7 +65,7 @@ namespace OPS.Landform
                 RunPhase("create tiling project", CreateTilingProject);
                 RunPhase("add tile meshes", AddTileMeshes);
                 RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
-                RunPhase("build parent tiles", BuildParentTiles);
+                RunPhase("build parent tiles and save tileset", BuildParentTilesAndSaveTileset);
             }
             catch (Exception ex)
             {
@@ -172,7 +172,20 @@ namespace OPS.Landform
 
                 int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
-                var texMode = withTextures ? TextureMode.Bake : TextureMode.None;
+                var texMode = TextureMode.None;
+                if (withTextures)
+                {
+                    if (tileList.TextureMode == TextureMode.Clip && sceneMesh.TextureProjectorGuid != Guid.Empty &&
+                        pipeline.GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid).TextureGuid
+                        != Guid.Empty)
+                    {
+                        texMode = TextureMode.Clip;
+                    }
+                    else
+                    {
+                        texMode = TextureMode.Bake;
+                    }
+                }
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      options.SkirtMode, options.ReconstructionMethod,
@@ -258,7 +271,7 @@ namespace OPS.Landform
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
         }
 
-        private void BuildParentTiles()
+        private void BuildParentTilesAndSaveTileset()
         {
             PipelineExecutive executive = null;
             if (pipeline is LocalPipeline)

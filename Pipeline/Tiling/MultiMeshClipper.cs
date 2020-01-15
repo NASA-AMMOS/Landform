@@ -74,7 +74,10 @@ namespace OPS.Pipeline
         /// </summary>
         public void InitTextureBaker()
         {            
-            var datasets = Inputs.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
+            var datasets = Inputs
+                .Where(d => d.Image != null && d.Mesh.HasUVs)
+                .Select(d => new MeshImagePair(d.Mesh, d.Image))
+                .ToArray();
             if (datasets.Length > 0)
             {
                 TextureBaker = new TextureBaker(datasets);

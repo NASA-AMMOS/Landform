@@ -13,6 +13,8 @@ namespace OPS.Pipeline
         public int ImageWidth;
         public int ImageHeight;
 
+        public Guid TextureGuid;
+
         public TextureProjector() { }
 
         public TextureProjector(Image image, Matrix meshToImage)

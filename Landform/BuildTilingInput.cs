@@ -809,6 +809,7 @@ namespace OPS.Landform
                 MeshFrame = meshFrame,
                 HasIndexImages = textureMode == TextureMode.Backproject && !options.NoBackprojectIndexImages,
                 TilingScheme = options.TilingScheme,
+                TextureMode = textureMode,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
             };
@@ -834,9 +835,9 @@ namespace OPS.Landform
                              options.TextureVariant != TextureVariant.Original ?
                              " (falling back to " + TextureVariant.Original + ")" : "");
 
-            if (meshLOD.Count == 1 && textureMode != TextureMode.None && textureMode != TextureMode.Bake)
+            if (meshLOD.Count == 1 && (textureMode == TextureMode.Backproject ||
+                                       (textureMode == TextureMode.Clip && !meshToImage.HasValue)))
             {
-                //TODO #875
                 pipeline.LogWarn("{0} leaf tile textures but baking parent tile textures", texMsg);
             }
 
@@ -938,6 +939,13 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("saving texture projector");
                     var textureProjector = new TextureProjector(sceneTexture, meshToImage.Value);
+                    if (textureMode == TextureMode.Clip && meshLOD.Count == 1)
+                    {
+                        pipeline.LogInfo("saving input image for clipping parent textures");
+                        var textureProd = new PngDataProduct(sceneTexture);
+                        pipeline.SaveDataProduct(project, textureProd);
+                        textureProjector.TextureGuid = textureProd.Guid;
+                    }
                     pipeline.SaveDataProduct(project, textureProjector);
                     sceneMesh.TextureProjectorGuid = textureProjector.Guid;
                 }
@@ -947,7 +955,6 @@ namespace OPS.Landform
                 }
 
                 sceneMesh.Save(pipeline);
-
             }
         }
 
