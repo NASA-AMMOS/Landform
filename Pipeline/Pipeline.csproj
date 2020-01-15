@@ -196,6 +196,8 @@
     <Compile Include="CloudPipelineConfig.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
+    <Compile Include="MissionSpecific\MissionM2020.cs" />
+    <Compile Include="MissionSpecific\MissionMSL.cs" />
     <Compile Include="PipelineOperation.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\FeatureMatchesDataProduct.cs" />
