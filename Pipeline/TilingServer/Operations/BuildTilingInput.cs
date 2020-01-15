@@ -148,6 +148,8 @@ namespace OPS.Pipeline.TilingServer
             int no = observations.Count;
             int np = 0, nc = 0, nf = 0;
             CoreLimitedParallel.ForEach(observations, obs => {
+                    if (obs.SiteDrive == new SiteDrive(31, 1330)) //TODO delete
+                        return;
 
                     Interlocked.Increment(ref np);
 
@@ -243,44 +245,49 @@ namespace OPS.Pipeline.TilingServer
 
             //Add Orbital
             ///////////////////////////////////////////////////////////////////////////////////////////////////
-
-            const int orbitalRadius = 200; //Add 100 x 100 meter orbital
-            const double filterRadius = 1.0; //Remove orbital points within 1m of surface data
-            const string orbitalFrameName = "Orbital";
-
-            //Create 2D spatial lookup
-            VertexKDTree kdtree = new VertexKDTree(aggregatePointCloud.Vertices.Select(
-                v => new Vertex(v.Position.X, v.Position.Y, 0)).ToList());
-
-            SparseImage dem = new SparseImage(mission.GetDemPath());
-            dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
-
-            Matrix demToWorld = frameCache.GetBestTransform(orbitalFrameName).Transform.Mean;
-            //Get subset of dem around sitedrive
-            Vector2 center = mission.GetSiteDriveOriginPixelInDem(observations[0].SiteDrive);
-            int pixelRadius = (int)(orbitalRadius / mission.GetDemMetersPerPixel());
-            int baseC = (int)Math.Max(center.X - pixelRadius, 0);
-            int baseR = (int)Math.Max(center.Y - pixelRadius, 0);
-            int pixelWidth = (int)Math.Min(center.X + pixelRadius, dem.Width) - baseC;
-            int pixelHeight = (int)Math.Min(center.Y + pixelRadius, dem.Height) - baseR;
-
-            for (int r = 0; r < 2 * pixelRadius; r++)
             {
-                for (int c = 0; c < 2 * pixelRadius; c++)
+                const int orbitalRadius = 200; //Add 100 x 100 meter orbital
+                const double filterRadius = 0.2; //Remove orbital points within 1m of surface data
+                const string orbitalFrameName = "Orbital";
+
+                //Create 2D spatial lookup
+                VertexKDTree kdtree = new VertexKDTree(aggregatePointCloud.Vertices.Select(
+                    v => new Vertex(v.Position.X, v.Position.Y, 0)).ToList());
+
+                SparseImage dem = new SparseImage(mission.GetDemPath());
+                dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
+
+                Matrix demToBaseSiteDrive = frameCache.GetBestTransform(orbitalFrameName).Transform.Mean
+                                            * Matrix.Invert(frameCache.GetBestTransform(opts.TargetFrame).Transform.Mean); //TODO: get sd from options
+
+                //Get subset of dem around sitedrive
+                Vector2 center = mission.GetSiteDriveOriginPixelInDem(observations[0].SiteDrive);
+                int pixelRadius = (int)(orbitalRadius / mission.GetDemMetersPerPixel());
+                int baseC = (int)Math.Max(center.X - pixelRadius, 0);
+                int baseR = (int)Math.Max(center.Y - pixelRadius, 0);
+                int pixelWidth = (int)Math.Min(center.X + pixelRadius, dem.Width) - baseC;
+                int pixelHeight = (int)Math.Min(center.Y + pixelRadius, dem.Height) - baseR;
+
+                for (int r = 0; r < 2 * pixelRadius; r++)
                 {
-                    var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c);
-                    if (pos.HasValue)
+                    for (int c = 0; c < 2 * pixelRadius; c++)
                     {
-                        if (kdtree.NearestDistance(new Vector3(pos.Value.X, pos.Value.Y, 0), filterRadius, 1).Count() == 0)
+                        var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c);
+                        if (pos.HasValue)
                         {
-                            Vertex v = new Vertex();
-                            v.Position = pos.Value;
-                            aggregatePointCloud.Vertices.Add(v);
+                            var transformedPos = Vector3.Transform(pos.Value, demToBaseSiteDrive);
+                            if (kdtree.NearestDistance(new Vector3(transformedPos.X, transformedPos.Y, 0), filterRadius, 1).Count() == 0)
+                            {
+                                Vertex v = new Vertex();
+                                v.Position = transformedPos;
+                                v.Normal = new Vector3(0, 0, -1);
+                                aggregatePointCloud.Vertices.Add(v);
+                            }
                         }
                     }
                 }
             }
-
+            
             ///////////////////////////////////////////////////////////////////////////////////////////////////
 
             // build the large mesh from the aggregate point cloud using poisson reconstruction
