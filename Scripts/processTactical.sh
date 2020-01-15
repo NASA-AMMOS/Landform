@@ -18,7 +18,7 @@ fi
 dir=$1
 mission=$2
 
-meshext="obj";
+meshext="iv";
 if [ $# -gt 2 ]; then
     meshext=$3
 fi
