@@ -12,6 +12,66 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
+    public class SceneManifestVector3Converter : JsonConverter
+    {
+        private class Vector3Proxy
+        {
+            public double x, y, z;
+        }
+
+        public override bool CanRead { get { return true; } }
+
+        public override bool CanWrite { get { return true; } }
+
+        public override bool CanConvert(Type type)
+        {
+            return type == typeof(Vector3);
+        }
+
+        public override object ReadJson(JsonReader reader, Type  type, object existing, JsonSerializer serializer)
+        {
+            var proxy = serializer.Deserialize<Vector3Proxy>(reader);
+            return new Vector3(x: proxy.x, y: proxy.y, z: proxy.z);
+        }
+
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            var v3 = (Vector3)value;
+            var proxy = new Vector3Proxy { x = v3.X, y = v3.Y, z = v3.Z };
+            serializer.Serialize(writer, proxy);
+        }
+    }
+
+    public class SceneManifestQuaternionConverter : JsonConverter
+    {
+        private class QuaternionProxy
+        {
+            public double x, y, z, w;
+        }
+
+        public override bool CanRead { get { return true; } }
+
+        public override bool CanWrite { get { return true; } }
+
+        public override bool CanConvert(Type type)
+        {
+            return type == typeof(Quaternion);
+        }
+
+        public override object ReadJson(JsonReader reader, Type  type, object existing, JsonSerializer serializer)
+        {
+            var proxy = serializer.Deserialize<QuaternionProxy>(reader);
+            return new Quaternion(x: proxy.x, y: proxy.y, z: proxy.z, w: proxy.w);
+        }
+
+        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        {
+            var q = (Quaternion)value;
+            var proxy = new QuaternionProxy { x = q.X, y = q.Y, z = q.Z, w = q.W };
+            serializer.Serialize(writer, proxy);
+        }
+    }
+
     public class SceneManifest
     {
         public const string VERSION = "1.0";
@@ -50,25 +110,14 @@ namespace OPS.Pipeline
     public class FrameManifest
     {
         public string id;
-        public string parent_id;
-        public double[] translation;
-        public double[] rotation;
-        
-        public FrameManifest()
-        {
-            SetTranslation(new Vector3(0, 0, 0));
-            SetRotation(Quaternion.Identity);
-        }
-        
-        public void SetTranslation(Vector3 t)
-        {
-            translation = t.ToDoubleArray();
-        }
-        
-        public void SetRotation(Quaternion r)
-        {
-            rotation = new double[] { r.X, r.Y, r.Z, r.W };
-        }
+        public string frame_id; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/905
+        public string parent_id = ""; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/905
+
+        [JsonConverter(typeof(SceneManifestVector3Converter))]
+        public Vector3 translation = Vector3.Zero;
+
+        [JsonConverter(typeof(SceneManifestQuaternionConverter))]
+        public Quaternion rotation = Quaternion.Identity;
     }
 
     public class CameraModelManifest
@@ -210,6 +259,7 @@ namespace OPS.Pipeline
                 return Frames[id];
             }
             var frame = new FrameManifest() { id = id };
+            frame.frame_id = id; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/905
             Frames[id] = frame;
             SceneManifest.frames.Add(frame);
             return frame;
@@ -219,8 +269,8 @@ namespace OPS.Pipeline
         {
             var frame = GetOrAddFrame("sitedrive_" + siteDrive);
             //sitedrive frame has identity transform, it's the root of the frame hierarchy in the scene manifest
-            frame.SetTranslation(new Vector3(0, 0, 0));
-            frame.SetRotation(Quaternion.Identity);
+            frame.translation = Vector3.Zero;
+            frame.rotation = Quaternion.Identity;
             return frame;
         }
 
@@ -419,13 +469,13 @@ namespace OPS.Pipeline
 
             var meshFrame = GetOrAddFrame(meshFrameId);
             meshFrame.parent_id = sdFrame.id;
-            meshFrame.SetTranslation(-parser.OriginOffset); //site -> sitedrive (aka local_level)
-            meshFrame.SetRotation(Quaternion.Identity);
+            meshFrame.translation= -parser.OriginOffset; //site -> sitedrive (aka local_level)
+            meshFrame.rotation = Quaternion.Identity;
             
             var imageFrame = GetOrAddFrame(imageFrameId);
             imageFrame.parent_id = sdFrame.id;
-            imageFrame.SetTranslation(new Vector3(0, 0, 0));
-            imageFrame.SetRotation(parser.RoverOriginRotation); //rover -> sitedrive (aka local_level)
+            imageFrame.translation = Vector3.Zero;
+            imageFrame.rotation = parser.RoverOriginRotation; //rover -> sitedrive (aka local_level)
         }
 
         public void AddOrUpdateContextualTileset(string tilesetId, string tilesetUrl, string siteDrive,
@@ -479,8 +529,8 @@ namespace OPS.Pipeline
                     var frame = GetOrAddFrame(image.frame_id);
                     frame.parent_id = sdFrame.id;
                     var xform = frameCache.GetObservationTransform(obs, siteDrive, usePriors, onlyAligned);
-                    frame.SetTranslation(xform.MeanTranslation);
-                    frame.SetRotation(xform.MeanRotation);
+                    frame.translation = xform.MeanTranslation;
+                    frame.rotation = xform.MeanRotation;
                 }
 
                 sols.Add(obs.Day);
