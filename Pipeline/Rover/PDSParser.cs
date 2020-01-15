@@ -77,11 +77,6 @@ namespace OPS.Pipeline
             get { return metadata.ReadAsFloatArray("IMAGE", "INVALID_CONSTANT"); }
         }
 
-        public RoverProductId ProductId
-        {
-            get { return RoverProductId.Parse(metadata.ReadAsString("PRODUCT_ID")); }
-        }
-
         public string ProductIdString
         {
             get { return metadata.ReadAsString("PRODUCT_ID"); }
@@ -159,10 +154,11 @@ namespace OPS.Pipeline
                     string imageType = metadata.ReadAsString("DERIVED_IMAGE_PARMS", "DERIVED_IMAGE_TYPE");
                     return RoverProduct.FromPDSDerivedImageType(imageType);
                 }
-                else if (this.ProductId.ProductType != RoverProductType.Unknown)
-                {
-                    return this.ProductId.ProductType; //fallback to filename
-                }
+
+                //we used to fall back on RoverProductId.ProductType here
+                //but that obscures problems with the PDS header
+                //and it is safer to parse the product ID if the mission is known
+                //if we do need such fallbacks they should be in MissionSpecific
                 
                 return RoverProductType.Unknown;
             }
@@ -255,6 +251,24 @@ namespace OPS.Pipeline
             }
         }
 
+        public bool RoverCoordinateSystemRelativeToSite
+        {
+            get
+            {
+                foreach (string group in new string[] { "ROVER_COORDINATE_SYSTEM", "ROVER_COORDINATE_SYSTEM_PARMS" })
+                {
+                    if (metadata.HasGroup(group))
+                    {
+                        string rcsn = "REFERENCE_COORD_SYSTEM_NAME"; 
+                        string rcsi = "REFERENCE_COORD_SYSTEM_INDEX";
+                        return metadata.HasKey(group, rcsn) && metadata.ReadAsString(group, rcsn) == "SITE_FRAME" &&
+                            metadata.HasKey(group, rcsi) && metadata.ReadAsInt(group, rcsi) == Site;
+                    }
+                }
+                return false;
+            }
+        }
+
         public bool HasSiteCoordinateSystem
         {
             get
@@ -308,7 +322,7 @@ namespace OPS.Pipeline
                 {
                     return null;
                 }
-                return mc[0].ToString().PadLeft(5, '0') + mc[1].ToString().PadLeft(5, '0');
+                return (new SiteDrive(mc[0], mc[1])).ToString();
             }
         }
 
@@ -398,7 +412,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public double VerticleFOV
+        public double VerticalFOV
         {
             get
             {

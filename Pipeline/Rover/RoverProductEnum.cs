@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -22,32 +23,31 @@ namespace OPS.Pipeline
         //M2020
         FrontHazcamB, FrontHazcamLeftB, FrontHazcamRightB,
         MastcamZ, MastcamZLeft, MastcamZRight,
-        CacheCam,
-        EDLPUCA, EDLPUCB, EDLPUCC, EDLRDC, EDLLVS, EDLDSD, EDLRUC,
-        HeliNav, HeliScout,
-        MEDASkyCam,
-        PIXELMCC,
-        SHERLOCACI,
-        SHERLOCWATSON, SHERLOCWATSONLeft, SHERLOCWATSONRight,
-        SuperCamRMI
+        SHERLOCACI, SHERLOCWATSON, SHERLOCWATSONLeft, SHERLOCWATSONRight
     }
 
     /// <summary>
-    /// Also See Mission.{IsHazcam,IsMastcam,IsNavcam}()
+    /// Also See Mission.{IsHazcam,IsMastcam,IsNavcam,IsArmcam}()
     /// </summary>
     public static class RoverCamera
     {
         private static Dictionary<string, RoverProductCamera> pdsCameraTypes =
             new Dictionary<string, RoverProductCamera>()
         {
-            { "FHAZ_LEFT_A", RoverProductCamera.FrontHazcamLeft },
-            { "FHAZ_LEFT_B ", RoverProductCamera.FrontHazcamLeft },
-            { "FHAZ_RIGHT_A", RoverProductCamera.FrontHazcamRight },
-            { "FHAZ_RIGHT_B", RoverProductCamera.FrontHazcamRight },
-            { "RHAZ_LEFT_A", RoverProductCamera.RearHazcamLeft },
-            { "RHAZ_LEFT_B", RoverProductCamera.RearHazcamLeft },
-            { "RHAZ_RIGHT_A", RoverProductCamera.RearHazcamRight },
-            { "RHAZ_RIGHT_B", RoverProductCamera.RearHazcamRight },
+            { "FRONT_HAZCAM_LEFT_A", RoverProductCamera.FrontHazcamLeft },     //M2020
+            { "FRONT_HAZCAM_RIGHT_A", RoverProductCamera.FrontHazcamRight },   //M2020
+            { "FRONT_HAZCAM_LEFT_B", RoverProductCamera.FrontHazcamLeft },     //M2020
+            { "FRONT_HAZCAM_RIGHT_B", RoverProductCamera.FrontHazcamRight },   //M2020
+            { "REAR_HAZCAM_LEFT", RoverProductCamera.RearHazcamLeft },         //M2020
+            { "REAR_HAZCAM_RIGHT", RoverProductCamera.RearHazcamRight },       //M2020
+            { "FHAZ_LEFT_A", RoverProductCamera.FrontHazcamLeft }, //MSL and early M2020 datasets
+            { "FHAZ_LEFT_B ", RoverProductCamera.FrontHazcamLeft }, //MSL and early M2020 datasets
+            { "FHAZ_RIGHT_A", RoverProductCamera.FrontHazcamRight }, //MSL and early M2020 datasets
+            { "FHAZ_RIGHT_B", RoverProductCamera.FrontHazcamRight }, //MSL and early M2020 datasets
+            { "RHAZ_LEFT_A", RoverProductCamera.RearHazcamLeft }, //MSL and early M2020 datasets
+            { "RHAZ_LEFT_B", RoverProductCamera.RearHazcamLeft }, //MSL and early M2020 datasets
+            { "RHAZ_RIGHT_A", RoverProductCamera.RearHazcamRight }, //MSL and early M2020 datasets
+            { "RHAZ_RIGHT_B", RoverProductCamera.RearHazcamRight }, //MSL and early M2020 datasets
             { "NAV_LEFT_A", RoverProductCamera.NavcamLeft }, //MSL
             { "NAV_LEFT_B", RoverProductCamera.NavcamLeft }, //MSL
             { "NAV_RIGHT_A", RoverProductCamera.NavcamRight }, //MSL
@@ -59,7 +59,8 @@ namespace OPS.Pipeline
             { "MCZ_LEFT", RoverProductCamera.MastcamZLeft }, //M2020
             { "MCZ_RIGHT", RoverProductCamera.MastcamZRight }, //M2020
             { "MAHLI", RoverProductCamera.MAHLI } //MSL
-            //TODO additional M2020 types
+            //TODO M2020 types for SHERLOC-WATSON
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/897
         };
 
         private static Dictionary<string, RoverProductCamera> rdrCameraTypes =
@@ -73,26 +74,19 @@ namespace OPS.Pipeline
             { "NR", RoverProductCamera.NavcamRight },
             { "ML", RoverProductCamera.MastcamLeft }, //MastcamZLeft for M2020, see MissionM2020.TranslateCamera()
             { "MR", RoverProductCamera.MastcamRight }, //MastcamZRight for M2020, see MissionM2020.TranslateCamera()
+            { "ZL", RoverProductCamera.MastcamZLeft }, //M2020
+            { "ZR", RoverProductCamera.MastcamZRight }, //M2020
             { "MH", RoverProductCamera.MAHLI }, //MSL
             { "BL", RoverProductCamera.FrontHazcamLeftB }, //M2020
             { "BR", RoverProductCamera.FrontHazcamRightB }, //M2020
-            { "CC", RoverProductCamera.CacheCam }, //M2020
-            { "EA", RoverProductCamera.EDLPUCA }, //M2020
-            { "EB", RoverProductCamera.EDLPUCB }, //M2020
-            { "EC", RoverProductCamera.EDLPUCC }, //M2020
-            { "ED", RoverProductCamera.EDLRDC }, //M2020
-            { "EL", RoverProductCamera.EDLLVS }, //M2020
-            { "ES", RoverProductCamera.EDLDSD }, //M2020
-            { "EU", RoverProductCamera.EDLRUC }, //M2020
-            { "HN", RoverProductCamera.HeliNav }, //M2020
-            { "HS", RoverProductCamera.HeliScout }, //M2020
-            { "MS", RoverProductCamera.MEDASkyCam }, //M2020
-            { "PC", RoverProductCamera.PIXELMCC }, //M2020
             { "SC", RoverProductCamera.SHERLOCACI }, //M2020
-            { "IL", RoverProductCamera.SHERLOCWATSONLeft }, //M2020
-            { "IR", RoverProductCamera.SHERLOCWATSONRight }, //M2020
-            { "SR", RoverProductCamera.SuperCamRMI } //M2020
+            { "SI", RoverProductCamera.SHERLOCWATSON }, //M2020
+            { "SL", RoverProductCamera.SHERLOCWATSONLeft }, //M2020
+            { "SR", RoverProductCamera.SHERLOCWATSONRight }, //M2020
         };
+
+        private static ConcurrentDictionary<RoverProductCamera, string> invRDRCameraTypes =
+            new ConcurrentDictionary<RoverProductCamera, string>();
 
         public static RoverProductCamera FromPDSInstrumentID(string id)
         {
@@ -112,6 +106,12 @@ namespace OPS.Pipeline
             return RoverProductCamera.Unknown;
         }
 
+        public static string ToRDRInstrumentID(RoverProductCamera cam)
+        {
+            return invRDRCameraTypes
+                .GetOrAdd(cam, _ => rdrCameraTypes.Where(e => e.Value == cam).Select(e => e.Key).First());
+        }
+        
         public static bool IsCamera(RoverProductCamera camType, RoverProductCamera cam)
         {
             switch (camType)
@@ -153,20 +153,14 @@ namespace OPS.Pipeline
             }
         }
 
-        public static bool IsCamera(string camType, string cam)
+        public static RoverProductCamera[] ParseList(string cams)
         {
-            return IsCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), camType, ignoreCase: true),
-                            (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
-        }
-
-        public static bool IsCamera(string camType, RoverProductCamera cam)
-        {
-            return IsCamera((RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), camType, ignoreCase: true), cam);
-        }
-
-        public static bool IsCamera(RoverProductCamera camType, string cam)
-        {
-            return IsCamera(camType, (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), cam, ignoreCase: true));
+            return (cams ?? "")
+                .Split(',')
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Select(s => (RoverProductCamera)Enum.Parse(typeof(RoverProductCamera), s, ignoreCase: true))
+                .Cast<RoverProductCamera>()
+                .ToArray();
         }
     }
 
@@ -193,6 +187,16 @@ namespace OPS.Pipeline
         Points,
         Normals,
         RangeError
+    }
+
+    public enum RoverProductColor
+    {
+        Unknown,
+        FullColor,
+        Grayscale,
+        Red,
+        Green,
+        Blue
     }
 
     public static class RoverProduct
@@ -257,6 +261,28 @@ namespace OPS.Pipeline
             return prodType == RoverProductType.RoverMask || prodType == RoverProductType.RangeError ||
                 prodType == RoverProductType.Range || prodType == RoverProductType.Points ||
                 prodType == RoverProductType.Normals;
+        }
+
+        public static bool IsMonochrome(RoverProductColor color)
+        {
+            return color == RoverProductColor.Grayscale ||
+                color == RoverProductColor.Red ||
+                color == RoverProductColor.Green ||
+                color == RoverProductColor.Blue;
+        }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/783#issuecomment-234441
+        public static int BandPreference(RoverProductColor color)
+        {
+            switch (color)
+            {
+                case RoverProductColor.FullColor: return 0;
+                case RoverProductColor.Grayscale: return 1;
+                case RoverProductColor.Green: return 2;
+                case RoverProductColor.Red: return 3;
+                case RoverProductColor.Blue: return 4;
+                default: return 5;
+            }
         }
     }
 
@@ -378,12 +404,23 @@ namespace OPS.Pipeline
                 return StereoCams[index];
             }
 
-            if (StereoCams.Contains(cam))
-            {
-                return cam;
-            }
+            return cam;
+        }
 
-            throw new ArgumentException("not a stereo camera: " + cam);
+        public static RoverStereoEye ParseEyeForGeometry(string eye, MissionSpecific mission)
+        {
+            if (mission != null && eye.ToLower() == "auto")
+            {
+                return mission.PreferEyeForGeometry();
+            }
+            else if (Enum.TryParse<RoverStereoEye>(eye, true, out RoverStereoEye ret))
+            {
+                return ret;
+            }
+            else
+            {
+                throw new ArgumentException("unknown stereo eye: " + eye);
+            }
         }
     }
 }

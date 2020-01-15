@@ -64,12 +64,15 @@ namespace OPS.Pipeline
                 try
                 {
                     clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution);
+                    if (clippedMesh == null)
+                        return false;
                 }
                 catch
                 {
-                    //TODO: not being able to atlas can be caused by mesh complexity, which might be helped by a split
+                    //TODO: not being able to atlas can be caused by mesh complexity, which might be helped by a split 
+                    // https://github.jpl.nasa.gov/OnSight/Landform/issues/826
                     //returning false in case there's a mesh that wont atlas (degenerate triangles?)
-                    //this would recurse down to single triangle tiles                    
+                    //this would recurse down to single triangle tiles
                     return false;
                 }
             }
@@ -95,14 +98,14 @@ namespace OPS.Pipeline
             {
                 //find the camera that provides the best pixel density for this sample
                 //(would be the texture we would use at this location)
-                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, destPixelPt,
+                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, clippedOp.Bounds, destPixelPt,
                                                  out CameraInstance bestCamera))
                 {
                     continue;
                 }
 
                 // calculate src pixels area contributing to the pixel  
-                Vector2[] pixelCorners = GetPixelCorners(destPixelPt.Pixel);                
+                Vector2[] pixelCorners = GetPixelCorners(destPixelPt.Pixel); 
                 var uvsCorners =
                     pixelCorners.Select(c => Image.PixelToUV(c,options.tileResolution,options.tileResolution));
                 var destPixelMeshPositions =
@@ -165,7 +168,7 @@ namespace OPS.Pipeline
         }
 
         private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
-                                                 PixelPoint pxlPt, out CameraInstance bestCamera)
+                                                 BoundingBox meshBounds, PixelPoint pxlPt, out CameraInstance bestCamera)
         {
             double minSpread = double.MaxValue;
             bestCamera = new CameraInstance();
@@ -179,9 +182,9 @@ namespace OPS.Pipeline
                 //Issue #523: want median or average in case glancing angle?
                 //want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = GetMinPixelSpreadInMeters(options.scInMesh, camInst.cameraModel,
-                                                             camInst.cameraToMesh, meshHull,
-                                                             pxlPt.Pixel, pxlPt.Point, camInst.widthPixels,
-                                                             camInst.heightPixels);
+                                                             camInst.cameraToMesh,
+                                                             pxlPt.Pixel, pxlPt.Point, meshBounds, 
+                                                             camInst.widthPixels, camInst.heightPixels);
                 if (curSpread < minSpread)
                 {
                     minSpread = curSpread;
@@ -250,26 +253,27 @@ namespace OPS.Pipeline
             }
             return result;
         }
-
         //Issue #531: raycast bundle of 4 with embree
-        public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sc, CameraModel camera,
-                                                                    Matrix camToMesh, ConvexHull meshHull,
-                                                                    List<Vector2> srcPixels)
+        //Note: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
+        // as the corners hit a closer mesh than intended
+        public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sceneCaster, CameraModel camera,
+                                                                    Matrix camToMesh, BoundingBox specificMeshBounds,
+                                                                    IEnumerable<Vector2> srcPixels)
         {
             List<Vector3> result = new List<Vector3>();
 
             foreach (var curPixel in srcPixels)
             {
                 //check if pixel ray hit the mesh
-                Vector3? curPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sc);
-                if (!curPos.HasValue)
+                Vector3? scenePos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sceneCaster);
+                if (!scenePos.HasValue)
                     continue;
 
-                //check for occlusion by other parts of the mesh
-                if (!meshHull.Contains(curPos.Value))
+                //for performance, ignore points whose neighbors spill beyond the mesh of interest
+                if (ContainmentType.Contains != specificMeshBounds.Contains(scenePos.Value))
                     continue;
 
-                result.Add(curPos.Value);
+                result.Add(scenePos.Value);
             }
 
             return result;
@@ -292,7 +296,7 @@ namespace OPS.Pipeline
                 (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels ||
                 (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
             {
-                throw new InvalidDataException("should have been caught by frustum test");
+                return null; //the center of the pixel may have passed the frustum test, but the pixel corner may not
             }
 
             // raycast the scene to test if the desired position is occluded by terrain
@@ -309,28 +313,30 @@ namespace OPS.Pipeline
         //then return the shortest
         //this should give an estimate of the source textures local resolution
         //using our best approximation of the mesh to compare against other images
-        public static double GetMinPixelSpreadInMeters(SceneCaster sc, CameraModel camera, Matrix camToMesh,
-                                                       ConvexHull meshHull, Vector2 srcPixel, Vector3 srcPos,
+        public static double GetMinPixelSpreadInMeters(SceneCaster sceneCaster, CameraModel camera, Matrix camToMesh,
+                                                       Vector2 srcPixel, Vector3 srcPos, BoundingBox specificMeshBounds,
                                                        int srcWidth, int srcHeight)
         {
-            double shortestDistance = float.MaxValue;
+            double shortestDistance = double.MaxValue;
 
-            var offsetPixels =
-                GetOffsetPixels(srcPixel, offset: 1.0)
+            var offsetPixels = GetOffsetPixels(srcPixel, offset: 1.0)
                 .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight);
             if (offsetPixels.Count() == 0)
             {
-                return shortestDistance;
+                return double.MaxValue;
             }
 
-            List<Vector3> meshPositions =
-                GetMeshPositionsForCameraPixels(sc, camera, camToMesh, meshHull, offsetPixels.ToList());
+            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, specificMeshBounds,  offsetPixels);
             foreach (var curPos in meshPositions)
             {
-                shortestDistance = Math.Min(shortestDistance, (curPos - srcPos).Length());
+               double sqDist = (curPos - srcPos).LengthSquared();
+                if (sqDist < shortestDistance)
+                {
+                    shortestDistance = sqDist;
+                }
             }
 
-            return shortestDistance;
+            return Math.Sqrt(shortestDistance);
         }
     }
 }

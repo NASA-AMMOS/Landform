@@ -17,14 +17,14 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum ReconstructionMethod { Organized, Poisson, FSSR }
-
     /// <summary>
     /// collects the Observations in the same frame that contribute to building a mesh
     /// also known as a "wedge"
     /// </summary>
     public class WedgeObservations
     {
+        public const double LOAD_MESH_DECIMATE_TOL = 0.1;
+
         public Observation Points; //if XYZ is not available but RNG is, this will be the RNG
         public Observation Range; //only set if RNG is available
         public Observation Normals; //only set if UVW is available
@@ -52,51 +52,48 @@ namespace OPS.Pipeline
         {
             get
             {
-                if (Points != null) return Points.Name;
-                if (Range != null) return Range.Name;
-                if (Texture != null) return Texture.Name;
-                if (Normals != null) return Normals.Name;
-                return "(empty)"; //so we can at least format exceptions
+                var obs = Obs;
+                return obs != null ? obs.Name : "(empty)"; //so we can at least format exceptions
             }
         }
 
-        public string FrameName
-        {
-            get
-            {
-                if (Points != null) return Points.FrameName;
-                if (Range != null) return Range.FrameName;
-                if (Texture != null) return Texture.FrameName;
-                if (Normals != null) return Normals.FrameName;
-                throw new InvalidOperationException("can't get frame name of an empty MeshObservation");
-            }
-        }
+        public string FrameName { get { return RoverObs.FrameName; } }
 
-        public int Day
-        {
-            get
-            {
-                if (Points != null) return Points.Day;
-                if (Range != null) return Range.Day;
-                if (Texture != null) return Texture.Day;
-                if (Normals != null) return Normals.Day;
-                throw new InvalidOperationException("can't get day of an empty MeshObservation");
-            }
-        }
+        public int Day { get { return RoverObs.Day; } }
 
         public string StereoFrameName { get { return RoverObs.StereoFrameName; } }
 
         public RoverStereoEye StereoEye { get { return RoverObs.StereoEye; } }
 
+        /// <summary>
+        /// Get a representative Observation for this wedge, null if none.
+        /// </summary>
+        public Observation Obs
+        {
+            get
+            {
+                return
+                    Points != null ? Points :
+                    Range != null ? Range :
+                    Texture != null ? Texture :
+                    Normals != null ? Normals :
+                    null;
+            }
+        }
+
+        /// <summary>
+        /// Get a representative RoverObservation for this wedge, exception if none.
+        /// </summary>
         public RoverObservation RoverObs
         {
             get
             {
-                if (Points != null) return (RoverObservation)Points;
-                if (Range != null) return (RoverObservation)Range;
-                if (Texture != null) return (RoverObservation)Texture;
-                if (Normals != null) return (RoverObservation)Normals;
-                throw new InvalidOperationException("can't get RoverObservation of an empty MeshObservation");
+                var obs = Obs;
+                if (obs != null)
+                {
+                    return (RoverObservation)obs;
+                }
+                throw new InvalidOperationException("no observations for wedge");
             }
         }        
         
@@ -105,36 +102,79 @@ namespace OPS.Pipeline
             get { var ro = RoverObs; return new SiteDrive(ro.Site, ro.Drive); }
         }
 
-        public RoverProductCamera Camera { get { return RoverObs.Sensor; } }
+        public RoverProductCamera Camera { get { return RoverObs.Camera; } }
+
+        //allowed mesh file extensions, lowercase, not including leading dots, in priority order, defaults to iv, obj
+        public string[] MeshExts = new string[] { "iv", "obj" };
+
+        public Observation MeshObservation
+        {
+            get
+            {
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/896
+                foreach (var obs in new Observation[] { Points, Texture })
+                {
+                    if (obs != null && obs.AlternateExtensions != null)
+                    {
+                        lock (obs.AlternateExtensions)
+                        {
+                            if (obs.AlternateExtensions
+                                .Any(ext => MeshExts.Any(me => ext.Equals(me, StringComparison.OrdinalIgnoreCase))))
+                            {
+                                return obs;
+                            }
+                        }
+                    }
+                }
+                return null;
+            }
+        }
+
+        public bool HasMesh { get { return MeshObservation != null; } }
+
+        public bool Meshable { get { return Points != null || HasMesh; } }
 
         public class CollectOptions
         {
-            public bool RequirePoints = true;
-            public bool RequireNormals = true;
+            public bool RequireMeshable = false;
+            public bool RequirePoints = false;
+            public bool RequireNormals = false;
             public bool RequireTextures = false;
 
-            public bool IncludeForAlignment = true;
-            public bool IncludeForMeshing = true;
+            public bool IncludeForAlignment = false;
+            public bool IncludeForMeshing = false;
             public bool IncludeForTexturing = false;
 
             public SiteDrive[] OnlyForSiteDrives = null;
-            public string[] OnlyForCameras = null;
+            public RoverProductCamera[] OnlyForCameras = null;
             public string[] OnlyForFrames = null;
 
-            //require that there is a priors-only transform chain from the frame of the MeshObservations to TargetFrame
+            //require priors-only transform chain from the frame of the MeshObservations to TargetFrame (if non null)
             public bool RequirePriorTransform = false;
 
-            //require that there is a transform chain including at least one adjusted transform
-            //from the frame of the MeshObservations to TargetFrame
+            //require a transform chain including at least one adjusted transform
+            //from the frame of the MeshObservations to TargetFrame (if non null)
             public bool RequireAdjustedTransform = false;
 
-            //require that there is a transform chain from the frame of the MeshObservations to TargetFrame
+            //require a transform chain from the frame of the MeshObservations to TargetFrame (if non null)
             public bool RequireAnyTransform = true;
 
+            //target frame for Require*Transform options, or null to disable
             public string TargetFrame = null;
 
+            //used to disambiguate observations if non-null
+            //automatically set if mission is supplied to constructor
             public IComparer<RoverObservation> Comparator = null;
+
+            //used to disambiguate observations if non-null
+            //automatically set if mission is supplied to constructor
+            //otherwise defaults to prefer linearized
             public RoverProductGeometry[] LinearPreference = null;
+
+            //allowed mesh file extensions, lowercase, not including leading dots, in priority order
+            //automatically set if mission is supplied to constructor
+            //otherwise defaults to iv, obj
+            public string[] MeshExts = null;
 
             public CollectOptions(string onlyForSiteDrives = null, string onlyForFrames = null,
                                   string onlyForCameras = null, MissionSpecific mission = null)
@@ -151,13 +191,19 @@ namespace OPS.Pipeline
 
                 if (!string.IsNullOrEmpty(onlyForCameras))
                 {
-                    this.OnlyForCameras = StringHelper.ParseList(onlyForCameras);
+                    this.OnlyForCameras = RoverCamera.ParseList(onlyForCameras);
                 }
 
                 if (mission != null)
                 {
                     Comparator =  mission.GetRoverObservationComparator();
                     LinearPreference = mission.GetLinearPreference();
+                    MeshExts = mission.GetTacticalMeshExts()
+                        .Split(',')
+                        .Select(ext => ext.ToLower().TrimStart('.'))
+                        .Where(ext => !string.IsNullOrEmpty(ext))
+                        .Distinct()
+                        .ToArray();
                 }
             }
         }
@@ -168,8 +214,8 @@ namespace OPS.Pipeline
         /// returns null if the required observation types are not found for the frame
         /// </summary>
         public static WedgeObservations CollectForFrame(string frameName, FrameCache frameCache,
-                                                       ObservationCache observationCache,
-                                                       CollectOptions opts = null)
+                                                        ObservationCache observationCache,
+                                                        CollectOptions opts = null)
         {
             if (opts == null)
             {
@@ -200,7 +246,8 @@ namespace OPS.Pipeline
                        (opts.IncludeForTexturing && obs.UseForTexturing))
                 .Where(obs => opts.OnlyForSiteDrives == null || opts.OnlyForSiteDrives.Any(sd => sd == obs.SiteDrive))
                 .Where(obs => opts.OnlyForFrames == null || opts.OnlyForFrames.Any(frm => frm == obs.FrameName))
-                .Where(obs => opts.OnlyForCameras == null || opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Sensor)))
+                .Where(obs => opts.OnlyForCameras == null ||
+                       opts.OnlyForCameras.Any(cam => RoverCamera.IsCamera(cam, obs.Camera)))
                 .ToList();
 
             if (opts.Comparator != null)
@@ -214,6 +261,11 @@ namespace OPS.Pipeline
                 var linObs = observations.Where(obs => obs.CheckLinear(geometry)).ToList();
 
                 var ret = new WedgeObservations();
+
+                if (opts.MeshExts != null)
+                {
+                    ret.MeshExts = opts.MeshExts;
+                }
 
                 ret.Range = linObs.Find(obs => obs.ObservationType == RoverProductType.Range);
 
@@ -235,6 +287,11 @@ namespace OPS.Pipeline
 
                 ret.Texture = linObs.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (opts.RequireTextures && ret.Texture == null)
+                {
+                    continue;
+                }
+
+                if (opts.RequireMeshable && !ret.Meshable)
                 {
                     continue;
                 }
@@ -302,6 +359,9 @@ namespace OPS.Pipeline
         public class MeshOptions
         {
             public string Frame = "root"; //output coordinate frame, see FrameCache.GetObservationTransform()
+
+            public string LoadedFrame = "site"; //coordinate frame of meshes loaded from existing file
+
             public bool UsePriors = false; //only use priors transforms
             public bool OnlyAligned = false; //only use aligned transforms
 
@@ -315,6 +375,8 @@ namespace OPS.Pipeline
             public double MaxTriangleAspect = 20; //organized mesh only
             public bool GenerateNormals = true; //organized mesh only
             public double IsolatedPointSize = 0; //organized mesh only
+
+            public MeshDecimationMethod MeshDecimator = MeshDecimationMethod.MeshLab; //used by LoadMesh()
 
             public MeshOptions Clone()
             {
@@ -480,8 +542,8 @@ namespace OPS.Pipeline
             numNormals = NormalsImage != null ? NormalsImage.CountValid(MaskImage) : 0;
         }
 
-        private Mesh FinishMesh(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts, Mesh mesh,
-                                bool requireFaces = true)
+        private Mesh FinishMesh(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts, Observation refObs,
+                                Mesh mesh, bool requireFaces = true)
         {
             if (mesh == null || !mesh.HasVertices || (requireFaces && !mesh.HasFaces))
             {
@@ -489,20 +551,117 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            if (opts.ApplyTexture && TextureImage != null)
+            if (!mesh.HasUVs && opts.ApplyTexture && TextureImage != null)
             {
                 mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
             }
 
-            var xform = frameCache.GetObservationTransform(Points, opts.Frame, opts.UsePriors, opts.OnlyAligned);
+            var xform = frameCache.GetObservationTransform(refObs, opts.Frame, opts.UsePriors, opts.OnlyAligned);
             if (xform == null)
             {
-                pipeline.LogWarn("failed to find transform for {0}", Name);
+                pipeline.LogWarn("failed to find {0} transform for {1}", opts.Frame, refObs.Name);
                 return null; 
             }
             mesh.Transform(xform.Mean);
 
             return mesh;
+        }
+
+        /// <summary>
+        /// load mesh product associated with MeshObservation
+        /// returns finest LOD with at most 1 + LOAD_MESH_DECIMATE_TOL times a full decimated organized mesh
+        /// if no available LODs satisfy that requirement then the coarsest LOD will be further decimated
+        /// </summary>
+        public Mesh LoadMesh(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts)
+        {
+            var meshObs = MeshObservation;
+
+            if (meshObs == null)
+            {
+                pipeline.LogWarn("no loadable mesh for {0}", Name);
+                return null;
+            }
+
+            //find extension that matches first in MeshExts priority order
+            //use the value from AlternateExtensions which is case sensitive, not MeshExts which is not
+            string meshExt = null;
+            var exts = meshObs.AlternateExtensions;
+            lock (exts)
+            {
+                meshExt = MeshExts
+                    .Select(me => exts.FirstOrDefault(ext => ext.Equals(me, StringComparison.OrdinalIgnoreCase)))
+                    .Where(ext => !string.IsNullOrEmpty(ext))
+                    .First(); //guaranteed to work because HasMesh is true
+            }
+
+            string meshUrl = StringHelper.StripUrlExtension(meshObs.Url) + "." + meshExt;
+
+            pipeline.LogVerbose("loading wedge mesh {0}", meshUrl);
+
+            List<Mesh> lodMeshes = null;
+            try
+            {
+                lodMeshes = Mesh.LoadAllLODs(pipeline.GetFileCached(meshUrl, "meshes"))
+                    .OrderByDescending(m => m.Faces.Count)
+                    .ToList();
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, "error loading wedge mesh " + meshUrl);
+                return null;
+            }
+
+            if (lodMeshes.Count == 0)
+            {
+                pipeline.LogWarn("no loadable mesh LODs for {0}", Name);
+                return null;
+            }
+
+            pipeline.LogVerbose("loaded {0} LODs for wedge mesh {1}", lodMeshes.Count, meshUrl);
+
+            int fullTris = (meshObs.Width - 1) * (meshObs.Height - 1) * 2; //polycount of full organized mesh
+            int maxTris = opts.Decimate <= 1 ? fullTris : fullTris / opts.Decimate;
+            int threshold = (int)((1 + LOAD_MESH_DECIMATE_TOL) * maxTris);
+
+            string msg = string.Format("{0}x{1} observation: max {2} tris, {3} tris at {4}x decimation, " +
+                                       "{5} threshold: {6}",
+                                       meshObs.Width, meshObs.Height, Fmt.KMG(fullTris), Fmt.KMG(maxTris),
+                                       opts.Decimate, 1 + LOAD_MESH_DECIMATE_TOL, Fmt.KMG(threshold));
+
+            int lod = lodMeshes.FindIndex(m => m.Faces.Count <= threshold);
+            Mesh mesh = null;
+            if (lod >= 0)
+            {
+                mesh = lodMeshes[lod];
+                pipeline.LogVerbose("{0}; using loaded LOD {1} ({2} <= {3} tris) of wedge mesh {4}",
+                                    msg, lod, Fmt.KMG(mesh.Faces.Count), Fmt.KMG(threshold), meshUrl);
+            }
+            else
+            {
+                mesh = lodMeshes.Last().Decimate(maxTris, opts.MeshDecimator);
+                pipeline.LogVerbose("{0}; decimated coarsest LOD {1} ({2} <= {3} tris) with {4} for wedge mesh {5}",
+                                    msg, lodMeshes.Count - 1, Fmt.KMG(mesh.Faces.Count), Fmt.KMG(maxTris),
+                                    opts.MeshDecimator, meshUrl);
+            }
+
+            //FinishMesh() will need TextureImage if it's going to project texture coordinates
+            //in the common case that opts.LoadedFrame = "site"
+            //the image will be needed anyway by frameCache.GetObservationTransform() in the block below
+            //(and will likely still be in the pipeline image memcache)
+            if (!mesh.HasUVs && opts.ApplyTexture && TextureImage == null)
+            {
+                TextureImage = pipeline.LoadImage(Texture.Url);
+            }
+
+            var xform = frameCache.GetObservationTransform(meshObs, opts.LoadedFrame, opts.UsePriors, opts.OnlyAligned);
+            if (xform == null)
+            {
+                pipeline.LogWarn("failed to find {0} transform for {1}", opts.LoadedFrame, meshObs.Name);
+                return null; 
+            }
+            mesh.Transform(Matrix.Invert(xform.Mean)); //transform mesh into meshObs observation frame
+
+            return FinishMesh(pipeline, frameCache, opts, meshObs, mesh);
         }
 
         /// <summary>
@@ -516,7 +675,7 @@ namespace OPS.Pipeline
             if (PointsImage != null)
             {
                 var mesh = OrganizedPointCloud.BuildPointCloudMesh(PointsImage, NormalsImage, MaskImage);
-                return FinishMesh(pipeline, frameCache, opts, mesh, requireFaces: false);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh, requireFaces: false);
             }
             else
             {
@@ -541,7 +700,7 @@ namespace OPS.Pipeline
                                                                   opts.MaxTriangleAspect, generateUV,
                                                                   opts.GenerateNormals, CameraCenter,
                                                                   opts.IsolatedPointSize);
-                return FinishMesh(pipeline, frameCache, opts, mesh);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else
             {
@@ -562,7 +721,7 @@ namespace OPS.Pipeline
             {
                 var mesh = PoissonReconstruction.Reconstruct(PointsImage, NormalsImage, MaskImage,
                                                              opts.ScaleNormalsByConfidence);
-                return FinishMesh(pipeline, frameCache, opts, mesh);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else
             {
@@ -582,7 +741,7 @@ namespace OPS.Pipeline
             if (PointsImage != null && NormalsImage != null)
             {
                 var mesh = FSSR.Reconstruct(PointsImage, NormalsImage, MaskImage);
-                return FinishMesh(pipeline, frameCache, opts, mesh);
+                return FinishMesh(pipeline, frameCache, opts, Points, mesh);
             }
             else
             {
@@ -595,13 +754,23 @@ namespace OPS.Pipeline
         /// dispatches to the different Build*() functions  
         /// </summary>
         public Mesh BuildMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts,
-                              ReconstructionMethod method)
+                              bool alwaysReconstruct = false,
+                              MeshReconstructionMethod method = MeshReconstructionMethod.Organized)
         {
+            if (!Meshable)
+            {
+                pipeline.LogWarn("{0} not meshable", Name);
+                return null;
+            }
+            if (HasMesh && !alwaysReconstruct)
+            {
+                return LoadMesh(pipeline, frameCache, opts);
+            }
             switch (method)
             {
-                case ReconstructionMethod.Organized: return BuildOrganizedMesh(pipeline, frameCache, masker, opts);
-                case ReconstructionMethod.Poisson: return BuildPoissonMesh(pipeline, frameCache, masker, opts);
-                case ReconstructionMethod.FSSR: return BuildFSSRMesh(pipeline, frameCache, masker, opts);
+                case MeshReconstructionMethod.Organized: return BuildOrganizedMesh(pipeline, frameCache, masker, opts);
+                case MeshReconstructionMethod.Poisson: return BuildPoissonMesh(pipeline, frameCache, masker, opts);
+                case MeshReconstructionMethod.FSSR: return BuildFSSRMesh(pipeline, frameCache, masker, opts);
                 default: throw new ArgumentException("unknown method: " + method);
             }
         }

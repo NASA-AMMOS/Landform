@@ -2,7 +2,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using Microsoft.Xna.Framework;
 using OPS.Util;
@@ -11,6 +10,7 @@ using OPS.Geometry;
 using OPS.RayTrace;
 using OPS.Pipeline.AlignmentServer;
 
+
 namespace OPS.Pipeline
 {
     //a measure of texture quality for a set of observations
@@ -18,8 +18,8 @@ namespace OPS.Pipeline
     public class ProjectedPixelDistances
     {
         static public IDictionary<string, double> //observation name => median pixel spread
-            Calculate(FrameCache frameCache, SceneCaster sc, ConvexHull meshHull,
-                      IDictionary<string, ConvexHull> obsToHull,
+            Calculate(FrameCache frameCache, SceneCaster occlusionScene,
+                      IDictionary<string, ConvexHull> obsToHull, BoundingBox specificMeshBounds,
                       double percentagePointsToTest, string outputFrame, bool usePriors, bool onlyAligned,
                       List<PixelPoint> pointsToBackproject, IEnumerable<Observation> observations,
                       ILogger logger = null)
@@ -30,7 +30,7 @@ namespace OPS.Pipeline
             var samples = pointsToBackproject.Where((pt, index) => index % skip == 0).ToList();
 
             var ret = new Dictionary<string, double>();
-            
+
             foreach (var obs in observations.Cast<RoverObservation>())
             {
                 if (!obsToHull.ContainsKey(obs.Name))
@@ -58,7 +58,8 @@ namespace OPS.Pipeline
                                       );
                 }
 
-                double pixelSpread = CalculateForObs(sc, meshHull, samples, obs, obsHull, obsToOutput);
+                CameraModel cam = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                double pixelSpread = CalculateForObs(occlusionScene, samples, obs, cam, obsHull, obsToOutput, specificMeshBounds);
 
                 ret[obs.Name] = pixelSpread;
             }
@@ -66,43 +67,50 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static double CalculateForObs(SceneCaster sc, ConvexHull meshHull, List<PixelPoint> allSamples, Observation obs, ConvexHull obsHull, Matrix obsToOutput, double pctPtsToSample=1.0)
+        public static double CalculateForObs(SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs, CameraModel cam, ConvexHull obsHull, Matrix obsToOutput,
+            BoundingBox specificMeshBounds, double pctPtsToSample = 1.0, bool writeDebug = false, string localDebugOutputPath = "")
         {
             int numPoints = allSamples.Count();
             int skip = numPoints / Math.Max(1, (int)(numPoints * pctPtsToSample));
             var samples = allSamples.Where((pt, index) => index % skip == 0).ToList();
 
-            CameraModel cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
             double[] spreads = new double[samples.Count];
+            int[] spreadToSample = new int[samples.Count];
             int samplePointIndex = -1;
 #if NO_PARALLEL_RAYCASTS
                 Serial.
 #else
             CoreLimitedParallel.
 #endif
-                ForEach(samples, pt =>
+                For(0, samples.Count(), (sampleIndex) =>
                 {
-
-                    int curSamplePointIndex = Interlocked.Increment(ref samplePointIndex);
+                    int spreadIndex = Interlocked.Increment(ref samplePointIndex);
+                    PixelPoint pt = samples[sampleIndex];
+                    spreadToSample[spreadIndex] = sampleIndex;
 
                     if (obsHull.Contains(pt.Point)) //protect against bad ray calculations from camera model
                     {
                         //Issue #523: want median or average in case glancing angle?
                         //want a term that looks for consistancy in spacing? implies dead on?
-                        spreads[curSamplePointIndex] = TextureSplitCriteria.GetMinPixelSpreadInMeters(sc, cameraModel, obsToOutput, meshHull,
-                                                      pt.Pixel, pt.Point, obs.Width, obs.Height);
+                        double dist = TextureSplitCriteria.GetMinPixelSpreadInMeters(sceneCaster, cam, obsToOutput,
+                                                      pt.Pixel, pt.Point, specificMeshBounds, obs.Width, obs.Height);
+                        spreads[spreadIndex] = dist;
                     }
                     else
                     {
-                        spreads[curSamplePointIndex] = -1;
+                        spreads[spreadIndex] = double.MinValue;
                     }
                 });
 
             //take median of valid spreads
-            var validSpreads = spreads.Where(spread => spread >= 0).ToList();
-            validSpreads.Sort();
-            double pixelSpread = validSpreads.Count > 0 ? validSpreads[validSpreads.Count / 2] : double.MaxValue;
-            return pixelSpread;
+            var validSpreads = spreads.Where(spread => spread != double.MaxValue && spread != double.MinValue).ToList();
+            if (validSpreads.Count() > 0)
+            {
+                validSpreads.Sort();
+                return validSpreads[validSpreads.Count / 2];
+            }
+
+            return double.MaxValue;
         }
     }
 }

@@ -15,7 +15,6 @@ using OPS.Imaging;
 
 //TODO: refactor so that local codepath does not have cloud dependencies
 //https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
 using DBUtil = OPS.Cloud.DBUtil;
 
 namespace OPS.Pipeline
@@ -85,9 +84,9 @@ namespace OPS.Pipeline
         }
 
         private static object saveLock = new object();
-        public override void SaveFile(string file, string url)
+        public override void SaveFile(string file, string url, bool constrainToStorage = true)
         {
-            string dest = UrlToFile(CheckUrl(url));
+            string dest = UrlToFile(CheckUrl(url, constrainToStorage));
             PathHelper.EnsureExists(Path.GetDirectoryName(dest));
             //use TemporaryFile.GetAndMove() rather than directly copy file to dest
             //this avoids IOException due to "the file is being used by another process"
@@ -161,16 +160,17 @@ namespace OPS.Pipeline
         }
 
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
-                                                        bool constrainToStorage = false)
+                                                        bool ignoreCase = false, bool constrainToStorage = false)
         {
             //ensures url starts with "file://", replaces backslashes
+            //LogInfo("SearchFiles url={0}", url);
             url = CheckUrl(url, constrainToStorage, preserveTrailingSlash: true);
+            //LogInfo("SearchFiles (normalized) url={0}", url);
             int sep = url.LastIndexOf('/');
             string dir = null, stem = null;
             if (sep == 6 || sep == url.Length-1)
             {
                 dir = url;
-                stem = "";
             }
             else
             {
@@ -188,17 +188,43 @@ namespace OPS.Pipeline
                 yield break;
             }
             dir = StringHelper.EnsureTrailingSlash(dir);
-            var regex = StringHelper.WildCardToRegularExression(dir + stem + globPattern);
-            //LogDebug("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
+            var opts = ignoreCase ? RegexOptions.IgnoreCase : RegexOptions.None;
+            var regex = StringHelper.WildCardToRegularExression(globPattern, opts);
+            //LogInfo("SearchFiles dir={0}, stem={1}, globPattern={2}, recursive={3}, regex={4}",
             //         dir, stem, globPattern, recursive, regex);
             foreach (var f in PathHelper.ListFiles(dir, recursive: recursive))
             {
                 var fn = f.FullName.Replace('\\', '/');
-                //LogDebug(fn);
-                if (regex.IsMatch(fn))
+                //e.g. fn = "C:/foo/bar", fn = "/foo/bar"
+                string path = fn;
+                int firstSlash = path.IndexOf('/');
+                if (firstSlash >= 0)
                 {
-                    var ret = "file://" + fn;
-                    //LogDebug(ret);
+                    //our contract is to apply globPattern specifically to the "path" part of the URL
+                    //for example a http URL would berak up like http://SERVER.DOMAIN/PATH
+                    //but here we're dealing with file URLs and we haven't prepended the "file://" part yet
+                    //but we have an absolute path = fn = e.g. "C:/foo/bar" or "/foo/bar"
+                    //there is no SERVER part but we want to chop off "C:/" or "/"
+                    path = path.Substring(firstSlash + 1); // unlikely, but ok: "foo/" -> ""
+                }
+                //e.g. path = "foo/bar"
+
+                //if the search url ended in / (or \) then stem is null
+                //otherwise we need to check if the relative path starting from dir starts with the supplied stem
+                //it's hard to imagine why fn wouldn't start with dir
+                //but sometimes there are stranger things than are dreamt of in a given philosophy
+                //especially when dealing with filesystems and absolute paths
+                //it's a corner case and a gray area
+                //let's define the functionality such that if the caller supplied a stem
+                //then we should only return paths that start with dir and stem
+
+                bool matchesRegex = regex.IsMatch(path);
+                bool matchesStem = stem == null || fn.StartsWith(dir + stem, ignoreCase, null);
+                //LogInfo("SearchFiles path={0}, regex={1}, matchesRegex={2}, matchesStem={3}",
+                //        path, regex, matchesRegex, matchesStem);
+                if (matchesRegex && matchesStem)
+                {
+                    var ret = "file://" + fn; //e.g. "file://C:/foo/bar", "file:///foo/bar"
                     yield return ret;
                 }
             }
@@ -601,8 +627,8 @@ namespace OPS.Pipeline
             }
         }
 
-        public ConcurrentQueue<QueueMessage> MasterQueue { get; private set; }
-        public ConcurrentQueue<QueueMessage> WorkerQueue { get; private set; }
+        public ConcurrentQueue<PipelineMessage> MasterQueue { get; private set; }
+        public ConcurrentQueue<PipelineMessage> WorkerQueue { get; private set; }
 
         private static int nextMessageId = -1;
         private static string NextMessageId()
@@ -610,13 +636,13 @@ namespace OPS.Pipeline
             return "msg " + Interlocked.Increment(ref nextMessageId);
         }
 
-        protected override void EnqueueToMasterImpl(QueueMessage message)
+        protected override void EnqueueToMasterImpl(PipelineMessage message)
         {
             message.MessageId = NextMessageId();
             MasterQueue.Enqueue(message);
         }
 
-        protected override void EnqueueToWorkersImpl(QueueMessage message)
+        protected override void EnqueueToWorkersImpl(PipelineMessage message)
         {
             message.MessageId = NextMessageId();
             WorkerQueue.Enqueue(message);
@@ -624,8 +650,8 @@ namespace OPS.Pipeline
 
         private void InitializeQueues()
         {
-            MasterQueue = new ConcurrentQueue<QueueMessage>();
-            WorkerQueue = new ConcurrentQueue<QueueMessage>();
+            MasterQueue = new ConcurrentQueue<PipelineMessage>();
+            WorkerQueue = new ConcurrentQueue<PipelineMessage>();
         }
     }
 }

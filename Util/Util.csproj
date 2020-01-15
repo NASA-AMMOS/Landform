@@ -31,6 +31,9 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="CommandLine, Version=2.6.0.0, Culture=neutral, PublicKeyToken=5a870481e358d379, processorArchitecture=MSIL">
+      <HintPath>..\packages\CommandLineParser.2.6.0\lib\net461\CommandLine.dll</HintPath>
+    </Reference>
     <Reference Include="log4net, Version=2.0.8.0, Culture=neutral, PublicKeyToken=669e0ddf0bb1aa2a, processorArchitecture=MSIL">
       <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
@@ -48,10 +51,12 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CommandHelper.cs" />
     <Compile Include="Compression.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="ConsoleHelper.cs" />
     <Compile Include="Format.cs" />
+    <Compile Include="GradientDescent.cs" />
     <Compile Include="HammingDistance.cs" />
     <Compile Include="HashCombiner.cs" />
     <Compile Include="Histogram.cs" />

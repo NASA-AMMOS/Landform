@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 
 namespace OPS.Util
 {
@@ -19,9 +20,9 @@ namespace OPS.Util
             return "^" + Regex.Escape(value).Replace("\\?", ".").Replace("\\*", ".*") + "$";
         }
 
-        public static Regex WildCardToRegularExression(string value)
+        public static Regex WildCardToRegularExression(string value, RegexOptions opts = RegexOptions.None)
         {
-            return new Regex(WildCardToRegularExressionString(value));
+            return new Regex(WildCardToRegularExressionString(value), opts);
         }
 
         public static string EnsureTrailingSlash(string str)
@@ -93,7 +94,23 @@ namespace OPS.Util
         public static string NormalizeUrl(string url, string protocol = null, bool preserveTrailingSlash = false)
         {
             url = NormalizeSlashes(url, preserveTrailingSlash);
-            return !string.IsNullOrEmpty(protocol) ? EnsureProtocol(url, protocol) : url;
+            if (!string.IsNullOrEmpty(protocol))
+            {
+                return EnsureProtocol(url, protocol);
+            }
+            else
+            {
+                int sep = url.IndexOf("://");
+                if (sep >= 0)
+                {
+                    string proto = url.Substring(0, sep);
+                    return proto.ToLower() + url.Substring(sep);
+                }
+                else
+                {
+                    return url;
+                }
+            }
         }
 
         public static string GetLastUrlPathSegment(string url, bool stripExtension = false)
@@ -104,6 +121,14 @@ namespace OPS.Util
             }
             //be robust to the case that URL is actually a windows abomination, but without allocating
             int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
+            if (stripExtension)
+            {
+                int lastDot = url.LastIndexOf('.');
+                if (lastDot >= 0 && lastDot > lastSlash) //ok: lastSlash < 0
+                {
+                    url = url.Substring(0, lastDot);
+                }
+            }
             if (lastSlash < 0)
             {
                 return url;
@@ -112,16 +137,7 @@ namespace OPS.Util
             {
                 return "";
             }
-            string ret = url.Substring(lastSlash + 1);
-            if (!stripExtension)
-            {
-                return ret;
-            }
-            else
-            {
-                int lastDot = ret.LastIndexOf('.');
-                return lastDot < 0 ? ret : ret.Substring(0, lastDot);
-            }
+            return url.Substring(lastSlash + 1);
         }
 
         public static string StripLastUrlPathSegment(string url)
@@ -148,7 +164,7 @@ namespace OPS.Util
             //be robust to the case that URL is actually a windows abomination, but without allocating
             int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
             int lastDot = url.LastIndexOf('.');
-            if (lastDot > lastSlash)
+            if (lastDot >= 0 && lastDot > lastSlash) //ok: lastSlash < 0
             {
                 return url.Substring(lastDot);
             }
@@ -167,7 +183,7 @@ namespace OPS.Util
             //be robust to the case that URL is actually a windows abomination, but without allocating
             int lastSlash = Math.Max(url.LastIndexOf('/'), url.LastIndexOf('\\'));
             int lastDot = url.LastIndexOf('.');
-            if (lastDot > lastSlash)
+            if (lastDot >= 0 && lastDot > lastSlash) //ok: lastSlash < 0
             {
                 return url.Substring(0, lastDot);
             }
@@ -241,6 +257,40 @@ namespace OPS.Util
         {
             return new string(values.First().Substring(0, values.Min(s => s.Length))
                               .TakeWhile((c, i) => values.All(s => s[i] == c)).ToArray());
+        }
+
+        public static string RemoveMultiple(string str, IEnumerable<int[]> spans)
+        {
+            int offset = 0;
+            foreach (var span in spans.OrderBy(span => span[0]))
+            {
+                int start = span[0];
+                int length = span[1];
+                str = str.Remove(start + offset, length);
+                offset -= length;
+            }
+            return str;
+        }
+
+        public static string RemoveMultiple(string str, params int[] spans)
+        {
+            if (spans.Length % 2 != 0)
+            {
+                throw new ArgumentException("must pass list of (start, length) pairs");
+            }
+            var pairs = new List<int[]>();
+            for (int i = 0; i < spans.Length / 2; i++)
+            {
+                pairs.Add(new int[] { spans[2 * i], spans[2 * i + 1] });
+            }
+            return RemoveMultiple(str, pairs);
+        }
+
+        public static string SHA1(string str, bool preserveExtension = false)
+        {
+            string ext = preserveExtension ? GetUrlExtension(str) : "";
+            var sha1 = (new SHA1Managed()).ComputeHash(Encoding.UTF8.GetBytes(str));
+            return string.Concat(sha1.Select(b => b.ToString("x2"))) + ext;
         }
     }
 }

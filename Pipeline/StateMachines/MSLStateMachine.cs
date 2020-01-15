@@ -27,7 +27,7 @@ namespace OPS.Pipeline
             RunProject(() => pipeline.EnqueueToWorkers(new BuildTilingInputMessage(projectName)));
         }
 
-        protected override QueueMessage MakeLeafJobMessage(List<string> leaves)
+        protected override PipelineMessage MakeLeafJobMessage(List<string> leaves)
         {
             return new BuildBackprojectLeavesMessage(projectName) { TileIds = leaves};
         }

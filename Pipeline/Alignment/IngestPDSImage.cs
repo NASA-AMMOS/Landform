@@ -60,13 +60,31 @@ namespace OPS.Pipeline
         {
             try
             {
-                var filename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var productId = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 
-                // Parse the filename to quickly rule out data products we know we don't care about.
                 string reason = "";
-                if (!mission.CheckFilename(filename, out reason))
+                if (!mission.CheckProductId(productId, out reason)) //null ok
                 {
                     pipeline.LogVerbose("rejected {0} by filename: {1}", url, reason);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleFrame())
+                {
+                    pipeline.LogVerbose("rejected multi-frame product {0}", url);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleCamera())
+                {
+                    pipeline.LogVerbose("rejected multi-camera product {0}", url);
+                    return new Result(url, null, Status.Skipped);
+                }
+
+                if (!productId.IsSingleSiteDrive())
+                {
+                    pipeline.LogVerbose("rejected multi-sitedrive product {0}", url);
                     return new Result(url, null, Status.Skipped);
                 }
 
@@ -170,13 +188,12 @@ namespace OPS.Pipeline
                 {
                     //fallback to pds headers, site relative
                     //IngestAlignmentInputs will later call FrameCache.ChainPriors()
-                    var xform = GetSiteDriveToSiteTransformFromPDS(parser);
+                    var xform = PDSImage.GetSiteDriveToSiteTransformFromPDS(parser);
                     siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PDS, xform);
                 }
                 
                 // observation (aka rover) frame -> site drive (aka local level) frame
-                var cameraType = mission.GetCamera(parser);
-                var observationFrameName = cameraType.ToString() + "_" + mission.RoverMotionCounter(parser);
+                var observationFrameName = mission.GetObservationFrameName(parser);
                 var observationFrame = GetFrame(observationFrameName, siteDriveFrame,
                                                 TransformSource.PDS, GetObservationTransform(parser));
 
@@ -209,7 +226,9 @@ namespace OPS.Pipeline
                     }
                     else if(parser.Site != 1)
                     {
-                        //The SITE_COORDINATE_SYSTEM group is only set if the SITE Index is greater than 1 and the Site Quaternion is not 0,0,0,0 (unknown).  (from 2020 SIS, verified doesn't exist in MSL Site 1 Label)
+                        //The SITE_COORDINATE_SYSTEM group is only set if the SITE Index is greater than 1
+                        //and the Site Quaternion is not 0,0,0,0 (unknown).
+                        //(from 2020 SIS, verified doesn't exist in MSL Site 1 Label)
                         pipeline.LogVerbose("PDS data product {0} missing SITE_COORDINATE_SYSTEM", url);
                     }
                 }
@@ -243,9 +262,9 @@ namespace OPS.Pipeline
                                             mission.UseForTexturing(parser),
                                             metadata.Width, metadata.Height, metadata.Bands,
                                             metadata.BitDepth, mission.DayNumber(parser),
-                                            parser.ProductId.Version, index,
-                                            parser.Site, parser.Drive,
-                                            parser.DerivedImageType, cameraType, parser.ProducingInstitution);
+                                            productId.Version, index, parser.Site, parser.Drive,
+                                            mission.GetProductType(parser), mission.GetCamera(parser),
+                                            parser.ProducingInstitution, productId.Color);
 
                 if (observation == null)
                 {
@@ -301,20 +320,6 @@ namespace OPS.Pipeline
                 .Diagonal<double>(new double[] { 8, 8, 8, 5 * degSqr, 5 * degSqr, 5 * degSqr });
 
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
-        }
-
-        //this function returns local_level to site
-        //TODO: after all sites are processed the matrices can be fixed up to provide current site to root (first site) by chaining
-        private UncertainRigidTransform GetSiteDriveToSiteTransformFromPDS(PDSParser parser)
-        {            
-            var siteDrive = new SiteDrive(parser.SiteDrive);
-            Vector3 siteToLocalLevel = parser.OriginOffset;
-
-            // TODO: examine values here
-            var covariance = CreateMatrix
-                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
-
-            return new UncertainRigidTransform(Matrix.CreateTranslation(siteToLocalLevel), covariance);
         }
 
         private ConcurrentDictionary<string, bool> alreadyWarned = new ConcurrentDictionary<string, bool>();
@@ -388,6 +393,10 @@ namespace OPS.Pipeline
         /// </summary>
         private UncertainRigidTransform GetObservationTransform(PDSParser parser)
         {
+            if (!parser.RoverCoordinateSystemRelativeToSite)
+            {
+                throw new Exception("rover frame not relative to site frame");
+            }
             // TODO: examine values here
             var covariance = CreateMatrix
                 .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });

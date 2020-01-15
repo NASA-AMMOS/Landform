@@ -1,11 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
+using Newtonsoft.Json;
 
 namespace OPS.Util
 {
@@ -32,125 +30,153 @@ namespace OPS.Util
     /// </summary>
     public abstract class Config
     { 
+        public const string DEF_CONFIG_FOLDER = ".landform";
+
+        public static string BaseCommand;
+        public static string SubCommand;
+        public static string FullCommand {
+            get
+            {
+                return !string.IsNullOrEmpty(BaseCommand) ?
+                    BaseCommand + (!string.IsNullOrEmpty(SubCommand) ? ("-" + SubCommand) : "") : null;
+            }
+        }
+
+        public static string[] CommandLineArgs;
+
+        public Config()
+        {
+            Load(onlyIfAssociatedWithFile: true);
+            LoadEnvironmentalVariables();
+        }
+
+        /// <summary>
+        /// Defaults to user's home directory.
+        /// </summary>
+        public static string ConfigDir;
+
+        public static string GetConfigDir()
+        {
+            return !string.IsNullOrEmpty(ConfigDir) ? ConfigDir : PathHelper.GetHomeDir();
+        }
+
+        /// <summary>
+        /// Application config folder
+        /// Config files for this application should be stored in a folder of this name under ConfigDir
+        /// This should be just a single folder name not an entire directory path
+        /// If this is not set application will not try to read configuration files from disk
+        /// </summary>
+        public static string ConfigFolder = DEF_CONFIG_FOLDER;
+
         /// <summary>
         /// Name of configuration file.  This should return just the name of the file without .json or a path
+        /// Null or empty means no associated file.
         /// </summary>
-        /// <returns></returns>
-
-        protected virtual string ConfigFilename()
+        public virtual string ConfigFileName()
         {
             return null;
         }
 
-        public string ConfigFilepath()
-        {
-            return FullPathToConfig(ConfigFilename());
-        }
-
         /// <summary>
-        /// Set the name of the application config folder
-        /// Config files for this application should be stored in a folder of this name under the users home directory
-        /// This should be just a single folder name not an entire directory path
-        /// If this is not set application will not try to read configuration files from disk
+        /// Get full path to config file, if any, else null.
         /// </summary>
-        public static string ApplicationConfigFolder { get; set; }
-
-        public static string BaseCommand { get; set; }
-        public static string SubCommand { get; set; }
-        public static string FullCommand {
-            get
-            {
-                string sc = !string.IsNullOrEmpty(SubCommand) ? "-" + SubCommand : "";
-                return BaseCommand + sc;
-            }
+        public string ConfigFilePath()
+        {
+            string fn = ConfigFileName();
+            return !string.IsNullOrEmpty(fn) ? Path.Combine(GetConfigDir(), ConfigFolder, fn + ".json") : null;
         }
 
-        static string FullPathToConfig(string filename)
+        public void Save(bool onlyIfAssociatedWithFile = false)
         {
-            if (ApplicationConfigFolder == null || filename == null)
-            {
-                return null;
-            }
-            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ApplicationConfigFolder, filename + ".json");
-        }
+            string file = ConfigFilePath();
 
-        public void Save()
-        {
-            string filename = ConfigFilepath();
-            PathHelper.EnsureExists(Path.GetDirectoryName(filename));
-            File.WriteAllText(filename, JsonConvert.SerializeObject(this, Formatting.Indented));
-        }
-
-        public Config()
-        {
-            // Read from config file
-            string filename = ConfigFilepath();
-            if (filename != null && File.Exists(filename))
+            if (string.IsNullOrEmpty(file))
             {
-                JsonConvert.PopulateObject(File.ReadAllText(filename), this);
-            }
-            // Parse any config variables from environment variables
-            foreach (MemberInfo member in this.GetType().GetProperties())
-            {
-                ConfigEnvironmentVariable ca = member.GetCustomAttribute<ConfigEnvironmentVariable>();
-                if (ca != null)
+                if (onlyIfAssociatedWithFile)
                 {
-                    string str = Environment.GetEnvironmentVariable(ca.EnvironmentalVariableName);
+                    return;
+                }
+                throw new Exception(GetType().Name + " not associated with a file");
+            }
+
+            PathHelper.EnsureExists(Path.GetDirectoryName(file));
+
+            File.WriteAllText(file, JsonConvert.SerializeObject(this, Formatting.Indented));
+        }
+
+        public void Load(bool onlyIfAssociatedWithFile = false)
+        {
+            string file = ConfigFilePath();
+
+            if (string.IsNullOrEmpty(file))
+            {
+                if (onlyIfAssociatedWithFile)
+                {
+                    return;
+                }
+                throw new Exception(GetType().Name + " not associated with a file");
+            }
+
+            if (File.Exists(file))
+            {
+                JsonConvert.PopulateObject(File.ReadAllText(file), this);
+            }
+        }
+
+        public void LoadEnvironmentalVariables()
+        {
+            var type = GetType();
+            var members = type.GetProperties().Where(p => p.CanWrite).Cast<MemberInfo>().Concat(type.GetFields());
+            foreach (var member in members)
+            {
+                var attrib = member.GetCustomAttribute<ConfigEnvironmentVariable>();
+                if (attrib != null && !string.IsNullOrEmpty(attrib.EnvironmentalVariableName))
+                {
+                    string str = Environment.GetEnvironmentVariable(attrib.EnvironmentalVariableName);
                     if (str != null)
                     {
-                        PropertyInfo prop = (PropertyInfo)member;
-                        if (prop.PropertyType == typeof(string))
-                        {
-                            prop.SetValue(this, str);
-                        }
-                        else if (prop.PropertyType == typeof(int))
-                        {
-                            prop.SetValue(this, int.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(byte))
-                        {
-                            prop.SetValue(this, byte.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(short))
-                        {
-                            prop.SetValue(this, short.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(long))
-                        {
-                            prop.SetValue(this, long.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(uint))
-                        {
-                            prop.SetValue(this, uint.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(ushort))
-                        {
-                            prop.SetValue(this, ushort.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(ulong))
-                        {
-                            prop.SetValue(this, ulong.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(float))
-                        {
-                            prop.SetValue(this, float.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(double))
-                        {
-                            prop.SetValue(this, double.Parse(str));
-                        }
-                        else if (prop.PropertyType == typeof(bool))
-                        {
-                            prop.SetValue(this, !string.IsNullOrEmpty(str));
-                        }
-                        else
-                        {
-                            throw new Exception("Cannot specify config arguments of type " + prop.PropertyType + "with environment variables");
-                        }
+                        SetProperty(member, str);
                     }
                 }
             }
         }
-    }
 
+        private void SetProperty(MemberInfo member, string value)
+        {
+            if (!(member is FieldInfo || member is PropertyInfo))
+            {
+                throw new Exception("unexpected type: " + member.GetType().Name);
+            }
+
+            void setValue(Object val)
+            {
+                if (member is FieldInfo)
+                {
+                    ((FieldInfo)member).SetValue(this, val);
+                }
+                else
+                {
+                    ((PropertyInfo)member).SetValue(this, val);
+                }
+            }
+
+            var type = member is FieldInfo ? ((FieldInfo)member).FieldType : ((PropertyInfo)member).PropertyType;
+
+            Func<string, bool> parseBool = str => !string.IsNullOrEmpty(str) && str.ToLower() == "true";
+
+            new TypeDispatcher()
+                .Case<string>(v => setValue(value))
+                .Case<int>(v => setValue(int.Parse(value)))
+                .Case<byte>(v => setValue(byte.Parse(value)))
+                .Case<short>(v => setValue(short.Parse(value)))
+                .Case<long>(v => setValue(long.Parse(value)))
+                .Case<uint>(v => setValue(uint.Parse(value)))
+                .Case<ushort>(v => setValue(ushort.Parse(value)))
+                .Case<ulong>(v => setValue(ulong.Parse(value)))
+                .Case<float>(v => setValue(float.Parse(value)))
+                .Case<double>(v => setValue(double.Parse(value)))
+                .Case<bool>(v => setValue(parseBool(value)))
+                .Handle(type, value);
+        }
+    }
 }

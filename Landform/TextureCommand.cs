@@ -15,6 +15,7 @@ using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
+using OPS.Pipeline.Texturing;
 
 namespace OPS.Landform
 {
@@ -32,6 +33,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Scene mesh, search project storage if omitted")]
         public string InputMesh { get; set; }
 
+        [Option(HelpText = "Use level of detail meshes provided in input mesh", Default = false)]
+        public bool LoadLODs { get; set; }
+
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
@@ -41,12 +45,12 @@ namespace OPS.Landform
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
-        [Option(HelpText = "Percentage of pixels to test before picking a texture during backprojection", Default = 0.1)]
-        public virtual double BackprojectGoodnessSamplingPct { get; set; }
+        [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
+        public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "Backproject batching grid cell size in meters, 0 to disable batching", Default = 0)]
-        public virtual double BackprojectBatchGridSize { get; set; }
-
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = ObsSelectionStrategyName.Spatial)]
+        public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
+        
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
 
@@ -63,12 +67,17 @@ namespace OPS.Landform
 
         protected int resolution;
         protected IDictionary<string, ConvexHull> obsToHull;
-        protected List<Observation> imageObservations;
-        protected Dictionary<int, Observation> indexedObservations;
         protected SceneCaster sceneCaster;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
         protected Image backprojectIndex;
         protected TileList tileList;
+        protected ObsSelectionStrategy obsSelStrat;
+        protected List<Observation> imageObservations;
+        protected Dictionary<int, Observation> indexedImages;
+
+        protected Mesh mesh;
+        protected SceneMesh sceneMesh;
+        protected List<Mesh> meshLODs; //populated iff --loadlods, first = highest quality
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -103,20 +112,25 @@ namespace OPS.Landform
                 pipeline.LogWarn("resolution {0} not a power of two", resolution);
             }
 
-            if (observationCache != null)
+            obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+
+            //load image observations and index them
+            imageObservations = observationCache.GetAllObservations().Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image).ToList();
+
+            // the observation selection strategy has an opportunity to independently define its preference for linear or nonlinear images
+            var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
+            comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
+            imageObservations = comparator
+                .KeepBestRoverObservations(imageObservations, RoverObservationComparator.KeepLinearVariants.Best, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
+                .Cast<Observation>()
+                .ToList();
+
+            pipeline.LogInfo("image observations contains {0} images", imageObservations.Count);
+
+            indexedImages = new Dictionary<int, Observation>();
+            foreach (var obs in imageObservations)
             {
-                var comparator = mission.GetRoverObservationComparator();
-                imageObservations = observationCache.GetAllObservations()
-                    .Where(obs => obs is RoverObservation)
-                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
-                    .GroupBy(obs => obs.FrameName)
-                    .Select(group => group.OrderBy(obs => (RoverObservation)obs, comparator).First())
-                    .ToList();
-                indexedObservations = new Dictionary<int, Observation>();
-                foreach (var obs in imageObservations)
-                {
-                    indexedObservations[obs.Index] = obs;
-                }
+                indexedImages[obs.Index] = obs;
             }
 
             return true;
@@ -236,7 +250,8 @@ namespace OPS.Landform
 
         protected void BuildObservationImageMasks()
         {
-            var comparator = mission.GetRoverObservationComparator();
+            var comparator =
+                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
             int no = imageObservations.Count;
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(imageObservations, obs => {
@@ -257,11 +272,8 @@ namespace OPS.Landform
                     
                     Image img = pipeline.LoadImage(obs.Url);
 
-                    var maskObs = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                        .Where(o => o is RoverObservation)
-                        .Where(o => ((RoverObservation)o).ObservationType == RoverProductType.RoverMask)
-                        .OrderBy(o => (RoverObservation)o, comparator)
-                        .FirstOrDefault();
+                    var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
+                    var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.KeepLinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault();
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
 
@@ -294,11 +306,6 @@ namespace OPS.Landform
                 {
                     meshLODs = Mesh.LoadAllLODs(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
                     
-                    if(meshLODs.Count < 2)
-                    {
-                        throw new Exception("LoadLODs requested, but input mesh has only " + meshLODs.Count + " LODs");
-                    }
-
                     pipeline.LogInfo("Input mesh contains {0} levels of detail", meshLODs.Count);
                     for(int idxLOD = 0; idxLOD < meshLODs.Count; idxLOD++)
                     {
@@ -420,16 +427,16 @@ namespace OPS.Landform
             BackprojectObservations(logging: true);
         }
 
-        protected void BackprojectObservations(bool logging, bool verbose = false)
+        protected void BackprojectObservations(bool logging, bool verbose = false, string meshName = "",  string debugOutputPath = "")
         {
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            backprojectResults = BackprojectObservations(mesh, logging, verbose);
+            backprojectResults = BackprojectObservations(mesh, logging, verbose, meshName, debugOutputPath);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false)
+            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "", OPS.Pipeline.Texturing.ObsSelectionStrategy obsObverride = null)
         {
-            verbose |= pipeline.Verbose || pipeline.Debug;
+            verbose |= pipeline.Verbose;
             logging |= verbose;
             var opts = new Backproject.BackprojectOptions()
             {
@@ -442,17 +449,25 @@ namespace OPS.Landform
                 mesh = mesh,
                 meshFrame = meshFrame,
                 resolution = resolution,
-                batchGridSize = tcopts.BackprojectBatchGridSize,
-                sceneCaster = sceneCaster,
+                sceneOcclusion = sceneCaster,
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
-                quality = tcopts.BackprojectGoodnessSamplingPct,
+                quality = tcopts.BackprojectQuality,
+                writeDebug = tcopts.WriteDebug,
+                localDebugOutputPath = Path.Combine(debugOutputPath ?? localOutputPath, meshName),
+                obsSelectionStrategy = obsObverride ?? obsSelStrat,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
+
+            if(opts.writeDebug)
+            {
+                PathHelper.EnsureExists(opts.localDebugOutputPath);
+            }
+
             return Backproject.BackprojectObservations(opts);
         }
 
@@ -480,7 +495,7 @@ namespace OPS.Landform
         protected void BuildBackprojectResultsFromIndex()
         {
             pipeline.LogInfo("building backproject results from index");
-            backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedObservations);
+            backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages);
         }
 
         protected Image BuildBackprojectTexture(TextureVariant textureVariant)
@@ -515,25 +530,27 @@ namespace OPS.Landform
 
         protected void SaveBackprojectIndexDebug(Image index)
         {
-            pipeline.LogInfo("saving backproject index false color textured mesh");
             string name = sceneMesh.Name + "_backprojectIndex";
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
             name += "FalseColor";
+            pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
             if (mesh != null)
             {
+                pipeline.LogInfo("saving backproject index false color textured debug mesh");
                 SaveMesh(mesh, name, name + imageExt);
             }
         }
 
         protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
         {
-            pipeline.LogInfo("saving backproject {0} textured mesh", textureVariant);
             string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
+            pipeline.LogInfo("saving backproject {0} texture debug image", textureVariant);
             SaveImage(texture, name);
             if (mesh != null)
             {
+                pipeline.LogInfo("saving backproject {0} textured debug mesh", textureVariant);
                 SaveMesh(mesh, name, name + imageExt);
             }
         }

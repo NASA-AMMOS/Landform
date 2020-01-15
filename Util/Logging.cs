@@ -16,6 +16,15 @@ namespace OPS.Util
         void LogDebug(string msg, params Object[] args);
         void LogWarn(string msg, params Object[] args);
         void LogError(string msg, params Object[] args);
+
+        /// <summary>
+        /// for a non aggregate exception, default is to just spew its message
+        /// because that is commonly going to be enough and may be user visible (e.g. invalid command line args)
+        /// for an aggregate we spew the message and stack trace of the first inner exception
+        /// because that is most likely an unexpected error that needs to be debugged
+        /// </summary>
+        void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                          bool aggregateStackTrace = true);
     }
 
     public class Logging
@@ -23,25 +32,62 @@ namespace OPS.Util
         //%level must be last token before : to faciltate parsing errors in web code
         const string DEBUG_PATTERN_LAYOUT = "%date %logger{1} %location %level: %message%newline";
 
-        private static volatile bool didConfig = false;
-        public static void ConfigureLogging(bool quiet = false, bool debug = false, string overrideLogFilename = null)
+        public static string GetLogFile()
         {
-            //this is used as part of the the default log filename
-            log4net.GlobalContext.Properties["command"] = Config.FullCommand;
+            var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
+            foreach (IAppender a in h.Root.Appenders)
+            {
+                if (a is FileAppender)
+                {
+                    return ((FileAppender)a).File;
+                }
+            }
+            return null;
+        }
+
+        private static volatile bool didConfig = false;
+        public static void ConfigureLogging(string commandName = null, bool quiet = false, bool debug = false,
+                                            string logFilename = null, string logDir = null)
+        {
+            if (string.IsNullOrEmpty(commandName))
+            {
+                var exe = PathHelper.GetExe();
+                if (!string.IsNullOrEmpty(exe))
+                {
+                    commandName = StringHelper.GetLastUrlPathSegment(exe, stripExtension: true); //backlashes are ok
+                }
+                else
+                {
+                    commandName = "Landform";
+                }
+            }
+            log4net.GlobalContext.Properties["command"] = commandName; //used in the default log filename
 
             //normally Logging.ConfigureLogging() would only be called once during app init
             //but there are some cases where it's hard to structure the code
             //to avoid more than one possible call
             //that's OK, but we only want to set things up from App.config once
-            //if we call XmlConfigurator.Configure() more than once than one effect
-            //is that we can get get extra log files on disk
+            //if we call XmlConfigurator.Configure() more than once
+            //then one effect is that we can get get extra log files on disk
             //because each call can create a log file with a different timestamp in the filename
+            //note that we want to configure from xml first to get the default log filename
+            //below we might change that entirely or we might only change the directory
             if (!didConfig)
             {
                 log4net.Config.XmlConfigurator.Configure();
                 didConfig = true;
             }
 
+            string logFile = null;
+            if (!string.IsNullOrEmpty(logDir))
+            {
+                if (string.IsNullOrEmpty(logFilename))
+                {
+                    logFilename = Path.GetFileName(GetLogFile());
+                }
+                logFile = Path.Combine(logDir, logFilename);
+            }
+            
             var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
 
             h.Root.Level = debug ? Level.Debug : Level.Info;
@@ -54,12 +100,19 @@ namespace OPS.Util
                 if (a is FileAppender)
                 {
                     FileAppender fa = (FileAppender)a;
-                    bool fileChanged = !string.IsNullOrEmpty(overrideLogFilename);
+                    bool fileChanged = !string.IsNullOrEmpty(logFilename) || !string.IsNullOrEmpty(logFile);
                     FileInfo oldFile = null;
                     if (fileChanged)
                     {
                         oldFile = new FileInfo(fa.File);
-                        fa.File = Path.Combine(oldFile.DirectoryName, overrideLogFilename);
+                        if (!string.IsNullOrEmpty(logFile))
+                        {
+                            fa.File = logFile;
+                        }
+                        else
+                        {
+                            fa.File = Path.Combine(oldFile.DirectoryName, logFilename);
+                        }
                     }
                     if (debug)
                     {

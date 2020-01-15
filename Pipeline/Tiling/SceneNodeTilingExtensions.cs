@@ -138,8 +138,8 @@ namespace OPS.Pipeline
         /// <param name="skirtAxis"></param>
         /// <param name="childBoundSearchRatio"></param>
         public static bool BuildGeometryFromChildren(this SceneNode node, SceneNode root,
-                                                     MeshReconMethod reconstructionMethod, int maxFaceCountTarget,
-                                                     int maxTextureSize, SkirtMode? skirtAxis,
+                                                     MeshReconstructionMethod reconstructionMethod,
+                                                     int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis,
                                                      double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
                                                      Action<string> info = null, Action<string> error = null)
         {
@@ -152,7 +152,7 @@ namespace OPS.Pipeline
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
             var pairs = childNodes.Where(n => n.HasComponent<MeshImagePair>()).Select(n => n.GetComponent<MeshImagePair>());
             var childMeshes = pairs.Where(p => p.Mesh != null).Select(p => p.Mesh);
-
+            
             Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean:true, normalize:true);
             if (!combinedFull.HasNormals)
             {
@@ -201,7 +201,7 @@ namespace OPS.Pipeline
                     }
                 }
                 info("decimating parent tile mesh");
-                combinedDecimated = combinedFull.ResampleDecimation(reconstructionMethod, maxFaceCountTarget,
+                combinedDecimated = combinedFull.ResampleDecimation(maxFaceCountTarget, reconstructionMethod,
                                                                     clippingBounds: minimumBounds,
                                                                     cornerDirection: cornerDirection);
             }
@@ -219,9 +219,14 @@ namespace OPS.Pipeline
 
             Image img = null;
             if (size != 0)
-            {               
+            {
                 info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
+                if(combinedDecimated == null)
+                {
+                    error("failed to atlas combined children meshes");
+                    return false;
+                }
 
                 info("baking parent tile texture");
                 img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);

@@ -24,8 +24,8 @@ namespace OPS.TilingServer
         [Option(Default = SkirtMode.None, HelpText = "skirt mode")]
         public SkirtMode SkirtMode { get; set; }
 
-        [Option(Default = MeshReconMethod.Poisson, HelpText = "mesh reconstruction method")]
-        public MeshReconMethod ReconMethod { get; set; }
+        [Option(Default = MeshReconstructionMethod.Poisson, HelpText = "mesh reconstruction method")]
+        public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
         [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
@@ -136,7 +136,7 @@ namespace OPS.TilingServer
                                      {
                                          TilingScheme = options.TilingScheme,
                                          SkirtMode = options.SkirtMode,
-                                         ReconMethod = options.ReconMethod,
+                                         ReconstructionMethod = options.ReconstructionMethod,
                                          FacesPerTile = options.FacesPerTile,
                                          TileResolution = options.TileResolution,
                                          ProjectType = options.ProjectType.ToString(),

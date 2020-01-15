@@ -23,7 +23,8 @@ namespace OPS.Util
         public string OutputText { get; private set; }
         public string ErrorText { get; private set; }
 
-        public ProgramRunner(string cmd, string arguments, bool createNoWindow = true, bool useShellExecute = false, bool captureOutput = false, string workingDir = null)
+        public ProgramRunner(string cmd, string arguments, bool createNoWindow = true, bool useShellExecute = false,
+                             bool captureOutput = false, string workingDir = null)
         {
             this.cmd = cmd;
             this.arguments = arguments;           
@@ -33,29 +34,77 @@ namespace OPS.Util
             this.workingDir = workingDir;
         }
 
-        public int Run()
+        public int Run(Action<Process> callback = null)
         {
             ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = this.cmd;
+            startInfo.FileName = cmd;
             startInfo.CreateNoWindow = createNoWindow;
             startInfo.UseShellExecute = useShellExecute;
-            startInfo.Arguments = this.arguments;
+            startInfo.Arguments = arguments;
             startInfo.WindowStyle = ProcessWindowStyle.Hidden;
-            startInfo.RedirectStandardOutput = this.captureOutput;
-            startInfo.RedirectStandardError = this.captureOutput;
+            startInfo.RedirectStandardOutput = true;
+            startInfo.RedirectStandardError = true;
             if (workingDir != null)
             {
                 startInfo.WorkingDirectory = workingDir;
             }
-            Process p = Process.Start(startInfo);
-            if (this.captureOutput)
+            Process process = Process.Start(startInfo);
+
+            //this is deadlock prone
+            //https://csharp.today/how-to-avoid-deadlocks-when-reading-redirected-child-console-in-c-part-2
+            //OutputText = p.StandardOutput.ReadToEnd();
+            //ErrorText = p.StandardError.ReadToEnd();
+
+            var osb = new StringBuilder();
+            var esb = new StringBuilder();
+            process.OutputDataReceived += (_, evt) => {
+                if (string.IsNullOrEmpty(evt.Data))
+                {
+                    return;
+                }
+                if (evt.Data.IndexOf("error:", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    esb.AppendLine(evt.Data);
+                }
+                if (captureOutput)
+                {
+                    osb.AppendLine(evt.Data);
+                }
+                else
+                {
+                    Console.WriteLine(evt.Data);
+                }
+            };
+            process.ErrorDataReceived += (_, evt) => {
+                if (string.IsNullOrEmpty(evt.Data))
+                {
+                    return;
+                }
+                esb.AppendLine(evt.Data);
+                if (!captureOutput)
+                {
+                    Console.Error.WriteLine(evt.Data);
+                }
+            };
+
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            if (callback != null)
             {
-                OutputText = p.StandardOutput.ReadToEnd();
-                ErrorText = p.StandardError.ReadToEnd();
+                callback(process);
             }
-            p.WaitForExit();
-            int code = p.ExitCode;
-            p.Close();
+
+            process.WaitForExit();
+
+            if (captureOutput)
+            {
+                OutputText = osb.ToString();
+            }
+            ErrorText = esb.ToString();
+
+            int code = process.ExitCode;
+            process.Close();
             return code;
         }
     }

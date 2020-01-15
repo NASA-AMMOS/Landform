@@ -42,5 +42,10 @@ namespace OPS.Util
             else if (Math.Abs(b) < k*k*k) return string.Format("{0:f1}M", b/(k*k));
             else return string.Format("{0:f1}G", b/(k*k*k));
         }
+
+        public static string Bytes(double b)
+        {
+            return KMG(b, 1024) + "B";
+        }
     }
 }

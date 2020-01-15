@@ -10,29 +10,19 @@ using OPS.Pipeline;
 namespace OPS.Landform
 {
     [Verb("configure-local", HelpText = "Configures Landform local")]
-    public class ConfigureLocalOptions : PipelineCoreOptions
+    public class ConfigureLocalOptions : ConfigureBaseOptions
     {
         //null defaults force interactive prompt
         
-        [Option(Default = null, HelpText = "Venue name")]
-        public string Venue { get; set; }
-        
         [Option(Default = null, HelpText = "Storage directory")]
         public string StorageDir { get; set; }
-
-        [Option(Default = null, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
-        public string MaxCores { get; set; }
-
-        [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
-        public string RandomSeed { get; set; }
     }
 
-    public class ConfigureLocal
+    public class ConfigureLocal : ConfigureBase
     {
         private ConfigureLocalOptions options;
-        private static ILog logger = LogManager.GetLogger(typeof(ConfigureLocal));
 
-        public ConfigureLocal(ConfigureLocalOptions options)
+        public ConfigureLocal(ConfigureLocalOptions options) : base(options)
         {
             this.options = options;
         }
@@ -40,11 +30,6 @@ namespace OPS.Landform
         public int Run()
         {
             LocalPipelineConfig config = new LocalPipelineConfig();
-
-            if (string.IsNullOrEmpty(config.Venue))
-            {
-                config.Venue = "local"; //default unless overridden by command line option or console input
-            }
 
             config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
             config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir);
@@ -55,7 +40,7 @@ namespace OPS.Landform
 
             config.Validate();
 
-            var cfgPath = config.ConfigFilepath();
+            var cfgPath = config.ConfigFilePath();
             logger.Info("persisting config to " + cfgPath);
             config.Save();
 

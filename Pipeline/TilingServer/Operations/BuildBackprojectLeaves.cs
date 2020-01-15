@@ -13,13 +13,9 @@ using OPS.Util;
 using OPS.Alignment;
 using OPS.RayTrace;
 
-//TODO: refactor so that local codepath does not have cloud dependencies
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/596
-using QueueMessage = OPS.Cloud.QueueMessage;
-
 namespace OPS.Pipeline.TilingServer
 {
-    public class BuildBackprojectLeavesMessage : QueueMessage
+    public class BuildBackprojectLeavesMessage : PipelineMessage
     {
         public List<string> TileIds;
         public BuildBackprojectLeavesMessage() { }
@@ -92,7 +88,7 @@ namespace OPS.Pipeline.TilingServer
 
                 LogInfo(string.Format("atlasing leaf tile mesh with UVAtlas, resolution {0}", project.TileResolution));
                 leafPair.Mesh = UVAtlas.Atlas(leafPair.Mesh, project.TileResolution, project.TileResolution);
-
+                
                 LogInfo("backprojecting leaf tile mesh");
                 // backproject
                 ConvexHull meshHull = new ConvexHull(leafPair.Mesh);

@@ -13,13 +13,13 @@ namespace OPS.Cloud
     {
 
         public string BucketName { get; set; }
-        public string Prefix { get; set; }
+        public string Path { get; set; }
         public string Url
         {
             get
             {
                 UriBuilder builder = new UriBuilder("s3", this.BucketName);
-                builder.Path = this.Prefix;
+                builder.Path = this.Path;
                 return builder.ToString();
             }
 
@@ -27,7 +27,7 @@ namespace OPS.Cloud
             {
                 Uri url = new Uri(value);
                 this.BucketName = url.Host;
-                this.Prefix = url.GetComponents(UriComponents.Path, UriFormat.SafeUnescaped);
+                this.Path = url.GetComponents(UriComponents.Path, UriFormat.SafeUnescaped);
             }
         }
 
@@ -39,7 +39,7 @@ namespace OPS.Cloud
         public S3Url(string bucketName, string prefix)
         {
             this.BucketName = bucketName;
-            this.Prefix = prefix;
+            this.Path = prefix;
         }
     }
 }

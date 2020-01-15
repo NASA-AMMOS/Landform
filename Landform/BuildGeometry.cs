@@ -1,0 +1,258 @@
+﻿using System;
+using System.Linq;
+using CommandLine;
+using Microsoft.Xna.Framework;
+using OPS.Geometry;
+using OPS.Pipeline;
+using OPS.Pipeline.AlignmentServer;
+
+namespace OPS.Landform
+{
+    [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
+    public class BuildGeometryOptions : GeometryCommandOptions
+    {
+        [Option(HelpText = "Decimate the scene mesh to this target number of faces if positive", Default = 0)]
+        public int TargetSceneMeshFaces { get; set; }
+
+        [Option(HelpText = "Stereo eye to prefer (auto, left, right, any)", Default = "auto")]
+        public string StereoEye { get; set; }
+
+        [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
+        public bool NoCleverCombine { get; set; }
+
+        [Option(HelpText = "Only emit faces that intersect these observations, comma separated (disables database save)", Default = null)]
+        public string OnlyFacesForObs { get; set; }
+       
+        [Option(HelpText = "Bounds to use if PreClipPointCloud is specified preclip input point clouds to box XY size in meters", Default = 0)]
+        public double PreClipExtent { get; set; }
+
+        [Option(HelpText = "Post meshing clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
+        public double ClipExtent { get; set; }
+    }
+
+    public class BuildGeometry : GeometryCommand
+    {
+        private const string OUT_DIR = "meshing/GeometryProducts";
+
+        private BuildGeometryOptions options;
+
+        private Observation[] onlyForObs;
+        private RoverStereoEye stereoEye;
+
+        private Mesh mesh;
+        private SceneMesh sceneMesh;
+        private BoundingBox meshBounds;
+
+        public BuildGeometry(BuildGeometryOptions options) : base(options)
+        {
+            this.options = options;
+        }
+
+        public int Run()
+        {
+            StartStopwatch();
+
+            try
+            {
+                if (!ParseArgumentsAndLoadCaches())
+                {
+                    return 0; //help
+                }
+
+                RunPhase("build mesh", BuildMesh);
+                RunPhase("clip mesh", ClipMesh);
+                RunPhase("clean mesh", CleanMesh);
+
+                if (options.TargetSceneMeshFaces > 0)
+                {
+                    RunPhase("decimate mesh", DecimateMesh);
+                }
+
+                if (onlyForObs.Length > 0)
+                {
+                    RunPhase("filter mesh", FilterMesh);
+                }
+                RunPhase("save mesh", SaveMesh);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex);
+                return 1;
+            }
+
+            StopStopwatch();
+
+            return 0;
+        }
+
+        private bool ParseArgumentsAndLoadCaches()
+        {
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+            {
+                return false; //help
+            }
+
+            onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
+
+            stereoEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
+
+            return true;
+        }
+
+        protected override bool ObservationFilter(RoverObservation obs)
+        {
+            return obs.UseForMeshing;
+        }
+
+        protected override string DescribeObservationFilter()
+        {
+            return " meshing";
+        }
+
+        //potentially mission specific: assumes z-down/up 
+        BoundingBox BoundsFromXYExtent(Vector3 center, double extent, double minZ, double maxZ)
+        {
+            double halfExtent = extent * 0.5;
+
+            Vector3 min = center + new Vector3(-halfExtent, -halfExtent, 0);
+            Vector3 max = center + new Vector3(halfExtent, halfExtent, 0);
+
+            min.Z = minZ;
+            max.Z = maxZ;
+
+            return new BoundingBox(min, max);
+        }
+        
+        private void BuildMesh()
+        {
+            BoundingBox? preClipBounds = null;
+            if (options.PreClipExtent > 0)
+            {              
+                double safeVerticalClipMeters = 1000;
+                Vector3 center = Vector3.Zero;
+                preClipBounds = BoundsFromXYExtent(center, options.PreClipExtent, -safeVerticalClipMeters, safeVerticalClipMeters);
+            }
+
+            mesh = OPS.Pipeline.TilingServer.BuildTilingInput.BuildMesh(pipeline, project.Name, out meshBounds,
+                                              frameCache, observationCache, meshFrame, options.UsePriors,
+                                              options.OnlyAligned, preClipBounds,
+                                              options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
+                                              options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
+
+            if (mesh == null || mesh.Faces.Count == 0)
+            {
+                throw new Exception("failed to build mesh");
+            }
+        }
+
+        private void ClipMesh()
+        {
+            pipeline.LogInfo("clipping mesh to source point cloud bounds");
+            mesh = Mesh.Clip(mesh, meshBounds);
+
+            if (options.ClipExtent > 0)
+            {
+                pipeline.LogInfo("clipping mesh to {0} meter box around origin in XY plane", options.ClipExtent);
+
+                Vector3 center = Vector3.Zero;
+                BoundingBox bbox = BoundsFromXYExtent(center, options.ClipExtent, meshBounds.Min.Z, meshBounds.Max.Z);
+                mesh = Mesh.Clip(mesh, bbox);
+            }
+
+            if (mesh.Faces.Count == 0)
+            {
+                throw new Exception("clipped mesh is empty");
+            }
+        }
+
+        private void CleanMesh()
+        {
+            mesh.Clean(); // normalizes the normals
+
+            if (mesh.Faces.Count == 0)
+            {
+                throw new Exception("mesh is empty");
+            }
+
+        }
+
+        private void DecimateMesh()
+        {
+            pipeline.LogInfo("decimating mesh with {0}, target {1} faces",
+                             options.MeshDecimator, options.TargetSceneMeshFaces);
+            mesh = mesh.Decimate(options.TargetSceneMeshFaces, options.MeshDecimator);
+            pipeline.LogInfo("decimated mesh to {0} faces", mesh.Faces.Count);
+            if (mesh.Faces.Count == 0)
+            {
+                throw new Exception("mesh is empty");
+            }
+        }
+
+        private void FilterMesh()
+        {
+            pipeline.LogInfo("only keeping triangles visible in observations: {0}",
+                             string.Join(", ", onlyForObs.Select(obs => obs.Name)));
+
+            var hulls = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors,
+                                                     options.OnlyAligned, onlyForObs).Values;
+
+            Mesh filtered = new Mesh();
+            filtered.SetProperties(mesh);
+            filtered.Vertices = mesh.Vertices;
+            foreach (var face in mesh.Faces)
+            {
+                foreach (var hull in hulls)
+                {
+                    if (hull.Intersects(mesh.FaceToTriangle(face)))
+                    {
+                        filtered.Faces.Add(face);
+                        break;
+                    }
+                }
+            }
+            mesh = filtered;
+
+            pipeline.LogInfo("cleaning mesh");
+            mesh.Clean();
+
+            if (mesh.Faces.Count == 0)
+            {
+                throw new Exception("mesh is empty");
+            }
+
+            pipeline.LogInfo("kept {0} faces visible in specified observations", mesh.Faces.Count);
+        }
+
+        private void SaveMesh()
+        {
+            if (!options.NoSave)
+            {
+                pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
+                string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
+                var variant = MeshVariant.Default;
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
+                if (sceneMesh != null)
+                {
+                    sceneMesh.SetBounds(mesh.Bounds());
+                    var meshProd = new PlyGZDataProduct(mesh);
+                    pipeline.SaveDataProduct(project, meshProd);
+                    sceneMesh.MeshGuid = meshProd.Guid;
+                    sceneMesh.Save(pipeline);
+                }
+                else
+                {
+                    sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames,
+                                                 mesh: mesh);
+                }
+            }
+                
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, sceneMesh.Name);
+            }
+
+            var bounds = mesh.Bounds().Size();
+            pipeline.LogInfo("scene bounds (meters): {0:F3}x{1:F3}x{2:F3}", bounds.X, bounds.Y, bounds.Z);
+        }
+    }
+}

@@ -512,8 +512,12 @@ namespace OPS.Cloud
 
         public static DynamoDBContext MakeContext(string prefix, string profile = null, string region = null)
         {
+            string[] nulls = { "", "null", "none", "auto" };
+            Func<string, string> convertNull = s => s == null || nulls.Any(n => n == s.ToLower()) ? null : s;
+            profile = convertNull(profile);
+            region = convertNull(region);
             var cfg = new AmazonDynamoDBConfig();
-            if (!string.IsNullOrEmpty(region))
+            if (region != null)
             {
                 cfg.RegionEndpoint = RegionEndpoint.GetBySystemName(region);
             }

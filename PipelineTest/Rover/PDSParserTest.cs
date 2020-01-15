@@ -23,13 +23,13 @@ namespace PipelineTest
                 Assert.AreEqual(22, m.ProductCreationTime.Day);
                 Assert.AreEqual(1, m.FirstLine);
                 Assert.AreEqual(129, m.FirstSample);
-                Assert.AreEqual("0606ML0025550030301440E01_DRCX", m.ProductId.FullId);
+                Assert.AreEqual("0606ML0025550030301440E01_DRCX", m.ProductIdString);
 
                 var mission = MissionSpecific.GetInstance(Mission.MSL);
                 Assert.AreEqual(RoverProductCamera.MastcamLeft, mission.GetCamera(m));
                 Assert.AreEqual(RoverProductGeometry.Raw, m.GeometricProjection);
                 Assert.AreEqual(RoverProductSize.Regular, m.ImageSizeType);
-                Assert.AreEqual(RoverProductType.Image, m.DerivedImageType);
+                Assert.AreEqual(RoverProductType.Image, mission.GetProductType(m));
                 Assert.AreEqual(RoverProductProducer.MSSS, m.ProducingInstitution);
                 Assert.AreEqual(10.1, m.ExposureDuration);
                 Assert.AreEqual(0, m.FilterNumber);
@@ -42,7 +42,7 @@ namespace PipelineTest
                 {
                     Assert.AreEqual(rmc[i], m.MotionCounter[i]);
                 }
-                Assert.AreEqual("0003101094", m.SiteDrive);
+                Assert.AreEqual("0311094", m.SiteDrive);
                 Assert.AreEqual(606, m.PlanetDayNumber);
 
                 var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
@@ -60,7 +60,6 @@ namespace PipelineTest
                 Assert.AreEqual(0.631446, articulation.MastElevation);
             }
 
-          
             {
                 string filename = Path.Combine("TestData", "img", @"NLB_451649560RNGLF0311330NCAM12813M1.IMG");
                 var md = new PDSMetadata(filename);
@@ -71,13 +70,13 @@ namespace PipelineTest
                 Assert.AreEqual(27, m.ProductCreationTime.Day);
                 Assert.AreEqual(1, m.FirstLine);
                 Assert.AreEqual(1, m.FirstSample);
-                Assert.AreEqual("NLB_451649560RNGLF0311330NCAM12813M1", m.ProductId.FullId);
+                Assert.AreEqual("NLB_451649560RNGLF0311330NCAM12813M1", m.ProductIdString);
                 var mission = MissionSpecific.GetInstance(Mission.MSL);
                 Assert.AreEqual(RoverProductCamera.NavcamLeft, mission.GetCamera(m));
 
                 Assert.AreEqual(RoverProductGeometry.Linearized, m.GeometricProjection);
                 Assert.AreEqual(RoverProductSize.Regular, m.ImageSizeType);
-                Assert.AreEqual(RoverProductType.Range, m.DerivedImageType);
+                Assert.AreEqual(RoverProductType.Range, mission.GetProductType(m));
                 Assert.AreEqual(RoverProductProducer.OPGS, m.ProducingInstitution);
                 Assert.AreEqual(353.28, m.ExposureDuration);
                
@@ -89,7 +88,7 @@ namespace PipelineTest
                 {
                     Assert.AreEqual(rmc[i], m.MotionCounter[i]);
                 }
-                Assert.AreEqual("0003101330", m.SiteDrive);
+                Assert.AreEqual("0311330", m.SiteDrive);
                 Assert.AreEqual(610, m.PlanetDayNumber);
 
                 var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
@@ -108,7 +107,6 @@ namespace PipelineTest
                 Assert.AreEqual(PDSParser.ReferenceCoordinateFrame.Site, m.DerivedImageRefFrame);
             }
 
-
             {
                 string filename = Path.Combine("TestData", "img", @"0608ML0025660260301542E01_DRCX.IMG");
                 var md = new PDSMetadata(filename);
@@ -119,13 +117,13 @@ namespace PipelineTest
                 Assert.AreEqual(23, m.ProductCreationTime.Day);
                 Assert.AreEqual(385, m.FirstLine);
                 Assert.AreEqual(305, m.FirstSample);
-                Assert.AreEqual("0608ML0025660260301542E01_DRCX", m.ProductId.FullId);
+                Assert.AreEqual("0608ML0025660260301542E01_DRCX", m.ProductIdString);
 
                 var mission = MissionSpecific.GetInstance(Mission.MSL);
                 Assert.AreEqual(RoverProductCamera.MastcamLeft, mission.GetCamera(m));
                 Assert.AreEqual(RoverProductGeometry.Raw, m.GeometricProjection);
                 Assert.AreEqual(RoverProductSize.Regular, m.ImageSizeType);
-                Assert.AreEqual(RoverProductType.Image, m.DerivedImageType);
+                Assert.AreEqual(RoverProductType.Image, mission.GetProductType(m));
                 Assert.AreEqual(RoverProductProducer.MSSS, m.ProducingInstitution);
 
                 Assert.AreEqual(451471168.0000, m.SpacecraftClock);
@@ -136,7 +134,7 @@ namespace PipelineTest
                 {
                     Assert.AreEqual(rmc[i], m.MotionCounter[i]);
                 }
-                Assert.AreEqual("0003101256", m.SiteDrive);
+                Assert.AreEqual("0311256", m.SiteDrive);
                 Assert.AreEqual(608, m.PlanetDayNumber);
 
                 var articulation = (MSLRoverArticulation)(new MSLRoverArticulationParser(md).Parse());
@@ -152,10 +150,7 @@ namespace PipelineTest
                 Assert.AreEqual(-0.013007, articulation.LeftRockerAngle);
                 Assert.AreEqual(4.092333, articulation.MastAzimuth);
                 Assert.AreEqual(1.127138, articulation.MastElevation);
-
             }
         }
     }
-
-
 }

@@ -21,10 +21,14 @@ namespace OPS.Util
         
         public bool Handle(object x)
         {
-            var t = x.GetType();
+            return Handle(x.GetType(), x);
+        }
+
+        public bool Handle(Type t, object x)
+        {
             if (handlers.ContainsKey(t))
             {
-                handlers[x.GetType()](x);
+                handlers[t](x);
                 return true;
             }
             else

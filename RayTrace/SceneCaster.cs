@@ -40,7 +40,7 @@ namespace OPS.RayTrace
         /// <param name="transform">This meshes transform in the scene</param>
         public void AddMesh(OPS.Geometry.Mesh mesh, Image texture, Matrix transform)
         {
-            if(sceneBuilt)
+            if (sceneBuilt)
             {
                 throw new Exception("Cannot add mesh to a renderer after it its scene has been built");
             }
@@ -83,7 +83,67 @@ namespace OPS.RayTrace
             return HitToHitData(ray, hit);
         }
 
+        public Vector3? RaycastPosition(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        {
+            if (!sceneBuilt)
+            {
+                throw new Exception("Must call Build on scene before raycasting");
+            }
+            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            Intersection<Model> hit = packet.ToIntersection<Model>(scene);
 
+            if (hit.HasHit)
+            {
+                return ray.Position + ray.Direction * hit.Distance;
+            }
+            else
+            {
+                return null;
+            }
+        }
+
+        public double? RaycastDistance(Ray ray, float near = 0, float far = float.PositiveInfinity)
+        {
+            if (!sceneBuilt)
+            {
+                throw new Exception("Must call Build on scene before raycasting");
+            }
+            var packet = scene.Intersects(new EmbreeRay(ray), near, far);
+            Intersection<Model> hit = packet.ToIntersection<Model>(scene);
+
+            if (hit.HasHit)
+            {
+                return hit.Distance;
+            }
+            else
+            {
+                return null;
+            }
+        }
+        public HitData[] Raycast4(Ray[] rays, float near = 0, float far = float.PositiveInfinity)
+        {
+            if (!sceneBuilt)
+            {
+                throw new Exception("Must call Build on scene before raycasting");
+            }
+
+            if (rays.Length != 4)
+            {
+                throw new Exception("Raycast4 expecting 4 rays");
+            }
+
+            var embreeRays = rays.Select(r => new EmbreeRay(r)).ToArray();
+            var packet4 = scene.Intersects4(embreeRays, near, far);
+            Intersection<Model>[] hits = packet4.ToIntersection<Model>(scene);
+
+            HitData[] results = new HitData[4];
+            for (int idx = 0; idx < 4; idx++)
+            {
+                results[idx] = HitToHitData(rays[idx], hits[idx]);
+            }
+
+            return results;
+        }
         /// <summary>
         /// Compute hit data for a ray intersection
         /// Null if there was no hit
@@ -95,11 +155,13 @@ namespace OPS.RayTrace
         {
             if (hit.HasHit)
             {
+                var position = ray.Position + ray.Direction * hit.Distance;
+
                 // Negate the normal direction coming out of embree.  Its poorly documented in the images on this page
                 // https://embree.github.io/api.html but it looks like they use a different winding order than we assume for our normals
-                var modelSpaceNormal = - new Vector3(hit.NX, hit.NY, hit.NZ);
+                var modelSpaceNormal = -new Vector3(hit.NX, hit.NY, hit.NZ);
                 var worldSpaceNormal = hit.Instance.NormalToWorldSpace(modelSpaceNormal);
-                var position = ray.Position + ray.Direction * hit.Distance;
+
                 var mesh = hit.Instance.Mesh;
                 // If this mesh has uvs compute the uv coordinates as per documentation
                 // https://embree.github.io/api.html
@@ -110,11 +172,11 @@ namespace OPS.RayTrace
                 var bp = new Geometry.BarycentricPoint(1.0 - u - v, u, v, tri);
                 Vector2? uv = null;
                 if (mesh.HasUVs)
-                {                    
-                    uv = bp.UV;                   
+                {
+                    uv = bp.UV;
                 }
                 Vector3? meshNorm = null;
-                if(mesh.HasNormals)
+                if (mesh.HasNormals)
                 {
                     var n0 = mesh.Vertices[f.P0].Normal;
                     var n1 = mesh.Vertices[f.P1].Normal;
@@ -140,7 +202,7 @@ namespace OPS.RayTrace
 
         ~SceneCaster()
         {
-             Dispose(false);
+            Dispose(false);
         }
 
         public void Dispose()

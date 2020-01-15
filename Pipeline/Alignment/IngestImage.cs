@@ -16,9 +16,10 @@ namespace OPS.Pipeline
         public enum Status
         {
             Added,
-            Failed,
             Duplicate,
-            Skipped
+            Failed,
+            Skipped,
+            Culled
         }
 
         /// <summary>
@@ -26,11 +27,21 @@ namespace OPS.Pipeline
         /// </summary>
         public class Result
         {
+            public Status Status;
+
             public readonly string Url;
             public readonly string DataUrl; //if null then same as Url
-            public readonly Status Status;
             public readonly Observation Observation;
             public readonly Frame ObservationFrame;
+
+            public bool Accepted
+            {
+                get
+                {
+                    //duplicates are OK to allow ingestion being re-run on an existing proj
+                    return Status == Status.Added || Status == Status.Duplicate;
+                }
+            }
 
             public Result()
             {
