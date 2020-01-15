@@ -331,6 +331,7 @@ namespace OPS.Geometry
             Property propertyT = null;
 
             // Used to deterime what type face properties should be read
+            Property refIndexProperty = null;
             Property faceIndexProperty = null;
             Property faceUVProperty = null;
                         
@@ -456,23 +457,33 @@ namespace OPS.Geometry
                         if (line.Contains("uchar int vertex_indices") ||
                             line.Contains("uint8 int32 vertex_indices"))
                         {
+                            refIndexProperty = new Property(typeof(byte));
                             faceIndexProperty = new Property(typeof(int));
+                            
                         }
                         else if (line.Contains("uchar uint vertex_indices") ||
                                  line.Contains("uint8 uint32 vertex_indices"))
                         {
+                            refIndexProperty = new Property(typeof(byte));
                             faceIndexProperty = new Property(typeof(uint));
+                        }
+                        else if (line.Contains("int int vertex_indices"))
+                        {
+                            refIndexProperty = new Property(typeof(int));
+                            faceIndexProperty = new Property(typeof(int));
                         }
                         else if (line.Contains("property list uchar float texcoord") ||
                                  line.Contains("property list uint8 float32 texcoord"))
                         {
                             result.HasUVs = true;
+                            refIndexProperty = new Property(typeof(byte));
                             faceUVProperty = new Property(typeof(float));
                         }
                         else if (line.Contains("property list uchar double texcoord") ||
                                  line.Contains("property list uint8 float64 texcoord"))
                         {
                             result.HasUVs = true;
+                            refIndexProperty = new Property(typeof(byte));
                             faceUVProperty = new Property(typeof(double));
                         }
                         else
@@ -506,7 +517,7 @@ namespace OPS.Geometry
                 using (StreamReader sr = new StreamReader(filename))
                 {
                     ASCIIDataSegmentReader reader = new ASCIIDataSegmentReader(sr);
-                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
+                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader, refIndexProperty, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
                 }            
             }
             else
@@ -515,7 +526,7 @@ namespace OPS.Geometry
                 using (BinaryReader br = new BinaryReader(fs))
                 {
                     BinaryDataSegmentReader reader = new BinaryDataSegmentReader(br);
-                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
+                    ReadBody(result, vertexCount, faceCount, vertexProperties, reader, refIndexProperty, faceIndexProperty, faceUVProperty, ignoreFaceUVs);
                     if (fs.Position != fs.Length)
                     {
                         throw new PLYSerializerException("Unexpected end of PLY file");
@@ -538,7 +549,7 @@ namespace OPS.Geometry
             return result;
         }
 
-        void ReadBody(Mesh result, int vertexCount, int faceCount, List<Property> vertexProperties, DataSegmentReader reader, Property faceIndexProperty, Property faceUVProperty, bool ignoreFaceUVs)
+        void ReadBody(Mesh result, int vertexCount, int faceCount, List<Property> vertexProperties, DataSegmentReader reader, Property refIndexProperty, Property faceIndexProperty, Property faceUVProperty, bool ignoreFaceUVs)
         {
             for (int i = 0; i < vertexCount; i++)
             {
@@ -550,10 +561,10 @@ namespace OPS.Geometry
                 }
                 result.Vertices.Add(v);
             }
-            Property byteProperty = new Property(typeof(byte));
+            
             for (int i = 0; i < faceCount; i++)
             {
-                byte len = (byte)reader.ReadNextScaledValue(byteProperty);
+                int len = (int)reader.ReadNextScaledValue(refIndexProperty);
                 if (len != 3)
                 {
                     throw new PLYSerializerException("Unexpected number of vertices in face.  Expected 3 but got " + len);
@@ -565,7 +576,7 @@ namespace OPS.Geometry
                 result.Faces.Add(f);
                 if (faceUVProperty != null)
                 {
-                    len = len = (byte)reader.ReadNextScaledValue(byteProperty);
+                    len = (int)reader.ReadNextScaledValue(refIndexProperty);
                     if (len != 6)
                     {
                         throw new PLYSerializerException("Unexpected number of uvs in face.  Expected 6 but got " + len);
