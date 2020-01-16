@@ -20,6 +20,9 @@ namespace OPS.Landform
         [Option(HelpText = "Disable clever combine point cloud merging", Default = false)]
         public bool NoCleverCombine { get; set; }
 
+        [Option(HelpText = "Disable surface trimmer to remove mesh data in places of low density", Default = false)]
+        public bool NoSurfaceTrimmer { get; set; }
+
         [Option(HelpText = "Only emit faces that intersect these observations, comma separated (disables database save)", Default = null)]
         public string OnlyFacesForObs { get; set; }
        
@@ -137,7 +140,8 @@ namespace OPS.Landform
                                               frameCache, observationCache, meshFrame, options.UsePriors,
                                               options.OnlyAligned, preClipBounds,
                                               options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
-                                              options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
+                                              options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution,
+                                              !options.NoSurfaceTrimmer);
 
             if (mesh == null || mesh.Faces.Count == 0)
             {

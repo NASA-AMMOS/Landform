@@ -80,8 +80,8 @@ namespace OPS.Pipeline.TilingServer
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
                                      bool usePriors, bool noPriors, BoundingBox? preclipBounds = null, string onlyForCameras = null,
-                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,  int decimate = 1, 
-                                     int targetPointCloudResolution = 1024,
+                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left, int decimate = 1,
+                                     int targetPointCloudResolution = 1024, bool useSurfaceTrimmer = false,
                                      Action<string> info = null,
                                      Action<string> verbose = null, Action<string> warn = null,
                                      Action<string> error = null)
@@ -255,7 +255,7 @@ namespace OPS.Pipeline.TilingServer
             PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
             {
                 //extrapolates the edges of the mesh
-                Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
+                Boundary = PoissonReconstruction.BoundaryTypes.Dirichlet,
 
                 // no features should be finer than this many meters as this is the finest the octree will dice
                 MinOctreeCellWidthMeters = 0.05f,
@@ -269,7 +269,10 @@ namespace OPS.Pipeline.TilingServer
 
                 // indicates the normal magnitudes are not uniformly unit scaled
                 // to indicate confidence in the position attached to it
-                UseNormalsForConfidence = true
+                UseNormalsForConfidence = true,
+
+                // remove low density points
+                UseSurfaceTrimmer = useSurfaceTrimmer
             };
 
             var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
