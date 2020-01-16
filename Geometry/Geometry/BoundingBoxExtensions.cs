@@ -10,6 +10,11 @@ namespace OPS.Geometry
 {
     public static class BoundingBoxExtensions
     {
+        public static BoundingBox CreateXY(Vector2 min, Vector2 max)
+        {
+            return new BoundingBox(min: new Vector3(min.X, min.Y, 0), max: new Vector3(max.X, max.Y, 0));
+        }
+
         /// <summary>
         /// Returns the size of the bounding box (max-min)
         /// </summary>

@@ -1401,6 +1401,10 @@ namespace OPS.Geometry
         /// <returns></returns>
         public BoundingBox NormalBounds()
         {
+            if (!HasNormals)
+            {
+                throw new Exception("mesh does not have normals");
+            }
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
             foreach (Vertex v in this.Vertices)
             {
@@ -1417,6 +1421,10 @@ namespace OPS.Geometry
         /// <returns></returns>
         public BoundingBox UVBounds()
         {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
             foreach (Vertex v in this.Vertices)
             {
@@ -1424,6 +1432,67 @@ namespace OPS.Geometry
                 b.Max = Vector3.Max(b.Max, new Vector3(v.UV, 0));
             }
             return b;
+        }
+
+        /// <summary>
+        /// remap UV coordinates to the box [border, border]x[1 - border, 1 - border]
+        /// </summary>
+        public void RescaleUVs(double border = 0.01, double growThreshold = 0.1)
+        {
+            var targetMin = Vector2.Zero;
+            var targetMax = Vector2.One;
+            if (border > 0)
+            {
+                targetMin += border * Vector2.One;
+                targetMax -= border * Vector2.One;
+            }
+            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+        }
+
+        /// <summary>
+        /// computes target bounds from image pixels
+        /// </summary>
+        public void RescaleUVsForTexture(int texWidth, int texHeight, int borderPixels = 2, double growThreshold = 0.1)
+        {
+            var border = borderPixels * Vector2.One;
+            var targetMin = Image.PixelToUV(border, texWidth, texHeight);
+            var targetMax = Image.PixelToUV(new Vector2(texWidth, texHeight) - border, texWidth, texHeight);
+            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+        }
+
+        /// <summary>
+        /// remap UV coordinates to targetBounds  
+        /// does nothing if the current UV bounds is already contained in targetBounds
+        /// and the current bounds size in each dimension is within growThreshold of targetBounds
+        /// </summary>
+        public void RescaleUVs(BoundingBox targetBounds, double growThreshold = 0.1)
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
+            var targetSz = targetBounds.Max - targetBounds.Min;
+
+            var b = UVBounds();
+            var uvMin = new Vector2(b.Min.X, b.Min.Y);
+            var uvMax = new Vector2(b.Max.X, b.Max.Y);
+            var sz = uvMax - uvMin;
+
+            if (growThreshold > 0 &&
+                targetBounds.Contains(b) == ContainmentType.Contains &&
+                targetSz.X - sz.X <= growThreshold && targetSz.Y - sz.Y <= growThreshold)
+            {
+                return;
+            }
+
+            double eps = 1e-10;
+            var rescale = new Vector2(Math.Abs(sz.X) > eps ? targetSz.X / sz.X : 1,
+                                      Math.Abs(sz.Y) > eps ? targetSz.Y / sz.Y : 1);
+            var targetMin = new Vector2(targetBounds.Min.X, targetBounds.Min.Y);
+            foreach (Vertex v in this.Vertices)
+            {
+                v.UV = targetMin + (v.UV - uvMin) * rescale;
+            }
         }
 
         /// <summary>

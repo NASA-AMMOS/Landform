@@ -735,7 +735,7 @@ namespace GeometryTest
         [TestMethod]
         public void MeshNormalAndUVBoundsTest()
         {
-            Mesh m = new Mesh();
+            Mesh m = new Mesh(hasNormals: true, hasUVs: true, hasColors: true);
             m.Vertices.Add(new Vertex(-1, 0, 0,  2, 3,  7, 0.1,  0.3, 0, 0, 0, 0));
             m.Vertices.Add(new Vertex(1,  0, 0,  5, 2, -1, 0.4,  0.2, 4, 5, 2, 1));
             m.Vertices.Add(new Vertex(0,  2, 3, -3, 5,  1, 0.9,  0.1, 2, 4, 2, 4));
