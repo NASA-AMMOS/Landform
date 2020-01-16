@@ -118,6 +118,9 @@ namespace OPS.Pipeline
 
         [JsonConverter(typeof(SceneManifestQuaternionConverter))]
         public Quaternion rotation = Quaternion.Identity;
+
+        [JsonConverter(typeof(SceneManifestVector3Converter))]
+        public Vector3 scale = Vector3.One;
     }
 
     public class CameraModelManifest
