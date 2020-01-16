@@ -54,8 +54,9 @@ namespace OPS.Geometry
             public float MinOctreeCellWidthMeters;  //exe defaults: doesn't use this parameter, uses --depth 8
             public float MinOctreeSamplesPerCell;   //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
             public int BSplineDegree;               //exe defaults: 1, supports 1-2
-            public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence
-            public bool UseSurfaceTrimmer;          //exe defaults: no, if true outputs density in the fbx for use by trimmer
+            public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence            
+            public double TrimmerLevel;             //exe defaults: 7, if tree level for density is less than amount, remove (higher number == more culling)
+            public double TrimmerIslandPct;         //exe defaults: 0.001, if an island surface area is < this percentage of whole mesh surface area, remove it (higher number == more culling)
         };
 
         /// <summary>
@@ -146,7 +147,7 @@ namespace OPS.Geometry
                                                   (int)options.Boundary, options.MinOctreeCellWidthMeters,
                                                   options.MinOctreeSamplesPerCell, options.BSplineDegree,
                                                   options.UseNormalsForConfidence ? 1 : 0,
-                                                  options.UseSurfaceTrimmer ? "--density" : "");
+                                                  options.TrimmerLevel > 0 ? "--density" : "");
                             }
 
                             //a workaround for running on powerful machines. without it there is an ERROR about not
@@ -182,7 +183,7 @@ namespace OPS.Geometry
                             // if we are using the trimmer we should skip loading it back in
                             //  it will have extra payload per vertex to store density and
                             //  our ply reader may not yet support it
-                            if (!options.UseSurfaceTrimmer)
+                            if (options.TrimmerLevel > 0)
                             {
                                 result = Mesh.Load(reconOutputFile);
 
@@ -200,11 +201,12 @@ namespace OPS.Geometry
                                                    reconstructExe + " " + arguments + ": " + e.Message);
                         }
 
-                        if (options.UseSurfaceTrimmer)
+                        if (options.TrimmerLevel > 0)
                         {
                             TemporaryFile.GetAndDelete(".ply", trimmerOutputFile =>
                             {
-                                arguments = "--in " + reconOutputFile + " --out " + trimmerOutputFile + " --trim 6 --aRatio 0.05";
+                                arguments = string.Format("--in {0} --out {1} --trim {2} {3}", reconOutputFile, trimmerOutputFile, (float)options.TrimmerLevel, options.TrimmerIslandPct > 0 ? "--aRatio " + (float)options.TrimmerIslandPct : "");
+                                    
                                 pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);
                                 try
                                 {

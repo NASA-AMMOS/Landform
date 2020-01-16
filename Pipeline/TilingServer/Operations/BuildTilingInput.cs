@@ -81,7 +81,7 @@ namespace OPS.Pipeline.TilingServer
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
                                      bool usePriors, bool noPriors, BoundingBox? preclipBounds = null, string onlyForCameras = null,
                                      bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left, int decimate = 1,
-                                     int targetPointCloudResolution = 1024, bool useSurfaceTrimmer = false,
+                                     int targetPointCloudResolution = 1024, double trimmerLevel = 0, double trimmerIslandPct = 0,
                                      Action<string> info = null,
                                      Action<string> verbose = null, Action<string> warn = null,
                                      Action<string> error = null)
@@ -272,7 +272,10 @@ namespace OPS.Pipeline.TilingServer
                 UseNormalsForConfidence = true,
 
                 // remove low density points
-                UseSurfaceTrimmer = useSurfaceTrimmer
+                TrimmerLevel = trimmerLevel,
+
+                // remove disconnected islands of pts
+                TrimmerIslandPct = trimmerIslandPct
             };
 
             var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
