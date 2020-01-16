@@ -66,8 +66,17 @@ namespace OPS.Pipeline
             return result;
         }
 
-        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
+        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds,
+                                                      int maxTextureSize = int.MaxValue)
         {
+            if (maxTextureSize == 0)
+            {
+                return 0; //texturing disabled
+            }
+            if (maxTextureSize < 0)
+            {
+                maxTextureSize = int.MaxValue;
+            }
             // Read all overlapping meshes, crop each to the extent of the leaf tile
             // and calculate the area the triangles occupy in units of pixels.  Sum all
             // the areas and round up to nearest power of two to decide size of the new tile
@@ -215,14 +224,14 @@ namespace OPS.Pipeline
             double geometricError = combinedDecimated.HausdorffDistance(accuracy, fullClipped);
             geoError.Error = Math.Max(geoError.Error, geometricError);
 
+            //we always bake parent tile textures, regardless of project.TextureMode
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
-
             Image img = null;
             if (size != 0)
             {
                 info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
-                if(combinedDecimated == null)
+                if (combinedDecimated == null)
                 {
                     error("failed to atlas combined children meshes");
                     return false;

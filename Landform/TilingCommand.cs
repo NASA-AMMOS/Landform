@@ -58,7 +58,7 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            withTextures = !tilingOpts.NoTextures && resolution > 0;
+            withTextures = !tilingOpts.NoTextures && resolution != 0;
 
             localSave = tilingOpts.WriteDebug || (!tilingOpts.NoSave && pipeline is LocalPipeline);
             cloudSave = !tilingOpts.NoSave && pipeline is CloudPipeline;

@@ -12,9 +12,10 @@ Accepts the following arugments:
 
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `Oct`, or `UserDefined`; default `Bin`
 * *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `None`
-* *reconmethod*: reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
+* *reconstructionmethod*: mesh reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
-* *tileresolution*: maximum image resolution per tile; default 256
+* *textureresolution*: (max) image resolution per tile, if negative and texturemode=Clip then unlimited; default 256
+* *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
 * *projecttype*: project type; currently only `GenericTiling` is supported
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
 * *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none

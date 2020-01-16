@@ -13,6 +13,24 @@ using OPS.Util;
 
 namespace OPS.Pipeline.TilingServer
 {
+    public enum TilingScheme
+    {        
+        Bin,
+        QuadX,
+        QuadY,
+        QuadZ,
+        Oct,
+        UserDefined
+    }
+
+    public enum TextureMode
+    {
+        None,
+        Clip,       //generate tile textures by clipping regions out of the source texture and offsetting uvs
+        Bake,       //generate tile textures by atlassing tiles and sampling source texture at a desired resolution
+        Backproject //generate tile textures by choosing the best data from observations that viewed the mesh
+    }
+
     [DynamoDBTable("TilingProjects")]
     [DynamoDBReadCapacity(5, 50)]
     [DynamoDBWriteCapacity(5, 50)]
@@ -21,15 +39,17 @@ namespace OPS.Pipeline.TilingServer
         [DynamoDBHashKey]
         public string Name;
 
-        public string TilingScheme;
+        public TilingScheme TilingScheme;
 
-        public string SkirtMode;
+        public SkirtMode SkirtMode;
 
-        public string ReconMethod;
+        public MeshReconstructionMethod ReconstructionMethod;
 
         public int FacesPerTile;
 
-        public int TileResolution;
+        public int TextureResolution;
+
+        public TextureMode TextureMode;
 
         public bool TilesDefined;
 
@@ -80,17 +100,18 @@ namespace OPS.Pipeline.TilingServer
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
-                                MeshReconstructionMethod reconMethod, int faces, int resolution,
+                                MeshReconstructionMethod reconstructionMethod, int faces,
+                                int textureResolution, TextureMode textureMode, 
                                 PipelineStateMachine.ProjectType projectType,
                                 string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
-            : this()
         {
             Name = name;
-            TilingScheme = tilingScheme.ToString();
-            SkirtMode = skirtMode.ToString();
-            ReconMethod = reconMethod.ToString();
+            TilingScheme = tilingScheme;
+            SkirtMode = skirtMode;
+            ReconstructionMethod = reconstructionMethod;
             FacesPerTile = faces;
-            TileResolution = resolution;
+            TextureResolution = textureResolution;
+            TextureMode = textureMode;
             ProjectType = projectType;
             TilesDefined = false;
             ExportMeshFormat = exportMeshFormat;
@@ -101,13 +122,14 @@ namespace OPS.Pipeline.TilingServer
 
 
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
-                                           SkirtMode skirtMode, MeshReconstructionMethod reconMethod, int faces,
-                                           int resolution, PipelineStateMachine.ProjectType projectType,
+                                           SkirtMode skirtMode, MeshReconstructionMethod reconstructionMethod,
+                                           int faces, int textureResolution, TextureMode textureMode,
+                                           PipelineStateMachine.ProjectType projectType,
                                            string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
         {
-            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
-                                                      projectType, exportMeshFormat, exportImageFormat,
-                                                      maxLeafGroupSize);
+            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconstructionMethod, faces,
+                                                      textureResolution, textureMode, projectType, exportMeshFormat,
+                                                      exportImageFormat, maxLeafGroupSize);
             project.Save(pipeline);
             return project;
         }
@@ -199,25 +221,14 @@ namespace OPS.Pipeline.TilingServer
 
         private void IsValid()
         {
-            if (!(Name != null && TilingScheme != null && SkirtMode != null))
+            if (Name == null)
             {
                 throw new Exception("TilingProject is missing a required field");
             }
-        }
-
-        public TilingScheme GetTilingScheme()
-        {
-            return (TilingScheme)Enum.Parse(typeof(TilingScheme), TilingScheme, true);
-        }
-
-        public SkirtMode GetSkirtMode()
-        {
-            return (SkirtMode)Enum.Parse(typeof(SkirtMode), SkirtMode, true);
-        }
-
-        public MeshReconstructionMethod GetReconMethod()
-        {
-            return (MeshReconstructionMethod)Enum.Parse(typeof(MeshReconstructionMethod), ReconMethod, true);
+            if (TextureMode == TextureMode.Backproject)
+            {
+                throw new Exception("unsupported texture mode: " + TextureMode);
+            }
         }
 
         public List<string> LoadNodeIds(PipelineCore pipeline)

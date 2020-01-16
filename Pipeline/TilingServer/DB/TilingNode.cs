@@ -390,7 +390,7 @@ namespace OPS.Pipeline.TilingServer
                         if (pair.Mesh != null)
                         {
                             Mesh tilesetMesh = pair.Mesh;
-                            if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
+                            if (tilesetMesh.HasFaces && project.SkirtMode != SkirtMode.None)
                             {
                                 var bounds = GetBounds();
                                 if (!bounds.HasValue)
@@ -404,7 +404,7 @@ namespace OPS.Pipeline.TilingServer
                                 }
 
                                 tilesetMesh = new Mesh(tilesetMesh);
-                                tilesetMesh.AddSkirt(project.GetSkirtMode());
+                                tilesetMesh.AddSkirt(project.SkirtMode);
 
                                 SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
                             }

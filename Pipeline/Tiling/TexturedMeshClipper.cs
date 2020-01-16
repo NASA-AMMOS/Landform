@@ -19,7 +19,6 @@ namespace OPS.Pipeline
     {
         static ILog logger = LogManager.GetLogger(typeof(TexturedMeshClipper));
 
-
         class MeshImageOperatorPair
         {
             public Image Image;
@@ -207,15 +206,21 @@ namespace OPS.Pipeline
             return patches;
         }
 
-        static public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image image, int borderSize = 5,
-                                                       bool allowRotation = false)
+        static public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image image, int maxTextureSize = -1,
+                                                       int borderSize = 5, bool allowRotation = false)
         {
+            if (!clippedMesh.HasUVs)
+            {
+                throw new ArgumentException("clipped mesh must have UVs");
+            }
             return ClipPatches(ComputePatches(clippedMesh, image, borderSize),
-                               clippedMesh.HasNormals, clippedMesh.HasColors, image.Bands, borderSize, allowRotation);
+                               clippedMesh.HasNormals, clippedMesh.HasColors, image.Bands, maxTextureSize,
+                               borderSize, allowRotation);
         }
 
         static private MeshImagePair ClipPatches(List<TexturePatch> patches, bool hasNormals, bool hasColors,
-                                                 int outputImageBands, int borderSize, bool allowRotation)
+                                                 int outputImageBands, int maxTextureSize,
+                                                 int borderSize, bool allowRotation)
         {
             int maxWidth = 0, maxHeight = 0;
             for (int b = 0; b < patches.Count; b++)
@@ -298,27 +303,34 @@ namespace OPS.Pipeline
                 }
 
             }
+
+            packedImg.ResizeMax(maxTextureSize); //passthrough if maxTextureSize <= 0
+
             List<Triangle> resultTriangles = new List<Triangle>();
             foreach (var p in patches)
             {
                 resultTriangles.AddRange(p.triangles);
             }
+
             MeshImagePair result = new MeshImagePair();
             result.Image = packedImg;
             result.Mesh = new Mesh(resultTriangles, hasNormals: hasNormals, hasUVs: true, hasColors: hasColors);
+
             return result;
         }
 
         /// <summary>
-        /// Clips every mesh in the list of MeshImagePairs to specified bounding box. Creates new texture of patches from original images for each portion of clipped mesh packed into single image.
-        /// Each patch has border of borderSize pixels. Returns new single MeshImagePair with clipped mesh and packed image.
+        /// Clips every mesh in the list of MeshImagePairs to specified bounding box.
+        /// Creates new texture of packed patches from original images for each portion of clipped mesh.
+        /// Each patch has border of borderSize pixels.
+        /// Returns new single MeshImagePair with clipped mesh and packed image.
         /// If rotation is allowed in packing, small pixel texture may be introduced.
         /// </summary>
         /// <param name="box"></param>
         /// <param name="borderSize"></param>
         /// <param name="allowRotation"></param>
         /// <returns></returns>
-        public MeshImagePair Clip(BoundingBox box, int borderSize = 5, bool allowRotation = false)
+        public MeshImagePair Clip(BoundingBox box, int maxTextureSize = -1, int borderSize = 5, bool allowRotation = false)
         {
             if (allowRotation)
             {
@@ -326,7 +338,7 @@ namespace OPS.Pipeline
             }
             List<TexturePatch> patches = new List<TexturePatch>();
         
-            int outputImageBands = 0;
+            int imageBands = 0;
             bool hasNormals = false;
             bool hasColors = false;
             foreach (var pair in pairs)
@@ -334,14 +346,13 @@ namespace OPS.Pipeline
                 Mesh clippedMesh = pair.MeshOperator.Clip(box);
                 clippedMesh.Clean();
                 patches.AddRange(ComputePatches(clippedMesh, pair.Image, borderSize));
-                outputImageBands = Math.Max(outputImageBands, pair.Image.Bands);
+                imageBands = Math.Max(imageBands, pair.Image.Bands);
                 hasNormals |= pair.MeshOperator.HasNormals;
                 hasColors |= pair.MeshOperator.HasColors;
 
             }
 
-            return ClipPatches(patches, hasNormals, hasColors, outputImageBands, borderSize, allowRotation);
-
+            return ClipPatches(patches, hasNormals, hasColors, imageBands, maxTextureSize, borderSize, allowRotation);
         }
     }
 }

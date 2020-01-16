@@ -1,11 +1,11 @@
-﻿using log4net;
-using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
@@ -18,21 +18,28 @@ namespace OPS.Pipeline
     /// </summary>
     public class MultiMeshClipper
     {
-        static ILog logger = LogManager.GetLogger(typeof(MultiMeshClipper));
-
+        private class Dataset
+        {
+            public Mesh Mesh;
+            public Image Image;
+            public MeshOperator MeshOperator;
+            public Dataset(Mesh mesh, Image img)
+            {
+                if (!mesh.HasNormals)
+                {
+                    mesh.GenerateVertexNormals();
+                }
+                this.Mesh = mesh;
+                this.Image = img;
+                MeshOperator = new MeshOperator(mesh, buildFaceTree: true, buildUVFaceTree: false,
+                                                buildVertexTree: !mesh.HasFaces);
+            }
+        }
 
         public BoundingBox TotalBounds;
-        public List<MultiMeshClipperInput> Inputs;
-        public TextureBaker TextureBaker;
-        public TexturedMeshClipper TexturedMeshClipper;
-
-        bool textureBakerInitialized = false;
-
-        public MultiMeshClipper()
-        {
-            this.Inputs = new List<MultiMeshClipperInput>();
-            TexturedMeshClipper = new TexturedMeshClipper();
-        }
+        private List<Dataset> Inputs = new List<Dataset>();
+        private TextureBaker TextureBaker;
+        private TexturedMeshClipper TexturedMeshClipper = new TexturedMeshClipper();
 
         /// <summary>
         /// Adds a new input dataset
@@ -42,21 +49,22 @@ namespace OPS.Pipeline
         /// Otherwise the clipping behaviour is undefined
         /// </summary>
         /// <param name="dataset"></param>
-        public void AddInput(MultiMeshClipperInput dataset)
+        public void AddInput(Mesh mesh, Image img)
         {
-            if(textureBakerInitialized)
+            if (TextureBaker != null)
             {
                 throw new Exception("Cannot add dataset after calling InitTextureBaker()");
             }
-            if (this.Inputs.Count == 0)
+
+            var dataset = new Dataset(mesh, img);
+            Inputs.Add(dataset);
+
+            var bounds = dataset.MeshOperator.Bounds;
+            TotalBounds = Inputs.Count == 1 ? bounds : BoundingBoxExtensions.Union(TotalBounds, bounds);
+
+            if (img != null && dataset.MeshOperator.HasUVs)
             {
-                TotalBounds = dataset.MeshOperator.Bounds;
-            }
-            TotalBounds = BoundingBoxExtensions.Union(TotalBounds, dataset.MeshOperator.Bounds);
-            this.Inputs.Add(dataset);
-            if (dataset.Image != null)
-            {
-                this.TexturedMeshClipper.AddMeshImagePair(dataset.Mesh, dataset.Image);
+                TexturedMeshClipper.AddMeshImagePair(dataset.MeshOperator, img);
             }
         }
 
@@ -66,18 +74,10 @@ namespace OPS.Pipeline
         /// </summary>
         public void InitTextureBaker()
         {            
-            if (!textureBakerInitialized)
+            var datasets = Inputs.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
+            if (datasets.Length > 0)
             {
-                textureBakerInitialized = true;
-                var datasets = this.Inputs.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
-                if (datasets.Length > 0)
-                {
-                    TextureBaker = new TextureBaker(datasets);
-                }
-            }
-            else
-            {
-                logger.Warn("Already initialized");
+                TextureBaker = new TextureBaker(datasets);
             }
         }
 
@@ -126,7 +126,7 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Clips the collection of input meshes and returns a single merged mesh as a result
-        /// If ragged is set to true the original polygons will be left intact and not clipped to straight line boundaries
+        /// If ragged is true the original polygons will be left intact and not clipped to straight line boundaries
         /// and any triangle that intersects with the box will be included.
         /// </summary>
         /// <param name="box"></param>
@@ -134,8 +134,8 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
-            var meshes = this.Inputs.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged)).ToArray();
-            var merged = Mesh.Merge(meshes);
+            var meshes = Inputs.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged));
+            var merged = Mesh.Merge(meshes.ToArray());
             merged.Clean();
             return merged;
         }
@@ -148,36 +148,43 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public MeshImagePair ClipWithTexture(BoundingBox box)
+        public MeshImagePair ClipWithTexture(BoundingBox box, int maxTextureSize)
         {
-            return this.TexturedMeshClipper.Clip(box);
+            return TexturedMeshClipper.Clip(box, maxTextureSize);
         }
 
         /// <summary>
         /// Clips a merged mesh from the collection of input datasets
-        /// Generates a texture for the mesh by uv-ing the mesh and baking
+        /// Generates a texture for the mesh by uv-ing the mesh (if necessary) and baking
         /// color data across.  The size of the texture will match the provided
         /// size.  Depending on input resolution and output size this may over or 
         /// undersample the original data.
+        /// If the provided mesh already has UVs they will be used, otherwise UVAtlas will be called to generate UVs.
+        /// Caller must ensure that existing UVs utilize the full [0,1]x[0,1] UV space.
+        /// If the mesh UVs came from MultiMeshClipper.Clip() then that will likely not be true.
+        /// Mesh.RescaleUVs() can be used to remap the mesh UVs to [0,1]x[0,1].
         /// </summary>
         /// <param name="mesh"></param>
         /// <param name="textureSize"></param>
         /// <returns></returns>
         public MeshImagePair BakeTexture(Mesh mesh, int textureSize, Action<string> info = null)
         {
-            info = info ?? (msg => {});
-            if(!textureBakerInitialized)
+            if (TextureBaker == null)
             {
                 throw new Exception("InitTextureBaker() must be called before BakeTexture");
             }
-            var box = mesh.Bounds();
 
+            info = info ?? (msg => {});
             info(string.Format("atlasing mesh with UVAtlas, texture resolution {0}", textureSize));
-            mesh = UVAtlas.Atlas(mesh, textureSize, textureSize);
-            if(mesh == null)
+
+            if (!mesh.HasUVs)
             {
-                info("failed to atlas mesh for texture bake");
-                return null;
+                mesh = UVAtlas.Atlas(mesh, textureSize, textureSize);
+                if(mesh == null)
+                {
+                    info("failed to atlas mesh for texture bake");
+                    return null;
+                }
             }
 
             info("baking texture");

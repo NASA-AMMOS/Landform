@@ -24,6 +24,9 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "Scene mesh texture image to bake into tiles, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
+        [Option(Default = false, HelpText = "Replace existing tile mesh texture coordinates with UVAtlas")]
+        public bool RedoTileMeshUVs { get; set; }
+
         [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.03)]
         public double SplitByTexturePctToTest { get; set; }
 
@@ -33,8 +36,11 @@ namespace OPS.Landform
         [Option(HelpText = "Ratio of source pixels to destination pixels that would trigger a split", Default = 16)]
         public double SplitByTextureSamplingRatio { get; set; }
 
-        [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
+        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, Oct)", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
+
+        [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
+        public string TextureMode { get; set; }
 
         [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = TextureVariant.Blended)]
         public override TextureVariant TextureVariant { get; set; }
@@ -45,7 +51,7 @@ namespace OPS.Landform
         [Option(HelpText = "Debug function that skips all tiles except the one with this name", Default = null)]
         public string OnlyTilesNamed { get; set; }
 
-        [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
+        [Option(HelpText = "Mission to use if creating project (only if --inputmesh --inputtexture (or texturing disabled)", Default = Mission.None)]
         public Mission Mission { get; set; }
 
         [Option(HelpText = "Don't save tile backproject index images", Default = false)]
@@ -62,17 +68,11 @@ namespace OPS.Landform
 
     public class BuildTilingInput : TilingCommand
     {
+        public const int DEF_MAX_TEXTURE_RESOLUTION = 256;
+
         private BuildTilingInputOptions options;
 
-        private enum TextureGenMode
-        {
-            None,       //generate just mesh with no textures
-            Clip,       //generate tile textures by clipping regions out of the source texture and offsetting uvs
-            Bake,       //generate tile textures by atlassing tiles and sampling source texture at a desired resolution
-            Backproject //generate tile textures by choosing the best data from observations that viewed the mesh
-        };
-        private TextureGenMode texGenMode = TextureGenMode.None;
-
+        private TextureMode textureMode = TextureMode.None;
         private Image sceneTexture;
         private SceneNode tileTree;
 
@@ -96,15 +96,16 @@ namespace OPS.Landform
                     return 0;
                 }
 
-                if (texGenMode == TextureGenMode.Clip || texGenMode == TextureGenMode.Bake)
+                bool clipOrBake = textureMode == TextureMode.Clip || textureMode == TextureMode.Bake;
+
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: clipOrBake));
+
+                if (clipOrBake)
                 {
-                    RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
+                    RunPhase("load input image", LoadInputTexture);
                 }
 
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
-                                                                texGenMode == TextureGenMode.Bake));
-
-                if (texGenMode == TextureGenMode.Backproject)
+                if (textureMode == TextureMode.Backproject)
                 {
                     RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
@@ -123,7 +124,7 @@ namespace OPS.Landform
                     RunPhase("build leaf meshes", BuildLeafMeshes);
                 }
 
-                if (withTextures && texGenMode == TextureGenMode.Backproject)
+                if (withTextures && textureMode == TextureMode.Backproject)
                 {
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
                 }
@@ -174,59 +175,52 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            if (options.LoadLODs && !BakingInputMesh())
+            if (options.LoadLODs && string.IsNullOrEmpty(options.InputMesh))
             {
-                throw new Exception("--loadlods requires --inputmesh and --inputtexture");
+                throw new Exception("--loadlods requires --inputmesh");
             }
 
-            string description = null;
-            if (!withTextures)
+            if (string.IsNullOrEmpty(options.TextureMode))
             {
-                texGenMode = TextureGenMode.None;
-                description = "not making";
-            }
-            else if (options.LoadLODs)
-            {
-                //TODO we should probably default to clipping vs baking whenever --inputtexture is given
-                //not just when --loadlods is given
-                //https://github.jpl.nasa.gov/OnSight/Landform/issues/199
-                //https://github.jpl.nasa.gov/OnSight/Landform/issues/713
-                //also note: below in BuildTileTexturesAndSaveTiles() we will switch texGenMode to Bake
-                //if the input mesh actually only had one LOD (we don't know that yet here)
-                texGenMode = TextureGenMode.Clip;
-                description = "clipping/baking from source texture";
-                options.NoBackprojectIndexImages = true;
-            }
-            else if (!string.IsNullOrEmpty(options.InputTexture))
-            {
-                texGenMode = TextureGenMode.Bake;
-                description = "baking from source texture";
-                options.NoBackprojectIndexImages = true;
-            }
-            else
-            {
-                texGenMode = TextureGenMode.Backproject;
-                description = "backprojecting from observations";
+                options.TextureMode = "auto";
             }
 
-            if (!options.NoBackprojectIndexImages && texGenMode != TextureGenMode.Backproject)
+            if (options.TextureMode.ToLower() == "auto")
             {
-                throw new Exception("not backprojecting textures, cannot save backproject index images");
+                if (!withTextures || resolution == 0)
+                {
+                    textureMode = TextureMode.None;
+                }
+                else
+                {
+                    textureMode = DisableDatabase() ? TextureMode.Clip : TextureMode.Backproject;
+                }
+            }
+            else if (!Enum.TryParse<TextureMode>(options.TextureMode, true, out textureMode))
+            {
+                throw new Exception(string.Format("unknown texture mode \"{0}\"", options.TextureMode));
             }
 
-            pipeline.LogInfo("{0} tile textures", description);
+            if (resolution < 0 && textureMode != TextureMode.Clip)
+            {
+                resolution = DEF_MAX_TEXTURE_RESOLUTION;
+            }
+
+            pipeline.LogInfo("texture mode: {0}, resolution {1}", textureMode, resolution);
 
             return true;
         }
 
-        private bool BakingInputMesh()
+        private bool DisableDatabase()
         {
-            return !string.IsNullOrEmpty(options.InputMesh) && !string.IsNullOrEmpty(options.InputTexture);
+            return !string.IsNullOrEmpty(options.InputMesh) &&
+                (!string.IsNullOrEmpty(options.InputTexture) ||
+                 options.NoTextures || options.TextureResolution == 0 || options.TextureMode.ToLower() == "none");
         }
 
         protected override Project GetProject()
         {
-            if (BakingInputMesh())
+            if (DisableDatabase())
             {
                 string projectName = options.ProjectName;
                 if (string.IsNullOrEmpty(projectName))
@@ -261,22 +255,22 @@ namespace OPS.Landform
 
         protected override string GetAutoMeshFrame()
         {
-            return BakingInputMesh() ? "passthrough" : "newest";
+            return DisableDatabase() ? "passthrough" : "newest";
         }
 
         protected override bool PassthroughMeshFrameAllowed()
         {
-            return BakingInputMesh();
+            return DisableDatabase();
         }
 
         protected override bool NonPassthroughMeshFrameAllowed()
         {
-            return !BakingInputMesh();
+            return !DisableDatabase();
         }
 
         protected override void LoadFrameCache()
         {
-            if (!BakingInputMesh())
+            if (!DisableDatabase())
             {
                 base.LoadFrameCache();
             }
@@ -284,9 +278,42 @@ namespace OPS.Landform
 
         protected override void LoadObservationCache()
         {
-            if (!BakingInputMesh())
+            if (!DisableDatabase())
             {
                 base.LoadObservationCache();
+            }
+        }
+
+        private void LoadInputTexture()
+        {
+            if (!string.IsNullOrEmpty(options.InputTexture))
+            {
+                pipeline.LogInfo("loading input texture from {0}", options.InputTexture);
+                sceneTexture = pipeline.LoadImage(options.InputTexture);
+            }
+            else if (project != null && sceneMesh != null)
+            {
+                Guid texGuid = Guid.Empty;
+                switch (options.TextureVariant)
+                {
+                    case TextureVariant.Original: texGuid = sceneMesh.TextureGuid; break;
+                    case TextureVariant.Blurred: texGuid = sceneMesh.BlurredTextureGuid; break;
+                    case TextureVariant.Blended: texGuid = sceneMesh.BlendedTextureGuid; break;
+                    default: throw new Exception("unhandled texture variant: " + options.TextureVariant);
+                }
+                if (texGuid != Guid.Empty)
+                {
+                    pipeline.LogInfo("loading {0} scene texture from database", options.TextureVariant);
+                    sceneTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                }
+                else
+                {
+                    throw new Exception(string.Format("no {0} scene texture in database", options.TextureVariant));
+                }
+            }
+            else
+            {
+                throw new Exception("cannot load input texture, no scene mesh in database");
             }
         }
 
@@ -300,7 +327,7 @@ namespace OPS.Landform
             else
             {
                 SplitByTextureOpts texSplitOpts = null;
-                if (texGenMode == TextureGenMode.Backproject && options.SplitByTexturePctToTest > 0)
+                if (textureMode == TextureMode.Backproject && options.SplitByTexturePctToTest > 0)
                 {
 				CameraInstance toCameraInstance(Observation obs)
                     {
@@ -442,7 +469,7 @@ namespace OPS.Landform
                 MeshExt = meshExt,
                 ImageExt = withTextures ? imageExt : null,
                 MeshFrame = meshFrame,
-                HasIndexImages = !options.NoBackprojectIndexImages,
+                HasIndexImages = textureMode == TextureMode.Backproject && !options.NoBackprojectIndexImages,
                 TilingScheme = options.TilingScheme,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
@@ -459,31 +486,33 @@ namespace OPS.Landform
                 .ToList();
             int tileCount = tilesToTexture.Count;
 
-            if (options.LoadLODs && meshLOD.Count == 1)
+            string texMsg = textureMode == TextureMode.Bake ? "baking" :
+                textureMode == TextureMode.Backproject ? "backprojecting" :
+                textureMode == TextureMode.Clip ? "clipping" :
+                "no";
+
+            pipeline.LogInfo("processing {0} tiles, {1} {2}x{2} {3} textures{4}", tileCount, texMsg, resolution,
+                             options.TextureVariant,
+                             options.TextureVariant != TextureVariant.Original ?
+                             " (falling back to " + TextureVariant.Original + ")" : "");
+
+            if (meshLOD.Count == 1 && textureMode != TextureMode.None && textureMode != TextureMode.Bake)
             {
-                //TODO for now if the input mesh has only one LOD behave same as if --loadlods was not specified
-                texGenMode = TextureGenMode.Bake;
+                //TODO #875
+                pipeline.LogWarn("{0} leaf tile textures but baking parent tile textures", texMsg);
+            }
+
+            if (tileList.HasIndexImages)
+            {
+                pipeline.LogInfo("saving tile backproject index images");
             }
 
             MultiMeshClipper bakeClipper = null;
-            if (texGenMode == TextureGenMode.Bake)
+            if (textureMode == TextureMode.Bake)
             {
                 bakeClipper = new MultiMeshClipper();
-                bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
+                bakeClipper.AddInput(mesh, sceneTexture);
                 bakeClipper.InitTextureBaker();
-            }
-
-            var texMsg = string.Format("{0}x{0} {1} textures{2}",
-                                       resolution, options.TextureVariant,
-                                       options.TextureVariant != TextureVariant.Original ?
-                                       " (falling back to " + TextureVariant.Original + ")" : "");
-            pipeline.LogInfo("processing {0} tiles{1}", tileCount,
-                             texGenMode == TextureGenMode.Bake ? ", baking " + texMsg :
-                             texGenMode == TextureGenMode.Backproject ? ", backprojecting " + texMsg :
-                             texGenMode == TextureGenMode.Clip ? ", clipping " + texMsg : "");
-            if (texGenMode == TextureGenMode.Backproject && !options.NoBackprojectIndexImages)
-            {
-                pipeline.LogInfo("saving tile backproject index images");
             }
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
@@ -503,7 +532,7 @@ namespace OPS.Landform
                 MeshImagePair mp = tile.GetComponent<MeshImagePair>();
 
                 Image index = null;
-                if (texGenMode == TextureGenMode.Bake)
+                if (textureMode == TextureMode.Bake)
                 {
                     var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogVerbose(msg));
                     if (newMP != null)
@@ -512,14 +541,14 @@ namespace OPS.Landform
                         mp.Image = newMP.Image;
                     }
                 }
-                else if (texGenMode == TextureGenMode.Backproject)
+                else if (textureMode == TextureMode.Backproject)
                 {
                     index = !options.NoBackprojectIndexImages ? new Image(3, resolution, resolution) : null;
                     mp.Image = BackprojectTile(tile, mp.Mesh, index);
                 }
-                else if (texGenMode == TextureGenMode.Clip)
+                else if (textureMode == TextureMode.Clip)
                 {
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture);
+                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, resolution);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }
@@ -687,23 +716,37 @@ namespace OPS.Landform
                 return null;
             }
 
-            //assign UVs to the tile vertices iff backproject (not baked) texturing is requested
-            if (texGenMode == TextureGenMode.Backproject)
+            if (textureMode == TextureMode.Bake || textureMode == TextureMode.Backproject)
             {
-                try
+                if (!tileMesh.HasUVs || options.RedoTileMeshUVs)
                 {
-                    tileMesh = UVAtlas.Atlas(tileMesh, options.TextureResolution, options.TextureResolution);
-                    if (tileMesh == null)
+                    pipeline.LogVerbose("atlasing tile mesh {0} with UVAtlas, texture resolution {1}",
+                                        tile.Name, options.TextureResolution);
+                    try
                     {
-                        pipeline.LogError("error atlasing tile mesh {0}: {1}", tile.Name);
+                        tileMesh = UVAtlas.Atlas(tileMesh, options.TextureResolution, options.TextureResolution);
+                        if (tileMesh == null)
+                        {
+                            pipeline.LogError("unknown error atlasing tile mesh {0}", tile.Name);
+                            return null;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        pipeline.LogError("error atlasing tile mesh {0}: {1}", tile.Name, ex.Message);
                         return null;
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    pipeline.LogError("error atlasing tile mesh {0}: {1}", tile.Name, ex.Message);
-                    return null;
+                    pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
+                    tileMesh.RescaleUVs();
                 }
+            }
+            else if (textureMode == TextureMode.Clip && !tileMesh.HasUVs)
+            {
+                pipeline.LogError("cannot clip texture for tile {0}: scene mesh missing UVs", tile.Name);
+                return null;
             }
 
             return tileMesh;

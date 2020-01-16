@@ -79,8 +79,7 @@ namespace OPS.Pipeline.TilingServer
             }
             LogInfo("building acceleration structures to chunk input {0}", message.InputName);
             var multiClipper = new MultiMeshClipper();
-            var dataset = new MultiMeshClipperInput(mesh, sparseImage);
-            multiClipper.AddInput(dataset);
+            multiClipper.AddInput(mesh, sparseImage);
 
             LogInfo("building bounds tree to chunk input {0}", message.InputName);
             var tilingScheme = new BinaryTreeTilingScheme();
@@ -96,7 +95,7 @@ namespace OPS.Pipeline.TilingServer
                 {
                     BoundingBox bounds = leaf.GetComponent<NodeBounds>().Bounds;
                     string id = Guid.NewGuid().ToString();
-                    Mesh m = multiClipper.Clip(bounds, true);
+                    Mesh m = multiClipper.Clip(bounds, ragged: true);
                     m.Save(f);
                     string meshUrl = pipeline.GetStorageUrl("chunk", projectName, id + MESH_EXT);
                     pipeline.SaveFile(f, meshUrl);

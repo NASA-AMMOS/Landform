@@ -172,9 +172,11 @@ namespace OPS.Landform
 
                 int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
+                var texMode = withTextures ? TextureMode.Bake : TextureMode.None;
+
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      options.SkirtMode, options.ReconstructionMethod,
-                                                     options.FacesPerTile, resolution, projectType,
+                                                     options.FacesPerTile, resolution, texMode, projectType,
                                                      options.ExportMeshFormat, options.ExportImageFormat,
                                                      maxTileGroupSize);
 

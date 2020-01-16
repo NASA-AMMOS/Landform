@@ -127,7 +127,7 @@ namespace OPS.Pipeline.TilingServer
 
             SceneNode root = null;
 
-            var tilingScheme = project.GetTilingScheme();
+            var tilingScheme = project.TilingScheme;
             bool userDefined = tilingScheme == TilingScheme.UserDefined;
 
             var idToSceneNode = new Dictionary<string, SceneNode>();
@@ -379,7 +379,7 @@ namespace OPS.Pipeline.TilingServer
             var multiClipper = new MultiMeshClipper();
             foreach (var pair in pairs)
             {
-                multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
+                multiClipper.AddInput(pair.Mesh, pair.Image);
             }
 
             ITilingScheme scheme = GetTilingScheme(tilingScheme);

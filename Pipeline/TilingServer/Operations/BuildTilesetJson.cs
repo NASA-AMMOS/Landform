@@ -31,7 +31,7 @@ namespace OPS.Pipeline.TilingServer
             var project = TilingProject.Find(pipeline, projectName);
 
             var tilingNodes = new Dictionary<string, TilingNode>();
-            var root = TilingNode.BuildTreeFromDatabase(pipeline, project, project.GetSkirtMode() != SkirtMode.None,
+            var root = TilingNode.BuildTreeFromDatabase(pipeline, project, project.SkirtMode != SkirtMode.None,
                                                         tilingNodes);
 
             // Only nodes with mesh image pairs will be marked as having content in the tile builder
