@@ -280,7 +280,14 @@ namespace OPS.Pipeline.TilingServer
 
             var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
 
-            info(string.Format("Poisson reconstructed mesh with {0} faces", Fmt.KMG(ret.Faces.Count)));
+            if (ret != null)
+            {
+                info(string.Format("Poisson reconstructed mesh with {0} faces", Fmt.KMG(ret.Faces.Count)));
+            }
+            else
+            {
+                warn("reconstruction failed");
+            }
 
             return ret;
         }

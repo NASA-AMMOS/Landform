@@ -183,7 +183,7 @@ namespace OPS.Geometry
                             // if we are using the trimmer we should skip loading it back in
                             //  it will have extra payload per vertex to store density and
                             //  our ply reader may not yet support it
-                            if (options.TrimmerLevel > 0)
+                            if (options.TrimmerLevel <= 0)
                             {
                                 result = Mesh.Load(reconOutputFile);
 
