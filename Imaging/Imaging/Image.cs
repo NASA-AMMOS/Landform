@@ -65,6 +65,25 @@ namespace OPS.Imaging
             return new BinaryImage(width, height);
         }
 
+        //method based on TerrainTools GetSourceAreaForRowCol()
+        //half the area reported by the cross product is the area of that triangle
+        public static double CalculatePixelArea(Vector2[] pixels)
+        {
+            if (pixels.Length != 4)
+            {
+                throw new Exception("Need four pixels for area");
+            }
+
+            Vector2 ab = (pixels[1] - pixels[0]);
+            Vector2 ad = (pixels[3] - pixels[0]);
+            Vector2 cb = (pixels[1] - pixels[2]);
+            Vector2 cd = (pixels[3] - pixels[2]);
+
+            double area1 = 0.5 * Vector3.Cross(new Vector3(ab, 0), new Vector3(ad, 0)).Length();
+            double area2 = 0.5 * Vector3.Cross(new Vector3(cb, 0), new Vector3(cd, 0)).Length();
+            return area1 + area2;
+        }
+
         /// <summary>
         /// Load an image using default serializer and converter
         /// </summary>
