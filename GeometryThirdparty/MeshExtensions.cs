@@ -97,6 +97,11 @@ namespace OPS.Geometry
                                               MeshReconstructionMethod method = MeshReconstructionMethod.FSSR,
                                               BoundingBox? clippingBounds = null, Vector3? upAxis = null)
         {
+            double area = m.SurfaceArea();
+            if (area < 1e-10)
+            {
+                return m;
+            }
             if (method != MeshReconstructionMethod.FSSR && method != MeshReconstructionMethod.Poisson)
             {
                 throw new ArgumentException("unsupported reconstruction method: " + method);
@@ -108,8 +113,8 @@ namespace OPS.Geometry
                 m.GenerateVertexNormals();
             }
             m.NormalizeNormals();
-            double density = SAMPLES_PER_FACE * targetFaces / m.SurfaceArea();
-            Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, density);
+            double density = SAMPLES_PER_FACE * targetFaces / area;
+            Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, density, area: area);
             pc.HasUVs = false;
             switch (method)
             {
