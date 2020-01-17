@@ -111,7 +111,7 @@ namespace PipelineTest
                 scInMesh = sc
             };
 
-            ITileSplitCriteria split = new TextureSplitCriteria(opts);
+            ITileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
             return split.ShouldSplit(op, box);
         }
     }
