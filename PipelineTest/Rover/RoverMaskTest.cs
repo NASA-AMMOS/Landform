@@ -17,7 +17,7 @@ namespace PipelineTest
         [TestMethod]
         [DeploymentItem("gdal", "gdal")]
         [DeploymentItem("TestData", "TestData")]
-        [DeploymentItem("Rover\\Resources", "Rover\\Resources")]
+        [DeploymentItem("MissionSpecific\\Resources", "MissionSpecific\\Resources")]
         [DeploymentItem("x86", "x86")]
         [DeploymentItem("x64", "x64")]
         public void RoverMaskSanity()

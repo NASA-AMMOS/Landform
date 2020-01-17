@@ -15,16 +15,16 @@ namespace OPS.Pipeline
     /// </summary>
     public class CuriosityRoverModel : RoverModel
     {
-        private readonly string ROVER_BODY_FILE = "Rover/Resources/CuriosityMaskGeometry/Body.obj";
-        private readonly string LEFT_ROCKER_FILE = "Rover/Resources/CuriosityMaskGeometry/LeftRocker.obj";
-        private readonly string RIGHT_ROCKER_FILE = "Rover/Resources/CuriosityMaskGeometry/RightRocker.obj";
-        private readonly string LEFT_BOGIE_FILE = "Rover/Resources/CuriosityMaskGeometry/LeftBogie.obj";
-        private readonly string RIGHT_BOGIE_FILE = "Rover/Resources/CuriosityMaskGeometry/RightBogie.obj";
-        private readonly string ARM1_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm01.obj";
-        private readonly string ARM2_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm02.obj";
-        private readonly string ARM3_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm03.obj";
-        private readonly string ARM4_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm04.obj";
-        private readonly string ARM5_FILE = "Rover/Resources/CuriosityMaskGeometry/Arm05.obj";
+        private readonly string ROVER_BODY_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/Body.obj";
+        private readonly string LEFT_ROCKER_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/LeftRocker.obj";
+        private readonly string RIGHT_ROCKER_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/RightRocker.obj";
+        private readonly string LEFT_BOGIE_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/LeftBogie.obj";
+        private readonly string RIGHT_BOGIE_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/RightBogie.obj";
+        private readonly string ARM1_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/Arm01.obj";
+        private readonly string ARM2_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/Arm02.obj";
+        private readonly string ARM3_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/Arm03.obj";
+        private readonly string ARM4_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/Arm04.obj";
+        private readonly string ARM5_FILE = "MissionSpecific/Resources/CuriosityMaskGeometry/Arm05.obj";
 
         private readonly Mesh Body;
         private readonly Mesh LeftRocker;
