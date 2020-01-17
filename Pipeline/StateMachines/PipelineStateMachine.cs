@@ -597,20 +597,6 @@ namespace OPS.Pipeline
             project.FinishedRunning = true;
             project.Save(pipeline);
             LogInfo("finished running");
-            var root = TilingNode.Find(pipeline, projectName, projectCache.RootId());
-            if (root != null)
-            {
-                var bounds = root.GetBounds();
-                if (bounds.HasValue)
-                {
-                    var size = bounds.Value.Size();
-                    LogInfo("scene bounds (meters): {0:F3}x{1:F3}x{2:F3}", size.X, size.Y, size.Z);
-                }
-                else
-                {
-                    LogError("root node missing bounds");
-                }
-            }
             projectCache.Reset();
             pipeline.CleanupTempDir();
         }

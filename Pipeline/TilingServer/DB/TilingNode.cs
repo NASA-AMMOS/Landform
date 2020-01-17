@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using Amazon.DynamoDBv2.DataModel;
 using log4net;
+using Newtonsoft.Json;
 using Microsoft.Xna.Framework;
 using OPS.Cloud;
 using OPS.Geometry;
@@ -40,6 +41,10 @@ namespace OPS.Pipeline.TilingServer
         public string BoundsWithSkirt;
 
         public double? GeometricError;
+
+        [DynamoDBProperty("Stats", typeof(MeshImagePairStatsConverter))]
+        [JsonConverter(typeof(MeshImagePairStatsConverter))]
+        public MeshImagePairStats Stats;
 
         //This constructor must be public for DynamoDB but should not be used
         public TilingNode() { }
@@ -218,7 +223,7 @@ namespace OPS.Pipeline.TilingServer
         //  3. optionally the mesh and/or image are also uploaded to www in the export formats
         /// </summary>
         public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, TilingProject project,
-                             bool enableInternal = true)
+                             bool enableInternal = true, bool computeStats = true)
         {
             if (pair.Mesh == null)
             {
@@ -450,6 +455,11 @@ namespace OPS.Pipeline.TilingServer
             {
                 imageCache[ImageUrl] = pair.Image;
             }
+
+            if (computeStats)
+            {
+                Stats = new MeshImagePairStats(pair);
+            }
         }
 
         
@@ -595,14 +605,19 @@ namespace OPS.Pipeline.TilingServer
             {
                 node.AddComponent(new NodeGeometricError(GeometricError.Value));
             }
+            if (Stats != null)
+            {
+                node.AddComponent(Stats);
+            }
             return node;
         }
 
         public static SceneNode BuildTreeFromDatabase(PipelineCore pipeline, TilingProject project,
-                                                      bool useBoundsWithSkirt = false)
+                                                      bool useBoundsWithSkirt = false,
+                                                      Dictionary<string, TilingNode> tilingNodes = null)
         {
             var nodes = Find(pipeline, project).ToList();
-            Dictionary<string, SceneNode> idToNode = new Dictionary<string, SceneNode>();
+            var idToNode = new Dictionary<string, SceneNode>();
             // Create all nodes
             foreach (var n in nodes)
             {
@@ -613,6 +628,10 @@ namespace OPS.Pipeline.TilingServer
                     sn.GetOrAddComponent<NodeBounds>().Bounds = sb.Value;
                 }
                 idToNode.Add(n.Id, sn);
+                if (tilingNodes != null)
+                {
+                    tilingNodes.Add(n.Id, n);
+                }
             }
             // Connect parents and children
             SceneNode root = null;

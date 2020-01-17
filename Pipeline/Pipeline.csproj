@@ -251,6 +251,7 @@
     <Compile Include="MissionSpecific\CuriosityRoverModel.cs" />
     <Compile Include="MissionSpecific\RoverReachability.cs" />
     <Compile Include="MissionSpecific\SolDateTime.cs" />
+    <Compile Include="Tiling\MeshImagePairStats.cs" />
     <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />
     <Compile Include="MissionSpecific\SiteDrive.cs" />

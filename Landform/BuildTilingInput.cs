@@ -342,6 +342,8 @@ namespace OPS.Landform
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
                                                                texSplitOpts);
             }
+
+            tileTree.DumpStats(msg => pipeline.LogInfo(msg));
         }
 
         private CameraInstance ToCameraInstance(RoverObservation obs)
@@ -574,7 +576,9 @@ namespace OPS.Landform
                     Interlocked.Increment(ref numFailed);
                 }
 
-                tile.RemoveComponent<MeshImagePair>(); //conserve memory
+                //conserve memory
+                tile.AddComponent(new MeshImagePairStats(tile.GetComponent<MeshImagePair>()));
+                tile.RemoveComponent<MeshImagePair>();
 
                 Interlocked.Decrement(ref np);
             }
@@ -590,6 +594,8 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("{0} tiles built successfully", numSucceded);
+
+            tileTree.DumpStats(msg => pipeline.LogInfo(msg));
 
             if (!options.NoSave)
             {
