@@ -115,8 +115,6 @@ namespace OPS.Geometry
             double density = SAMPLES_PER_FACE * targetFaces / m.SurfaceArea();
             Mesh pc = new SurfacePointSampler().GenerateSampledMesh(m, density);
             pc.HasUVs = false;
-            // TODO: Why do we need to normalize here, issue with GenerateSampledMesh?
-            pc.NormalizeNormals();
             switch (method)
             {
                 case MeshReconstructionMethod.FSSR:
