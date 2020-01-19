@@ -38,10 +38,11 @@ namespace OPS.Geometry
         /// This is a metric that approximates how many points to place on a flat surface within a given square unit area, where denser = more points.</param>
         /// <param name="presampleFactor">Factor of how many points to sample randomly before pruning away ones that are too close together</param>
         /// <returns>New mesh containing a point cloud of samples across the surface of the given mesh</returns>
-        public Mesh GenerateSampledMesh(Mesh input, double density, double presampleFactor = 20.0)
+        public Mesh GenerateSampledMesh(Mesh input, double density, double presampleFactor = 20.0,
+                                        bool normalizeNormals = true)
         {
             // Perform Poisson-disc sampling on the given mesh with the specified density and presample factor
-            Vertex[] sampled = Sample(input, density, presampleFactor);
+            Vertex[] sampled = Sample(input, density, presampleFactor, normalizeNormals);
 
             // Build a list of vertices out of the vertex array
             List<Vertex> sampledVertexList = new List<Vertex>(sampled);
@@ -64,7 +65,7 @@ namespace OPS.Geometry
         /// This is a metric that approximates how many points to place on a flat surface within a given square unit area, where denser = more points.</param>
         /// <param name="presampleFactor">Factor of how many points to sample randomly before pruning away ones that are too close together</param>
         /// <returns>Vertex array containing a point cloud of samples across the surface of the given mesh</returns>
-        public Vertex[] Sample(Mesh input, double density, double presampleFactor = 20.0)
+        public Vertex[] Sample(Mesh input, double density, double presampleFactor = 20.0, bool normalizeNormals = true)
         {
             // Make the random generator deterministic upon sampling each model independent of one another
             random = new Random(samplingSeed);
@@ -86,7 +87,7 @@ namespace OPS.Geometry
             Dictionary<Vector3Int, UnorderedList<Vector3WithTri>> cells = FillCells(oversampledPoints, cellSize);
             List<Vector3Int> shuffledCells = Shuffle(cells.Keys.ToList());
             Vector3WithTri[] prunedPoints = Prune(cells, shuffledCells, radius);
-            Vertex[] verticesWithNormals = GenerateVertices(prunedPoints, input);
+            Vertex[] verticesWithNormals = GenerateVertices(prunedPoints, input, normalizeNormals);
 
             // Return an array of pruned vertices
             return verticesWithNormals;
@@ -354,7 +355,7 @@ namespace OPS.Geometry
         /// <param name="points"></param>
         /// <param name="input"></param>
         /// <returns></returns>
-        private Vertex[] GenerateVertices(Vector3WithTri[] points, Mesh input)
+        private Vertex[] GenerateVertices(Vector3WithTri[] points, Mesh input, bool normalizeNormals)
         {
             // Array of vertices that will be returned when populated
             Vertex[] vertices = new Vertex[points.Length];
@@ -376,6 +377,10 @@ namespace OPS.Geometry
                 if (input.HasNormals)
                 {
                     vertex.Normal = trianglePoint.Normal;
+                    if (normalizeNormals)
+                    {
+                        vertex.Normal.Normalize(); //https://github.jpl.nasa.gov/OnSight/Landform/issues/110
+                    }
                 }
                 if (input.HasUVs)
                 {
