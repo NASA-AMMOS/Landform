@@ -583,10 +583,5 @@ namespace OPS.Geometry
                 .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
             return clipped.Where(tri => !box.FuzzyContains(tri.Bounds()));
         }
-
-        public override int GetHashCode()
-        {
-            return V0.Position.X.GetHashCode() ^ V1.Position.Y.GetHashCode() ^ V2.Position.Z.GetHashCode();
-        }        
     }
 }

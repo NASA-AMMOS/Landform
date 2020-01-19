@@ -854,6 +854,12 @@ namespace OPS.Landform
                 bakeClipper.InitTextureBaker();
             }
 
+            TexturedMeshClipper texClipper = null;
+            if (textureMode == TextureMode.Clip)
+            {
+                texClipper = new TexturedMeshClipper(logger: pipeline);
+            }
+
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
             void buildTile(SceneNode tile)
             {
@@ -887,7 +893,7 @@ namespace OPS.Landform
                 }
                 else if (textureMode == TextureMode.Clip)
                 {
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, tileResolution);
+                    var newMP = texClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, tileResolution);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }

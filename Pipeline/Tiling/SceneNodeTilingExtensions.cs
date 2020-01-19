@@ -264,7 +264,9 @@ namespace OPS.Pipeline
 
                 if (textureMode == TextureMode.Clip && textureProjector != null && textureImage != null)
                 {
-                    var pair = TexturedMeshClipper.RemapMeshClipImage(combinedDecimated, textureImage, size);
+                    var logger = new ThunkLogger() { Info = info, Warn = error, Error = error };
+                    var tmc = new TexturedMeshClipper(logger: logger);
+                    var pair = tmc.RemapMeshClipImage(combinedDecimated, textureImage, size);
                     combinedDecimated = pair.Mesh;
                     img = pair.Image;
                 }
