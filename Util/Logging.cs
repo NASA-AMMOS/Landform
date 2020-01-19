@@ -27,6 +27,72 @@ namespace OPS.Util
                           bool aggregateStackTrace = true);
     }
 
+    public class ThunkLogger : ILogger
+    {
+        public Action<string> Info, Verbose, Debug, Warn, Error;
+        public Action<Exception, string, int, bool, bool> Exception;
+
+        public void LogInfo(string msg, params Object[] args)
+        {
+            Log(Info ?? Verbose ?? Debug, msg, args);
+        }
+
+        public void LogVerbose(string msg, params Object[] args)
+        {
+            Log(Verbose ?? Debug, msg, args);
+        }
+
+        public void LogDebug(string msg, params Object[] args)
+        {
+            Log(Debug, msg, args);
+        }
+
+        public void LogWarn(string msg, params Object[] args)
+        {
+            if (Warn != null)
+            {
+                Log(Warn, msg, args);
+            }
+            else
+            {
+                LogInfo("WARN: " + msg, args);
+            }
+        }
+
+        public void LogError(string msg, params Object[] args)
+        {
+            if (Error != null)
+            {
+                Log(Error, msg, args);
+            }
+            else
+            {
+                LogInfo("ERROR: " + msg, args);
+            }
+        }
+
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                                 bool aggregateStackTrace = true)
+        {
+            if (Exception != null)
+            {
+                Exception(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+            }
+            else
+            {
+                LogError("{0}: {1}", msg, ex.Message);
+            }
+        }
+
+        private void Log(Action<string> thunk, string msg, params Object[] args)
+        {
+            if (thunk != null)
+            {
+                thunk(string.Format(msg, args));
+            }
+        }
+    }
+
     public class Logging
     {
         //%level must be last token before : to faciltate parsing errors in web code
