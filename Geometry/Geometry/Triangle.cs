@@ -501,21 +501,27 @@ namespace OPS.Geometry
 
         public IEnumerable<Triangle> Clip(BoundingBox box)
         {
-            // This triangle does not intersect the box.  Clip everything by returning an empty list
-            if(!this.Bounds().Intersects(box))
+            if (box.Contains(this))
             {
-                return new Triangle[] { };
+                yield return this;
+                yield break;
             }
-            IEnumerable<Triangle> clipped = new Triangle[] { this };
+            if (!Bounds().Intersects(box))
+            {
+                yield break;
+            }
             // Note Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
-            clipped = clipped
+            var clipped = new Triangle[] { this }
                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(1, 0, 0), -box.Min.X)))
                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(-1, 0, 0), box.Max.X)))
                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 1, 0), -box.Min.Y)))
                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, -1, 0), box.Max.Y)))
                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, 1), -box.Min.Z)))
                 .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), box.Max.Z)));
-            return clipped;
+            foreach (var tri in clipped)
+            {
+                yield return tri;
+            }
         }
 
         /// <summary>

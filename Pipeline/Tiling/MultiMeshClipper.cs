@@ -85,28 +85,6 @@ namespace OPS.Pipeline
             }
         }
 
-        /// <summary>
-        /// Given a list of bounding boxes, filters out any that do not contain geometry from any of the input datasets 
-        /// </summary>
-        /// <param name="boxes"></param>
-        /// <returns></returns>
-        public IEnumerable<BoundingBox> FilterEmptyBounds(IEnumerable<BoundingBox> boxes)
-        {
-            List<BoundingBox> results = new List<BoundingBox>();
-            foreach (var b in boxes)
-            {
-                foreach (var dataset in datasets)
-                {
-                    if (!dataset.MeshOperator.Empty(b))
-                    {
-                        results.Add(b);
-                        break;
-                    }
-                }
-            }
-            return results;
-        }
-
         public MeshOperator[] GetMeshOps()
         {
             return datasets.Select(dataset => dataset.MeshOperator).ToArray();

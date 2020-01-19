@@ -279,10 +279,10 @@ namespace OPS.Pipeline.TilingServer
         }
 
         /// <summary>
-        /// if you have pre-defined LODs this function creates a tiletree that has a fixed depth matching
-        /// the number of LODs you are expecting. it does not use any mesh or texture based split criteria
+        /// creates a tile tree that has (up to) a fixed depth matching the number of existing LODs
+        //  does not use any mesh or texture based split criteria
         /// </summary>
-        /// <param name="lodMeshOps">expected sorted by decreasing quality (best first)</param>
+        /// <param name="lodMeshOps">sorted by decreasing quality (best first)</param>
         /// <returns></returns>
         public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, TilingScheme tilingScheme,
                                                       List<MeshOperator> lodMeshOps)
@@ -312,16 +312,15 @@ namespace OPS.Pipeline.TilingServer
             var previousLevelNodes = new List<SceneNode> { root };
             for (int lod = lodMeshOps.Count - 2; lod >= 0; lod--)
             {
+                var meshOp = lodMeshOps[lod];
                 var currentLevelNodes = new List<SceneNode>();
-                foreach (var parentNode in previousLevelNodes)
+                foreach (var node in previousLevelNodes)
                 {                    
+                    var bounds = node.GetComponent<NodeBounds>().Bounds;
                     int counter = 0; //note this is always exactly one decimal digit
-                    foreach (var childBounds in scheme.Split(parentNode.GetComponent<NodeBounds>().Bounds))
+                    foreach (var cb in scheme.Split(bounds).Where(b => !meshOp.Empty(b)))
                     {
-                        if (!lodMeshOps[lod].Empty(childBounds))
-                        {
-                            currentLevelNodes.Add(CreateChildNode(parentNode, ref counter, childBounds));
-                        }
+                        currentLevelNodes.Add(CreateChildNode(node, cb, ref counter, meshOp));
                     }
                 }
                 previousLevelNodes = currentLevelNodes;
@@ -401,26 +400,22 @@ namespace OPS.Pipeline.TilingServer
             //so root name will be set to "root" after creating all descendants
             SceneNode root = new SceneNode("");
             var meshOps = multiClipper.GetMeshOps();
+
             root.AddComponent(new NodeBounds(totalBounds));
-            Queue<SceneNode> queue = new Queue<SceneNode>();
-            queue.Enqueue(root);
 
             var scheme = TilingSchemeBase.Create(tilingScheme);
 
             int surfaceTiles = 0, orbitalTiles = 0, surfaceSplits = 0, orbitalSplits = 0;
-            while (queue.Count > 0)
+            var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
+            while (previousLevelNodes.Count > 0)
             {
-                List<SceneNode> toProcess = new List<SceneNode>(queue.Count());
-                while (queue.Count() > 0)
+                var currentLevelNodes = new ConcurrentBag<SceneNode>();
+                CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {
-                    toProcess.Add(queue.Dequeue());
-                }
-                CoreLimitedParallel.ForEach(toProcess, cur =>
-                {
-                    var curBounds = cur.GetComponent<NodeBounds>().Bounds;
+                    var bounds = node.GetComponent<NodeBounds>().Bounds;
 
                     var sc = splitCriteria;
-                    if (surfaceExtent == 0 || (surfaceBounds.HasValue && !surfaceBounds.Value.Intersects(curBounds)))
+                    if (surfaceExtent == 0 || (surfaceBounds.HasValue && !surfaceBounds.Value.Intersects(bounds)))
                     {
                         sc = orbitalSplitCriteria;
                         Interlocked.Increment(ref orbitalTiles);
@@ -432,10 +427,10 @@ namespace OPS.Pipeline.TilingServer
                     bool shouldSplit = false;
                     foreach (var criteria in sc)
                     {
-                        if (criteria.ShouldSplit(curBounds, meshOps))
+                        if (criteria.ShouldSplit(bounds, meshOps))
                         {
                             shouldSplit = true;
-                            verbose($"splitting tile {cur.Name} due to {criteria.GetType().Name}");
+                            verbose($"splitting tile {node.Name} due to {criteria.GetType().Name}");
                             break;
                         }
                     }
@@ -450,28 +445,28 @@ namespace OPS.Pipeline.TilingServer
                             Interlocked.Increment(ref surfaceSplits);
                         }
 
-                        var childrenBounds = scheme.Split(curBounds);
-                        verbose($"split tile {cur.Name} ({tilingScheme}, min axis {curBounds.MinAxis()}): " +
-                                curBounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
-                        childrenBounds = multiClipper.FilterEmptyBounds(childrenBounds);
+                        var childrenBounds = scheme.Split(bounds);
+                        verbose($"split tile {node.Name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
+                                bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
+                        childrenBounds = childrenBounds.Where(b => meshOps.Any(op => !op.Empty(b)));
                         verbose($"filtered child bounds: " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
-                        
+
                         int counter = 0; //note this is always exactly one decimal digit
                         foreach (var childBounds in childrenBounds)
                         {
-                            SceneNode child = CreateChildNode(cur, ref counter, childBounds);
-                            lock (queue)
-                            {
-                                queue.Enqueue(child);
-                            }
-                            verbose($"made child {child.Name} ({childBounds.Fmt()}) of {cur.Name} ({curBounds.Fmt()})");
+                            var child = CreateChildNode(node, childBounds, ref counter, meshOps);
+                            currentLevelNodes.Add(child);
+                            verbose($"made child {child.Name} " +
+                                    $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
+                                    $"of {node.Name} ({bounds.Fmt()})");
                         }
                     }
                     else
                     {
-                        verbose($"not splitting {cur.Name}");
+                        verbose($"not splitting {node.Name}");
                     }
                 });
+                previousLevelNodes = currentLevelNodes;
             }
 
             info($"split {surfaceSplits}/{surfaceTiles} surface tiles, {orbitalSplits}/{orbitalTiles} orbital");
@@ -509,11 +504,23 @@ namespace OPS.Pipeline.TilingServer
             return new MeshImagePair(mesh, image);
         }
 
-        private static SceneNode CreateChildNode(SceneNode cur, ref int counter, BoundingBox childBounds)
+        private static SceneNode CreateChildNode(SceneNode parent, BoundingBox bounds, ref int counter,
+                                                 params MeshOperator[] meshOps)
         {
-            SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
-            child.AddComponent(new NodeBounds(childBounds));
-            counter++;
+            string childName = parent.Name + counter++;
+            string parentName = !string.IsNullOrEmpty(parent.Name) ? parent.Name : "root";
+
+            //for a leaf tile these will be its bounds forever
+            //but for a parent tile the bounds will be updated when the parent tile mesh is created
+            //to ensure the parent bounds includes both its children and its own mesh
+            bounds = BoundingBoxExtensions.Union(meshOps.Select(op => op.ClippedMeshBounds(bounds)).ToArray());
+            if (bounds.IsEmpty())
+            {
+                throw new Exception($"can't create empty child {childName} of {parentName}");
+            }
+
+            SceneNode child = new SceneNode(childName, parent.Transform);
+            child.AddComponent(new NodeBounds(bounds));
             return child;
         }
     }

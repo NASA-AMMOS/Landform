@@ -674,6 +674,63 @@ namespace OPS.Geometry
                                    new Vector3(dimx.max, dimy.max, dimz.max));
         }
 
+        public static BoundingBox CreateEmpty()
+        {
+            double pinf = double.PositiveInfinity, ninf = double.NegativeInfinity;
+            return new BoundingBox(min: new Vector3(pinf, pinf, pinf), max: new Vector3(ninf, ninf, ninf));
+        }
+
+        public static bool IsEmpty(this BoundingBox box)
+        {
+            return box.Min.X > box.Max.X || box.Min.Y > box.Max.Y || box.Min.Z > box.Max.Z;
+        }
+
+        public static BoundingBox CreateFromPoint(Vector3 pt)
+        {
+            return new BoundingBox(pt, pt);
+        }
+
+        public static BoundingBox CreateFromTriangle(Triangle tri)
+        {
+            var ret = CreateFromPoint(tri.V0.Position);
+            Extend(ref ret, tri.V1.Position);
+            Extend(ref ret, tri.V2.Position);
+            return ret;
+        }
+
+        public static bool Contains(this BoundingBox box, Triangle tri)
+        {
+            return
+                tri.V0.Position.X >= box.Min.X && tri.V0.Position.X <= box.Max.X &&
+                tri.V0.Position.Y >= box.Min.Y && tri.V0.Position.Y <= box.Max.Y &&
+                tri.V0.Position.Z >= box.Min.Z && tri.V0.Position.Z <= box.Max.Z &&
+                tri.V1.Position.X >= box.Min.X && tri.V1.Position.X <= box.Max.X &&
+                tri.V1.Position.Y >= box.Min.Y && tri.V1.Position.Y <= box.Max.Y &&
+                tri.V1.Position.Z >= box.Min.Z && tri.V1.Position.Z <= box.Max.Z &&
+                tri.V2.Position.X >= box.Min.X && tri.V2.Position.X <= box.Max.X &&
+                tri.V2.Position.Y >= box.Min.Y && tri.V2.Position.Y <= box.Max.Y &&
+                tri.V2.Position.Z >= box.Min.Z && tri.V2.Position.Z <= box.Max.Z;
+        }
+
+        public static BoundingBox Extend(ref BoundingBox box, Vector3 pt)
+        {
+            box.Min.X = Math.Min(box.Min.X, pt.X);
+            box.Min.Y = Math.Min(box.Min.Y, pt.Y);
+            box.Min.Z = Math.Min(box.Min.Z, pt.Z);
+            box.Max.X = Math.Max(box.Max.X, pt.X);
+            box.Max.Y = Math.Max(box.Max.Y, pt.Y);
+            box.Max.Z = Math.Max(box.Max.Z, pt.Z);
+            return box;
+        }
+
+        public static BoundingBox Extend(ref BoundingBox box, Triangle tri)
+        {
+            Extend(ref box, tri.V0.Position);
+            Extend(ref box, tri.V1.Position);
+            Extend(ref box, tri.V2.Position);
+            return box;
+        }
+
         /// <summary>
         /// Returns true if the given triangle intersects with a bounding box
         /// </summary>
