@@ -27,6 +27,92 @@ namespace OPS.Util
                           bool aggregateStackTrace = true);
     }
 
+    public class ThunkLogger : ILogger
+    {
+        public Action<string> Info, Verbose, Debug, Warn, Error;
+        public Action<Exception, string, int, bool, bool> Exception;
+
+        public ThunkLogger(Action<string> info = null, Action<string> verbose = null, Action<string> debug = null,
+                           Action<string> warn = null, Action<string> error = null,
+                           Action<Exception, string, int, bool, bool> exception = null)
+        {
+            this.Info = info;
+            this.Verbose = verbose;
+            this.Debug = debug;
+            this.Warn = warn;
+            this.Error = error;
+            this.Exception = exception;
+        }
+
+        public ThunkLogger(ILog logger)
+        {
+            Info = msg => logger.Info(msg);
+            Debug = msg => logger.Debug(msg);
+            Warn = msg => logger.Warn(msg);
+            Error = msg => logger.Error(msg);
+        }
+
+        public void LogInfo(string msg, params Object[] args)
+        {
+            Log(Info ?? Verbose ?? Debug, msg, args);
+        }
+
+        public void LogVerbose(string msg, params Object[] args)
+        {
+            Log(Verbose ?? Debug, msg, args);
+        }
+
+        public void LogDebug(string msg, params Object[] args)
+        {
+            Log(Debug, msg, args);
+        }
+
+        public void LogWarn(string msg, params Object[] args)
+        {
+            if (Warn != null)
+            {
+                Log(Warn, msg, args);
+            }
+            else
+            {
+                LogInfo("WARN: " + msg, args);
+            }
+        }
+
+        public void LogError(string msg, params Object[] args)
+        {
+            if (Error != null)
+            {
+                Log(Error, msg, args);
+            }
+            else
+            {
+                LogInfo("ERROR: " + msg, args);
+            }
+        }
+
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                                 bool aggregateStackTrace = true)
+        {
+            if (Exception != null)
+            {
+                Exception(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+            }
+            else
+            {
+                LogError("{0}: {1}", msg, ex.Message);
+            }
+        }
+
+        private void Log(Action<string> thunk, string msg, params Object[] args)
+        {
+            if (thunk != null)
+            {
+                thunk(string.Format(msg, args));
+            }
+        }
+    }
+
     public class Logging
     {
         //%level must be last token before : to faciltate parsing errors in web code
