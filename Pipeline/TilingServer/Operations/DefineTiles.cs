@@ -386,7 +386,6 @@ namespace OPS.Pipeline.TilingServer
 
             var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
 
-            Action<string> info = null;
             if (texOpts != null)
             {
                 if (texOpts.useApproximateTileSplit)
@@ -396,13 +395,12 @@ namespace OPS.Pipeline.TilingServer
                 else
                 {
                     splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
-                    info = msg => pipeline.LogInfo(msg);
                 }
                
             }
 
             pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);
-            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), info);
+            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray());
         }
 
         private static ITilingScheme GetTilingScheme(TilingScheme tilingScheme)
@@ -436,16 +434,13 @@ namespace OPS.Pipeline.TilingServer
         //thus each node name encodes a full path from the root to the node
         //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme,
-                                                ITileSplitCriteria[] splitCriteria, Action<string> infoAction = null)
+                                                ITileSplitCriteria[] splitCriteria)
         {
-            var info = infoAction ?? (msg => { });
-
             SceneNode root = new SceneNode("");
             root.AddComponent(new NodeBounds(multiClipper.TotalBounds));
             Queue<SceneNode> queue = new Queue<SceneNode>();
             queue.Enqueue(root);
 
-            int tilesComplete = 0;
             while (queue.Count > 0)
             {
                 List<SceneNode> toProcess = new List<SceneNode>(queue.Count());
@@ -460,7 +455,6 @@ namespace OPS.Pipeline.TilingServer
 
                 if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
                 {
-                    info(string.Format("splitting tile: {0}", cur.Name));
                     var childBounds = tilingScheme.Split(null, curBounds);
                     childBounds = multiClipper.FilterEmptyBounds(childBounds);
 
@@ -481,10 +475,6 @@ namespace OPS.Pipeline.TilingServer
                         }
 
                     }
-                }
-                else
-                {
-                    info(string.Format("not Splitting tile: {0} ({1})", cur.Name, Interlocked.Increment(ref tilesComplete)));
                 }
             });
             }

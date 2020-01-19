@@ -366,6 +366,11 @@ namespace OPS.Landform
                         camInst.heightPixels = obs.Height;
                         return camInst;
                     }
+                    Action<string> progress = null;
+                    if (!options.NoProgress)
+                    {
+                        progress = msg => pipeline.LogInfo(msg);
+                    }
                     texSplitOpts = new SplitByTextureOpts()
                     {
                         
@@ -375,10 +380,8 @@ namespace OPS.Landform
                         useApproximateTileSplit = !options.NoApproxTileSplit,
                         tileResolution = tileResolution,
                         scInMesh = sceneCaster,
-                        cameraInstances =
-                        imageObservations
-                        .Select(obs => toCameraInstance((RoverObservation)obs))
-                        .ToArray(),
+                        cameraInstances = imageObservations.Select(obs => toCameraInstance(obs)).ToArray(),
+                        progress = progress
                     };
                 }
                 tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,

@@ -30,6 +30,8 @@ namespace OPS.Pipeline
         public int tileResolution;
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
+
+        public Action<string> progress;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
@@ -222,8 +224,16 @@ namespace OPS.Pipeline
                 }
             }
 
+
             srcPixelArea = maxPixelsTested;
-            return maxPixelsTested != double.MinValue;
+            bool shouldSplit = maxPixelsTested != double.MinValue;
+
+            if (options.progress != null)
+            {
+                options.progress(string.Format("texture split criteria: {0}splitting tile", shouldSplit ? "" : "not "));
+            }
+
+            return shouldSplit;
         }
 
         private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
