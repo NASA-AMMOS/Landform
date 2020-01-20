@@ -217,7 +217,7 @@ namespace OPS.Pipeline
                                                              pxlPt.Point, camInst.widthPixels, camInst.heightPixels);
 
                 if (!srcPixel.HasValue)
-                    return false;
+                    continue;
 
                 //Issue #523: want median or average in case glancing angle?
                 //want a term that looks for consistancy in spacing? implies dead on?
