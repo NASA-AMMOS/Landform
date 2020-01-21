@@ -100,7 +100,8 @@ namespace OPS.Geometry
         /// <param name="col"></param>
         /// <param name="filterValues"></param>
         /// <returns></returns>
-        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, double scale = 1, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
+        public static Vector3? GetXYZ(Image dem, Mask mask, int row, int col, double scale = 1, 
+            bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
         {
             if (row < 0 || row >= dem.Height || col < 0 || col >= dem.Width || !dem.IsValid(row, col)) //respect input image mask if it has one
             {
@@ -108,6 +109,13 @@ namespace OPS.Geometry
             }
 
             double value = dem[0, row, col];
+
+            //HACK
+            if (value == 0)
+            {
+                return null;
+            }
+
             if (!filterValues || value >= minFilter && value <= maxFilter)
             {
                 if (mask != null && !mask.isValid(row, col))
@@ -119,9 +127,57 @@ namespace OPS.Geometry
             return null;
         }
 
-        public static Vector3? GetXYZ(Image dem, int row, int col, double scale = 1, bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
+        public static Vector3? GetXYZ(Image dem, int row, int col, double scale = 1, 
+            bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
         {
             return GetXYZ(dem, null, row, col, scale, filterValues, minFilter, maxFilter);
+        }
+
+        public static Vector3? GetNormal(Image dem, int row, int col, double minFilter = -1000000, double maxFilter = 1000000)
+        {
+            Vector3? c = GetXYZ(dem, row, col);
+            if(!c.HasValue)
+            {
+                return null;
+            }
+
+            Vector3? t = GetXYZ(dem, row - 1, col);
+            Vector3? b = GetXYZ(dem, row + 1, col);
+            Vector3? r = GetXYZ(dem, row, col + 1);
+            Vector3? l = GetXYZ(dem, row, col - 1);
+
+            Vector3 ret = Vector3.Zero;
+
+            if (t.HasValue)
+            {
+                if(r.HasValue)
+                {
+                    ret += new Triangle(t.Value, c.Value, r.Value).Normal;
+                }
+                if(l.HasValue)
+                {
+                    ret += new Triangle(t.Value, l.Value, c.Value).Normal;
+                }
+            }
+            if(b.HasValue)
+            {
+                if (r.HasValue)
+                {
+                    ret += new Triangle(b.Value, r.Value, c.Value).Normal;
+                }
+                if (l.HasValue)
+                {
+                    ret += new Triangle(b.Value, c.Value, l.Value).Normal;
+                }
+            }
+
+            if(ret == Vector3.Zero)
+            {
+                return null;
+            }
+
+            ret.Normalize();
+            return ret;
         }
 
         public static Vector2? GetRowCol(Image dem, Vector3 xyz)
@@ -204,9 +260,37 @@ namespace OPS.Geometry
             return ret;
         }
 
-        public static Matrix? AlignSceneToDem(Image scenemap, Matrix sceneToWorld, Image dem, Matrix demToWorld, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
+        public static Matrix? AlignSceneToDem(Image scenemap, Matrix sceneToWorld, Image dem, Matrix demToWorld, 
+            bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, 
+            double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
         {
-            return AlignScenesToDem(new[] { scenemap }, new[] { sceneToWorld }, dem, demToWorld, preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, sampleLimit);
+            return AlignScenesToDem(new[] { scenemap }, new[] { sceneToWorld }, dem, demToWorld, 
+                preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, sampleLimit);
+        }
+
+        public static void DilateMask(Image image, int pixels = 1)
+        {
+            if (image.HasMask)
+            {
+                Image maskCopy;
+                for (int i = 0; i < pixels; ++i)
+                {
+                    maskCopy = image.MaskToImage();
+                    for (int r = 1; r < image.Height - 1; ++r)
+                    {
+                        for (int c = 1; c < image.Width - 1; ++c)
+                        {
+                            if (maskCopy[0, r + 1, c] == 1 ||
+                               maskCopy[0, r - 1, c] == 1 ||
+                               maskCopy[0, r, c + 1] == 1 ||
+                               maskCopy[0, r, c - 1] == 1)
+                            {
+                                image.SetMaskValue(r, c, true);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -226,7 +310,9 @@ namespace OPS.Geometry
         /// <param name="minFilter"></param>
         /// <param name="maxFilter"></param>
         /// <returns></returns>
-        public static Matrix? AlignScenesToDem(Image[] scenemaps, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
+        public static Matrix? AlignScenesToDem(Image[] scenemaps, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, 
+            bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, 
+            double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
         {
             if(sceneToWorlds.Count() != scenemaps.Count())
             {
@@ -252,8 +338,8 @@ namespace OPS.Geometry
             {
                 Image scenemap = scenemaps[i];
 
-                double skip = Math.Sqrt(scenemap.Height * scenemap.Width / sampleLimit);
-                skip = Math.Max(skip, 1);
+                double skip = Math.Sqrt(scenemaps.Count() * scenemap.Height * scenemap.Width / sampleLimit);
+                skip = Math.Max(skip, 1);               
 
                 for (int r = 0; r < scenemap.Height / skip; r++)
                 {
@@ -358,7 +444,8 @@ namespace OPS.Geometry
             Func<double> meanZOffset = new Func<double>(() =>
             {
                 double x = 0;
-                Matrix currentTransformAdjustment = Matrix.Invert(arrayToTransform(adjustment) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)));
+                Matrix currentTransformAdjustment = Matrix.Invert(arrayToTransform(adjustment) 
+                                                    * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation)));
                 int count = 0;
                 int pos = 0;
                 int neg = 0;
@@ -389,10 +476,10 @@ namespace OPS.Geometry
             if (saOpts == null)
             {
                 saOpts = new SimulatedAnnealingOptions();
-                saOpts.maxIterations = 400;
+                saOpts.maxIterations = 800;
                 saOpts.verbose = false;
-                saOpts.temperatureScale = 1;
-                saOpts.probabilityScale = 100;
+                saOpts.temperatureScale = 4; //1
+                saOpts.probabilityScale = 1000; //100
                 saOpts.sigma = sigma;
             }
             sa.opts = saOpts;

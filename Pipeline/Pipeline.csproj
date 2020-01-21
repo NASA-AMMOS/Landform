@@ -196,6 +196,7 @@
     <Compile Include="CloudPipelineConfig.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
+    <Compile Include="OrbitalConfig.cs" />
     <Compile Include="PipelineOperation.cs" />
     <Compile Include="DataProducts\DataProduct.cs" />
     <Compile Include="DataProducts\FeatureMatchesDataProduct.cs" />

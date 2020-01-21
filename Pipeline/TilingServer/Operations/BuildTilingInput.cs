@@ -11,6 +11,7 @@ using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
+using System.IO;
 
 namespace OPS.Pipeline.TilingServer
 {
@@ -243,22 +244,24 @@ namespace OPS.Pipeline.TilingServer
             //significant memory usage
             obsToMesh.Clear();
 
+            info("STARTING ORBITAL");
+
             //Add Orbital
             ///////////////////////////////////////////////////////////////////////////////////////////////////
             {
-                const int orbitalRadius = 200; //Add 100 x 100 meter orbital
-                const double filterRadius = 0.2; //Remove orbital points within 1m of surface data
+                const int orbitalRadius = 128; //Add 100 x 100 meter orbital
+                const double filterRadius = 1.0; //Remove orbital points within 1m of surface data
                 const string orbitalFrameName = "Orbital";
 
-                //Create 2D spatial lookup
-                VertexKDTree kdtree = new VertexKDTree(aggregatePointCloud.Vertices.Select(
-                    v => new Vertex(v.Position.X, v.Position.Y, 0)).ToList());
+                string demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
 
-                SparseImage dem = new SparseImage(mission.GetDemPath());
+                SparseImage dem = new SparseImage(demFilePath);
                 dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
 
+                info("Target frame = " + opts.TargetFrame);
+
                 Matrix demToBaseSiteDrive = frameCache.GetBestTransform(orbitalFrameName).Transform.Mean
-                                            * Matrix.Invert(frameCache.GetBestTransform(opts.TargetFrame).Transform.Mean); //TODO: get sd from options
+                                            * Matrix.Invert(frameCache.GetBestTransform(opts.TargetFrame).Transform.Mean);
 
                 //Get subset of dem around sitedrive
                 Vector2 center = mission.GetSiteDriveOriginPixelInDem(observations[0].SiteDrive);
@@ -268,6 +271,29 @@ namespace OPS.Pipeline.TilingServer
                 int pixelWidth = (int)Math.Min(center.X + pixelRadius, dem.Width) - baseC;
                 int pixelHeight = (int)Math.Min(center.Y + pixelRadius, dem.Height) - baseR;
 
+                if(!dem.HasMask)
+                {
+                    dem.CreateMask();
+                }
+
+                Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
+
+                foreach(var p in aggregatePointCloud.Vertices)
+                {
+                    Vector3 testPoint = Vector3.Transform(p.Position, baseSiteDriveToDem);
+                    Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);
+                    for(int r = (int)Math.Ceiling(rc.Y - filterRadius); r <= (int)Math.Floor(rc.Y + filterRadius); ++r)
+                    {
+                        for(int c = (int)Math.Ceiling(rc.X - filterRadius); c <= (int)Math.Floor(rc.X + filterRadius); ++c)
+                        {
+                            dem.SetMaskValue(r, c, true);
+                        }
+                    }
+                }
+
+                Mesh demMesh = new Mesh();
+                const double demNormalConfidence = 1.0 / 64;
+
                 for (int r = 0; r < 2 * pixelRadius; r++)
                 {
                     for (int c = 0; c < 2 * pixelRadius; c++)
@@ -276,16 +302,21 @@ namespace OPS.Pipeline.TilingServer
                         if (pos.HasValue)
                         {
                             var transformedPos = Vector3.Transform(pos.Value, demToBaseSiteDrive);
-                            if (kdtree.NearestDistance(new Vector3(transformedPos.X, transformedPos.Y, 0), filterRadius, 1).Count() == 0)
-                            {
-                                Vertex v = new Vertex();
-                                v.Position = transformedPos;
-                                v.Normal = new Vector3(0, 0, -1);
-                                aggregatePointCloud.Vertices.Add(v);
-                            }
+                            Vertex v = new Vertex();
+                            v.Position = transformedPos;
+                            v.Normal = DemOperations.GetNormal(dem, baseR + r, baseC + c) ?? new Vector3(0, 0, 1);
+                            v.Normal = Vector3.TransformNormal(v.Normal, demToBaseSiteDrive);
+                            v.Normal *= demNormalConfidence;
+                            aggregatePointCloud.Vertices.Add(v);
+                            demMesh.Vertices.Add(v);
                         }
                     }
                 }
+
+                aggregatePointCloud.Save("d:/dems/DEBUG1.obj");
+
+                demMesh = Delaunay.Triangulate(demMesh.Vertices);
+                demMesh.Save("d:/dems/DEBUG.obj");
             }
             
             ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -304,7 +335,7 @@ namespace OPS.Pipeline.TilingServer
             PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
             {
                 //extrapolates the edges of the mesh
-                Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
+                Boundary = PoissonReconstruction.BoundaryTypes.Dirichlet,
 
                 // no features should be finer than this many meters as this is the finest the octree will dice
                 MinOctreeCellWidthMeters = 0.05f,
