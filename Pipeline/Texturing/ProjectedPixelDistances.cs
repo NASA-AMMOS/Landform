@@ -124,7 +124,7 @@ namespace OPS.Pipeline
         {
             double shortestDistance = double.MaxValue;
 
-            var offsetPixels = GetOffsetPixels(srcPixel, offset: 1.0)
+            var offsetPixels = Image.GetOffsetPixels(srcPixel, offset: 1.0)
                 .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight);
             if (offsetPixels.Count() == 0)
             {
@@ -142,36 +142,6 @@ namespace OPS.Pipeline
             }
 
             return Math.Sqrt(shortestDistance);
-        }
-
-        private static readonly Vector2[] NeighborPixelsOffsets4Centered =
-            {
-                new Vector2( -1.0,  0.0),
-                new Vector2(  0.0, -1.0),
-                new Vector2(  0.0,  1.0),
-                new Vector2(  1.0,  0.0)
-            };
-
-        private static readonly Vector2[] PixelCorners =
-            {
-                new Vector2(  0.0,  0.0), // upper left
-                new Vector2(  0.0,  1.0), // upper right
-                new Vector2(  1.0,  1.0), // lower right
-                new Vector2(  1.0,  0.0)  // lower left
-                
-            };
-
-        public static Vector2[] GetPixelCorners(Vector2 srcPixel)
-        {
-            //maps subpixel address to integer pixel address (upper left corner)
-            Vector2 pixelAddress = new Vector2((int)srcPixel.X, (int)srcPixel.Y);
-
-            Vector2[] corners = new Vector2[4];
-            for (int idxCorner = 0; idxCorner < 4; idxCorner++)
-            {
-                corners[idxCorner] = pixelAddress + PixelCorners[idxCorner];
-            }
-            return corners;
         }
 
         //Issue #531: raycast bundle of 4 with embree
@@ -197,16 +167,6 @@ namespace OPS.Pipeline
                 result.Add(scenePos.Value);
             }
 
-            return result;
-        }
-
-        public static List<Vector2> GetOffsetPixels(Vector2 srcPixel, double offset)
-        {
-            List<Vector2> result = new List<Vector2>();
-            for (int idxNeighbor = 0; idxNeighbor < 4; idxNeighbor++)
-            {
-                result.Add(srcPixel + NeighborPixelsOffsets4Centered[idxNeighbor] * offset);
-            }
             return result;
         }
 

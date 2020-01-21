@@ -24,8 +24,8 @@ namespace OPS.Pipeline
     public class SplitByTextureOpts
     {
         public double pctPixelsToTest;              // how densely should the uv atlas pixels be tested be sampled (1.0: test all atlas pixels, 0.5: test half atlas pixels, etc)
-        public double pctSampledPixelsSatisfied;     // of all the pixels sampled for a given source texture, what percentage of them need to be above the split criteria (1.0 any pixel that needs a split is enough, 0.5 at least half the pixels need a split, etc)
-        public double subsamplingTriggeringSplit;   // valid values > 1.0. a value of 2.0 would mean if 2 source textures are being squeezed into a single output texture that incur a split
+        public double pctSampledPixelsSatisfied;    // of all the pixels sampled for a given source texture, what percentage of them need to be above the split criteria (1.0 any pixel that needs a split is enough, 0.5 at least half the pixels need a split, etc)
+        public double splitPixelTexelRatio;         // valid values > 1.0. a value of 2.0 would mean if 2 source textures are being squeezed into a single output texture that incur a split
 
         public int tileResolution;
         public CameraInstance[] cameraInstances;
@@ -46,21 +46,28 @@ namespace OPS.Pipeline
             if (opts.pctSampledPixelsSatisfied <= 0 || opts.pctSampledPixelsSatisfied > 1)
                 throw new Exception("invalid pctSampledPixelsServiced option");
 
-            if (opts.subsamplingTriggeringSplit <= 1.0)
+            if (opts.splitPixelTexelRatio <= 1.0)
                 throw new Exception("invalid subsamplingTriggeringSplit option");
         }
 
         public bool ShouldSplit(MeshOperator meshOperator, BoundingBox areaOfInterest)
         {
-            Mesh clippedMesh = meshOperator.Clip(areaOfInterest);
+
+            // coarse frustum test against the bounding box
+            List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh.Intersects(areaOfInterest)).ToList();
+
+            //no textures would be used on this mesh, no need to split
+            if (intersectingCameras.Count == 0)
+                return false;
 
             // may have too few faces to ever service texture resolution (output atlas too low res)
+            Mesh clippedMesh = meshOperator.Clip(areaOfInterest);
             if (clippedMesh.Faces.Count == 1)
                 return false;
 
-            // coarse frustum test: get all observations that intersect mesh hull
+            // finer frustum test: get all observations that intersect mesh hull
             ConvexHull clippedHull = new ConvexHull(clippedMesh);
-            List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => clippedHull.Intersects(ci.hullInMesh)).ToList();
+            intersectingCameras = options.cameraInstances.Where(ci => clippedHull.Intersects(ci.hullInMesh)).ToList();
 
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)
@@ -73,7 +80,7 @@ namespace OPS.Pipeline
                 return false;
 
             double ratioOfSrcToDest = srcPixelsPerMSQ / dstPixelsPerMSQ;
-            return ratioOfSrcToDest >= options.subsamplingTriggeringSplit;
+            return ratioOfSrcToDest >= options.splitPixelTexelRatio;
         }
 
         protected abstract bool GetSourcePixelsPerMetersSq(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelsPerMSQ);
@@ -125,6 +132,14 @@ namespace OPS.Pipeline
             Dictionary<CameraInstance, List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();
             foreach (var destPixelPt in ptsToTest)
             {
+                //if the points are spilling onto other tiles, they aren't great candidates for testing.
+                // In addition to handling cases where you are peeking through a valley or keyhole in the terrain
+                // and all points are landing on other mesh tiles, this is a performance optimization.
+                if (!clippedHull.Contains(destPixelPt.Point)) 
+                {
+                    continue;
+                }
+
                 //find the camera that provides the best pixel density for this sample
                 //(would be the texture we would use at this location)
                 if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, clippedOp.Bounds, destPixelPt,
@@ -134,7 +149,7 @@ namespace OPS.Pipeline
                 }
 
                 // calculate src pixels area contributing to the pixel  
-                Vector2[] pixelCorners = ProjectedPixelDistances.GetPixelCorners(destPixelPt.Pixel);
+                Vector2[] pixelCorners = Image.GetPixelCorners(destPixelPt.Pixel);
                 var uvsCorners =
                     pixelCorners.Select(c => Image.PixelToUV(c, options.tileResolution, options.tileResolution));
                 var destPixelMeshPositions =
@@ -152,7 +167,7 @@ namespace OPS.Pipeline
                 // if all 4 pixels landed in the source image, find their area in pixels
                 if (4 == srcPixels.Where(x => x.HasValue).Count())
                 {
-                    double srcPixelAreaForDestPixel = Image.CalculatePixelArea(srcPixels.Select(x => x.Value).ToArray());
+                    double srcPixelAreaForDestPixel = Image.CalculateQuadPixelArea(srcPixels.Select(x => x.Value).ToArray());
                     if (!srcAreaByCamera.ContainsKey(bestCamera))
                     {
                         srcAreaByCamera.Add(bestCamera, new List<double>() { srcPixelAreaForDestPixel });
@@ -203,10 +218,6 @@ namespace OPS.Pipeline
                                                     BoundingBox meshBounds, PixelPoint pxlPt, out CameraInstance bestCamera)
         {
             bestCamera = null;
-            if (!meshHull.Contains(pxlPt.Point))
-            {
-                return false;
-            }
 
             double minSpread = double.MaxValue;
             bestCamera = new CameraInstance();
