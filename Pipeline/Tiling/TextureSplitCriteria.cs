@@ -98,7 +98,7 @@ namespace OPS.Pipeline
             {
                 //find the camera that provides the best pixel density for this sample
                 //(would be the texture we would use at this location)
-                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, clippedOp.Bounds, destPixelPt,
+                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, clippedOp.Bounds, destPixelPt.Point,
                                                  out CameraInstance bestCamera))
                 {
                     continue;
@@ -168,13 +168,37 @@ namespace OPS.Pipeline
         }
 
         private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
-                                                 BoundingBox meshBounds, PixelPoint pxlPt, out CameraInstance bestCamera)
+                                                 BoundingBox meshBounds, Vector3 destPtMeshFrame, out CameraInstance bestCamera)
         {
             double minSpread = double.MaxValue;
             bestCamera = new CameraInstance();
             foreach (var camInst in candidateCameras)
             {
-                if (!meshHull.Contains(pxlPt.Point))
+                // if the convex hull of the mesh doesn't contain the point, skip it
+                if (!meshHull.Contains(destPtMeshFrame))
+                {
+                    continue;
+                }
+
+                // if the camera frustum doesnt contain the point, skip it (sometimes breaks camera model)
+                if (!camInst.hullInMesh.Contains(destPtMeshFrame))
+                {
+                    continue;
+                }
+
+                //find the source pixel
+                Vector3 destPtCameraFrame = Vector3.Transform(destPtMeshFrame, camInst.meshToCamera);
+                Vector2 srcPixel = camInst.cameraModel.Project(destPtCameraFrame, out double rangeInCameraFrame);
+
+                // if its a negative range skip it. some points for wide angle can be in the frustum hull, but 
+                // not visible in the frame
+                if(rangeInCameraFrame <= 0)
+                {
+                    continue;
+                }
+
+                if(srcPixel.X < 0 || srcPixel.X >= camInst.widthPixels ||
+                    srcPixel.Y < 0 || srcPixel.Y >= camInst.heightPixels)
                 {
                     continue;
                 }
@@ -183,7 +207,7 @@ namespace OPS.Pipeline
                 //want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = GetMinPixelSpreadInMeters(options.scInMesh, camInst.cameraModel,
                                                              camInst.cameraToMesh,
-                                                             pxlPt.Pixel, pxlPt.Point, meshBounds, 
+                                                             srcPixel, destPtMeshFrame, meshBounds, 
                                                              camInst.widthPixels, camInst.heightPixels);
                 if (curSpread < minSpread)
                 {
