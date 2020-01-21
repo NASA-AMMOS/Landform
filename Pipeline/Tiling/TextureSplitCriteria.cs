@@ -52,7 +52,6 @@ namespace OPS.Pipeline
 
         public bool ShouldSplit(MeshOperator meshOperator, BoundingBox areaOfInterest)
         {
-
             // coarse frustum test against the bounding box
             List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh.Intersects(areaOfInterest)).ToList();
 
@@ -73,18 +72,20 @@ namespace OPS.Pipeline
             if (intersectingCameras.Count == 0)
                 return false;
 
-            if (!GetOutputPixelsPerMetersSq(clippedMesh, out double dstPixelsPerMSQ))
+            if (!GetCandidateDestTexelArea(clippedMesh, out double dstPixelsArea))
                 return false;
 
-            if (!GetSourcePixelsPerMetersSq(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsPerMSQ))
+            if (!GetCandidateSourcePixelArea(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsArea))
                 return false;
 
-            double ratioOfSrcToDest = srcPixelsPerMSQ / dstPixelsPerMSQ;
+            double ratioOfSrcToDest = srcPixelsArea / dstPixelsArea;
             return ratioOfSrcToDest >= options.splitPixelTexelRatio;
         }
 
-        protected abstract bool GetSourcePixelsPerMetersSq(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelsPerMSQ);
-        protected abstract bool GetOutputPixelsPerMetersSq(Mesh clippedMesh, out double dstPixelsPerMSQ);
+
+        //single pixel api, for a representative pixel what is the ratio of source to dest pixel areas
+        protected abstract bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea);
+        protected abstract bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea);
     }
 
     public class TextureSplitCriteriaBackproject : TextureSplitCriteria
@@ -92,16 +93,17 @@ namespace OPS.Pipeline
         public TextureSplitCriteriaBackproject(SplitByTextureOpts opts) : base(opts)
         { }
 
-        protected override bool GetOutputPixelsPerMetersSq(Mesh clippedMesh, out double dstPixelsPerMSQ)
+        protected override bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea)
         {
-            //current approach is based on sourcepixels per single output pixel, this replicates that
-            dstPixelsPerMSQ = 1;
+            //current approach is based on maximum of all the images, of the user specified percentage of tested pixels
+            // sourcepixels per single output pixel. this function returns a single pixel area to match the single source pixel area
+            dstPixelArea = 1;
             return true;
         }
 
-        protected override bool GetSourcePixelsPerMetersSq(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelsPerMSQ)
+        protected override bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
         {
-            srcPixelsPerMSQ = 0;
+            srcPixelArea = 0;
 
             //generate an atlas for the mesh if needed
             if (!clippedMesh.HasUVs)
@@ -210,7 +212,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            srcPixelsPerMSQ = maxPixelsTested;
+            srcPixelArea = maxPixelsTested;
             return maxPixelsTested != double.MinValue;
         }
 
