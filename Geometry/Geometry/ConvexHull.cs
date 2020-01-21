@@ -114,7 +114,10 @@ namespace OPS.Geometry
         {
             // Get points - just corners for linear models, denser otherwise
             int subdiv = 2;
-            if (!camera.Linear) subdiv = 5;
+            if (!camera.Linear)
+            {
+                subdiv = 5;
+            }
 
             List<Vector3> pts = new List<Vector3>();
             for (int i = 0; i < subdiv; i++)
@@ -123,21 +126,10 @@ namespace OPS.Geometry
                 for (int j = 0; j < subdiv; j++)
                 {
                     double y = (height - 1.0) * (j / (subdiv - 1.0));
-                    for (int k = 0; k < subdiv; k++)
-                    {
-                        Ray ray = camera.Unproject(new Vector2(x, y));
-                        
-                        Plane nearClipPlane = new Plane(-camera.ImagePlaneNormal,
-                                                        Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + nearClip);
-                        Plane farClipPlane = new Plane(-camera.ImagePlaneNormal,
-                                                       Vector3.Dot(camera.ImagePlaneNormal, ray.Position) + farClip);
+                    Ray ray = camera.Unproject(new Vector2(x, y));
 
-                        double rayDistNear = ray.Intersects(nearClipPlane).Value;
-                        double rayDistFar = ray.Intersects(farClipPlane).Value;
-                        double rayDist = MathHelper.Lerp(rayDistNear, rayDistFar, k / (double)(subdiv - 1));
-
-                        pts.Add(ray.Position + rayDist * ray.Direction);
-                    }
+                    pts.Add(ray.Position + nearClip * ray.Direction); //camera pupil can vary per-pixel in CAHVORE
+                    pts.Add(ray.Position + farClip * ray.Direction); 
                 }
             }
 

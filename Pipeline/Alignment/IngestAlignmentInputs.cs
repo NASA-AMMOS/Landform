@@ -133,15 +133,19 @@ namespace OPS.Pipeline
 
             //PHASE 1: ingest files
 
+            //url without extension -> Result
+            var results = new ConcurrentDictionary<string, IngestImage.Result>();
+
             double startTime = UTCTime.Now();
             int nt = 0, nu = 0, ni = 0, np = 0;
-            var results = new ConcurrentDictionary<string, IngestImage.Result>();
             Action<string> ingestUrl = url => {
 
                 Interlocked.Increment(ref nu);
                 Interlocked.Increment(ref ni);
 
-                if (results.ContainsKey(url))
+                string urlWithoutExt = StringHelper.StripUrlExtension(url);
+
+                if (results.ContainsKey(urlWithoutExt))
                 {
                     return;
                 }
@@ -158,40 +162,51 @@ namespace OPS.Pipeline
                 
                 Interlocked.Decrement(ref np);
 
-                results.AddOrUpdate(res.Url, _ => res, (_, __) => res);
+                results.AddOrUpdate(urlWithoutExt, _ => res, (_, __) => res);
                 if (res.DataUrl != null)
                 {
-                    results.AddOrUpdate(res.DataUrl, _ => res, (_, __) => res);
+                    string dataUrlWithoutExt = StringHelper.StripUrlExtension(res.DataUrl);
+                    if (dataUrlWithoutExt != urlWithoutExt)
+                    {
+                        results.AddOrUpdate(dataUrlWithoutExt, _ => res, (_, __) => res);
+                    }
                 }
             };
 
-            //if there are any LBL files ingest them first
-            //because they will generally refer to other IMG files containing the actual image data
-            //and for each pair (foo.LBL, foo.IMG) we want to mark both URLs as done
-            //because below we're going to also ingest all IMG files
-            //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
-            //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
             HashSet<string> urls = new HashSet<string>();
-            foreach (var entry in BaseUrls)
-            {
-                pipeline.LogInfo("{0}ingesting input LBL files from {1} for alignment project {2}",
-                                 entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL", recursive: entry.Recursive));
-            }
-            nt = urls.Count();
-            CoreLimitedParallel.ForEach(urls, ingestUrl);
 
+            if (mission.AllowPDSLabelFiles())
+            {
+                //if there are any LBL files ingest them first
+                //because they will generally refer to other IMG files containing the actual image data
+                //and for each pair (foo.LBL, foo.IMG) we want to mark both URLs as done
+                //because below we're going to also ingest all IMG files
+                //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
+                //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
+                foreach (var entry in BaseUrls)
+                {
+                    pipeline.LogInfo("{0}ingesting input LBL files from {1} for alignment project {2}",
+                                     entry.Recursive ? "recursively " : "", entry.Url, project.Name);
+                    urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL",
+                                                        recursive: entry.Recursive, ignoreCase: true));
+                }
+                nt = urls.Count();
+                CoreLimitedParallel.ForEach(urls, ingestUrl);
+            }
+                
             urls.Clear();
             foreach (var entry in BaseUrls)
             {
                 pipeline.LogInfo("{0}ingesting input IMG and VIC files from {1} for alignment project {2}",
                                  entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive));
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive));
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive, ignoreCase: true));
+                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive, ignoreCase: true));
             }
             nt = urls.Count();
             ni = 0;
             CoreLimitedParallel.ForEach(urls, ingestUrl);
+
+            AddAlternateExtensions(results);
 
             int na = CullObservations(results); //PHASE 2: cull observations (e.g. selects latest versions)
 
@@ -213,6 +228,47 @@ namespace OPS.Pipeline
             return na;
         }
 
+        private void AddAlternateExtensions(IDictionary<string, IngestImage.Result> results)
+        {
+            pipeline.LogInfo("adding alternate extensions to observations");
+            var obsToSave = new Dictionary<string, Observation>();
+            foreach (var entry in BaseUrls)
+            {
+                foreach (var url in pipeline.SearchFiles(entry.Url, "*", recursive: entry.Recursive))
+                {
+                    if (!url.EndsWith(".LBL", StringComparison.OrdinalIgnoreCase) &&
+                        !url.EndsWith(".IMG", StringComparison.OrdinalIgnoreCase) &&
+                        !url.EndsWith(".VIC", StringComparison.OrdinalIgnoreCase))
+                    {
+                        string ext = StringHelper.GetUrlExtension(url).TrimStart('.');
+                        if (!string.IsNullOrEmpty(ext))
+                        {
+                            string urlWithoutExt = StringHelper.StripUrlExtension(url);
+                            if (results.ContainsKey(urlWithoutExt))
+                            {
+                                var res = results[urlWithoutExt];
+                                if (res.Accepted && res.Observation != null)
+                                {
+                                    lock (res.Observation.AlternateExtensions)
+                                    {
+                                        if (res.Observation.AlternateExtensions.Add(ext))
+                                        {
+                                            obsToSave[res.Observation.Name] = res.Observation;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            pipeline.LogInfo("saving {0} updated observations", obsToSave.Count);
+            foreach (var obs in obsToSave.Values)
+            {
+                obs.Save(pipeline);
+            }
+        }
+
         private int CullObservations(IDictionary<string, IngestImage.Result> results)
         {
             var acceptedUrls = new HashSet<string>();
@@ -222,14 +278,19 @@ namespace OPS.Pipeline
             pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
 
             var filteredObs = filteredUrls
-                .Select(url => results[url].Observation)
+                .Select(url => results[StringHelper.StripUrlExtension(url)].Observation)
                 .Where(obs => obs is RoverObservation)
                 .Cast<RoverObservation>()
                 .ToList();
             na = filteredObs.Count;
+
+            // if linear and nonlinear images are allowed this code will keep for each observation either:
+            // 1) one image: the best image (regardless of linearity) if the image contents are different in higher priority compares than linearity
+            // 2) two images: one of each linarity if the image contents are equivalent up to the linearity test. this condition defers the decision
+            //    to a sort by systems that have a strong preference for linear or nonlinear rather than an explicit early culling here.
             var comparator = mission.GetRoverObservationComparator();
-            filteredObs = comparator
-                .KeepBestRoverObservations(filteredObs, pipeline.Verbose ? pipeline : null)
+                     filteredObs = comparator
+                .KeepBestRoverObservations(filteredObs, RoverObservationComparator.KeepLinearVariants.Both, pipeline.Verbose ? pipeline : null)
                 .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
             na = filteredObs.Count;

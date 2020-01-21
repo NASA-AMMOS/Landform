@@ -32,6 +32,13 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
+        public bool PreferLinearToNonlinear()
+        {
+            // all current observation selection strategies are based on source pixel density on the terrain
+            // any resampling (such as during a linearization) can hide the original pixel density
+            return false;
+        }
+
         public static ObsSelectionStrategy Create(ObsSelectionStrategyName name)
         {
             switch (name)

@@ -8,16 +8,11 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Landform
 {
-    public enum MeshDecimationProvider { MeshLab, EdgeCollapse };
-
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
     public class BuildGeometryOptions : GeometryCommandOptions
     {
         [Option(HelpText = "Decimate the scene mesh to this target number of faces if positive", Default = 0)]
         public int TargetSceneMeshFaces { get; set; }
-
-        [Option(HelpText = "Scene mesh decimation method, MeshLab or EdgeCollapse", Default = MeshDecimationProvider.MeshLab)]
-        public MeshDecimationProvider SceneMeshDecimator { get; set; }
 
         [Option(HelpText = "Stereo eye to prefer (auto, left, right, any)", Default = "auto")]
         public string StereoEye { get; set; }
@@ -33,7 +28,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Post meshing clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
-     
+
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 6.0)]
+        public double TrimmerLevel { get; set; }
+
+        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.2)]
+        public double TrimmerIslandPct { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -143,7 +143,8 @@ namespace OPS.Landform
                                               frameCache, observationCache, meshFrame, options.UsePriors,
                                               options.OnlyAligned, preClipBounds,
                                               options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
-                                              options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
+                                              options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution,
+                                              options.TrimmerLevel, options.TrimmerIslandPct);
 
             if (mesh == null || mesh.Faces.Count == 0)
             {
@@ -185,18 +186,9 @@ namespace OPS.Landform
         private void DecimateMesh()
         {
             pipeline.LogInfo("decimating mesh with {0}, target {1} faces",
-                             options.SceneMeshDecimator, options.TargetSceneMeshFaces);
-
-            var target = options.TargetSceneMeshFaces;
-            switch (options.SceneMeshDecimator)
-            {
-                case MeshDecimationProvider.MeshLab: mesh = MeshLab.Decimate(mesh, target); break;
-                case MeshDecimationProvider.EdgeCollapse: mesh = EdgeCollapse.QuadricEdgeCollapse(mesh, target); break;
-                default: throw new Exception("unknown mesh decimation provider: " + options.SceneMeshDecimator);
-            }
-
+                             options.MeshDecimator, options.TargetSceneMeshFaces);
+            mesh = mesh.Decimate(options.TargetSceneMeshFaces, options.MeshDecimator);
             pipeline.LogInfo("decimated mesh to {0} faces", mesh.Faces.Count);
-        
             if (mesh.Faces.Count == 0)
             {
                 throw new Exception("mesh is empty");

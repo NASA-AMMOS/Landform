@@ -12,7 +12,7 @@ if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
 set failqueue=m20-ids-g-sqs-landform-lftest1-fail
 if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
 
-set meshformat=obj
+set meshformat=iv
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
 
 set awsprofile=none
@@ -37,12 +37,10 @@ if not "%LANDFORM_TACTICAL_LOG_DIR%"=="" set logdir=%LANDFORM_TACTICAL_LOG_DIR%
 set tmpdir=c:\temp\landform-tactical
 if not "%LANDFORM_TACTICAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_TACTICAL_TEMP_DIR%
 
-set ivcatdir=%bindir%\ivcat-for-ec2
 set appsdir=%bindir%\ExternalApps
-if exist %ivcatdir%\ (
+if exist %appsdir%\opengl32-for-ivcat.dll (
 @echo on
-del %appsdir%\ivcat.*
-copy /Y %ivcatdir%\* %appsdir% 
+move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 )
 
 @echo on

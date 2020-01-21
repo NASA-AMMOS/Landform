@@ -36,6 +36,7 @@ namespace OPS.Landform
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
                     { typeof(ProcessTacticalOptions), typeof(ProcessTactical) },
+                    { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
                 };
 
             return CommandHelper.RunFromCommandline(args, verbs);

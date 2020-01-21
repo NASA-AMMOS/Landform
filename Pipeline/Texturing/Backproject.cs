@@ -458,7 +458,7 @@ namespace OPS.Pipeline
                 }
 
                 var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
-                var maskObs = comparator.GetBestRoverObservation(off, RoverProductType.RoverMask);
+                var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.KeepLinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault(); ;
 
                 contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
             }
@@ -525,7 +525,7 @@ namespace OPS.Pipeline
                     Vector3 obsPos = Vector3.Transform(meshPos, meshToObs);
                     Vector2 obsPixel = camera.Project(obsPos, out double range);
 
-                    //sanity check
+                    //sanity check: actually needed for CAVHORE where convex hull is overly conservative
                     if (range <= 0 ||
                         (int)obsPixel.X < 0 || (int)obsPixel.X >= obsWidth ||
                         (int)obsPixel.Y < 0 || (int)obsPixel.Y >= obsHeight)

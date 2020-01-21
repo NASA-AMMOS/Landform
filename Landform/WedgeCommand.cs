@@ -2,10 +2,10 @@ using System;
 using System.Linq;
 using System.Collections.Generic;
 using CommandLine;
+using OPS.Util;
+using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
-using OPS.Util;
-
 
 namespace OPS.Landform
 {
@@ -22,6 +22,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Wedge image auto decimation target resolution", Default = 1024)]
         public virtual int TargetWedgeImageResolution { get; set; }
+
+        [Option(HelpText = "Mesh decimation method (EdgeCollapse, ResampleFSSR, ResamplePoisson, MeshLab, MeshLabResample)", Default = MeshDecimationMethod.MeshLab)]
+        public virtual MeshDecimationMethod MeshDecimator { get; set; }
 
         [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
         public virtual string OnlyForObservations { get; set; }
@@ -58,9 +61,6 @@ namespace OPS.Landform
 
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
-
-        protected List<Observation> imageObservations;
-        protected Dictionary<int, Observation> indexedImages;
 
         protected string effectiveRootFrame;
 
@@ -148,22 +148,9 @@ namespace OPS.Landform
                         (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
                         (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
                         (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera))));
-
-            var comparator =
-                mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
-            var allObs = observationCache.GetAllObservations();
-            imageObservations = comparator
-                .KeepBestRoverObservations(allObs, pipeline.Verbose ? pipeline : null, RoverProductType.Image)
-                .Cast<Observation>()
-                .ToList();
-            indexedImages = new Dictionary<int, Observation>();
-            foreach (var obs in imageObservations)
-            {
-                indexedImages[obs.Index] = obs;
-            }
-
-            pipeline.LogInfo("loaded {0}{1} observations ({2} images) in project {3}{4}{5}",
-                             num, DescribeObservationFilter(), imageObservations.Count, project.Name,
+    
+            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
+                             num, DescribeObservationFilter(), project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
         }

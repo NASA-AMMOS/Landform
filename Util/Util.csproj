@@ -60,6 +60,7 @@
     <Compile Include="HammingDistance.cs" />
     <Compile Include="HashCombiner.cs" />
     <Compile Include="Histogram.cs" />
+    <Compile Include="IURLFileSet.cs" />
     <Compile Include="JsonHelper.cs" />
     <Compile Include="Logging.cs" />
     <Compile Include="LRUCache.cs" />

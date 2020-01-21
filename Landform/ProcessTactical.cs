@@ -40,6 +40,7 @@ namespace OPS.Landform
     public class ProcessTactical : LandformService
     {
         public const string TILESET_JSON = "tileset.json";
+        public const string SCENE_JSON = "scene.json";
 
         protected ProcessTacticalOptions options;
 
@@ -359,7 +360,14 @@ namespace OPS.Landform
                 
                 RunCommand("build-tileset", project);
 
-                SaveTileset(venue, project, pair.mesh);
+                string tilesetDir = string.Format("{0}/{1}/{2}/passthroughFrame/best/{3}",
+                                                  storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
+
+                RunCommand("update-scene-manifest", "--mission", missionStr,
+                           "--manifestfile", tilesetDir + "/" + SCENE_JSON,
+                           "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
+
+                SaveTileset(tilesetDir, project, pair.mesh);
 
                 Cleanup(venueDir);
             }
@@ -402,20 +410,18 @@ namespace OPS.Landform
             }
         }
 
-        private void SaveTileset(string venue, string project, string meshUrl)
+        private void SaveTileset(string tilesetDir, string project, string meshUrl)
         {
-            string outDir = string.Format("{0}/{1}/{2}/passthroughFrame/best/{3}",
-                                          storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
-            string tilesetFile = string.Format("{0}/{1}", outDir, TILESET_JSON);
+            string tilesetFile = string.Format("{0}/{1}", tilesetDir, TILESET_JSON);
             string dest = string.Format("{0}/{1}", GetDestDir(meshUrl), project);
             
-            pipeline.LogInfo("{0}saving tileset from {1} to {2}", options.DryRun ? "dry " : "", outDir, dest);
+            pipeline.LogInfo("{0}saving tileset from {1} to {2}", options.DryRun ? "dry " : "", tilesetDir, dest);
             
             if (!options.DryRun)
             {
-                if (!Directory.Exists(outDir))
+                if (!Directory.Exists(tilesetDir))
                 {
-                    throw new Exception(string.Format("local tileset directory {0} not found", outDir));
+                    throw new Exception(string.Format("local tileset directory {0} not found", tilesetDir));
                 }
                 
                 if (!File.Exists(tilesetFile))
@@ -423,9 +429,9 @@ namespace OPS.Landform
                     throw new Exception(string.Format("local tileset {0} not found", tilesetFile));
                 }
                 
-                foreach (var f in PathHelper.ListFiles(outDir, recursive: false))
+                foreach (var f in PathHelper.ListFiles(tilesetDir, recursive: false))
                 {
-                    if (f.Name == TILESET_JSON)
+                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON)
                     {
                         SaveFile(f.FullName, string.Format("{0}/{1}_{2}", dest, project, f.Name));
                     }

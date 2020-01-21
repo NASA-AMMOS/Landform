@@ -47,7 +47,17 @@ namespace OPS.Pipeline
 
         public static RoverProductId Parse(string id, MissionSpecific mission = null, bool throwOnFail = true)
         {
-            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
+            id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true); //ok if id null or empty
+
+            if (string.IsNullOrEmpty(id))
+            {
+                if (throwOnFail)
+                {
+                    throw new ArgumentException("null or empty product ID");
+                }
+                return null;
+            }
+
             try
             {
                 if (mission != null)
@@ -196,6 +206,12 @@ namespace OPS.Pipeline
         }
 
         public virtual bool GetInstrumentSpan(out int start, out int length)
+        {
+            start = length = -1;
+            return false;
+        }
+
+        public virtual bool GetStereoPartnerSpan(out int start, out int length)
         {
             start = length = -1;
             return false;
@@ -1013,6 +1029,15 @@ namespace OPS.Pipeline
         {
             start = 0;
             length = 2;
+            return true;
+        }
+
+        public override bool GetStereoPartnerSpan(out int start, out int length)
+        {
+            //Note: PIXL MCC does not have a stereo partner field in its product ID
+            //but we don't support that instrument
+            start = 44;
+            length = 1;
             return true;
         }
 

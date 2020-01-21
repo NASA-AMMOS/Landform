@@ -20,8 +20,8 @@ namespace OPS.Landform
         [Option(Required = false, Default = SkirtMode.None, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
         public SkirtMode SkirtMode { get; set; }
 
-        [Option(Default = MeshReconMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
-        public MeshReconMethod ReconMethod { get; set; }
+        [Option(Default = MeshReconstructionMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
+        public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
         public double MaxTime { get; set; }
@@ -157,8 +157,8 @@ namespace OPS.Landform
                 int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
-                                                     options.SkirtMode, options.ReconMethod, options.FacesPerTile,
-                                                     resolution, projectType.ToString(),
+                                                     options.SkirtMode, options.ReconstructionMethod,
+                                                     options.FacesPerTile, resolution, projectType.ToString(),
                                                      exportMeshFormat, exportImageFormat, maxTileGroupSize);
 
                 tilingProject.ExportDir = null;

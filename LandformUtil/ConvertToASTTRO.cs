@@ -83,11 +83,11 @@ namespace OPS.LandformUtil
             foreach (var obs in imageObservations)
             {
                 PDSParser parser = new PDSParser(new PDSMetadata(new System.Uri(obs.Url).LocalPath));
-                if (mission.IsNavcam(mission.GetCamera(parser.InstrumentId)))
+                if (mission.IsNavcam(mission.GetCamera(parser)))
                 {
                     numNavcams++;
                 }
-                else if (mission.IsMastcam(mission.GetCamera(parser.InstrumentId)))
+                else if (mission.IsMastcam(mission.GetCamera(parser)))
                 {
                     numMastcams++;
                 }
@@ -198,8 +198,8 @@ namespace OPS.LandformUtil
         {
             string manifestPath = null;
             {
-                var RASLRecords = imageObservations.Select(x => new FileRecord(new System.Uri(x.Url).LocalPath));
-                CreateLegacyScene(RASLRecords, localOutputPath, out manifestPath, meshFrame, project.Name);
+                var imageRecords = imageObservations.Select(x => new FileRecord(new System.Uri(x.Url).LocalPath));
+                CreateLegacyScene(imageRecords, localOutputPath, out manifestPath, meshFrame, project.Name);
             }
 
             pipeline.LogInfo("ASTTRO scene manifest written at: {0}", manifestPath);

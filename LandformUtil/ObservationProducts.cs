@@ -19,8 +19,8 @@ using OPS.Landform;
 
 namespace OPS.LandformUtil
 {
-    [Verb("local-observation-products", HelpText = "create observation mesh and image products")]
-    public class LocalObservationProductsOptions : GeometryCommandOptions
+    [Verb("observation-products", HelpText = "create observation mesh and image products")]
+    public class ObservationProductsOptions : GeometryCommandOptions
     {
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
@@ -55,8 +55,11 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
 
-        [Option(HelpText = "Triangle mesh reconstruction method (Organized, Poisson, or FSSR)", Default = ReconstructionMethod.Organized)]
-        public ReconstructionMethod ReconstructionMethod { get; set; }
+        [Option(HelpText = "Always reconstruct wedge triangle meshes", Default = false)]
+        public bool AlwaysReconstructWedgeMeshes { get; set; }
+
+        [Option(HelpText = "Wedge reconstruction method (Organized, Poisson, or FSSR)", Default = MeshReconstructionMethod.Organized)]
+        public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
         [Option(HelpText = "Max triangle aspect ratio for organized mesh reconstruction", Default = 10)]
         public double MaxTriangleAspect { get; set; }
@@ -128,9 +131,9 @@ namespace OPS.LandformUtil
         public bool DeltaRangeImages { get; set;}
     } 
 
-    public class LocalObservationProducts : GeometryCommand
+    public class ObservationProducts : GeometryCommand
     {
-        private LocalObservationProductsOptions options;
+        private ObservationProductsOptions options;
 
         private bool withTextures;
         private bool buildWedgeMeshes;
@@ -142,7 +145,7 @@ namespace OPS.LandformUtil
         private ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>> mergeInputs =
             new ConcurrentDictionary<string, ConcurrentBag<Tuple<WedgeObservations, Mesh, Image>>>();
         
-        public LocalObservationProducts(LocalObservationProductsOptions options) : base(options)
+        public ObservationProducts(ObservationProductsOptions options) : base(options)
         {
             this.options = options;
 
@@ -270,16 +273,16 @@ namespace OPS.LandformUtil
                              sds.Length > 0 ? (" for site drive(s) " + String.Join(",", sds)) : "", localOutputPath);
 
             //indexed by frame name
-            var validPoints = new ConcurrentDictionary<string, int>();
-            var validNormals = new ConcurrentDictionary<string, int>();
-            var validTriangles = new ConcurrentDictionary<string, int>();
+            var numPoints = new ConcurrentDictionary<string, int>();
+            var numNormals = new ConcurrentDictionary<string, int>();
+            var numTriangles = new ConcurrentDictionary<string, int>();
             var faceStats = new ConcurrentDictionary<string, Mesh.FaceStats>();
-            var generatedNormals = new ConcurrentDictionary<string, bool>();
             var wedgeDecimation = new ConcurrentDictionary<string, int>();
 
             var meshOpts = new WedgeObservations.MeshOptions()
                 {
                     Frame = meshFrame,
+                    LoadedFrame = mission.GetTacticalMeshFrame(),
                     UsePriors = options.UsePriors,
                     OnlyAligned = options.OnlyAligned,
                     Decimate = options.DecimateWedgeMeshes,
@@ -287,7 +290,8 @@ namespace OPS.LandformUtil
                     ApplyTexture = withTextures,
                     MaxTriangleAspect = options.MaxTriangleAspect,
                     IsolatedPointSize = options.IsolatedPointSize,
-                    GenerateNormals = !options.NoGenerateNormals
+                    GenerateNormals = !options.NoGenerateNormals,
+                    MeshDecimator = options.MeshDecimator
                 };
 
             int np = 0, nc = 0;
@@ -305,7 +309,8 @@ namespace OPS.LandformUtil
                 string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
                 //mesh decimation blocksize
-                int mbs = WedgeObservations.AutoDecimate(obs.Points != null ? obs.Points : obs.Normals, //null ok
+                var mbsObs = (obs.HasMesh && !options.AlwaysReconstructWedgeMeshes) ? obs.Texture : obs.Points;
+                int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
                                                          options.DecimateWedgeMeshes,
                                                          options.TargetWedgeMeshResolution);
 
@@ -318,24 +323,51 @@ namespace OPS.LandformUtil
                 var mo = meshOpts.Clone();
                 mo.Decimate = mbs;
 
-                int numPoints = 0, numNormals = 0, numTriangles = 0;
+                int npts = 0, nn = 0, nt = 0;
                 Mesh mesh = null;
-                if (buildWedgeMeshes && obs.Points != null)
+                if (buildWedgeMeshes && obs.Meshable)
                 {
-                    mesh = BuildWedgeMesh(obs, mo, out numPoints, out numNormals);
+                    Exception ex = null;
+                    try
+                    {
+                        mesh = BuildWedgeMesh(obs, mo);
+                    }
+                    catch (Exception e)
+                    {
+                        ex = e;
+                    }
+
+                    //try to count valid points and normals in the observation images now
+                    //after the mesh has been built because that would have loaded the points and normals images
+                    //however they may not have been loaded if the mesh itself was loaded from disk (e.g. IV or OBJ)
+                    //but in that case the best we can do is use the vertex count of the mesh itself
+                    obs.CountValid(out npts, out nn);
+
+                    if (mesh != null)
+                    {
+                        if (npts == 0)
+                        {
+                            npts = mesh.Vertices.Count;
+                        }
+                        if (nn == 0 && mesh.HasNormals)
+                        {
+                            nn = mesh.Vertices.Count;
+                        }
+                        nt = mesh.Faces.Count;
+                        pipeline.LogVerbose("collecting face stats for {0}", obs.Name);
+                        faceStats[obs.FrameName] = mesh.CollectFaceStats();
+                    }
+                    else
+                    {
+                        pipeline.LogWarn("meshing failed on obs {0} ({1} reconstruction, {2} points, {3} normals): {4}",
+                                         obs.Name, options.ReconstructionMethod, npts, nn,
+                                         ex != null ? ex.Message : "insufficient data or unknown error");
+                    }
                 }
 
-                if (mesh != null)
-                {
-                    generatedNormals[obs.FrameName] = mesh.HasNormals && numNormals == 0;
-                    numTriangles = mesh.Faces.Count;
-                    pipeline.LogVerbose("collecting face stats for {0}", obs.Name);
-                    faceStats[obs.FrameName] = mesh.CollectFaceStats();
-                }
-
-                validPoints[obs.FrameName] = numPoints;
-                validNormals[obs.FrameName] = numNormals;
-                validTriangles[obs.FrameName] = numTriangles;
+                numPoints[obs.FrameName] = npts;
+                numNormals[obs.FrameName] = nn;
+                numTriangles[obs.FrameName] = nt;
 
                 int ibs = WedgeObservations.AutoDecimate(obs.Texture, //null ok
                                                          options.DecimateWedgeImages,
@@ -381,7 +413,7 @@ namespace OPS.LandformUtil
                                      options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,
                                      stretch: options.StretchContrast, nStddev: options.StretchStdDev);
                     }
-                    SaveMesh(mesh, sdPrefix + obs.Name, img != null ? (obs.Name + imageExt) : null);
+                    SaveMesh(mesh, sdPrefix + obs.Name, (withTextures && img != null) ? (obs.Name + imageExt) : null);
                 }
                 
                 Image mask = null;
@@ -460,13 +492,10 @@ namespace OPS.LandformUtil
                 if (buildWedgeMeshes)
                 {
                     var fn = obs.FrameName;
-                    pipeline.LogInfo("{0}: {1} points, {2} normals{3}, {4} triangles{5}{6}{7}{8}",
-                                     fn, validPoints[fn], validNormals[fn],
-                                     generatedNormals.ContainsKey(fn) && generatedNormals[fn] ? " (generated)" : "",
-                                     validTriangles[fn],
+                    pipeline.LogInfo("{0}: {1} points, {2} normals, {3} triangles{4}{5}{6}{7}",
+                                     fn, numPoints[fn], numNormals[fn], numTriangles[fn],
                                      wedgeDecimation[fn] > 1 ?
-                                     string.Format(" after {0}x decimation", wedgeDecimation[fn])
-                                     : "",
+                                     string.Format(" ({0}x decimation)", wedgeDecimation[fn]) : "",
                                      faceStats.ContainsKey(fn) ? Environment.NewLine + faceStats[fn].ToString() : "",
                                      Environment.NewLine, obs.ToString(pipeline));
                 }
@@ -479,39 +508,19 @@ namespace OPS.LandformUtil
             pipeline.LogInfo("generated products for {0} observations", no);
         }
 
-        private Mesh BuildWedgeMesh(WedgeObservations obs, WedgeObservations.MeshOptions mo, out int numPoints, out int numNormals)
+        private Mesh BuildWedgeMesh(WedgeObservations obs, WedgeObservations.MeshOptions mo)
         {
-            Mesh mesh = null;
             if (options.PointCloud)
             {
                 pipeline.LogVerbose("building point cloud for {0}", obs.Name);
-                mesh = obs.BuildPointCloud(pipeline, frameCache, masker, mo);
-                obs.CountValid(out numPoints, out numNormals);
-                
+                return obs.BuildPointCloud(pipeline, frameCache, masker, mo);
             }
             else
             {
-                pipeline.LogVerbose("building {0} triangle mesh for {1}", options.ReconstructionMethod, obs.Name);
-                Exception ex = null;
-                try
-                {
-                    mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, options.ReconstructionMethod);
-                }
-                catch (Exception e)
-                {
-                    ex = e;
-                }
-                
-                obs.CountValid(out numPoints, out numNormals);
-                
-                if (mesh == null)
-                {
-                    pipeline.LogWarn("{0} reconstruction failed on observation {1} ({2} valid points, {3} valid normals): {4}",
-                                     options.ReconstructionMethod, obs.Name, numPoints, numNormals,
-                                     ex != null ? ex.Message : "insufficient data or unknown error");
-                }
+                pipeline.LogVerbose("building triangle mesh for {0}", obs.Name);
+                return obs.BuildMesh(pipeline, frameCache, masker, mo, options.AlwaysReconstructWedgeMeshes,
+                                     options.ReconstructionMethod);
             }
-            return mesh;
         }
 
         private Image BuildWedgeImage(WedgeObservations obs, int ibs)
@@ -712,18 +721,25 @@ namespace OPS.LandformUtil
                 Image img = null;
                 try
                 {
-                    var pair = Mesh.MergeMeshesAndTextures(inputs
-                                                           .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
-                                                           .ToArray());
-                    mesh = pair.Item1;
-                    img = pair.Item2;
+                    if (withTextures)
+                    {
+                        var pair = Mesh.MergeMeshesAndTextures(inputs
+                                                               .Select(t => new Tuple<Mesh, Image>(t.Item2, t.Item3))
+                                                               .ToArray());
+                        mesh = pair.Item1;
+                        img = pair.Item2;
+                    }
+                    else
+                    {
+                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item2).ToArray());
+                    }
                 }
                 catch (Exception ex)
                 {
                     pipeline.LogWarn("error creating merged mesh for site drive {0}: {1}", siteDrive, ex.Message);
                 }
                 
-                if (mesh != null && options.ColorMeshesBy != MeshColor.None && options.ColorMeshesBy != MeshColor.Texture)
+                if (mesh != null && img == null && options.ColorMeshesBy != MeshColor.None)
                 {
                     mesh.ColorBy(options.ColorMeshesBy,
                                  options.ConvertNormalsToTilts ? options.TiltMode : TiltMode.None,

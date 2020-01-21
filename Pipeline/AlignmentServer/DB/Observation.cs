@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Collections.Generic;
 using Amazon.DynamoDBv2.DataModel;
 using Newtonsoft.Json;
@@ -17,7 +18,7 @@ namespace OPS.Pipeline.AlignmentServer
     [DynamoDBTable("Observations")]
     [DynamoDBReadCapacity(50, 100)]
     [DynamoDBWriteCapacity(50, 100)]
-    public class Observation
+    public class Observation : IURLFileSet
     {
         //index 0 is reserved to mean "no observation"
         //also note, in legacy TerrainTools index 65535 (0xffff) is treated equivalent to 0 in LimberDMG
@@ -34,9 +35,12 @@ namespace OPS.Pipeline.AlignmentServer
         public string ProjectName;
 
         [DynamoDBHashKey]
-        public string Name;
+        public string Name; //rover product ID
 
-        public string Url;
+        public string Url; //PDS or VICAR image with metadata that loads as PDSMetadata
+
+        //for Url, case sensitive, without leading dots
+        public HashSet<string> AlternateExtensions = new HashSet<string>(); //MT safety: lock before accessing
 
         public Guid MaskGuid; //combines rover mask, user mask, invalid/missing pixels, and border
 
@@ -213,6 +217,40 @@ namespace OPS.Pipeline.AlignmentServer
                 case RoverProductGeometry.Linearized: return IsLinear;
                 case RoverProductGeometry.Raw: return !IsLinear;
                 default: return false;
+            }
+        }
+
+        public string GetUrlWithExtension(string ext)
+        {
+            ext = ext.TrimStart('.');
+            if (Url.EndsWith("." + ext, StringComparison.OrdinalIgnoreCase))
+            {
+                return Url;
+            }
+            string actualExt = AlternateExtensions
+                .Where(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase))
+                .FirstOrDefault();
+            if (actualExt == null)
+            {
+                throw new Exception(string.Format("no ext {0} in observation {1}, available: {2}",
+                                                  ext, Name, string.Join(", ", AlternateExtensions)));
+            }
+            return StringHelper.StripUrlExtension(Url) + "." + actualExt;
+        }
+        
+        public bool HasUrlExtension(string ext)
+        {
+            ext = ext.TrimStart('.');
+            return Url.EndsWith("." + ext, StringComparison.OrdinalIgnoreCase) ||
+                AlternateExtensions.Any(ex => ex.Equals(ext, StringComparison.OrdinalIgnoreCase));
+        }
+
+        public IEnumerable<string> GetUrlExtensions()
+        {
+            yield return StringHelper.GetUrlExtension(Url).TrimStart('.');
+            foreach (string ext in AlternateExtensions)
+            {
+                yield return ext;
             }
         }
 

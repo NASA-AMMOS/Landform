@@ -311,13 +311,30 @@ namespace OPS.Pipeline.AlignmentServer
         /// that given such a string we can be sure that it identifies an observation frame.
         ///
         /// The reason this function requires an observation frame specifically is so that it can support the
-        /// meta-names "rover", "sitedrive", and "root" as the destination frame.  This is possible by relying on
-        /// the assumption that the frame tree is structured like this:
+        /// meta-names "observation" (aka "rover"), "sitedrive" (aka "local_level"), "site", and "root"
+        /// as the destination frame.  This relies on the assumptions that the frame tree is structured like this:
         ///
-        /// root frame <-- sitedrive frame <-- observation/rover frame
+        /// root frame <-- sitedrive frame <-- observation frame
         ///
-        /// That is, an observation frame is always a rover frame, the parent of an observation frame is always a
-        /// sitedrive frame, and the parent of a sitedrive frame is always the root frame.
+        /// and that
+        /// * an observation frame is always a rover frame
+        /// * the parent of an observation frame is always a sitedrive (local_level) frame
+        /// * the transform prior from observation (rover) frame to sitedrive (local_level) frame
+        ///   is the rotation ROVER_COORDINATE_SYSTEM.ORIGIN_ROTATION_QUATERNION in the PDS headers of fromObs
+        /// * sitedrive <-- observation was stored as the transform of the observation frame during ingestion
+        /// * the parent of a sitedrive frame is always the project root frame
+        /// * the transform prior from sitedrive (local_level) frame to project root frame 
+        ///   is the translation ROVER_COORDINATE_SYSTEM.ORIGIN_OFFSET_VECTOR in the PDS headers of fromObs
+        ///   plus the translation prior of site frame to project root
+        /// * root <-- sitedrive was stored as the transform of the sitedrive frame during ingestion
+        ///
+        /// Typically project root frame is mission root frame (site 1 frame) but for some projects it may be some
+        /// other site frame, see discussion in ChainPriors().
+        ///
+        /// Site frames are not explicitly represented in our frame tree. It is uncommon to use site frame, but one
+        /// case is wedge mesh RDRs which are typically in site frame (see Mission.GetTacticalMeshFrame()).
+        /// site <-- observation transforms are computed by composing sitedrive <-- observation transform with
+        /// site <-- sitedrive from the PDS headers of the observation.
         ///
         /// Result is null if the transform could not be resolved.
         ///
@@ -328,7 +345,7 @@ namespace OPS.Pipeline.AlignmentServer
         public UncertainRigidTransform GetObservationTransform(Observation fromObs, string toFrameName,
                                                                bool usePriors = false, bool onlyAligned = false)
         {
-            if (toFrameName == "rover" || fromObs.FrameName == toFrameName)
+            if (toFrameName == "observation" || toFrameName == "rover" || fromObs.FrameName == toFrameName)
             {
                 //go from an observation frame to itself
                 return new UncertainRigidTransform(); //identity, no uncertainty
@@ -348,7 +365,7 @@ namespace OPS.Pipeline.AlignmentServer
                 return (obsToSD == null || (onlyAligned && obsToSD.IsPrior())) ? null : obsToSD.Transform;
             }
 
-            if (toFrameName == "sitedrive" || toFrameName == fromFrame.ParentName)
+            if (toFrameName == "sitedrive" || toFrameName == "local_level" || toFrameName == fromFrame.ParentName)
             {
                 //go from an observation frame to its parent sitedrive frame
                 var ret = getTransformToSD(fromFrame);
@@ -361,7 +378,13 @@ namespace OPS.Pipeline.AlignmentServer
 
             if (toFrameName == "site")
             {
-                throw new NotImplementedException("transform to site frame not implemented");
+                var ret = getTransformToSD(fromFrame);
+                if (ret == null)
+                {
+                    pipeline.LogWarn("no transform from observation frame {0} to parent sitedrive", fromObs.FrameName);
+                }
+                //row major transforms compose left to right
+                return ret * PDSImage.GetSiteDriveToSiteTransformFromPDS(pipeline.LoadImage(fromObs.Url));
             }
 
             if (toFrameName == "root" || string.IsNullOrEmpty(toFrameName))

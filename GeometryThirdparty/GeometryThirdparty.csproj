@@ -70,8 +70,6 @@
     <Compile Include="MeshLabException.cs" />
     <Compile Include="MeshLabOutputAttributes.cs" />
     <Compile Include="MeshLabRunner.cs" />
-    <Compile Include="OpenInventorParser.cs" />
-    <Compile Include="OpenInventorSerializer.cs" />
     <Compile Include="PoissonReconstruction.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ThirdPartyMeshSerializers.cs" />
@@ -80,15 +78,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
-    <None Include="ExternalApps\ivcat.com">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="ExternalApps\Coin3.dll">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="ExternalApps\draco_decoder.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
@@ -98,19 +90,22 @@
     <Content Include="ExternalApps\fssrecon.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="ExternalApps\ivcat.exe">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
     <Content Include="ExternalApps\meshclean.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="ExternalApps\PoissonRecon.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+    <Content Include="ExternalApps\PoissonRecon.V12.0.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="ExternalApps\PoissonReconV10.02.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="ExternalApps\SurfaceTrimmer.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ExternalApps\SurfaceTrimmer.V12.0.exe">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

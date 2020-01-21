@@ -188,7 +188,7 @@ namespace OPS.Pipeline
                 {
                     //fallback to pds headers, site relative
                     //IngestAlignmentInputs will later call FrameCache.ChainPriors()
-                    var xform = GetSiteDriveToSiteTransformFromPDS(parser);
+                    var xform = PDSImage.GetSiteDriveToSiteTransformFromPDS(parser);
                     siteDriveFrame = GetFrame(siteDriveName, rootFrame, TransformSource.PDS, xform);
                 }
                 
@@ -226,7 +226,9 @@ namespace OPS.Pipeline
                     }
                     else if(parser.Site != 1)
                     {
-                        //The SITE_COORDINATE_SYSTEM group is only set if the SITE Index is greater than 1 and the Site Quaternion is not 0,0,0,0 (unknown).  (from 2020 SIS, verified doesn't exist in MSL Site 1 Label)
+                        //The SITE_COORDINATE_SYSTEM group is only set if the SITE Index is greater than 1
+                        //and the Site Quaternion is not 0,0,0,0 (unknown).
+                        //(from 2020 SIS, verified doesn't exist in MSL Site 1 Label)
                         pipeline.LogVerbose("PDS data product {0} missing SITE_COORDINATE_SYSTEM", url);
                     }
                 }
@@ -320,20 +322,6 @@ namespace OPS.Pipeline
             return new UncertainRigidTransform(Matrix.CreateTranslation(loc.Position), covariance);
         }
 
-        //this function returns local_level to site
-        //after all sites are processed the matrices will be fixed up to provide current site to root by chaining
-        //see FrameCache.ChainPriors() which is called from IngestAlignmentInputs
-        private UncertainRigidTransform GetSiteDriveToSiteTransformFromPDS(PDSParser parser)
-        {            
-            Vector3 siteToLocalLevel = parser.OriginOffset;
-
-            // TODO: examine values here
-            var covariance = CreateMatrix
-                .Diagonal<double>(new double[] { 0.25, 0.25, 0.25, 0.5 * degSqr, 0.5 * degSqr, 1.0 * degSqr });
-
-            return new UncertainRigidTransform(Matrix.CreateTranslation(siteToLocalLevel), covariance);
-        }
-
         private ConcurrentDictionary<string, bool> alreadyWarned = new ConcurrentDictionary<string, bool>();
 
         private UncertainRigidTransform GetSiteDriveTransformFromPlaces(PDSParser parser, out TransformSource source)
@@ -405,6 +393,10 @@ namespace OPS.Pipeline
         /// </summary>
         private UncertainRigidTransform GetObservationTransform(PDSParser parser)
         {
+            if (!parser.RoverCoordinateSystemRelativeToSite)
+            {
+                throw new Exception("rover frame not relative to site frame");
+            }
             // TODO: examine values here
             var covariance = CreateMatrix
                 .Diagonal<double>(new double[] { 0.01, 0.01, 0.01, quarterDegSqr, quarterDegSqr, halfDegSqr });
