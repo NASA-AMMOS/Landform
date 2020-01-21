@@ -768,8 +768,8 @@ namespace OPS.Pipeline
 
         public virtual Matrix GetDemToSiteDriveOffset(SiteDrive siteDrive, string demFilePath = null)
         {
-            demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath : //override by cmdline opt
-                Path.Combine(LocalPipelineConfig.Instance.StorageDir, GetMission().ToString(), OrbitalConfig.Instance.DEMRelPath);
+            demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
+                OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
             if (s.GetType() != typeof(GDALSerializer))
             {
@@ -1039,8 +1039,8 @@ namespace OPS.Pipeline
             Vector2 latlon = places.GetEstimatedLatLon(siteDrive);
             if(gdalDem == null)
             {
-                demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath : //override by cmdline opt
-                    Path.Combine(LocalPipelineConfig.Instance.StorageDir, GetMission().ToString(), OrbitalConfig.Instance.DEMRelPath);
+                demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
+                    OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
                 gdalDem = GDALDEM.MarsDEM(demFilePath);
             }
             Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));

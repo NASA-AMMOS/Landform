@@ -266,19 +266,20 @@ namespace OPS.Landform
             }
 
             string demFilePath = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : //override by cmdline opt
-                Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
+                OrbitalConfig.Instance.GetDEMFullPath(project.Mission);
 
             bool runOrbitalAlign = true;
             SparseDEMImage dem = null;
             Matrix demToBaseSiteDrive = Matrix.Identity;
 
-            try
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
+            if (s.GetType() != typeof(GDALSerializer))
             {
-                ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
-                if (s.GetType() != typeof(GDALSerializer))
-                {
-                    throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
-                }
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+
+            if (File.Exists(demFilePath))
+            {
                 ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out int width, out int height);
                 dem = new SparseDEMImage(demFilePath);
                 if (dem.CameraModel == null)
@@ -287,7 +288,7 @@ namespace OPS.Landform
                 }
                 demToBaseSiteDrive = mission.GetDemToSiteDriveOffset(baseSiteDrive, demFilePath) * DemOperations.demToSitedriveCoordinateFlip;
             }
-            catch
+            else
             {
                 pipeline.LogWarn("FAILED to load orbital DEM with priors. Check filepath and places access.");
                 runOrbitalAlign = false;
