@@ -114,7 +114,7 @@ namespace OPS.Landform
                 RunPhase("build tile tree", BuildTileTree);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
 
-                if (options.LoadLODs && meshLODs.Count > 1)
+                if (meshLOD.Count > 1)
                 {
                     RunPhase("build LOD tile meshes", BuildLODTileMeshes);
                 }
@@ -293,10 +293,10 @@ namespace OPS.Landform
 
         private void BuildTileTree()
         {
-            if (options.LoadLODs && meshLODs.Count > 1)
+            if (meshLOD.Count > 1)
             {
                 //use decimated versions of the mesh provided to generate a tile tree with a fixed number of levels
-                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLODs);
+                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLOD);
             }
             else
             {
@@ -350,19 +350,19 @@ namespace OPS.Landform
 
             int numFailed = 0;
             List<SceneNode> curLevelNodes = new List<SceneNode> { tileTree };
-            for (int idxTreeLevel = 0; idxTreeLevel < meshLODs.Count; idxTreeLevel++)
+            for (int idxTreeLevel = 0; idxTreeLevel < meshLOD.Count; idxTreeLevel++)
             {
                 if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("building LOD tiles for tree level {0}/{1} ({2:F2}%)", idxTreeLevel, meshLODs.Count,
-                                     100 * idxTreeLevel / (float)meshLODs.Count);
+                    pipeline.LogInfo("building LOD tile meshes for tree level {0}/{1} ({2:F2}%)", (idxTreeLevel + 1),
+                                     meshLOD.Count, 100 * (idxTreeLevel + 1) / (float)meshLOD.Count);
                 }
 
                 // clip meshes for each tile              
-                int idxLOD = meshLODs.Count - idxTreeLevel - 1;
+                int idxLOD = meshLOD.Count - idxTreeLevel - 1;
                 CoreLimitedParallel.ForEach(curLevelNodes, curNode =>
                 {
-                    Mesh nodeMesh = MakeTileMesh(curNode, meshOps[idxLOD]);
+                    Mesh nodeMesh = MakeTileMesh(curNode, meshOpForLOD[idxLOD]);
                     if (nodeMesh != null)
                     {
                         nodeMesh.Clean(); //copying behavior from TextureMeshClipper
@@ -415,7 +415,7 @@ namespace OPS.Landform
                                      100 * curLeafNum / (float)leafCount, leaf.Name);
                 }
 
-                Mesh leafMesh = MakeTileMesh(leaf, meshOps.First());
+                Mesh leafMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 
                 if (leafMesh != null)
                 {
@@ -447,12 +447,18 @@ namespace OPS.Landform
                 ParentNames = new List<string>()
             };
 
+            if (sceneMesh != null && sceneMesh.Frame != tileList.MeshFrame)
+            {
+                throw new Exception(string.Format("existing scene mesh in frame {0} but tile list in frame {1}",
+                                                  sceneMesh.Frame, tileList.MeshFrame));
+            } 
+
             var tilesToTexture = tileTree.DepthFirstTraverse()
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
                 .ToList();
             int tileCount = tilesToTexture.Count;
 
-            if (options.LoadLODs && meshLODs.Count == 1)
+            if (options.LoadLODs && meshLOD.Count == 1)
             {
                 //TODO for now if the input mesh has only one LOD behave same as if --loadlods was not specified
                 texGenMode = TextureGenMode.Bake;
@@ -512,18 +518,7 @@ namespace OPS.Landform
                 }
                 else if (texGenMode == TextureGenMode.Clip)
                 {
-                    MeshOperator meshOp = null;
-                    if (options.LoadLODs && meshLODs.Count > 1)
-                    {
-                        int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
-                        int idxLOD = meshLODs.Count - idxTreeLevel - 1;
-                        meshOp = meshOps[idxLOD];
-                    }
-                    else
-                    {
-                        meshOp = meshOps.First();
-                    }
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(meshOp, mp.Mesh, sceneTexture);
+                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }
@@ -561,6 +556,12 @@ namespace OPS.Landform
 
             if (!options.NoSave)
             {
+                if (sceneMesh == null)
+                {
+                    pipeline.LogInfo("creating scene mesh in frame {0}", tileList.MeshFrame);
+                    sceneMesh = SceneMesh.Create(pipeline, project, tileList.MeshFrame);
+                }
+
                 pipeline.LogInfo("saving tile list");
                 pipeline.SaveDataProduct(project, tileList);
                 sceneMesh.TileListGuid = tileList.Guid;

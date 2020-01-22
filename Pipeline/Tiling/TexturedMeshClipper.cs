@@ -207,7 +207,8 @@ namespace OPS.Pipeline
             return patches;
         }
 
-        static public MeshImagePair RemapMeshClipImage(MeshOperator fullMeshOp, Mesh clippedMesh, Image image, int borderSize = 5, bool allowRotation = false)
+        static public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image image, int borderSize = 5,
+                                                       bool allowRotation = false)
         {
             return ClipPatches(ComputePatches(clippedMesh, image, borderSize), clippedMesh.HasNormals, clippedMesh.HasColors, image.Bands, borderSize, allowRotation);
         }

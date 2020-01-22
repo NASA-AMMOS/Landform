@@ -81,10 +81,12 @@ namespace OPS.Landform
         protected List<Observation> imageObservations;
         protected Dictionary<int, Observation> indexedImages;
 
-        protected Mesh mesh;
-        protected SceneMesh sceneMesh;
-        protected List<Mesh> meshLODs; //populated iff --loadlods, first = highest quality
-        protected MeshOperator[] meshOps;
+        protected SceneMesh sceneMesh; 
+
+        protected Mesh mesh; //finest LOD
+        protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
+        protected MeshOperator meshOp; //finest LOD
+        protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -308,7 +310,7 @@ namespace OPS.Landform
 
         protected void LoadInputMesh(bool requireUVs = true)
         {
-            if (sceneMesh == null) //might have already been loaded in GetProject()
+            if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
             }
@@ -317,23 +319,14 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading input mesh from {0}{1}", tcopts.InputMesh,
                                  sceneMesh != null ? (", overriding scene mesh " + sceneMesh.Name) : "");
-
+                string meshFile = pipeline.GetFileCached(tcopts.InputMesh, "meshes");
                 if (tcopts.LoadLODs)
                 {
-                    meshLODs = Mesh.LoadAllLODs(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
-                    
-                    pipeline.LogInfo("Input mesh contains {0} levels of detail", meshLODs.Count);
-                    for(int idxLOD = 0; idxLOD < meshLODs.Count; idxLOD++)
-                    {
-                        Mesh meshLOD = meshLODs.ElementAt(idxLOD);
-                        pipeline.LogInfo("Mesh LOD {0}: {1} vertices, {2} faces", idxLOD, meshLOD.Vertices.Count(), meshLOD.Faces.Count());
-                    }
-
-                    mesh = meshLODs.First();
+                    meshLOD = Mesh.LoadAllLODs(meshFile);
                 }
                 else
                 {
-                    mesh = Mesh.Load(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+                    mesh = Mesh.Load(meshFile);
                 }
             }
             else if (sceneMesh != null)
@@ -353,25 +346,42 @@ namespace OPS.Landform
                 throw new Exception("no input mesh specified and no scene mesh in database");
             }
 
-            if (mesh == null)
+            if (meshLOD == null)
+            {
+                meshLOD = new List<Mesh>() { mesh };
+            }
+
+            var keepers = new List<Mesh>();
+            for (int i = 0; i < meshLOD.Count; i++)
+            {
+                if (meshLOD[i] == null || meshLOD[i].Faces.Count == 0)
+                {
+                    pipeline.LogWarn("ignoring empty input mesh at LOD {0}", i);
+                }
+                else
+                {
+                    keepers.Add(meshLOD[i]);
+                }
+            }
+            meshLOD = keepers;
+
+            if (meshLOD.Count == 0)
             {
                 throw new Exception("failed to load input mesh");
             }
 
-            if (mesh.Faces.Count == 0)
+            mesh = meshLOD.First();
+
+            pipeline.LogInfo("input mesh contains {0} non-empty level(s) of detail", meshLOD.Count);
+            for (int lod = 0; lod < meshLOD.Count; lod++)
             {
-                throw new Exception("input mesh empty");
+                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
+                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count()), Fmt.KMG(meshLOD[lod].Faces.Count()));
             }
 
             if (requireUVs && !mesh.HasUVs)
             {
                 throw new Exception("input mesh needs UVs");
-            }
-
-            if (sceneMesh == null)
-            {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Default, siteDrives, mesh: mesh,
-                                             noSave: tcopts.NoSave);
             }
         }
 
@@ -425,18 +435,14 @@ namespace OPS.Landform
 
         protected void BuildMeshOperator()
         {
-            if (tcopts.LoadLODs && meshLODs.Count > 1)
+            var meshOps = new MeshOperator[meshLOD.Count];
+            CoreLimitedParallel.For(0, meshLOD.Count, lod =>
             {
-                meshOps = new MeshOperator[meshLODs.Count];
-                CoreLimitedParallel.For(0, meshLODs.Count, (idxLOD) =>
-                {
-                    meshOps[idxLOD] = new MeshOperator(meshLODs.ElementAt(idxLOD), buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-                });
-            }
-            else
-            {
-                meshOps = new MeshOperator[] { new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false) };
-            }
+                meshOps[lod] = new MeshOperator(meshLOD[lod],
+                                                buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            });
+            meshOpForLOD = meshOps.ToList();
+            meshOp = meshOpForLOD.First();
         }
 
         protected void BuildObsHulls()
@@ -454,7 +460,7 @@ namespace OPS.Landform
 
         protected void InitBackprojectStrategy()
         {
-            if (meshOps.Length < 1 || meshOps[0] == null)
+            if (meshOp == null)
             {
                 throw new Exception("must build mesh operator before initializing backproject strategy");
             }
@@ -464,7 +470,7 @@ namespace OPS.Landform
             var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
-            backprojectStrategy.Initialize(mesh, meshOps[0], sceneCaster, contexts, tcopts.TextureResolution,
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,
                                            tcopts.BackprojectQuality, tcopts.WriteDebug, backprojectDebugDir);
         }
 
