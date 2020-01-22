@@ -165,7 +165,7 @@ for f in `find ${dir} -name '*'.${meshext}`; do
 
         if [ "$generate" ]; then
             ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-            ${dry}$landform build-tiling-input $proj $dbg $lods --mission $mission --inputmesh $mesh --inputtexture $img | tee -a $log
+            ${dry}$landform build-tiling-input $proj $dbg $lods --mission $mission --meshframe tactical --inputmesh $mesh --inputtexture $img | tee -a $log
             ${dry}$landform build-tileset $proj $dbg $export | tee -a $log
 
             ${dry}rm -rf $proj

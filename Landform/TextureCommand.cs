@@ -78,7 +78,6 @@ namespace OPS.Landform
 
         protected SceneMesh sceneMesh; 
 
-        protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
@@ -368,9 +367,12 @@ namespace OPS.Landform
                                  lod, Fmt.KMG(meshLOD[lod].Vertices.Count()), Fmt.KMG(meshLOD[lod].Faces.Count()));
             }
 
-            if (requireUVs && !mesh.HasUVs)
+            for (int i = 0; i < meshLOD.Count; i++)
             {
-                throw new Exception("input mesh needs UVs");
+                if (requireUVs && !meshLOD[i].HasUVs)
+                {
+                    AtlasMesh(meshLOD[i], "lod " + i);
+                }
             }
         }
 

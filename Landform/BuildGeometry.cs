@@ -82,8 +82,6 @@ namespace OPS.Landform
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
         private Mesh pointCloud;
         private BoundingBox pointCloudBounds;
-        private Mesh mesh;        
-        private SceneMesh sceneMesh;
 
         //Intermediates
         private Mesh shrinkwrappedSurface;
@@ -590,11 +588,14 @@ namespace OPS.Landform
 
         private void SaveMesh()
         {
+            SceneMesh sceneMesh = null;
+
+            var obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
+            var variant = MeshVariant.Default;
+
             if (!options.NoSave)
             {
                 pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
-                string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
-                var variant = MeshVariant.Default;
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
                 if (sceneMesh != null)
                 {
@@ -613,7 +614,8 @@ namespace OPS.Landform
                 
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, sceneMesh.Name);
+                SaveMesh(mesh, sceneMesh != null ? sceneMesh.Name :
+                         SceneMesh.MakeName(meshFrame, variant, siteDrives, obsNames));
             }
 
             var bounds = mesh.Bounds().Size();

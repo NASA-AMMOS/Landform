@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
 using System.Diagnostics;
 using CommandLine;
 using OPS.Util;
@@ -27,6 +24,7 @@ namespace OPS.Landform
     {
         protected GeometryCommandOptions gcopts;
 
+        protected Mesh mesh; //finest LOD
         protected string meshFrame;
         protected int sceneTextureResolution;
 
@@ -81,7 +79,7 @@ namespace OPS.Landform
             return true;
         }
 
-        private void HandleSpecialMeshFrames()
+        protected virtual void HandleSpecialMeshFrames()
         {
             meshFrame = GetMeshFrame();
 
@@ -188,6 +186,39 @@ namespace OPS.Landform
 
             pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
                              origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
+        }
+
+        protected virtual void AtlasMesh(Mesh mesh, string name = "scene", int textureResolution = 0)
+        {
+            if (textureResolution <= 0)
+            {
+                textureResolution = sceneTextureResolution;
+            }
+
+            pipeline.LogInfo("atlasing {0} mesh ({1} triangles) with UVAtlas, texture resolution {2}",
+                             name, Fmt.KMG(mesh.Faces.Count), textureResolution);
+
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
+            pipeline.LogWarn("UVAtlas may not work well on large meshes");
+
+            try
+            {
+                mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution);
+                if (mesh == null)
+                {
+                    throw new Exception("unknown error");
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogError("error atlasing {0} mesh with UVAtlas: {1}", name, ex.Message);
+                mesh = null;
+            }
+        }
+
+        protected void AtlasMesh()
+        {
+            AtlasMesh(mesh);
         }
     }
 }
