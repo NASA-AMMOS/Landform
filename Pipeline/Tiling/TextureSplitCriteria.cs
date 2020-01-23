@@ -183,14 +183,13 @@ namespace OPS.Pipeline
                 if (srcPixelAreaForDestPixel <= 0)
                     continue;
 
-                    if (!srcAreaByCamera.ContainsKey(bestCamera))
-                    {
-                        srcAreaByCamera.Add(bestCamera, new List<double>() { srcPixelAreaForDestPixel });
-                    }
-                    else
-                    {
-                        srcAreaByCamera[bestCamera].Add(srcPixelAreaForDestPixel);
-                    }
+                if (!srcAreaByCamera.ContainsKey(bestCamera))
+                {
+                    srcAreaByCamera.Add(bestCamera, new List<double>() { srcPixelAreaForDestPixel });
+                }
+                else
+                {
+                    srcAreaByCamera[bestCamera].Add(srcPixelAreaForDestPixel);
                 }
             }
 
@@ -205,12 +204,6 @@ namespace OPS.Pipeline
             {
                 var pixelsTested = srcAreaByCamera[key];
                 if (pixelsTested == null)
-                {
-                    continue;
-                }
-
-                // is current atlas fine for texture resolution
-                if (!pixelsTested.Any(x => x > 1.0))
                 {
                     continue;
                 }
