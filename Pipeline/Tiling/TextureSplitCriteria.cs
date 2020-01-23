@@ -79,7 +79,7 @@ namespace OPS.Pipeline
                 return false;
 
             double ratioOfSrcToDest = srcPixelsArea / dstPixelsArea;
-            return ratioOfSrcToDest >= options.splitPixelTexelRatio;
+            return ratioOfSrcToDest > options.splitPixelTexelRatio;
         }
 
 
