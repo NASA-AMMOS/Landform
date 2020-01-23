@@ -153,11 +153,10 @@ namespace OPS.Pipeline
                 }
 
                 // calculate src pixels area contributing to the pixel  
-                Vector2[] pixelCorners = Image.GetPixelCorners(destPixelPt.Pixel);
-                var uvsCorners =
-                    pixelCorners.Select(c => Image.PixelToUV(c, options.tileResolution, options.tileResolution));
+                Vector2[] dstPixelCorners = Image.GetPixelCorners(destPixelPt.Pixel);
+                var dstUVCorners = dstPixelCorners.Select(c => Image.PixelToUV(c, options.tileResolution, options.tileResolution));
                 var destPixelMeshPositions =
-                    uvsCorners
+                    dstUVCorners
                     .Select(uv => clippedOp.UVToBarycentric(uv))
                     .Where(bary => bary != null)
                     .Select(bary => bary.Position);
@@ -166,12 +165,24 @@ namespace OPS.Pipeline
                     .Select(meshPos => ProjectedPixelDistances.GetCameraPixelForMeshPosition(options.scInMesh, bestCamera.cameraModel,
                                                                      bestCamera.cameraToMesh, bestCamera.meshToCamera,
                                                                      bestCamera.hullInMesh, meshPos,
-                                                                     bestCamera.widthPixels, bestCamera.heightPixels));
+                                                                     bestCamera.widthPixels, bestCamera.heightPixels))
+                    .Where(x => x.HasValue);
 
-                // if all 4 pixels landed in the source image, find their area in pixels
-                if (4 == srcPixels.Where(x => x.HasValue).Count())
+                // if enough pixels landed in the source image, find their area in pixels
+                int countValidPixels = srcPixels.Count();
+                double srcPixelAreaForDestPixel = 0;
+                if (4 == countValidPixels)
                 {
-                    double srcPixelAreaForDestPixel = Image.CalculateQuadPixelArea(srcPixels.Select(x => x.Value).ToArray());
+                    srcPixelAreaForDestPixel = Image.CalculateQuadPixelArea(srcPixels.Select(x => x.Value).ToArray());
+                }
+                else if (3 == countValidPixels)
+                {
+                    srcPixelAreaForDestPixel = Image.CalculateTriPixelArea(srcPixels.Select(x => x.Value).ToArray());
+                }
+
+                if (srcPixelAreaForDestPixel <= 0)
+                    continue;
+
                     if (!srcAreaByCamera.ContainsKey(bestCamera))
                     {
                         srcAreaByCamera.Add(bestCamera, new List<double>() { srcPixelAreaForDestPixel });
