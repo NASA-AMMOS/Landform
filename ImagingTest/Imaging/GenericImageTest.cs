@@ -10,6 +10,51 @@ namespace ImagingTest
     [TestClass]
     public class GenericImageTest
     {
+        [TestMethod()]
+        public void CalculateTriPixelAreaTest()
+        {
+            Vector2[] pixels = new Vector2[]
+           {
+                new Vector2(0,0),
+                new Vector2(0,2),
+                new Vector2(2,0)
+           };
+
+            double result = Image.CalculateTriPixelArea(pixels);
+            Assert.IsTrue(Math.Abs(result - 2.0) < 0.00001);
+        }
+
+        [TestMethod()]
+        public void CalculateQuadPixelAreaTest()
+        {
+            Vector2[] pixels = new Vector2[]
+            {
+                new Vector2(0,0),
+                new Vector2(0,4),
+                new Vector2(2,4),
+                new Vector2(2,0)
+            };
+
+            double result = Image.CalculateQuadPixelArea(pixels);
+
+            Assert.IsTrue(Math.Abs(result - 8.0) < 0.00001);
+        }
+
+        [TestMethod()]
+        public void CalculateQuadSubPixelAreaTest()
+        {
+            Vector2[] pixels = new Vector2[]
+            {
+                new Vector2(0,0),
+                new Vector2(0,0.5),
+                new Vector2(0.5,0.5),
+                new Vector2(0.5,0)
+            };
+
+            double result = Image.CalculateQuadPixelArea(pixels);
+            Assert.IsTrue(Math.Abs(result - 0.25) < 0.00001);
+        }
+
         [TestMethod]
         public void TestConstructor()
         {
