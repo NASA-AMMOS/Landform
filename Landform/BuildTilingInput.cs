@@ -54,6 +54,8 @@ namespace OPS.Landform
         [Option(HelpText = "save tile backproject index images previews", Default = false)]
         public bool BackprojectIndexImagePreviews { get; set; }
 
+        [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
+        public bool NoApproxTileSplit { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -294,9 +296,11 @@ namespace OPS.Landform
                 {
                     texSplitOpts = new SplitByTextureOpts()
                     {
+                        
                         pctPixelsToTest = options.SplitByTexturePctToTest,
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
                         splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
+                        useApproximateTileSplit = !options.NoApproxTileSplit,
                         tileResolution = resolution,
                         scInMesh = sceneCaster,
                         cameraInstances =

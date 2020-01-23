@@ -366,7 +366,15 @@ namespace OPS.Pipeline.TilingServer
 
             if (texOpts != null)
             {
-                splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
+                if (texOpts.useApproximateTileSplit)
+                {
+                    splitCriteria.Add(new TextureSplitCriteriaApproximate(texOpts));
+                }
+                else
+                {
+                    splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
+                }
+               
             }
 
             pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);

@@ -26,7 +26,7 @@ namespace OPS.Pipeline
         public double pctPixelsToTest;              // how densely should the uv atlas pixels be tested be sampled (1.0: test all atlas pixels, 0.5: test half atlas pixels, etc)
         public double pctSampledPixelsSatisfied;    // of all the pixels sampled for a given source texture, what percentage of them need to be above the split criteria (1.0 any pixel that needs a split is enough, 0.5 at least half the pixels need a split, etc)
         public double splitPixelTexelRatio;         // valid values > 1.0. a value of 2.0 would mean if 2 source textures are being squeezed into a single output texture that incur a split
-
+        public bool useApproximateTileSplit;               // if true use a faster and less accurate method of determining when to split tiles
         public int tileResolution;
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
