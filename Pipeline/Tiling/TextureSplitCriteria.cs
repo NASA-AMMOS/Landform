@@ -90,6 +90,8 @@ namespace OPS.Pipeline
 
     public class TextureSplitCriteriaBackproject : TextureSplitCriteria
     {
+        const double MESHHULLTESTEPSILON = 0.00001;
+
         public TextureSplitCriteriaBackproject(SplitByTextureOpts opts) : base(opts)
         { }
 
@@ -137,7 +139,7 @@ namespace OPS.Pipeline
                 //if the points are spilling onto other tiles, they aren't great candidates for testing.
                 // In addition to handling cases where you are peeking through a valley or keyhole in the terrain
                 // and all points are landing on other mesh tiles, this is a performance optimization.
-                if (!clippedHull.Contains(destPixelPt.Point)) 
+                if (!clippedHull.Contains(destPixelPt.Point, MESHHULLTESTEPSILON))
                 {
                     continue;
                 }
