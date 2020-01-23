@@ -67,7 +67,7 @@ namespace OPS.Pipeline
                 .Case((BuildTilingInputMessage m) => new BuildTilingInput(pipeline, m).Process())
                 .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
                 .Case((ChunkInputMessage m) => new ChunkInput(pipeline, m).Process())
-                .Case((BuildBakedLeavesMessage m) => new BuildBakedLeaves(pipeline, m).Process())
+                .Case((BuildLeavesMessage m) => new BuildLeaves(pipeline, m).Process())
                 .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
                 .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
                 .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())

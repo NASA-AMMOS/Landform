@@ -233,7 +233,7 @@
     <Compile Include="TilingServer\DB\TilingNode.cs" />
     <Compile Include="TilingServer\DB\TilingInput.cs" />
     <Compile Include="TilingServer\DB\TilingProject.cs" />
-    <Compile Include="TilingServer\Operations\BuildBakedLeaves.cs" />
+    <Compile Include="TilingServer\Operations\BuildLeaves.cs" />
     <Compile Include="TilingServer\Operations\BuildParent.cs" />
     <Compile Include="TilingServer\Operations\BuildTilesetJson.cs" />
     <Compile Include="TilingServer\Operations\BuildTilingInput.cs" />
