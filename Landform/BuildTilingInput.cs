@@ -296,7 +296,7 @@ namespace OPS.Landform
                     {
                         pctPixelsToTest = options.SplitByTexturePctToTest,
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                        subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio,
+                        splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
                         tileResolution = resolution,
                         scInMesh = sceneCaster,
                         cameraInstances =
