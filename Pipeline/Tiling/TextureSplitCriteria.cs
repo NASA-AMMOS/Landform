@@ -61,7 +61,7 @@ namespace OPS.Pipeline
 
             // may have too few faces to ever service texture resolution (output atlas too low res)
             Mesh clippedMesh = meshOperator.Clip(areaOfInterest);
-            if (clippedMesh.Faces.Count == 1)
+            if (clippedMesh.Faces.Count == 2)
                 return false;
 
             // finer frustum test: get all observations that intersect mesh hull
