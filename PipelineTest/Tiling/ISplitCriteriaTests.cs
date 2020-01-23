@@ -33,11 +33,13 @@ namespace PipelineTest
         {
             int destTextureResolution = 4;
             int srcTextureResolution = 8;
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution,false));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution,true));
 
             destTextureResolution = 3;
             srcTextureResolution = 5;
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution, true));
         }
 
         [TestMethod()]
@@ -45,18 +47,21 @@ namespace PipelineTest
         {
             int destTextureResolution = 4;
             int srcTextureResolution = 2;
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution));
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, true));
 
             destTextureResolution = 4;
             srcTextureResolution = 3;
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution));
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, true));
 
             destTextureResolution = 4;
             srcTextureResolution = 4;
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution));
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution, true)); // uses true surface area and we've doubled our plane for convexhull bug
         }
 
-        private static bool StandardTexSplit(int destTextureResolution, int srcTextureResolution)
+        private static bool StandardTexSplit(int destTextureResolution, int srcTextureResolution, bool approx)
         {
             //uv origin: lower left
             Vertex ul = new Vertex(new Vector3(0, -1, -1), new Vector3(-1, 0, 0), new Vector4(1, 0, 0, 1), new Vector2(0,1));
@@ -112,6 +117,10 @@ namespace PipelineTest
             };
 
             ITileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
+            if(approx)
+            {
+                split = new TextureSplitCriteriaApproximate(opts);
+            }
             return split.ShouldSplit(op, box);
         }
     }

@@ -248,4 +248,76 @@ namespace OPS.Pipeline
             return minSpread != double.MaxValue;
         }
     }
+
+    public class TextureSplitCriteriaApproximate : TextureSplitCriteria
+    {
+        public const double APPROX_TEXTURE_UTILIZATION = 0.5;
+
+        public TextureSplitCriteriaApproximate(SplitByTextureOpts opts) : base(opts)
+        {
+        }
+
+        protected override bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea)
+        {
+            dstPixelArea = 0;
+            double clippedArea = clippedMesh.SurfaceArea();
+            if (clippedArea <= 0)
+            {
+                return false;
+            }
+
+            double numTexels = options.tileResolution * options.tileResolution;
+
+            //the uv atlas wastes some amount of pixels on gutter, accounted for here by APPROX_TEXTURE_UTILIZATION
+            // the uv atlas also allocates area unequally in the atlas, could spend 80% of the pixels
+            // on 20% of the area (not accounted for here)
+            dstPixelArea = APPROX_TEXTURE_UTILIZATION * numTexels / clippedArea;
+            return true;
+        }
+        protected override bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+        {
+            srcPixelArea = 0;
+
+            double minAreaPerPixelInMeters = double.MaxValue;
+            foreach (var camInst in intersectingCameras)
+            {
+                //find the closest point on the mesh to the camera
+                // this will be used for the estimate of the pixel density
+                // in an attempt to be conservative
+                Vector3 camInMesh = Vector3.Transform(((CAHV)camInst.cameraModel).C, camInst.cameraToMesh);
+                double minDistSq = double.MaxValue;
+                foreach (var vert in clippedMesh.Vertices)
+                {
+                    double curDistSq = Vector3.DistanceSquared(camInMesh, vert.Position);
+                    if (curDistSq < minDistSq)
+                    {
+                        minDistSq = curDistSq;
+                    }
+                }
+
+                if (minDistSq == double.MaxValue)
+                {
+                    continue;
+                }
+                double minDist = Math.Sqrt(minDistSq);
+
+                //calculate the distance between pixel corners and use the diagonal to approximate the area 
+                // (uses a square pixel approximation) 
+                var corners = Image.GetPixelCorners(new Vector2(camInst.widthPixels / 2.0, camInst.heightPixels / 2.0));
+                Vector3 ptUpperLeftCorner = camInst.cameraModel.Unproject(corners.ElementAt(0), minDist);
+                Vector3 ptUpperRightCorner = camInst.cameraModel.Unproject(corners.ElementAt(1), minDist);
+                Vector3 ptLowerRightCorner = camInst.cameraModel.Unproject(corners.ElementAt(2), minDist);
+                Vector3 ptLowerLeftCorner = camInst.cameraModel.Unproject(corners.ElementAt(3), minDist);
+                double curAreaPerPixelInMeters = Vector3.Distance(ptUpperLeftCorner, ptUpperRightCorner) * Vector3.Distance(ptUpperLeftCorner, ptLowerLeftCorner);
+                if (curAreaPerPixelInMeters < minAreaPerPixelInMeters)
+                {
+                    minAreaPerPixelInMeters = curAreaPerPixelInMeters;
+                }
+            }
+
+            //convert area in m^2 of 1 pixel to number of pixels in 1 m^2
+            srcPixelArea = 1 / minAreaPerPixelInMeters;
+            return minAreaPerPixelInMeters != double.MaxValue;
+        }
+    }
 }
