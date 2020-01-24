@@ -85,13 +85,15 @@ delete_venue() { ${dry}rm -rf $storage/$venue; }
 
 echo "processing ${mission} contextual mesh for sitedrive ${sd} in sol ${sol} from ${dir}"
 
-if [ "$cleanup" ]; then backup_config; delete_venue; fi
+if [ "$cleanup" ]; then delete_venue; fi
 
 if [ "$only_cleanup" ]; then exit 0; fi 
 
+backup_config
+
 # exit script on ctrl-c
 ctrlc() {
-    if [ "$cleanup" ]; then restore_config; fi
+    restore_config
     exit 1
 }
 trap "ctrlc" INT
@@ -139,4 +141,6 @@ if [ "$upload" ]; then
     fi
 fi
 
-if [ "$cleanup" ]; then delete_venue; restore_config; fi
+if [ "$cleanup" ]; then delete_venue; fi
+
+restore_config

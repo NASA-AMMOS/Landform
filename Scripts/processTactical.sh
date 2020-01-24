@@ -84,11 +84,11 @@ restore_config() { if [ -f $config.BAK ]; then ${dry}mv $config.BAK $config; fi 
 
 echo "processing ${mission} ${meshext}/${imgext} tactical meshes from ${dir}"
 
-if [ "$cleanup" ]; then backup_config; fi
+backup_config
 
 # exit script on ctrl-c
 ctrlc() {
-    if [ "$cleanup" ]; then restore_config; fi
+    restore_config
     exit 1
 }
 trap "ctrlc" INT
@@ -129,5 +129,5 @@ for f in ${dir}/*.${meshext}; do
     fi
 done
 
-if [ "$cleanup" ]; then restore_config; fi
+restore_config
 
