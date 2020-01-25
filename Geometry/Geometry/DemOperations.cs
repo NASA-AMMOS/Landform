@@ -82,7 +82,7 @@ namespace OPS.Geometry
             }
         }
 
-        public static Vector3? GetInterpolatedXYZ(Image dem, double r, double c, double minFilter, double maxFilter = 1000000)
+        public static Vector3? GetInterpolatedXYZ(Image dem, double r, double c, double minFilter = -1000000, double maxFilter = 1000000)
         {
             Vector3? tl = GetXYZ(dem, (int)r, (int)c);
             Vector3? tr = GetXYZ(dem, (int)r, (int)Math.Ceiling(c));
@@ -131,6 +131,15 @@ namespace OPS.Geometry
             bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
         {
             return GetXYZ(dem, null, row, col, scale, filterValues, minFilter, maxFilter);
+        }
+
+        public static Vector3? GetInterpolatedNormal(Image dem, double r, double c, double minFilter = -1000000, double maxFilter = 1000000)
+        {
+            Vector3? tl = GetNormal(dem, (int)r, (int)c);
+            Vector3? tr = GetNormal(dem, (int)r, (int)Math.Ceiling(c));
+            Vector3? bl = GetNormal(dem, (int)Math.Ceiling(r), (int)c);
+            Vector3? br = GetNormal(dem, (int)Math.Ceiling(r), (int)Math.Ceiling(c));
+            return Interpolate(c - (int)c, r - (int)r, tl, tr, bl, br);
         }
 
         public static Vector3? GetNormal(Image dem, int row, int col, double minFilter = -1000000, double maxFilter = 1000000)

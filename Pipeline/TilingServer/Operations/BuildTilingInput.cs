@@ -21,6 +21,70 @@ namespace OPS.Pipeline.TilingServer
         public BuildTilingInputMessage(string projectName) : base(projectName) { }
     }
 
+    class DisjointSetUBR
+    {
+        int[] parent;
+        int[] rank; // height of tree
+
+        public DisjointSetUBR(int len)
+        {
+            parent = new int[len + 1];
+            rank = new int[len + 1];
+            for(int i = 0; i < len; ++i)
+            {
+                MakeSet(i);
+            }
+        }
+
+        public void MakeSet(int i)
+        {
+            parent[i] = i;
+        }
+
+        public int Find(int i)
+        {
+            while (i != parent[i]) // If i is not root of tree we set i to his parent until we reach root (parent of all parents)
+            {
+                i = parent[i];
+            }
+            return i;
+        }
+
+        // Path compression, O(log*n). For practical values of n, log* n <= 5
+        public int FindPath(int i)
+        {
+            if (i != parent[i])
+            {
+                parent[i] = FindPath(parent[i]);
+            }
+            return parent[i];
+        }
+
+        public void Union(int i, int j)
+        {
+            int i_id = Find(i); // Find the root of first tree (set) and store it in i_id
+            int j_id = Find(j); // // Find the root of second tree (set) and store it in j_id
+
+            if (i_id == j_id) // If roots are equal (they have same parents) than they are in same tree (set)
+            {
+                return;
+            }
+
+            if (rank[i_id] > rank[j_id]) // If height of first tree is larger than second tree
+            {
+                parent[j_id] = i_id; // We hang second tree under first, parent of second tree is same as first tree
+            }
+            else
+            {
+                parent[i_id] = j_id; // We hang first tree under second, parent of first tree is same as second tree
+                if (rank[i_id] == rank[j_id]) // If heights are same
+                {
+                    rank[j_id]++; // We hang first tree under second, that means height of tree is incremented by one
+                }
+            }
+        }
+    }
+
     /// <summary>
     /// create a large mesh from input data and uploads it as the tiling input
     /// </summary>
@@ -31,6 +95,39 @@ namespace OPS.Pipeline.TilingServer
         public BuildTilingInput(PipelineCore pipeline, BuildTilingInputMessage message) : base(pipeline, message)
         {
             this.message = message;
+        }
+
+        public static void RemoveFloaters(Mesh mesh, int minIslandVertexCount=300)
+        {
+            DisjointSetUBR disjointSet = new DisjointSetUBR(mesh.Vertices.Count);
+            foreach (Face f in mesh.Faces)
+            {
+                disjointSet.Union(f.P0, f.P1);
+                disjointSet.Union(f.P1, f.P2);
+            }
+
+            Dictionary<int, int> islandSizes = new Dictionary<int, int>();
+            for (int i = 0; i < mesh.Vertices.Count; i++)
+            {
+                int p = disjointSet.FindPath(i);
+                if (islandSizes.ContainsKey(p))
+                {
+                    islandSizes[p]++;
+                }
+                else
+                {
+                    islandSizes[p] = 1;
+                }
+            }
+
+            mesh.Faces = mesh.Faces.Where(f =>
+            {
+                return islandSizes[disjointSet.FindPath(f.P0)] >= minIslandVertexCount &&
+                       islandSizes[disjointSet.FindPath(f.P1)] >= minIslandVertexCount &&
+                       islandSizes[disjointSet.FindPath(f.P2)] >= minIslandVertexCount;
+            }).ToList();
+
+            mesh.RemoveUnreferencedVertices();
         }
 
         public int Process()
@@ -208,7 +305,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 info("clever combine point cloud");
                 var meshes = new List<Mesh>();
-                var origins = new List<Vector3>();
+                var origins = new List<Vector3?>();
                 foreach (var entry in obsToMesh)
                 {
                     var pointsObs = observationCache.GetObservation(entry.Key);
@@ -227,6 +324,66 @@ namespace OPS.Pipeline.TilingServer
                     origins.Add(cameraPosInOutput);
                     meshes.Add(entry.Value);
                 }
+
+
+                if (false)
+                {
+                    const int orbitalRadius = 40; //Add 80 x 80 meter orbital
+                    const string orbitalFrameName = "Orbital";
+                    const double orbitalPointsPerMeter = 10;
+                    const double demNormalConfidence = 1/8.0;
+
+                    string demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
+
+                    SparseImage dem = new SparseImage(demFilePath);
+                    dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
+
+                    Matrix demToBaseSiteDrive = frameCache.GetBestTransform(orbitalFrameName).Transform.Mean
+                                                * Matrix.Invert(frameCache.GetBestTransform(opts.TargetFrame).Transform.Mean);
+
+                    //Get subset of dem around sitedrive
+                    Vector2 center = mission.GetSiteDriveOriginPixelInDem(observations[0].SiteDrive);
+                    int pixelRadius = (int)(orbitalRadius / mission.GetDemMetersPerPixel());
+                    int baseC = (int)Math.Max(center.X - pixelRadius, 0);
+                    int baseR = (int)Math.Max(center.Y - pixelRadius, 0);
+                    int pixelWidth = (int)Math.Min(center.X + pixelRadius, dem.Width) - baseC;
+                    int pixelHeight = (int)Math.Min(center.Y + pixelRadius, dem.Height) - baseR;
+
+                    if (!dem.HasMask)
+                    {
+                        dem.CreateMask();
+                    }
+
+                    Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
+
+                    Mesh demPoints = new Mesh();
+
+                    for (int y = 0; y < 2 * pixelRadius * orbitalPointsPerMeter; y++)
+                    {
+                        for (int x = 0; x < 2 * pixelRadius * orbitalPointsPerMeter; x++)
+                        {
+                            double r = baseR + y / orbitalPointsPerMeter;
+                            double c = baseC + x / orbitalPointsPerMeter;
+                            var pos = DemOperations.GetInterpolatedXYZ(dem, r, c);
+                            if (pos.HasValue)
+                            {
+                                var transformedPos = Vector3.Transform(pos.Value, demToBaseSiteDrive);
+                                Vertex v = new Vertex();
+                                v.Position = transformedPos;
+                                v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
+                                v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToBaseSiteDrive));
+                                v.Normal *= demNormalConfidence;
+                                demPoints.Vertices.Add(v);
+                            }
+                        }
+                    }
+
+                    origins.Add(null); //Use default orbital distance to camera
+                    meshes.Add(demPoints);
+                }
+
+
+
                 int nv = meshes.Aggregate(0, (sum, mesh) => sum + mesh.Vertices.Count);
                 pipeline.LogInfo("combining {0} point clouds with clever combine, total {1} points",
                                  meshes.Count, Fmt.KMG(nv));
@@ -244,14 +401,86 @@ namespace OPS.Pipeline.TilingServer
             //significant memory usage
             obsToMesh.Clear();
 
-            info("STARTING ORBITAL");
+            // build the large mesh from the aggregate point cloud using poisson reconstruction
+            if (aggregatePointCloud.Vertices.Count == 0)
+            {
+                error("aggregate point cloud contains no points");
+                return null;
+            }
+
+            pointBounds = aggregatePointCloud.Bounds();
+
+            const double surfaceTrimmerLevel = 8.0;
+            const double surfaceTrimmerIslandPercent = 0.8;
+
+            info(string.Format("Poisson reconstructing mesh from {0} points",
+                               Fmt.KMG(aggregatePointCloud.Vertices.Count)));
+            PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
+            {
+                //extrapolates the edges of the mesh
+                Boundary = PoissonReconstruction.BoundaryTypes.Free,
+
+                // no features should be finer than this many meters as this is the finest the octree will dice
+                MinOctreeCellWidthMeters = 0.05f,
+
+                // a value on the upper end of the suggested range in the docs
+                // meaning we think our data in noisy, so wait for this many samples in a cell
+                MinOctreeSamplesPerCell = 15,
+
+                // attempts to allow higher order surfaces than the defaults
+                BSplineDegree = 2,
+
+                // indicates the normal magnitudes are not uniformly unit scaled
+                // to indicate confidence in the position attached to it
+                UseNormalsForConfidence = true,
+
+                // remove low density points
+                TrimmerLevel = surfaceTrimmerLevel,
+
+                // remove disconnected islands of pts
+                TrimmerIslandPct = surfaceTrimmerIslandPercent
+            };
+
+            var bestClippedMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+
+            if (bestClippedMesh == null)
+            {
+                warn("reconstruction failed");
+                return null;
+            }
+
+            RemoveFloaters(bestClippedMesh);
+
+            bestClippedMesh.Save("C:\\Users\\conductor\\Documents\\landform-storage\\local\\meshing\\GeometryProducts\\0311472Frame\\best\\windjana1\\0311472_pre.ply");
+
+            //Filter points that don't hit the trimmed surface mesh
+
+
+            poissonOpts.TrimmerIslandPct = 0.0;
+            poissonOpts.TrimmerLevel = 7.0;
+            Mesh tempSurfaceMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+            RemoveFloaters(tempSurfaceMesh);
+            foreach (Vertex vert in tempSurfaceMesh.Vertices)
+            {
+                vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
+            }
+            tempSurfaceMesh.HasUVs = true;
+            MeshOperator uvMeshOp = new MeshOperator(tempSurfaceMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+            aggregatePointCloud.Vertices = aggregatePointCloud.Vertices.Where(vert =>
+            {
+                return uvMeshOp.UVToBarycentric(new Vector2(vert.Position.X, vert.Position.Y)) != null;
+            }).ToList();
 
             //Add Orbital
             ///////////////////////////////////////////////////////////////////////////////////////////////////
+            if (true)
             {
-                const int orbitalRadius = 128; //Add 100 x 100 meter orbital
-                const double filterRadius = 1.0; //Remove orbital points within 1m of surface data
+                const int orbitalRadius = 40; //Add 80 x 80 meter orbital
+                const double filterRadius = 2.0; //Remove orbital points within 10cm of surface data
+                const double confidenceDecayRadius = 0.0;
                 const string orbitalFrameName = "Orbital";
+                const double orbitalPointsPerMeter = 2;
+                const double demNormalConfidence = 1.0;
 
                 string demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
 
@@ -271,42 +500,71 @@ namespace OPS.Pipeline.TilingServer
                 int pixelWidth = (int)Math.Min(center.X + pixelRadius, dem.Width) - baseC;
                 int pixelHeight = (int)Math.Min(center.Y + pixelRadius, dem.Height) - baseR;
 
-                if(!dem.HasMask)
+                if (!dem.HasMask)
                 {
                     dem.CreateMask();
                 }
 
                 Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
 
-                foreach(var p in aggregatePointCloud.Vertices)
+                double[,] minDistsSq = new double[pixelHeight, pixelWidth];
+                for(int i = 0; i < pixelWidth; ++i)
+                {
+                    for(int j = 0; j < pixelHeight; ++j)
+                    {
+                        minDistsSq[i, j] = Double.PositiveInfinity;
+                    }
+                }
+                
+
+                double influenceRadius = filterRadius + confidenceDecayRadius;
+                double filterRadiusSq = filterRadius * filterRadius;
+                foreach (var p in aggregatePointCloud.Vertices)
                 {
                     Vector3 testPoint = Vector3.Transform(p.Position, baseSiteDriveToDem);
-                    Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);
-                    for(int r = (int)Math.Ceiling(rc.Y - filterRadius); r <= (int)Math.Floor(rc.Y + filterRadius); ++r)
+                    Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);              
+                    for (int r = (int)Math.Ceiling(Math.Max(rc.Y - influenceRadius, baseR));
+                        r <= (int)Math.Floor(Math.Min(rc.Y + influenceRadius, baseR + pixelHeight - 1)); ++r)
                     {
-                        for(int c = (int)Math.Ceiling(rc.X - filterRadius); c <= (int)Math.Floor(rc.X + filterRadius); ++c)
+                        for (int c = (int)Math.Ceiling(Math.Max(rc.X - influenceRadius, baseC));
+                            c <= (int)Math.Floor(Math.Min(rc.X + influenceRadius, baseC + pixelWidth - 1)); ++c)
                         {
-                            dem.SetMaskValue(r, c, true);
+                            double distSq = (rc.Y - r) * (rc.Y - r) + (rc.X - c) * (rc.X - c);
+                            if (distSq < filterRadiusSq)
+                            {
+                                dem.SetMaskValue(r, c, true);
+                            }
+                            minDistsSq[r - baseR, c - baseC] = Math.Min(minDistsSq[r - baseR, c - baseC], distSq);
                         }
                     }
                 }
 
                 Mesh demMesh = new Mesh();
-                const double demNormalConfidence = 1.0 / 64;
 
-                for (int r = 0; r < 2 * pixelRadius; r++)
+                double confidenceDecayRadiusSq = influenceRadius * influenceRadius;
+
+                for (int y = 0; y < 2 * pixelRadius * orbitalPointsPerMeter; y++)
                 {
-                    for (int c = 0; c < 2 * pixelRadius; c++)
+                    for (int x = 0; x < 2 * pixelRadius * orbitalPointsPerMeter; x++)
                     {
-                        var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c);
+                        double r = baseR + y / orbitalPointsPerMeter;
+                        double c = baseC + x / orbitalPointsPerMeter;
+                        var pos = DemOperations.GetInterpolatedXYZ(dem, r, c);
                         if (pos.HasValue)
                         {
                             var transformedPos = Vector3.Transform(pos.Value, demToBaseSiteDrive);
                             Vertex v = new Vertex();
                             v.Position = transformedPos;
-                            v.Normal = DemOperations.GetNormal(dem, baseR + r, baseC + c) ?? new Vector3(0, 0, 1);
-                            v.Normal = Vector3.TransformNormal(v.Normal, demToBaseSiteDrive);
-                            v.Normal *= demNormalConfidence;
+                            v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
+                            v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToBaseSiteDrive));
+                            double distSq = minDistsSq[(int)r-baseR, (int)c-baseC];
+                            if(distSq == -1 || distSq > confidenceDecayRadiusSq)
+                            {
+                                v.Normal *= demNormalConfidence;
+                            } else
+                            {
+                                v.Normal *= demNormalConfidence * (Math.Sqrt(distSq) - filterRadius) / confidenceDecayRadius;
+                            }                            
                             aggregatePointCloud.Vertices.Add(v);
                             demMesh.Vertices.Add(v);
                         }
@@ -318,45 +576,12 @@ namespace OPS.Pipeline.TilingServer
                 demMesh = Delaunay.Triangulate(demMesh.Vertices);
                 demMesh.Save("d:/dems/DEBUG.obj");
             }
-            
+
             ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-            // build the large mesh from the aggregate point cloud using poisson reconstruction
-            if (aggregatePointCloud.Vertices.Count == 0)
-            {
-                error("aggregate point cloud contains no points");
-                return null;
-            }
-
-            pointBounds = aggregatePointCloud.Bounds();
-
-            info(string.Format("Poisson reconstructing mesh from {0} points",
-                               Fmt.KMG(aggregatePointCloud.Vertices.Count)));
-            PoissonReconstruction.Options poissonOpts = new PoissonReconstruction.Options
-            {
-                //extrapolates the edges of the mesh
-                Boundary = PoissonReconstruction.BoundaryTypes.Dirichlet,
-
-                // no features should be finer than this many meters as this is the finest the octree will dice
-                MinOctreeCellWidthMeters = 0.05f,
-
-                // a value on the upper end of the suggested range in the docs
-                // meaning we think our data in noisy, so wait for this many samples in a cell
-                MinOctreeSamplesPerCell = 15,
-
-                // attempts to allow higher order surfaces than the defaults
-                BSplineDegree = 2,
-
-                // indicates the normal magnitudes are not uniformly unit scaled
-                // to indicate confidence in the position attached to it
-                UseNormalsForConfidence = true,
-
-                // remove low density points
-                TrimmerLevel = trimmerLevel,
-
-                // remove disconnected islands of pts
-                TrimmerIslandPct = trimmerIslandPct
-            };
+            //Remesh with orbital / lower trim level
+            poissonOpts.TrimmerLevel = trimmerLevel;
+            poissonOpts.TrimmerIslandPct = trimmerIslandPct;
 
             var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
 
@@ -369,7 +594,39 @@ namespace OPS.Pipeline.TilingServer
                 warn("reconstruction failed");
             }
 
-            return ret;
+            RemoveFloaters(ret);
+
+            //return ret;
+
+            //Filter points that don't hit the trimmed surface mesh
+            foreach (Vertex vert in ret.Vertices)
+            {
+                vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
+            }
+            ret.HasUVs = true;
+            ret.Faces = ret.Faces.Where(face =>
+            {
+                return uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P0].Position.X, ret.Vertices[face.P0].Position.Y)) == null &&
+                uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P1].Position.X, ret.Vertices[face.P1].Position.Y)) == null &&
+                uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P2].Position.X, ret.Vertices[face.P2].Position.Y)) == null;
+            }).ToList();
+
+            ret.RemoveUnreferencedVertices();
+            //return Mesh.Merge(ret, tempSurfaceMesh);
+
+            int offset = ret.Vertices.Count;
+            Mesh merged = new Mesh();
+            merged.Vertices = ret.Vertices;
+            merged.Vertices.AddRange(bestClippedMesh.Vertices);
+            merged.Faces = ret.Faces;
+            merged.Faces.AddRange(bestClippedMesh.Faces.Select(f => new Face(f.P0 + offset, f.P1 + offset, f.P2 + offset)));
+
+            Mesh tris = Delaunay.Triangulate(merged.Vertices, reverseWinding:true);
+            merged.Faces.AddRange(tris.Faces.Where(f => !(f.P0 < offset && f.P1 < offset && f.P2 < offset ||
+                                                      f.P0 >= offset && f.P1 >= offset && f.P2 >= offset)));
+
+            return merged;
+           
         }
     }
 }

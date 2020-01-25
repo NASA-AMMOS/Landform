@@ -15,7 +15,7 @@ namespace GeometryTest
         [TestMethod()]
         public void CombineTest()
         {
-            Vector3[] origins = new Vector3[] { new Vector3(1, 2, 3), new Vector3(50, 60, 70) };
+            Vector3?[] origins = new Vector3?[] { new Vector3(1, 2, 3), new Vector3(50, 60, 70) };
 
             Mesh pointCloud0 = new Mesh();
             pointCloud0.Vertices.Add(new Vertex(new Vector3(1.1, 2.1, 3.1)));

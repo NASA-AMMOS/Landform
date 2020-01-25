@@ -146,7 +146,7 @@ namespace OPS.Geometry
                                     String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4} {5}",
                                                   (int)options.Boundary, options.MinOctreeCellWidthMeters,
                                                   options.MinOctreeSamplesPerCell, options.BSplineDegree,
-                                                  options.UseNormalsForConfidence ? 1 : 0,
+                                                  options.UseNormalsForConfidence ? 2 : 0,
                                                   options.TrimmerLevel > 0 ? "--density" : "");
                             }
 
