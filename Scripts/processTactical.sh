@@ -6,61 +6,113 @@ landform=$scriptdir/../Landform/bin/Release/Landform.exe
 home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
-#dest=s3://BUCKET/ods/VENUE/sol/SOL/ids/tileset
+
+help="USAGE: processTactical.sh DIR MISSION [--meshext EXT] [--imgext EXT] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
 
 if [ $# -lt 2 ]; then
-    echo "USAGE: processTactical.sh DIR MISSION [MESHEXT [IMGEXT]]"
+    echo $help
     exit 1
 fi
 
 dir=$1
-mission=$2
+shift
 
-meshext="obj";
-if [ $# -gt 2 ]; then
-    meshext=$3
-fi
+mission=$1
+shift
 
-imgext="IMG";
-if [ $# -gt 3 ]; then
-    imgext=$4
-fi
+meshext=iv
+imgext=IMG
+
+dry=
+generate=true
+cleanup=true
+only_cleanup=
+upload=
+s3rdrdir=
+
+while (( "$#" )); do
+    case $1 in
+        "--help") echo $help; exit 0;;
+        "--dryrun") dry="echo DRY ";;
+        "--nocleanup") cleanup=;;
+        "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
+        "--onlyupload") cleanup=; only_cleanup=; generate=;;
+        "--upload")
+            upload=true
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing upload URL"
+                exit 1
+            fi
+            s3rdrdir=$1
+            ;;
+        "--meshext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            meshext=$1
+            ;;
+        "--imgext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            imgext=$1
+            ;;
+    esac
+    shift
+done
+
+backup_config() { if [ -f $config ]; then ${dry}cp $config $config.BAK; fi }
+
+restore_config() { if [ -f $config.BAK ]; then ${dry}mv $config.BAK $config; fi }
 
 echo "processing ${mission} ${meshext}/${imgext} tactical meshes from ${dir}"
 
-if [ -f $config ]; then cp $config $config.BAK; fi
+if [ "$cleanup" ]; then backup_config; fi
 
 # exit script on ctrl-c
-cleanup() {
-    if [ -f $config.BAK ]; then cp $config.BAK $config; fi
+ctrlc() {
+    if [ "$cleanup" ]; then restore_config; fi
     exit 1
 }
-trap "cleanup" INT
+trap "ctrlc" INT
 
 for f in ${dir}/*.${meshext}; do
+
     bn=${f%.${meshext}}
     mesh=$bn.${meshext}
     img=$bn.${imgext}
     proj=${bn##*/}
     venue=local_${mission}_${proj}
-    if [ -f $mesh ] && [ -f $img ]; then
+    tileset_dir=$storage/$venue/tiling/TileSet/passthroughFrame/best/$proj
 
-        #use a clean venue for each wedge
-        rm -rf $storage/$venue
+    if [ -f $mesh -a -f $img ]; then
 
-        $landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-        $landform build-tiling-input --loadlods --mission $mission --inputmesh $mesh --inputtexture $img
-        $landform build-tileset $proj
+        if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
 
-        rm -rf $proj
-        mv $storage/$venue/tiling/TileSet/passthroughFrame/best/$proj .
-        mv $proj/tileset.json $proj/${proj}_tileset.json
+        if [ "$generate" ]; then
+            ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
+            ${dry}$landform build-tiling-input --loadlods --mission $mission --inputmesh $mesh --inputtexture $img
+            ${dry}$landform build-tileset $proj
+            ${dry}$landform update-scene-manifest --mission $mission --manifestfile $tileset_dir/scene.json --nocontextual --nourls --tacticalpdsfile $img 
+            
+            ${dry}rm -rf $proj
+            ${dry}cp -R $tileset_dir .
+            ${dry}mv $proj/tileset.json $proj/${proj}_tileset.json
+            ${dry}mv $proj/scene.json $proj/${proj}_scene.json
+        fi
+        
+        if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
 
-        rm -rf $storage/$venue
-
-        #aws s3 sync $proj $dest/$proj --profile=credss-default
+        if [ "$upload" ]; then
+            ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj 
+        fi
     fi
 done
 
-if [ -f $config.BAK ]; then cp $config.BAK $config; fi
+if [ "$cleanup" ]; then restore_config; fi
 

@@ -81,8 +81,8 @@ namespace OPS.Pipeline.TilingServer
         static public Mesh BuildMesh(PipelineCore pipeline, string projectName, out BoundingBox pointBounds,
                                      FrameCache frameCache, ObservationCache observationCache, string outputFrame,
                                      bool usePriors, bool noPriors, BoundingBox? preclipBounds = null, string onlyForCameras = null,
-                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left,  int decimate = 1, 
-                                     int targetPointCloudResolution = 1024,
+                                     bool useCleverCombine = false, RoverStereoEye stereoEye = RoverStereoEye.Left, int decimate = 1,
+                                     int targetPointCloudResolution = 1024, double trimmerLevel = 0, double trimmerIslandPct = 0,
                                      Action<string> info = null,
                                      Action<string> verbose = null, Action<string> warn = null,
                                      Action<string> error = null)
@@ -349,12 +349,25 @@ namespace OPS.Pipeline.TilingServer
 
                 // indicates the normal magnitudes are not uniformly unit scaled
                 // to indicate confidence in the position attached to it
-                UseNormalsForConfidence = true
+                UseNormalsForConfidence = true,
+
+                // remove low density points
+                TrimmerLevel = trimmerLevel,
+
+                // remove disconnected islands of pts
+                TrimmerIslandPct = trimmerIslandPct
             };
 
             var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
 
-            info(string.Format("Poisson reconstructed mesh with {0} faces", Fmt.KMG(ret.Faces.Count)));
+            if (ret != null)
+            {
+                info(string.Format("Poisson reconstructed mesh with {0} faces", Fmt.KMG(ret.Faces.Count)));
+            }
+            else
+            {
+                warn("reconstruction failed");
+            }
 
             return ret;
         }

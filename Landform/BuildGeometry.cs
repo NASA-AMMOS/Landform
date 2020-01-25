@@ -28,6 +28,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Post meshing clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
+
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 6.0)]
+        public double TrimmerLevel { get; set; }
+
+        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.2)]
+        public double TrimmerIslandPct { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -137,7 +143,8 @@ namespace OPS.Landform
                                               frameCache, observationCache, meshFrame, options.UsePriors,
                                               options.OnlyAligned, preClipBounds,
                                               options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
-                                              options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution);
+                                              options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution,
+                                              options.TrimmerLevel, options.TrimmerIslandPct);
 
             if (mesh == null || mesh.Faces.Count == 0)
             {

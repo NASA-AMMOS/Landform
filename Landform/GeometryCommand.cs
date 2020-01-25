@@ -72,12 +72,24 @@ namespace OPS.Landform
 
         private void HandleSpecialMeshFrames()
         {
-            meshFrame = GetMeshFrame().ToLower().Trim();
+            meshFrame = GetMeshFrame();
 
+            if (string.IsNullOrEmpty(meshFrame))
+            {
+                return;
+            }
+
+            meshFrame = meshFrame.ToLower().Trim();
+
+            if (meshFrame == "auto")
+            {
+                meshFrame = GetAutoMeshFrame();
+            }
+                
             string missionRoot = mission != null ? mission.RootFrameName() : null;
 
             var specials =
-                new string[] { "auto", "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
+                new string[] { "passthrough", "newest", "oldest", "mission_root", "project_root", missionRoot };
 
             bool isSiteDrive = SiteDrive.IsSiteDriveString(meshFrame);
             bool isSpecial = !isSiteDrive && specials.Contains(meshFrame);
@@ -87,11 +99,6 @@ namespace OPS.Landform
                 throw new Exception("unsupported mesh frame: " + meshFrame);
             }
 
-            if (meshFrame == "auto")
-            {
-                meshFrame = GetAutoMeshFrame();
-            }
-                
             var origMeshFrame = meshFrame;
             if (meshFrame == "passthrough")
             {
@@ -162,16 +169,10 @@ namespace OPS.Landform
                 isSiteDrive = true;
             }
 
-            if (isSiteDrive)
+            //some workflows do not load frame cache, for example updating scene manifest for tactical meshes
+            if (isSiteDrive && frameCache != null && !frameCache.ContainsFrame(meshFrame))
             {
-                if (frameCache == null)
-                {
-                    throw new Exception("frame cache not loaded, cannot resolve frame: " + meshFrame);
-                }
-                if (!frameCache.ContainsFrame(meshFrame))
-                {
-                    throw new Exception("sitedrive frame not found: " + meshFrame);
-                }
+                throw new Exception("sitedrive frame not found: " + meshFrame);
             }
 
             pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
