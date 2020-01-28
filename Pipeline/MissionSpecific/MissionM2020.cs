@@ -131,6 +131,7 @@ namespace OPS.Pipeline
                 char max = ids
                     .Where(id => IsHazcam(id.Camera) || IsNavcam(id.Camera))
                     .Select(id => id.FullId[idx])
+                    .DefaultIfEmpty('0')
                     .Max();
                 return ids.Where(id => !(IsHazcam(id.Camera) || IsNavcam(id.Camera)) || id.FullId[idx] == max);
             }
