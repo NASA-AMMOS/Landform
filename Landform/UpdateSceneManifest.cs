@@ -842,13 +842,23 @@ namespace OPS.Landform
                 }
 
                 var ids = idToPDSFile.Keys.ToList();
+                HashSet<string> keepers = null;
                 if (idToPDSFile.Count > 1 && !options.NoFilterTacticalMeshIDs)
                 {
-                    ids = RoverObservationComparator.FilterProductIdGroups(ids, mission).ToList();
+                    keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission));
                 }
                 foreach (var id in ids)
                 {
-                    UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
+                    if (keepers == null || keepers.Contains(id))
+                    {
+                        UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
+                    }
+                    else
+                    {
+                        bool removed = sceneManifest.RemoveTileset(id);
+                        pipeline.LogWarn("tactical mesh product ID {0} was filtered out{1}",
+                                         id, removed ? " (removed from manifest)" : "");
+                    }
                 }
             }
             else if (options.NoURLs)
