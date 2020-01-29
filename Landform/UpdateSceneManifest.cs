@@ -160,6 +160,9 @@ namespace OPS.Landform
         [Option(HelpText = "Don't allow using RDRs in the browse subdirectory", Default = false)]
         public bool NoAllowBrowseRDRs { get; set; }
 
+        [Option(HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants", Default = false)]
+        public bool NoFilterTacticalMeshIDs { get; set; }
+
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
 
@@ -771,6 +774,9 @@ namespace OPS.Landform
                     contextualId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
                 }
 
+                var idToPDSFile = new Dictionary<string, string>();
+                var idToUrl = new Dictionary<string, string>();
+
                 bool update(string id, string url)
                 {
                     if (id == contextualId)
@@ -797,7 +803,8 @@ namespace OPS.Landform
                     }
                     if (pdsFile != null)
                     {
-                        UpdateTacticalMeshManifest(pdsFile, !options.NoURLs ? url : null);
+                        idToPDSFile[id] = pdsFile;
+                        idToUrl[id] = url;
                         return true;
                     }
                     else
@@ -832,6 +839,16 @@ namespace OPS.Landform
                         string id = StringHelper.StripSuffix(StringHelper.GetLastUrlPathSegment(url), sfx);
                         update(id, ConvertURI(url));
                     }
+                }
+
+                var ids = idToPDSFile.Keys.ToList();
+                if (idToPDSFile.Count > 1 && !options.NoFilterTacticalMeshIDs)
+                {
+                    ids = RoverObservationComparator.FilterProductIdGroups(ids, mission).ToList();
+                }
+                foreach (var id in ids)
+                {
+                    UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
                 }
             }
             else if (options.NoURLs)
