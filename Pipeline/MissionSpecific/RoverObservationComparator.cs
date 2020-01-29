@@ -396,12 +396,6 @@ namespace OPS.Pipeline
             {
                 var filtered = group.ToList();
 
-                //keep only latest version
-                filtered = filtered
-                    .GroupBy(id => id.GetPartialId(includeVersion: false))
-                    .Select(ids => ids.OrderByDescending(id => id.Version).First())
-                    .ToList();
-
                 //skip RNG if XYZ is available
                 filtered = filtered
                     .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
@@ -432,6 +426,12 @@ namespace OPS.Pipeline
                 {
                     filtered = mission.FilterProductIdGroups(filtered).ToList();
                 }
+
+                //keep only latest version
+                filtered = filtered
+                    .GroupBy(id => id.GetPartialId(includeVersion: false))
+                    .Select(ids => ids.OrderByDescending(id => id.Version).First())
+                    .ToList();
 
                 foreach (var id in filtered)
                 {
