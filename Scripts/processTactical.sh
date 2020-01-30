@@ -109,7 +109,7 @@ for f in ${dir}/*.${meshext}; do
         if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
 
         if [ "$upload" ]; then
-            ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj 
+            ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj --acl bucket-owner-full-control 
         fi
     fi
 done

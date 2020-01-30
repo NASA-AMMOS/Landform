@@ -121,7 +121,7 @@ if [ "$generate" ]; then
 fi
 
 if [ "$upload" ]; then
-    ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj
+    ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj --acl bucket-owner-full-control 
     if [ "$combined_manifest" ]; then
         ${dry}$landform update-scene-manifest $proj --tilesetdir=$s3rdrdir/tileset --rdrdir=$s3rdrdir --sol=$sol --sitedrive=$sd
     fi
