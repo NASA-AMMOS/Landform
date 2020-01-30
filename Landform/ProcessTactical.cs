@@ -364,6 +364,7 @@ namespace OPS.Landform
                                                   storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
 
                 RunCommand("update-scene-manifest", "--mission", missionStr,
+                           "--awsprofile", awsProfile, "--awsregion", awsRegion,
                            "--manifestfile", tilesetDir + "/" + SCENE_JSON,
                            "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
 
