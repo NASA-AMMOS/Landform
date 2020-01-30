@@ -304,9 +304,31 @@ namespace OPS.Cloud
                 S3Url location = new S3Url(s3url);
                 using (TransferUtility tu = new TransferUtility(client))
                 {
-                    tu.Upload(filename, location.BucketName, location.Path);
+                    UploadImpl(tu, filename, location.BucketName, location.Path);
                 }
             }
+        }
+
+        private void UploadImpl(TransferUtility tu, string localFile, string bucket, string key)
+        {
+            //tu.Upload(filename, location.BucketName, location.Path);
+            
+            //BucketOwnerFullControl is needed to allow writing to a bucket in a different account
+            //which is happening in some deployments
+            //
+            //from the doc for S3CannedACL.BucketOwnerFullControl:
+            //Object Owner gets FULL_CONTROL, Bucket Owner gets FULL_CONTROL.
+            //This ACL applies only to objects and is equivalent to private when used with PUT Bucket.
+            //You use this ACL to let someone other than the bucket owner write content (get full control)
+            //in the bucket but still grant the bucket owner full rights over the objects.
+            
+            var req = new TransferUtilityUploadRequest();
+            req.FilePath = localFile;
+            req.BucketName = bucket;
+            req.Key = key;
+            req.CannedACL = S3CannedACL.BucketOwnerFullControl;
+            
+            tu.Upload(req);
         }
 
         /// <summary>
@@ -324,24 +346,7 @@ namespace OPS.Cloud
                 var cfg = new TransferUtilityConfig { ConcurrentServiceRequests = 1 };
                 using (TransferUtility tu = new TransferUtility(client, cfg))
                 {
-                    //tu.Upload(filename, location.BucketName, location.Path);
-
-                    //BucketOwnerFullControl is needed to allow writing to a bucket in a different account
-                    //which is happening in some deployments
-                    //
-                    //from the doc for S3CannedACL.BucketOwnerFullControl:
-                    //Object Owner gets FULL_CONTROL, Bucket Owner gets FULL_CONTROL.
-                    //This ACL applies only to objects and is equivalent to private when used with PUT Bucket.
-                    //You use this ACL to let someone other than the bucket owner write content (get full control)
-                    //in the bucket but still grant the bucket owner full rights over the objects.
-
-                    var req = new TransferUtilityUploadRequest();
-                    req.FilePath = filename;
-                    req.BucketName = location.BucketName;
-                    req.Key = location.Path;
-                    req.CannedACL = S3CannedACL.BucketOwnerFullControl;
-
-                    tu.Upload(req);
+                    UploadImpl(tu, filename, location.BucketName, location.Path);
                 }
             }
         }
