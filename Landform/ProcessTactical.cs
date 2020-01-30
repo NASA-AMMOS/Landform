@@ -119,11 +119,11 @@ namespace OPS.Landform
             return "tactical mesh " + (url ?? "(unknown)");
         }
 
-        protected override QueueMessage DequeueOneMessage()
+        protected override QueueMessage DequeueOneMessage(MessageQueue queue)
         {
             return options.UseGenericMessageType ?
-                messageQueue.DequeueOne<GenericTacticalMeshMessage>() :
-                mission.DequeueTacticalMeshMessage(messageQueue);
+                queue.DequeueOne<GenericTacticalMeshMessage>() :
+                mission.DequeueTacticalMeshMessage(queue);
         }
 
         protected override bool AcceptMessage(QueueMessage msg)
