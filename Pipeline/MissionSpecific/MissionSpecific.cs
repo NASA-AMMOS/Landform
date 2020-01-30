@@ -7,6 +7,8 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
+using System.IO;
 
 namespace OPS.Pipeline
 {
@@ -787,5 +789,34 @@ namespace OPS.Pipeline
         {
             return null;
         }
+
+        private int demWidth = -1; //Lazily computed
+        private int demHeight = -1;
+
+        public virtual Matrix GetDemToSiteDriveOffset(SiteDrive siteDrive, string demFilePath = null)
+        {
+            demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
+                OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
+            if (s.GetType() != typeof(GDALSerializer))
+            {
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+            if (demWidth == -1)
+            {
+                ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out demWidth, out demHeight);
+            }
+
+            Vector2 colRowOffset = GetSiteDriveOriginPixelInDem(siteDrive, demFilePath);
+
+            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - demWidth / 2.0) * GetDemMetersPerPixel(),
+                                                 -1 * (colRowOffset.Y - demHeight / 2.0) * GetDemMetersPerPixel(),
+                                                 0);
+
+            return Matrix.CreateTranslation(-1 * demSDOriginXYZ);
+        }
+
+        public abstract float GetDemMetersPerPixel();
+        public abstract Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath = null);
     }
 }

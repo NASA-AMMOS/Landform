@@ -7,6 +7,7 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -410,6 +411,16 @@ namespace OPS.Pipeline
         public override string GetS3Proxy()
         {
             return "https://data.m20-dev.jpl.nasa.gov";
+        }
+
+        public override float GetDemMetersPerPixel()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath = null)
+        {
+            throw new NotImplementedException();
         }
     }
 
