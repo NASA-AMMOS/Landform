@@ -207,7 +207,7 @@ namespace OPS.Pipeline
             if (logger != null)
             {
                 string rel = ret == 0 ? "=" : ret < 0 ? ">" : "<";
-                logger.LogVerbose("{0} {1} {2} because {3}", a.Name, rel, b.Name, reason);
+                logger.LogDebug("{0} {1} {2} because {3}", a.Name, rel, b.Name, reason);
             }
             return ret;
         }
