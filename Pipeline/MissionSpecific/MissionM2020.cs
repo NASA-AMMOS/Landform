@@ -80,25 +80,24 @@ namespace OPS.Pipeline
             {
                 if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
                 {
-                    //EECAM reconstruction counter 0-9A-Z
-                    //prefer higher, precedence over version, downsample, compression
-                    char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
-                    char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
-                    if (rcA != rcB)
-                    {
-                        return rcB - rcA;
-                    }
-
-                    //EECAM downsampling A,L,M,N, prefer higher, precedence over compression and version
+                    //EECAM downsampling A,L,M,N, prefer higher
                     char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
                     char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
                     if (edsA != edsB)
                     {
                         return edsB - edsA;
                     }
+
+                    //EECAM reconstruction counter 0-9A-Z, prefer higher
+                    char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
+                    char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
+                    if (rcA != rcB)
+                    {
+                        return rcB - rcA;
+                    }
                 }
 
-                //downsample 0-3, prefer lower, precedence over compression and version
+                //downsample 0-3, prefer lower
                 char dsA = a.Name[DOWNSAMPLE_FIELD];
                 char dsB = b.Name[DOWNSAMPLE_FIELD];
                 if (dsA != dsB)
@@ -106,7 +105,7 @@ namespace OPS.Pipeline
                     return dsA - dsB;
                 }
 
-                //compresion, prefer higher, precedence over version
+                //compresion, prefer higher
                 int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
                 int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
                 if (compA != compB)
