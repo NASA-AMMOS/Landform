@@ -7,7 +7,7 @@ home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
 
 if [ $# -lt 4 ]; then
     echo $help
@@ -39,6 +39,7 @@ tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj
 
 manifest=true
 combined_manifest=true
+only_ingest=
 
 dry=
 generate=true
@@ -73,11 +74,12 @@ while (( "$#" )); do
             ;;
         "--nomanifest") manifest=; combined_manifest=;;
         "--nocombinedmanifest") combined_manifest=;;
+        "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
     esac
     shift
 done
 
-backup_config() { if [ -f $config ]; then ${dry}cp $config $config.BAK; fi }
+backup_config() { if [ -f $config -a ! -f $config.BAK ]; then ${dry}cp $config $config.BAK; fi }
 
 restore_config() { if [ -f $config.BAK ]; then ${dry}mv $config.BAK $config; fi }
 
@@ -109,27 +111,30 @@ if [ "$generate" ]; then
     
     ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
     ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sitedrives
-    ${dry}$landform bev-align $proj $dbg
-    ${dry}$landform build-geometry $proj $dbg
-    ${dry}$landform build-tiling-input $proj $dbg
-    ${dry}$landform blend-images $proj $dbg
-    ${dry}$landform build-tileset $proj $dbg
-    
-    ${dry}rm -rf $proj
-    ${dry}cp -R $tileset_dir .
-    ${dry}mv $proj/tileset.json $proj/${proj}_tileset.json
-    if [ -f $proj/stats.txt ]; then ${dry}mv $proj/stats.txt $proj/${proj}_stats.txt; fi
 
-    if [ "$manifest" ]; then
-        # create/update scene manifests here where we have access to the contextual mesh alignment project database
-        # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
-        ${dry}$landform update-scene-manifest $proj $dbg --manifestfile $proj/${proj}_scene.json --notactical --nourls --sol=$sol --sitedrive=$sd
-
-        if [ "$combined_manifest" ]; then
-            # this scene manifest contains both the contextual mesh tileset
-            # as well as any sibling tactical mesh tilesets that already exist
-            # and it has local file:// URLs
-            ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd
+    if [ ! "$only_ingest" ]; then
+        ${dry}$landform bev-align $proj $dbg
+        ${dry}$landform build-geometry $proj $dbg
+        ${dry}$landform build-tiling-input $proj $dbg
+        ${dry}$landform blend-images $proj $dbg
+        ${dry}$landform build-tileset $proj $dbg
+        
+        ${dry}rm -rf $proj
+        ${dry}cp -R $tileset_dir .
+        ${dry}mv $proj/tileset.json $proj/${proj}_tileset.json
+        if [ -f $proj/stats.txt ]; then ${dry}mv $proj/stats.txt $proj/${proj}_stats.txt; fi
+        
+        if [ "$manifest" ]; then
+            # create/update scene manifests here where we have access to the contextual mesh alignment project database
+            # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
+            ${dry}$landform update-scene-manifest $proj $dbg --manifestfile $proj/${proj}_scene.json --notactical --nourls --sol=$sol --sitedrive=$sd
+            
+            if [ "$combined_manifest" ]; then
+                # this scene manifest contains both the contextual mesh tileset
+                # as well as any sibling tactical mesh tilesets that already exist
+                # and it has local file:// URLs
+                ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd
+            fi
         fi
     fi
 fi
@@ -143,4 +148,4 @@ fi
 
 if [ "$cleanup" ]; then delete_venue; fi
 
-restore_config
+if [ ! "$only_ingest" ]; then restore_config; fi
