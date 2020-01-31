@@ -198,7 +198,8 @@ namespace OPS.Pipeline
 
         public enum KeepLinearVariants { Best, Both };
 
-        public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations, KeepLinearVariants keepLinVariants,
+        public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
+                                                                       KeepLinearVariants keepLinVariants,
                                                                        params RoverProductType[] types)
         {
             return KeepBestRoverObservations(observations, keepLinVariants, null, null, types);
@@ -220,53 +221,41 @@ namespace OPS.Pipeline
                                                                        Func<RoverObservation, bool> filter,
                                                                        params RoverProductType[] types)
         {
-
             if (types.Length > 0)
             {
                 IEnumerable<RoverObservation> filterGroup(IEnumerable<RoverObservation> group)
                 {
                     group = group.OrderBy(o => o, this);
-
-                    if (group.Count() > 1 &&                                                                      //have more than one image
-                        keepLinVariants == KeepLinearVariants.Both)                                               //want both flavors of linearity if appropriate
+                    var best = group.First();
+                    var keepers = new List<RoverObservation>() { best };
+                    if (group.Count() > 1 && keepLinVariants == KeepLinearVariants.Both)
                     {
-                        RoverObservation best = group.ElementAt(0);
-                        RoverObservation bestOtherLinearity = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
-                        
-                        if (bestOtherLinearity != null)
+                        var bestOtherLin = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
+                        if (bestOtherLin != null)
                         {
-                            //protect against sort comparator returning 0 for different products (don't sort doesn't mean equal)
-                            // compare the best two images of each linearity using product ids to make sure that is all that is different
-                            string bestPartial = RoverProductId.Parse(best.Name,mission).GetPartialId(mission, includeVersion: true,
-                                           includeProductType: true, includeGeometry: false,
-                                           includeColorFilter: true, includeInstrument: true,
-                                           includeVariants: true);
-                            string bestOtherLinPartial = RoverProductId.Parse(bestOtherLinearity.Name, mission).GetPartialId(mission, includeVersion: true,
-                                           includeProductType: true, includeGeometry: false,
-                                           includeColorFilter: true, includeInstrument: true,
-                                           includeVariants: true);
+                            //don't use Compare() here because it can return 0 either because products are equal
+                            //or because they can't be compared
+                            //instead use partial product ids to make sure that linearity is all that is different
 
-                            if (0 == string.Compare(bestPartial, bestOtherLinPartial))
+                            string bestPartial = RoverProductId.Parse(best.Name, mission)
+                                .GetPartialId(mission, includeGeometry: false);
+
+                            string bestOtherLinPartial = RoverProductId.Parse(bestOtherLin.Name, mission)
+                                .GetPartialId(mission, includeGeometry: false);
+
+                            if (bestPartial == bestOtherLinPartial)
                             {
-                                if (logger != null)
-                                {
-                                    logger.LogVerbose("keeping {0} and {1} of\n {2}", best.Name, bestOtherLinearity.Name,
-                                                String.Join("\n  ", group.Select(o => o.ToString())));
-                                }
-
-                                return new List<RoverObservation>(2) { best, bestOtherLinearity };
+                                keepers.Add(bestOtherLin);
                             }
                         }            
                     }
-                   
-                    if (logger != null && group.Count() > 1)
+                    if (logger != null)
                     {
-                        logger.LogVerbose("keeping only {0} of\n {1}", group.First().Name,
-                                        String.Join("\n  ", group.Select(o => o.ToString())));
+                        logger.LogVerbose("keeping best observation(s) {0} of {1}", 
+                                          String.Join(", ", keepers.Select(o => o.Name)),
+                                          String.Join(", ", group.Select(o => o.Name)));
                     }
-
-                    return group.Take(1);
-                    
+                    return keepers;
                 }
 
                 return observations
@@ -277,10 +266,11 @@ namespace OPS.Pipeline
                     .GroupBy(o => o.FrameName)
                     .SelectMany(group => filterGroup(group));
             }
-            else if(keepLinVariants == KeepLinearVariants.Both)
+            else if (keepLinVariants == KeepLinearVariants.Both)
             {
-                // no types specified, so filter each type separately
-                // keep best 1 or 2 by the logic above, rely on linear check at the time when the images are used to prevent mismatch
+                //no types specified, so filter each type separately
+                //keep best 1 or 2 by the logic above
+                //rely on linear check at the time when the images are used to prevent mismatch
                 var xyz = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.Range, RoverProductType.Points);
                 var img = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.Image);
                 var msk = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.RoverMask);
