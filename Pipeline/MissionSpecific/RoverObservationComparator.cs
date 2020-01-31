@@ -240,36 +240,64 @@ namespace OPS.Pipeline
             {
                 IEnumerable<RoverObservation> filterGroup(IEnumerable<RoverObservation> group)
                 {
+                    int num = group.Count();
+                    if (num < 2)
+                    {
+                        return group;
+                    }
+
                     group = group.OrderBy(o => o, this);
                     var best = group.First();
                     var keepers = new List<RoverObservation>() { best };
-                    if (group.Count() > 1 && linVars == LinearVariants.Both)
-                    {
-                        var bestOtherLin = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
-                        if (bestOtherLin != null)
-                        {
-                            //don't use Compare() here because it can return 0 either because products are equal
-                            //or because they can't be compared
-                            //instead use partial product ids to make sure that linearity is all that is different
 
+                    var reason = CompareCriteria.Linear_NonLinear;
+                    var bestOtherLin = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
+                    if (bestOtherLin != null)
+                    {
+                        bool otherTrumpsBest = false, bestTrumpsOther = false;
+                        var except = new [] { CompareCriteria.Linear_NonLinear, CompareCriteria.Name };
+                        int cmp = Compare(bestOtherLin, best, out reason, except);
+                        if (cmp > 0) //best is still better than other when lin/nonlin is excluded from comparison
+                        {
+                            bestTrumpsOther = true;
+                        }
+                        else if (cmp < 0) //other is better than best when lin/nonlin is excluded from comparison
+                        {
+                            otherTrumpsBest = true;
+                        }
+                        else // cmp == 0
+                        {
+                            //Compare() can be 0 either because products are equal or because they can't be compared
+                            //see if they are actually equal (other than lin/nonlin)
                             string bestPartial = RoverProductId.Parse(best.Name, mission)
                                 .GetPartialId(mission, includeGeometry: false);
-
                             string bestOtherLinPartial = RoverProductId.Parse(bestOtherLin.Name, mission)
                                 .GetPartialId(mission, includeGeometry: false);
-
-                            if (bestPartial == bestOtherLinPartial)
+                            if (bestPartial != bestOtherLinPartial)
                             {
-                                keepers.Add(bestOtherLin);
+                                //products are otherwise incommensurate, so return preferred linearity
+                                bestTrumpsOther = true;
                             }
-                        }            
+                            reason = CompareCriteria.Linear_NonLinear;
+                        }
+                        if (linVars == LinearVariants.Both && !bestTrumpsOther && !otherTrumpsBest)
+                        {
+                            keepers.Add(bestOtherLin);
+                        }
+                        else if (otherTrumpsBest)
+                        {
+                            keepers[0] = bestOtherLin;
+                        }
                     }
-                    if (logger != null)
+
+                    if (logger != null && keepers.Count < num)
                     {
-                        logger.LogVerbose("keeping best observation(s) {0} of {1}", 
+                        logger.LogVerbose("keeping best observation(s) {0} of {1} because {2}", 
                                           String.Join(", ", keepers.Select(o => o.Name)),
-                                          String.Join(", ", group.Select(o => o.Name)));
+                                          String.Join(", ", group.Select(o => o.Name)),
+                                          reason);
                     }
+
                     return keepers;
                 }
 
