@@ -291,9 +291,9 @@ namespace OPS.Pipeline
             //    this condition defers the decision to a sort by systems that have a strong preference for linear
             //    or nonlinear rather than an explicit early culling here.
             var comparator = mission.GetRoverObservationComparator();
+            comparator.logger = pipeline.Verbose ? pipeline : null;
             filteredObs = comparator
-                .KeepBestRoverObservations(filteredObs, RoverObservationComparator.KeepLinearVariants.Both,
-                                           pipeline.Verbose ? pipeline : null)
+                .KeepBestRoverObservations(filteredObs, RoverObservationComparator.LinearVariants.Both)
                 .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
             na = filteredObs.Count;

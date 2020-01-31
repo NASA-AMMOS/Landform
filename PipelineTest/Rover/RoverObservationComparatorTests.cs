@@ -54,12 +54,12 @@ namespace RoverTest
                                           preferEyeForGeometry: RoverStereoEye.Left, mission:new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(2) { obsLin, obsNonLin };
-            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Best);
+            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Best);
             Assert.IsTrue(result.Count() == 1);
             Assert.IsTrue(result.First() == obsLin);
 
             allObs = new List<Observation>(2) {obsNonLin, obsLin };
-            result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Best);
+            result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Best);
             Assert.IsTrue(result.Count() == 1);
             Assert.IsTrue(result.First() == obsLin);
 
@@ -104,12 +104,12 @@ namespace RoverTest
                                           preferEyeForGeometry: RoverStereoEye.Left, mission: new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(2) { obsLin, obsNonLin };
-            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
+            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Both);
             Assert.IsTrue(result.Count() == 2);
             Assert.IsTrue(result.First() == obsLin);
 
             allObs = new List<Observation>(2) { obsNonLin, obsLin };
-            result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
+            result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Both);
             Assert.IsTrue(result.Count() == 2);
             Assert.IsTrue(result.First() == obsLin);
 
@@ -164,7 +164,7 @@ namespace RoverTest
                                           preferEyeForGeometry: RoverStereoEye.Left, mission:new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsLinBW, obsNonLin, obsLinCol };
-            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Best);
+            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Best);
             Assert.IsTrue(result.Count() == 1);
             Assert.IsTrue(result.First() == obsLinCol);
         }
@@ -219,7 +219,7 @@ namespace RoverTest
                                           preferEyeForGeometry: RoverStereoEye.Left, mission:new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsLinV1, obsNonLinV2, obsLinV2 };
-            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
+            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Both);
             Assert.IsTrue(result.Count() == 2);
             Assert.IsTrue(result.First() == obsLinV2);
             Assert.IsTrue(result.ElementAt(1) == obsNonLinV2);
@@ -261,7 +261,7 @@ namespace RoverTest
                                           preferEyeForGeometry: RoverStereoEye.Left, mission: new MissionMSL());
 
             List<Observation> allObs = new List<Observation>(3) { obsNonLinV2, obsLinV2 };
-            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.KeepLinearVariants.Both);
+            var result = comp.KeepBestRoverObservations(allObs, RoverObservationComparator.LinearVariants.Both);
             Assert.IsTrue(result.Count() == 1);
             Assert.IsTrue(result.First() == obsNonLinV2);
         }
