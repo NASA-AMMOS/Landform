@@ -126,45 +126,50 @@ namespace OPS.Pipeline
 
         public override IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
         {
-            IEnumerable<RoverProductId> filterEECAM(IEnumerable<RoverProductId> ids, int idx)
+            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
+            var groups = products.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
+            foreach (var group in groups)
             {
-                char max = ids
-                    .Where(id => IsHazcam(id.Camera) || IsNavcam(id.Camera))
-                    .Select(id => id.FullId[idx])
+                var filtered = group.Select(id => id);
+
+                //EECAM downsampling A,L,M,N, prefer higher
+                //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
+                //though also see https://github.jpl.nasa.gov/OnSight/Landform/issues/891
+                char maxEDS = filtered
+                    .Where(id => isEECAM(id))
+                    .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
                     .DefaultIfEmpty('0')
                     .Max();
-                return ids.Where(id => !(IsHazcam(id.Camera) || IsNavcam(id.Camera)) || id.FullId[idx] == max);
+                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS);
+
+                //EECAM reconstruction counter 0-9A-Z, prefer higher
+                char maxERC = filtered
+                    .Where(id => isEECAM(id))
+                    .Select(id => id.FullId[EECAM_RECONSTRUCTION_FIELD])
+                    .DefaultIfEmpty('0')
+                    .Max();
+                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_RECONSTRUCTION_FIELD] == maxERC);
+
+                //downsample 0-3, prefer lower
+                char minDS = filtered.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                filtered = filtered.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS);
+
+                //compresion, prefer higher
+                int maxCP = filtered.Select(id => CompressionPreference(id)).DefaultIfEmpty(0).Max();
+                filtered = filtered.Where(id => CompressionPreference(id) == maxCP);
+
+                foreach (var id in filtered)
+                {
+                    yield return id;
+                }
             }
+        }
 
-            //EECAM reconstruction counter 0-9A-Z (prefer higher, precedence over version, downsample, and compression)
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .SelectMany(ids => filterEECAM(ids, EECAM_RECONSTRUCTION_FIELD))
-                .ToList();
-
-            //EECAM downsampling A,L,M,N (prefer higher, precedence over version, downsample, and compression)
-            //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
-            //though also see https://github.jpl.nasa.gov/OnSight/Landform/issues/891
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .SelectMany(ids => filterEECAM(ids, EECAM_DOWNSAMPLE_FIELD))
-                .ToList();
-
-            //downsample 0-3 (prefer lower, precedence over version and compression)
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .Select(ids => ids.OrderBy(id => id.FullId[DOWNSAMPLE_FIELD]).First())
-                .ToList();
-
-            //compresion (prefer higher, precedence over version)
+        public int CompressionPreference(RoverProductId id)
+        {
             int cf = COMPRESSION_FIELD, cfl = COMPRESSION_FIELD_LENGTH;
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .Select(ids => ids.OrderByDescending(id => CompressionPreference(id.GetPartialId(cf, cfl))).First())
-                .ToList();
-
-            return products;
+            return CompressionPreference(id.GetPartialId(cf, cfl));
         }
 
         public int CompressionPreference(string compression)
