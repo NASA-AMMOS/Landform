@@ -381,7 +381,8 @@ namespace OPS.Pipeline
         /// But that's OK it's just intended to be a first pass.
         /// </summary>
         public static IEnumerable<string> FilterProductIdGroups(IEnumerable<string> products,
-                                                                MissionSpecific mission = null)
+                                                                MissionSpecific mission = null,
+                                                                Action<string> log = null)
         {
             IEnumerable<RoverProductId> filterRNG(IEnumerable<RoverProductId> ids)
             {
@@ -430,50 +431,84 @@ namespace OPS.Pipeline
             //not that it wouldn't be nice if we could do that
             //but the code just doesn't support that
             //KeepBestRoverObservations() does consider producer
-            foreach (var group in idToProduct.Keys.GroupBy(id => id.GetType()))
+            foreach (var typeGroup in idToProduct.Keys.GroupBy(id => id.GetType()))
             {
-                var filtered = group.ToList();
-
-                //skip RNG if XYZ is available
-                filtered = filtered
-                    .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
-                    .SelectMany(ids => filterRNG(ids))
-                    .ToList();
-
-                //if both color and grayscale are available, keep the preferred one
-                //also if multiple grayscale bands are available, keep the preferred one
-                bool preferColorToGrayscale = mission != null ? mission.PreferColorToGrayscale() : true;
-                filtered = filtered
-                    .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false, includeVariants: false))
-                    .SelectMany(ids => filterColor(ids, preferColorToGrayscale))
-                    .ToList();
-
-                //keep preferred eye for geometry products
-                var preferEyeForGeometry = mission != null ? mission.PreferEyeForGeometry() : RoverStereoEye.Any;
-                if (preferEyeForGeometry != RoverStereoEye.Any)
+                foreach (var obsGroup in typeGroup.GroupBy(id => id.GetPartialId(mission,
+                                                                                 includeProductType: false,
+                                                                                 includeColorFilter: false,
+                                                                                 includeVariants: false,
+                                                                                 includeVersion: false,
+                                                                                 includeStereoEye: false)))
                 {
+                    //obsGroup contains all ids of
+                    //* same type (e.g. MSSS vs OPGS)
+                    //* same instrument
+                    //* same sequence number and timestamp(s)
+                    //* same size (thumbnail vs regular)
+                    //* same special processing
+                    //but
+                    //* all product types
+                    //* all color filters
+                    //* all variants
+                    //* all versions
+                    //* all stereo eyes
+                    
+                    var orig = obsGroup.ToList();
+                    var filtered = orig;
+                    
+                    //skip RNG if XYZ is available
                     filtered = filtered
-                        .GroupBy(id => RoverStereoPair.GetStereoCamera(id.Camera) +
-                                 id.GetPartialId(mission, includeInstrument: false, includeColorFilter: false,
-                                                 includeVariants: false))
-                        .SelectMany(ids => filterEye(ids, preferEyeForGeometry))
+                        .GroupBy(id => id.GetPartialId(mission, includeProductType: false))
+                        .SelectMany(ids => filterRNG(ids))
                         .ToList();
-                }
+                    
+                    //if both color and grayscale are available, keep the preferred one
+                    //also if multiple grayscale bands are available, keep the preferred one
+                    bool preferColorToGrayscale = mission != null ? mission.PreferColorToGrayscale() : true;
+                    filtered = filtered
+                        .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false))
+                        .SelectMany(ids => filterColor(ids, preferColorToGrayscale))
+                        .ToList();
+                    
+                    //keep preferred eye for geometry products
+                    var preferEyeForGeometry = mission != null ? mission.PreferEyeForGeometry() : RoverStereoEye.Any;
+                    if (preferEyeForGeometry != RoverStereoEye.Any)
+                    {
+                        filtered = filtered
+                            .GroupBy(id => RoverStereoPair.GetStereoCamera(id.Camera) +
+                                     id.GetPartialId(mission,
+                                                     includeInstrument: false,
+                                                     includeProductType: false,
+                                                     includeVariants: false,
+                                                     includeVersion: false))
+                            .SelectMany(ids => filterEye(ids, preferEyeForGeometry))
+                            .ToList();
+                    }
 
-                if (mission != null)
-                {
-                    filtered = mission.FilterProductIdGroups(filtered).ToList();
-                }
+                    if (mission != null)
+                    {
+                        filtered = mission.FilterProductIdGroups(filtered).ToList();
+                    }
+                    
+                    //keep only latest version
+                    filtered = filtered
+                        .GroupBy(id => id.GetPartialId(includeVersion: false))
+                        .Select(ids => ids.OrderByDescending(id => id.Version).First())
+                        .ToList();
+                    
+                    if (log != null && filtered.Count < orig.Count)
+                    {
+                        log(string.Format("keeping best products(s) {0} of {1}", 
+                                          String.Join(", ", filtered.Select(id => StringHelper
+                                                                            .GetLastUrlPathSegment(idToProduct[id]))),
+                                          String.Join(", ", orig.Select(id => StringHelper
+                                                                        .GetLastUrlPathSegment(idToProduct[id])))));
+                    }
 
-                //keep only latest version
-                filtered = filtered
-                    .GroupBy(id => id.GetPartialId(includeVersion: false))
-                    .Select(ids => ids.OrderByDescending(id => id.Version).First())
-                    .ToList();
-
-                foreach (var id in filtered)
-                {
-                    yield return idToProduct[id];
+                    foreach (var id in filtered)
+                    {
+                        yield return idToProduct[id];
+                    }
                 }
             }
 

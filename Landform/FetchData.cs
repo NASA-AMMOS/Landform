@@ -435,6 +435,12 @@ namespace OPS.Landform
                 }
             }
 
+            Action<string> verbose = null;
+            if (options.Verbose)
+            {
+                verbose = msg => logger.Info(msg);
+            }
+
             //it might be nice if we could group products by observation frame here
             //and then apply similar rules as in RoverObservationComparator
             //to only download the preferred products for each frame
@@ -454,7 +460,7 @@ namespace OPS.Landform
             int nf = filtered.Count;
             filtered = filtered
                 .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
-                .SelectMany(files => RoverObservationComparator.FilterProductIdGroups(files, mission))
+                .SelectMany(files => RoverObservationComparator.FilterProductIdGroups(files, mission, verbose))
                 .ToList();
             logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
 

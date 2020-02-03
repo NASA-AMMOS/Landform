@@ -274,7 +274,12 @@ namespace OPS.Pipeline
             var acceptedUrls = new HashSet<string>();
             acceptedUrls.UnionWith(results.Values.Where(res => res.Accepted).Select(res => res.Url));
             int na = acceptedUrls.Count;
-            var filteredUrls = RoverObservationComparator.FilterProductIdGroups(acceptedUrls, mission).ToList();
+            Action<string> log = null;
+            if (pipeline.Verbose)
+            {
+                log = msg => pipeline.LogInfo(msg);
+            }
+            var filteredUrls = RoverObservationComparator.FilterProductIdGroups(acceptedUrls, mission, log).ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
 
             var filteredObs = filteredUrls

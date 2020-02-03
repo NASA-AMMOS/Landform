@@ -857,7 +857,12 @@ namespace OPS.Landform
                 HashSet<string> keepers = null;
                 if (idToPDSFile.Count > 1 && !options.NoFilterTacticalMeshIDs)
                 {
-                    keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission));
+                    Action<string> log = null;
+                    if (pipeline.Verbose)
+                    {
+                        log = msg => pipeline.LogInfo(msg);
+                    }
+                    keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, log));
                 }
                 foreach (var id in ids)
                 {
