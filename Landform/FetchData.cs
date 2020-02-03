@@ -124,6 +124,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = false, HelpText = "Print summary")]
         public bool Summary { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        public bool DryRun { get; set; }
     }
 
     public class FetchData
@@ -507,6 +510,10 @@ namespace OPS.Landform
 
         private long DownloadFile(string url)
         {
+            if (options.DryRun)
+            {
+                return 0;
+            }
             var localPath = LocalPath(url);    
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
             bool s3 = url.ToLower().StartsWith("s3");
@@ -583,14 +590,17 @@ namespace OPS.Landform
             int downloaded = 0;
             logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
             long totalBytes = 0;
-            CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
+            if (!options.DryRun)
             {
-                long bytes = DownloadFile(f);
-                Interlocked.Add(ref totalBytes, bytes);
-                Interlocked.Increment(ref downloaded);
-                logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
-                                  downloaded, remaining, (downloaded * 100) / remaining);
-            });
+                CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
+                {
+                    long bytes = DownloadFile(f);
+                    Interlocked.Add(ref totalBytes, bytes);
+                    Interlocked.Increment(ref downloaded);
+                    logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
+                                      downloaded, remaining, (downloaded * 100) / remaining);
+                });
+            }
             return totalBytes;
         }
 
@@ -656,7 +666,10 @@ namespace OPS.Landform
                     }
                     logger.InfoFormat("downloading {0} unified meshes", urls.Count);
                     bytes += DownloadFiles(urls);
-                    unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
+                    if (!options.DryRun)
+                    {
+                        unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
+                    }
                 }
 
                 foreach (var sol in sols)
