@@ -191,7 +191,7 @@ namespace OPS.Landform
             {
                 if (_storageHelper == null)
                 {
-                    _storageHelper = new StorageHelper(awsProfile, awsRegion);
+                    _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
                 }
                 return _storageHelper;
             }
@@ -496,24 +496,24 @@ namespace OPS.Landform
 
         protected bool FileExists(string url)
         {
-            return LandformShell.FileExists(pipeline, storageHelper, url);
+            return LandformShell.FileExists(pipeline, () => storageHelper, url);
         }
 
         protected IEnumerable<string> SearchFiles(string url, string globPattern,
                                                   bool recursive = false, bool ignoreCase = false)
         {
-            return LandformShell.SearchFiles(pipeline, storageHelper, url, globPattern, recursive, ignoreCase);
+            return LandformShell.SearchFiles(pipeline, () => storageHelper, url, globPattern, recursive, ignoreCase);
         }
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return LandformShell.GetFile(pipeline, storageHelper, url, "manifest", filenameUnique,
+            return LandformShell.GetFile(pipeline, () => storageHelper, url, "manifest", filenameUnique,
                                          options.MaxRetries);
         }
 
         protected void SaveFile(string file, string url)
         {
-            LandformShell.SaveFile(pipeline, storageHelper, file, url);
+            LandformShell.SaveFile(pipeline, () => storageHelper, file, url);
         }
 
         private void LoadOrCreateManifest()
