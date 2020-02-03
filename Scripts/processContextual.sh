@@ -7,7 +7,7 @@ home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json]"
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
 
 if [ $# -lt 4 ]; then
     echo $help
@@ -47,11 +47,12 @@ proj=${sol}_${sd}
 venue=local_${mission}_${sol}_${sd}
 tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 
-manifest=true
 combined_manifest=true
 copy_combined_manifest=
 only_ingest=
+s3_proxy=
 
+manifest=true
 dry=
 generate=true
 cleanup=true
@@ -90,6 +91,14 @@ while (( "$#" )); do
                 exit 1
             fi
             copy_combined_manifest=$1
+            ;;
+        "--s3proxy")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing S3 proxy URL"
+                exit 1
+            fi
+            s3_proxy="--s3proxy $1"
             ;;
         "--nomanifest") manifest=; combined_manifest=;;
         "--onlycopycombinedmanifest") cleanup=; only_cleanup=; generate=; upload=;;
@@ -162,7 +171,7 @@ fi
 if [ "$upload" ]; then
     ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj --acl bucket-owner-full-control 
     if [ "$combined_manifest" ]; then
-        ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=$s3rdrdir/tileset --rdrdir=$s3rdrdir --sol=$sol --sitedrive=$sd
+        ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=$s3rdrdir/tileset --rdrdir=$s3rdrdir --sol=$sol --sitedrive=$sd $s3_proxy
     fi
 fi
 

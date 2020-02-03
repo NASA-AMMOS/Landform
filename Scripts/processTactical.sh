@@ -22,6 +22,7 @@ shift
 
 meshext=iv
 imgext=IMG
+lods="--loadlods"
 
 manifest=true
 dry=
@@ -30,7 +31,6 @@ cleanup=true
 only_cleanup=
 upload=
 s3rdrdir=
-lods="--loadlods"
 
 # this only works for subcommands that use PipelineCoreOptions (so not configure-local)
 dbg=""

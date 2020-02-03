@@ -145,6 +145,9 @@ namespace OPS.Landform
         [Option(HelpText = "Convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
         public bool RelativeS3URIs { get; set; }
 
+        [Option(Default = "mission", HelpText = "S3Proxy (or \"mission\")")]
+        public string S3Proxy { get; set; }
+
         [Option(HelpText = "Cull images with no backprojected pixels from contextual mesh manifest", Default = false)]
         public bool CullImagesWithoutBackprojectedPixels { get; set; }
 
@@ -193,6 +196,8 @@ namespace OPS.Landform
                 return _storageHelper;
             }
         }
+
+        private string s3Proxy;
 
         protected List<string> imageExts;
         protected List<string> pdsExts;
@@ -459,6 +464,16 @@ namespace OPS.Landform
             RDRSet.allowBrowse = !options.NoAllowBrowseRDRs;
             RDRSet.preferNonBrowse = !options.NoPreferNonBrowseRDRs;
 
+            s3Proxy = options.S3Proxy;
+            if (!string.IsNullOrEmpty(s3Proxy) && s3Proxy.ToLower() == "mission")
+            {
+                s3Proxy = mission.GetS3Proxy();
+            }
+            if (!string.IsNullOrEmpty(s3Proxy))
+            {
+                pipeline.LogInfo("S3 Proxy: {0}", s3Proxy);
+            }
+
             return true;
         }
 
@@ -514,10 +529,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("creating new manifest");
                 sceneManifest = SceneManifestHelper.Create();
             }
-            if (mission != null)
-            {
-                sceneManifest.S3Proxy = mission.GetS3Proxy();
-            }
+            sceneManifest.S3Proxy = s3Proxy;
         }
 
         private void SaveManifest()
