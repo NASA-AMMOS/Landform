@@ -7,7 +7,7 @@ home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json]"
 
 if [ $# -lt 4 ]; then
     echo $help
@@ -23,6 +23,11 @@ shift
 sol=$1
 shift
 
+if ! [[ $sol =~ ^[0-9]{4}$ ]]; then
+    echo "sol must be 4 digits" 
+    exit 1
+fi
+
 # use last sitedrive as project name
 # pipeline will also pick it by default as mesh frame
 sd="0"
@@ -33,12 +38,18 @@ for i in "${sds[@]}"; do
     if [ $i -gt $sd ]; then sd=$i; fi
 done
 
+if ! [[ $sd =~ ^[0-9]{7}$ ]]; then
+    echo "sitedrive must be 7 digits" 
+    exit 1
+fi
+
 proj=${sol}_${sd}
 venue=local_${mission}_${sol}_${sd}
 tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 
 manifest=true
 combined_manifest=true
+copy_combined_manifest=
 only_ingest=
 
 dry=
@@ -72,7 +83,16 @@ while (( "$#" )); do
             fi
             s3rdrdir=$1
             ;;
+        "--copycombinedmanifest")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing copy combined manifest URL"
+                exit 1
+            fi
+            copy_combined_manifest=$1
+            ;;
         "--nomanifest") manifest=; combined_manifest=;;
+        "--onlycopycombinedmanifest") cleanup=; only_cleanup=; generate=; upload=;;
         "--nocombinedmanifest") combined_manifest=;;
         "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
     esac
@@ -144,6 +164,22 @@ if [ "$upload" ]; then
     if [ "$combined_manifest" ]; then
         ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=$s3rdrdir/tileset --rdrdir=$s3rdrdir --sol=$sol --sitedrive=$sd
     fi
+fi
+
+if [ "$copy_combined_manifest" ]; then
+    site=${sd:0:3}
+    drive=${sd:3:4}
+    site5=`printf "%05d" $((10#$site))`
+    drive5=`printf "%05d" $((10#$drive))`
+    sol5=`printf "%05d" $((10#$sol))`
+    dest="$copy_combined_manifest"
+    dest=${dest//%S5%/$site5}
+    dest=${dest//%D5%/$drive5}
+    dest=${dest//%T5%/$sol5}
+    dest=${dest//%S3%/$site}
+    dest=${dest//%D4%/$drive}
+    dest=${dest//%T4%/$sol}
+    ${dry}aws --profile=credss-default s3 sync $s3rdrdir/tileset/${proj}_scene.json $dest --acl bucket-owner-full-control
 fi
 
 if [ "$cleanup" ]; then delete_venue; fi
