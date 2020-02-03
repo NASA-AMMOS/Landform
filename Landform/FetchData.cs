@@ -685,12 +685,14 @@ namespace OPS.Landform
                         var groups = solToProducts[sol]
                             .Select(product => StringHelper.GetLastUrlPathSegment(product, stripExtension: true))
                             .Select(idStr => RoverProductId.Parse(idStr, mission))
-                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
-                            .Select(ids => ids.OrderBy(id => id.FullId).Distinct())
+                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeGeometry: false,
+                                                           includeVariants: false, includeVersion: false,
+                                                           includeStereoEye: false))
+                            .Select(ids => ids.Distinct().OrderBy(id => id.FullId).ToList())
                             .ToList();
                         logger.InfoFormat("-- fetching {0} product ids for sol {1} --",
-                                          groups.Select(group => group.Count()).Sum(), sol);
-                        groups.ForEach(group => group.ToList().ForEach(id => logger.Info(id.FullId)));
+                                          groups.Select(group => group.Count).Sum(), sol);
+                        groups.ForEach(group => group.ForEach(id => logger.Info(id.FullId)));
                     }
                 }
                 
