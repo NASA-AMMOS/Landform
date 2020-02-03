@@ -296,10 +296,6 @@ namespace OPS.Pipeline
 
         public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
         {
-            foreach (var span in base.GetProductIdVariantSpans(id))
-            {
-                yield return span;
-            }
             if (id is M2020OPGSProductId)
             {
                 yield return new int[] { EECAM_DOWNSAMPLE_FIELD, 1 };

@@ -255,16 +255,9 @@ namespace OPS.Pipeline
             string ret = FullId;
             int start, length;
             var spans = new List<int[]>();
-            if (!includeVariants)
+            if (!includeVariants && mission != null)
             {
-                if (mission != null)
-                {
-                    spans.AddRange(mission.GetProductIdVariantSpans(this));
-                }
-                else
-                {
-                    includeVersion = false;
-                }
+                spans.AddRange(mission.GetProductIdVariantSpans(this));
             }
             if (!includeVersion && GetVersionSpan(out start, out length))
             {

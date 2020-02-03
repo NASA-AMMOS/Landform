@@ -577,10 +577,6 @@ namespace OPS.Pipeline
 
         public virtual IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
         {
-            if (id.GetVersionSpan(out int start, out int length))
-            {
-                yield return new int[] { start, length };
-            }
             yield break;
         }
 
