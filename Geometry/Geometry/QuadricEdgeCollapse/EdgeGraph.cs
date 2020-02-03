@@ -63,6 +63,36 @@ namespace OPS.Geometry
             return newID;
         }
 
+        public static bool ClipSubcycle(List<Edge> cycle)
+        {
+            Dictionary<Vector3, int> posToIndex = new Dictionary<Vector3, int>();
+            int idx = 0;
+            foreach (Edge e in cycle)
+            {
+                if(!posToIndex.ContainsKey(e.Src.Vert.Position))
+                {
+                    posToIndex.Add(e.Src.Vert.Position, idx);
+                    idx++;
+                }
+                else
+                {
+                    //Found two subcycles, clip the smaller one
+                    int smallerIndex = posToIndex[e.Src.Vert.Position];
+                    int largerIndex = idx;
+                    if (largerIndex - smallerIndex < cycle.Count / 2)
+                    {
+                        cycle.RemoveRange(smallerIndex, largerIndex - smallerIndex);
+                    } else
+                    {
+                        cycle.RemoveRange(largerIndex, cycle.Count - largerIndex);
+                        cycle.RemoveRange(0, smallerIndex);
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>
         /// Returns the nodes that fall on the mesh perimeter, note that non-perimeter edges can exist between two nodes on the perimeter
         /// </summary>
@@ -72,7 +102,7 @@ namespace OPS.Geometry
             var res = new List<VertexNode>();
             foreach (VertexNode v in VertNodes)
             {
-                if (v.IsActive)
+                if (v.IsActive && v.IsOnPerimeter)
                 {
                     res.Add(v);
                 }
@@ -93,7 +123,7 @@ namespace OPS.Geometry
                 {
                     foreach (Edge e in v.AdjacentEdges)
                     {
-                        if(e.IsPerimeterEdge && e.Src < e.Dst)
+                        if(e.IsPerimeterEdge && e.Left != null)
                         {
                             res.Add(e);
                         }

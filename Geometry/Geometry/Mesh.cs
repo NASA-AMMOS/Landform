@@ -432,6 +432,54 @@ namespace OPS.Geometry
             }
         }
 
+
+        /// <summary>
+        /// Merge verticies that are within distance eps and delete any collapsed or duplicate faces
+        /// </summary>
+        public void MergeNearbyVertices(double eps)
+        {
+            VertexKDTree kdTree = new VertexKDTree(this.Vertices);
+            // Make a list of unique vertices and compute a mapping between old and new indices
+            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>();
+            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
+            List<Vertex> uniqueVertices = new List<Vertex>();
+            for (int i = 0; i < this.Vertices.Count; i++)
+            {
+                Vertex v = this.Vertices[i];
+                if (!vertexToIndex.ContainsKey(v))
+                {
+                    //find nearest neighbor
+                    Vertex closest = kdTree.NearestNeighbors(v.Position, 1).First();
+                    //if close enough to existing point, merge
+                    if (vertexToIndex.ContainsKey(closest) && Vector3.Distance(v.Position, closest.Position) < eps)
+                    {
+                        vertexToIndex.Add(v, vertexToIndex[closest]);
+                    }
+                    //else add as new point
+                    else
+                    {
+                        vertexToIndex.Add(v, uniqueVertices.Count);
+                        uniqueVertices.Add(v);
+                    }
+                }
+                oldToNewIndex.Add(i, vertexToIndex[v]);
+            }
+            // Update the vertex list
+            this.Vertices = uniqueVertices;
+            // Update the face indices
+            for (int i = 0; i < this.Faces.Count; i++)
+            {
+                Face f = this.Faces[i];
+                f.P0 = oldToNewIndex[f.P0];
+                f.P1 = oldToNewIndex[f.P1];
+                f.P2 = oldToNewIndex[f.P2];
+                this.Faces[i] = f;
+            }
+            RemoveInvalidFaces();
+            RemoveIdenticalFaces();
+        }
+
+
         /// <summary>
         /// Remove any vertices that are identical
         /// Also checks for and removes any identical faces

@@ -326,7 +326,7 @@ namespace OPS.Pipeline.TilingServer
                 }
 
 
-                if (false)
+                /*if (false)
                 {
                     const int orbitalRadius = 40; //Add 80 x 80 meter orbital
                     const string orbitalFrameName = "Orbital";
@@ -380,7 +380,7 @@ namespace OPS.Pipeline.TilingServer
 
                     origins.Add(null); //Use default orbital distance to camera
                     meshes.Add(demPoints);
-                }
+                }*/
 
 
 
@@ -442,39 +442,224 @@ namespace OPS.Pipeline.TilingServer
             };
 
             var bestClippedMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+            //const double eps = 0.01;
+            //bestClippedMesh.MergeNearbyVertices(eps);
+            //bestClippedMesh.Clean();
+            //RemoveFloaters(bestClippedMesh);
+            //bestClippedMesh.Clean();
 
-            if (bestClippedMesh == null)
+            const double resolution = 0.5;
+            var bounds = bestClippedMesh.Bounds();
+            Mesh grid = Shrinkwrap.BuildGrid(bounds, (int)(bounds.Size().X * resolution), (int)(bounds.Size().Y * resolution), VertexProjection.ProjectionAxis.Z);
+            bestClippedMesh = Shrinkwrap.Wrap(grid, bestClippedMesh, Shrinkwrap.ShrinkwrapMode.Project, VertexProjection.ProjectionAxis.Z, Shrinkwrap.ProjectionMissResponse.Clip);
+            bestClippedMesh.Clean();
+            bestClippedMesh.Save("C:\\Users\\conductor\\Documents\\landform-storage\\local\\meshing\\GeometryProducts\\0311472Frame\\best\\windjana\\surface_clipped.ply");
+
+            /*var maskMesh = Delaunay.Triangulate(bestClippedMesh.Vertices);
+            EdgeGraph edgeGraph = new EdgeGraph(maskMesh);
+            var perimeterEdges = edgeGraph.GetPerimeterEdges();*/
+
+            EdgeGraph edgeGraph = new EdgeGraph(bestClippedMesh);
+            var edges = edgeGraph.GetPerimeterEdges();
+            List<Edge> currentGroup;
+            List<Edge> perimeterEdges = null;
+            double maxArea = 0.0;
+            foreach(Edge firstEdge in edges)
+            {
+                if(!firstEdge.IsPerimeterEdge)
+                {
+                    continue;
+                }
+                currentGroup = new List<Edge> { firstEdge };
+                List<Edge> splits = new List<Edge>();
+                List<int> splitIdxs = new List<int>();
+                firstEdge.IsPerimeterEdge = false;
+                Edge current = firstEdge;
+                bool closed = false;
+                while (!closed)
+                {
+                    bool foundNextEdge = false;
+                    foreach (Edge other in current.Dst.AdjacentEdges)
+                    {
+                        if (other.Dst != current.Src && other.Left != null && other.IsPerimeterEdge)
+                        {
+                            //Found next perimeter edge...
+                            if (foundNextEdge)
+                            {
+                                splits.Add(other);
+                                other.IsPerimeterEdge = false;
+                                splitIdxs.Add(currentGroup.Count - 1);
+                            }
+                            else
+                            {
+                                foundNextEdge = true;
+                                currentGroup.Add(other);
+                                other.IsPerimeterEdge = false;
+                                current = other;
+                            }                            
+                        }   
+                    }
+                    if (!foundNextEdge)
+                    {
+                        //Backtrack to last split
+                        if(splits.Count > 0)
+                        {
+                            current = splits.Last();
+                            int idx = splitIdxs.Last();
+                            currentGroup = currentGroup.Take(idx).ToList();
+                            currentGroup.Add(current);
+
+                            splits.RemoveAt(splits.Count - 1);
+                            splitIdxs.RemoveAt(splitIdxs.Count - 1);
+                        } else
+                        {
+                            currentGroup = null;
+                            break;
+                        }
+                    }
+                    closed = (current.Dst == firstEdge.Src);
+                }
+                if (currentGroup != null)
+                {
+                    var size = BoundingBox.CreateFromPoints(currentGroup.Select(e => e.Src.Vert.Position)).Size();
+                    var area = size.X * size.Y;
+                    if (area > maxArea)
+                    {
+                        maxArea = area;
+                        perimeterEdges = currentGroup;
+                    }
+                }
+            }
+
+            //Clip subcycles
+            while (EdgeGraph.ClipSubcycle(perimeterEdges)) { }
+
+            //Get perimeter orientation
+            VertexNode right = perimeterEdges[0].Src;
+            foreach(Edge e in perimeterEdges)
+            {
+                if(e.Src.Vert.Position.X > right.Vert.Position.X)
+                {
+                    right = e.Src;
+                }
+            }
+           
+            Edge edgeIn = perimeterEdges.Where(e => e.Dst == right).First();
+            Edge edgeOut = perimeterEdges.Where(e => e.Src == right).First();
+            bool ccw = Edge.IsLeftTurn(edgeIn, edgeOut, 0);
+            if (!ccw)
+            {
+                pipeline.Logger.Info("Reversing perimeter winding.");
+                perimeterEdges.ForEach(e =>
+                {
+                    var tmp = e.Src;
+                    e.Src = e.Dst;
+                    e.Dst = tmp;
+                });
+                perimeterEdges.Reverse();
+                ccw = true;
+            }
+
+            Mesh maskMesh = new Mesh();
+            maskMesh.Vertices = perimeterEdges.Select(e => new Vertex(e.Src.Vert.Position)).ToList();
+
+            int id = 0;
+            foreach(Edge e in perimeterEdges)
+            {
+                e.Src.ID = id;
+                id++;
+            }
+
+            /*bool progress = true;
+            while (progress)
+            {
+                progress = false;
+                for (int i = perimeterEdges.Count - 2; i > 0; i--)
+                {
+                    Edge e1 = perimeterEdges[i];
+                    Edge e2 = perimeterEdges[i + 1];
+                    if (Edge.IsColinear(e1, e2))
+                    {
+                        perimeterEdges.RemoveAt(i + 1);
+                        perimeterEdges.RemoveAt(i);
+                        perimeterEdges.Insert(i, new Edge(e1.Src, e2.Dst, null));
+                        progress = true;
+                    }
+                }
+            }
+            if(Edge.IsColinear(perimeterEdges[perimeterEdges.Count - 1], perimeterEdges[0]))
+            {
+                Edge e = new Edge(perimeterEdges[perimeterEdges.Count - 1].Src, perimeterEdges[0].Dst, null);
+                perimeterEdges.RemoveAt(perimeterEdges.Count - 1);
+                perimeterEdges.RemoveAt(0);
+                perimeterEdges.Insert(0, e);
+            }*/
+
+            foreach (Edge e in TriangulatePolygon.Triangulate(perimeterEdges, ccw))
+            {
+                if(e.Left != null)
+                {
+                    maskMesh.Faces.Add(new Face(e.Src.ID, e.Dst.ID, e.Left.ID));
+                }
+            }
+
+            maskMesh.Save("C:\\Users\\conductor\\Documents\\landform-storage\\local\\meshing\\GeometryProducts\\0311472Frame\\best\\windjana\\mask.ply");
+
+            foreach (Vertex v in maskMesh.Vertices)
+            {
+                v.UV = new Vector2(v.Position.X, v.Position.Y);
+            }
+            maskMesh.HasUVs = true;
+            MeshOperator uvMeshOp = new MeshOperator(maskMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+
+            poissonOpts.TrimmerIslandPct = 0.8;
+            poissonOpts.TrimmerLevel = 6.0;
+
+            var bestMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+
+            if (bestClippedMesh == null )
             {
                 warn("reconstruction failed");
                 return null;
             }
+            RemoveFloaters(bestMesh);
 
-            RemoveFloaters(bestClippedMesh);
-
-            bestClippedMesh.Save("C:\\Users\\conductor\\Documents\\landform-storage\\local\\meshing\\GeometryProducts\\0311472Frame\\best\\windjana1\\0311472_pre.ply");
-
-            //Filter points that don't hit the trimmed surface mesh
-
-
-            poissonOpts.TrimmerIslandPct = 0.0;
-            poissonOpts.TrimmerLevel = 7.0;
-            Mesh tempSurfaceMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
-            RemoveFloaters(tempSurfaceMesh);
-            foreach (Vertex vert in tempSurfaceMesh.Vertices)
+            foreach (Vertex vert in bestMesh.Vertices)
             {
                 vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
             }
-            tempSurfaceMesh.HasUVs = true;
-            MeshOperator uvMeshOp = new MeshOperator(tempSurfaceMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
-            aggregatePointCloud.Vertices = aggregatePointCloud.Vertices.Where(vert =>
-            {
-                return uvMeshOp.UVToBarycentric(new Vector2(vert.Position.X, vert.Position.Y)) != null;
-            }).ToList();
+            bestMesh.HasUVs = true;
+            bestMesh.Faces = bestMesh.Faces.Where(face =>         
+                uvMeshOp.UVToBarycentric(new Vector2(bestMesh.Vertices[face.P0].Position.X, bestMesh.Vertices[face.P0].Position.Y)) != null &&
+                uvMeshOp.UVToBarycentric(new Vector2(bestMesh.Vertices[face.P1].Position.X, bestMesh.Vertices[face.P1].Position.Y)) != null &&
+                uvMeshOp.UVToBarycentric(new Vector2(bestMesh.Vertices[face.P2].Position.X, bestMesh.Vertices[face.P2].Position.Y)) != null
+            ).ToList();
+
+            bestMesh.RemoveUnreferencedVertices();
+
+            bestMesh.Save("C:\\Users\\conductor\\Documents\\landform-storage\\local\\meshing\\GeometryProducts\\0311472Frame\\best\\windjana\\surface.ply");
+
+            //Filter points that don't hit the trimmed surface mesh
+
+            //poissonOpts.TrimmerIslandPct = 0.0;
+            //poissonOpts.TrimmerLevel = 7.0;
+            //Mesh tempSurfaceMesh = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+            //RemoveFloaters(tempSurfaceMesh);
+            //foreach (Vertex vert in tempSurfaceMesh.Vertices)
+            //{
+            //    vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
+            //}
+            //tempSurfaceMesh.HasUVs = true;
+            //MeshOperator uvMeshOp = new MeshOperator(tempSurfaceMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+            //aggregatePointCloud.Vertices = aggregatePointCloud.Vertices.Where(vert =>
+            //{
+            //    return uvMeshOp.UVToBarycentric(new Vector2(vert.Position.X, vert.Position.Y)) != null;
+            //}).ToList();
 
             //Add Orbital
             ///////////////////////////////////////////////////////////////////////////////////////////////////
-            if (true)
-            {
+            //if (true)
+            //{
                 const int orbitalRadius = 40; //Add 80 x 80 meter orbital
                 const double filterRadius = 2.0; //Remove orbital points within 10cm of surface data
                 const double confidenceDecayRadius = 0.0;
@@ -516,32 +701,31 @@ namespace OPS.Pipeline.TilingServer
                     }
                 }
                 
-
-                double influenceRadius = filterRadius + confidenceDecayRadius;
-                double filterRadiusSq = filterRadius * filterRadius;
-                foreach (var p in aggregatePointCloud.Vertices)
-                {
-                    Vector3 testPoint = Vector3.Transform(p.Position, baseSiteDriveToDem);
-                    Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);              
-                    for (int r = (int)Math.Ceiling(Math.Max(rc.Y - influenceRadius, baseR));
-                        r <= (int)Math.Floor(Math.Min(rc.Y + influenceRadius, baseR + pixelHeight - 1)); ++r)
-                    {
-                        for (int c = (int)Math.Ceiling(Math.Max(rc.X - influenceRadius, baseC));
-                            c <= (int)Math.Floor(Math.Min(rc.X + influenceRadius, baseC + pixelWidth - 1)); ++c)
-                        {
-                            double distSq = (rc.Y - r) * (rc.Y - r) + (rc.X - c) * (rc.X - c);
-                            if (distSq < filterRadiusSq)
-                            {
-                                dem.SetMaskValue(r, c, true);
-                            }
-                            minDistsSq[r - baseR, c - baseC] = Math.Min(minDistsSq[r - baseR, c - baseC], distSq);
-                        }
-                    }
-                }
+                //double influenceRadius = filterRadius + confidenceDecayRadius;
+                //double filterRadiusSq = filterRadius * filterRadius;
+                //foreach (var p in aggregatePointCloud.Vertices)
+                //{
+                //    Vector3 testPoint = Vector3.Transform(p.Position, baseSiteDriveToDem);
+                //    Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);              
+                //    for (int r = (int)Math.Ceiling(Math.Max(rc.Y - influenceRadius, baseR));
+                //        r <= (int)Math.Floor(Math.Min(rc.Y + influenceRadius, baseR + pixelHeight - 1)); ++r)
+                //    {
+                //        for (int c = (int)Math.Ceiling(Math.Max(rc.X - influenceRadius, baseC));
+                //            c <= (int)Math.Floor(Math.Min(rc.X + influenceRadius, baseC + pixelWidth - 1)); ++c)
+                //        {
+                //            double distSq = (rc.Y - r) * (rc.Y - r) + (rc.X - c) * (rc.X - c);
+                //            if (distSq < filterRadiusSq)
+                //            {
+                //                dem.SetMaskValue(r, c, true);
+                //            }
+                //            minDistsSq[r - baseR, c - baseC] = Math.Min(minDistsSq[r - baseR, c - baseC], distSq);
+                //        }
+                //    }
+                //}
 
                 Mesh demMesh = new Mesh();
 
-                double confidenceDecayRadiusSq = influenceRadius * influenceRadius;
+                //double confidenceDecayRadiusSq = influenceRadius * influenceRadius;
 
                 for (int y = 0; y < 2 * pixelRadius * orbitalPointsPerMeter; y++)
                 {
@@ -553,77 +737,92 @@ namespace OPS.Pipeline.TilingServer
                         if (pos.HasValue)
                         {
                             var transformedPos = Vector3.Transform(pos.Value, demToBaseSiteDrive);
-                            Vertex v = new Vertex();
-                            v.Position = transformedPos;
-                            v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
-                            v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToBaseSiteDrive));
-                            double distSq = minDistsSq[(int)r-baseR, (int)c-baseC];
-                            if(distSq == -1 || distSq > confidenceDecayRadiusSq)
+                            if (uvMeshOp.UVToBarycentric(new Vector2(transformedPos.X, transformedPos.Y)) == null)
                             {
+                                Vertex v = new Vertex();
+                                v.Position = transformedPos;
+                                v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
+                                v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToBaseSiteDrive));
+                                double distSq = minDistsSq[(int)r - baseR, (int)c - baseC];
+                                //if(distSq == -1 || distSq > confidenceDecayRadiusSq)
+                                //{
                                 v.Normal *= demNormalConfidence;
-                            } else
-                            {
-                                v.Normal *= demNormalConfidence * (Math.Sqrt(distSq) - filterRadius) / confidenceDecayRadius;
-                            }                            
-                            aggregatePointCloud.Vertices.Add(v);
-                            demMesh.Vertices.Add(v);
+                                //} else
+                                //{
+                                //    v.Normal *= demNormalConfidence * (Math.Sqrt(distSq) - filterRadius) / confidenceDecayRadius;
+                                //}                            
+                                //aggregatePointCloud.Vertices.Add(v);
+                                demMesh.Vertices.Add(v);
+                            }
                         }
                     }
                 }
 
-                aggregatePointCloud.Save("d:/dems/DEBUG1.obj");
+                var perimeterVerts = edgeGraph.GetPerimeterNodes().Select(n => new Vertex(n.Vert.Position)); //TODO: subsample edges
+                demMesh.Vertices.AddRange(perimeterVerts);
 
-                demMesh = Delaunay.Triangulate(demMesh.Vertices);
-                demMesh.Save("d:/dems/DEBUG.obj");
-            }
+                //aggregatePointCloud.Save("d:/dems/DEBUG1.obj");
+
+                demMesh = Delaunay.Triangulate(demMesh.Vertices, reverseWinding:true);
+                demMesh.Faces = demMesh.Faces.Where(face =>
+                {
+                    Triangle tri = new Triangle(demMesh.Vertices[face.P0], demMesh.Vertices[face.P1], demMesh.Vertices[face.P2]);
+                    Vector3 c = tri.Barycenter();
+                    return uvMeshOp.UVToBarycentric(new Vector2(c.X, c.Y)) == null;
+                }).ToList();
+
+                demMesh.RemoveUnreferencedVertices();
+
+                demMesh.Save("C:\\Users\\conductor\\Documents\\landform-storage\\local\\meshing\\GeometryProducts\\0311472Frame\\best\\windjana\\orbital.ply");
+            //}
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////
 
             //Remesh with orbital / lower trim level
-            poissonOpts.TrimmerLevel = trimmerLevel;
-            poissonOpts.TrimmerIslandPct = trimmerIslandPct;
+            //poissonOpts.TrimmerLevel = trimmerLevel;
+            //poissonOpts.TrimmerIslandPct = trimmerIslandPct;
 
-            var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
+            //var ret = PoissonReconstruction.Reconstruct(aggregatePointCloud, poissonOpts);
 
-            if (ret != null)
-            {
-                info(string.Format("Poisson reconstructed mesh with {0} faces", Fmt.KMG(ret.Faces.Count)));
-            }
-            else
-            {
-                warn("reconstruction failed");
-            }
+            //if (ret != null)
+            //{
+            //    info(string.Format("Poisson reconstructed mesh with {0} faces", Fmt.KMG(ret.Faces.Count)));
+            //}
+            //else
+            //{
+            //    warn("reconstruction failed");
+            //}
 
-            RemoveFloaters(ret);
+            //RemoveFloaters(ret);
 
-            //return ret;
+            ////return ret;
 
-            //Filter points that don't hit the trimmed surface mesh
-            foreach (Vertex vert in ret.Vertices)
-            {
-                vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
-            }
-            ret.HasUVs = true;
-            ret.Faces = ret.Faces.Where(face =>
-            {
-                return uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P0].Position.X, ret.Vertices[face.P0].Position.Y)) == null &&
-                uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P1].Position.X, ret.Vertices[face.P1].Position.Y)) == null &&
-                uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P2].Position.X, ret.Vertices[face.P2].Position.Y)) == null;
-            }).ToList();
+            ////Filter points that don't hit the trimmed surface mesh
+            //foreach (Vertex vert in ret.Vertices)
+            //{
+            //    vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
+            //}
+            //ret.HasUVs = true;
+            //ret.Faces = ret.Faces.Where(face =>
+            //{
+            //    return uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P0].Position.X, ret.Vertices[face.P0].Position.Y)) == null &&
+            //    uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P1].Position.X, ret.Vertices[face.P1].Position.Y)) == null &&
+            //    uvMeshOp.UVToBarycentric(new Vector2(ret.Vertices[face.P2].Position.X, ret.Vertices[face.P2].Position.Y)) == null;
+            //}).ToList();
 
-            ret.RemoveUnreferencedVertices();
+            //ret.RemoveUnreferencedVertices();
             //return Mesh.Merge(ret, tempSurfaceMesh);
-
-            int offset = ret.Vertices.Count;
+            
+            int offset = demMesh.Vertices.Count;
             Mesh merged = new Mesh();
-            merged.Vertices = ret.Vertices;
-            merged.Vertices.AddRange(bestClippedMesh.Vertices);
-            merged.Faces = ret.Faces;
-            merged.Faces.AddRange(bestClippedMesh.Faces.Select(f => new Face(f.P0 + offset, f.P1 + offset, f.P2 + offset)));
+            merged.Vertices = demMesh.Vertices;
+            merged.Vertices.AddRange(bestMesh.Vertices);
+            merged.Faces = demMesh.Faces;
+            merged.Faces.AddRange(bestMesh.Faces.Select(f => new Face(f.P0 + offset, f.P1 + offset, f.P2 + offset)));
 
-            Mesh tris = Delaunay.Triangulate(merged.Vertices, reverseWinding:true);
-            merged.Faces.AddRange(tris.Faces.Where(f => !(f.P0 < offset && f.P1 < offset && f.P2 < offset ||
-                                                      f.P0 >= offset && f.P1 >= offset && f.P2 >= offset)));
+            //Mesh tris = Delaunay.Triangulate(merged.Vertices, reverseWinding:true);
+            //merged.Faces.AddRange(tris.Faces.Where(f => !(f.P0 < offset && f.P1 < offset && f.P2 < offset ||
+            //                                          f.P0 >= offset && f.P1 >= offset && f.P2 >= offset)));
 
             return merged;
            
