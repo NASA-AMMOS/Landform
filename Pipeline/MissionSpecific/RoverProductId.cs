@@ -211,6 +211,18 @@ namespace OPS.Pipeline
             return false;
         }
 
+        public virtual bool GetStereoEyeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            if (RoverStereoPair.IsStereo(Camera) && GetInstrumentSpan(out start, out length))
+            {
+                start++;
+                length = 1;
+                return true;
+            }
+            return false;
+        }
+
         public virtual bool GetStereoPartnerSpan(out int start, out int length)
         {
             start = length = -1;
@@ -224,16 +236,21 @@ namespace OPS.Pipeline
 
         public virtual string GetPartialId(bool includeVersion = true, bool includeProductType = true,
                                            bool includeGeometry = true, bool includeColorFilter = true,
-                                           bool includeInstrument = true, bool includeVariants = true)
+                                           bool includeInstrument = true, bool includeVariants = true,
+                                           bool includeStereoEye = true)
         {
-            return GetPartialId(null, includeVersion, includeProductType, includeGeometry, includeColorFilter,
-                                includeInstrument, includeVariants);
+            return GetPartialId(null,
+                                includeVersion, includeProductType,
+                                includeGeometry, includeColorFilter,
+                                includeInstrument, includeVariants,
+                                includeStereoEye);
         }
 
-        public virtual string GetPartialId(MissionSpecific mission, bool includeVersion = true,
-                                           bool includeProductType = true, bool includeGeometry = true,
-                                           bool includeColorFilter = true, bool includeInstrument = true,
-                                           bool includeVariants = true)
+        public virtual string GetPartialId(MissionSpecific mission,
+                                           bool includeVersion = true, bool includeProductType = true,
+                                           bool includeGeometry = true, bool includeColorFilter = true,
+                                           bool includeInstrument = true, bool includeVariants = true,
+                                           bool includeStereoEye = true)
         {
             string ret = FullId;
             int start, length;
@@ -266,6 +283,10 @@ namespace OPS.Pipeline
                 spans.Add(new int[] { start, length });
             }
             if (!includeInstrument && GetInstrumentSpan(out start, out length))
+            {
+                spans.Add(new int[] { start, length });
+            }
+            if (includeInstrument && !includeStereoEye && GetStereoEyeSpan(out start, out length))
             {
                 spans.Add(new int[] { start, length });
             }
@@ -681,6 +702,19 @@ namespace OPS.Pipeline
             }
             start = 0;
             length = us + 2;
+            return true;
+        }
+
+        public override bool GetStereoEyeSpan(out int start, out int length)
+        {
+            start = length = -1;
+            int us = FullId.IndexOf('_');
+            if (us < 0)
+            {
+                return false;
+            }
+            start = us + 1;
+            length = 1;
             return true;
         }
 
