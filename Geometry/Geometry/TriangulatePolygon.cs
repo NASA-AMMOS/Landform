@@ -50,7 +50,7 @@ namespace OPS.Geometry
             while (perimeter.Count > 3)
             {
                 bool progress = false;
-                for (int i = 0; i < perimeter.Count - 1; i++) //Simple polygon should have at least 2 ears
+                for (int i  = 0; i < perimeter.Count - 1; ++i) //Simple polygon should have at least 2 ears
                 {
                     Edge e1 = perimeter[i];
                     Edge e2 = perimeter[i + 1];
@@ -74,7 +74,7 @@ namespace OPS.Geometry
                         v3.Position = new Vector3(v3.UV, 0);
                         Triangle tri = new Triangle(v1, v2, v3);
 
-                        if (tri.Area() > 1E-8) //Allow degenerate triangles
+                        if (tri.Area() > 1E-4) //Allow degenerate triangles to handle colinear points
                         {
                             //Get all points that could fall in triangle
                             Vector3 center = tri.Barycenter();
@@ -117,8 +117,6 @@ namespace OPS.Geometry
                                     }
                                 }
                             }
-                        } else {
-                            continue;
                         }
 
                         //Triangle contained another point/edge, not a valid cut
@@ -135,7 +133,6 @@ namespace OPS.Geometry
                         e1.Left = e2.Dst; //Store the triangle
                         triangulated.Add(e1);
                         progress = true;
-                        break;
                     }
                 }
                 if (!progress)

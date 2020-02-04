@@ -287,11 +287,18 @@ namespace OPS.Landform
                 {
                     dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
                 }
-                demToBaseSiteDrive = mission.GetDemToSiteDriveOffset(baseSiteDrive, demFilePath) * DemOperations.demToSitedriveCoordinateFlip;
+                if (mission.GetDemToSiteDriveOffset(baseSiteDrive, out Matrix demToSD, demFilePath)) {
+
+                    demToBaseSiteDrive = demToSD * DemOperations.demToSitedriveCoordinateFlip;
+                } else
+                {
+                    pipeline.LogWarn("Failed to access places; running without orbital");
+                    runOrbitalAlign = false;
+                }
             }
             else
             {
-                pipeline.LogWarn("FAILED to load orbital DEM with priors. Check filepath and places access.");
+                pipeline.LogWarn("Failed to load orbital DEM, running without orbital");
                 runOrbitalAlign = false;
             }
 
@@ -328,7 +335,11 @@ namespace OPS.Landform
 
                 if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))
                 {
-                    Vector2 sdOriginPixel = mission.GetSiteDriveOriginPixelInDem(baseSiteDrive);
+                    Vector2 sdOriginPixel;
+                    if (!mission.GetSiteDriveOriginPixelInDem(baseSiteDrive, out sdOriginPixel))
+                    {
+
+                    }
 
                     //Get subset of dem around sitedrive
                     int pixelRadius = (int)(200 / mission.GetDemMetersPerPixel());

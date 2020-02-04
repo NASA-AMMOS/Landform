@@ -11,7 +11,7 @@ namespace OPS.Pipeline
     public class OrbitalConfig : SingletonConfig<OrbitalConfig>
     {
         [ConfigEnvironmentVariable("LANDFORM_DEM_REL_PATH")]
-        public string DEMRelPath { get; set; } = "orbital/orbital_dem.tif";
+        public string DEMRelPath { get; set; } = "orbital/out_deltaradii_smg_1m.tif";
         public override string ConfigFileName() { return "orbital"; } //config file will be ~/.landform/orbital.json
         public string GetDEMFullPath(string mission)
         {

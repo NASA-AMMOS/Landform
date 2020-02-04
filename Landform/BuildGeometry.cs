@@ -29,10 +29,10 @@ namespace OPS.Landform
         [Option(HelpText = "Post meshing clip box XY size in meters, 0 to clip to input point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
 
-        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 6.0)]
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 8.0)]
         public double TrimmerLevel { get; set; }
 
-        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.2)]
+        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.8)]
         public double TrimmerIslandPct { get; set; }
     }
 
@@ -144,7 +144,7 @@ namespace OPS.Landform
                                               options.OnlyAligned, preClipBounds,
                                               options.OnlyForCameras, !options.NoCleverCombine, stereoEye,
                                               options.DecimateWedgeMeshes, options.TargetWedgeMeshResolution,
-                                              options.TrimmerLevel, options.TrimmerIslandPct);
+                                              options.TrimmerLevel, options.TrimmerIslandPct, true);
 
             if (mesh == null || mesh.Faces.Count == 0)
             {

@@ -55,6 +55,7 @@
     <Compile Include="Compression.cs" />
     <Compile Include="Config.cs" />
     <Compile Include="ConsoleHelper.cs" />
+    <Compile Include="DisjointSet.cs" />
     <Compile Include="Format.cs" />
     <Compile Include="GradientDescent.cs" />
     <Compile Include="HammingDistance.cs" />
