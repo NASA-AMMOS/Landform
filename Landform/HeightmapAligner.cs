@@ -109,7 +109,7 @@ namespace OPS.Landform
             foreach (Image img in dems.Values)
             {
                 img.CameraModel = new OrthographicCameraModel(Matrix.Identity, img.Width, img.Height, MetersPerPixel);
-                DemOperations.DilateMask(img, 15);
+                DemOperations.DilateMask(img, 15); //TODO: Revisit bev masks. Getting (some) points far below terrain in sparse areas
             }
 
             //Select highest priority site drive as base
@@ -336,10 +336,7 @@ namespace OPS.Landform
                 if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))
                 {
                     Vector2 sdOriginPixel;
-                    if (!mission.GetSiteDriveOriginPixelInDem(baseSiteDrive, out sdOriginPixel))
-                    {
-
-                    }
+                    mission.GetSiteDriveOriginPixelInDem(baseSiteDrive, out sdOriginPixel);
 
                     //Get subset of dem around sitedrive
                     int pixelRadius = (int)(200 / mission.GetDemMetersPerPixel());
