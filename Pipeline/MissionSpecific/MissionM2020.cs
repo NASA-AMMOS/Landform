@@ -565,5 +565,10 @@ namespace OPS.Pipeline
             }
             return name;
         }
+
+        public override string GetS3Proxy()
+        {
+            return "https://data-roastt.m20-training.jpl.nasa.gov";
+        }
     }
 }
