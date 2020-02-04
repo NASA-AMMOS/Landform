@@ -188,7 +188,7 @@ if [ "$copy_combined_manifest" ]; then
     dest=${dest//%S3%/$site}
     dest=${dest//%D4%/$drive}
     dest=${dest//%T4%/$sol}
-    ${dry}aws --profile=credss-default s3 sync $s3rdrdir/tileset/${proj}_scene.json $dest --acl bucket-owner-full-control
+    ${dry}aws --profile=credss-default s3 cp $s3rdrdir/tileset/${proj}_scene.json $dest --acl bucket-owner-full-control
 fi
 
 if [ "$cleanup" ]; then delete_venue; fi
