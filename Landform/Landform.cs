@@ -36,6 +36,7 @@ namespace OPS.Landform
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
                     { typeof(ProcessTacticalOptions), typeof(ProcessTactical) },
+                    { typeof(ProcessContextualOptions), typeof(ProcessContextual) },
                     { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
                 };
 

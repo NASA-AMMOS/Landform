@@ -172,6 +172,7 @@
     <Compile Include="HeightmapAligner.cs" />
     <Compile Include="LandformService.cs" />
     <Compile Include="LandformShell.cs" />
+    <Compile Include="ProcessContextual.cs" />
     <Compile Include="ProcessTactical.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="TextureCommand.cs" />
