@@ -31,10 +31,10 @@ namespace OPS.Landform
         public override string ImageFormat { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Recursively search for meshes under input folders")]
-        public bool RecursiveSearch { get; set; }
+        public virtual bool RecursiveSearch { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Case sensitive search for meshes and images")]
-        public bool CaseSensitiveSearch { get; set; }
+        public virtual bool CaseSensitiveSearch { get; set; }
 
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }

@@ -805,6 +805,68 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
+        /// Get mission specific contextual mesh SQS queue name.  
+        /// Does not get called if --queuename is specified.
+        /// </summary>
+        public virtual string GetContextualMeshQueueName()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Get mission specific contextual mesh SQS fail queue name.  
+        /// Does not get called if --failqueuename is specified.
+        /// Return null or empty to disable contextual mesh fail queue.
+        /// </summary>
+        public virtual string GetContextualMeshFailQueueName()
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Pull a contextual mesh tiling message off the queue.
+        /// The message type can be a mission specific subclass of QueueMessage.
+        /// Does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
+        public virtual QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Returns null unless msg is a valid and recognized contextual mesh queue message.
+        /// </summary>
+        public virtual ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// This is only used for injecting a message into the queue for testing.
+        /// Does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
+        public virtual QueueMessage ParseContextualMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Kill contextual mesh tileset processes after this amount of time.
+        /// </summary>
+        public virtual int GetContextualMeshQueueMaxHandlerSec()
+        {
+            return 2 * 60 * 60; //2 hours
+        }
+
+        /// <summary>
+        /// Give up processing a contextual mesh this long after first attempt to process it.
+        /// </summary>
+        public virtual int GetContextualMeshQueueMessageMaxAgeSec()
+        {
+            return 6 * 60 * 60; //6 hours
+        }
+
+        /// <summary>
         /// Get S3 proxy for use in StorageHelper.ConvertS3URLToHttps()  
         /// </summary>
         public virtual string GetS3Proxy()

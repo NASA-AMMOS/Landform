@@ -409,6 +409,31 @@ namespace OPS.Pipeline
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
         }
 
+        public override string GetContextualMeshQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override string GetContextualMeshFailQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage ParseContextualMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
         public override string GetS3Proxy()
         {
             return "https://data.m20-dev.jpl.nasa.gov";
