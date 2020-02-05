@@ -54,6 +54,8 @@ namespace OPS.Landform
         [Option(HelpText = "save tile backproject index images previews", Default = false)]
         public bool BackprojectIndexImagePreviews { get; set; }
 
+        [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
+        public bool ListImageObservations { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -89,6 +91,12 @@ namespace OPS.Landform
                 if (!ParseArgumentsAndLoadCaches())
                 {
                     return 0; //help
+                }
+
+                if (options.ListImageObservations)
+                {
+                    RunPhase("list image observations", ListImageObservations);
+                    return 0;
                 }
 
                 if (texGenMode == TextureGenMode.Clip || texGenMode == TextureGenMode.Bake)
@@ -136,6 +144,31 @@ namespace OPS.Landform
             return 0;
         }
 
+        private void ListImageObservations()
+        {
+            if (imageObservations != null)
+            {
+                var allImages = observationCache.GetAllObservations()
+                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
+                    .OrderBy(obs => obs.Name)
+                    .ToList();
+                pipeline.LogInfo("{0} image observations:", allImages.Count);
+                foreach (var obs in allImages.OrderBy(obs => obs.Name))
+                {
+                    pipeline.LogInfo(obs.Name);
+                }
+                pipeline.LogInfo("{0} image observations selected for texturing:", imageObservations.Count);
+                foreach (var obs in imageObservations.OrderBy(obs => obs.Name))
+                {
+                    pipeline.LogInfo(obs.Name);
+                }
+            }
+            else
+            {
+                pipeline.LogInfo("no image observations selected for texturing");
+            }
+        }
+            
         // runs an exhaustive backproject on a subset of points sampled on the surface of the mesh to refer to later
         private void InitObsSelStrategy()
         {

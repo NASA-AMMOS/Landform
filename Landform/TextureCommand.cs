@@ -124,10 +124,11 @@ namespace OPS.Landform
                 //the observation selection strategy has an opportunity to independently define its preference
                 //for linear or nonlinear images
                 var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
+                comparator.logger = pipeline.Verbose ? pipeline : null;
                 comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
                 imageObservations = comparator
-                    .KeepBestRoverObservations(imageObservations, RoverObservationComparator.KeepLinearVariants.Best,
-                                           pipeline.Verbose ? pipeline : null, RoverProductType.Image)
+                    .KeepBestRoverObservations(imageObservations, RoverObservationComparator.LinearVariants.Best,
+                                               RoverProductType.Image)
                     .Cast<Observation>()
                     .ToList();
                 
@@ -280,7 +281,7 @@ namespace OPS.Landform
                     Image img = pipeline.LoadImage(obs.Url);
 
                     var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
-                    var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.KeepLinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault();
+                    var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault();
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
 

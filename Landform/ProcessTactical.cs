@@ -119,11 +119,11 @@ namespace OPS.Landform
             return "tactical mesh " + (url ?? "(unknown)");
         }
 
-        protected override QueueMessage DequeueOneMessage()
+        protected override QueueMessage DequeueOneMessage(MessageQueue queue)
         {
             return options.UseGenericMessageType ?
-                messageQueue.DequeueOne<GenericTacticalMeshMessage>() :
-                mission.DequeueTacticalMeshMessage(messageQueue);
+                queue.DequeueOne<GenericTacticalMeshMessage>() :
+                mission.DequeueTacticalMeshMessage(queue);
         }
 
         protected override bool AcceptMessage(QueueMessage msg)
@@ -364,6 +364,7 @@ namespace OPS.Landform
                                                   storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
 
                 RunCommand("update-scene-manifest", "--mission", missionStr,
+                           "--awsprofile", awsProfile, "--awsregion", awsRegion,
                            "--manifestfile", tilesetDir + "/" + SCENE_JSON,
                            "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
 

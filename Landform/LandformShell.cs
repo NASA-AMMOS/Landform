@@ -201,31 +201,31 @@ namespace OPS.Landform
 
         protected bool FileExists(string url)
         {
-            return FileExists(pipeline, storageHelper, url);
+            return FileExists(pipeline, () => storageHelper, url);
         }
 
         protected IEnumerable<string> SearchFiles(string url, string globPattern)
         {
-            return SearchFiles(pipeline, storageHelper, url, globPattern,
+            return SearchFiles(pipeline, () => storageHelper, url, globPattern,
                                lsopts.RecursiveSearch, !lsopts.CaseSensitiveSearch);
         }
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return GetFile(pipeline, storageHelper, url, GetCacheDir(), filenameUnique,
+            return GetFile(pipeline, () => storageHelper, url, GetCacheDir(), filenameUnique,
                            lsopts.MaxRetries, lsopts.DryRun);
         }
 
         protected void SaveFile(string file, string url)
         {
-            SaveFile(pipeline, storageHelper, file, url, lsopts.DryRun);
+            SaveFile(pipeline, () => storageHelper, file, url, lsopts.DryRun);
         }
 
-        public static bool FileExists(PipelineCore pipeline, StorageHelper storageHelper, string url)
+        public static bool FileExists(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
             {
-                return storageHelper.FileExists(url);
+                return storageHelper().FileExists(url);
             }
             else
             {
@@ -233,13 +233,13 @@ namespace OPS.Landform
             }
         }
 
-        public static IEnumerable<string> SearchFiles(PipelineCore pipeline, StorageHelper storageHelper, string url,
-                                                      string globPattern, bool recursive = false,
+        public static IEnumerable<string> SearchFiles(PipelineCore pipeline, Func<StorageHelper> storageHelper,
+                                                      string url, string globPattern, bool recursive = false,
                                                       bool ignoreCase = false)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
             {
-                return storageHelper.SearchObjects(url, "*/" + globPattern, recursive, ignoreCase);
+                return storageHelper().SearchObjects(url, "*/" + globPattern, recursive, ignoreCase);
             }
             else
             {
@@ -247,8 +247,9 @@ namespace OPS.Landform
             }
         }
 
-        public static string GetFile(PipelineCore pipeline, StorageHelper storageHelper, string url, string cacheDir,
-                                     bool filenameUnique = true, int maxRetries = 3, bool dryRun = false)
+        public static string GetFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url,
+                                     string cacheDir, bool filenameUnique = true, int maxRetries = 3,
+                                     bool dryRun = false)
         {
             string filename = filenameUnique ? StringHelper.GetLastUrlPathSegment(url) :
                 StringHelper.SHA1(url, preserveExtension: true);
@@ -267,7 +268,7 @@ namespace OPS.Landform
                         {
                             pipeline.LogWarn("retrying download {0}", url);
                         }
-                        if (storageHelper.DownloadFile(url, path))
+                        if (storageHelper().DownloadFile(url, path))
                         {
                             break;
                         }
@@ -296,7 +297,7 @@ namespace OPS.Landform
             return path;
         }
 
-        public static void SaveFile(PipelineCore pipeline, StorageHelper storageHelper, string file, string url,
+        public static void SaveFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string file, string url,
                                     bool dryRun = false)
         {
             pipeline.LogInfo("{0}saving {1}", dryRun ? "dry " : "", url);
@@ -304,7 +305,7 @@ namespace OPS.Landform
             {
                 if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
-                    storageHelper.UploadFile(file, url);
+                    storageHelper().UploadFile(file, url);
                 }
                 else
                 {

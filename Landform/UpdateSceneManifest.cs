@@ -145,6 +145,9 @@ namespace OPS.Landform
         [Option(HelpText = "Convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
         public bool RelativeS3URIs { get; set; }
 
+        [Option(Default = "mission", HelpText = "S3Proxy (or \"mission\")")]
+        public string S3Proxy { get; set; }
+
         [Option(HelpText = "Cull images with no backprojected pixels from contextual mesh manifest", Default = false)]
         public bool CullImagesWithoutBackprojectedPixels { get; set; }
 
@@ -159,6 +162,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't allow using RDRs in the browse subdirectory", Default = false)]
         public bool NoAllowBrowseRDRs { get; set; }
+
+        [Option(HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants", Default = false)]
+        public bool NoFilterTacticalMeshIDs { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
@@ -185,11 +191,13 @@ namespace OPS.Landform
             {
                 if (_storageHelper == null)
                 {
-                    _storageHelper = new StorageHelper(awsProfile, awsRegion);
+                    _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
                 }
                 return _storageHelper;
             }
         }
+
+        private string s3Proxy;
 
         protected List<string> imageExts;
         protected List<string> pdsExts;
@@ -456,6 +464,16 @@ namespace OPS.Landform
             RDRSet.allowBrowse = !options.NoAllowBrowseRDRs;
             RDRSet.preferNonBrowse = !options.NoPreferNonBrowseRDRs;
 
+            s3Proxy = options.S3Proxy;
+            if (!string.IsNullOrEmpty(s3Proxy) && s3Proxy.ToLower() == "mission")
+            {
+                s3Proxy = mission.GetS3Proxy();
+            }
+            if (!string.IsNullOrEmpty(s3Proxy))
+            {
+                pipeline.LogInfo("S3 Proxy: {0}", s3Proxy);
+            }
+
             return true;
         }
 
@@ -478,24 +496,24 @@ namespace OPS.Landform
 
         protected bool FileExists(string url)
         {
-            return LandformShell.FileExists(pipeline, storageHelper, url);
+            return LandformShell.FileExists(pipeline, () => storageHelper, url);
         }
 
         protected IEnumerable<string> SearchFiles(string url, string globPattern,
                                                   bool recursive = false, bool ignoreCase = false)
         {
-            return LandformShell.SearchFiles(pipeline, storageHelper, url, globPattern, recursive, ignoreCase);
+            return LandformShell.SearchFiles(pipeline, () => storageHelper, url, globPattern, recursive, ignoreCase);
         }
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return LandformShell.GetFile(pipeline, storageHelper, url, "manifest", filenameUnique,
+            return LandformShell.GetFile(pipeline, () => storageHelper, url, "manifest", filenameUnique,
                                          options.MaxRetries);
         }
 
         protected void SaveFile(string file, string url)
         {
-            LandformShell.SaveFile(pipeline, storageHelper, file, url);
+            LandformShell.SaveFile(pipeline, () => storageHelper, file, url);
         }
 
         private void LoadOrCreateManifest()
@@ -511,10 +529,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("creating new manifest");
                 sceneManifest = SceneManifestHelper.Create();
             }
-            if (mission != null)
-            {
-                sceneManifest.S3Proxy = mission.GetS3Proxy();
-            }
+            sceneManifest.S3Proxy = s3Proxy;
         }
 
         private void SaveManifest()
@@ -771,6 +786,9 @@ namespace OPS.Landform
                     contextualId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
                 }
 
+                var idToPDSFile = new Dictionary<string, string>();
+                var idToUrl = new Dictionary<string, string>();
+
                 bool update(string id, string url)
                 {
                     if (id == contextualId)
@@ -797,7 +815,8 @@ namespace OPS.Landform
                     }
                     if (pdsFile != null)
                     {
-                        UpdateTacticalMeshManifest(pdsFile, !options.NoURLs ? url : null);
+                        idToPDSFile[id] = pdsFile;
+                        idToUrl[id] = url;
                         return true;
                     }
                     else
@@ -831,6 +850,31 @@ namespace OPS.Landform
                     {
                         string id = StringHelper.StripSuffix(StringHelper.GetLastUrlPathSegment(url), sfx);
                         update(id, ConvertURI(url));
+                    }
+                }
+
+                var ids = idToPDSFile.Keys.ToList();
+                HashSet<string> keepers = null;
+                if (idToPDSFile.Count > 1 && !options.NoFilterTacticalMeshIDs)
+                {
+                    Action<string> log = null;
+                    if (pipeline.Verbose)
+                    {
+                        log = msg => pipeline.LogInfo(msg);
+                    }
+                    keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, log));
+                }
+                foreach (var id in ids)
+                {
+                    if (keepers == null || keepers.Contains(id))
+                    {
+                        UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
+                    }
+                    else
+                    {
+                        bool removed = sceneManifest.RemoveTileset(id);
+                        pipeline.LogWarn("tactical mesh product ID {0} was filtered out{1}",
+                                         id, removed ? " (removed from manifest)" : "");
                     }
                 }
             }

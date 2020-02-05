@@ -458,7 +458,7 @@ namespace OPS.Pipeline
                 }
 
                 var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
-                var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.KeepLinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault(); ;
+                var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault(); ;
 
                 contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
             }
