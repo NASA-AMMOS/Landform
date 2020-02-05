@@ -124,6 +124,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = false, HelpText = "Print summary")]
         public bool Summary { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        public bool DryRun { get; set; }
     }
 
     public class FetchData
@@ -245,31 +248,47 @@ namespace OPS.Landform
                 .ToList();
 
             var acceptedExtensions = new HashSet<string>();
+
             if (!options.NoPDS)
             {
-                acceptedExtensions.Add(".IMG");
-                if (mission != null && mission.AllowPDSLabelFiles())
+                if (mission != null)
                 {
-                    acceptedExtensions.Add(".LBL");
+                    foreach (var ext in StringHelper.ParseExts(mission.GetPDSExts()))
+                    {
+                        acceptedExtensions.Add(ext.ToUpper());
+                    }
+                }
+                else
+                {
+                    acceptedExtensions.Add(".IMG");
                 }
             }
+
             if (options.WithVIC)
             {
                 acceptedExtensions.Add(".VIC");
             }
+            else
+            {
+                acceptedExtensions.Remove(".VIC");
+            }
+
             if (options.WithPNG)
             {
                 acceptedExtensions.Add(".PNG");
             }
+
             if (options.WithRGB)
             {
                 acceptedExtensions.Add(".RGB");
             }
+
             if (!options.NoOBJ)
             {
                 acceptedExtensions.Add(".OBJ");
                 acceptedExtensions.Add(".MTL");
             }
+
             if (!options.NoIV)
             {
                 acceptedExtensions.Add(".IV");
@@ -432,6 +451,12 @@ namespace OPS.Landform
                 }
             }
 
+            Action<string> verbose = null;
+            if (options.Verbose)
+            {
+                verbose = msg => logger.Info(msg);
+            }
+
             //it might be nice if we could group products by observation frame here
             //and then apply similar rules as in RoverObservationComparator
             //to only download the preferred products for each frame
@@ -451,7 +476,7 @@ namespace OPS.Landform
             int nf = filtered.Count;
             filtered = filtered
                 .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
-                .SelectMany(files => RoverObservationComparator.FilterProductIdGroups(files, mission))
+                .SelectMany(files => RoverObservationComparator.FilterProductIdGroups(files, mission, verbose))
                 .ToList();
             logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
 
@@ -507,6 +532,10 @@ namespace OPS.Landform
 
         private long DownloadFile(string url)
         {
+            if (options.DryRun)
+            {
+                return 0;
+            }
             var localPath = LocalPath(url);    
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
             bool s3 = url.ToLower().StartsWith("s3");
@@ -583,14 +612,17 @@ namespace OPS.Landform
             int downloaded = 0;
             logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
             long totalBytes = 0;
-            CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
+            if (!options.DryRun)
             {
-                long bytes = DownloadFile(f);
-                Interlocked.Add(ref totalBytes, bytes);
-                Interlocked.Increment(ref downloaded);
-                logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
-                                  downloaded, remaining, (downloaded * 100) / remaining);
-            });
+                CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
+                {
+                    long bytes = DownloadFile(f);
+                    Interlocked.Add(ref totalBytes, bytes);
+                    Interlocked.Increment(ref downloaded);
+                    logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
+                                      downloaded, remaining, (downloaded * 100) / remaining);
+                });
+            }
             return totalBytes;
         }
 
@@ -656,7 +688,10 @@ namespace OPS.Landform
                     }
                     logger.InfoFormat("downloading {0} unified meshes", urls.Count);
                     bytes += DownloadFiles(urls);
-                    unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
+                    if (!options.DryRun)
+                    {
+                        unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
+                    }
                 }
 
                 foreach (var sol in sols)
@@ -672,12 +707,14 @@ namespace OPS.Landform
                         var groups = solToProducts[sol]
                             .Select(product => StringHelper.GetLastUrlPathSegment(product, stripExtension: true))
                             .Select(idStr => RoverProductId.Parse(idStr, mission))
-                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
-                            .Select(ids => ids.OrderBy(id => id.FullId).Distinct())
+                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeGeometry: false,
+                                                           includeVariants: false, includeVersion: false,
+                                                           includeStereoEye: false))
+                            .Select(ids => ids.Distinct().OrderBy(id => id.FullId).ToList())
                             .ToList();
                         logger.InfoFormat("-- fetching {0} product ids for sol {1} --",
-                                          groups.Select(group => group.Count()).Sum(), sol);
-                        groups.ForEach(group => group.ToList().ForEach(id => logger.Info(id.FullId)));
+                                          groups.Select(group => group.Count).Sum(), sol);
+                        groups.ForEach(group => group.ForEach(id => logger.Info(id.FullId)));
                     }
                 }
                 

@@ -14,7 +14,7 @@ namespace OPS.Pipeline
 
         protected override PipelineMessage MakeLeafJobMessage(List<string> leaves)
         {
-            return new BuildBakedLeavesMessage(projectName) { TileIds = leaves };
+            return new BuildLeavesMessage(projectName) { TileIds = leaves };
         }
     }
 }

@@ -348,15 +348,126 @@ namespace OPS.Pipeline
             }           
         }
 
-        /// <summary>
-        /// Returns this tree as a set of groups where each group contains all the nodes at a given depth
-        /// The first group is the deapest and the last group is the shallowest (containing only the root of the tree)
-        /// </summary>
-        /// <param name="root"></param>
-        /// <returns></returns>
-        public static IOrderedEnumerable<IGrouping<int, SceneNode>> GetReverseDepthGroups(this SceneNode root)
+        public static void DumpStats(this SceneNode root, Action<string> writeLine)
         {
-            return root.DepthFirstTraverse().Where(n => !n.IsLeaf).GroupBy(n => n.Transform.Depth()).OrderBy(g => -g.Key);
+            var nodes = root.DepthFirstTraverse().ToList();
+            var levels = nodes.GroupBy(n => n.Transform.Depth()).OrderBy(g => g.Key);
+            int numLevels = levels.Count();
+            writeLine(string.Format("tile tree has {0} levels, {1} total tiles, {2} leaves",
+                                    numLevels, nodes.Count, nodes.Count(node => node.IsLeaf)));
+            foreach (var level in levels)
+            {
+                string msg = string.Format("level {0}: {1} tiles, {2} leaves",
+                                           level.Key, level.Count(), level.Count(n => n.IsLeaf));
+
+                var parents = level.Where(node => node.Children.Count() > 0).ToList();
+                if (parents.Count > 0)
+                {
+                    int minBranch = parents.Min(node => node.Children.Count());
+                    if (minBranch > 0)
+                    {
+                        msg += string.Format("; branching factor {0}", minBranch);
+                        int maxBranch = parents.Max(node => node.Children.Count());
+                        if (maxBranch > minBranch)
+                        {
+                            msg += string.Format("-{0}", maxBranch);
+                        }
+                    }
+                }
+
+                var errors = level
+                    .Where(node => node.HasComponent<NodeGeometricError>())
+                    .Select(node => node.GetComponent<NodeGeometricError>().Error)
+                    .OrderBy(e => e)
+                    .ToList();
+                if (errors.Count > 0)
+                {
+                    msg += string.Format("; geometric error {0:f3}-{1:f3}", errors.First(), errors.Last());
+                }
+
+                writeLine(msg);
+
+                var bounds = level
+                    .Where(node => node.HasComponent<NodeBounds>())
+                    .Select(node => node.GetComponent<NodeBounds>().Bounds)
+                    .OrderBy(b => b.Volume())
+                    .ToList();
+                if (bounds.Count > 0)
+                {
+                    var minBounds = bounds.First();
+                    var maxBounds = bounds.Last();
+                    msg = string.Format("  {0} bounds {1}-{2}",
+                                        bounds.Count, minBounds.SizeToString(), maxBounds.SizeToString());
+                    writeLine(msg);
+                }
+
+                var mipStats = level
+                    .Where(node => node.HasComponent<MeshImagePair>() || node.HasComponent<MeshImagePairStats>())
+                    .Select(node => node.HasComponent<MeshImagePairStats>() ? node.GetComponent<MeshImagePairStats>() :
+                            new MeshImagePairStats(node.GetComponent<MeshImagePair>()))
+                    .ToList();
+
+                if (mipStats.Count > 0)
+                {
+                    msg = "";
+
+                    var imgStats = mipStats.Where(s => s.NumPixels > 0).OrderBy(s => s.NumPixels).ToList();
+                    if (imgStats.Count > 0)
+                    {
+                        var minImg = imgStats.First();
+                        var maxImg = imgStats.Last();
+                        msg = string.Format("  {0} images {1}x{2}-{3}x{4}", imgStats.Count,
+                                            minImg.ImageWidth, minImg.ImageHeight,
+                                            maxImg.ImageWidth, maxImg.ImageHeight);
+                    }
+
+                    var vertStats = mipStats.Where(s => s.NumVerts > 0).OrderBy(s => s.NumVerts).ToList();
+                    if (vertStats.Count > 0)
+                    {
+                        msg += (msg != "") ? ", " : "  "; 
+
+                        var minVerts = vertStats.First().NumVerts;
+                        var maxVerts = vertStats.Last().NumVerts;
+                        msg += string.Format("{0} meshes {1}-{2} verts", vertStats.Count,
+                                             Fmt.KMG(minVerts), Fmt.KMG(maxVerts));
+
+                        var triStats = mipStats.Where(s => s.NumTris > 0).OrderBy(s => s.NumTris).ToList();
+                        if (triStats.Count > 0)
+                        {
+                            var minTris = triStats.First().NumTris;
+                            var maxTris = triStats.Last().NumTris;
+
+                            var minMeshArea = triStats.Min(s => s.MeshArea);
+                            var maxMeshArea = triStats.Max(s => s.MeshArea);
+                            
+                            var minTriArea = triStats.Min(s => s.MinTriArea);
+                            var maxTriArea = triStats.Max(s => s.MaxTriArea);
+                            
+                            msg += string.Format(", {0}-{1} tris, mesh area {2:f3}-{3:f3}; tri area {4:f3}-{5:f3}",
+                                                 Fmt.KMG(minTris), Fmt.KMG(maxTris),
+                                                 minMeshArea, maxMeshArea, minTriArea, maxTriArea);
+                            writeLine(msg);
+                            
+                            var minUVArea = triStats.Min(s => s.UVArea);
+                            var maxUVArea = triStats.Max(s => s.UVArea);
+                            
+                            var texRes = mipStats
+                                .Where(s => s.MeshArea > 0 && s.UVArea > 0 && s.NumPixels > 0)
+                                .Select(s => (s.UVArea * s.NumPixels) / (s.MeshArea * 100 * 100))
+                                .OrderBy(v => v);
+                            var minTexRes = texRes.FirstOrDefault();
+                            var maxTexRes = texRes.LastOrDefault();
+
+                            if (minTexRes > 0 || maxTexRes > 0)
+                            {
+                                msg = string.Format("  texture utilization {0:f3}-{1:f3}; texels/cm^2 {2:f3}-{3:f3}",
+                                                    minUVArea, maxUVArea, minTexRes, maxTexRes);
+                                writeLine(msg);
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         /// <summary>

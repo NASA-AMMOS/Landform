@@ -10,12 +10,12 @@ using OPS.Util;
 //ported from onsight/terraintools sha 840d24d65f8cc05653e7b8155156cb8bb6d31a75 ClevererCombinePointClouds
 namespace OPS.Geometry
 {
-    public class CleverCombinePointClouds
+    public class CleverCombine
     {
-        //settings
+        public const double DEF_CELL_SIZE = 0.025;
 
         //size of XY grid cell (meters)
-        private const double CellSize = 0.025;
+        private readonly double CellSize;
 
         //if the max distance from a grid cell to a point cloud origin is this many times bigger than the minimum
         //the points from that cloud can be pruned from the grid cell
@@ -31,6 +31,11 @@ namespace OPS.Geometry
         //within a grid cell to all the other points in the cell is greater than this
         //then prune the points from that cloud from the cell
         private const double MaxMSEThreshold = 0.0001;
+
+        public CleverCombine(double cellSizeMeters = DEF_CELL_SIZE)
+        {
+            this.CellSize = cellSizeMeters;
+        }
 
         //thread-local storage
         private class TLS
@@ -53,7 +58,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="origins">a position from which the distance of each point is a meaningful quality estimate (eg. site drive center, camera origin, etc) </param>
         /// <param name="clouds">point clouds to combine, order should match pointcloudorigins</param>
-        public static Mesh Combine(Vector3?[] origins, Mesh[] clouds, ILogger logger = null)
+        public Mesh Combine(Vector3[] origins, Mesh[] clouds, ILogger logger = null)
 #if !LEGACY_IMPL
         {
             int numClouds = clouds.Length;
@@ -150,16 +155,9 @@ namespace OPS.Geometry
                 tls.cellToCloudOrigin.Clear();
                 for (int c = 0; c < numClouds; c++)
                 {
-                    if (origins[c].HasValue)
-                    {
-                        double dx = origins[c].Value.X - ((j + 0.5) * CellSize + bbox.Min.X);
-                        double dy = origins[c].Value.Y - ((i + 0.5) * CellSize + bbox.Min.Y);
-                        tls.cellToCloudOrigin.Add(Math.Sqrt(dx * dx + dy * dy));
-                    } else
-                    {
-                        tls.cellToCloudOrigin.Add(32);
-                    }
-                    
+                    double dx = origins[c].X - ((j + 0.5) * CellSize + bbox.Min.X);
+                    double dy = origins[c].Y - ((i + 0.5) * CellSize + bbox.Min.Y);
+                    tls.cellToCloudOrigin.Add(Math.Sqrt(dx * dx + dy * dy));
                 }
 
                 //first filter: remove clouds whose origin is too far from this grid cell

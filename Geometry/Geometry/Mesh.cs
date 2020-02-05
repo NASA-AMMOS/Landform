@@ -1388,6 +1388,56 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// compute total texture area in pixels covered by this mesh
+        /// </summary>
+        public double ComputePixelArea(Image image)
+        {
+            if (image == null || !HasUVs)
+            {
+                return 0;
+            }
+            double area = 0;
+            foreach (var t in Triangles())
+            {
+                Vector3 a = new Vector3(image.UVToPixel(t.V0.UV), 0);
+                Vector3 b = new Vector3(image.UVToPixel(t.V1.UV), 0);
+                Vector3 c = new Vector3(image.UVToPixel(t.V2.UV), 0);
+                double triArea = (new Triangle(a, b, c)).Area();
+                if (double.IsNaN(triArea))
+                {
+                    throw new Exception("Triangle area not a number");
+                }
+                area += triArea;
+            }
+            return area;
+        }
+
+        /// <summary>
+        /// compute total texture space area covered by this mesh
+        /// </summary>
+        public double ComputeUVArea()
+        {
+            if (!HasUVs)
+            {
+                return 0;
+            }
+            double area = 0;
+            foreach (var t in Triangles())
+            {
+                Vector3 a = new Vector3(t.V0.UV, 0);
+                Vector3 b = new Vector3(t.V1.UV, 0);
+                Vector3 c = new Vector3(t.V2.UV, 0);
+                double triArea = (new Triangle(a, b, c)).Area();
+                if (double.IsNaN(triArea))
+                {
+                    throw new Exception("Triangle area not a number");
+                }
+                area += triArea;
+            }
+            return area;
+        }
+
+        /// <summary>
         /// Compute Hausdorff difference between this mesh and 1 or more other meshes
         /// </summary>
         /// <param name="other"></param>

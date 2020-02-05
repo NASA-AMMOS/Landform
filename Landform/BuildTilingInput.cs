@@ -54,6 +54,8 @@ namespace OPS.Landform
         [Option(HelpText = "save tile backproject index images previews", Default = false)]
         public bool BackprojectIndexImagePreviews { get; set; }
 
+        [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
+        public bool ListImageObservations { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -62,18 +64,15 @@ namespace OPS.Landform
 
         private enum TextureGenMode
         {
-            None,           //generate just mesh with no textures
-            Clip,           //generate tile textures by clipping regions out of the source texture and offsetting uvs
-            Bake,           //generate tile textures by re-atlassing tiles at a desired resolution and resampling source texture
-            Backproject     //generate tile textures by choosing the 'best' data from a number of observations that viewed the mesh
+            None,       //generate just mesh with no textures
+            Clip,       //generate tile textures by clipping regions out of the source texture and offsetting uvs
+            Bake,       //generate tile textures by atlassing tiles and sampling source texture at a desired resolution
+            Backproject //generate tile textures by choosing the best data from observations that viewed the mesh
         };
-
-        TextureGenMode texGenMode = TextureGenMode.None;
+        private TextureGenMode texGenMode = TextureGenMode.None;
 
         private Image sceneTexture;
         private SceneNode tileTree;
-        private MeshOperator[] meshOps;
-        string localTexturingDebugPath;
 
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -91,12 +90,19 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
+                if (options.ListImageObservations)
+                {
+                    RunPhase("list image observations", ListImageObservations);
+                    return 0;
+                }
+
                 if (texGenMode == TextureGenMode.Clip || texGenMode == TextureGenMode.Bake)
                 {
                     RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
 
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip || texGenMode == TextureGenMode.Bake));
+                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
+                                                                texGenMode == TextureGenMode.Bake));
 
                 if (texGenMode == TextureGenMode.Backproject)
                 {
@@ -108,12 +114,7 @@ namespace OPS.Landform
                 RunPhase("build tile tree", BuildTileTree);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
 
-                if (texGenMode == TextureGenMode.Backproject)
-                {
-                    RunPhase(string.Format("initialize observation selection strategy: {0}",options.ObsSelectionStrategy), InitObsSelStrategy);
-                }
-
-                if (options.LoadLODs && meshLODs.Count > 1)
+                if (meshLOD.Count > 1)
                 {
                     RunPhase("build LOD tile meshes", BuildLODTileMeshes);
                 }
@@ -122,8 +123,14 @@ namespace OPS.Landform
                     RunPhase("build leaf meshes", BuildLeafMeshes);
                 }
 
+                if (withTextures && texGenMode == TextureGenMode.Backproject &&
+                    options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
+                {
+                    RunPhase("build backproject strategy", InitBackprojectStrategy);
+                }
+
                 RunPhase(string.Format("{0}save tiles", withTextures ? "build tile textures and " : ""),
-                        BuildTileTexturesAndSaveTiles);
+                         BuildTileTexturesAndSaveTiles);
             }
             catch (Exception ex)
             {
@@ -136,21 +143,31 @@ namespace OPS.Landform
             return 0;
         }
 
-        // runs an exhaustive backproject on a subset of points sampled on the surface of the mesh to refer to later
-        private void InitObsSelStrategy()
+        private void ListImageObservations()
         {
-            //precalculate datastructures for backproject
-            var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
-                                                     observationCache, meshFrame, options.UsePriors, options.OnlyAligned,
-                                                     msg => pipeline.LogWarn(msg));
-
-
-            if (options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
+            if (imageObservations != null)
             {
-                obsSelStrat.Initialize(mesh, meshOps[0], sceneCaster, contexts, options.TextureResolution, options.BackprojectQuality, options.WriteDebug, localTexturingDebugPath);
+                var allImages = observationCache.GetAllObservations()
+                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
+                    .OrderBy(obs => obs.Name)
+                    .ToList();
+                pipeline.LogInfo("{0} image observations:", allImages.Count);
+                foreach (var obs in allImages.OrderBy(obs => obs.Name))
+                {
+                    pipeline.LogInfo(obs.Name);
+                }
+                pipeline.LogInfo("{0} image observations selected for texturing:", imageObservations.Count);
+                foreach (var obs in imageObservations.OrderBy(obs => obs.Name))
+                {
+                    pipeline.LogInfo(obs.Name);
+                }
+            }
+            else
+            {
+                pipeline.LogInfo("no image observations selected for texturing");
             }
         }
-
+            
         protected override bool ParseArgumentsAndLoadCaches()
         {
             if (!base.ParseArgumentsAndLoadCaches())
@@ -199,12 +216,6 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("{0} tile textures", description);
-
-            if (options.WriteDebug)
-            {
-                localTexturingDebugPath = Path.Combine(localOutputPath, "Texturing");
-                PathHelper.EnsureExists(localTexturingDebugPath);
-            }
 
             return true;
         }
@@ -282,26 +293,42 @@ namespace OPS.Landform
 
         private void BuildTileTree()
         {
-            if (options.LoadLODs && meshLODs.Count > 1)
+            if (meshLOD.Count > 1)
             {
                 //use decimated versions of the mesh provided to generate a tile tree with a fixed number of levels
-                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLODs);
+                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLOD);
             }
             else
             {
                 SplitByTextureOpts texSplitOpts = null;
                 if (texGenMode == TextureGenMode.Backproject && options.SplitByTexturePctToTest > 0)
                 {
+                    CameraInstance toCameraInstance(Observation obs)
+                    {
+                        var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
+                        if (xform == null)
+                        {
+                            return null;
+                        }
+                        CameraInstance camInst = new CameraInstance();
+                        camInst.cameraToMesh = xform.Mean;
+                        camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
+                        camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                        camInst.hullInMesh = obsToHull[obs.Name];
+                        camInst.widthPixels = obs.Width;
+                        camInst.heightPixels = obs.Height;
+                        return camInst;
+                    }
                     texSplitOpts = new SplitByTextureOpts()
                     {
                         pctPixelsToTest = options.SplitByTexturePctToTest,
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                        subsamplingTriggeringSplit = options.SplitByTextureSamplingRatio,
+                        splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
                         tileResolution = resolution,
                         scInMesh = sceneCaster,
                         cameraInstances =
                         imageObservations
-                        .Select(obs => ToCameraInstance((RoverObservation)obs))
+                        .Select(obs => toCameraInstance(obs))
                         .ToArray(),
                     };
                 }
@@ -309,63 +336,33 @@ namespace OPS.Landform
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
                                                                texSplitOpts);
             }
-        }
 
-        private CameraInstance ToCameraInstance(RoverObservation obs)
-        {
-            var xform = frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors);
-            if (xform == null)
-            {
-                return null;
-            }
-            CameraInstance camInst = new CameraInstance();
-            camInst.cameraToMesh = xform.Mean;
-            camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
-            camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-            camInst.hullInMesh = obsToHull[obs.Name];
-            camInst.widthPixels = obs.Width;
-            camInst.heightPixels = obs.Height;
-            return camInst;
-        }
-
-        private void BuildMeshOperator()
-        {
-            if (options.LoadLODs && meshLODs.Count > 1)
-            {
-                meshOps = new MeshOperator[meshLODs.Count];
-                CoreLimitedParallel.For(0, meshLODs.Count, (idxLOD) =>
-                {
-                    meshOps[idxLOD] = new MeshOperator(meshLODs.ElementAt(idxLOD), buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-                });
-            }
-            else
-            {
-                meshOps = new MeshOperator[] { new MeshOperator(mesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false) };
-            }
+            tileTree.DumpStats(msg => pipeline.LogInfo(msg));
         }
 
         private void BuildLODTileMeshes()
         {
             if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
             {
-                throw new NotImplementedException("only for tile not implemented for LODs yet"); //could be done by seeing if the tile's name starts with the same digits (subtree over named tile)
+                //could be done by seeing if the tile's name starts with the same digits (subtree over named tile)
+                throw new NotImplementedException("only for tile not implemented for LODs yet");
             }
 
             int numFailed = 0;
             List<SceneNode> curLevelNodes = new List<SceneNode> { tileTree };
-            for (int idxTreeLevel = 0; idxTreeLevel < meshLODs.Count; idxTreeLevel++)
+            for (int idxTreeLevel = 0; idxTreeLevel < meshLOD.Count; idxTreeLevel++)
             {
                 if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("building LOD tiles for tree level {0}/{1} ({2:F2}%)", idxTreeLevel, meshLODs.Count,
-                                     100 * idxTreeLevel / (float)meshLODs.Count);
+                    pipeline.LogInfo("building LOD tile meshes for tree level {0}/{1} ({2:F2}%)", (idxTreeLevel + 1),
+                                     meshLOD.Count, 100 * (idxTreeLevel + 1) / (float)meshLOD.Count);
                 }
 
                 // clip meshes for each tile              
-                int idxLOD = meshLODs.Count - idxTreeLevel - 1;
+                int idxLOD = meshLOD.Count - idxTreeLevel - 1;
                 CoreLimitedParallel.ForEach(curLevelNodes, curNode =>
                 {
-                    Mesh nodeMesh = MakeTileMesh(curNode, meshOps[idxLOD]);
+                    Mesh nodeMesh = MakeTileMesh(curNode, meshOpForLOD[idxLOD]);
                     if (nodeMesh != null)
                     {
                         nodeMesh.Clean(); //copying behavior from TextureMeshClipper
@@ -418,7 +415,7 @@ namespace OPS.Landform
                                      100 * curLeafNum / (float)leafCount, leaf.Name);
                 }
 
-                Mesh leafMesh = MakeTileMesh(leaf, meshOps.First());
+                Mesh leafMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 
                 if (leafMesh != null)
                 {
@@ -450,12 +447,18 @@ namespace OPS.Landform
                 ParentNames = new List<string>()
             };
 
+            if (sceneMesh != null && sceneMesh.Frame != tileList.MeshFrame)
+            {
+                throw new Exception(string.Format("existing scene mesh in frame {0} but tile list in frame {1}",
+                                                  sceneMesh.Frame, tileList.MeshFrame));
+            } 
+
             var tilesToTexture = tileTree.DepthFirstTraverse()
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
                 .ToList();
             int tileCount = tilesToTexture.Count;
 
-            if (options.LoadLODs && meshLODs.Count == 1)
+            if (options.LoadLODs && meshLOD.Count == 1)
             {
                 //TODO for now if the input mesh has only one LOD behave same as if --loadlods was not specified
                 texGenMode = TextureGenMode.Bake;
@@ -515,18 +518,7 @@ namespace OPS.Landform
                 }
                 else if (texGenMode == TextureGenMode.Clip)
                 {
-                    MeshOperator meshOp = null;
-                    if (options.LoadLODs && meshLODs.Count > 1)
-                    {
-                        int idxTreeLevel = tile.Name == "root" ? 0 : tile.Name.Count();
-                        int idxLOD = meshLODs.Count - idxTreeLevel - 1;
-                        meshOp = meshOps[idxLOD];
-                    }
-                    else
-                    {
-                        meshOp = meshOps.First();
-                    }
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(meshOp, mp.Mesh, sceneTexture);
+                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }
@@ -541,7 +533,9 @@ namespace OPS.Landform
                     Interlocked.Increment(ref numFailed);
                 }
 
-                tile.RemoveComponent<MeshImagePair>(); //conserve memory
+                //conserve memory
+                tile.AddComponent(new MeshImagePairStats(tile.GetComponent<MeshImagePair>()));
+                tile.RemoveComponent<MeshImagePair>();
 
                 Interlocked.Decrement(ref np);
             }
@@ -558,8 +552,16 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0} tiles built successfully", numSucceded);
 
+            tileTree.DumpStats(msg => pipeline.LogInfo(msg));
+
             if (!options.NoSave)
             {
+                if (sceneMesh == null)
+                {
+                    pipeline.LogInfo("creating scene mesh in frame {0}", tileList.MeshFrame);
+                    sceneMesh = SceneMesh.Create(pipeline, project, tileList.MeshFrame);
+                }
+
                 pipeline.LogInfo("saving tile list");
                 pipeline.SaveDataProduct(project, tileList);
                 sceneMesh.TileListGuid = tileList.Guid;
@@ -710,22 +712,25 @@ namespace OPS.Landform
         {
             try
             {
-                bool logging = pipeline.Verbose || pipeline.Debug;
-
-                ObsSelectionStrategy stratOverride = null;
-                if (options.ObsSelectionStrategy == ObsSelectionStrategyName.Greedy)
+                var strategy = backprojectStrategy;
+                if (strategy == null)
                 {
-                    ConvexHull tileHull = new ConvexHull(mesh);
-                    MeshOperator tileOp = new MeshOperator(mesh);
-                    var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
-                                                                observationCache, meshFrame, options.UsePriors, options.OnlyAligned,
-                                                                msg => pipeline.LogWarn(msg)).Where(c => obsToHull.ContainsKey(c.Obs.Name) && tileHull.Intersects(obsToHull[c.Obs.Name])).ToList();
-
-                    stratOverride = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                    stratOverride.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution, options.BackprojectQuality, options.WriteDebug, localTexturingDebugPath);
+                    //no global selection strategy, create one local to this tile
+                    strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
+                    var tileHull = new ConvexHull(mesh);
+                    var tileOp = new MeshOperator(mesh);
+                    var tileObs = imageObservations
+                        .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
+                        .ToList();
+                    var contexts =
+                        Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
+                                                  options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
+                    strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
+                                        options.BackprojectQuality, options.WriteDebug,
+                                        Path.Combine(backprojectDebugDir, node.Name));
                 }
                 
-                var backprojectResults = BackprojectObservations(mesh, logging, meshName: node.Name, debugOutputPath:localTexturingDebugPath, obsObverride: stratOverride ?? null);
+                var backprojectResults = BackprojectObservations(mesh, strategy, node.Name);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)

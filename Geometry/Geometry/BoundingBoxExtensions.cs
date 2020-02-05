@@ -19,7 +19,13 @@ namespace OPS.Geometry
         {
             return box.Max - box.Min;
         }
-        
+
+        public static double Volume(this BoundingBox box)
+        {
+            Vector3 size = box.Size();
+            return size.X * size.Y * size.Z;
+        }
+
         /// <summary>
         /// Returns the squared distance between the closest points on to bounding boxes
         /// </summary>
@@ -261,6 +267,13 @@ namespace OPS.Geometry
         {
             double h = 0.5 * size;
             return new BoundingBox(new Vector3(-h, -h, -h), new Vector3(h, h, h));
+        }
+
+        public static string SizeToString(this BoundingBox box, int decimalPlaces = 3)
+        {
+            Vector3 sz = box.Size();
+            string fmt = string.Format("{{0:f{0}}}x{{1:f{0}}}x{{2:f{0}}}", decimalPlaces);
+            return string.Format(fmt, sz.X, sz.Y, sz.Z);
         }
     }
 }

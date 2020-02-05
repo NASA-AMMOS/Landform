@@ -133,10 +133,10 @@ namespace OPS.Landform
         [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
-        [Option(Default = "img,vic", HelpText = "Comma separated priority list of PDS RDR file extensions")]
+        [Option(Default = "mission", HelpText = "Comma separated priority list of PDS RDR file extensions")]
         public string PDSRDRExts { get; set; }
 
-        [Option(Default = "img,png", HelpText = "Comma separated priority list of image RDR file extensions")]
+        [Option(Default = "mission", HelpText = "Comma separated priority list of image RDR file extensions")]
         public string ImageRDRExts { get; set; }
 
         [Option(HelpText = "Don't convert tileset file:// URIs to relative paths", Default = false)]
@@ -144,6 +144,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Convert tileset s3:// URIs to relative paths instead of absolute https:// URIs", Default = false)]
         public bool RelativeS3URIs { get; set; }
+
+        [Option(Default = "mission", HelpText = "S3Proxy (or \"mission\")")]
+        public string S3Proxy { get; set; }
 
         [Option(HelpText = "Cull images with no backprojected pixels from contextual mesh manifest", Default = false)]
         public bool CullImagesWithoutBackprojectedPixels { get; set; }
@@ -159,6 +162,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't allow using RDRs in the browse subdirectory", Default = false)]
         public bool NoAllowBrowseRDRs { get; set; }
+
+        [Option(HelpText = "Don't filter tactical meshes to the best ID in each equivalency group of version-like variants", Default = false)]
+        public bool NoFilterTacticalMeshIDs { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = null)]
         public override string OnlyForSiteDrives { get; set; }
@@ -185,11 +191,13 @@ namespace OPS.Landform
             {
                 if (_storageHelper == null)
                 {
-                    _storageHelper = new StorageHelper(awsProfile, awsRegion);
+                    _storageHelper = new StorageHelper(awsProfile, awsRegion, pipeline.Logger);
                 }
                 return _storageHelper;
             }
         }
+
+        private string s3Proxy;
 
         protected List<string> imageExts;
         protected List<string> pdsExts;
@@ -420,12 +428,6 @@ namespace OPS.Landform
                 }
             }
 
-            imageExts = LandformShell.ParseExts(options.ImageRDRExts);
-            pipeline.LogInfo("image extensions: {0}", string.Join(", ", imageExts));
-
-            pdsExts = LandformShell.ParseExts(options.PDSRDRExts);
-            pipeline.LogInfo("PDS extensions: {0}", string.Join(", ", pdsExts));
-
             if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
             {
                 throw new Exception("--onlyforsitedrives not implemented for this command");
@@ -440,21 +442,47 @@ namespace OPS.Landform
             {
                 return false; // help
             }
-            
+
+            //mission has now been initialized
+
+            if (string.IsNullOrEmpty(options.ImageRDRExts) || options.ImageRDRExts.ToLower() == "mission")
+            {
+                options.ImageRDRExts = mission.GetSceneManifestImageRDRExts();
+            }
+            imageExts = StringHelper.ParseExts(options.ImageRDRExts);
+            pipeline.LogInfo("image extensions: {0}", string.Join(", ", imageExts));
+
+            if (string.IsNullOrEmpty(options.PDSRDRExts) || options.PDSRDRExts.ToLower() == "mission")
+            {
+                options.PDSRDRExts = mission.GetPDSExts();
+            }
+            pdsExts = StringHelper.ParseExts(options.PDSRDRExts);
+            pipeline.LogInfo("PDS extensions: {0}", string.Join(", ", pdsExts));
+
             var cp = pipeline as CloudPipeline;
 
             awsProfile = !string.IsNullOrEmpty(options.AWSProfile) ? options.AWSProfile :
                 cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
-                mission != null ? mission.GetDefaultAWSProfile() : "null";
+                mission.GetDefaultAWSProfile();
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(options.AWSRegion) ? options.AWSRegion :
                 cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
-                mission != null ? mission.GetDefaultAWSRegion() : "null";
+                mission.GetDefaultAWSRegion();
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
             RDRSet.allowBrowse = !options.NoAllowBrowseRDRs;
             RDRSet.preferNonBrowse = !options.NoPreferNonBrowseRDRs;
+
+            s3Proxy = options.S3Proxy;
+            if (!string.IsNullOrEmpty(s3Proxy) && s3Proxy.ToLower() == "mission")
+            {
+                s3Proxy = mission.GetS3Proxy();
+            }
+            if (!string.IsNullOrEmpty(s3Proxy))
+            {
+                pipeline.LogInfo("S3 Proxy: {0}", s3Proxy);
+            }
 
             return true;
         }
@@ -478,24 +506,24 @@ namespace OPS.Landform
 
         protected bool FileExists(string url)
         {
-            return LandformShell.FileExists(pipeline, storageHelper, url);
+            return LandformShell.FileExists(pipeline, () => storageHelper, url);
         }
 
         protected IEnumerable<string> SearchFiles(string url, string globPattern,
                                                   bool recursive = false, bool ignoreCase = false)
         {
-            return LandformShell.SearchFiles(pipeline, storageHelper, url, globPattern, recursive, ignoreCase);
+            return LandformShell.SearchFiles(pipeline, () => storageHelper, url, globPattern, recursive, ignoreCase);
         }
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return LandformShell.GetFile(pipeline, storageHelper, url, "manifest", filenameUnique,
+            return LandformShell.GetFile(pipeline, () => storageHelper, url, "manifest", filenameUnique,
                                          options.MaxRetries);
         }
 
         protected void SaveFile(string file, string url)
         {
-            LandformShell.SaveFile(pipeline, storageHelper, file, url);
+            LandformShell.SaveFile(pipeline, () => storageHelper, file, url);
         }
 
         private void LoadOrCreateManifest()
@@ -511,10 +539,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("creating new manifest");
                 sceneManifest = SceneManifestHelper.Create();
             }
-            if (mission != null)
-            {
-                sceneManifest.S3Proxy = mission.GetS3Proxy();
-            }
+            sceneManifest.S3Proxy = s3Proxy;
         }
 
         private void SaveManifest()
@@ -771,6 +796,9 @@ namespace OPS.Landform
                     contextualId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
                 }
 
+                var idToPDSFile = new Dictionary<string, string>();
+                var idToUrl = new Dictionary<string, string>();
+
                 bool update(string id, string url)
                 {
                     if (id == contextualId)
@@ -797,7 +825,8 @@ namespace OPS.Landform
                     }
                     if (pdsFile != null)
                     {
-                        UpdateTacticalMeshManifest(pdsFile, !options.NoURLs ? url : null);
+                        idToPDSFile[id] = pdsFile;
+                        idToUrl[id] = url;
                         return true;
                     }
                     else
@@ -831,6 +860,31 @@ namespace OPS.Landform
                     {
                         string id = StringHelper.StripSuffix(StringHelper.GetLastUrlPathSegment(url), sfx);
                         update(id, ConvertURI(url));
+                    }
+                }
+
+                var ids = idToPDSFile.Keys.ToList();
+                HashSet<string> keepers = null;
+                if (idToPDSFile.Count > 1 && !options.NoFilterTacticalMeshIDs)
+                {
+                    Action<string> log = null;
+                    if (pipeline.Verbose)
+                    {
+                        log = msg => pipeline.LogInfo(msg);
+                    }
+                    keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, log));
+                }
+                foreach (var id in ids)
+                {
+                    if (keepers == null || keepers.Contains(id))
+                    {
+                        UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
+                    }
+                    else
+                    {
+                        bool removed = sceneManifest.RemoveTileset(id);
+                        pipeline.LogWarn("tactical mesh product ID {0} was filtered out{1}",
+                                         id, removed ? " (removed from manifest)" : "");
                     }
                 }
             }

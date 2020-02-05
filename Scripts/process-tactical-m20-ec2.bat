@@ -1,6 +1,6 @@
 @echo off
 
-set lfver=1.7.1
+set lfver=1.7.2
 if not "%LANDFORM_TACTICAL_VERSION%"=="" set lfver=%LANDFORM_TACTICAL_VERSION%
 
 set mission=M2020

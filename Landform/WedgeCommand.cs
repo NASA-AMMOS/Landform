@@ -23,7 +23,7 @@ namespace OPS.Landform
         [Option(HelpText = "Wedge image auto decimation target resolution", Default = 1024)]
         public virtual int TargetWedgeImageResolution { get; set; }
 
-        [Option(HelpText = "Mesh decimation method (EdgeCollapse, ResampleFSSR, ResamplePoisson, MeshLab, MeshLabResample)", Default = MeshDecimationMethod.MeshLab)]
+        [Option(HelpText = "Mesh decimation method (EdgeCollapse, ResampleFSSR, ResamplePoisson, MeshLab, MeshLabResample)", Default = MeshDecimationMethod.EdgeCollapse)]
         public virtual MeshDecimationMethod MeshDecimator { get; set; }
 
         [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]

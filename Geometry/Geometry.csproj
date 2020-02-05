@@ -72,7 +72,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Geometry\CleverCombinePointClouds.cs" />
+    <Compile Include="Geometry\CleverCombine.cs" />
     <Compile Include="Geometry\AxisAngleVector.cs" />
     <Compile Include="Geometry\BarycentricPoint.cs" />
     <Compile Include="Geometry\BoundingBoxExtensions.cs" />

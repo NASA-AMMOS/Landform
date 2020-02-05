@@ -86,6 +86,9 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
+            PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
+
             if (sceneMesh == null) //might have already been loaded in GetProject()
             {
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
@@ -223,8 +226,6 @@ namespace OPS.Landform
             {
                 executive = PipelineExecutive.MakeExecutive(pipeline as LocalPipeline, ExecutionMode.Deferred);
             }
-
-            PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
 
             pipeline.EnqueueToMaster(new RunProjectMessage(project.Name));
 

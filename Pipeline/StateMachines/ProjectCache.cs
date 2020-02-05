@@ -1,8 +1,8 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
-using Amazon.DynamoDBv2.DataModel;
-using log4net;
 using System.Diagnostics;
+using Amazon.DynamoDBv2.DataModel;
+using OPS.Util;
 using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
@@ -11,7 +11,7 @@ namespace OPS.Pipeline
     {
         PipelineCore pipeline;
         private string projectName;
-        private ILog logger;
+        private ILogger logger;
 
         private bool initialized;
 
@@ -40,7 +40,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public ProjectCache(PipelineCore pipeline, string projectName, ILog logger)
+        public ProjectCache(PipelineCore pipeline, string projectName, ILogger logger)
         {
             this.pipeline = pipeline;
             this.projectName = projectName;
@@ -69,7 +69,7 @@ namespace OPS.Pipeline
 
             if (logger != null)
             {
-                logger.InfoFormat("[{0}] initializing project cache", projectName);
+                logger.LogInfo("initializing project cache");
             }
 
             Stopwatch sw = new Stopwatch();
@@ -107,8 +107,8 @@ namespace OPS.Pipeline
 
             if (logger != null)
             {
-                logger.InfoFormat("[{0}] initialized project cache in {1:F3}s, {2} nodes already completed",
-                                  projectName, 0.001 * sw.ElapsedMilliseconds, completed.Count);
+                logger.LogInfo("initialized project cache in {0:F3}s, {1} nodes already completed",
+                               0.001 * sw.ElapsedMilliseconds, completed.Count);
             }
 
             initialized = true;

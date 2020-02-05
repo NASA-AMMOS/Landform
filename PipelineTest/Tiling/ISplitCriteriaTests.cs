@@ -105,13 +105,13 @@ namespace PipelineTest
             {
                 pctPixelsToTest = 0.5,
                 pctSampledPixelsSatisfied = 0.75,
-                subsamplingTriggeringSplit = 2.0,
+                splitPixelTexelRatio = 2.0,
                 tileResolution = destTextureResolution,
                 cameraInstances = cameraInstances,
                 scInMesh = sc
             };
 
-            ITileSplitCriteria split = new TextureSplitCriteria(opts);
+            ITileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
             return split.ShouldSplit(op, box);
         }
     }

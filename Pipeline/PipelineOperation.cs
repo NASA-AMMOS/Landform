@@ -1,11 +1,12 @@
-using log4net;
 using System;
+using OPS.Util;
 
 namespace OPS.Pipeline
 {
-    public class PipelineOperation
+    public class PipelineOperation : ILogger
     {
         public static bool LessSpew;
+        public static bool SingleWorkflowSpew;
 
         protected readonly PipelineCore pipeline;
         protected readonly string projectName;
@@ -19,43 +20,60 @@ namespace OPS.Pipeline
             this.pipeline = pipeline;
             this.projectName = msg.ProjectName;
             this.messageId = msg.MessageId;
-            this.logPrefix = string.Format("[{0}] {1}{2}", projectName, GetType().Name,
-                                           !string.IsNullOrEmpty(messageId) ? (" " + messageId) : "");
+
+            logPrefix = "";
+            if (!SingleWorkflowSpew)
+            {
+                logPrefix = string.Format("[{0}] {1} ", projectName, GetType().Name);
+            }
+            if (!string.IsNullOrEmpty(messageId))
+            {
+                logPrefix += messageId + " ";
+            }
         }
 
-        protected void LogInfo(string msg, params Object[] args)
+        public void LogInfo(string msg, params Object[] args)
         {
             msg = string.Format(msg, args);
             if (LessSpew)
             {
-                pipeline.LogVerbose("{0} {1}", logPrefix, msg);
+                pipeline.LogVerbose(logPrefix + msg);
             }
             else
             {
-                pipeline.LogInfo("{0} {1}", logPrefix, msg);
+                pipeline.LogInfo(logPrefix + msg);
             }
             SendStatusToMaster(msg);
         }
 
-        protected void LogVerbose(string msg, params Object[] args)
+        public void LogVerbose(string msg, params Object[] args)
         {
-            pipeline.LogVerbose("{0} {1}", logPrefix, string.Format(msg, args));
+            pipeline.LogVerbose(logPrefix + string.Format(msg, args));
         }
 
-        protected void LogDebug(string msg, params Object[] args)
+        public void LogDebug(string msg, params Object[] args)
         {
-            pipeline.LogDebug("{0} {1}", logPrefix, string.Format(msg, args));
+            pipeline.LogDebug(logPrefix + string.Format(msg, args));
         }
 
-        protected void LogWarn(string msg, params Object[] args)
+        public void LogWarn(string msg, params Object[] args)
         {
-            pipeline.LogWarn("{0} {1}", logPrefix, string.Format(msg, args));
+            pipeline.LogWarn(logPrefix + string.Format(msg, args));
         }
 
-        protected void LogError(string msg, params Object[] args)
+        public void LogError(string msg, params Object[] args)
         {
             msg = string.Format(msg, args);
-            pipeline.LogError("{0} {1}", logPrefix, msg);
+            pipeline.LogError(logPrefix + msg);
+            SendStatusToMaster("error: " + msg);
+        }
+
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                                 bool aggregateStackTrace = true)
+        {
+            msg = logPrefix + (msg ?? "");
+            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+            msg = string.Format("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + ": ") : "", ex.Message);
             SendStatusToMaster("error: " + msg);
         }
 

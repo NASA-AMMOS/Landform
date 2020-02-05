@@ -45,7 +45,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = 16, HelpText = "Number of annealing stages to run per alignment operation")]
         public int NumAnnealingStages { get; set; }
 
-        [Option(Required = false, Default = 0.5f, HelpText = "The minimum sample percentage overlap between site drives required to run alignment. (Align to orbital if all site drive options fail)")]
+        [Option(Required = false, Default = 0.25f, HelpText = "The minimum sample percentage overlap between site drives required to run alignment. (Align to orbital if all site drive options fail)")]
         public float MinOverlapPercent { get; set; }
 
         [Option(Required = false, Default = 20000, HelpText = "Maximum number of samples to use when aligning SD -> SD")]
@@ -53,6 +53,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = null, HelpText = "Override default dem location from config")]
         public string OrbitalDEM { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Turn on alignment to dem if no sufficient overlap to another sitedrive")]
+        public bool AlignToDem { get; set; }
 
         [Option(HelpText = "Debug option to write out the clipped dem in base site drive frame after alignment. Default does not write", Default = "")]
         public string WriteClippedDemToPath { get; set; }
@@ -245,7 +248,7 @@ namespace OPS.Landform
                     Matrix otherSceneToWorld = CreateBEVToWorldMatrix(otherSiteDrive);
 
                     var temp = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld, options.PreserveXY,
-                        options.NumAnnealingStages, null, 0.5, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum);
+                        options.NumAnnealingStages, null, options.MinOverlapPercent, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum);
                     if (!temp.HasValue)
                     {
                         continue;
@@ -321,16 +324,20 @@ namespace OPS.Landform
                     options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
                 Matrix demToWorld = demToWorldPrior * demWorldPriorToWorld;
 
-                //Align remaining sitedrives to dem
-                foreach (SiteDrive siteDrive in unaligned)
+                //Alignment to dem off by enough that it's better to leave out
+                if (options.AlignToDem)
                 {
-                    pipeline.LogInfo("Aligning site drive {0} to DEM.", siteDrive);
-                    var image = dems[siteDrive];
+                    //Align remaining sitedrives to dem
+                    foreach (SiteDrive siteDrive in unaligned)
+                    {
+                        pipeline.LogInfo("Aligning site drive {0} to DEM.", siteDrive);
+                        var image = dems[siteDrive];
 
-                    Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
-                    Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
-                        false, options.NumAnnealingStages, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
-                    worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
+                        Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
+                        Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
+                            false, options.NumAnnealingStages, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+                        worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
+                    }
                 }
 
                 if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))

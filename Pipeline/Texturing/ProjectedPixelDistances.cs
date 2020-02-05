@@ -92,7 +92,7 @@ namespace OPS.Pipeline
                     {
                         //Issue #523: want median or average in case glancing angle?
                         //want a term that looks for consistancy in spacing? implies dead on?
-                        double dist = TextureSplitCriteria.GetMinPixelSpreadInMeters(sceneCaster, cam, obsToOutput,
+                        double dist = GetMinPixelSpreadInMeters(sceneCaster, cam, obsToOutput,
                                                       pt.Pixel, pt.Point, specificMeshBounds, obs.Width, obs.Height);
                         spreads[spreadIndex] = dist;
                     }
@@ -111,6 +111,92 @@ namespace OPS.Pipeline
             }
 
             return double.MaxValue;
+        }
+
+        //raycast the 4 neighbors of a pixel
+        //then measure the distance between the source pixel's intersected position and the neighbors
+        //then return the shortest
+        //this should give an estimate of the source textures local resolution
+        //using our best approximation of the mesh to compare against other images
+        public static double GetMinPixelSpreadInMeters(SceneCaster sceneCaster, CameraModel camera, Matrix camToMesh,
+                                                       Vector2 srcPixel, Vector3 srcPos, BoundingBox specificMeshBounds,
+                                                       int srcWidth, int srcHeight)
+        {
+            double shortestDistance = double.MaxValue;
+
+            var offsetPixels = Image.GetOffsetPixels(srcPixel, offset: 1.0)
+                .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight);
+            if (offsetPixels.Count() == 0)
+            {
+                return double.MaxValue;
+            }
+
+            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, specificMeshBounds, offsetPixels);
+            foreach (var curPos in meshPositions)
+            {
+                double sqDist = (curPos - srcPos).LengthSquared();
+                if (sqDist < shortestDistance)
+                {
+                    shortestDistance = sqDist;
+                }
+            }
+
+            return Math.Sqrt(shortestDistance);
+        }
+
+        //Issue #531: raycast bundle of 4 with embree
+        //Note: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
+        // as the corners hit a closer mesh than intended
+        public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sceneCaster, CameraModel camera,
+                                                                    Matrix camToMesh, BoundingBox specificMeshBounds,
+                                                                    IEnumerable<Vector2> srcPixels)
+        {
+            List<Vector3> result = new List<Vector3>();
+
+            foreach (var curPixel in srcPixels)
+            {
+                //check if pixel ray hit the mesh
+                Vector3? scenePos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sceneCaster);
+                if (!scenePos.HasValue)
+                    continue;
+
+                //for performance, ignore points whose neighbors spill beyond the mesh of interest
+                if (ContainmentType.Contains != specificMeshBounds.Contains(scenePos.Value))
+                    continue;
+
+                result.Add(scenePos.Value);
+            }
+
+            return result;
+        }
+
+        public static Vector2? GetCameraPixelForMeshPosition(SceneCaster sc, CameraModel camera, Matrix camToMesh,
+                                                     Matrix meshToCam, ConvexHull camHull,
+                                                     Vector3 meshPos, int widthPixels, int heightPixels)
+        {
+            if (!camHull.Contains(meshPos))
+            {
+                return null;
+            }
+
+            //project into observation
+            Vector3 obsPos = Vector3.Transform(meshPos, meshToCam);
+            Vector2 obsPixel = camera.Project(obsPos, out double rangeMeshToImage);
+
+            if (rangeMeshToImage <= 0 ||
+                (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels ||
+                (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
+            {
+                return null; //the center of the pixel may have passed the frustum test, but the pixel corner may not
+            }
+
+            // raycast the scene to test if the desired position is occluded by terrain
+            if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+            {
+                return null;
+            }
+
+            return obsPixel;
         }
     }
 }
