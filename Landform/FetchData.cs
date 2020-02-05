@@ -131,6 +131,9 @@ namespace OPS.Landform
 
     public class FetchData
     {
+        //NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4 chars
+        public const string SOL_WILDCARD = "#####";
+
         private FetchDataOptions options;
         private MissionSpecific mission;
 
@@ -192,7 +195,7 @@ namespace OPS.Landform
             }
         }
 
-        private string[] ExpandSolSpecifier(string solString)
+        public static string[] ExpandSolSpecifier(string solString)
         {
             string[] parts = solString.Split(',');
             List<int> sols = new List<int>();
@@ -213,7 +216,11 @@ namespace OPS.Landform
                     sols.Add(int.Parse(part));
                 }                       
             }
-            return sols.Distinct().OrderBy(x => x).Select(x => x.ToString("00000")).ToArray();
+            return sols
+                .Distinct()
+                .OrderBy(sol => sol)
+                .Select(sol => StringHelper.FixedWidthInt(SOL_WILDCARD, sol))
+                .ToArray();
         }
 
         private List<string> Filter(List<string> products)
@@ -662,7 +669,8 @@ namespace OPS.Landform
                     var prods = new List<string>();
                     foreach (var location in locations)
                     {
-                        var solLocation = location.Replace("#####", sol);
+                        var solLocation = StringHelper.ReplaceFixedWidthIntWildcard(location, SOL_WILDCARD,
+                                                                                    int.Parse(sol));
                         prods.AddRange(IndexFiles(solLocation));
                     }
                     solToProducts.TryAdd(sol, prods);
