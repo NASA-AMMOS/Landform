@@ -186,6 +186,11 @@ namespace OPS.Landform
         }
 
         /// <summary>
+        /// Used only by SendMessage().
+        /// </summary>
+        protected abstract QueueMessage ParseMessage(string json);
+
+        /// <summary>
         /// Should not throw.  
         /// </summary>
         protected abstract string DescribeMessage(QueueMessage msg);
@@ -199,11 +204,6 @@ namespace OPS.Landform
         /// Can throw.  
         /// </summary>
         protected abstract bool HandleMessage(QueueMessage msg);
-
-        /// <summary>
-        /// Used only by SendMessage().
-        /// </summary>
-        protected abstract QueueMessage ParseMessage(string json);
 
         protected virtual string GetQueueName()
         {
