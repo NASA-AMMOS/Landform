@@ -28,15 +28,13 @@ if ! [[ $sol =~ ^[0-9]{4}$ ]]; then
     exit 1
 fi
 
-# use last sitedrive as project name
-# pipeline will also pick it by default as mesh frame
-sd="0"
+# first listed sitedrive is primary
 sitedrives=$1
 IFS=',' read -ra sds <<< $1
+sd=${sds[0]}
+num_sd=${#sds[@]}
+sds=$1
 shift
-for i in "${sds[@]}"; do
-    if [ $i -gt $sd ]; then sd=$i; fi
-done
 
 if ! [[ $sd =~ ^[0-9]{7}$ ]]; then
     echo "sitedrive must be 7 digits" 
@@ -114,7 +112,7 @@ restore_config() { if [ -f $config.BAK ]; then ${dry}mv $config.BAK $config; fi 
 
 delete_venue() { ${dry}rm -rf $storage/$venue; }
 
-echo "processing ${mission} contextual mesh for sitedrive ${sd} in sol ${sol} from ${dir}"
+echo "processing ${mission} contextual mesh for sitedrive ${sd} from ${num_sd} sitedrives in sol ${sol} from ${dir}"
 
 if [ "$cleanup" ]; then delete_venue; fi
 
@@ -139,14 +137,14 @@ if [ "$generate" ]; then
     done
     
     ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-    ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sitedrives
+    ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sds
 
     if [ ! "$only_ingest" ]; then
-        ${dry}$landform bev-align $proj $dbg
-        ${dry}$landform build-geometry $proj $dbg
-        ${dry}$landform build-tiling-input $proj $dbg
-        ${dry}$landform blend-images $proj $dbg
-        ${dry}$landform build-tileset $proj $dbg
+        ${dry}$landform bev-align $proj $dbg --fixsitedrives $sd
+        ${dry}$landform build-geometry $proj $dbg --meshframe $sd
+        ${dry}$landform build-tiling-input $proj $dbg --meshframe $sd
+        ${dry}$landform blend-images $proj $dbg --meshframe $sd
+        ${dry}$landform build-tileset $proj $dbg --meshframe $sd
         
         ${dry}rm -rf $proj
         ${dry}cp -R $tileset_dir .
