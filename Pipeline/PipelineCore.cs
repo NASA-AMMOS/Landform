@@ -184,7 +184,18 @@ namespace OPS.Pipeline
             {
                 Logging.ConfigureLogging(Config.FullCommand, Quiet || quietInit, options.Debug,
                                          options.LogFile, options.LogDir);
-                this.Logger = LogManager.GetLogger(GetType());
+                if (!string.IsNullOrEmpty(Config.SubCommand))
+                {
+                    this.Logger = LogManager.GetLogger(Config.SubCommand);
+                }
+                else if (!string.IsNullOrEmpty(Config.BaseCommand))
+                {
+                    this.Logger = LogManager.GetLogger(Config.BaseCommand);
+                }
+                else
+                {
+                    this.Logger = LogManager.GetLogger(GetType());
+                }
             }
 
             //use a different download cache dir for every PipelineCore instance

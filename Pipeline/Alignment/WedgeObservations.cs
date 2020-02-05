@@ -376,7 +376,7 @@ namespace OPS.Pipeline
             public bool GenerateNormals = true; //organized mesh only
             public double IsolatedPointSize = 0; //organized mesh only
 
-            public MeshDecimationMethod MeshDecimator = MeshDecimationMethod.MeshLab; //used by LoadMesh()
+            public MeshDecimationMethod MeshDecimator = MeshDecimationMethod.EdgeCollapse; //used by LoadMesh()
 
             public MeshOptions Clone()
             {

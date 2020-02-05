@@ -40,8 +40,8 @@ namespace OPS.Pipeline.Texturing
 
             if (writeDebug)
             {
-                mesh.Save(Path.Combine(localOutputPath, "sceneMesh.ply"));
-                sampledMesh.Save(Path.Combine(localOutputPath, "spatialSamplePts_base.ply"));
+                mesh.Save(PathHelper.EnsureDir(localOutputPath, "sceneMesh.ply"));
+                sampledMesh.Save(PathHelper.EnsureDir(localOutputPath, "spatialSamplePts_base.ply"));
             }
 
             //add center point of each observation (to make sure small fov images are considered)
@@ -57,7 +57,7 @@ namespace OPS.Pipeline.Texturing
 
             if (writeDebug)
             {
-                sampledMesh.Save(Path.Combine(localOutputPath, "spatialSamplePts_wObs.ply"));
+                sampledMesh.Save(PathHelper.EnsureDir(localOutputPath, "spatialSamplePts_wObs.ply"));
             }
 
             //calculate the scores per reference point (grouped by observation)
@@ -94,7 +94,7 @@ namespace OPS.Pipeline.Texturing
 
                 if (writeDebug && sortedContexts.Count() > 0)
                 {
-                    using (StreamWriter sw = new StreamWriter(Path.Combine(localOutputPath, "RefScoresForPoint_" + pt.X + "_" + pt.Y + "_" + pt.Z + ".txt")))
+                    using (StreamWriter sw = new StreamWriter(PathHelper.EnsureDir(localOutputPath, "RefScoresForPoint_" + pt.X + "_" + pt.Y + "_" + pt.Z + ".txt")))
                     {
                         sw.WriteLine(string.Format("{0}: {1}", "Observation Name", "Score (lower is better)"));
                         foreach (var ctx in sortedContexts)

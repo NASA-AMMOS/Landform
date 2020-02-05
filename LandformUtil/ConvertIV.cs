@@ -48,7 +48,9 @@ namespace OPS.LandformUtil
             string[] files = null;
             string destDir = null;
 
-            if (Directory.Exists(options.InputPath))
+            bool directoryMode = Directory.Exists(options.InputPath);
+
+            if (directoryMode)
             {
                 files = Directory.GetFiles(options.InputPath, "*.iv");
                 destDir = options.InputPath;
@@ -90,21 +92,21 @@ namespace OPS.LandformUtil
                 {
                     string bn = Path.GetFileNameWithoutExtension(files[i]);
                     string tft = tf;
-                    if (!string.IsNullOrEmpty(tfExt) && files.Length > 1)
+                    if (!string.IsNullOrEmpty(tfExt) && directoryMode)
                     {
                         tft = Path.ChangeExtension(files[i], tfExt);
                         if (!File.Exists(tft))
                         {
                             tft = tf;
                         }
-                        if (!File.Exists(tft))
-                        {
-                            tft = null;
-                        }
-                        if (tft != null)
-                        {
-                            tft = Path.GetFileName(tft);
-                        }
+                    }
+                    if (!File.Exists(tft))
+                    {
+                        tft = null;
+                    }
+                    if (tft != null)
+                    {
+                        tft = Path.GetFileName(tft);
                     }
                     if (options.AllLODs)
                     {

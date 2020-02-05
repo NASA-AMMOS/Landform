@@ -248,31 +248,47 @@ namespace OPS.Landform
                 .ToList();
 
             var acceptedExtensions = new HashSet<string>();
+
             if (!options.NoPDS)
             {
-                acceptedExtensions.Add(".IMG");
-                if (mission != null && mission.AllowPDSLabelFiles())
+                if (mission != null)
                 {
-                    acceptedExtensions.Add(".LBL");
+                    foreach (var ext in StringHelper.ParseExts(mission.GetPDSExts()))
+                    {
+                        acceptedExtensions.Add(ext.ToUpper());
+                    }
+                }
+                else
+                {
+                    acceptedExtensions.Add(".IMG");
                 }
             }
+
             if (options.WithVIC)
             {
                 acceptedExtensions.Add(".VIC");
             }
+            else
+            {
+                acceptedExtensions.Remove(".VIC");
+            }
+
             if (options.WithPNG)
             {
                 acceptedExtensions.Add(".PNG");
             }
+
             if (options.WithRGB)
             {
                 acceptedExtensions.Add(".RGB");
             }
+
             if (!options.NoOBJ)
             {
                 acceptedExtensions.Add(".OBJ");
                 acceptedExtensions.Add(".MTL");
             }
+
             if (!options.NoIV)
             {
                 acceptedExtensions.Add(".IV");

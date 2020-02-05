@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Collections.Generic;
-using log4net;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Geometry;
@@ -11,18 +10,18 @@ namespace OPS.Pipeline
 {
     //TODO this needs to get refactored to be a generic base class for all Landform workflows, not just tiling
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
-    public abstract class PipelineStateMachine
+    public abstract class PipelineStateMachine : ILogger
     {
         public static bool LessSpew;
+        public static bool SingleWorkflowSpew;
 
         public const double DEF_LONG_TASK_WARN_SEC = 5 * 60;
 
-        public enum ProjectType { GenericTiling, MSL, ParentTiling };
+        public enum ProjectType { GenericTiling, ParentTiling };
 
         public static Dictionary<ProjectType, Type> StateMachines = new Dictionary<ProjectType, Type>()
         {
             { ProjectType.GenericTiling, typeof(GenericTilingStateMachine) },
-            { ProjectType.MSL, typeof(MSLStateMachine) },
             { ProjectType.ParentTiling, typeof(ParentTilingStateMachine) },
         };
 
@@ -59,6 +58,7 @@ namespace OPS.Pipeline
         protected ProjectCache projectCache;
         protected string projectName;
         protected TypeDispatcher dispatcher;
+        protected string logPrefix;
 
         protected class Status
         {
@@ -75,48 +75,56 @@ namespace OPS.Pipeline
 
         protected Dictionary<string, Status> status = new Dictionary<string, Status>();
 
-        protected void LogLess(string msg, params Object[] args)
+        public void LogLess(string msg, params Object[] args)
         {
             if (LessSpew)
             {
-                pipeline.LogVerbose("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+                pipeline.LogVerbose(logPrefix + string.Format(msg, args));
             }
             else
             {
-                pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+                pipeline.LogInfo(logPrefix + string.Format(msg, args));
             }
         }
 
-        protected void LogInfo(string msg, params Object[] args)
+        public void LogInfo(string msg, params Object[] args)
         {
-            pipeline.LogInfo("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+            pipeline.LogInfo(logPrefix + string.Format(msg, args));
         }
 
-        protected void LogVerbose(string msg, params Object[] args)
+        public void LogVerbose(string msg, params Object[] args)
         {
-            pipeline.LogVerbose("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+            pipeline.LogVerbose(logPrefix + string.Format(msg, args));
         }
 
-        protected void LogDebug(string msg, params Object[] args)
+        public void LogDebug(string msg, params Object[] args)
         {
-            pipeline.LogDebug("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+            pipeline.LogDebug(logPrefix + string.Format(msg, args));
         }
 
-        protected void LogWarn(string msg, params Object[] args)
+        public void LogWarn(string msg, params Object[] args)
         {
-            pipeline.LogWarn("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+            pipeline.LogWarn(logPrefix + string.Format(msg, args));
         }
 
-        protected void LogError(string msg, params Object[] args)
+        public void LogError(string msg, params Object[] args)
         {
-            pipeline.LogError("[{0}] ({1}) {2}", projectName, GetType().Name, string.Format(msg, args));
+            pipeline.LogError(logPrefix + string.Format(msg, args));
+        }
+
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
+                                 bool aggregateStackTrace = true)
+        {
+            msg = logPrefix + (msg ?? "");
+            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
         }
 
         public PipelineStateMachine(PipelineCore pipeline, string projectName)
         {
             this.pipeline = pipeline;
             this.projectName = projectName;
-            projectCache = new ProjectCache(pipeline, projectName, pipeline.Logger);
+            logPrefix = SingleWorkflowSpew ? "" : string.Format("[{0}] ({1}) ", projectName, GetType().Name);
+            projectCache = new ProjectCache(pipeline, projectName, this);
             dispatcher = MakeDispatcher();
         }
 
@@ -183,8 +191,12 @@ namespace OPS.Pipeline
                 var id = entry.Key;
                 var st = entry.Value;
                 var sec = now - st.StartSec;
-                var msg = string.Format("[{0}] {1} {2}: {3}, running for {4}",
-                                        projectName, st.LatestOperation, id, st.LatestStatus, Fmt.HMS(sec * 1e3));
+                var msg = string.Format("{0} {1}: {2}, running for {3}",
+                                        st.LatestOperation, id, st.LatestStatus, Fmt.HMS(sec * 1e3));
+                if (!SingleWorkflowSpew)
+                {
+                    msg = string.Format("[{0}] {1}", projectName, msg);
+                }
                 if (sec > warnSec)
                 {
                     LogWarn(msg + " > {0}", Fmt.HMS(warnSec * 1e3));
@@ -597,20 +609,6 @@ namespace OPS.Pipeline
             project.FinishedRunning = true;
             project.Save(pipeline);
             LogInfo("finished running");
-            var root = TilingNode.Find(pipeline, projectName, projectCache.RootId());
-            if (root != null)
-            {
-                var bounds = root.GetBounds();
-                if (bounds.HasValue)
-                {
-                    var size = bounds.Value.Size();
-                    LogInfo("scene bounds (meters): {0:F3}x{1:F3}x{2:F3}", size.X, size.Y, size.Z);
-                }
-                else
-                {
-                    LogError("root node missing bounds");
-                }
-            }
             projectCache.Reset();
             pipeline.CleanupTempDir();
         }

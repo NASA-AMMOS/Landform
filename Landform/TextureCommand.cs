@@ -48,7 +48,7 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject", Default = ObsSelectionStrategyName.Spatial)]
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Greedy, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
         public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
@@ -66,18 +66,27 @@ namespace OPS.Landform
         protected TextureCommandOptions tcopts;
 
         protected int resolution;
+
         protected IDictionary<string, ConvexHull> obsToHull;
+
         protected SceneCaster sceneCaster;
+
+        protected ObsSelectionStrategy backprojectStrategy;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
+        protected string backprojectDebugDir;
         protected Image backprojectIndex;
+
         protected TileList tileList;
         protected ObsSelectionStrategy obsSelStrat;
         protected List<Observation> imageObservations;
         protected Dictionary<int, Observation> indexedImages;
 
-        protected Mesh mesh;
-        protected SceneMesh sceneMesh;
-        protected List<Mesh> meshLODs; //populated iff --loadlods, first = highest quality
+        protected SceneMesh sceneMesh; 
+
+        protected Mesh mesh; //finest LOD
+        protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
+        protected MeshOperator meshOp; //finest LOD
+        protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -113,6 +122,7 @@ namespace OPS.Landform
             }
 
             obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+            backprojectDebugDir = Path.Combine(localOutputPath, "Backproject");
 
             //some workflows do not load observations, for example tiling an M2020 tactical mesh
             if (observationCache != null)
@@ -206,7 +216,7 @@ namespace OPS.Landform
             {
                 if (obs.BlendedGuid == Guid.Empty)
                 {
-                    throw new Exception(string.Format("no blended texture for observation {0}, run local-blend-images", obs.Name));
+                    throw new Exception(string.Format("no blended texture for {0}, run blend-images", obs.Name));
                 }
             }
         }
@@ -300,7 +310,7 @@ namespace OPS.Landform
 
         protected void LoadInputMesh(bool requireUVs = true)
         {
-            if (sceneMesh == null) //might have already been loaded in GetProject()
+            if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
             }
@@ -309,23 +319,14 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading input mesh from {0}{1}", tcopts.InputMesh,
                                  sceneMesh != null ? (", overriding scene mesh " + sceneMesh.Name) : "");
-
+                string meshFile = pipeline.GetFileCached(tcopts.InputMesh, "meshes");
                 if (tcopts.LoadLODs)
                 {
-                    meshLODs = Mesh.LoadAllLODs(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
-                    
-                    pipeline.LogInfo("Input mesh contains {0} levels of detail", meshLODs.Count);
-                    for(int idxLOD = 0; idxLOD < meshLODs.Count; idxLOD++)
-                    {
-                        Mesh meshLOD = meshLODs.ElementAt(idxLOD);
-                        pipeline.LogInfo("Mesh LOD {0}: {1} vertices, {2} faces", idxLOD, meshLOD.Vertices.Count(), meshLOD.Faces.Count());
-                    }
-
-                    mesh = meshLODs.First();
+                    meshLOD = Mesh.LoadAllLODs(meshFile);
                 }
                 else
                 {
-                    mesh = Mesh.Load(pipeline.GetFileCached(tcopts.InputMesh, "meshes"));
+                    mesh = Mesh.Load(meshFile);
                 }
             }
             else if (sceneMesh != null)
@@ -345,25 +346,42 @@ namespace OPS.Landform
                 throw new Exception("no input mesh specified and no scene mesh in database");
             }
 
-            if (mesh == null)
+            if (meshLOD == null)
+            {
+                meshLOD = new List<Mesh>() { mesh };
+            }
+
+            var keepers = new List<Mesh>();
+            for (int i = 0; i < meshLOD.Count; i++)
+            {
+                if (meshLOD[i] == null || meshLOD[i].Faces.Count == 0)
+                {
+                    pipeline.LogWarn("ignoring empty input mesh at LOD {0}", i);
+                }
+                else
+                {
+                    keepers.Add(meshLOD[i]);
+                }
+            }
+            meshLOD = keepers;
+
+            if (meshLOD.Count == 0)
             {
                 throw new Exception("failed to load input mesh");
             }
 
-            if (mesh.Faces.Count == 0)
+            mesh = meshLOD.First();
+
+            pipeline.LogInfo("input mesh contains {0} non-empty level(s) of detail", meshLOD.Count);
+            for (int lod = 0; lod < meshLOD.Count; lod++)
             {
-                throw new Exception("input mesh empty");
+                pipeline.LogInfo("LOD {0}: {1} vertices, {2} faces",
+                                 lod, Fmt.KMG(meshLOD[lod].Vertices.Count()), Fmt.KMG(meshLOD[lod].Faces.Count()));
             }
 
             if (requireUVs && !mesh.HasUVs)
             {
                 throw new Exception("input mesh needs UVs");
-            }
-
-            if (sceneMesh == null)
-            {
-                sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Default, siteDrives, mesh: mesh,
-                                             noSave: tcopts.NoSave);
             }
         }
 
@@ -415,6 +433,18 @@ namespace OPS.Landform
             sceneCaster.Build();
         }
 
+        protected void BuildMeshOperator()
+        {
+            var meshOps = new MeshOperator[meshLOD.Count];
+            CoreLimitedParallel.For(0, meshLOD.Count, lod =>
+            {
+                meshOps[lod] = new MeshOperator(meshLOD[lod],
+                                                buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
+            });
+            meshOpForLOD = meshOps.ToList();
+            meshOp = meshOpForLOD.First();
+        }
+
         protected void BuildObsHulls()
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
@@ -428,23 +458,36 @@ namespace OPS.Landform
             }
         }
 
-        //not using arg default to simplify higher level calls to RunPhase()
-        protected void BackprojectObservations()
+        protected void InitBackprojectStrategy()
         {
-            BackprojectObservations(logging: true);
+            if (meshOp == null)
+            {
+                throw new Exception("must build mesh operator before initializing backproject strategy");
+            }
+            pipeline.LogInfo("initializing backproject observation seletion strategy {0} for {1} observations",
+                             tcopts.ObsSelectionStrategy, imageObservations.Count);
+            backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+            var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
+                                                     observationCache, meshFrame, tcopts.UsePriors,
+                                                     tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,
+                                           tcopts.BackprojectQuality, tcopts.WriteDebug, backprojectDebugDir);
         }
 
-        protected void BackprojectObservations(bool logging, bool verbose = false, string meshName = "",  string debugOutputPath = "")
+        protected void BackprojectObservations()
         {
+            if (backprojectStrategy == null)
+            {
+                InitBackprojectStrategy();
+            }
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            backprojectResults = BackprojectObservations(mesh, logging, verbose, meshName, debugOutputPath);
+            BackprojectObservations(mesh, backprojectStrategy);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, bool logging, bool verbose = false, string meshName = "", string debugOutputPath = "", OPS.Pipeline.Texturing.ObsSelectionStrategy obsObverride = null)
+            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, string debugSubdir = "")
         {
-            verbose |= pipeline.Verbose;
-            logging |= verbose;
+            bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
             {
                 pipeline = pipeline,
@@ -461,20 +504,14 @@ namespace OPS.Landform
                 onlyAligned = tcopts.OnlyAligned,
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteDebug,
-                localDebugOutputPath = Path.Combine(debugOutputPath ?? localOutputPath, meshName),
-                obsSelectionStrategy = obsObverride ?? obsSelStrat,
+                localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
+                obsSelectionStrategy = strategy,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
-                progress = msg => { if (verbose && !tcopts.NoProgress) pipeline.LogInfo(msg); },
+                progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
-
-            if(opts.writeDebug)
-            {
-                PathHelper.EnsureExists(opts.localDebugOutputPath);
-            }
-
             return Backproject.BackprojectObservations(opts);
         }
 

@@ -343,6 +343,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("creating blurred texture from shrinkwrap mesh");
                 BuildSceneCaster();
+                BuildMeshOperator();
                 BackprojectObservations();
                 BuildBackprojectIndex();
             }

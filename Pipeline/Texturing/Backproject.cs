@@ -337,7 +337,7 @@ namespace OPS.Pipeline
 
                     if (opts.writeDebug)
                     {
-                        obsToHull[obs.Name].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
+                        obsToHull[obs.Name].Mesh.Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
                     }
                 }
             });
@@ -434,7 +434,7 @@ namespace OPS.Pipeline
                 var winningObs = results.Select(p => p.Value.Obs.Name).Distinct();
                 foreach (var obsName in winningObs)
                 {
-                    obsToHull[obsName].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
+                    obsToHull[obsName].Mesh.Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
                 }
             }
 
@@ -497,7 +497,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            obsCoverage.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
+            obsCoverage.Save<byte>(PathHelper.EnsureDir(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
         }
 
         //lowest level function that takes a set of points to backproject

@@ -41,6 +41,7 @@ namespace OPS.Landform
     {
         public const string TILESET_JSON = "tileset.json";
         public const string SCENE_JSON = "scene.json";
+        public const string STATS_TXT = "stats.txt";
 
         protected ProcessTacticalOptions options;
 
@@ -247,13 +248,13 @@ namespace OPS.Landform
         protected override List<string> GetMeshExts()
         {
             var exts = options.MeshFormat.ToLower() == "mission" ? mission.GetTacticalMeshExts() : options.MeshFormat;
-            return ParseExts(exts, bothCases: false); //don't want to check both cases, handled by option in search
+            return StringHelper.ParseExts(exts, bothCases: false); //cases handled by option in search
         }
 
         protected override List<string> GetImageExts()
         {
             var exts = options.ImageFormat.ToLower() == "mission" ? mission.GetTacticalImageExts() : options.ImageFormat;
-            return ParseExts(exts, bothCases: !options.CaseSensitiveSearch);
+            return StringHelper.ParseExts(exts, bothCases: !options.CaseSensitiveSearch);
         }
 
         private void IndexMeshes()
@@ -432,7 +433,7 @@ namespace OPS.Landform
                 
                 foreach (var f in PathHelper.ListFiles(tilesetDir, recursive: false))
                 {
-                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON)
+                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON || f.Name == STATS_TXT)
                     {
                         SaveFile(f.FullName, string.Format("{0}/{1}_{2}", dest, project, f.Name));
                     }

@@ -15,7 +15,7 @@ Accepts the following arugments:
 * *reconmethod*: reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
-* *projecttype*: project type; one of `GenericTiling` or `MSL`, default `GenericTiling`.
+* *projecttype*: project type; currently only `GenericTiling` is supported
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
 * *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none
 * *maxleafgroupsize*: maximum number of leaves to process as a group; default 32
