@@ -66,6 +66,13 @@ namespace OPS.Landform
 
     public abstract class LandformShell : LandformCommand
     {
+        public const string TILESET_JSON = "tileset.json";
+        public const string SCENE_JSON = "scene.json";
+        public const string STATS_TXT = "stats.txt";
+
+        public const string RDR_SUBDIR = "rdr";
+        public const string TILESET_SUBDIR = "tileset";
+
         protected LandformShellOptions lsopts;
 
         protected string landformExe;
@@ -165,6 +172,11 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override bool ParseArguments(string outDir)
+        {
+            throw new InvalidOperationException(); //only the no-arg version is supported here
+        }
+
         protected override MissionSpecific GetMission()
         {
             return MissionSpecific.GetInstance(lsopts.Mission);
@@ -244,10 +256,10 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0}getting {1}", dryRun ? "dry " : "", url);
 
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if ((url.StartsWith("s3://") && !(pipeline is CloudPipeline)) || dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
-                if (!File.Exists(path))
+                if (!File.Exists(path) && !dryRun)
                 {
                     for (int tries = maxRetries; tries > 0; tries--)
                     {
@@ -303,10 +315,10 @@ namespace OPS.Landform
 
         protected void RunCommand(string cmd, params string[] args)
         {
-            RunCommand(null, cmd, args);
+            RunCommand(cmd, null, args);
         }
 
-        protected void RunCommand(HashSet<string> flags, string cmd, params string[] args)
+        protected void RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
         {
             cmd = cmd + " " + string.Join(" ", args);
             var stdFlags = new Dictionary<string, bool>()
@@ -323,7 +335,7 @@ namespace OPS.Landform
                 };
             foreach (var entry in stdFlags)
             {
-                if ((flags == null || flags.Contains(entry.Key)) && entry.Value)
+                if ((allowedFlags == null || allowedFlags.Contains(entry.Key)) && entry.Value)
                 {
                     cmd += " " + entry.Key;
                 }
@@ -403,8 +415,8 @@ namespace OPS.Landform
 
         protected void Configure(string venue)
         {
-            var flags = new HashSet<string>() { "--quiet", "--debug" };
-            RunCommand(flags, "configure-local", "--venue", venue, "--storagedir", storageDir,
+            var allowedFlags = new HashSet<string>() { "--quiet", "--debug" };
+            RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir,
                        "--maxcores", lsopts.MaxCores.ToString(), "--randomseed", lsopts.RandomSeed.ToString());
         }
 
@@ -414,6 +426,57 @@ namespace OPS.Landform
             if (ms > 0)
             {
                 Thread.Sleep(ms);
+            }
+        }
+
+        protected string GetTilesetDir(string venue, string meshFrame)
+        {
+            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}",
+                                 storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, project);
+        }
+
+        protected string GetDestDir(string inputFolder)
+        {
+            if (!string.IsNullOrEmpty(outputFolder))
+            {
+                return outputFolder;
+            }
+            inputFolder = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(inputFolder));
+            string rdrSegment = string.Format("/{0}/", RDR_SUBDIR.ToLower());
+            int rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
+            return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegment.Length) : inputFolder) + TILESET_SUBDIR;
+        }
+
+        protected void SaveTileset(string tilesetDir, string project, string destDir)
+        {
+            destDir = string.Format("{0}/{1}", destDir, project);
+            
+            pipeline.LogInfo("{0}saving tileset from {1} to {2}", lsopts.DryRun ? "dry " : "", tilesetDir, destDir);
+            
+            if (!lsopts.DryRun)
+            {
+                if (!Directory.Exists(tilesetDir))
+                {
+                    throw new Exception(string.Format("local tileset directory {0} not found", tilesetDir));
+                }
+                
+                string tilesetFile = string.Format("{0}/{1}", tilesetDir, TILESET_JSON);
+                if (!File.Exists(tilesetFile))
+                {
+                    throw new Exception(string.Format("local tileset {0} not found", tilesetFile));
+                }
+                
+                foreach (var f in PathHelper.ListFiles(tilesetDir, recursive: false))
+                {
+                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON || f.Name == STATS_TXT)
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}_{2}", destDir, project, f.Name));
+                    }
+                    else
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}", destDir, f.Name));
+                    }
+                }
             }
         }
     }
