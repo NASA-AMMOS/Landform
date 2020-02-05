@@ -17,6 +17,10 @@ namespace OPS.Pipeline
         {
             return Path.Combine(LocalPipelineConfig.Instance.StorageDir, mission, OrbitalConfig.Instance.DEMRelPath);
         }
+        public string GetOrbitalFrameName()
+        {
+            return "Orbital";
+        }
     }
 }
 

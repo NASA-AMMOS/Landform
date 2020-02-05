@@ -373,7 +373,7 @@ namespace OPS.Landform
                     demMesh.Save(options.WriteClippedDemToPath);
                 }
 
-                const string orbitalFrameName = "Orbital";
+                string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
                 //Orbital frame
                 {
                     var demUt = new UncertainRigidTransform(demToWorld);

@@ -715,9 +715,10 @@ namespace OPS.Pipeline.AlignmentServer
             var sdsWithMixedPriors = new HashSet<string>(); //PlacesDB site offset but PDS local_level offset
             var sdsWithRootPriors = new HashSet<string>();
             int firstSite = -1;
+            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
             foreach (var frame in GetAllFrames())
             {
-                if(frame.Name == "Orbital")
+                if(frame.Name == orbitalFrameName)
                 {
                     continue;
                 }

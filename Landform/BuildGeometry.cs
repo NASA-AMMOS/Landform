@@ -563,7 +563,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("Created trimmed surface mesh without holes.");
 
-            const string orbitalFrameName = "Orbital";
+            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
 
             string demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
 
