@@ -316,12 +316,12 @@ namespace OPS.Pipeline
 
         public override string GetTacticalMeshQueueName()
         {
-            throw new NotImplementedException(); //TODO testing with m20-ids-g-sqs-landform-lftest1
+            return "m20-ids-g-sqs-landform-iandt2";
         }
 
         public override string GetTacticalMeshFailQueueName()
         {
-            return "m20-ids-g-sqs-landform-tactical-fail";
+            return "m20-ids-g-sqs-landform-iandt2-fail";
         }
 
         public override QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
