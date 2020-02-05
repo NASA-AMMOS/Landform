@@ -217,7 +217,7 @@ namespace OPS.Landform
 
         protected void SaveFile(string file, string url)
         {
-            SaveFile(pipeline, () => storageHelper, file, url, lsopts.DryRun);
+            SaveFile(pipeline, () => storageHelper, file, url, lsopts.DryRun || lsopts.NoSave);
         }
 
         public static bool FileExists(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
