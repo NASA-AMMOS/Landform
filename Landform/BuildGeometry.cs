@@ -101,6 +101,7 @@ namespace OPS.Landform
                 RunPhase("build observation point clouds", BuildObservationPointClouds);
                 RunPhase("merge point clouds", MergePointClouds);
                 RunPhase("reconstruct mesh", ReconstructMesh);
+                RunPhase("add orbital", AddOrbital);
                 RunPhase("clip mesh", ClipMesh);
                 RunPhase("clean mesh", CleanMesh);
 
@@ -373,8 +374,11 @@ namespace OPS.Landform
             {
                 throw new Exception("failed to build mesh");
             }
+        }
 
-            if(!options.UseOrbital)
+        private void AddOrbital()
+        {
+            if (!options.UseOrbital)
             {
                 return;
             }
@@ -391,121 +395,12 @@ namespace OPS.Landform
             pipeline.LogInfo("Shrinkwrapped surface mesh.");
 
             EdgeGraph edgeGraph = new EdgeGraph(bestClippedMesh);
-            var edges = edgeGraph.GetPerimeterEdges();
-            List<Edge> currentGroup;
-            HashSet<Edge> usedEdges;
-            List<Edge> perimeterEdges = null;
-            double maxArea = 0.0;
-            foreach (Edge firstEdge in edges)
-            {
-                if (!firstEdge.IsPerimeterEdge)
-                {
-                    continue;
-                }
-                currentGroup = new List<Edge> { firstEdge };
-                usedEdges = new HashSet<Edge>() { firstEdge };
-                List<Edge> splits = new List<Edge>();
-                List<int> splitIdxs = new List<int>();
-                Edge current = firstEdge;
-                bool closed = false;
-                //search for a closed loop of perimeter edges
-                while (!closed)
-                {
-                    bool foundNextEdge = false;
-                    foreach (Edge other in current.Dst.AdjacentEdges)
-                    {
-                        if (other.Dst != current.Src && other.Left != null && other.IsPerimeterEdge && !usedEdges.Contains(other))
-                        {
-                            if (foundNextEdge)
-                            {
-                                //if already found a next edge, save this as an option to backtrack to
-                                splits.Add(other);
-                                splitIdxs.Add(currentGroup.Count - 1);
-                            }
-                            else
-                            {
-                                //add the next edge to the group
-                                foundNextEdge = true;
-                                currentGroup.Add(other);
-                                usedEdges.Add(other);
-                                current = other;
-                            }
-                        }
-                    }
-                    if (!foundNextEdge)
-                    {
-                        //Backtrack to last split
-                        current = null;
-                        while (splits.Count > 0)
-                        {
-                            current = splits.Last();
-                            if (usedEdges.Contains(current))
-                            {
-                                current = null;
-                                splits.RemoveAt(splits.Count - 1);
-                                splitIdxs.RemoveAt(splitIdxs.Count - 1);
-                                continue;
-                            }
-                            int idx = splitIdxs.Last();
-                            currentGroup = currentGroup.Take(idx).ToList();
-                            currentGroup.Add(current);
-                        }
-                        if (current == null)
-                        {
-                            //Failed to find a closed loop
-                            currentGroup = null;
-                            break;
-                        }
-                    }
-                    closed = (current.Dst == firstEdge.Src);
-                }
-                if (currentGroup != null)
-                {
-                    foreach (Edge e in currentGroup)
-                    {
-                        e.IsPerimeterEdge = false; //Flag as used
-                    }
-                    //Keep the largest (area) group of edges
-                    var size = BoundingBox.CreateFromPoints(currentGroup.Select(e => e.Src.Vert.Position)).Size();
-                    var area = size.X * size.Y;
-                    if (area > maxArea)
-                    {
-                        maxArea = area;
-                        perimeterEdges = currentGroup;
-                    }
-                }
-            }
-
-            //Clip subcycles
-            while (EdgeGraph.ClipSubcycle(perimeterEdges)) { }
+            List<Edge> perimeterEdges = edgeGraph.GetLargestPolygonalBoundary();
 
             pipeline.LogInfo("Computed shrinkwrapped mesh perimeter.");
 
             //Ensure perimeter orientation is CCW
-            VertexNode right = perimeterEdges[0].Src;
-            foreach (Edge e in perimeterEdges)
-            {
-                if (e.Src.Vert.Position.X > right.Vert.Position.X)
-                {
-                    right = e.Src;
-                }
-            }
-
-            Edge edgeIn = perimeterEdges.Where(e => e.Dst == right).First();
-            Edge edgeOut = perimeterEdges.Where(e => e.Src == right).First();
-            bool ccw = Edge.IsLeftTurn(edgeIn, edgeOut, 0);
-            if (!ccw)
-            {
-                perimeterEdges.ForEach(e =>
-                {
-                    var tmp = e.Src;
-                    e.Src = e.Dst;
-                    e.Dst = tmp;
-                });
-                perimeterEdges.Reverse();
-                ccw = true;
-                pipeline.Logger.Info("Reversed perimeter winding to be CCW.");
-            }
+            EdgeGraph.EnsureCCW(perimeterEdges);
 
             //Create mask mesh verts
             Mesh maskMesh = new Mesh();
@@ -519,7 +414,7 @@ namespace OPS.Landform
             }
 
             //Triangulate mask
-            foreach (Edge e in TriangulatePolygon.Triangulate(perimeterEdges, ccw))
+            foreach (Edge e in TriangulatePolygon.Triangulate(perimeterEdges))
             {
                 if (e.Left != null)
                 {
@@ -542,7 +437,7 @@ namespace OPS.Landform
 
             //TODO: Have Poisson return both clipped and non-clipped to avoid remeshing
             poissonOpts.TrimmerLevel = Math.Max(0, poissonOpts.TrimmerLevel - 2);
-            var bestMesh = PoissonReconstruction.Reconstruct(pc, poissonOpts);
+            var bestMesh = PoissonReconstruction.Reconstruct(pointCloud, poissonOpts);
             bestMesh.RemoveFloaters();
 
             foreach (Vertex vert in bestMesh.Vertices)
@@ -573,79 +468,15 @@ namespace OPS.Landform
             Matrix demToBaseSiteDrive = frameCache.GetBestTransform(orbitalFrameName).Transform.Mean
                                         * Matrix.Invert(frameCache.GetBestTransform(meshFrame).Transform.Mean);
 
-            //Get subset of dem around sitedrive
             Vector2 center;
             if (!mission.GetSiteDriveOriginPixelInDem(new SiteDrive(meshFrame), out center))
             {
                 throw new Exception("Places needed to build geometry with orbital");
             }
-            int pixelRadius = (int)(options.OrbitalRadius / mission.GetDemMetersPerPixel());
-            int baseC = (int)Math.Max(center.X - pixelRadius, 0);
-            int baseR = (int)Math.Max(center.Y - pixelRadius, 0);
-            int pixelWidth = (int)Math.Min(center.X + pixelRadius, dem.Width) - baseC;
-            int pixelHeight = (int)Math.Min(center.Y + pixelRadius, dem.Height) - baseR;
+            int orbitalRadiusPixels = (int)(options.OrbitalRadius / mission.GetDemMetersPerPixel());
 
-            if (!dem.HasMask)
-            {
-                dem.CreateMask();
-            }
-
-            Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
-
-            double filterRadiusSq = options.FilterRadius * options.FilterRadius;
-            foreach (var p in maskMesh.Vertices)
-            {
-                Vector3 testPoint = Vector3.Transform(p.Position, baseSiteDriveToDem);
-                Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);
-                for (int r = (int)Math.Floor(Math.Max(rc.Y - options.FilterRadius, baseR));
-                    r <= (int)Math.Ceiling(Math.Min(rc.Y + options.FilterRadius, baseR + pixelHeight - 1)); ++r)
-                {
-                    for (int c = (int)Math.Floor(Math.Max(rc.X - options.FilterRadius, baseC));
-                        c <= (int)Math.Ceiling(Math.Min(rc.X + options.FilterRadius, baseC + pixelWidth - 1)); ++c)
-                    {
-                        double distSq = (rc.Y - r) * (rc.Y - r) + (rc.X - c) * (rc.X - c);
-                        if (distSq < filterRadiusSq)
-                        {
-                            dem.SetMaskValue(r, c, true);
-                        }
-                    }
-                }
-            }
-
-            Mesh demMesh = new Mesh();
-
-            for (int y = 0; y < 2 * pixelRadius * options.OrbitalPointsPerMeter; y++)
-            {
-                for (int x = 0; x < 2 * pixelRadius * options.OrbitalPointsPerMeter; x++)
-                {
-                    double r = baseR + y / options.OrbitalPointsPerMeter;
-                    double c = baseC + x / options.OrbitalPointsPerMeter;
-                    var pos = DemOperations.GetInterpolatedXYZ(dem, r, c);
-                    if (pos.HasValue)
-                    {
-                        var transformedPos = Vector3.Transform(pos.Value, demToBaseSiteDrive);
-                        if (maskUVMeshOp.UVToBarycentric(new Vector2(transformedPos.X, transformedPos.Y)) == null)
-                        {
-                            Vertex v = new Vertex();
-                            v.Position = transformedPos;
-                            v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
-                            v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToBaseSiteDrive));
-                            demMesh.Vertices.Add(v);
-                        }
-                    }
-                }
-            }
-            demMesh.Vertices.AddRange(maskMesh.Vertices);
-
-            demMesh = Delaunay.Triangulate(demMesh.Vertices, reverseWinding: true);
-            demMesh.Faces = demMesh.Faces.Where(face =>
-            {
-                Triangle tri = new Triangle(demMesh.Vertices[face.P0], demMesh.Vertices[face.P1], demMesh.Vertices[face.P2]);
-                Vector3 c = tri.Barycenter();
-                return maskUVMeshOp.UVToBarycentric(new Vector2(c.X, c.Y)) == null;
-            }).ToList();
-
-            demMesh.RemoveUnreferencedVertices();
+            Mesh demMesh = DemOperations.BuildOrbitalMeshAroundSurface(dem, maskMesh, center, demToBaseSiteDrive,
+                options.OrbitalRadius, options.FilterRadius, options.OrbitalPointsPerMeter);
 
             pipeline.LogInfo("Created orbital mesh around sitedrive");
 
@@ -665,7 +496,6 @@ namespace OPS.Landform
             pipeline.LogInfo("Merged surface and orbital mesh.");
 
             mesh = merged;
-
         }
 
         private void ClipMesh()

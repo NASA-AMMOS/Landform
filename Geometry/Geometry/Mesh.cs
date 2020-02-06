@@ -1950,11 +1950,8 @@ namespace OPS.Geometry
             }
 
             Faces = Faces.Where(f =>
-            {
-                return islandSizes[disjointSet.FindPath(f.P0)] >= minIslandVertexCount &&
-                       islandSizes[disjointSet.FindPath(f.P1)] >= minIslandVertexCount &&
-                       islandSizes[disjointSet.FindPath(f.P2)] >= minIslandVertexCount;
-            }).ToList();
+                islandSizes[disjointSet.FindPath(f.P0)] >= minIslandVertexCount
+            ).ToList();
 
             RemoveUnreferencedVertices();
         }

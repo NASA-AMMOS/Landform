@@ -9,7 +9,17 @@ namespace OPS.Geometry
 {
     public static class TriangulatePolygon
     {
-        public static List<Edge> Triangulate(List<Edge> perimeter, bool ccw)
+        /// <summary>
+        /// Triangulates a closed, non-intersecting polygon defined by perimeter,
+        /// assumed to be oriented ccw (counter if ccw = false) as viewed from +Z
+        /// Triangle winding order will match polygon winding
+        /// 
+        /// If polygon is intersecting, the triangulated will (most likely) have holes
+        /// </summary>
+        /// <param name="perimeter"></param>
+        /// <param name="ccw"></param>
+        /// <returns></returns>
+        public static List<Edge> Triangulate(List<Edge> perimeter, bool ccw = true)
         {
             //deep copy without faces (left set to null)
             perimeter = perimeter.Select(e => new Edge(e.Src, e.Dst, null)).ToList();

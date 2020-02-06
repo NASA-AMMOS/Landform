@@ -277,31 +277,6 @@ namespace OPS.Geometry
                 preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, sampleLimit);
         }
 
-        public static void DilateMask(Image image, int pixels = 1)
-        {
-            if (image.HasMask)
-            {
-                Image maskCopy;
-                for (int i = 0; i < pixels; ++i)
-                {
-                    maskCopy = image.MaskToImage();
-                    for (int r = 1; r < image.Height - 1; ++r)
-                    {
-                        for (int c = 1; c < image.Width - 1; ++c)
-                        {
-                            if (maskCopy[0, r + 1, c] == 1 ||
-                               maskCopy[0, r - 1, c] == 1 ||
-                               maskCopy[0, r, c + 1] == 1 ||
-                               maskCopy[0, r, c - 1] == 1)
-                            {
-                                image.SetMaskValue(r, c, true);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         /// <summary>
         /// Returns alignment from dem to first passed in scenemap (using samples from full list)
         /// </summary>
@@ -506,5 +481,91 @@ namespace OPS.Geometry
 
             return arrayToTransform(adjustment) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation));
         }
-    }
+
+        /// <summary>
+        /// Build mesh from dem points surrounding surface mesh, with a padding of filterRadius.
+        /// Extent is determined by orbitalRadiusPixels around pixelCenter.
+        /// Point density (interpolated if higher than dem resolution) is controlled by subSampleFactor
+        /// Note: touches the dem mask (creates if null) //TODO: remove side effect
+        /// </summary>
+        /// <param name="dem"></param>
+        /// <param name="surfaceMesh"></param>
+        /// <param name="pixelCenter"></param>
+        /// <param name="demToSurface"></param>
+        /// <param name="orbitalRadiusPixels"></param>
+        /// <param name="filterRadius"></param>
+        /// <param name="subSampleFactor"></param>
+        /// <returns></returns>
+        public static Mesh BuildOrbitalMeshAroundSurface(Image dem, Mesh surfaceMesh, Vector2 pixelCenter, 
+            Matrix demToSurface, int orbitalRadiusPixels, double filterRadius, double subSampleFactor)
+        {
+            //Get subset of dem around sitedrive
+            int baseC = (int)Math.Max(pixelCenter.X - orbitalRadiusPixels, 0);
+            int baseR = (int)Math.Max(pixelCenter.Y - orbitalRadiusPixels, 0);
+            int pixelWidth = (int)Math.Min(pixelCenter.X + orbitalRadiusPixels, dem.Width) - baseC;
+            int pixelHeight = (int)Math.Min(pixelCenter.Y + orbitalRadiusPixels, dem.Height) - baseR;
+
+            if (!dem.HasMask)
+            {
+                dem.CreateMask();
+            }
+
+            Matrix baseSiteDriveToDem = Matrix.Invert(demToSurface);
+
+            double filterRadiusSq = filterRadius * filterRadius;
+            foreach (var p in surfaceMesh.Vertices)
+            {
+                Vector3 testPoint = Vector3.Transform(p.Position, baseSiteDriveToDem);
+                Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);
+                for (int r = (int)Math.Floor(Math.Max(rc.Y - filterRadius, baseR));
+                    r <= (int)Math.Ceiling(Math.Min(rc.Y + filterRadius, baseR + pixelHeight - 1)); ++r)
+                {
+                    for (int c = (int)Math.Floor(Math.Max(rc.X - filterRadius, baseC));
+                        c <= (int)Math.Ceiling(Math.Min(rc.X + filterRadius, baseC + pixelWidth - 1)); ++c)
+                    {
+                        double distSq = (rc.Y - r) * (rc.Y - r) + (rc.X - c) * (rc.X - c);
+                        if (distSq < filterRadiusSq)
+                        {
+                            dem.SetMaskValue(r, c, true);
+                        }
+                    }
+                }
+            }
+            MeshOperator mo = new MeshOperator(surfaceMesh, buildFaceTree:false, buildVertexTree:false, buildUVFaceTree:true);
+            Mesh demMesh = new Mesh();
+            for (int y = 0; y < 2 * orbitalRadiusPixels * subSampleFactor; y++)
+            {
+                for (int x = 0; x < 2 * orbitalRadiusPixels * subSampleFactor; x++)
+                {
+                    double r = baseR + y / subSampleFactor;
+                    double c = baseC + x / subSampleFactor;
+                    var pos = DemOperations.GetInterpolatedXYZ(dem, r, c);
+                    if (pos.HasValue)
+                    {
+                        var transformedPos = Vector3.Transform(pos.Value, demToSurface);
+                        if (mo.UVToBarycentric(new Vector2(transformedPos.X, transformedPos.Y)) == null)
+                        {
+                            Vertex v = new Vertex();
+                            v.Position = transformedPos;
+                            v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
+                            v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToSurface));
+                            demMesh.Vertices.Add(v);
+                        }
+                    }
+                }
+            }
+            demMesh.Vertices.AddRange(surfaceMesh.Vertices);
+
+            demMesh = Delaunay.Triangulate(demMesh.Vertices, reverseWinding: true);
+            demMesh.Faces = demMesh.Faces.Where(face =>
+            {
+                Triangle tri = new Triangle(demMesh.Vertices[face.P0], demMesh.Vertices[face.P1], demMesh.Vertices[face.P2]);
+                Vector3 c = tri.Barycenter();
+                return mo.UVToBarycentric(new Vector2(c.X, c.Y)) == null;
+            }).ToList();
+
+            demMesh.RemoveUnreferencedVertices();
+            return demMesh;
+        }
+    }    
 }
