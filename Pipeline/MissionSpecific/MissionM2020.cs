@@ -78,6 +78,7 @@ namespace OPS.Pipeline
             // positive if a is "worse than" b
             int ext(RoverObservation a, RoverObservation b)
             {
+                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
                 if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
                 {
                     //EECAM downsampling A,L,M,N, prefer higher
@@ -131,6 +132,8 @@ namespace OPS.Pipeline
             foreach (var group in groups)
             {
                 var filtered = group.Select(id => id);
+
+                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
 
                 //EECAM downsampling A,L,M,N, prefer higher
                 //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
