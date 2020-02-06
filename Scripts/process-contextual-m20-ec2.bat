@@ -7,13 +7,10 @@ set mission=M2020
 if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
 set queue=mission
-if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
+if not "%LANDFORM_CONTEXTUAL_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_QUEUE%
 
 set failqueue=mission
-if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
-
-set meshformat=mission
-if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
+if not "%LANDFORM_CONTEXTUAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_FAIL_QUEUE%
 
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
@@ -29,13 +26,13 @@ set bindir=c:\landform\Landform-%lfver%
 if not "%LANDFORM_BIN_DIR%"=="" set bindir=%LANDFORM_BIN_DIR%
 
 set storagedir=c:\temp\landform-tactical-storage
-if not "%LANDFORM_TACTICAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_TACTICAL_STORAGE_DIR%
+if not "%LANDFORM_CONTEXTUAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_CONTEXTUAL_STORAGE_DIR%
 
 set logdir=c:\log\landform-tactical
-if not "%LANDFORM_TACTICAL_LOG_DIR%"=="" set logdir=%LANDFORM_TACTICAL_LOG_DIR%
+if not "%LANDFORM_CONTEXTUAL_LOG_DIR%"=="" set logdir=%LANDFORM_CONTEXTUAL_LOG_DIR%
 
 set tmpdir=c:\temp\landform-tactical
-if not "%LANDFORM_TACTICAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_TACTICAL_TEMP_DIR%
+if not "%LANDFORM_CONTEXTUAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_CONTEXTUAL_TEMP_DIR%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
@@ -47,4 +44,4 @@ move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 
 %bindir%\Landform.exe configure-local --venue=local --storagedir=%storagedir% --maxcores=0 --randomseed=-1 %quiet%
 
-%bindir%\Landform.exe process-tactical --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue% --awsprofile=%awsprofile% --awsregion=%awsregion% --meshformat=%meshformat% --logdir=%logdir% --tempdir=%tmpdir% --stacktraces %quiet%
+%bindir%\Landform.exe process-contextual --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue% --awsprofile=%awsprofile% --awsregion=%awsregion% --logdir=%logdir% --tempdir=%tmpdir% --stacktraces %quiet%

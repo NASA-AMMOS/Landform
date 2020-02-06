@@ -755,7 +755,7 @@ namespace OPS.Pipeline
         public virtual string GetTacticalMeshExts()
         {
             //prefer IV until we implement per-LOD OBJs
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/749
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/749
             return "iv,obj";
         }
 

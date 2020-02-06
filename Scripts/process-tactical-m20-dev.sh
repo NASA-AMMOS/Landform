@@ -1,9 +1,9 @@
 #!/bin/sh
 
-mission=${LANDFORM_TACTICAL_MISSION:-M2020}
-queue=${LANDFORM_TACTICAL_QUEUE:-m20-ids-g-sqs-landform-lftest1}
-failqueue=${LANDFORM_TACTICAL_FAIL_QUEUE:-m20-ids-g-sqs-landform-lftest1-fail}
-meshformat=${LANDFORM_TACTICAL_MESH_FORMAT:-iv}
+mission=${LANDFORM_MISSION:-M2020}
+queue=${LANDFORM_TACTICAL_QUEUE:-mission}
+failqueue=${LANDFORM_TACTICAL_FAIL_QUEUE:-mission}
+meshformat=${LANDFORM_TACTICAL_MESH_FORMAT:-mission}
 
 bindir=./Landform/bin/Release
 storagedir=c:/Users/$USERNAME/Documents/landform-storage
