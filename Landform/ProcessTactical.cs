@@ -35,6 +35,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = "*", HelpText = "Comma separated list of wildcard patterns for input folders")]
         public string SearchPattern { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Don't generate tileset")]
+        public bool NoTileset { get; set; }
     }
 
     public class ProcessTactical : LandformService
@@ -342,6 +345,8 @@ namespace OPS.Landform
                 StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
+            string tilesetDir = GetTilesetDir(venue, MESH_FRAME);
+            string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
 
             pipeline.LogInfo("building tileset {0} for {1}", project, pair);
 
@@ -349,10 +354,8 @@ namespace OPS.Landform
             {
                 string meshFile = GetFile(pair.mesh);
                 string imageFile = GetFile(pair.image);
-                string tilesetDir = GetTilesetDir(venue, MESH_FRAME);
 
                 string meshUrl = StringHelper.NormalizeSlashes(pair.mesh);
-                string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
                 if (meshUrl.IndexOf("/") >= 0)
                 {
                     destDir = GetDestDir(StringHelper.StripLastUrlPathSegment(meshUrl));
@@ -362,17 +365,20 @@ namespace OPS.Landform
 
                 Configure(venue);
                 
-                RunCommand("build-tiling-input", project, "--mission", missionStr,
-                           "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
-                
-                RunCommand("build-tileset", project);
-
-                RunCommand("update-scene-manifest", "--mission", missionStr,
-                           "--awsprofile", awsProfile, "--awsregion", awsRegion,
-                           "--manifestfile", tilesetDir + "/" + SCENE_JSON,
-                           "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
-
-                SaveTileset(tilesetDir, project, destDir);
+                if (!options.NoTileset)
+                {
+                    RunCommand("build-tiling-input", project, "--mission", missionStr,
+                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
+                    
+                    RunCommand("build-tileset", project);
+                    
+                    RunCommand("update-scene-manifest", "--mission", missionStr,
+                               "--awsprofile", awsProfile, "--awsregion", awsRegion,
+                               "--manifestfile", tilesetDir + "/" + SCENE_JSON,
+                               "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
+                    
+                    SaveTileset(tilesetDir, project, destDir);
+                }
 
                 Cleanup(venueDir);
             }
