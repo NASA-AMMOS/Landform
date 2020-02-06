@@ -301,6 +301,7 @@ namespace OPS.Pipeline
                     return keepers;
                 }
 
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/953
                 return observations
                     .Where(obs => obs is RoverObservation)
                     .Cast<RoverObservation>()
@@ -433,6 +434,7 @@ namespace OPS.Pipeline
             //KeepBestRoverObservations() does consider producer
             foreach (var typeGroup in idToProduct.Keys.GroupBy(id => id.GetType()))
             {
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/953
                 foreach (var obsGroup in typeGroup.GroupBy(id => id.GetPartialId(mission,
                                                                                  includeProductType: false,
                                                                                  includeColorFilter: false,
