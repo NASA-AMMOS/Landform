@@ -76,6 +76,9 @@
     <None Include="TestData\img\NLB_451649560RNGLF0311330NCAM12813M1.IMG">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <None Include="TestData\json\m2020-contextual-mesh-example.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
     <None Include="TestData\mesh\blender_ascii_nct.ply">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -91,10 +94,10 @@
     <None Include="TestData\mesh\cloudcompare_bin_nc_.ply">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="TestData\mesh\m2020-tactical-event-example.json">
+    <None Include="TestData\json\m2020-tactical-event-example.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="TestData\mesh\m2020-tactical-event-example2.json">
+    <None Include="TestData\json\m2020-tactical-event-example2.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestData\mesh\meshlab_ascii_nct.ply">
