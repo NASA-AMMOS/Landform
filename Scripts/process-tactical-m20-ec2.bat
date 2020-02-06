@@ -1,5 +1,7 @@
 @echo off
 
+rem see https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
+
 set lfver=newest
 if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
@@ -21,9 +23,9 @@ if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
 set awsregion=none
 if not "%LANDFORM_AWS_REGION%"=="" set awsregion=%LANDFORM_AWS_REGION%
 
-rem direct stdout and stderr to nul so that the EC2 userdata script log doesn't get spammed
+rem direct stdout and stderr to nul by default so that the EC2 userdata script log doesn't get spammed
 set quiet=^> nul 2^> nul
-if not "%LANDFORM_QUIET%"=="" set quiet=
+if not "%LANDFORM_CONSOLE_SPEW%"=="" set quiet=
 
 set bindir=c:\landform\Landform-%lfver%
 if not "%LANDFORM_BIN_DIR%"=="" set bindir=%LANDFORM_BIN_DIR%
