@@ -569,6 +569,23 @@ namespace OPS.Pipeline
             return name;
         }
 
+        //MASTCAMZ images have 'unk' in image_type metadata
+        public override RoverProductSize GetRoverProductSize(PDSParser parser)
+        {
+            RoverProductSize prodSize = parser.ImageSizeType;
+            if(prodSize == RoverProductSize.Unknown)
+            {
+                RoverProductId prodId = this.ParseProductId(parser.ProductIdString);
+                if (prodId != null)
+                {
+                    OPGSProductId id = prodId as OPGSProductId;
+                    prodSize = id.Size; 
+                }
+            }
+
+            return prodSize;
+        }
+
         public override string GetS3Proxy()
         {
             return "https://data-roastt.m20-training.jpl.nasa.gov";
