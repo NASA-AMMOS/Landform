@@ -21,7 +21,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder, if unset use same folder as input")]
         public override string OutputFolder { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Input directory or S3 folder with sol replaced with ####, optional with --service")]
+        [Option(Required = false, Default = null, HelpText = "Input directory or S3 folder with sol replaced with #####, optional with --service")]
         public string RDRDir { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Sol(s) and range(s) with primary one first, e.g. 8,6-10")]
@@ -37,12 +37,15 @@ namespace OPS.Landform
         public bool NoIngest { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't generate tileset")]
-        public bool NoGenerate { get; set; }
+        public bool NoTileset { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't write/update combined scene manifest on s3")]
         public bool NoCombinedManifest { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Recursively search for RDRs")]
+        [Option(Required = false, Default = false, HelpText = "Don't recursively search for RDRs")]
+        public bool NoRecursiveSearch { get; set; }
+
+        [Option(Required = false, Default = true, HelpText = "option disabled for this command")]
         public override bool RecursiveSearch { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "option disabled for this command")]
@@ -96,8 +99,7 @@ namespace OPS.Landform
 
         protected override int GetMaxHandlerSec()
         {
-            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec :
-                mission.GetContextualMeshQueueMaxHandlerSec();
+            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec : mission.GetContextualMeshQueueMaxHandlerSec();
         }
 
         protected override int GetMaxMessageAgeSec()
@@ -166,6 +168,8 @@ namespace OPS.Landform
 
         protected override bool ParseArguments()
         {
+            options.RecursiveSearch = !options.NoRecursiveSearch;
+
             if (!base.ParseArguments())
             {
                 return false; //e.g. --help
@@ -245,6 +249,7 @@ namespace OPS.Landform
             {
                 ret.SiteDrives.UnionWith(SiteDrive.ParseList(msg.siteDrives));
             }
+
             return ret;
         }
 
@@ -288,12 +293,12 @@ namespace OPS.Landform
                 throw new ArgumentException("siteDrives must contain primarySiteDrive");
             }
 
-            rdrDir = StringHelper.NormalizeUrl(rdrDir ?? options.RDRDir, preserveTrailingSlash: false);
-
+            rdrDir = rdrDir ?? options.RDRDir;
             if (String.IsNullOrEmpty(rdrDir))
             {
                 throw new ArgumentException("rdrDir empty");
             }
+            rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
             string missionStr = mission.GetMission().ToString();
             string sdStr = primarySiteDrive.ToString();
@@ -302,45 +307,39 @@ namespace OPS.Landform
             string project = string.Format("{0}_{1}", solStr, sdStr);
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
+            string solDir = StringHelper.ReplaceFixedWidthIntWildcard(rdrDir, FetchData.SOL_WILDCARD, primarySol);
+            string ingestDir = solDir;
+            string tilesetDir = GetTilesetDir(venue, sdStr);
+            string destDir = GetDestDir(solDir);
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
             try
             {
-                string solDir = StringHelper.ReplaceFixedWidthIntWildcard(rdrDir, FetchData.SOL_WILDCARD, primarySol);
-                string ingestDir = string.Format("{0}/{1}/{2}", storageDir, venue, RDR_SUBDIR);
-                string tilesetDir = GetTilesetDir(venue, sdStr);
-                string destDir = GetDestDir(solDir);
-
                 Cleanup(venueDir);
 
                 Configure(venue);
 
-                if (rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
+                if (!options.NoFetch && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
-                    if (!options.NoFetch)
-                    {
-                        string fetchSols = GetSolRanges(sols);
-                        RunCommand("fetch", fetchSols, ingestDir, rdrDir, "--mission", missionStr, "--summary",
-                                   "--onlyforsitedrives", sdsStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
-                    }
-                }
-                else
-                {
-                    if (sols.Count > 1)
-                    {
-                        throw new NotImplementedException("s3 reference ingestion from multiple sols not implemented");
-                    }
-                    ingestDir = solDir;
+                    ingestDir = string.Format("{0}/{1}/{2}", storageDir, venue, RDR_SUBDIR);
+                    string fetchSols = GetSolRanges(sols);
+                    RunCommand("fetch", fetchSols, ingestDir, rdrDir, "--mission", missionStr, "--summary",
+                               "--onlyforsitedrives", sdsStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
 
                 if (!options.NoIngest)
                 {
+                    if (sols.Count > 1 && ingestDir.StartsWith("s3://") && ingestDir == solDir && ingestDir != rdrDir)
+                    {
+                        throw new NotImplementedException("s3 reference ingestion from multiple sols not implemented");
+                    }
+                    
                     RunCommand("ingest", project, "--mission", missionStr, "--onlyforsitedrives", sdsStr,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"));
                 }
 
-                if (!options.NoGenerate)
+                if (!options.NoTileset)
                 {
                     RunCommand("bev-align", project, "--fixsitedrives", sdStr); //TODO check mesh formats
                     
@@ -354,11 +353,11 @@ namespace OPS.Landform
                     
                     RunCommand("update-scene-manifest", project, "--notactical", "--nourls",
                                "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
+
+                    SaveTileset(tilesetDir, project, destDir);
                 }
 
-                SaveTileset(tilesetDir, project, destDir);
-
-                if (rdrDir.StartsWith("s3://") && !options.NoCombinedManifest)
+                if (!options.NoCombinedManifest)
                 {
                     RunCommand("update-scene-manifest", project, "--tilesetdir", destDir,
                                "--rdrdir", rdrDir, "--sol", solStr, "--sitedrive", sdStr,
