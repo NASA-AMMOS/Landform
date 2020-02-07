@@ -343,7 +343,7 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("bev-align", project, "--fixsitedrives", sdStr); //TODO check mesh formats
+                    RunCommand("bev-align", project, "--fixsitedrives", sdStr);
                     
                     RunCommand("build-geometry", project, "--meshframe", sdStr);
                     
