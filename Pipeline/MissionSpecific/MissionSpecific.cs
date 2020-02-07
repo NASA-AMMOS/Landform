@@ -639,7 +639,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowThumbnails() && parser.ImageSizeType != RoverProductSize.Regular)
+            if (!AllowThumbnails() && GetRoverProductSize(parser) != RoverProductSize.Regular)
             {
                 reason = "thumbnail images not allowed";
                 return false;
@@ -664,6 +664,11 @@ namespace OPS.Pipeline
             }
 
             return true;
+        }
+
+        public virtual RoverProductSize GetRoverProductSize(PDSParser parser)
+        {
+            return parser.ImageSizeType;
         }
 
         public virtual bool CheckMetadata(PDSParser parser)
