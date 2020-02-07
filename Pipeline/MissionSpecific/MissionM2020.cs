@@ -316,12 +316,12 @@ namespace OPS.Pipeline
 
         public override string GetTacticalMeshQueueName()
         {
-            throw new NotImplementedException(); //TODO testing with m20-ids-g-sqs-landform-lftest1
+            return "m20-ids-g-sqs-landform-iandt2";
         }
 
         public override string GetTacticalMeshFailQueueName()
         {
-            return "m20-ids-g-sqs-landform-tactical-fail";
+            return "m20-ids-g-sqs-landform-iandt2-fail";
         }
 
         public override QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
@@ -410,6 +410,31 @@ namespace OPS.Pipeline
         public override QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+        }
+
+        public override string GetContextualMeshQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override string GetContextualMeshFailQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage ParseContextualMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException(); //TODO
         }
 
         public override string GetS3Proxy()

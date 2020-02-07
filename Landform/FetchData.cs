@@ -119,18 +119,39 @@ namespace OPS.Landform
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Quiet output")]
+        public bool Quiet { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Verbose output")]
         public bool Verbose { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Debug output")]
+        public bool Debug { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override log file")]
+        public string LogFile { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override temp dir")]
+        public string TempDir { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override config dir (for compatibility)")]
+        public string ConfigFolder { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Print summary")]
         public bool Summary { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Dry run")]
         public bool DryRun { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Synonymous with --dryrun (for compatibility)")]
+        public bool NoSave { get; set; }
     }
 
     public class FetchData
     {
+        //NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4 chars
+        public const string SOL_WILDCARD = "#####";
+
         private FetchDataOptions options;
         private MissionSpecific mission;
 
@@ -155,7 +176,17 @@ namespace OPS.Landform
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
+
+            options.DryRun |= options.NoSave;
             
+            Logging.ConfigureLogging(commandName: "fetch", quiet: options.Quiet, debug: options.Debug,
+                                     logFilename: options.LogFile);
+
+            if (!string.IsNullOrEmpty(options.TempDir))
+            {
+                TemporaryFile.TemporaryDirectory = options.TempDir;
+            }
+
             mission = MissionSpecific.GetInstance(options.Mission);
 
             if (mission != null)
@@ -192,7 +223,7 @@ namespace OPS.Landform
             }
         }
 
-        private string[] ExpandSolSpecifier(string solString)
+        public static string[] ExpandSolSpecifier(string solString)
         {
             string[] parts = solString.Split(',');
             List<int> sols = new List<int>();
@@ -213,7 +244,11 @@ namespace OPS.Landform
                     sols.Add(int.Parse(part));
                 }                       
             }
-            return sols.Distinct().OrderBy(x => x).Select(x => x.ToString("00000")).ToArray();
+            return sols
+                .Distinct()
+                .OrderBy(sol => sol)
+                .Select(sol => StringHelper.FixedWidthInt(SOL_WILDCARD, sol))
+                .ToArray();
         }
 
         private List<string> Filter(List<string> products)
@@ -662,7 +697,8 @@ namespace OPS.Landform
                     var prods = new List<string>();
                     foreach (var location in locations)
                     {
-                        var solLocation = location.Replace("#####", sol);
+                        var solLocation = StringHelper.ReplaceFixedWidthIntWildcard(location, SOL_WILDCARD,
+                                                                                    int.Parse(sol));
                         prods.AddRange(IndexFiles(solLocation));
                     }
                     solToProducts.TryAdd(sol, prods);

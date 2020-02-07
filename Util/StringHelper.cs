@@ -25,6 +25,16 @@ namespace OPS.Util
             return new Regex(WildCardToRegularExressionString(value), opts);
         }
 
+        public static string ReplaceFixedWidthIntWildcard(string str, string wildcard, int value)
+        {
+            return str.Replace(wildcard, FixedWidthInt(wildcard, value));
+        }
+
+        public static string FixedWidthInt(string wildcard, int value)
+        {
+            return string.Format("{0:D" + wildcard.Length + "}", value);
+        }
+
         public static string EnsureTrailingSlash(string str)
         {
             return str.EndsWith("/") ? str : (str + "/");

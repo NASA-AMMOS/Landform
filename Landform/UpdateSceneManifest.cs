@@ -175,8 +175,6 @@ namespace OPS.Landform
 
     public class UpdateSceneManifest : GeometryCommand
     {
-        //NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4 chars
-        public const string WILDCARD = "#####";
         public const string SCENE_SUFFIX = "_scene";
 
         private UpdateSceneManifestOptions options;
@@ -375,11 +373,11 @@ namespace OPS.Landform
 
             if (!string.IsNullOrEmpty(options.RDRDir))
             {
-                int firstWildcard = options.RDRDir.IndexOf(WILDCARD);
-                int lastWildcard = options.RDRDir.LastIndexOf(WILDCARD);
+                int firstWildcard = options.RDRDir.IndexOf(FetchData.SOL_WILDCARD);
+                int lastWildcard = options.RDRDir.LastIndexOf(FetchData.SOL_WILDCARD);
                 if (firstWildcard >= 0 && firstWildcard != lastWildcard)
                 {
-                    throw new Exception("--rdrdir must contain up to one wildcard " + WILDCARD); 
+                    throw new Exception("--rdrdir must contain up to one wildcard " + FetchData.SOL_WILDCARD); 
                 }
                 options.RDRDir = StringHelper.NormalizeUrl(options.RDRDir, preserveTrailingSlash: false) + "/";
                 pipeline.LogInfo("RDR dir: {0}", options.RDRDir);
@@ -523,7 +521,7 @@ namespace OPS.Landform
 
         protected void SaveFile(string file, string url)
         {
-            LandformShell.SaveFile(pipeline, () => storageHelper, file, url);
+            LandformShell.SaveFile(pipeline, () => storageHelper, file, url, dryRun: options.NoSave);
         }
 
         private void LoadOrCreateManifest()
@@ -563,7 +561,7 @@ namespace OPS.Landform
         {
             var exts = imageExts.Concat(pdsExts).ToList(); //includes leading dot
 
-            int wildcardIndex = options.RDRDir.IndexOf(WILDCARD);
+            int wildcardIndex = options.RDRDir.IndexOf(FetchData.SOL_WILDCARD);
 
             int total = 0;
 
@@ -619,12 +617,12 @@ namespace OPS.Landform
                     string pat = "*";
                     if (wildcardIndex >= 0)
                     {
-                        dir = dir.Replace(WILDCARD, string.Format("{0:D" + WILDCARD.Length + "}", sol));
+                        dir = StringHelper.ReplaceFixedWidthIntWildcard(dir, FetchData.SOL_WILDCARD, sol);
                     }
                     else
                     {
                         //handle case where options.RDRDir is a base directory
-                        pat = string.Format("*/sol/{0:D" + WILDCARD.Length + "}/*", sol);
+                        pat = string.Format("*/sol/{0}/*", StringHelper.FixedWidthInt(FetchData.SOL_WILDCARD, sol));
                     }
                     searchRDRs(dir, pat);
                 }

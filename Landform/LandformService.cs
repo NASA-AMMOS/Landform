@@ -24,10 +24,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "run as service")]
         public bool Service { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override message queue name")]
+        [Option(Required = false, Default = "mission", HelpText = "Override message queue name, or \"mission\" to use mission-specific default")]
         public string QueueName { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override fail message queue name")]
+        [Option(Required = false, Default = "mission", HelpText = "Override fail message queue name, or \"mission\" to use mission-specific default")]
         public string FailQueueName { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Message queue is Landform owned")]
@@ -186,6 +186,11 @@ namespace OPS.Landform
         }
 
         /// <summary>
+        /// Used only by SendMessage().
+        /// </summary>
+        protected abstract QueueMessage ParseMessage(string json);
+
+        /// <summary>
         /// Should not throw.  
         /// </summary>
         protected abstract string DescribeMessage(QueueMessage msg);
@@ -200,19 +205,16 @@ namespace OPS.Landform
         /// </summary>
         protected abstract bool HandleMessage(QueueMessage msg);
 
-        /// <summary>
-        /// Used only by SendMessage().
-        /// </summary>
-        protected abstract QueueMessage ParseMessage(string json);
-
         protected virtual string GetQueueName()
         {
-            return !string.IsNullOrEmpty(lvopts.QueueName) ? lvopts.QueueName : GetDefaultQueueName();
+            return string.IsNullOrEmpty(lvopts.QueueName) || lvopts.QueueName.ToLower() == "mission" ?
+                GetDefaultQueueName() : lvopts.QueueName;
         }
 
         protected virtual string GetFailQueueName()
         {
-            return !string.IsNullOrEmpty(lvopts.FailQueueName) ? lvopts.FailQueueName : GetDefaultFailQueueName();
+            return string.IsNullOrEmpty(lvopts.FailQueueName) || lvopts.FailQueueName.ToLower() == "mission" ?
+                GetDefaultFailQueueName() : lvopts.FailQueueName;
         }
 
         /// <summary>
