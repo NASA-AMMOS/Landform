@@ -302,7 +302,7 @@ namespace OPS.Landform
 
             string missionStr = mission.GetMission().ToString();
             string sdStr = primarySiteDrive.ToString();
-            string solStr = StringHelper.FixedWidthInt(FetchData.SOL_WILDCARD, primarySol);
+            string solStr = string.Format("{0:D4}", primarySol);
             string sdsStr = string.Join(",", siteDrives.ToArray());
             string project = string.Format("{0}_{1}", solStr, sdStr);
             string venue = string.Format("contextual_{0}_{1}", missionStr, project);
