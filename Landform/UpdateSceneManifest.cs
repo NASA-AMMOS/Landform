@@ -865,7 +865,7 @@ namespace OPS.Landform
 
                 var ids = idToPDSFile.Keys.ToList();
                 HashSet<string> keepers = null;
-                if (idToPDSFile.Count > 1 && !options.NoFilterTacticalMeshIDs)
+                if (ids.Count > 1 && !options.NoFilterTacticalMeshIDs)
                 {
                     Action<string> log = null;
                     if (pipeline.Verbose)
@@ -874,16 +874,42 @@ namespace OPS.Landform
                     }
                     keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, log));
                 }
+                else
+                {
+                    keepers = new HashSet<string>(ids);
+                }
+
                 foreach (var id in ids)
                 {
-                    if (keepers == null || keepers.Contains(id))
+                    if (keepers.Contains(id))
                     {
                         UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
                     }
                     else
                     {
                         bool removed = sceneManifest.RemoveTileset(id);
-                        pipeline.LogWarn("tactical mesh product ID {0} was filtered out{1}",
+                        pipeline.LogWarn("tactical mesh {0} was filtered out{1}",
+                                         id, removed ? " (removed from manifest)" : "");
+                    }
+                }
+
+                //remove any stale tactical mesh tilesets currently in manifest
+                var currentlyInManifest = sceneManifest.Tilesets.Keys.ToList(); //can't modify collection in foreach
+                foreach (var id in currentlyInManifest)
+                {
+                    if (id == contextualId)
+                    {
+                        continue;
+                    }
+                    if (RoverProductId.Parse(id, mission, throwOnFail: false) == null)
+                    {
+                        continue;
+                    }
+                    //should get here only if id is a tactical mesh
+                    if (!keepers.Contains(id))
+                    {
+                        bool removed = sceneManifest.RemoveTileset(id);
+                        pipeline.LogWarn("tactical mesh {0} in manifest but no longer exists or was filtered out{1}",
                                          id, removed ? " (removed from manifest)" : "");
                     }
                 }
