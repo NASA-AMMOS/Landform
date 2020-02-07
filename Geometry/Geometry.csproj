@@ -136,6 +136,7 @@
     <Compile Include="Serializers\PNTSSerializer.cs" />
     <Compile Include="Serializers\PTXSerializer.cs" />
     <Compile Include="Serializers\STLSerializer.cs" />
+    <Compile Include="Geometry\TriangulatePolygon.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Imaging\Imaging.csproj">

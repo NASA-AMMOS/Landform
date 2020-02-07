@@ -82,7 +82,7 @@ namespace OPS.Geometry
             }
         }
 
-        public static Vector3? GetInterpolatedXYZ(Image dem, double r, double c, double minFilter, double maxFilter = 1000000)
+        public static Vector3? GetInterpolatedXYZ(Image dem, double r, double c, double minFilter = -1000000, double maxFilter = 1000000)
         {
             Vector3? tl = GetXYZ(dem, (int)r, (int)c);
             Vector3? tr = GetXYZ(dem, (int)r, (int)Math.Ceiling(c));
@@ -109,6 +109,13 @@ namespace OPS.Geometry
             }
 
             double value = dem[0, row, col];
+
+            //HACK
+            if (value == 0)
+            {
+                return null;
+            }
+
             if (!filterValues || value >= minFilter && value <= maxFilter)
             {
                 if (mask != null && !mask.isValid(row, col))
@@ -124,6 +131,62 @@ namespace OPS.Geometry
             bool filterValues = true, double minFilter = -1000000, double maxFilter = 1000000)
         {
             return GetXYZ(dem, null, row, col, scale, filterValues, minFilter, maxFilter);
+        }
+
+        public static Vector3? GetInterpolatedNormal(Image dem, double r, double c, double minFilter = -1000000, double maxFilter = 1000000)
+        {
+            Vector3? tl = GetNormal(dem, (int)r, (int)c);
+            Vector3? tr = GetNormal(dem, (int)r, (int)Math.Ceiling(c));
+            Vector3? bl = GetNormal(dem, (int)Math.Ceiling(r), (int)c);
+            Vector3? br = GetNormal(dem, (int)Math.Ceiling(r), (int)Math.Ceiling(c));
+            return Interpolate(c - (int)c, r - (int)r, tl, tr, bl, br);
+        }
+
+        public static Vector3? GetNormal(Image dem, int row, int col, double minFilter = -1000000, double maxFilter = 1000000)
+        {
+            Vector3? c = GetXYZ(dem, row, col);
+            if(!c.HasValue)
+            {
+                return null;
+            }
+
+            Vector3? t = GetXYZ(dem, row - 1, col);
+            Vector3? b = GetXYZ(dem, row + 1, col);
+            Vector3? r = GetXYZ(dem, row, col + 1);
+            Vector3? l = GetXYZ(dem, row, col - 1);
+
+            Vector3 ret = Vector3.Zero;
+
+            if (t.HasValue)
+            {
+                if(r.HasValue)
+                {
+                    ret += new Triangle(t.Value, c.Value, r.Value).Normal;
+                }
+                if(l.HasValue)
+                {
+                    ret += new Triangle(t.Value, l.Value, c.Value).Normal;
+                }
+            }
+            if(b.HasValue)
+            {
+                if (r.HasValue)
+                {
+                    ret += new Triangle(b.Value, r.Value, c.Value).Normal;
+                }
+                if (l.HasValue)
+                {
+                    ret += new Triangle(b.Value, c.Value, l.Value).Normal;
+                }
+            }
+
+            if(ret == Vector3.Zero)
+            {
+                return null;
+            }
+
+            ret.Normalize();
+            return ret;
         }
 
         public static Vector2? GetRowCol(Image dem, Vector3 xyz)
@@ -259,8 +322,8 @@ namespace OPS.Geometry
             {
                 Image scenemap = scenemaps[i];
 
-                double skip = Math.Sqrt(scenemap.Height * scenemap.Width / sampleLimit);
-                skip = Math.Max(skip, 1);
+                double skip = Math.Sqrt(scenemaps.Count() * scenemap.Height * scenemap.Width / sampleLimit);
+                skip = Math.Max(skip, 1);               
 
                 for (int r = 0; r < scenemap.Height / skip; r++)
                 {
@@ -397,10 +460,10 @@ namespace OPS.Geometry
             if (saOpts == null)
             {
                 saOpts = new SimulatedAnnealingOptions();
-                saOpts.maxIterations = 400;
+                saOpts.maxIterations = 800;
                 saOpts.verbose = false;
-                saOpts.temperatureScale = 1;
-                saOpts.probabilityScale = 100;
+                saOpts.temperatureScale = 4; //1
+                saOpts.probabilityScale = 1000; //100
                 saOpts.sigma = sigma;
             }
             sa.opts = saOpts;
@@ -418,5 +481,91 @@ namespace OPS.Geometry
 
             return arrayToTransform(adjustment) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation));
         }
-    }
+
+        /// <summary>
+        /// Build mesh from dem points surrounding surface mesh, with a padding of filterRadius.
+        /// Extent is determined by orbitalRadiusPixels around pixelCenter.
+        /// Point density (interpolated if higher than dem resolution) is controlled by subSampleFactor
+        /// Note: touches the dem mask (creates if null) //TODO: remove side effect
+        /// </summary>
+        /// <param name="dem"></param>
+        /// <param name="surfaceMesh"></param>
+        /// <param name="pixelCenter"></param>
+        /// <param name="demToSurface"></param>
+        /// <param name="orbitalRadiusPixels"></param>
+        /// <param name="filterRadius"></param>
+        /// <param name="subSampleFactor"></param>
+        /// <returns></returns>
+        public static Mesh BuildOrbitalMeshAroundSurface(Image dem, Mesh surfaceMesh, Vector2 pixelCenter, 
+            Matrix demToSurface, int orbitalRadiusPixels, double filterRadius, double subSampleFactor)
+        {
+            //Get subset of dem around sitedrive
+            int baseC = (int)Math.Max(pixelCenter.X - orbitalRadiusPixels, 0);
+            int baseR = (int)Math.Max(pixelCenter.Y - orbitalRadiusPixels, 0);
+            int pixelWidth = (int)Math.Min(pixelCenter.X + orbitalRadiusPixels, dem.Width) - baseC;
+            int pixelHeight = (int)Math.Min(pixelCenter.Y + orbitalRadiusPixels, dem.Height) - baseR;
+
+            if (!dem.HasMask)
+            {
+                dem.CreateMask();
+            }
+
+            Matrix baseSiteDriveToDem = Matrix.Invert(demToSurface);
+
+            double filterRadiusSq = filterRadius * filterRadius;
+            foreach (var p in surfaceMesh.Vertices)
+            {
+                Vector3 testPoint = Vector3.Transform(p.Position, baseSiteDriveToDem);
+                Vector2 rc = dem.CameraModel.Project(testPoint, out double throwAwayRange);
+                for (int r = (int)Math.Floor(Math.Max(rc.Y - filterRadius, baseR));
+                    r <= (int)Math.Ceiling(Math.Min(rc.Y + filterRadius, baseR + pixelHeight - 1)); ++r)
+                {
+                    for (int c = (int)Math.Floor(Math.Max(rc.X - filterRadius, baseC));
+                        c <= (int)Math.Ceiling(Math.Min(rc.X + filterRadius, baseC + pixelWidth - 1)); ++c)
+                    {
+                        double distSq = (rc.Y - r) * (rc.Y - r) + (rc.X - c) * (rc.X - c);
+                        if (distSq < filterRadiusSq)
+                        {
+                            dem.SetMaskValue(r, c, true);
+                        }
+                    }
+                }
+            }
+            MeshOperator mo = new MeshOperator(surfaceMesh, buildFaceTree:false, buildVertexTree:false, buildUVFaceTree:true);
+            Mesh demMesh = new Mesh();
+            for (int y = 0; y < 2 * orbitalRadiusPixels * subSampleFactor; y++)
+            {
+                for (int x = 0; x < 2 * orbitalRadiusPixels * subSampleFactor; x++)
+                {
+                    double r = baseR + y / subSampleFactor;
+                    double c = baseC + x / subSampleFactor;
+                    var pos = DemOperations.GetInterpolatedXYZ(dem, r, c);
+                    if (pos.HasValue)
+                    {
+                        var transformedPos = Vector3.Transform(pos.Value, demToSurface);
+                        if (mo.UVToBarycentric(new Vector2(transformedPos.X, transformedPos.Y)) == null)
+                        {
+                            Vertex v = new Vertex();
+                            v.Position = transformedPos;
+                            v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
+                            v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToSurface));
+                            demMesh.Vertices.Add(v);
+                        }
+                    }
+                }
+            }
+            demMesh.Vertices.AddRange(surfaceMesh.Vertices);
+
+            demMesh = Delaunay.Triangulate(demMesh.Vertices, reverseWinding: true);
+            demMesh.Faces = demMesh.Faces.Where(face =>
+            {
+                Triangle tri = new Triangle(demMesh.Vertices[face.P0], demMesh.Vertices[face.P1], demMesh.Vertices[face.P2]);
+                Vector3 c = tri.Barycenter();
+                return mo.UVToBarycentric(new Vector2(c.X, c.Y)) == null;
+            }).ToList();
+
+            demMesh.RemoveUnreferencedVertices();
+            return demMesh;
+        }
+    }    
 }

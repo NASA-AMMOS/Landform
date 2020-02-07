@@ -26,6 +26,29 @@ namespace OPS.Geometry
 
         public Triangle tri;
 
+        public bool OnTriEdgeUV(out Vector2 intersectedEdge, out Vector2 otherEdge)
+        {
+            if(isST && s < 1E-8 || !isST && b2 < 1E-8)
+            {
+                intersectedEdge = tri.V1.UV - tri.V0.UV;
+                otherEdge = tri.V2.UV - tri.V0.UV;
+                return true;
+            } else if (isST && t < 1E-8 || !isST && b1 < 1E-8)
+            {
+                intersectedEdge = tri.V2.UV - tri.V0.UV;
+                otherEdge = tri.V1.UV - tri.V0.UV;
+                return true;
+            } else if (isST && s + t > 1 - 1E-8 || !isST && b0 < 1E-8)
+            {
+                intersectedEdge = tri.V2.UV - tri.V1.UV;
+                otherEdge = tri.V0.UV - tri.V1.UV;
+                return true;
+            }
+            intersectedEdge = new Vector2(0, 0);
+            otherEdge = intersectedEdge;
+            return false;
+        }
+
         /// <summary>
         /// Create a new point
         /// </summary>

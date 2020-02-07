@@ -815,7 +815,7 @@ namespace OPS.Pipeline
         private int demWidth = -1; //Lazily computed
         private int demHeight = -1;
 
-        public virtual Matrix GetDemToSiteDriveOffset(SiteDrive siteDrive, string demFilePath = null)
+        public virtual bool GetDemToSiteDriveOffset(SiteDrive siteDrive, out Matrix demToSD, string demFilePath = null)
         {
             demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
                 OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
@@ -829,16 +829,21 @@ namespace OPS.Pipeline
                 ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out demWidth, out demHeight);
             }
 
-            Vector2 colRowOffset = GetSiteDriveOriginPixelInDem(siteDrive, demFilePath);
+            if(!GetSiteDriveOriginPixelInDem(siteDrive, out Vector2 colRowOffset, demFilePath))
+            {
+                demToSD = Matrix.Identity;
+                return false;
+            }
 
             Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - demWidth / 2.0) * GetDemMetersPerPixel(),
                                                  -1 * (colRowOffset.Y - demHeight / 2.0) * GetDemMetersPerPixel(),
                                                  0);
 
-            return Matrix.CreateTranslation(-1 * demSDOriginXYZ);
+            demToSD = Matrix.CreateTranslation(-1 * demSDOriginXYZ);
+            return true;
         }
 
         public abstract float GetDemMetersPerPixel();
-        public abstract Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath = null);
+        public abstract bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null);
     }
 }

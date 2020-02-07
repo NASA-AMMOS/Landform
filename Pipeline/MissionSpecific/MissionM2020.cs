@@ -422,7 +422,7 @@ namespace OPS.Pipeline
             throw new NotImplementedException();
         }
 
-        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath = null)
+        public override bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null)
         {
             throw new NotImplementedException();
         }

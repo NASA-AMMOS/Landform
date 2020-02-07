@@ -18,7 +18,7 @@ namespace OPS.Geometry
 
         public enum ProjectionMissResponse
         {
-            None,
+            Clip,
             Delaunay,
             Inpaint
         }
@@ -136,9 +136,15 @@ namespace OPS.Geometry
                         delMo = buildUVMO(Delaunay.Triangulate(target.Vertices, v => getUV(v.Position)));
                         break;
                     }
+                    case ProjectionMissResponse.Clip:
+                    {
+                        break;
+                    }
                     default: throw new Exception("unknown projection miss response: " + onMiss);
                 }
 
+                int i = 0;
+                HashSet<int> toDelete = new HashSet<int>();
                 foreach (Vertex vert in outMesh.Vertices)
                 {
                     var points = mo.UVToBarycentricList(getUV(vert.Position)).ToList();
@@ -170,9 +176,21 @@ namespace OPS.Geometry
                                 }
                                 break;
                             }
+                            case ProjectionMissResponse.Clip:
+                            {
+                                toDelete.Add(i);
+                                break;
+                            }
                             default: throw new Exception("unknown projection miss response: " + onMiss);
                         }
                     }
+                    i++;
+                }
+                if (toDelete.Count > 0) {
+                    outMesh.Faces = outMesh.Faces.Where(f => !toDelete.Contains(f.P0)
+                                                          && !toDelete.Contains(f.P1)
+                                                          && !toDelete.Contains(f.P2)).ToList();
+                    outMesh.RemoveUnreferencedVertices();
                 }
             }
             else

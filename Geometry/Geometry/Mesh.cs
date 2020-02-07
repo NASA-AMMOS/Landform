@@ -432,6 +432,54 @@ namespace OPS.Geometry
             }
         }
 
+
+        /// <summary>
+        /// Merge verticies that are within distance eps and delete any collapsed or duplicate faces
+        /// </summary>
+        public void MergeNearbyVertices(double eps)
+        {
+            VertexKDTree kdTree = new VertexKDTree(this.Vertices);
+            // Make a list of unique vertices and compute a mapping between old and new indices
+            Dictionary<Vertex, int> vertexToIndex = new Dictionary<Vertex, int>();
+            Dictionary<int, int> oldToNewIndex = new Dictionary<int, int>();
+            List<Vertex> uniqueVertices = new List<Vertex>();
+            for (int i = 0; i < this.Vertices.Count; i++)
+            {
+                Vertex v = this.Vertices[i];
+                if (!vertexToIndex.ContainsKey(v))
+                {
+                    //find nearest neighbor
+                    Vertex closest = kdTree.NearestNeighbors(v.Position, 1).First();
+                    //if close enough to existing point, merge
+                    if (vertexToIndex.ContainsKey(closest) && Vector3.Distance(v.Position, closest.Position) < eps)
+                    {
+                        vertexToIndex.Add(v, vertexToIndex[closest]);
+                    }
+                    //else add as new point
+                    else
+                    {
+                        vertexToIndex.Add(v, uniqueVertices.Count);
+                        uniqueVertices.Add(v);
+                    }
+                }
+                oldToNewIndex.Add(i, vertexToIndex[v]);
+            }
+            // Update the vertex list
+            this.Vertices = uniqueVertices;
+            // Update the face indices
+            for (int i = 0; i < this.Faces.Count; i++)
+            {
+                Face f = this.Faces[i];
+                f.P0 = oldToNewIndex[f.P0];
+                f.P1 = oldToNewIndex[f.P1];
+                f.P2 = oldToNewIndex[f.P2];
+                this.Faces[i] = f;
+            }
+            RemoveInvalidFaces();
+            RemoveIdenticalFaces();
+        }
+
+
         /// <summary>
         /// Remove any vertices that are identical
         /// Also checks for and removes any identical faces
@@ -556,7 +604,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
         /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
-        public void AddSkirt(SkirtMode axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15)
+        public void AddSkirt(SkirtMode axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15, bool invert=false)
         {
             // Calculate skirt offset height
             Vector3 size = Bounds().Size();
@@ -564,6 +612,7 @@ namespace OPS.Geometry
             if (axis == SkirtMode.Normal)
             {
                 double height = heightAsPercentOfWidth * Math.Max(Math.Max(size.X, size.Y), size.Z); //Always within factor ( * or / ) sqrt 2
+                height = invert ? height * -1 : height;
                 Dictionary<Vertex, Vertex> skirtMap = new Dictionary<Vertex, Vertex>();
 
                 //Store mapping from positions to vertexes
@@ -672,6 +721,7 @@ namespace OPS.Geometry
 
                 // Determines the actual number of model units to extrude the skirt along
                 double actualHeight = maxDimension * -heightAsPercentOfWidth / 100;
+                actualHeight = invert ? actualHeight * -1 : actualHeight;
 
                 // Set the offset in the correct axis
                 Vector3 offset = Vector3.Zero;
@@ -753,7 +803,7 @@ namespace OPS.Geometry
         private List<Edge> GetExteriorEdges()
         {
             // Unordered set of edges
-            List<Edge> edges = new List<Edge>();
+            HashSet<Edge> edges = new HashSet<Edge>();
 
             // Put each edge in the hashset and remove it if it already exists
             foreach (Face face in Faces)
@@ -789,7 +839,7 @@ namespace OPS.Geometry
                 }
             }
 
-            return edges;
+            return edges.ToList();
         }
 
         /// <summary>
@@ -1874,6 +1924,36 @@ namespace OPS.Geometry
                 stats.AvgArea /= Faces.Count;
             }
             return stats;
+        }
+
+        public void RemoveFloaters(int minIslandVertexCount = 300)
+        {
+            DisjointSet disjointSet = new DisjointSet(Vertices.Count);
+            foreach (Face f in Faces)
+            {
+                disjointSet.Union(f.P0, f.P1);
+                disjointSet.Union(f.P1, f.P2);
+            }
+
+            Dictionary<int, int> islandSizes = new Dictionary<int, int>();
+            for (int i = 0; i < Vertices.Count; i++)
+            {
+                int p = disjointSet.FindPath(i);
+                if (islandSizes.ContainsKey(p))
+                {
+                    islandSizes[p]++;
+                }
+                else
+                {
+                    islandSizes[p] = 1;
+                }
+            }
+
+            Faces = Faces.Where(f =>
+                islandSizes[disjointSet.FindPath(f.P0)] >= minIslandVertexCount
+            ).ToList();
+
+            RemoveUnreferencedVertices();
         }
     }
 }

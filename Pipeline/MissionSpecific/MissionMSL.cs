@@ -256,10 +256,19 @@ namespace OPS.Pipeline
 
         private GDALDEM gdalDem = null;
 
-        public override Vector2 GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, string demFilePath = null)
+        public override bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null)
         {
-            MSLPlaces places = new MSLPlaces();
-            Vector2 latlon = places.GetEstimatedLatLon(siteDrive);
+            MSLPlaces places;
+            try
+            {
+                places = new MSLPlaces();
+            }
+            catch
+            {
+                pixel = new Vector2(0, 0);
+                return false;
+            }
+            Vector2 latlon = places.GetEstimatedLatLon(siteDrive);  
             if (gdalDem == null)
             {
                 demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
@@ -267,7 +276,8 @@ namespace OPS.Pipeline
                 gdalDem = GDALDEM.MarsDEM(demFilePath);
             }
             Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
-            return new Vector2(colRowOffset.X, colRowOffset.Y);
+            pixel = new Vector2(colRowOffset.X, colRowOffset.Y);
+            return true;
         }
     }
 }

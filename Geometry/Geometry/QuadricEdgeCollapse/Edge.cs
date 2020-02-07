@@ -75,6 +75,24 @@ namespace OPS.Geometry
             return Src.Vert.GetHashCode() + Dst.Vert.GetHashCode();
         }
 
+        public static bool IsLeftTurn(Edge e1, Edge e2, double eps)
+        {            
+            Vector3 a = e2.Dst.Vert.Position - e2.Src.Vert.Position;
+            a.Z = 0;
+            Vector3 b = e1.Src.Vert.Position - e1.Dst.Vert.Position;
+            b.Z = 0;
+            return Vector3.Cross(a, b).Z > 0 - eps;
+        }
+
+        public static bool IsColinear(Edge e1, Edge e2, double eps = 1E-8)
+        {
+            Vector3 a = e2.Dst.Vert.Position - e2.Src.Vert.Position;
+            a.Z = 0;
+            Vector3 b = e1.Src.Vert.Position - e1.Dst.Vert.Position;
+            b.Z = 0;
+            return Math.Abs(Vector3.Cross(a, b).Z) <= eps;
+        }
+
         /// <summary>
         /// Compute Quadric Error Metric (QEM) for a new vertex position using sum of Q matrices
         /// </summary>
