@@ -477,8 +477,12 @@ namespace OPS.Landform
             Vector2 center;
             if (!mission.GetSiteDriveOriginPixelInDem(new SiteDrive(meshFrame), out center))
             {
-                throw new Exception("Places needed to build geometry with orbital");
+                Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
+                Vector3 demOriginXYZ = Vector3.Transform(Vector3.Zero, baseSiteDriveToDem);
+                center = new Vector2(dem.Width / 2 + demOriginXYZ.X, dem.Height / 2 - demOriginXYZ.Y);
+                //throw new Exception("Places needed to build geometry with orbital");
             }
+
             int orbitalRadiusPixels = (int)(options.OrbitalRadius / mission.GetDemMetersPerPixel());
 
             orbitalMesh = DemOperations.BuildOrbitalMeshAroundSurface(dem, surfaceMaskMesh, center, demToBaseSiteDrive,
