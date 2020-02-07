@@ -76,7 +76,7 @@
     <None Include="TestData\img\NLB_451649560RNGLF0311330NCAM12813M1.IMG">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <None Include="TestData\json\m2020-contextual-mesh-example.json">
+    <None Include="TestData\json\m2020-contextual-event-example.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <None Include="TestData\mesh\blender_ascii_nct.ply">
