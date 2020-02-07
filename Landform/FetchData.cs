@@ -119,14 +119,32 @@ namespace OPS.Landform
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Quiet output")]
+        public bool Quiet { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Verbose output")]
         public bool Verbose { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Debug output")]
+        public bool Debug { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override log file")]
+        public string LogFile { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override temp dir")]
+        public string TempDir { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override config dir (for compatibility)")]
+        public string ConfigFolder { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Print summary")]
         public bool Summary { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Dry run")]
         public bool DryRun { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Synonymous with --dryrun (for compatibility)")]
+        public bool NoSave { get; set; }
     }
 
     public class FetchData
@@ -158,7 +176,17 @@ namespace OPS.Landform
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
+
+            options.DryRun |= options.NoSave;
             
+            Logging.ConfigureLogging(commandName: "fetch", quiet: options.Quiet, debug: options.Debug,
+                                     logFilename: options.LogFile);
+
+            if (!string.IsNullOrEmpty(options.TempDir))
+            {
+                TemporaryFile.TemporaryDirectory = options.TempDir;
+            }
+
             mission = MissionSpecific.GetInstance(options.Mission);
 
             if (mission != null)

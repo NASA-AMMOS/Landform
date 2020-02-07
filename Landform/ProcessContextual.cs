@@ -324,8 +324,10 @@ namespace OPS.Landform
                 {
                     ingestDir = string.Format("{0}/{1}/{2}", storageDir, venue, RDR_SUBDIR);
                     string fetchSols = GetSolRanges(sols);
-                    RunCommand("fetch", fetchSols, ingestDir, rdrDir, "--mission", missionStr, "--summary",
-                               "--onlyforsitedrives", sdsStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
+                    var allowedFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
+                    RunCommand("fetch", allowedFlags, fetchSols, ingestDir, rdrDir, "--mission", missionStr,
+                               "--onlyforsitedrives", sdsStr, "--summary",
+                               "--awsprofile", awsProfile, "--awsregion", awsRegion);
                 }
 
                 if (!options.NoIngest)
