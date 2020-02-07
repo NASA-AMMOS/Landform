@@ -259,6 +259,7 @@ namespace OPS.Landform
             if ((url.StartsWith("s3://") && !(pipeline is CloudPipeline)) || dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
+                pipeline.LogInfo("{0}downloading {1} -> {2}", dryRun ? "dry " : "", url, path);
                 if (!File.Exists(path) && !dryRun)
                 {
                     for (int tries = maxRetries; tries > 0; tries--)
@@ -429,7 +430,7 @@ namespace OPS.Landform
             }
         }
 
-        protected string GetTilesetDir(string venue, string meshFrame)
+        protected string GetTilesetDir(string venue, string meshFrame, string project)
         {
             return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}",
                                  storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, project);

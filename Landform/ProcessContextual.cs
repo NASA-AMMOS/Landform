@@ -309,7 +309,7 @@ namespace OPS.Landform
             string venueDir = storageDir + "/" + venue;
             string solDir = StringHelper.ReplaceFixedWidthIntWildcard(rdrDir, FetchData.SOL_WILDCARD, primarySol);
             string ingestDir = solDir;
-            string tilesetDir = GetTilesetDir(venue, sdStr);
+            string tilesetDir = GetTilesetDir(venue, sdStr, project);
             string destDir = GetDestDir(solDir);
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",

@@ -345,13 +345,17 @@ namespace OPS.Landform
                 StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
-            string tilesetDir = GetTilesetDir(venue, MESH_FRAME);
+            string tilesetDir = GetTilesetDir(venue, MESH_FRAME, project);
             string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
 
             pipeline.LogInfo("building tileset {0} for {1}", project, pair);
 
             try
             {
+                Cleanup(venueDir);
+
+                Configure(venue);
+                
                 string meshFile = GetFile(pair.mesh);
                 string imageFile = GetFile(pair.image);
 
@@ -361,10 +365,6 @@ namespace OPS.Landform
                     destDir = GetDestDir(StringHelper.StripLastUrlPathSegment(meshUrl));
                 }
 
-                Cleanup(venueDir);
-
-                Configure(venue);
-                
                 if (!options.NoTileset)
                 {
                     RunCommand("build-tiling-input", project, "--mission", missionStr,
