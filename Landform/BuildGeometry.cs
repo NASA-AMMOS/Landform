@@ -44,7 +44,7 @@ namespace OPS.Landform
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.8)]
         public double TrimmerIslandPct { get; set; }
 
-        [Option(HelpText = "Use orbital to fill in outer edges of mesh", Default = true)]
+        [Option(HelpText = "Use orbital to fill in outer edges of mesh", Default = false)]
         public bool UseOrbital { get; set; }
 
         [Option(HelpText = "Orbital resolution, interpolates for higher density", Default = 2)]
