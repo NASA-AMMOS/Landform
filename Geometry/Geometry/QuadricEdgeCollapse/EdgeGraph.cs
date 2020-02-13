@@ -14,26 +14,32 @@ namespace OPS.Geometry
     /// </summary>
     public class EdgeGraph
     {
-        public List<VertexNode> VertNodes;
-        int newID;
+        public List<VertexNode> VertNodes = new List<VertexNode>();
+
+        protected virtual VertexNode CreateNode(Vertex v, int id)
+        {
+            return new VertexNode(v, id);
+        }
+
+        protected virtual Edge CreateEdge(int src, int dst, int left)
+        {
+            return new Edge(VertNodes[src], VertNodes[dst], VertNodes[left]);
+        }
 
         public EdgeGraph(Mesh mesh)
         {
-            VertNodes = new List<VertexNode>();
-
             //Construct VertexNode objects for each vertex
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                VertNodes.Add(new VertexNode(mesh.Vertices[i], i));
+                VertNodes.Add(CreateNode(mesh.Vertices[i], i));
             }
-            newID = mesh.Vertices.Count;
 
             //Add adjacency info
             foreach (Face face in mesh.Faces)
             {
-                VertNodes[face.P0].AdjacentEdges.Add(new Edge(VertNodes[face.P0], VertNodes[face.P1], VertNodes[face.P2], null));
-                VertNodes[face.P1].AdjacentEdges.Add(new Edge(VertNodes[face.P1], VertNodes[face.P2], VertNodes[face.P0], null));
-                VertNodes[face.P2].AdjacentEdges.Add(new Edge(VertNodes[face.P2], VertNodes[face.P0], VertNodes[face.P1], null));
+                VertNodes[face.P0].AdjacentEdges.Add(CreateEdge(face.P0, face.P1, face.P2));
+                VertNodes[face.P1].AdjacentEdges.Add(CreateEdge(face.P1, face.P2, face.P0));
+                VertNodes[face.P2].AdjacentEdges.Add(CreateEdge(face.P2, face.P0, face.P1));
             }
 
             //Flag perimeter vertices and edges
@@ -53,31 +59,21 @@ namespace OPS.Geometry
             }
         }
 
-        /// <summary>
-        /// Returns a fresh id for a new node
-        /// </summary>
-        /// <returns></returns>
-        public int GetNewID()
-        {
-            newID += 1;
-            return newID;
-        }
-
         public static bool ClipSubcycle(List<Edge> cycle)
         {
             Dictionary<Vector3, int> posToIndex = new Dictionary<Vector3, int>();
             int idx = 0;
             foreach (Edge e in cycle)
             {
-                if(!posToIndex.ContainsKey(e.Src.Vert.Position))
+                if(!posToIndex.ContainsKey(e.Src.Position))
                 {
-                    posToIndex.Add(e.Src.Vert.Position, idx);
+                    posToIndex.Add(e.Src.Position, idx);
                     idx++;
                 }
                 else
                 {
                     //Found two subcycles, clip the smaller one
-                    int smallerIndex = posToIndex[e.Src.Vert.Position];
+                    int smallerIndex = posToIndex[e.Src.Position];
                     int largerIndex = idx;
                     if (largerIndex - smallerIndex < cycle.Count / 2)
                     {
@@ -99,7 +95,7 @@ namespace OPS.Geometry
             VertexNode right = polygon[0].Src;
             foreach (Edge e in polygon)
             {
-                if (e.Src.Vert.Position.X > right.Vert.Position.X)
+                if (e.Src.Position.X > right.Position.X)
                 {
                     right = e.Src;
                 }
@@ -206,7 +202,7 @@ namespace OPS.Geometry
                         e.IsPerimeterEdge = false; //Flag as used
                     }
                     //Keep the largest (area) group of edges
-                    var size = BoundingBox.CreateFromPoints(currentGroup.Select(e => e.Src.Vert.Position)).Size();
+                    var size = BoundingBox.CreateFromPoints(currentGroup.Select(e => e.Src.Position)).Size();
                     var area = size.X * size.Y;
                     if (area > maxArea)
                     {
@@ -234,7 +230,7 @@ namespace OPS.Geometry
             var res = new List<VertexNode>();
             foreach (VertexNode v in VertNodes)
             {
-                if (v.IsActive && v.IsOnPerimeter)
+                if (v.IsOnPerimeter)
                 {
                     res.Add(v);
                 }
@@ -251,16 +247,13 @@ namespace OPS.Geometry
             var res = new List<Edge>();
             foreach(VertexNode v in VertNodes)
             {
-                if(v.IsActive)
+                foreach (Edge e in v.AdjacentEdges)
                 {
-                    foreach (Edge e in v.AdjacentEdges)
+                    if(e.IsPerimeterEdge && e.Left != null)
                     {
-                        if(e.IsPerimeterEdge && e.Left != null)
-                        {
-                            res.Add(e);
-                        }
+                        res.Add(e);
                     }
-                }
+                }               
             }
             return res;
         }

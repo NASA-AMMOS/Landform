@@ -12,42 +12,26 @@ namespace OPS.Geometry
     /// <summary>
     /// Stores a vertex with its associated error matrix, edges, and flags for representing meshes as node-edge graphs when doing edge collapses
     /// </summary>
-    public class VertexNode
+    public class VertexNode : Vertex
     {
-        public Vertex Vert;
-        public Matrix Q;
-        public List<Edge> AdjacentEdges;
+        public List<Edge> AdjacentEdges = new List<Edge>();
         public bool IsOnPerimeter;
-        public bool IsTouchable;
-        public bool IsActive;
         public int AdjFaceCount;
         public int ID;
-        public double cost;
 
-        public VertexNode(Vertex vert, int id)
+        public VertexNode(Vertex vert, int id) : base(vert)
         {
-            this.Vert = vert;
             this.ID = id;
-            this.Q = new Matrix();
             this.AdjFaceCount = 0;
-            this.AdjacentEdges = new List<Edge>();
             this.IsOnPerimeter = false;
-            this.IsTouchable = true;
-            this.IsActive = true;
-            this.cost = 0;
         }
 
-        public VertexNode(Vertex vert, int id, Matrix Q, int adjFaceCount, List<Edge> adjacentEdges, bool isOnPerimeter, bool isTouchable)
+        public VertexNode(Vertex vert, int id, int adjFaceCount, List<Edge> adjacentEdges, bool isOnPerimeter) : base(vert)
         {
-            this.Vert = vert;
             this.ID = id;
-            this.Q = Q;
             this.AdjFaceCount = adjFaceCount;
             this.AdjacentEdges = adjacentEdges;
             this.IsOnPerimeter = isOnPerimeter;
-            this.IsTouchable = isTouchable;
-            this.IsActive = true;
-            this.cost = 0;
         }
 
         public static bool operator <(VertexNode v1, VertexNode v2)
