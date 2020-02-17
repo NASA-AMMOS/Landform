@@ -64,6 +64,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Poisson cell size (meters)", Default = 0.05f)]
         public double PoissonCellSize { get; set; }
+
+        [Option(HelpText = "Deform oribital to fit surface", Default = false)]
+        public bool AdjustOrbital { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -86,6 +89,9 @@ namespace OPS.Landform
         private Mesh shrinkwrappedSurface;
         private Mesh surfaceMaskMesh;
         private Mesh orbitalMesh;
+
+        private MeshOperator surfaceUVMeshOp;
+        private List<Vector3> tiePoints;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
@@ -437,6 +443,13 @@ namespace OPS.Landform
             surfaceMaskMesh.HasUVs = true;
             MeshOperator maskUVMeshOp = new MeshOperator(surfaceMaskMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
 
+            foreach (Vertex vert in mesh.Vertices)
+            {
+                vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
+            }
+            mesh.HasUVs = true;
+            surfaceUVMeshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+
             /*poissonOpts.TrimmerIslandPct = 0.0; //trim handled by mask
             poissonOpts.TrimmerLevel = 0.0;*/
 
@@ -444,12 +457,6 @@ namespace OPS.Landform
             poissonOpts.TrimmerLevel = Math.Max(0, poissonOpts.TrimmerLevel - 2);
             mesh = PoissonReconstruction.Reconstruct(pointCloud, poissonOpts);
             mesh.RemoveFloaters();
-
-            foreach (Vertex vert in mesh.Vertices)
-            {
-                vert.UV = new Vector2(vert.Position.X, vert.Position.Y);
-            }
-            mesh.HasUVs = true;
 
             mesh.Faces = mesh.Faces.Where(face => {
                 //Get rid of faces if all of their endpoints fall fall outside mask mesh
@@ -485,8 +492,52 @@ namespace OPS.Landform
 
             int orbitalRadiusPixels = (int)(options.OrbitalRadius / mission.GetDemMetersPerPixel());
 
+            Func<Vector3, Vector3> adjust;
+            if (options.AdjustOrbital) {
+                var adjustments = DemOperations.CreateAdjustments(dem, surfaceUVMeshOp, center, demToBaseSiteDrive, options.OrbitalRadius);
+                foreach(Vertex v in surfaceMaskMesh.Vertices)
+                {
+                    Vector3 demPos = Vector3.Transform(v.Position, Matrix.Invert(demToBaseSiteDrive));
+                    Vector2 demRC = dem.CameraModel.Project(demPos, out double throwaway);
+                    Vector3? demSample = DemOperations.GetInterpolatedXYZ(dem, demRC.Y, demRC.X);
+                    if(demSample.HasValue)
+                    {
+                        Vector3 demPoint = Vector3.Transform(demSample.Value, demToBaseSiteDrive);
+                        adjustments.Add(new Vector3(v.Position.X, v.Position.Y, v.Position.Z - demPoint.Z));
+                    }
+                }
+                Func<double, double> weight = d => 1 / Math.Pow(Math.E, d);
+                Func<double, double> decay = d => 1;// 1 / (d / 2 + 1);
+
+                adjust = new Func<Vector3, Vector3>(p =>
+                {
+                    Vector3 ret = p;
+                    double distSq;
+                    double zAdjust = 0;
+                    double sum = 0;
+                    double minD = Double.PositiveInfinity;
+                    double w;
+                    foreach (Vector3 adj in adjustments)
+                    {
+                        distSq = Math.Pow(adj.X - p.X, 2) + Math.Pow(adj.Y - p.Y, 2);
+                        if(distSq < minD)
+                        {
+                            minD = distSq;
+                        }
+                        w = weight(distSq);
+                        zAdjust += adj.Z * w;
+                        sum += w;
+                    }
+                    ret.Z += (zAdjust / sum) * decay(minD); //weighted average
+                    return ret;
+                });
+            } else
+            {
+                adjust = new Func<Vector3, Vector3>(p => p);
+            }
+
             orbitalMesh = DemOperations.BuildOrbitalMeshAroundSurface(dem, surfaceMaskMesh, center, demToBaseSiteDrive,
-                options.OrbitalRadius, options.FilterRadius, options.OrbitalPointsPerMeter);
+                options.OrbitalRadius, options.FilterRadius, options.OrbitalPointsPerMeter, adjust);
         }
 
         private void MergeOrbitalToSurface()
@@ -501,7 +552,7 @@ namespace OPS.Landform
             Mesh tris = Delaunay.Triangulate(merged.Vertices, reverseWinding: true);
             merged.Faces.AddRange(tris.Faces.Where(f => !(f.P0 < offset && f.P1 < offset && f.P2 < offset ||
                                                       f.P0 >= offset && f.P1 >= offset && f.P2 >= offset)));
-            merged.AddSkirt(SkirtMode.Z, invert: true);
+            //merged.AddSkirt(SkirtMode.Z, invert: true);
             mesh = merged;
         }
 
