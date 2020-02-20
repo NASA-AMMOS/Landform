@@ -1,5 +1,2 @@
 { "venues": [ ["dev-old", "https://login.m20-dev.jpl.nasa.gov/v2/cli_login",
- ""], ["dev", "https://login.dev.m20.jpl.nasa.gov/v2/cli_login", ""], ["gdsit", "https://login.gdsit.m20.jpl.nasa.gov/v2/cli_login",
- "push"], ["prod", "https://login.m20.jpl.nasa.gov/v2/cli_login", ""], ["roastt", "https://login-roastt.m20-training.jpl.nasa.gov/v2/cli_login",
- "push"], ["sbeta", "https://login-sbeta.m20-training.jpl.nasa.gov/v2/cli_login", "push"], ["atlo", "https://login-atlo.m20-training.jpl.nasa.gov/v2/cli_login",
- "push"], ["sops", "https://login-sops.m20-training.jpl.nasa.gov/v2/cli_login", "push"] ], "sso_token_location": ".cssotoken" }
+ ""] ], "sso_token_location": ".cssotoken" }
