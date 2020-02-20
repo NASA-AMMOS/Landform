@@ -110,6 +110,25 @@ for f in ${dir}/*.${meshext}; do
     venue=local_${mission}_${proj}
     tileset_dir=$storage/$venue/tiling/TileSet/passthroughFrame/best/$proj
 
+    # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
+    # apparently it is possible that foo.iv might refer to bar.rgb as its texture
+    # (or if we're doing obj, foo.mtl might refer to bar.png)
+    # so it is not valid to assume that foo.iv pairs with foo.IMG
+    # also it is even worse, foo.iv can refer to bar.rgb, and bar.IMG might not even exist
+    # I guess the real correct thing to do is
+    # 1) for texturing use whatever .rgb or .png is referred to from the .iv or .mtl 
+    # 2) for metadata use the highest-version .IMG available that otherwise matches the .iv or .obj product ID
+    #
+    # for now what we do is find the highest version .IMG that otherwise matches the .iv or .obj product ID
+    # and use that both for texturing and metadata
+
+    id=${bn##*/}
+    ver=${id:52:2}
+    while [ ! -f $img ] && [ $ver -ge 0 ]; do
+        ver=`printf "%02d" $((10#$ver-1))`
+        img=${dir}/${id:0:52}${ver}.${imgext}
+    done
+
     if [ -f $mesh -a -f $img ]; then
 
         if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
