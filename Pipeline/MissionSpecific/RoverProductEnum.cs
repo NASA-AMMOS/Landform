@@ -208,6 +208,7 @@ namespace OPS.Pipeline
             { "MASK", RoverProductType.RoverMask },
             { "RANGE_MAP", RoverProductType.Range },
             { "XYZ_MAP", RoverProductType.Points },
+            { "XYZ_FILTER_MAP", RoverProductType.Points },
             { "UVW_MAP", RoverProductType.Normals },
             { "RANGE_ERROR_MAP", RoverProductType.RangeError },
         };
