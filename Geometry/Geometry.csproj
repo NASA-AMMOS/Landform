@@ -84,7 +84,7 @@
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableEdge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableEdgeGraph.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableVertexNode.cs" />
-    <Compile Include="Geometry\QuadricEdgeCollapse\SimpleEdge.cs" />
+    <Compile Include="Geometry\SimpleEdge.cs" />
     <Compile Include="Geometry\VertexProjection.cs" />
     <Compile Include="Geometry\MeshToHeightMap.cs" />
     <Compile Include="Geometry\OctreeTriangle.cs" />
@@ -92,11 +92,11 @@
     <Compile Include="Geometry\PlaneFit.cs" />
     <Compile Include="Geometry\PointCloudRoughness.cs" />
     <Compile Include="Geometry\Procrustes.cs" />
-    <Compile Include="Geometry\QuadricEdgeCollapse\Edge.cs" />
+    <Compile Include="Geometry\EdgeGraph\Edge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />
     <Compile Include="Geometry\HausdorffTriangle.cs" />
     <Compile Include="Geometry\HausdorffDistance.cs" />
-    <Compile Include="Geometry\QuadricEdgeCollapse\EdgeGraph.cs" />
+    <Compile Include="Geometry\EdgeGraph\EdgeGraph.cs" />
     <Compile Include="Geometry\OctreeNode.cs" />
     <Compile Include="Geometry\Octree.cs" />
     <Compile Include="Geometry\Face.cs" />
@@ -113,7 +113,7 @@
     <Compile Include="Geometry\Triangle.cs" />
     <Compile Include="Geometry\UncertainRigidTransform.cs" />
     <Compile Include="Geometry\Vertex.cs" />
-    <Compile Include="Geometry\QuadricEdgeCollapse\VertexNode.cs" />
+    <Compile Include="Geometry\EdgeGraph\VertexNode.cs" />
     <Compile Include="Geometry\VertexKDTree.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Scene\NodeBounds.cs" />
