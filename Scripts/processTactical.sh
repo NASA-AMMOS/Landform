@@ -101,7 +101,7 @@ ctrlc() {
 }
 trap "ctrlc" INT
 
-for f in ${dir}/*.${meshext}; do
+for f in `find ${dir} -name '*'.${meshext}`; do
 
     bn=${f%.${meshext}}
     mesh=$bn.${meshext}
@@ -126,7 +126,7 @@ for f in ${dir}/*.${meshext}; do
     ver=${id:52:2}
     while [ ! -f $img ] && [ $ver -ge 0 ]; do
         ver=`printf "%02d" $((10#$ver-1))`
-        img=${dir}/${id:0:52}${ver}.${imgext}
+        img=${f%/*}/${id:0:52}${ver}.${imgext}
     done
 
     if [ -f $mesh -a -f $img ]; then
