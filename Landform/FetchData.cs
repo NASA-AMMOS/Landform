@@ -64,6 +64,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "comma separated list of observation wildcard patterns to exclude")]
         public string ExcludePattern { get; set; }
 
+        [Option(Required = false, Default = "rdr/browse,rdr/mesh,rdr/mosaic,rdr/tileset", HelpText = "comma separated list of subdirs to exclude")]
+        public string ExcludeSubdirs { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Download PNG products")]
         public bool WithPNG { get; set; }
 
@@ -119,6 +122,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Comma separated list of filename extensions to trace")]
+        public string Trace { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Quiet output")]
         public bool Quiet { get; set; }
 
@@ -160,6 +166,8 @@ namespace OPS.Landform
         private Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>> unifiedMeshes =
             new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
 
+        private string[] traceExts, excludeSubdirs;
+
         private StorageHelper _storageHelper;
         private StorageHelper storageHelper
         {
@@ -178,6 +186,9 @@ namespace OPS.Landform
             options = opts;
 
             options.DryRun |= options.NoSave;
+
+            traceExts = StringHelper.ParseList(options.Trace);
+            excludeSubdirs = StringHelper.ParseList(options.ExcludeSubdirs);
             
             Logging.ConfigureLogging(commandName: "fetch", quiet: options.Quiet, debug: options.Debug,
                                      logFilename: options.LogFile);
@@ -200,6 +211,11 @@ namespace OPS.Landform
                     options.AWSProfile = mission.GetDefaultAWSProfile();
                 }
             }
+        }
+
+        private bool TraceExt(string file)
+        {
+            return traceExts.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
         }
 
         private IEnumerable<string> IndexFiles(string searchDir)
@@ -433,10 +449,14 @@ namespace OPS.Landform
             var filtered = new List<string>();
             foreach (var product in products.OrderBy(p => p)) //sort makes spew more readable
             {
+                string reason = null;
                 string ext = StringHelper.GetUrlExtension(product).ToUpper();
                 string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
-                string reason = null;
-                if (!acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 means let nothing in
+                if (excludeSubdirs.Any(sd => product.IndexOf(sd) >= 0))
+                {
+                    reason = "excluded subdir " + excludeSubdirs.Where(sd => product.IndexOf(sd) >= 0).First();
+                }
+                else if (!acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 means let nothing in
                 {
                     reason = "disallowed extension " + ext;
                 }
@@ -480,9 +500,9 @@ namespace OPS.Landform
                         filtered.Add(product);
                     }
                 }
-                if (options.Verbose && !string.IsNullOrEmpty(reason))
+                if ((options.Verbose || TraceExt(product)) && !string.IsNullOrEmpty(reason))
                 {
-                    logger.InfoFormat("rejected {0}: {1}", idStr, reason);
+                    logger.InfoFormat("rejected {0}: {1}", product, reason);
                 }
             }
 
@@ -511,7 +531,9 @@ namespace OPS.Landform
             int nf = filtered.Count;
             filtered = filtered
                 .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
-                .SelectMany(files => RoverObservationComparator.FilterProductIdGroups(files, mission, verbose))
+                .SelectMany(files => RoverObservationComparator
+                            .FilterProductIdGroups(files, mission,
+                                                   TraceExt(files.First()) ? msg => logger.Info(msg) : verbose))
                 .ToList();
             logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
 
@@ -527,7 +549,7 @@ namespace OPS.Landform
                 {
                     umFiltered.Add(product);
                 }
-                else if (options.Verbose)
+                else if (options.Verbose || TraceExt(product))
                 { 
                     //checkUnifiedMeshes() = false implies that id is an OPGSProductId
                     var sd = ((OPGSProductId)id).SiteDrive;
@@ -540,11 +562,22 @@ namespace OPS.Landform
                         path = ums.ContainsKey(cam) ? ums[cam].Path : ums.ContainsKey(oc) ? ums[oc].Path : null;
                     }
                     logger.InfoFormat("rejected {0}: not in unified mesh{1}",
-                                      idStr, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
+                                      product, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
                 }
             }
             logger.InfoFormat("unified meshes rejected {0} products", filtered.Count - umFiltered.Count);
             filtered = umFiltered;
+
+            if (traceExts.Length > 0)
+            {
+                foreach (var product in filtered)
+                {
+                    if (TraceExt(product))
+                    {
+                        logger.InfoFormat("accepted {0}", product);
+                    }
+                }
+            }
             
             logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
                               products.Count, filtered.Count,
@@ -567,11 +600,12 @@ namespace OPS.Landform
 
         private long DownloadFile(string url)
         {
+            var localPath = LocalPath(url);    
             if (options.DryRun)
             {
+                logger.InfoFormat("DRY download {0} -> {1}", url, localPath);
                 return 0;
             }
-            var localPath = LocalPath(url);    
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
             bool s3 = url.ToLower().StartsWith("s3");
             string filename = StringHelper.GetLastUrlPathSegment(url);
@@ -647,17 +681,17 @@ namespace OPS.Landform
             int downloaded = 0;
             logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
             long totalBytes = 0;
-            if (!options.DryRun)
+            CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
             {
-                CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
+                long bytes = DownloadFile(f);
+                Interlocked.Add(ref totalBytes, bytes);
+                Interlocked.Increment(ref downloaded);
+                if (!options.DryRun)
                 {
-                    long bytes = DownloadFile(f);
-                    Interlocked.Add(ref totalBytes, bytes);
-                    Interlocked.Increment(ref downloaded);
                     logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
                                       downloaded, remaining, (downloaded * 100) / remaining);
-                });
-            }
+                }
+            });
             return totalBytes;
         }
 
