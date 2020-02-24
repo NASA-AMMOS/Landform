@@ -18,20 +18,18 @@ namespace OPS.Geometry
     /// </summary>
     class EdgeCollapseQueueNode : FastPriorityQueueNode
     {
-        public Edge Edge;
+        public CollapsableEdge Edge;
 
-        public EdgeCollapseQueueNode(VertexNode v1, VertexNode v2, Vertex vNew, bool isOnPerimeter) : base()
+        public EdgeCollapseQueueNode(CollapsableVertexNode v1, CollapsableVertexNode v2, Vertex vNew, bool isOnPerimeter) : base()
         {
-            this.Edge = new Edge(v1, v2, null, vNew, isOnPerimeter);
+            this.Edge = new CollapsableEdge(v1, v2, null, vNew, isOnPerimeter);
         }
 
-        public EdgeCollapseQueueNode(Edge e) : base()
+        public EdgeCollapseQueueNode(CollapsableEdge e) : base()
         {
-            this.Edge = new Edge(e.Src, e.Dst, null, e.VNew, e.IsPerimeterEdge);
+            this.Edge = new CollapsableEdge(e.Src, e.Dst, null, e.VNew, e.IsPerimeterEdge);
         }
     }
-
-
 
     public static class EdgeCollapse
     {
@@ -73,15 +71,15 @@ namespace OPS.Geometry
             OnlyPositions(mesh.Vertices);
             mesh.Clean();
 
-            EdgeGraph edgeGraph = new EdgeGraph(mesh);
+            CollapsableEdgeGraph edgeGraph = new CollapsableEdgeGraph(mesh);
 
             //Flag user specified vertices as untouchable
             if (notTouched != null)
             {
                 OnlyPositions(notTouched);
-                foreach (VertexNode v in edgeGraph.VertNodes)
+                foreach (CollapsableVertexNode v in edgeGraph.VertNodes)
                 {
-                    if (notTouched.Contains(v.Vert))
+                    if (notTouched.Contains((Vertex)v))
                     {
                         v.IsTouchable = false;
                     }
@@ -99,9 +97,9 @@ namespace OPS.Geometry
 
             // build min heap on QEM for each edge vertex pair
             FastPriorityQueue<EdgeCollapseQueueNode> heap = new FastPriorityQueue<EdgeCollapseQueueNode>(6*mesh.Faces.Count);
-            foreach (VertexNode v in edgeGraph.VertNodes)
+            foreach (CollapsableVertexNode v in edgeGraph.VertNodes)
             {
-                foreach (Edge e in v.AdjacentEdges)
+                foreach (CollapsableEdge e in v.AdjacentEdges)
                 {
                     if (e.Src < e.Dst)
                     {
@@ -119,11 +117,11 @@ namespace OPS.Geometry
             {
                 if (_DEBUG)
                 {
-                    foreach (VertexNode v in edgeGraph.VertNodes)
+                    foreach (CollapsableVertexNode v in edgeGraph.VertNodes)
                     {
                         if (v.IsActive)
                         {
-                            foreach (Edge e in v.AdjacentEdges)
+                            foreach (CollapsableEdge e in v.AdjacentEdges)
                             {
                                 if (!e.Dst.AdjacentEdges.Contains(e))
                                 {
@@ -143,9 +141,9 @@ namespace OPS.Geometry
 
                 //Pop lowest cost edge
                 EdgeCollapseQueueNode collapsingEdge = heap.Dequeue();
-                Edge edge = collapsingEdge.Edge;
-                VertexNode v1 = edge.Src;
-                VertexNode v2 = edge.Dst;
+                CollapsableEdge edge = collapsingEdge.Edge;
+                CollapsableVertexNode v1 = edge.Src;
+                CollapsableVertexNode v2 = edge.Dst;
 
                 //Skip if either vertex has been collapsed
                 if (!v1.IsActive || !v2.IsActive)
@@ -153,7 +151,7 @@ namespace OPS.Geometry
                     continue;
                 }
 
-                VertexNode vNew = new VertexNode(edge.VNew, edgeGraph.GetNewID());
+                CollapsableVertexNode vNew = new CollapsableVertexNode(edge.VNew, edgeGraph.GetNewID());
                 
                 //Collapsing edge v1, v2 -> vNew
                 vNew.Q = v1.Q + v2.Q;
@@ -167,14 +165,14 @@ namespace OPS.Geometry
                 {
                     vNew.IsOnPerimeter = true;
                 }
-                vNew.AdjacentEdges = new List<Edge>();
+                vNew.AdjacentEdges = new List<CollapsableEdge>();
 
                 //Break if vertex drift exceeds optional user-defined threshold parameter
                 //Should guarantee break before actual mesh to mesh error reached
                 //Need to test how close on more variety of mesh geometries; initial test showed ~2 factor for small decimations, unsure how this will hold up in general
                 if (accuracyThreshold != -1)
                 {
-                    vNew.cost = Math.Max(v1.cost + Vector3.Distance(v1.Vert.Position, vNew.Vert.Position), v2.cost + Vector3.Distance(v2.Vert.Position, vNew.Vert.Position));
+                    vNew.cost = Math.Max(v1.cost + Vector3.Distance(v1.Position, vNew.Position), v2.cost + Vector3.Distance(v2.Position, vNew.Position));
                     if (vNew.cost > accuracyThreshold)
                     {
                         break;
@@ -182,10 +180,10 @@ namespace OPS.Geometry
                 }
 
                 //Get edges between v1 and v2
-                List<Edge> e12s = v1.AdjacentEdges.FindAll(e => e.Dst == v2);
-                List<Edge> e21s = v2.AdjacentEdges.FindAll(e => e.Dst == v1);
+                List<CollapsableEdge> e12s = v1.AdjacentEdges.FindAll(e => e.Dst == v2);
+                List<CollapsableEdge> e21s = v2.AdjacentEdges.FindAll(e => e.Dst == v1);
                 //delete collapsing edges
-                foreach (Edge e12 in e12s)
+                foreach (CollapsableEdge e12 in e12s)
                 {
                     if(e12.Left != null)
                     {
@@ -193,7 +191,7 @@ namespace OPS.Geometry
                     }
                     v1.AdjacentEdges.Remove(e12);
                 }
-                foreach (Edge e21 in e21s)
+                foreach (CollapsableEdge e21 in e21s)
                 {
                     if(e21.Left != null)
                     {
@@ -202,10 +200,10 @@ namespace OPS.Geometry
                     v2.AdjacentEdges.Remove(e21);
                 }
 
-                foreach(Edge e1x in v1.AdjacentEdges)
+                foreach(CollapsableEdge e1x in v1.AdjacentEdges)
                 {
-                    VertexNode vx = e1x.Dst;
-                    foreach(Edge exy in vx.AdjacentEdges)
+                    CollapsableVertexNode vx = e1x.Dst;
+                    foreach(CollapsableEdge exy in vx.AdjacentEdges)
                     {
                         if(exy.Dst == v1 || exy.Dst == v2)
                         {
@@ -215,13 +213,13 @@ namespace OPS.Geometry
                                 {
                                     if(exy.Dst == v1)
                                     {
-                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v2 || e.Dst == vNew))
+                                        foreach (CollapsableEdge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v2 || e.Dst == vNew))
                                         {
                                             exz.IsPerimeterEdge = true;
                                         }
                                     } else
                                     {
-                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v1 || e.Dst == vNew))
+                                        foreach (CollapsableEdge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v1 || e.Dst == vNew))
                                         {
                                             exz.IsPerimeterEdge = true;
                                         }
@@ -244,20 +242,20 @@ namespace OPS.Geometry
                         if (_DEBUG && e1x.Left == v1) { throw new Exception("Edge Left is Src"); }
                         if (e1x.IsPerimeterEdge)
                         {
-                            foreach (Edge e2x in v2.AdjacentEdges.FindAll(e => e.Dst == e1x.Dst))
+                            foreach (CollapsableEdge e2x in v2.AdjacentEdges.FindAll(e => e.Dst == e1x.Dst))
                             {
                                 e2x.IsPerimeterEdge = true;
                             }
                         }
                     } else
                     {
-                        vNew.AdjacentEdges.Add(new Edge(vNew, e1x.Dst, e1x.Left, e1x.IsPerimeterEdge));
+                        vNew.AdjacentEdges.Add(new CollapsableEdge(vNew, e1x.Dst, e1x.Left, e1x.IsPerimeterEdge));
                     }
                 }
-                foreach(Edge e2x in v2.AdjacentEdges)
+                foreach(CollapsableEdge e2x in v2.AdjacentEdges)
                 {
-                    VertexNode vx = e2x.Dst;
-                    foreach(Edge exy in e2x.Dst.AdjacentEdges)
+                    CollapsableVertexNode vx = e2x.Dst;
+                    foreach(CollapsableEdge exy in e2x.Dst.AdjacentEdges)
                     {
                         if(exy.Dst == v1 || exy.Dst == v2)
                         {
@@ -267,14 +265,14 @@ namespace OPS.Geometry
                                 {
                                     if (exy.Dst == v1)
                                     {
-                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v2 || e.Dst == vNew))
+                                        foreach (CollapsableEdge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v2 || e.Dst == vNew))
                                         {
                                             exz.IsPerimeterEdge = true;
                                         }
                                     }
                                     else
                                     {
-                                        foreach (Edge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v1 || e.Dst == vNew))
+                                        foreach (CollapsableEdge exz in vx.AdjacentEdges.FindAll(e => e.Dst == v1 || e.Dst == vNew))
                                         {
                                             exz.IsPerimeterEdge = true;
                                         }
@@ -299,24 +297,24 @@ namespace OPS.Geometry
                         }
                         if (e2x.IsPerimeterEdge)
                         {
-                            foreach (Edge e1x in vNew.AdjacentEdges.FindAll(e => e.Dst == e2x.Dst))
+                            foreach (CollapsableEdge e1x in vNew.AdjacentEdges.FindAll(e => e.Dst == e2x.Dst))
                             {
                                 e1x.IsPerimeterEdge = true;
                             }
                         }
                     } else
                     {
-                        vNew.AdjacentEdges.Add(new Edge(vNew, e2x.Dst, e2x.Left, e2x.IsPerimeterEdge));
+                        vNew.AdjacentEdges.Add(new CollapsableEdge(vNew, e2x.Dst, e2x.Left, e2x.IsPerimeterEdge));
                     }
                 }         
 
                 if (_DEBUG)
                 {
-                    foreach (VertexNode v in edgeGraph.VertNodes)
+                    foreach (CollapsableVertexNode v in edgeGraph.VertNodes)
                     {
                         if (v.IsActive)
                         {
-                            foreach (Edge e in v.AdjacentEdges)
+                            foreach (CollapsableEdge e in v.AdjacentEdges)
                             {
                                 if (e.Dst == v1 || e.Dst == v2)
                                 {
@@ -335,7 +333,7 @@ namespace OPS.Geometry
                 v2.IsActive = false;
 
                 //Add new edges to the queue
-                foreach (Edge e in vNew.AdjacentEdges)
+                foreach (CollapsableEdge e in vNew.AdjacentEdges)
                 {
                     e.SetNewVertPos();
                     TryAddEdgeToQueue(heap, e, avoidFlips, flipThreshold, avoidSmallTris, angleThreshold, preserveTopology);
@@ -345,15 +343,15 @@ namespace OPS.Geometry
 
             //Create a new mesh from list of edges
             var triangleList = new List<Triangle>();
-            foreach (VertexNode v in edgeGraph.VertNodes)
+            foreach (CollapsableVertexNode v in edgeGraph.VertNodes)
             {
                 if (v.IsActive)
                 {
-                    foreach (Edge e in v.AdjacentEdges)
+                    foreach (CollapsableEdge e in v.AdjacentEdges)
                     {
                         if (e.Left != null && e.Src < e.Dst && e.Src < e.Left)
                         {
-                            triangleList.Add(new Triangle(e.Src.Vert, e.Dst.Vert, e.Left.Vert));
+                            triangleList.Add(new Triangle(e.Src, e.Dst, e.Left));
                         }
                     }
                 }
@@ -372,7 +370,7 @@ namespace OPS.Geometry
         /// <param name="angleThreshold"></param>
         /// <param name="preserveTopology"></param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static void TryAddEdgeToQueue(FastPriorityQueue<EdgeCollapseQueueNode> queue, Edge e, bool checkFlip, double flipThreshold, bool checkTris, double angleThreshold, bool preserveTopology)
+        static void TryAddEdgeToQueue(FastPriorityQueue<EdgeCollapseQueueNode> queue, CollapsableEdge e, bool checkFlip, double flipThreshold, bool checkTris, double angleThreshold, bool preserveTopology)
         {
             //Skip if this would collapse around a corner
             if (e.Src.IsOnPerimeter && e.Dst.IsOnPerimeter && !e.IsPerimeterEdge)
@@ -448,21 +446,21 @@ namespace OPS.Geometry
         /// <param name="collapsingEdge"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static double GetSmallestAngleRatio(Edge collapsingEdge)
+        public static double GetSmallestAngleRatio(CollapsableEdge collapsingEdge)
         {
             double minRatio = double.MaxValue;
-            if (collapsingEdge.VNew.Position != collapsingEdge.Src.Vert.Position)
+            if (collapsingEdge.VNew.Position != collapsingEdge.Src.Position)
             {
-                foreach (Edge e in collapsingEdge.Src.AdjacentEdges)
+                foreach (CollapsableEdge e in collapsingEdge.Src.AdjacentEdges)
                 {
                     if (e.Left != null)
                     {
                         if (e.Left != collapsingEdge.Dst && e.Dst != collapsingEdge.Dst)
                         {
                             Vector3 v0a = collapsingEdge.VNew.Position;
-                            Vector3 v0b = e.Src.Vert.Position;
-                            Vector3 v1 = e.Dst.Vert.Position;
-                            Vector3 v2 = e.Left.Vert.Position;
+                            Vector3 v0b = e.Src.Position;
+                            Vector3 v1 = e.Dst.Position;
+                            Vector3 v2 = e.Left.Position;
                             double a0 = Angle(v1 - v0a, v2 - v0a);
                             double a1 = Angle(v2 - v1, v0a - v1);
                             double a2 = Angle(v0a - v2, v1 - v2);
@@ -480,18 +478,18 @@ namespace OPS.Geometry
                     }
                 }
             }
-            if (collapsingEdge.VNew.Position != collapsingEdge.Dst.Vert.Position)
+            if (collapsingEdge.VNew.Position != collapsingEdge.Dst.Position)
             {
-                foreach (Edge e in collapsingEdge.Dst.AdjacentEdges)
+                foreach (CollapsableEdge e in collapsingEdge.Dst.AdjacentEdges)
                 {
                     if (e.Left != null)
                     {
                         if (e.Left != collapsingEdge.Src && e.Dst != collapsingEdge.Src)
                         {
                             Vector3 v0a = collapsingEdge.VNew.Position;
-                            Vector3 v0b = e.Src.Vert.Position;
-                            Vector3 v1 = e.Dst.Vert.Position;
-                            Vector3 v2 = e.Left.Vert.Position;
+                            Vector3 v0b = e.Src.Position;
+                            Vector3 v1 = e.Dst.Position;
+                            Vector3 v2 = e.Left.Position;
                             double a0 = Angle(v1 - v0a, v2 - v0a);
                             double a1 = Angle(v2 - v1, v0a - v1);
                             double a2 = Angle(v0a - v2, v1 - v2);
@@ -518,22 +516,22 @@ namespace OPS.Geometry
         /// <param name="collapsingEdge"></param>
         /// <returns></returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static double CheckNormalChanges(Edge collapsingEdge)
+        public static double CheckNormalChanges(CollapsableEdge collapsingEdge)
         {
             Vector3 oldMean = new Vector3(0, 0, 0);
             Vector3 newMean = new Vector3(0, 0, 0);
             Vector3 oldNorm;
             Vector3 newNorm;
-            if (collapsingEdge.VNew.Position != collapsingEdge.Src.Vert.Position)
+            if (collapsingEdge.VNew.Position != collapsingEdge.Src.Position)
             {
-                foreach (Edge e in collapsingEdge.Src.AdjacentEdges)
+                foreach (CollapsableEdge e in collapsingEdge.Src.AdjacentEdges)
                 {
                     if (e.Left != null)
                     {
                         if (e.Left != collapsingEdge.Dst && e.Dst != collapsingEdge.Dst)
                         {
-                            if( Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out oldNorm)
-                                && Triangle.ComputeNormal(collapsingEdge.VNew.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out newNorm))
+                            if( Triangle.ComputeNormal(e.Src.Position, e.Dst.Position, e.Left.Position, out oldNorm)
+                                && Triangle.ComputeNormal(collapsingEdge.VNew.Position, e.Dst.Position, e.Left.Position, out newNorm))
                             {
                                 oldMean += oldNorm;
                                 newMean += newNorm;
@@ -542,16 +540,16 @@ namespace OPS.Geometry
                     }
                 }
             }
-            if (collapsingEdge.VNew.Position != collapsingEdge.Dst.Vert.Position)
+            if (collapsingEdge.VNew.Position != collapsingEdge.Dst.Position)
             {
-                foreach (Edge e in collapsingEdge.Dst.AdjacentEdges)
+                foreach (CollapsableEdge e in collapsingEdge.Dst.AdjacentEdges)
                 {
                     if (e.Left != null)
                     {
                         if (e.Left != collapsingEdge.Src && e.Dst != collapsingEdge.Src)
                         {
-                            if (Triangle.ComputeNormal(e.Src.Vert.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out oldNorm)
-                                && Triangle.ComputeNormal(collapsingEdge.VNew.Position, e.Dst.Vert.Position, e.Left.Vert.Position, out newNorm))
+                            if (Triangle.ComputeNormal(e.Src.Position, e.Dst.Position, e.Left.Position, out oldNorm)
+                                && Triangle.ComputeNormal(collapsingEdge.VNew.Position, e.Dst.Position, e.Left.Position, out newNorm))
                             {
                                 oldMean += oldNorm;
                                 newMean += newNorm;
@@ -576,7 +574,7 @@ namespace OPS.Geometry
         /// <param name="adjacentFaces"></param>
         /// <param name="perimeterFactor"></param>
         /// <returns></returns>
-        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<VertexNode> currentVerts, List<Face>[] adjacentFaces, double perimeterFactor, bool normalizeArea)
+        static Matrix GetQMatrix(int vertexIndex, Mesh mesh, List<CollapsableVertexNode> currentVerts, List<Face>[] adjacentFaces, double perimeterFactor, bool normalizeArea)
         {
             Matrix vertQ = new Matrix(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
             foreach (Face face in adjacentFaces[vertexIndex])
@@ -623,12 +621,12 @@ namespace OPS.Geometry
         /// <param name="v1"></param>
         /// <param name="v2"></param>
         /// <returns></returns>
-        static int NumCommonNeighbors(VertexNode v1, VertexNode v2)
+        static int NumCommonNeighbors(CollapsableVertexNode v1, CollapsableVertexNode v2)
         {
             int common = 0;
-            foreach(Edge e in v1.AdjacentEdges)
+            foreach(CollapsableEdge e in v1.AdjacentEdges)
             {
-                VertexNode v = e.Dst;
+                CollapsableVertexNode v = e.Dst;
                 common += v2.AdjacentEdges.FindAll(f => e.Dst == f.Dst).Count;
                
             }
@@ -636,9 +634,9 @@ namespace OPS.Geometry
             if (_DEBUG)
             {
                 int common1 = 0;
-                foreach (Edge e in v2.AdjacentEdges)
+                foreach (CollapsableEdge e in v2.AdjacentEdges)
                 {
-                    VertexNode v = e.Dst;
+                    CollapsableVertexNode v = e.Dst;
                     common1 += v1.AdjacentEdges.FindAll(f => e.Dst == f.Dst).Count;
                 }
                 if (common != common1)

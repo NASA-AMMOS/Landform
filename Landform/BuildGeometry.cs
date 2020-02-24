@@ -408,7 +408,7 @@ namespace OPS.Landform
 
             //Create mask mesh verts
             surfaceMaskMesh = new Mesh();
-            surfaceMaskMesh.Vertices = perimeterEdges.Select(e => new Vertex(e.Src.Vert.Position)).ToList();
+            surfaceMaskMesh.Vertices = perimeterEdges.Select(e => new Vertex(e.Src.Position)).ToList();
 
             int id = 0;
             foreach (Edge e in perimeterEdges)
