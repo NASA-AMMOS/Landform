@@ -411,21 +411,6 @@ namespace OPS.Landform
                 pipeline.LogInfo("site drive: {0}", options.SiteDrive);
             }
 
-            if (string.IsNullOrEmpty(options.ManifestFile))
-            {
-                if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
-                    SiteDrive.IsSiteDriveString(options.SiteDrive))
-                {
-                    options.ManifestFile = string.Format("{0}{1:D4}_{2}{3}.json", options.TilesetDir, options.Sol,
-                                                         options.SiteDrive, SCENE_SUFFIX);
-                    pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
-                }
-                else
-                {
-                    throw new Exception("--tilesetdir, --sol, and --sitedrive required to infer --manifestfile");
-                }
-            }
-
             if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
             {
                 throw new Exception("--onlyforsitedrives not implemented for this command");
@@ -441,7 +426,27 @@ namespace OPS.Landform
                 return false; // help
             }
 
-            //mission has now been initialized
+            //mission and project have now been initialized
+
+            if (string.IsNullOrEmpty(options.ManifestFile))
+            {
+                if (project != null)
+                {
+                    options.ManifestFile = string.Format("{0}{1}{2}.json",
+                                                         options.TilesetDir, project.Name, SCENE_SUFFIX);
+                }
+                else if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
+                         SiteDrive.IsSiteDriveString(options.SiteDrive))
+                {
+                    options.ManifestFile = string.Format("{0}{1:D4}_{2}{3}.json", options.TilesetDir, options.Sol,
+                                                         options.SiteDrive, SCENE_SUFFIX);
+                }
+                else
+                {
+                    throw new Exception("--tilesetdir, --sol, and --sitedrive required to infer --manifestfile");
+                }
+                pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
+            }
 
             if (string.IsNullOrEmpty(options.ImageRDRExts) || options.ImageRDRExts.ToLower() == "mission")
             {
@@ -653,7 +658,14 @@ namespace OPS.Landform
 
         private void UpdateContextualMeshManifest()
         {
-            string tilesetId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
+            //by convention the contextual mesh project name is TTTT_SSSDDDD
+            //where TTTT is the sol, SSS the site, and DDDD the drive
+            //but for variant processing there might be e.g. an extra suffix
+            //so rather than rigidly assume that it's always TTTT_SSSDDDD
+            //use the project name which would include any variant suffix
+            //string tilesetId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
+            string tilesetId = project.Name;
+
             string tilesetUrl = null;
             if (!options.NoURLs)
             {

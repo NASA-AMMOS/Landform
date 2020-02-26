@@ -7,7 +7,7 @@ home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--suffix nohaz] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
 
 if [ $# -lt 4 ]; then
     echo $help
@@ -41,14 +41,12 @@ if ! [[ $sd =~ ^[0-9]{7}$ ]]; then
     exit 1
 fi
 
-proj=${sol}_${sd}
-venue=local_${mission}_${sol}_${sd}
-tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
-
 combined_manifest=true
 copy_combined_manifest=
 only_ingest=
 s3_proxy=
+cameras=
+suffix=
 
 manifest=true
 dry=
@@ -102,9 +100,29 @@ while (( "$#" )); do
         "--onlycopycombinedmanifest") cleanup=; only_cleanup=; generate=; upload=;;
         "--nocombinedmanifest") combined_manifest=;;
         "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
+        "--onlyforcameras")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing cameras list"
+                exit 1
+            fi
+            cameras="--onlyforcameras $1"
+            ;;
+        "--suffix")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing suffix"
+                exit 1
+            fi
+            suffix="_$1"
+            ;;
     esac
     shift
 done
+
+proj=${sol}_${sd}${suffix}
+venue=local_${mission}_${sol}_${sd}${suffix}
+tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 
 backup_config() { if [ -f $config -a ! -f $config.BAK ]; then ${dry}cp $config $config.BAK; fi }
 
@@ -137,7 +155,7 @@ if [ "$generate" ]; then
     done
     
     ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-    ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sds
+    ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sds $cameras
 
     if [ ! "$only_ingest" ]; then
         ${dry}$landform bev-align $proj $dbg --fixsitedrives $sd
