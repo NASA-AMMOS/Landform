@@ -14,8 +14,28 @@ namespace OPS.Geometry
     /// </summary>
     public class CollapsableEdgeGraph : EdgeGraph
     {
-        public new List<CollapsableVertexNode> VertNodes = new List<CollapsableVertexNode>();
+        private List<CollapsableVertexNode> VertNodes = new List<CollapsableVertexNode>();
         int newID;
+
+        public int VertCount { get { return VertNodes.Count; } }
+
+        public override IEnumerable<VertexNode> GetVertNodes()
+        {
+            foreach (CollapsableVertexNode v in VertNodes)
+            {
+                yield return v;
+            }
+        }
+
+        public override void AddNode(VertexNode node)
+        {
+            VertNodes.Add((CollapsableVertexNode)node);
+        }
+
+        public override VertexNode GetNode(int index)
+        {
+            return VertNodes[index];
+        }
 
         protected override VertexNode CreateNode(Vertex v, int id)
         {
@@ -25,6 +45,12 @@ namespace OPS.Geometry
         protected override Edge CreateEdge(int src, int dst, int left)
         {
             return new CollapsableEdge(VertNodes[src], VertNodes[dst], VertNodes[left], null);
+        }
+
+        protected override Edge CreateEdge(VertexNode src, VertexNode dst, VertexNode left, bool isOnPerimeter = false)
+        {
+            return new CollapsableEdge((CollapsableVertexNode)src, 
+                (CollapsableVertexNode)dst, (CollapsableVertexNode)left, isOnPerimeter);
         }
 
         public CollapsableEdgeGraph(Mesh mesh) : base(mesh)
@@ -70,7 +96,7 @@ namespace OPS.Geometry
             {
                 if (v.IsActive)
                 {
-                    foreach (CollapsableEdge e in v.AdjacentEdges)
+                    foreach (CollapsableEdge e in v.GetAdjacentEdges())
                     {
                         if (e.IsPerimeterEdge && e.Left != null)
                         {

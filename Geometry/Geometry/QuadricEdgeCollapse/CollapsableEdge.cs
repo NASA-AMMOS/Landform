@@ -15,10 +15,25 @@ namespace OPS.Geometry
     /// </summary>
     public class CollapsableEdge : Edge
     {
-        public new CollapsableVertexNode Src, Dst;
-        public new CollapsableVertexNode Left;
+        private CollapsableVertexNode _src;
+        private CollapsableVertexNode _dst;
+        private CollapsableVertexNode _left;
+        public override VertexNode Src
+        {
+            get { return _src; }
+            set { _src = (CollapsableVertexNode)value; }
+        }
+        public override VertexNode Dst
+        {
+            get { return _dst; }
+            set { _dst = (CollapsableVertexNode)value; }
+        }
+        public override VertexNode Left
+        {
+            get { return _left; }
+            set { _left = (CollapsableVertexNode)value; }
+        }
         public Vertex VNew;
-
 
         public CollapsableEdge(CollapsableVertexNode v1, CollapsableVertexNode v2, CollapsableVertexNode left, bool isPerimeterEdge = false) 
             : base(v1, v2, left, isPerimeterEdge)
@@ -41,7 +56,7 @@ namespace OPS.Geometry
         public double QEM(Vertex vNew)
         {
             Matrix v = new Matrix(vNew.Position.X, 0, 0, 0, vNew.Position.Y, 0, 0, 0, vNew.Position.Z, 0, 0, 0, 1, 0, 0, 0);
-            return (Matrix.Transpose(v) * (Src.Q + Dst.Q) * v).M11;
+            return (Matrix.Transpose(v) * (((CollapsableVertexNode)Src).Q + ((CollapsableVertexNode)Dst).Q) * v).M11;
         }
 
         /// <summary>
@@ -50,12 +65,14 @@ namespace OPS.Geometry
         /// <returns></returns>
         public void SetNewVertPosSimple()
         {
-            if (Src.IsOnPerimeter && !Dst.IsOnPerimeter || !Src.IsTouchable && Dst.IsTouchable)
+            if (Src.IsOnPerimeter && !Dst.IsOnPerimeter || !((CollapsableVertexNode)Src).IsTouchable 
+                                                         && ((CollapsableVertexNode)Dst).IsTouchable)
             {
                 VNew = Src;
                 return;
             }
-            if (Dst.IsOnPerimeter && !Src.IsOnPerimeter || !Dst.IsTouchable && Src.IsTouchable)
+            if (Dst.IsOnPerimeter && !Src.IsOnPerimeter || !((CollapsableVertexNode)Dst).IsTouchable
+                                                         && ((CollapsableVertexNode)Src).IsTouchable)
             {
                 VNew = Dst;
                 return;
@@ -82,19 +99,21 @@ namespace OPS.Geometry
         /// <returns></returns>
         public void SetNewVertPos()
         {
-            if (Src.IsOnPerimeter && !Dst.IsOnPerimeter || !Src.IsTouchable && Dst.IsTouchable)
+            if (Src.IsOnPerimeter && !Dst.IsOnPerimeter || !((CollapsableVertexNode)Src).IsTouchable
+                                                         && ((CollapsableVertexNode)Dst).IsTouchable)
             {
                 VNew = Src;
                 return;
             }
-            if (Dst.IsOnPerimeter && !Src.IsOnPerimeter || !Dst.IsTouchable && Src.IsTouchable)
+            if (Dst.IsOnPerimeter && !Src.IsOnPerimeter || !((CollapsableVertexNode)Dst).IsTouchable
+                                                         && ((CollapsableVertexNode)Src).IsTouchable)
             {
                 VNew = Dst;
                 return;
             }
             if (!IsPerimeterEdge)
             {
-                Matrix Q = Src.Q + Dst.Q;
+                Matrix Q = ((CollapsableVertexNode)Src).Q + ((CollapsableVertexNode)Dst).Q;
                 Q[3, 0] = 0;
                 Q[3, 1] = 0;
                 Q[3, 2] = 0;

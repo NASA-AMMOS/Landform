@@ -13,15 +13,32 @@ namespace OPS.Geometry
     /// <summary>
     /// Stores two VertexNodes, the third VertexNode of its left face (for winding order), and the location of the collapsed vertex
     /// </summary>
-    public class Edge : SimpleEdge
+    public class Edge
     {
-        public new VertexNode Src, Dst;
-        public VertexNode Left;
+        private VertexNode _src;
+        private VertexNode _dst;
+        private VertexNode _left;
+        public virtual VertexNode Src
+        {
+            get { return _src; }
+            set { _src = value; }
+        }
+        public virtual VertexNode Dst
+        {
+            get { return _dst; }
+            set { _dst = value; }
+        }
+        public virtual VertexNode Left
+        {
+            get { return _left; }
+            set { _left = value; }
+        }
         public bool IsPerimeterEdge;
 
         public Edge(VertexNode v1, VertexNode v2, VertexNode left, bool isPerimeterEdge = false)
-            : base(v1, v2)
         {
+            this.Src = v1;
+            this.Dst = v2;
             this.Left = left;
             this.IsPerimeterEdge = isPerimeterEdge;
         }
