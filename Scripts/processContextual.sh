@@ -1,11 +1,19 @@
 #!/bin/bash
 
-# https://stackoverflow.com/a/246128
-scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-landform=$scriptdir/../Landform/bin/Release/Landform.exe
 home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
+
+# https://stackoverflow.com/a/246128
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+for d in . .. ../Landform/bin/Release ../Landform/bin/Debug; do
+    landform=$scriptdir/$d/Landform.exe
+    if [ -f $landform ]; then break; fi
+done
+if [ ! -f "$landform" ]; then
+    echo "could not find Landform.exe"
+    exit 1
+fi
 
 help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--suffix nohaz] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
 
