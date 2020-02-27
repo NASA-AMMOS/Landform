@@ -14,7 +14,7 @@ namespace OPS.Geometry
     /// </summary>
     public class VertexNode : Vertex
     {
-        public List<Edge> AdjacentEdges = new List<Edge>();
+        private List<Edge> AdjacentEdges = new List<Edge>();
         public bool IsOnPerimeter;
         public int AdjFaceCount;
         public int ID;
@@ -32,6 +32,44 @@ namespace OPS.Geometry
             this.AdjFaceCount = adjFaceCount;
             this.AdjacentEdges = adjacentEdges;
             this.IsOnPerimeter = isOnPerimeter;
+        }
+
+        public virtual void AddEdge(Edge e)
+        {
+            AdjacentEdges.Add(e);
+        }
+
+        public virtual bool ContainsEdge(Edge e)
+        {
+            return AdjacentEdges.Contains(e);
+        }
+
+        public virtual Edge FindEdge(Predicate<Edge> p)
+        {
+            return AdjacentEdges.Find(p);
+        }
+
+        public virtual IEnumerable<Edge> FindAllEdges(Predicate<Edge> p)
+        {
+            return AdjacentEdges.FindAll(p);
+        }
+
+        public virtual void RemoveEdge(Edge e)
+        {
+            AdjacentEdges.Remove(e);
+        }
+
+        public virtual IEnumerable<Edge> GetAdjacentEdges()
+        {
+            foreach (Edge e in AdjacentEdges)
+            {
+                yield return e;
+            }
+        }
+
+        public virtual void FilterEdges(Func<Edge, bool> p)
+        {
+            AdjacentEdges = AdjacentEdges.Where(p).ToList();
         }
 
         public static bool operator <(VertexNode v1, VertexNode v2)

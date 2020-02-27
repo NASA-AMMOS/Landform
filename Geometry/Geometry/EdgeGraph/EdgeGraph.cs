@@ -14,7 +14,25 @@ namespace OPS.Geometry
     /// </summary>
     public class EdgeGraph
     {
-        public List<VertexNode> VertNodes = new List<VertexNode>();
+        private List<VertexNode> VertNodes = new List<VertexNode>();
+
+        public virtual IEnumerable<VertexNode> GetVertNodes()
+        {
+            foreach(VertexNode v in VertNodes)
+            {
+                yield return v;
+            }
+        }
+
+        public virtual void AddNode(VertexNode node)
+        {
+            VertNodes.Add(node);
+        }
+
+        public virtual VertexNode GetNode(int index)
+        {
+            return VertNodes[index];
+        }
 
         protected virtual VertexNode CreateNode(Vertex v, int id)
         {
@@ -26,31 +44,37 @@ namespace OPS.Geometry
             return new Edge(VertNodes[src], VertNodes[dst], VertNodes[left]);
         }
 
+        protected virtual Edge CreateEdge(VertexNode src, VertexNode dst, VertexNode left, bool isOnPerimeter=false)
+        {
+            return new Edge(src, dst, left, isOnPerimeter);
+        }
+
         public EdgeGraph(Mesh mesh)
         {
             //Construct VertexNode objects for each vertex
             for (int i = 0; i < mesh.Vertices.Count; i++)
             {
-                VertNodes.Add(CreateNode(mesh.Vertices[i], i));
+                AddNode(CreateNode(mesh.Vertices[i], i));
             }
 
             //Add adjacency info
             foreach (Face face in mesh.Faces)
             {
-                VertNodes[face.P0].AdjacentEdges.Add(CreateEdge(face.P0, face.P1, face.P2));
-                VertNodes[face.P1].AdjacentEdges.Add(CreateEdge(face.P1, face.P2, face.P0));
-                VertNodes[face.P2].AdjacentEdges.Add(CreateEdge(face.P2, face.P0, face.P1));
+                GetNode(face.P0).AddEdge(CreateEdge(face.P0, face.P1, face.P2));
+                GetNode(face.P1).AddEdge(CreateEdge(face.P1, face.P2, face.P0));
+                GetNode(face.P2).AddEdge(CreateEdge(face.P2, face.P0, face.P1));
             }
 
             //Flag perimeter vertices and edges
-            foreach (VertexNode v in VertNodes)
+            foreach (VertexNode v in GetVertNodes())
             {
-                foreach (Edge e in v.AdjacentEdges)
+                foreach (Edge e in v.GetAdjacentEdges())
                 {
                     VertexNode other = e.Dst;
-                    if (!other.AdjacentEdges.Contains(e))
+                    if (!other.ContainsEdge(e))
                     {
-                        other.AdjacentEdges.Add(new Edge(other, v, null, true));
+                        other.AddEdge(CreateEdge(other, v, null, true));
+                        other.IsOnPerimeter = true;
                         e.IsPerimeterEdge = true;
                         v.IsOnPerimeter = true;
                         other.IsOnPerimeter = true;
@@ -148,7 +172,7 @@ namespace OPS.Geometry
                 while (!closed)
                 {
                     bool foundNextEdge = false;
-                    foreach (Edge other in current.Dst.AdjacentEdges)
+                    foreach (Edge other in current.Dst.GetAdjacentEdges())
                     {
                         if (other.Dst != current.Src && other.Left != null && other.IsPerimeterEdge && !usedEdges.Contains(other))
                         {
@@ -228,7 +252,7 @@ namespace OPS.Geometry
         public List<VertexNode> GetPerimeterNodes()
         {
             var res = new List<VertexNode>();
-            foreach (VertexNode v in VertNodes)
+            foreach (VertexNode v in GetVertNodes())
             {
                 if (v.IsOnPerimeter)
                 {
@@ -245,9 +269,9 @@ namespace OPS.Geometry
         public List<Edge> GetPerimeterEdges()
         {
             var res = new List<Edge>();
-            foreach(VertexNode v in VertNodes)
+            foreach(VertexNode v in GetVertNodes())
             {
-                foreach (Edge e in v.AdjacentEdges)
+                foreach (Edge e in v.GetAdjacentEdges())
                 {
                     if(e.IsPerimeterEdge && e.Left != null)
                     {

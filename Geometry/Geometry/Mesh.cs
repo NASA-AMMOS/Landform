@@ -629,19 +629,19 @@ namespace OPS.Geometry
                 EdgeGraph edgeGraph = new EdgeGraph(copy);
 
                 //Compute a skirt location for each perimeter vertex based on the normals of surrounding triangles. If a previous skirt vertex is "good enough" based on `threshold', it may be used instead of creating a new one
-                foreach (VertexNode vNode in edgeGraph.VertNodes)
+                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
                 {
                     if (vNode.IsOnPerimeter)
                     {
                         List<Vertex> candidates = new List<Vertex>();
                         Vector3 averageNormal = new Vector3(0, 0, 0);
-                        foreach (OPS.Geometry.Edge e1 in vNode.AdjacentEdges)
+                        foreach (Edge e1 in vNode.GetAdjacentEdges())
                         {
                             if (e1.IsPerimeterEdge)
                             {
                                 candidates.Add(e1.Dst);
                             }
-                            foreach (OPS.Geometry.Edge e2 in e1.Dst.AdjacentEdges)
+                            foreach (Edge e2 in e1.Dst.GetAdjacentEdges())
                             {
                                 if (e2.Left != null)
                                 {
@@ -679,11 +679,11 @@ namespace OPS.Geometry
                 }
 
                 //Add in the faces for the new skirt vertices
-                foreach (VertexNode vNode in edgeGraph.VertNodes)
+                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
                 {
                     if (vNode.IsOnPerimeter)
                     {
-                        foreach (OPS.Geometry.Edge e in vNode.AdjacentEdges)
+                        foreach (Edge e in vNode.GetAdjacentEdges())
                         {
                             if (e.IsPerimeterEdge && e.Left != null)
                             {
@@ -1717,10 +1717,10 @@ namespace OPS.Geometry
 
             min = double.PositiveInfinity;
             max = double.NegativeInfinity;
-            foreach (var v in graph.VertNodes)
+            foreach (var v in graph.GetVertNodes())
             {
                 double maxAbsCurvature = 0;
-                foreach (var e in v.AdjacentEdges)
+                foreach (var e in v.GetAdjacentEdges())
                 {
                     var c = Math.Abs(Curvature(v.Position, e.Dst.Position, v.Normal, e.Dst.Normal));
                     maxAbsCurvature = Math.Max(maxAbsCurvature, c);
