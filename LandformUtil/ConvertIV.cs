@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using CommandLine;
+using log4net;
 using OPS.Geometry;
 using OPS.Imaging;
 
@@ -30,6 +31,8 @@ namespace OPS.LandformUtil
     {
         private ConvertIVOptions options;
 
+        private static readonly ILog logger = LogManager.GetLogger(typeof(ConvertIV));
+
         public ConvertIV(ConvertIVOptions options)
         {
             this.options = options;
@@ -41,7 +44,7 @@ namespace OPS.LandformUtil
 
             if (!allowedFormats.Any(f => f == options.OutputType))
             {
-                Console.Error.WriteLine("unrecognized output type \"{0}\"", options.OutputType);
+                logger.ErrorFormat("unrecognized output type \"{0}\"", options.OutputType);
                 return 1;
             }
 
@@ -111,6 +114,8 @@ namespace OPS.LandformUtil
                     if (options.AllLODs)
                     {
                         var lodMeshes = Mesh.LoadAllLODs(files[i]);
+                        logger.InfoFormat("converting {0} LOD from {1} to {2} in {3}",
+                                          lodMeshes.Count, files[i], ext, destDir);
                         for (int lod = 0; lod < lodMeshes.Count; lod++)
                         {
                             string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
@@ -119,6 +124,7 @@ namespace OPS.LandformUtil
                     }
                     else
                     {
+                        logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
                         Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
                     }
                 }          
