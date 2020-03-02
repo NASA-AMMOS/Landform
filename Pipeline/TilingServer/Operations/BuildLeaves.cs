@@ -187,7 +187,7 @@ namespace OPS.Pipeline.TilingServer
                                 mesh.HasUVs ? "using exising UVs" : "assigning new UVs with UVAtlas");
                         if (mesh.HasUVs)
                         {
-                            mesh.RescaleUVsForTexture(maxTexRes, maxTexRes);
+                            mesh.RescaleUVsForTexture(maxTexRes, maxTexRes, project.MaxTextureStretch);
                         }
                         //BakeTexture() will call UVAtlas if necessary
                         pair = clipper.BakeTexture(mesh, maxTexRes, project.MaxTextureStretch, msg => LogInfo(msg));

@@ -134,7 +134,8 @@ namespace OPS.Pipeline
             }
             else
             {
-                clippedMesh.RescaleUVsForTexture(options.tileResolution, options.tileResolution);
+                clippedMesh.RescaleUVsForTexture(options.tileResolution, options.tileResolution,
+                                                 options.maxTextureStretch);
             }
 
             //choose a sub-set of points (for perf) from the output atlas texture to test

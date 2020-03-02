@@ -84,10 +84,7 @@ namespace OPS.Geometry
 
             Mesh result = NaiveAtlas.AtlasMesh(mesh, outU, outV, indices, outVertexRemap);
 
-            if (maxStretch == 1)
-            {
-                result.RescaleUVsForTexture(width, height, gutter);
-            }
+            result.RescaleUVsForTexture(width, height, maxStretch, gutter);
 
             return result;
         }

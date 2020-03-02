@@ -250,7 +250,7 @@ namespace OPS.Pipeline
                                                      meshToImage: textureProjector.MeshToImage);
                     if (textureMode != TextureMode.Clip || textureImage == null)
                     {
-                        combinedDecimated.RescaleUVsForTexture(size, size);
+                        combinedDecimated.RescaleUVsForTexture(size, size, maxTextureStretch);
                     }
                 }
                 else

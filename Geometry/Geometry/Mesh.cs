@@ -1398,7 +1398,7 @@ namespace OPS.Geometry
         /// <summary>
         /// remap UV coordinates to the box [border, border]x[1 - border, 1 - border]
         /// </summary>
-        public void RescaleUVs(double border = 0.01, double growThreshold = 0.1)
+        public void RescaleUVs(double border = 0.01, double maxStretch = 1, double growThreshold = 0.1)
         {
             var targetMin = Vector2.Zero;
             var targetMax = Vector2.One;
@@ -1407,27 +1407,35 @@ namespace OPS.Geometry
                 targetMin += border * Vector2.One;
                 targetMax -= border * Vector2.One;
             }
-            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), maxStretch, growThreshold);
         }
 
         /// <summary>
         /// computes target bounds from image pixels
         /// </summary>
         public void RescaleUVsForTexture(int texWidth, int texHeight, double borderPixels = 2,
-                                         double growThreshold = 0.1)
+                                         double maxStretch = 1, double growThreshold = 0.1)
         {
             var border = borderPixels * Vector2.One;
             var targetMin = Image.PixelToUV(border, texWidth, texHeight);
             var targetMax = Image.PixelToUV(new Vector2(texWidth, texHeight) - border, texWidth, texHeight);
-            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), maxStretch, growThreshold);
         }
 
         /// <summary>
         /// remap UV coordinates to targetBounds  
-        /// does nothing if the current UV bounds is already contained in targetBounds
-        /// and the current bounds size in each dimension is within growThreshold of targetBounds
         /// </summary>
-        public void RescaleUVs(BoundingBox targetBounds, double growThreshold = 0.1)
+        /// <param name="maxStretch">
+        /// Same semantics as UVAtlas.Atlas(maxStretch). If less than or equal to 0 then force isometric scaling (same
+        /// scale factor in each dimension).  If greater than or equal to 1 then allow unlimited aspect ratio of
+        /// scaling.  Otherwise limit aspect ratio of scaling to 1/(1-maxStretch).
+        /// </param>
+        /// <param name="growThreshold">
+        /// Ignored if less than or equal to zero.  Otherwise, if the current UV bounds is already contained in
+        /// targetBounds and the current bounds size in each dimension is within growThreshold of targetBounds then
+        /// don't modify current UV coordinates.
+        /// </param>
+        public void RescaleUVs(BoundingBox targetBounds, double maxStretch = 1, double growThreshold = 0.1)
         {
             if (!HasUVs)
             {
@@ -1450,6 +1458,29 @@ namespace OPS.Geometry
             double eps = 1e-10;
             var rescale = new Vector2(Math.Abs(sz.X) > eps ? targetSz.X / sz.X : 1,
                                       Math.Abs(sz.Y) > eps ? targetSz.Y / sz.Y : 1);
+            if (maxStretch <= 0) //no stretch allowed, force isometric scaling
+            {
+                if (rescale.X <= rescale.Y)
+                {
+                    rescale.Y = rescale.X;
+                }
+                else
+                {
+                    rescale.X = rescale.Y;
+                }
+            }
+            else if (maxStretch < 1)
+            {
+                double maxAspect = 1.0 / (1.0 - maxStretch);
+                if (rescale.X <= rescale.Y)
+                {
+                    rescale.Y = Math.Min(rescale.Y, maxAspect * rescale.X);
+                }
+                else
+                {
+                    rescale.X = Math.Min(rescale.X, maxAspect * rescale.Y);
+                }
+            }
             var targetMin = new Vector2(targetBounds.Min.X, targetBounds.Min.Y);
             foreach (Vertex v in this.Vertices)
             {

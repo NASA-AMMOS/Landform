@@ -1093,7 +1093,7 @@ namespace OPS.Landform
                     {
                         pipeline.LogVerbose("(re-)atlasing tile mesh {0} with texture projection", tile.Name);
                         ProjectTexture(tileMesh);
-                        tileMesh.RescaleUVsForTexture(tileResolution, tileResolution);
+                        tileMesh.RescaleUVsForTexture(tileResolution, tileResolution, maxTextureStretch);
                     }
                     else
                     {
@@ -1118,7 +1118,7 @@ namespace OPS.Landform
                 else
                 {
                     pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
-                    tileMesh.RescaleUVsForTexture(tileResolution, tileResolution);
+                    tileMesh.RescaleUVsForTexture(tileResolution, tileResolution, maxTextureStretch);
                 }
             }
             else if (textureMode == TextureMode.Clip)
