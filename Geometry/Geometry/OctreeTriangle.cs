@@ -59,7 +59,7 @@ namespace OPS.Geometry
             this.v0 = v0;
             this.v1 = v1;
             this.v2 = v2;
-            tri = new Triangle(v0.Vert.Position, v1.Vert.Position, v2.Vert.Position);
+            tri = new Triangle(v0.Position, v1.Position, v2.Position);
         }
 
         public BoundingBox Bounds()

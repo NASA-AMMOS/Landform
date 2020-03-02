@@ -175,7 +175,18 @@ namespace OPS.Pipeline
 
             HashSet<string> urls = new HashSet<string>();
 
-            if (mission.AllowPDSLabelFiles())
+            var pdsExts = StringHelper.ParseExts(mission.GetPDSExts())
+                .Select(ext => ext.ToUpper().TrimStart('.'))
+                .ToArray();
+
+            void addRDRs(BaseUrl url, string ext)
+            {
+                pipeline.LogInfo("{0}ingesting {1} files from {2} for alignment project {3}",
+                                 url.Recursive ? "recursively " : "", ext, url.Url, project.Name);
+                urls.UnionWith(pipeline.SearchFiles(url.Url, "*." + ext, recursive: url.Recursive, ignoreCase: true));
+            }
+                
+            if (mission.AllowPDSLabelFiles() && pdsExts.Contains("LBL"))
             {
                 //if there are any LBL files ingest them first
                 //because they will generally refer to other IMG files containing the actual image data
@@ -183,24 +194,24 @@ namespace OPS.Pipeline
                 //because below we're going to also ingest all IMG files
                 //and we can avoid trying to ingest all the foo.IMG that were referred to by foo.LBL
                 //foo.IMG will be a raw PDS data file with no headers and will error out if we try to ingest it anyway
-                foreach (var entry in BaseUrls)
+                foreach (var url in BaseUrls)
                 {
-                    pipeline.LogInfo("{0}ingesting input LBL files from {1} for alignment project {2}",
-                                     entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-                    urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.LBL",
-                                                        recursive: entry.Recursive, ignoreCase: true));
+                    addRDRs(url, "LBL");
                 }
                 nt = urls.Count();
                 CoreLimitedParallel.ForEach(urls, ingestUrl);
             }
                 
             urls.Clear();
-            foreach (var entry in BaseUrls)
+            foreach (var url in BaseUrls)
             {
-                pipeline.LogInfo("{0}ingesting input IMG and VIC files from {1} for alignment project {2}",
-                                 entry.Recursive ? "recursively " : "", entry.Url, project.Name);
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.IMG", recursive: entry.Recursive, ignoreCase: true));
-                urls.UnionWith(pipeline.SearchFiles(entry.Url, "*.VIC", recursive: entry.Recursive, ignoreCase: true));
+                foreach (var ext in pdsExts)
+                {
+                    if (ext != "LBL")
+                    {
+                        addRDRs(url, ext);
+                    }
+                }
             }
             nt = urls.Count();
             ni = 0;
@@ -274,7 +285,12 @@ namespace OPS.Pipeline
             var acceptedUrls = new HashSet<string>();
             acceptedUrls.UnionWith(results.Values.Where(res => res.Accepted).Select(res => res.Url));
             int na = acceptedUrls.Count;
-            var filteredUrls = RoverObservationComparator.FilterProductIdGroups(acceptedUrls, mission).ToList();
+            Action<string> log = null;
+            if (pipeline.Verbose)
+            {
+                log = msg => pipeline.LogInfo(msg);
+            }
+            var filteredUrls = RoverObservationComparator.FilterProductIdGroups(acceptedUrls, mission, log).ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by product ID groups", na, filteredUrls.Count);
 
             var filteredObs = filteredUrls
@@ -285,12 +301,15 @@ namespace OPS.Pipeline
             na = filteredObs.Count;
 
             // if linear and nonlinear images are allowed this code will keep for each observation either:
-            // 1) one image: the best image (regardless of linearity) if the image contents are different in higher priority compares than linearity
-            // 2) two images: one of each linarity if the image contents are equivalent up to the linearity test. this condition defers the decision
-            //    to a sort by systems that have a strong preference for linear or nonlinear rather than an explicit early culling here.
+            // 1) one image: the best image (regardless of linearity) if the image contents are different
+            //    in higher priority compares than linearity
+            // 2) two images: one of each linarity if the image contents are equivalent up to the linearity test.
+            //    this condition defers the decision to a sort by systems that have a strong preference for linear
+            //    or nonlinear rather than an explicit early culling here.
             var comparator = mission.GetRoverObservationComparator();
-                     filteredObs = comparator
-                .KeepBestRoverObservations(filteredObs, RoverObservationComparator.KeepLinearVariants.Both, pipeline.Verbose ? pipeline : null)
+            comparator.logger = pipeline.Verbose ? pipeline : null;
+            filteredObs = comparator
+                .KeepBestRoverObservations(filteredObs, RoverObservationComparator.LinearVariants.Both)
                 .ToList();
             pipeline.LogInfo("culled {0} -> {1} observations by observation comparator", na, filteredObs.Count);
             na = filteredObs.Count;

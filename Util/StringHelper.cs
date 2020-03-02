@@ -25,6 +25,16 @@ namespace OPS.Util
             return new Regex(WildCardToRegularExressionString(value), opts);
         }
 
+        public static string ReplaceFixedWidthIntWildcard(string str, string wildcard, int value)
+        {
+            return str.Replace(wildcard, FixedWidthInt(wildcard, value));
+        }
+
+        public static string FixedWidthInt(string wildcard, int value)
+        {
+            return string.Format("{0:D" + wildcard.Length + "}", value);
+        }
+
         public static string EnsureTrailingSlash(string str)
         {
             return str.EndsWith("/") ? str : (str + "/");
@@ -218,6 +228,19 @@ namespace OPS.Util
         public static string[] ParseList(string list, char sep = ',')
         {
             return (list ?? "").Split(sep).Select(s => s.Trim()).Where(s => !string.IsNullOrEmpty(s)).ToArray();
+        }
+
+        public static List<string> ParseExts(string extsStr, bool bothCases = false)
+        { 
+            var exts = ParseList(extsStr)
+                .Select(p => p.StartsWith(".") ? p : "." + p)
+                .ToList();
+            if (bothCases)
+            {
+                //this will find *.img and *.IMG but not *.iMg - balance between performance and completeness
+                exts = exts.SelectMany(ext => new string[] { ext.ToLower(), ext.ToUpper() }).ToList();
+            }
+            return exts;
         }
 
         public static int? ParseIntSafe(string str)

@@ -14,18 +14,18 @@ using System.Collections.Concurrent;
 namespace OPS.Pipeline.TilingServer
 {
 
-    public class BuildBakedLeavesMessage : PipelineMessage
+    public class BuildLeavesMessage : PipelineMessage
     {
         public List<string> TileIds;
-        public BuildBakedLeavesMessage() { }
-        public BuildBakedLeavesMessage(string projectName) : base(projectName) { }
+        public BuildLeavesMessage() { }
+        public BuildLeavesMessage(string projectName) : base(projectName) { }
     }
 
-    public class BuildBakedLeaves : PipelineOperation
+    public class BuildLeaves : PipelineOperation
     {
-        private readonly BuildBakedLeavesMessage message;
+        private readonly BuildLeavesMessage message;
 
-        public BuildBakedLeaves(PipelineCore pipeline, BuildBakedLeavesMessage message) : base(pipeline, message)
+        public BuildLeaves(PipelineCore pipeline, BuildLeavesMessage message) : base(pipeline, message)
         {
             this.message = message;
         }

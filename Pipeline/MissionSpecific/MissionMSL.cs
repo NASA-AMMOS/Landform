@@ -7,6 +7,7 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -245,6 +246,37 @@ namespace OPS.Pipeline
                 return false;
             }
 
+            return true;
+        }
+
+        public override float GetDemMetersPerPixel()
+        {
+            return 1;
+        }
+
+        private GDALDEM gdalDem = null;
+
+        public override bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null)
+        {
+            MSLPlaces places;
+            try
+            {
+                places = new MSLPlaces();
+            }
+            catch
+            {
+                pixel = new Vector2(0, 0);
+                return false;
+            }
+            Vector2 latlon = places.GetEstimatedLatLon(siteDrive);  
+            if (gdalDem == null)
+            {
+                demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
+                    OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
+                gdalDem = GDALDEM.MarsDEM(demFilePath);
+            }
+            Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
+            pixel = new Vector2(colRowOffset.X, colRowOffset.Y);
             return true;
         }
     }

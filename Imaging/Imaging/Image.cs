@@ -441,6 +441,31 @@ namespace OPS.Imaging
             }
             return this;
         }
+
+        public void DilateMask(int pixels = 1)
+        {
+            if (this.HasMask)
+            {
+                Image maskCopy;
+                for (int i = 0; i < pixels; ++i)
+                {
+                    maskCopy = this.MaskToImage();
+                    for (int r = 1; r < this.Height - 1; ++r)
+                    {
+                        for (int c = 1; c < this.Width - 1; ++c)
+                        {
+                            if (maskCopy[0, r + 1, c] == 1 ||
+                               maskCopy[0, r - 1, c] == 1 ||
+                               maskCopy[0, r, c + 1] == 1 ||
+                               maskCopy[0, r, c - 1] == 1)
+                            {
+                                this.SetMaskValue(r, c, true);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public class BinaryImage

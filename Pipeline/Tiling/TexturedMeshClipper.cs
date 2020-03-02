@@ -25,14 +25,14 @@ namespace OPS.Pipeline
             public Image Image;
             public MeshOperator MeshOperator;
 
-            public MeshImageOperatorPair( MeshOperator op, Image image)
+            public MeshImageOperatorPair(MeshOperator op, Image image)
             {
                 this.Image = image;
                 this.MeshOperator = op;
    
             }
 
-            public MeshImageOperatorPair( Mesh m, Image image)
+            public MeshImageOperatorPair(Mesh m, Image image)
             {
                 this.Image = image;
                 this.MeshOperator = new MeshOperator(m, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
@@ -57,7 +57,7 @@ namespace OPS.Pipeline
                 throw new Exception("Expecting uvs on textured mesh clip");
             }
 
-            pairs.Add(new MeshImageOperatorPair( pair.Mesh, pair.Image));
+            pairs.Add(new MeshImageOperatorPair(pair.Mesh, pair.Image));
         }
 
         public void AddMeshImagePair(MeshOperator op, Image image)
@@ -156,8 +156,8 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Creates a list of TexturePatches by creating a TexturePatch from the original texture for every group of triangles whose UVBounds intersect,
-        /// selecting which areas of the texture are being used
+        /// Creates a list of TexturePatches by creating a TexturePatch from the original texture
+        /// for every group of triangles whose UVBounds intersect, selecting which areas of the texture are being used
         /// </summary>
         /// <param name="mesh">input mesh with triangles of interest</param>
         /// <param name="img">original image</param>
@@ -207,12 +207,15 @@ namespace OPS.Pipeline
             return patches;
         }
 
-        static public MeshImagePair RemapMeshClipImage(MeshOperator fullMeshOp, Mesh clippedMesh, Image image, int borderSize = 5, bool allowRotation = false)
+        static public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image image, int borderSize = 5,
+                                                       bool allowRotation = false)
         {
-            return ClipPatches(ComputePatches(clippedMesh, image, borderSize), clippedMesh.HasNormals, clippedMesh.HasColors, image.Bands, borderSize, allowRotation);
+            return ClipPatches(ComputePatches(clippedMesh, image, borderSize),
+                               clippedMesh.HasNormals, clippedMesh.HasColors, image.Bands, borderSize, allowRotation);
         }
 
-        static private MeshImagePair ClipPatches(List<TexturePatch> patches, bool hasNormals, bool hasColors, int outputImageBands, int borderSize, bool allowRotation)
+        static private MeshImagePair ClipPatches(List<TexturePatch> patches, bool hasNormals, bool hasColors,
+                                                 int outputImageBands, int borderSize, bool allowRotation)
         {
             int maxWidth = 0, maxHeight = 0;
             for (int b = 0; b < patches.Count; b++)

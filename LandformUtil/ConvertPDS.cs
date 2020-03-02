@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using CommandLine;
+using log4net;
 using OPS.Imaging;
 
 namespace OPS.LandformUtil
@@ -24,6 +25,8 @@ namespace OPS.LandformUtil
     {
         private ConvertPDSOptions options;
 
+        private static readonly ILog logger = LogManager.GetLogger(typeof(ConvertPDS));
+
         public ConvertPDS(ConvertPDSOptions options)
         {
             this.options = options;
@@ -35,7 +38,7 @@ namespace OPS.LandformUtil
 
             if (!allowedFormats.Any(f => f == options.OutputType))
             {
-                Console.Error.WriteLine("unrecognized output type \"{0}\"", options.OutputType);
+                logger.ErrorFormat("unrecognized output type \"{0}\"", options.OutputType);
                 return 1;
             }
 
@@ -69,6 +72,7 @@ namespace OPS.LandformUtil
                 string ext = "." + options.OutputType;
                 for (int i = 0; i < files.Length; i++)
                 {
+                    logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
                     string bn = Path.GetFileNameWithoutExtension(files[i]);
                     Image.Load(files[i]).Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
                 }          

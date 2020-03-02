@@ -7,6 +7,7 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline
 {
@@ -77,27 +78,27 @@ namespace OPS.Pipeline
             // positive if a is "worse than" b
             int ext(RoverObservation a, RoverObservation b)
             {
+                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
                 if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
                 {
-                    //EECAM reconstruction counter 0-9A-Z
-                    //prefer higher, precedence over version, downsample, compression
-                    char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
-                    char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
-                    if (rcA != rcB)
-                    {
-                        return rcB - rcA;
-                    }
-
-                    //EECAM downsampling A,L,M,N, prefer higher, precedence over compression and version
+                    //EECAM downsampling A,L,M,N, prefer higher
                     char edsA = a.Name[EECAM_DOWNSAMPLE_FIELD];
                     char edsB = b.Name[EECAM_DOWNSAMPLE_FIELD];
                     if (edsA != edsB)
                     {
                         return edsB - edsA;
                     }
+
+                    //EECAM reconstruction counter 0-9A-Z, prefer higher
+                    char rcA = a.Name[EECAM_RECONSTRUCTION_FIELD];
+                    char rcB = b.Name[EECAM_RECONSTRUCTION_FIELD];
+                    if (rcA != rcB)
+                    {
+                        return rcB - rcA;
+                    }
                 }
 
-                //downsample 0-3, prefer lower, precedence over compression and version
+                //downsample 0-3, prefer lower
                 char dsA = a.Name[DOWNSAMPLE_FIELD];
                 char dsB = b.Name[DOWNSAMPLE_FIELD];
                 if (dsA != dsB)
@@ -105,7 +106,7 @@ namespace OPS.Pipeline
                     return dsA - dsB;
                 }
 
-                //compresion, prefer higher, precedence over version
+                //compresion, prefer higher
                 int compA = CompressionPreference(a.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
                 int compB = CompressionPreference(b.Name.Substring(COMPRESSION_FIELD, COMPRESSION_FIELD_LENGTH));
                 if (compA != compB)
@@ -126,44 +127,52 @@ namespace OPS.Pipeline
 
         public override IEnumerable<RoverProductId> FilterProductIdGroups(IEnumerable<RoverProductId> products)
         {
-            IEnumerable<RoverProductId> filterEECAM(IEnumerable<RoverProductId> ids, int idx)
+            Func<RoverProductId, bool> isEECAM = id => IsHazcam(id.Camera) || IsNavcam(id.Camera);
+            var groups = products.GroupBy(id => id.GetPartialId(this, includeVariants: false, includeVersion: false));
+            foreach (var group in groups)
             {
-                char max = ids
-                    .Where(id => IsHazcam(id.Camera) || IsNavcam(id.Camera))
-                    .Select(id => id.FullId[idx])
+                var filtered = group.Select(id => id);
+
+                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
+
+                //EECAM downsampling A,L,M,N, prefer higher
+                //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
+                //though also see https://github.jpl.nasa.gov/OnSight/Landform/issues/891
+                char maxEDS = filtered
+                    .Where(id => isEECAM(id))
+                    .Select(id => id.FullId[EECAM_DOWNSAMPLE_FIELD])
+                    .DefaultIfEmpty('0')
                     .Max();
-                return ids.Where(id => !(IsHazcam(id.Camera) || IsNavcam(id.Camera)) || id.FullId[idx] == max);
+                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_DOWNSAMPLE_FIELD] == maxEDS);
+
+                //EECAM reconstruction counter 0-9A-Z, prefer higher
+                char maxERC = filtered
+                    .Where(id => isEECAM(id))
+                    .Select(id => id.FullId[EECAM_RECONSTRUCTION_FIELD])
+                    .DefaultIfEmpty('0')
+                    .Max();
+                filtered = filtered.Where(id => !isEECAM(id) || id.FullId[EECAM_RECONSTRUCTION_FIELD] == maxERC);
+
+                //downsample 0-3, prefer lower
+                char minDS = filtered.Select(id => id.FullId[DOWNSAMPLE_FIELD]).DefaultIfEmpty('0').Min();
+                filtered = filtered.Where(id => id.FullId[DOWNSAMPLE_FIELD] == minDS);
+
+                //compresion, prefer higher
+                int maxCP = filtered.Select(id => CompressionPreference(id)).DefaultIfEmpty(0).Max();
+                filtered = filtered.Where(id => CompressionPreference(id) == maxCP);
+
+                foreach (var id in filtered)
+                {
+                    yield return id;
+                }
             }
+        }
 
-            //EECAM reconstruction counter 0-9A-Z (prefer higher, precedence over version, downsample, and compression)
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .SelectMany(ids => filterEECAM(ids, EECAM_RECONSTRUCTION_FIELD))
-                .ToList();
-
-            //EECAM downsampling A,L,M,N (prefer higher, precedence over version, downsample, and compression)
-            //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/852
-            //though also see https://github.jpl.nasa.gov/OnSight/Landform/issues/891
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .SelectMany(ids => filterEECAM(ids, EECAM_DOWNSAMPLE_FIELD))
-                .ToList();
-
-            //downsample 0-3 (prefer lower, precedence over version and compression)
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .Select(ids => ids.OrderBy(id => id.FullId[DOWNSAMPLE_FIELD]).First())
-                .ToList();
-
-            //compresion (prefer higher, precedence over version)
+        public int CompressionPreference(RoverProductId id)
+        {
             int cf = COMPRESSION_FIELD, cfl = COMPRESSION_FIELD_LENGTH;
-            products = products
-                .GroupBy(id => id.GetPartialId(this, includeVariants: false))
-                .Select(ids => ids.OrderByDescending(id => CompressionPreference(id.GetPartialId(cf, cfl))).First())
-                .ToList();
-
-            return products;
+            return CompressionPreference(id.GetPartialId(cf, cfl));
         }
 
         public int CompressionPreference(string compression)
@@ -295,10 +304,6 @@ namespace OPS.Pipeline
 
         public override IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
         {
-            foreach (var span in base.GetProductIdVariantSpans(id))
-            {
-                yield return span;
-            }
             if (id is M2020OPGSProductId)
             {
                 yield return new int[] { EECAM_DOWNSAMPLE_FIELD, 1 };
@@ -311,12 +316,12 @@ namespace OPS.Pipeline
 
         public override string GetTacticalMeshQueueName()
         {
-            throw new NotImplementedException(); //TODO testing with m20-ids-g-sqs-landform-lftest1
+            return "m20-ids-g-sqs-landform-iandt2";
         }
 
         public override string GetTacticalMeshFailQueueName()
         {
-            return "m20-ids-g-sqs-landform-tactical-fail";
+            return "m20-ids-g-sqs-landform-iandt2-fail";
         }
 
         public override QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
@@ -407,9 +412,44 @@ namespace OPS.Pipeline
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
         }
 
+        public override string GetContextualMeshQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override string GetContextualMeshFailQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage ParseContextualMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
         public override string GetS3Proxy()
         {
             return "https://data.m20-dev.jpl.nasa.gov";
+        }
+
+        public override float GetDemMetersPerPixel()
+        {
+            throw new NotImplementedException();
+        }
+
+        public override bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null)
+        {
+            throw new NotImplementedException();
         }
     }
 
@@ -552,6 +592,28 @@ namespace OPS.Pipeline
                 name += "_" + angle.ToString();
             }
             return name;
+        }
+
+        //MASTCAMZ images have 'unk' in image_type metadata
+        public override RoverProductSize GetRoverProductSize(PDSParser parser)
+        {
+            RoverProductSize prodSize = parser.ImageSizeType;
+            if(prodSize == RoverProductSize.Unknown)
+            {
+                RoverProductId prodId = this.ParseProductId(parser.ProductIdString);
+                if (prodId != null)
+                {
+                    OPGSProductId id = prodId as OPGSProductId;
+                    prodSize = id.Size; 
+                }
+            }
+
+            return prodSize;
+        }
+
+        public override string GetS3Proxy()
+        {
+            return "https://data-roastt.m20-training.jpl.nasa.gov";
         }
     }
 }

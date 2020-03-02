@@ -162,6 +162,12 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
+                if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
+                {
+                    pipeline.LogWarn("at least two site drives required");
+                    return 0;
+                }
+
                 pipeline.LogInfo("computing birds eye view alignment for {0} site drives", siteDrives.Length);
 
                 RunPhase("load or render birds eye views", LoadOrRenderBEVs); //observations -> bevs, dems
@@ -227,11 +233,6 @@ namespace OPS.Landform
             if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
                 return false; //help
-            }
-
-            if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
-            {
-                throw new Exception("at least two site drives required");
             }
 
             return true;

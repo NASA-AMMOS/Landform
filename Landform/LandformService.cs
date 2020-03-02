@@ -24,10 +24,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "run as service")]
         public bool Service { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override message queue name")]
+        [Option(Required = false, Default = "mission", HelpText = "Override message queue name, or \"mission\" to use mission-specific default")]
         public string QueueName { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override fail message queue name")]
+        [Option(Required = false, Default = "mission", HelpText = "Override fail message queue name, or \"mission\" to use mission-specific default")]
         public string FailQueueName { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Message queue is Landform owned")]
@@ -41,6 +41,12 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = null, HelpText = "JSON file of message to send")]
         public string SendMessage { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "Move messages from fail queue to message queue")]
+        public int RetryMessages { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "Move messages from message queue to fail queue")]
+        public int AbortMessages { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Delete message and fail queues iff Landform owned")]
         public bool DeleteQueues { get; set; }
@@ -98,6 +104,14 @@ namespace OPS.Landform
                 {
                     RunPhase("send message", SendMessage);
                 }
+                else if (lvopts.RetryMessages > 0)
+                {
+                    RunPhase("retry messages", RetryMessages);
+                }
+                else if (lvopts.AbortMessages > 0)
+                {
+                    RunPhase("abort messages", AbortMessages);
+                }
                 else if (lvopts.Service)
                 {
                     RunService();
@@ -129,19 +143,22 @@ namespace OPS.Landform
             }
 
             bool sendMessage = !string.IsNullOrEmpty(lvopts.SendMessage);
-            var svcOpts = new bool[] { lvopts.DeleteQueues, sendMessage, lvopts.Service };
+            bool retryMessages = lvopts.RetryMessages > 0;
+            bool abortMessages = lvopts.AbortMessages > 0;
+            string utils = "--deletequeues, --sendmessage, --retrymessages, --abortmessages";
+            var svcOpts = new bool[] { lvopts.DeleteQueues, sendMessage, retryMessages, abortMessages, lvopts.Service };
             if (svcOpts.Where(o => o).Count() > 1)
             {
-                throw new Exception("--deletequeues, --sendmessage, and --service are mutually exclusive");
+                throw new Exception(utils + ", and --service are mutually exclusive");
             }
             if (svcOpts.Any(o => o))
             {
                 if (!string.IsNullOrEmpty(lvopts.ProjectName))
                 {
-                    throw new Exception("project name must be omitted with --deletequeue, --sendmessage, --service");
+                    throw new Exception("project name must be omitted with " + utils);
                 }
                 messageQueue = GetMessageQueue(); //creates queue if necessary with --landformowned
-                if (lvopts.Service || lvopts.DeleteQueues)
+                if (lvopts.Service || lvopts.DeleteQueues || lvopts.RetryMessages > 0 || lvopts.AbortMessages > 0)
                 {
                     failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
                 }
@@ -161,7 +178,17 @@ namespace OPS.Landform
 
         protected abstract string GetDefaultFailQueueName();
 
-        protected abstract QueueMessage DequeueOneMessage();
+        protected abstract QueueMessage DequeueOneMessage(MessageQueue queue);
+
+        protected QueueMessage DequeueOneMessage()
+        {
+            return DequeueOneMessage(messageQueue);
+        }
+
+        /// <summary>
+        /// Used only by SendMessage().
+        /// </summary>
+        protected abstract QueueMessage ParseMessage(string json);
 
         /// <summary>
         /// Should not throw.  
@@ -178,19 +205,16 @@ namespace OPS.Landform
         /// </summary>
         protected abstract bool HandleMessage(QueueMessage msg);
 
-        /// <summary>
-        /// Used only by SendMessage().
-        /// </summary>
-        protected abstract QueueMessage ParseMessage(string json);
-
         protected virtual string GetQueueName()
         {
-            return !string.IsNullOrEmpty(lvopts.QueueName) ? lvopts.QueueName : GetDefaultQueueName();
+            return string.IsNullOrEmpty(lvopts.QueueName) || lvopts.QueueName.ToLower() == "mission" ?
+                GetDefaultQueueName() : lvopts.QueueName;
         }
 
         protected virtual string GetFailQueueName()
         {
-            return !string.IsNullOrEmpty(lvopts.FailQueueName) ? lvopts.FailQueueName : GetDefaultFailQueueName();
+            return string.IsNullOrEmpty(lvopts.FailQueueName) || lvopts.FailQueueName.ToLower() == "mission" ?
+                GetDefaultFailQueueName() : lvopts.FailQueueName;
         }
 
         /// <summary>
@@ -296,6 +320,52 @@ namespace OPS.Landform
             {
                 messageQueue.Enqueue(ParseMessage(File.ReadAllText(lvopts.SendMessage)));
             }
+        }
+
+        private void RetryMessages()
+        {
+            pipeline.LogInfo("retrying up to {0} messages", lvopts.RetryMessages);
+            int num = 0;
+            for (int i = 0; i < lvopts.RetryMessages; i++)
+            {
+                try
+                {
+                    QueueMessage msg = DequeueOneMessage(failMessageQueue);
+                    if (msg == null) break;
+                    failMessageQueue.DeleteMessage(msg);
+                    messageQueue.Enqueue(msg);
+                    num++;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex);
+                    break;
+                }
+            }
+            pipeline.LogInfo("moved {0} messages from fail queue", num);
+        }
+
+        private void AbortMessages()
+        {
+            pipeline.LogInfo("aborting up to {0} messages", lvopts.AbortMessages);
+            int num = 0;
+            for (int i = 0; i < lvopts.AbortMessages; i++)
+            {
+                try
+                {
+                    QueueMessage msg = DequeueOneMessage();
+                    if (msg == null) break;
+                    messageQueue.DeleteMessage(msg);
+                    failMessageQueue.Enqueue(msg);
+                    num++;
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex);
+                    break;
+                }
+            }
+            pipeline.LogInfo("moved {0} messages to fail queue", num);
         }
 
         private void DeleteQueues()

@@ -9,6 +9,8 @@ namespace OPS.Pipeline
 {
     public class RoverObservationComparator : IComparer<RoverObservation>
     {
+        public ILogger logger;
+
         private bool preferMSSSToOPGS, preferLinearToNonlinear, preferColorToGrayscale;
         private RoverStereoEye preferEyeForGeometry;
         private Func<RoverObservation, RoverObservation, int> ext;
@@ -28,12 +30,14 @@ namespace OPS.Pipeline
         }
 
         public RoverObservationComparator()
-            : this(preferMSSS: false, preferLinear: true, preferColor: true, preferEyeForGeometry: RoverStereoEye.Left, mission:null)
-        {}
+            : this(preferMSSS: false, preferLinear: true, preferColor: true, preferEyeForGeometry: RoverStereoEye.Left,
+                   mission: null)
+        { }
 
         public RoverObservationComparator(RoverObservationComparator other)
             : this(preferMSSS: other.preferMSSSToOPGS, preferLinear: other.preferLinearToNonlinear, 
-                  preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry, mission: other.mission, ext: other.ext)
+                  preferColor: other.preferColorToGrayscale, preferEyeForGeometry: other.preferEyeForGeometry,
+                   mission: other.mission, ext: other.ext)
         { }
 
         public enum CompareCriteria
@@ -48,17 +52,24 @@ namespace OPS.Pipeline
             SameCameraAndColor,
             ExtendedCompare,
             Version,
-            Name
+            Name,
+            None
         };
 
-        public int CompareExcept(RoverObservation a, RoverObservation b, params CompareCriteria[] exceptCrit)
+        /// <summary>
+        /// 0 if a and b are equivalently good
+        /// negative if a is "better" than b
+        /// positive if a is "worse than" b
+        /// </summary>
+        public int Compare(RoverObservation a, RoverObservation b, out CompareCriteria reason,
+                           params CompareCriteria[] exceptCrit)
         {
             //this function can only make judgements about observations in the same frame
             //StereoFrameName abstracts Left/Right distinctions
             //allowing comparison between the two eyes for the same frame
-            if (!exceptCrit.Contains(CompareCriteria.StereoFrameName) &&
-                a.StereoFrameName != b.StereoFrameName)
+            if (!exceptCrit.Contains(CompareCriteria.StereoFrameName) && a.StereoFrameName != b.StereoFrameName)
             {
+                reason = CompareCriteria.StereoFrameName;
                 return 0;
             }
 
@@ -66,6 +77,7 @@ namespace OPS.Pipeline
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/471
             if (!exceptCrit.Contains(CompareCriteria.XYZ_RNG))
             {
+                reason = CompareCriteria.XYZ_RNG;
                 if (a.ObservationType == RoverProductType.Points && b.ObservationType == RoverProductType.Range)
                 {
                     return -1;
@@ -79,6 +91,7 @@ namespace OPS.Pipeline
             //sort next by producer
             if (!exceptCrit.Contains(CompareCriteria.Producer))
             {
+                reason = CompareCriteria.Producer;
                 if (a.Producer == RoverProductProducer.MSSS && b.Producer == RoverProductProducer.OPGS)
                 {
                     return preferMSSSToOPGS ? -1 : 1;
@@ -94,6 +107,7 @@ namespace OPS.Pipeline
                 a.ObservationType == RoverProductType.Image && 
                 b.ObservationType == RoverProductType.Image)
             {
+                reason = CompareCriteria.Color_Grayscale;
                 if (a.Bands > b.Bands)
                 {
                     return preferColorToGrayscale ? -1 : 1;
@@ -108,9 +122,10 @@ namespace OPS.Pipeline
                 }
             }
 
+            //sort next by linear-ness
             if (!exceptCrit.Contains(CompareCriteria.Linear_NonLinear))
             {
-                //sort next by linear-ness
+                reason = CompareCriteria.Linear_NonLinear;
                 bool linearA = a.IsLinear, linearB = b.IsLinear;
                 if (linearA && !linearB)
                 {
@@ -127,6 +142,7 @@ namespace OPS.Pipeline
             if (!exceptCrit.Contains(CompareCriteria.SameObsTypeAndProducer) && 
                 (a.ObservationType != b.ObservationType || a.Producer != b.Producer))
             {
+                reason = CompareCriteria.SameObsTypeAndProducer;
                 return 0;
             }
 
@@ -138,6 +154,7 @@ namespace OPS.Pipeline
                 RoverProduct.IsGeometry(a.ObservationType) && !RoverProduct.IsRaster(a.ObservationType) &&
                 RoverProduct.IsGeometry(b.ObservationType) && !RoverProduct.IsRaster(b.ObservationType))
             {
+                reason = CompareCriteria.StereoEye;
                 return aEye == preferEyeForGeometry ? -1 : 1;
             }
 
@@ -145,23 +162,24 @@ namespace OPS.Pipeline
             if (!exceptCrit.Contains(CompareCriteria.SameCameraAndColor) && 
                 (a.Camera != b.Camera || a.Color != b.Color))
             {
+                reason = CompareCriteria.SameCameraAndColor;
                 return 0;
             }
 
-            if (!exceptCrit.Contains(CompareCriteria.ExtendedCompare) &&
-                ext != null)
+            if (!exceptCrit.Contains(CompareCriteria.ExtendedCompare) && ext != null)
             {
                 var ev = ext(a, b);
                 if (ev != 0)
                 {
+                    reason = CompareCriteria.ExtendedCompare;
                     return ev;
                 }
             }
 
             //prefer higher versions
-            if (!exceptCrit.Contains(CompareCriteria.Version) &&
-                a.Version != b.Version)
+            if (!exceptCrit.Contains(CompareCriteria.Version) && a.Version != b.Version)
             {
+                reason = CompareCriteria.Version;
                 return b.Version - a.Version;
             }
 
@@ -170,9 +188,11 @@ namespace OPS.Pipeline
             //just so that results are stable and repeatable
             if (!exceptCrit.Contains(CompareCriteria.Name))
             {
+                reason = CompareCriteria.Name;
                 return a.Name.CompareTo(b.Name);
             }
            
+            reason = CompareCriteria.None;
             return 0;
         }
 
@@ -183,7 +203,13 @@ namespace OPS.Pipeline
         /// </summary>
         public int Compare(RoverObservation a, RoverObservation b)
         {
-            return CompareExcept(a, b);
+            var ret = Compare(a, b, out CompareCriteria reason);
+            if (logger != null)
+            {
+                string rel = ret == 0 ? "=" : ret < 0 ? ">" : "<";
+                logger.LogDebug("{0} {1} {2} because {3}", a.Name, rel, b.Name, reason);
+            }
+            return ret;
         }
 
         public IEnumerable<RoverObservation> SortRoverObservations(IEnumerable<Observation> observations,
@@ -196,79 +222,86 @@ namespace OPS.Pipeline
                 .OrderBy(o => o, this);
         }
 
-        public enum KeepLinearVariants { Best, Both };
-
-        public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations, KeepLinearVariants keepLinVariants,
-                                                                       params RoverProductType[] types)
-        {
-            return KeepBestRoverObservations(observations, keepLinVariants, null, null, types);
-        }
-
-     
+        public enum LinearVariants { Best, Both };
 
         public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
-                                                                       KeepLinearVariants keepLinVariants,
-                                                                       ILogger logger,
+                                                                       LinearVariants linVars,
                                                                        params RoverProductType[] types)
         {
-            return KeepBestRoverObservations(observations, keepLinVariants, logger, null, types);
+            return KeepBestRoverObservations(observations, linVars, null, types);
         }
         
         public IEnumerable<RoverObservation> KeepBestRoverObservations(IEnumerable<Observation> observations,
-                                                                       KeepLinearVariants keepLinVariants,
-                                                                       ILogger logger,
+                                                                       LinearVariants linVars,
                                                                        Func<RoverObservation, bool> filter,
                                                                        params RoverProductType[] types)
         {
-
             if (types.Length > 0)
             {
                 IEnumerable<RoverObservation> filterGroup(IEnumerable<RoverObservation> group)
                 {
+                    int num = group.Count();
+                    if (num < 2)
+                    {
+                        return group;
+                    }
+
                     group = group.OrderBy(o => o, this);
+                    var best = group.First();
+                    var keepers = new List<RoverObservation>() { best };
 
-                    if (group.Count() > 1 &&                                                                      //have more than one image
-                        keepLinVariants == KeepLinearVariants.Both)                                               //want both flavors of linearity if appropriate
+                    var reason = CompareCriteria.Linear_NonLinear;
+                    var bestOtherLin = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
+                    if (bestOtherLin != null)
                     {
-                        RoverObservation best = group.ElementAt(0);
-                        RoverObservation bestOtherLinearity = group.FirstOrDefault(o => o.IsLinear != best.IsLinear);
-                        
-                        if (bestOtherLinearity != null)
+                        bool otherTrumpsBest = false, bestTrumpsOther = false;
+                        var except = new [] { CompareCriteria.Linear_NonLinear, CompareCriteria.Name };
+                        int cmp = Compare(bestOtherLin, best, out reason, except);
+                        if (cmp > 0) //best is still better than other when lin/nonlin is excluded from comparison
                         {
-                            //protect against sort comparator returning 0 for different products (don't sort doesn't mean equal)
-                            // compare the best two images of each linearity using product ids to make sure that is all that is different
-                            string bestPartial = RoverProductId.Parse(best.Name,mission).GetPartialId(mission, includeVersion: true,
-                                           includeProductType: true, includeGeometry: false,
-                                           includeColorFilter: true, includeInstrument: true,
-                                           includeVariants: true);
-                            string bestOtherLinPartial = RoverProductId.Parse(bestOtherLinearity.Name, mission).GetPartialId(mission, includeVersion: true,
-                                           includeProductType: true, includeGeometry: false,
-                                           includeColorFilter: true, includeInstrument: true,
-                                           includeVariants: true);
-
-                            if (0 == string.Compare(bestPartial, bestOtherLinPartial))
+                            bestTrumpsOther = true;
+                        }
+                        else if (cmp < 0) //other is better than best when lin/nonlin is excluded from comparison
+                        {
+                            otherTrumpsBest = true;
+                        }
+                        else // cmp == 0
+                        {
+                            //Compare() can be 0 either because products are equal or because they can't be compared
+                            //see if they are actually equal (other than lin/nonlin)
+                            string bestPartial = RoverProductId.Parse(best.Name, mission)
+                                .GetPartialId(mission, includeGeometry: false);
+                            string bestOtherLinPartial = RoverProductId.Parse(bestOtherLin.Name, mission)
+                                .GetPartialId(mission, includeGeometry: false);
+                            if (bestPartial != bestOtherLinPartial)
                             {
-                                if (logger != null)
-                                {
-                                    logger.LogVerbose("keeping {0} and {1} of\n {2}", best.Name, bestOtherLinearity.Name,
-                                                String.Join("\n  ", group.Select(o => o.ToString())));
-                                }
-
-                                return new List<RoverObservation>(2) { best, bestOtherLinearity };
+                                //products are otherwise incommensurate, so return preferred linearity
+                                bestTrumpsOther = true;
                             }
-                        }            
-                    }
-                   
-                    if (logger != null && group.Count() > 1)
-                    {
-                        logger.LogVerbose("keeping only {0} of\n {1}", group.First().Name,
-                                        String.Join("\n  ", group.Select(o => o.ToString())));
+                            reason = CompareCriteria.Linear_NonLinear;
+                        }
+                        if (linVars == LinearVariants.Both && !bestTrumpsOther && !otherTrumpsBest)
+                        {
+                            keepers.Add(bestOtherLin);
+                        }
+                        else if (otherTrumpsBest)
+                        {
+                            keepers[0] = bestOtherLin;
+                        }
                     }
 
-                    return group.Take(1);
-                    
+                    if (logger != null && keepers.Count < num)
+                    {
+                        logger.LogVerbose("keeping best observation(s) {0} of {1} because {2}", 
+                                          String.Join(", ", keepers.Select(o => o.Name)),
+                                          String.Join(", ", group.Select(o => o.Name)),
+                                          reason);
+                    }
+
+                    return keepers;
                 }
 
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/953
                 return observations
                     .Where(obs => obs is RoverObservation)
                     .Cast<RoverObservation>()
@@ -277,15 +310,17 @@ namespace OPS.Pipeline
                     .GroupBy(o => o.FrameName)
                     .SelectMany(group => filterGroup(group));
             }
-            else if(keepLinVariants == KeepLinearVariants.Both)
+            else if (linVars == LinearVariants.Both)
             {
-                // no types specified, so filter each type separately
-                // keep best 1 or 2 by the logic above, rely on linear check at the time when the images are used to prevent mismatch
-                var xyz = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.Range, RoverProductType.Points);
-                var img = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.Image);
-                var msk = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.RoverMask);
-                var uvw = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.Normals);
-                var err = KeepBestRoverObservations(observations, keepLinVariants, logger, null, RoverProductType.RangeError);
+                //no types specified, so filter each type separately
+                //keep best 1 or 2 by the logic above
+                //rely on linear check at the time when the images are used to prevent mismatch
+                var xyz = KeepBestRoverObservations(observations, linVars, filter,
+                                                    RoverProductType.Range, RoverProductType.Points);
+                var img = KeepBestRoverObservations(observations, linVars, filter, RoverProductType.Image);
+                var msk = KeepBestRoverObservations(observations, linVars, filter, RoverProductType.RoverMask);
+                var uvw = KeepBestRoverObservations(observations, linVars, filter, RoverProductType.Normals);
+                var err = KeepBestRoverObservations(observations, linVars, filter, RoverProductType.RangeError);
                 return xyz.Concat(img).Concat(msk).Concat(uvw).Concat(err);
             }
             else
@@ -304,8 +339,12 @@ namespace OPS.Pipeline
                         }
                     }
                 }
-                bool linearFilter(RoverObservation obs)
+                bool linFilt(RoverObservation obs)
                 {
+                    if (filter != null && !filter(obs))
+                    {
+                        return false;
+                    }
                     return !linear.ContainsKey(obs.FrameName) || linear[obs.FrameName] == obs.IsLinear;
                 }
 
@@ -315,20 +354,20 @@ namespace OPS.Pipeline
                 //whether we keep linear or nonlinear products for that observation
 
                 //filter RNG and XYZ together so we can keep only the latter if both are available
-                var xyz = KeepBestRoverObservations(observations, keepLinVariants, logger, null,
+                var xyz = KeepBestRoverObservations(observations, linVars, null,
                                                     RoverProductType.Range, RoverProductType.Points);
                 registerLinear(xyz);
 
-                var img = KeepBestRoverObservations(observations, keepLinVariants, logger, linearFilter, RoverProductType.Image);
+                var img = KeepBestRoverObservations(observations, linVars, linFilt, RoverProductType.Image);
                 registerLinear(img);
 
-                var msk = KeepBestRoverObservations(observations, keepLinVariants, logger, linearFilter, RoverProductType.RoverMask);
+                var msk = KeepBestRoverObservations(observations, linVars, linFilt, RoverProductType.RoverMask);
                 registerLinear(msk);
 
-                var uvw = KeepBestRoverObservations(observations, keepLinVariants, logger, linearFilter, RoverProductType.Normals);
+                var uvw = KeepBestRoverObservations(observations, linVars, linFilt, RoverProductType.Normals);
                 registerLinear(uvw);
 
-                var err = KeepBestRoverObservations(observations, keepLinVariants, logger, linearFilter, RoverProductType.RangeError);
+                var err = KeepBestRoverObservations(observations, linVars, linFilt, RoverProductType.RangeError);
 
                 return xyz.Concat(img).Concat(msk).Concat(uvw).Concat(err);
             }
@@ -343,7 +382,8 @@ namespace OPS.Pipeline
         /// But that's OK it's just intended to be a first pass.
         /// </summary>
         public static IEnumerable<string> FilterProductIdGroups(IEnumerable<string> products,
-                                                                MissionSpecific mission = null)
+                                                                MissionSpecific mission = null,
+                                                                Action<string> log = null)
         {
             IEnumerable<RoverProductId> filterRNG(IEnumerable<RoverProductId> ids)
             {
@@ -376,14 +416,18 @@ namespace OPS.Pipeline
                                  RoverStereoPair.IsStereoEye(id.Camera, preferEyeForGeometry));
             }
 
-            var idToProduct = new Dictionary<RoverProductId, string>();
+            var idToProducts = new Dictionary<RoverProductId, List<string>>();
             foreach (var product in products)
             {
                 string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
                 var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 if (id != null)
                 {
-                    idToProduct[id] = product;
+                    if (!idToProducts.ContainsKey(id))
+                    {
+                        idToProducts[id] = new List<string>();
+                    }
+                    idToProducts[id].Add(product);
                 }
             }
 
@@ -392,50 +436,89 @@ namespace OPS.Pipeline
             //not that it wouldn't be nice if we could do that
             //but the code just doesn't support that
             //KeepBestRoverObservations() does consider producer
-            foreach (var group in idToProduct.Keys.GroupBy(id => id.GetType()))
+            foreach (var typeGroup in idToProducts.Keys.GroupBy(id => id.GetType()))
             {
-                var filtered = group.ToList();
-
-                //keep only latest version
-                filtered = filtered
-                    .GroupBy(id => id.GetPartialId(includeVersion: false))
-                    .Select(ids => ids.OrderByDescending(id => id.Version).First())
-                    .ToList();
-
-                //skip RNG if XYZ is available
-                filtered = filtered
-                    .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
-                    .SelectMany(ids => filterRNG(ids))
-                    .ToList();
-
-                //if both color and grayscale are available, keep the preferred one
-                //also if multiple grayscale bands are available, keep the preferred one
-                bool preferColorToGrayscale = mission != null ? mission.PreferColorToGrayscale() : true;
-                filtered = filtered
-                    .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false, includeVariants: false))
-                    .SelectMany(ids => filterColor(ids, preferColorToGrayscale))
-                    .ToList();
-
-                //keep preferred eye for geometry products
-                var preferEyeForGeometry = mission != null ? mission.PreferEyeForGeometry() : RoverStereoEye.Any;
-                if (preferEyeForGeometry != RoverStereoEye.Any)
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/953
+                foreach (var obsGroup in typeGroup.GroupBy(id => id.GetPartialId(mission,
+                                                                                 includeProductType: false,
+                                                                                 includeColorFilter: false,
+                                                                                 includeVariants: false,
+                                                                                 includeVersion: false,
+                                                                                 includeStereoEye: false)))
                 {
+                    //obsGroup contains all ids of
+                    //* same type (e.g. MSSS vs OPGS)
+                    //* same instrument
+                    //* same sequence number and timestamp(s)
+                    //* same size (thumbnail vs regular)
+                    //* same special processing
+                    //but
+                    //* all product types
+                    //* all color filters
+                    //* all variants
+                    //* all versions
+                    //* all stereo eyes
+                    
+                    var orig = obsGroup.ToList();
+                    var filtered = orig;
+                    
+                    //skip RNG if XYZ is available
                     filtered = filtered
-                        .GroupBy(id => RoverStereoPair.GetStereoCamera(id.Camera) +
-                                 id.GetPartialId(mission, includeInstrument: false, includeColorFilter: false,
-                                                 includeVariants: false))
-                        .SelectMany(ids => filterEye(ids, preferEyeForGeometry))
+                        .GroupBy(id => id.GetPartialId(mission, includeProductType: false))
+                        .SelectMany(ids => filterRNG(ids))
                         .ToList();
-                }
+                    
+                    //if both color and grayscale are available, keep the preferred one
+                    //also if multiple grayscale bands are available, keep the preferred one
+                    bool preferColorToGrayscale = mission != null ? mission.PreferColorToGrayscale() : true;
+                    filtered = filtered
+                        .GroupBy(id => id.GetPartialId(mission, includeColorFilter: false))
+                        .SelectMany(ids => filterColor(ids, preferColorToGrayscale))
+                        .ToList();
+                    
+                    //keep preferred eye for geometry products
+                    var preferEyeForGeometry = mission != null ? mission.PreferEyeForGeometry() : RoverStereoEye.Any;
+                    if (preferEyeForGeometry != RoverStereoEye.Any)
+                    {
+                        filtered = filtered
+                            .GroupBy(id => RoverStereoPair.GetStereoCamera(id.Camera) +
+                                     id.GetPartialId(mission,
+                                                     includeInstrument: false,
+                                                     includeProductType: false,
+                                                     includeVariants: false,
+                                                     includeVersion: false))
+                            .SelectMany(ids => filterEye(ids, preferEyeForGeometry))
+                            .ToList();
+                    }
 
-                if (mission != null)
-                {
-                    filtered = mission.FilterProductIdGroups(filtered).ToList();
-                }
+                    if (mission != null)
+                    {
+                        filtered = mission.FilterProductIdGroups(filtered).ToList();
+                    }
+                    
+                    //keep only latest version
+                    filtered = filtered
+                        .GroupBy(id => id.GetPartialId(includeVersion: false))
+                        .Select(ids => ids.OrderByDescending(id => id.Version).First())
+                        .ToList();
+                    
+                    if (log != null && filtered.Count < orig.Count)
+                    {
+                        log(string.Format
+                            ("keeping best products(s) {0} of {1}", 
+                             String.Join(", ", filtered.Select(id => StringHelper
+                                                               .GetLastUrlPathSegment(idToProducts[id][0]))),
+                             String.Join(", ", orig.Select(id => StringHelper
+                                                           .GetLastUrlPathSegment(idToProducts[id][0])))));
+                    }
 
-                foreach (var id in filtered)
-                {
-                    yield return idToProduct[id];
+                    foreach (var id in filtered)
+                    {
+                        foreach (var product in idToProducts[id])
+                        {
+                            yield return product;
+                        }
+                    }
                 }
             }
 

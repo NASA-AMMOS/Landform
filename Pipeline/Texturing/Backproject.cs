@@ -337,7 +337,7 @@ namespace OPS.Pipeline
 
                     if (opts.writeDebug)
                     {
-                        obsToHull[obs.Name].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
+                        obsToHull[obs.Name].Mesh.Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
                     }
                 }
             });
@@ -434,7 +434,7 @@ namespace OPS.Pipeline
                 var winningObs = results.Select(p => p.Value.Obs.Name).Distinct();
                 foreach (var obsName in winningObs)
                 {
-                    obsToHull[obsName].Mesh.Save(Path.Combine(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
+                    obsToHull[obsName].Mesh.Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
                 }
             }
 
@@ -458,7 +458,7 @@ namespace OPS.Pipeline
                 }
 
                 var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
-                var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.KeepLinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault(); ;
+                var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault(); ;
 
                 contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
             }
@@ -497,7 +497,7 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            obsCoverage.Save<byte>(Path.Combine(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
+            obsCoverage.Save<byte>(PathHelper.EnsureDir(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
         }
 
         //lowest level function that takes a set of points to backproject

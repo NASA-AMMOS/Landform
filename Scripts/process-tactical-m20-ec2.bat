@@ -1,32 +1,34 @@
 @echo off
 
-set lfver=1.7.1
-if not "%LANDFORM_TACTICAL_VERSION%"=="" set lfver=%LANDFORM_TACTICAL_VERSION%
+rem see https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
+
+set lfver=newest
+if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
 set mission=M2020
-if not "%LANDFORM_TACTICAL_MISSION%"=="" set mission=%LANDFORM_TACTICAL_MISSION%
+if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
-set queue=m20-ids-g-sqs-landform-lftest1 
+set queue=mission
 if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
 
-set failqueue=m20-ids-g-sqs-landform-lftest1-fail
+set failqueue=mission
 if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
 
-set meshformat=iv
+set meshformat=mission
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
 
 set awsprofile=none
-if not "%LANDFORM_TACTICAL_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_TACTICAL_AWS_PROFILE%
+if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
 
 set awsregion=none
-if not "%LANDFORM_TACTICAL_AWS_REGION%"=="" set awsregion=%LANDFORM_TACTICAL_AWS_REGION%
+if not "%LANDFORM_AWS_REGION%"=="" set awsregion=%LANDFORM_AWS_REGION%
 
-rem direct stdout and stderr to nul so that the EC2 userdata script log doesn't get spammed
+rem direct stdout and stderr to nul by default so that the EC2 userdata script log doesn't get spammed
 set quiet=^> nul 2^> nul
-if not "%LANDFORM_TACTICAL_QUIET%"=="" set quiet=
+if not "%LANDFORM_CONSOLE_SPEW%"=="" set quiet=
 
 set bindir=c:\landform\Landform-%lfver%
-if not "%LANDFORM_TACTICAL_BIN_DIR%"=="" set bindir=%LANDFORM_TACTICAL_BIN_DIR%
+if not "%LANDFORM_BIN_DIR%"=="" set bindir=%LANDFORM_BIN_DIR%
 
 set storagedir=c:\temp\landform-tactical-storage
 if not "%LANDFORM_TACTICAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_TACTICAL_STORAGE_DIR%

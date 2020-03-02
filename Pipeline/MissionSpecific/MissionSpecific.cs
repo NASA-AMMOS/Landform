@@ -7,6 +7,8 @@ using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Pipeline.AlignmentServer;
+using Microsoft.Xna.Framework;
+using System.IO;
 
 namespace OPS.Pipeline
 {
@@ -575,10 +577,6 @@ namespace OPS.Pipeline
 
         public virtual IEnumerable<int[]> GetProductIdVariantSpans(RoverProductId id)
         {
-            if (id.GetVersionSpan(out int start, out int length))
-            {
-                yield return new int[] { start, length };
-            }
             yield break;
         }
 
@@ -641,7 +639,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            if (!AllowThumbnails() && parser.ImageSizeType != RoverProductSize.Regular)
+            if (!AllowThumbnails() && GetRoverProductSize(parser) != RoverProductSize.Regular)
             {
                 reason = "thumbnail images not allowed";
                 return false;
@@ -666,6 +664,11 @@ namespace OPS.Pipeline
             }
 
             return true;
+        }
+
+        public virtual RoverProductSize GetRoverProductSize(PDSParser parser)
+        {
+            return parser.ImageSizeType;
         }
 
         public virtual bool CheckMetadata(PDSParser parser)
@@ -757,7 +760,7 @@ namespace OPS.Pipeline
         public virtual string GetTacticalMeshExts()
         {
             //prefer IV until we implement per-LOD OBJs
-            //https://github.jpl.nasa.gov/OnSight/Landform/issues/749
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/749
             return "iv,obj";
         }
 
@@ -772,12 +775,100 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Get comma separated list of tactical image file extensions.
-        /// Not case sensitive, leading dots will be added automatically.
-        /// In priority order so if an image is available in multiple formats the first one found will be used.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
         /// </summary>
         public virtual string GetTacticalImageExts()
         {
             return "img,png";
+        }
+
+        /// <summary>
+        /// Get comma separated list of PDS file extensions.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetPDSExts()
+        {
+            string exts = "img";
+            if (AllowPDSLabelFiles())
+            {
+                exts += ",lbl";
+            }
+            exts += ",vic";
+            return exts;
+        }
+
+        /// <summary>
+        /// Get comma separated list of image RDR file extensions to use in scene manfests.
+        /// Not case sensitive, no leading dots.
+        /// In priority order so if a file is available in multiple formats the first one found will be used.
+        /// </summary>
+        public virtual string GetSceneManifestImageRDRExts()
+        {
+            return "img,png,jpg";
+        }
+
+        /// <summary>
+        /// Get mission specific contextual mesh SQS queue name.  
+        /// Does not get called if --queuename is specified.
+        /// </summary>
+        public virtual string GetContextualMeshQueueName()
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Get mission specific contextual mesh SQS fail queue name.  
+        /// Does not get called if --failqueuename is specified.
+        /// Return null or empty to disable contextual mesh fail queue.
+        /// </summary>
+        public virtual string GetContextualMeshFailQueueName()
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Pull a contextual mesh tiling message off the queue.
+        /// The message type can be a mission specific subclass of QueueMessage.
+        /// Does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
+        public virtual QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Returns null unless msg is a valid and recognized contextual mesh queue message.
+        /// </summary>
+        public virtual ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// This is only used for injecting a message into the queue for testing.
+        /// Does not get called if --usegenericmessagetype is specified. 
+        /// </summary>
+        public virtual QueueMessage ParseContextualMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException();
+        }
+
+        /// <summary>
+        /// Kill contextual mesh tileset processes after this amount of time.
+        /// </summary>
+        public virtual int GetContextualMeshQueueMaxHandlerSec()
+        {
+            return 2 * 60 * 60; //2 hours
+        }
+
+        /// <summary>
+        /// Give up processing a contextual mesh this long after first attempt to process it.
+        /// </summary>
+        public virtual int GetContextualMeshQueueMessageMaxAgeSec()
+        {
+            return 6 * 60 * 60; //6 hours
         }
 
         /// <summary>
@@ -787,5 +878,39 @@ namespace OPS.Pipeline
         {
             return null;
         }
+
+        private int demWidth = -1; //Lazily computed
+        private int demHeight = -1;
+
+        public virtual bool GetDemToSiteDriveOffset(SiteDrive siteDrive, out Matrix demToSD, string demFilePath = null)
+        {
+            demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
+                OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
+            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
+            if (s.GetType() != typeof(GDALSerializer))
+            {
+                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+            }
+            if (demWidth == -1)
+            {
+                ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out demWidth, out demHeight);
+            }
+
+            if(!GetSiteDriveOriginPixelInDem(siteDrive, out Vector2 colRowOffset, demFilePath))
+            {
+                demToSD = Matrix.Identity;
+                return false;
+            }
+
+            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - demWidth / 2.0) * GetDemMetersPerPixel(),
+                                                 -1 * (colRowOffset.Y - demHeight / 2.0) * GetDemMetersPerPixel(),
+                                                 0);
+
+            demToSD = Matrix.CreateTranslation(-1 * demSDOriginXYZ);
+            return true;
+        }
+
+        public abstract float GetDemMetersPerPixel();
+        public abstract bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null);
     }
 }

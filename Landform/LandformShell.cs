@@ -31,10 +31,10 @@ namespace OPS.Landform
         public override string ImageFormat { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Recursively search for meshes under input folders")]
-        public bool RecursiveSearch { get; set; }
+        public virtual bool RecursiveSearch { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Case sensitive search for meshes and images")]
-        public bool CaseSensitiveSearch { get; set; }
+        public virtual bool CaseSensitiveSearch { get; set; }
 
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
@@ -66,6 +66,13 @@ namespace OPS.Landform
 
     public abstract class LandformShell : LandformCommand
     {
+        public const string TILESET_JSON = "tileset.json";
+        public const string SCENE_JSON = "scene.json";
+        public const string STATS_TXT = "stats.txt";
+
+        public const string RDR_SUBDIR = "rdr";
+        public const string TILESET_SUBDIR = "tileset";
+
         protected LandformShellOptions lsopts;
 
         protected string landformExe;
@@ -165,6 +172,11 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override bool ParseArguments(string outDir)
+        {
+            throw new InvalidOperationException(); //only the no-arg version is supported here
+        }
+
         protected override MissionSpecific GetMission()
         {
             return MissionSpecific.GetInstance(lsopts.Mission);
@@ -178,54 +190,41 @@ namespace OPS.Landform
 
         protected virtual List<string> GetMeshExts()
         {
-            return ParseExts(lsopts.MeshFormat, bothCases: !lsopts.CaseSensitiveSearch);
+            return StringHelper.ParseExts(lsopts.MeshFormat, bothCases: !lsopts.CaseSensitiveSearch);
         }
 
         protected virtual List<string> GetImageExts()
         {
-            return ParseExts(lsopts.ImageFormat, bothCases: !lsopts.CaseSensitiveSearch);
-        }
-
-        public static List<string> ParseExts(string extsStr, bool bothCases = false)
-        { 
-            var exts = StringHelper.ParseList(extsStr)
-                .Select(p => p.StartsWith(".") ? p : "." + p)
-                .ToList();
-            if (bothCases)
-            {
-                //this will find *.img and *.IMG but not *.iMg - balance between performance and completeness
-                exts = exts.SelectMany(ext => new string[] { ext.ToLower(), ext.ToUpper() }).ToList();
-            }
-            return exts;
+            return StringHelper.ParseExts(lsopts.ImageFormat, bothCases: !lsopts.CaseSensitiveSearch);
         }
 
         protected bool FileExists(string url)
         {
-            return FileExists(pipeline, storageHelper, url);
+            return FileExists(pipeline, () => storageHelper, url);
         }
 
         protected IEnumerable<string> SearchFiles(string url, string globPattern)
         {
-            return SearchFiles(pipeline, storageHelper, url, globPattern,
+            return SearchFiles(pipeline, () => storageHelper, url, globPattern,
                                lsopts.RecursiveSearch, !lsopts.CaseSensitiveSearch);
         }
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return GetFile(pipeline, storageHelper, url, GetCacheDir(), filenameUnique,
+            return GetFile(pipeline, () => storageHelper, url, GetCacheDir(), filenameUnique,
                            lsopts.MaxRetries, lsopts.DryRun);
         }
 
         protected void SaveFile(string file, string url)
         {
-            SaveFile(pipeline, storageHelper, file, url, lsopts.DryRun);
+            SaveFile(pipeline, () => storageHelper, file, url, lsopts.DryRun || lsopts.NoSave);
         }
 
-        public static bool FileExists(PipelineCore pipeline, StorageHelper storageHelper, string url)
+        public static bool FileExists(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
             {
-                return storageHelper.FileExists(url);
+                return storageHelper().FileExists(url);
             }
             else
             {
@@ -233,13 +232,13 @@ namespace OPS.Landform
             }
         }
 
-        public static IEnumerable<string> SearchFiles(PipelineCore pipeline, StorageHelper storageHelper, string url,
-                                                      string globPattern, bool recursive = false,
+        public static IEnumerable<string> SearchFiles(PipelineCore pipeline, Func<StorageHelper> storageHelper,
+                                                      string url, string globPattern, bool recursive = false,
                                                       bool ignoreCase = false)
         {
             if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
             {
-                return storageHelper.SearchObjects(url, "*/" + globPattern, recursive, ignoreCase);
+                return storageHelper().SearchObjects(url, "*/" + globPattern, recursive, ignoreCase);
             }
             else
             {
@@ -247,8 +246,9 @@ namespace OPS.Landform
             }
         }
 
-        public static string GetFile(PipelineCore pipeline, StorageHelper storageHelper, string url, string cacheDir,
-                                     bool filenameUnique = true, int maxRetries = 3, bool dryRun = false)
+        public static string GetFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url,
+                                     string cacheDir, bool filenameUnique = true, int maxRetries = 3,
+                                     bool dryRun = false)
         {
             string filename = filenameUnique ? StringHelper.GetLastUrlPathSegment(url) :
                 StringHelper.SHA1(url, preserveExtension: true);
@@ -256,10 +256,11 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0}getting {1}", dryRun ? "dry " : "", url);
 
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if ((url.StartsWith("s3://") && !(pipeline is CloudPipeline)) || dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
-                if (!File.Exists(path))
+                pipeline.LogInfo("{0}downloading {1} -> {2}", dryRun ? "dry " : "", url, path);
+                if (!File.Exists(path) && !dryRun)
                 {
                     for (int tries = maxRetries; tries > 0; tries--)
                     {
@@ -267,7 +268,7 @@ namespace OPS.Landform
                         {
                             pipeline.LogWarn("retrying download {0}", url);
                         }
-                        if (storageHelper.DownloadFile(url, path))
+                        if (storageHelper().DownloadFile(url, path))
                         {
                             break;
                         }
@@ -296,7 +297,7 @@ namespace OPS.Landform
             return path;
         }
 
-        public static void SaveFile(PipelineCore pipeline, StorageHelper storageHelper, string file, string url,
+        public static void SaveFile(PipelineCore pipeline, Func<StorageHelper> storageHelper, string file, string url,
                                     bool dryRun = false)
         {
             pipeline.LogInfo("{0}saving {1}", dryRun ? "dry " : "", url);
@@ -304,7 +305,7 @@ namespace OPS.Landform
             {
                 if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
-                    storageHelper.UploadFile(file, url);
+                    storageHelper().UploadFile(file, url);
                 }
                 else
                 {
@@ -315,10 +316,10 @@ namespace OPS.Landform
 
         protected void RunCommand(string cmd, params string[] args)
         {
-            RunCommand(null, cmd, args);
+            RunCommand(cmd, null, args);
         }
 
-        protected void RunCommand(HashSet<string> flags, string cmd, params string[] args)
+        protected void RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
         {
             cmd = cmd + " " + string.Join(" ", args);
             var stdFlags = new Dictionary<string, bool>()
@@ -335,7 +336,7 @@ namespace OPS.Landform
                 };
             foreach (var entry in stdFlags)
             {
-                if ((flags == null || flags.Contains(entry.Key)) && entry.Value)
+                if ((allowedFlags == null || allowedFlags.Contains(entry.Key)) && entry.Value)
                 {
                     cmd += " " + entry.Key;
                 }
@@ -415,8 +416,8 @@ namespace OPS.Landform
 
         protected void Configure(string venue)
         {
-            var flags = new HashSet<string>() { "--quiet", "--debug" };
-            RunCommand(flags, "configure-local", "--venue", venue, "--storagedir", storageDir,
+            var allowedFlags = new HashSet<string>() { "--quiet", "--debug" };
+            RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir,
                        "--maxcores", lsopts.MaxCores.ToString(), "--randomseed", lsopts.RandomSeed.ToString());
         }
 
@@ -426,6 +427,57 @@ namespace OPS.Landform
             if (ms > 0)
             {
                 Thread.Sleep(ms);
+            }
+        }
+
+        protected string GetTilesetDir(string venue, string meshFrame, string project)
+        {
+            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}",
+                                 storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, project);
+        }
+
+        protected string GetDestDir(string inputFolder)
+        {
+            if (!string.IsNullOrEmpty(outputFolder))
+            {
+                return outputFolder;
+            }
+            inputFolder = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(inputFolder));
+            string rdrSegment = string.Format("/{0}/", RDR_SUBDIR.ToLower());
+            int rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
+            return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegment.Length) : inputFolder) + TILESET_SUBDIR;
+        }
+
+        protected void SaveTileset(string tilesetDir, string project, string destDir)
+        {
+            destDir = string.Format("{0}/{1}", destDir, project);
+            
+            pipeline.LogInfo("{0}saving tileset from {1} to {2}", lsopts.DryRun ? "dry " : "", tilesetDir, destDir);
+            
+            if (!lsopts.DryRun)
+            {
+                if (!Directory.Exists(tilesetDir))
+                {
+                    throw new Exception(string.Format("local tileset directory {0} not found", tilesetDir));
+                }
+                
+                string tilesetFile = string.Format("{0}/{1}", tilesetDir, TILESET_JSON);
+                if (!File.Exists(tilesetFile))
+                {
+                    throw new Exception(string.Format("local tileset {0} not found", tilesetFile));
+                }
+                
+                foreach (var f in PathHelper.ListFiles(tilesetDir, recursive: false))
+                {
+                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON || f.Name == STATS_TXT)
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}_{2}", destDir, project, f.Name));
+                    }
+                    else
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}", destDir, f.Name));
+                    }
+                }
             }
         }
     }

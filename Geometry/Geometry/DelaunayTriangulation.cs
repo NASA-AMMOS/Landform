@@ -14,7 +14,7 @@ namespace OPS.Geometry
             return Triangulate(vertices.Select(v => new Vertex(v.X, v.Y, 0)));
         }
         
-        public static Mesh Triangulate(IEnumerable<Vertex> vertices, Func<Vertex, Vector2> projection = null)
+        public static Mesh Triangulate(IEnumerable<Vertex> vertices, Func<Vertex, Vector2> projection = null, bool reverseWinding=false)
         {
             if (projection == null)
             {
@@ -45,7 +45,14 @@ namespace OPS.Geometry
                 int id1 = tnTri.GetVertex(0).ID;
                 int id2 = tnTri.GetVertex(1).ID;
                 int id3 = tnTri.GetVertex(2).ID;
-                ret.Faces.Add(new Face(id1, id2, id3));
+                if (reverseWinding)
+                {
+                    ret.Faces.Add(new Face(id2, id1, id3));
+                }
+                else
+                {
+                    ret.Faces.Add(new Face(id1, id2, id3));
+                }
             }
 
             return ret;

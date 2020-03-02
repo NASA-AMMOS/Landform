@@ -28,7 +28,7 @@ namespace OPS.Landform
                     { typeof(FetchDataOptions), typeof(FetchData) },
                     { typeof(IngestOptions), typeof(Ingest) },
                     { typeof(BEVAlignerOptions), typeof(BEVAligner) },
-                    { typeof(OrbitalAlignerOptions), typeof(OrbitalAligner) },
+                    { typeof(HeightmapAlignerOptions), typeof(HeightmapAligner) },
                     { typeof(AgisoftAlignerOptions), typeof(AgisoftAligner) },
                     { typeof(BuildGeometryOptions), typeof(BuildGeometry) },
                     { typeof(BuildTilesetOptions), typeof(BuildTileset) },
@@ -36,6 +36,7 @@ namespace OPS.Landform
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
                     { typeof(ProcessTacticalOptions), typeof(ProcessTactical) },
+                    { typeof(ProcessContextualOptions), typeof(ProcessContextual) },
                     { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
                 };
 

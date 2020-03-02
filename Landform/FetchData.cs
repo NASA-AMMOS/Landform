@@ -64,6 +64,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "comma separated list of observation wildcard patterns to exclude")]
         public string ExcludePattern { get; set; }
 
+        [Option(Required = false, Default = "rdr/browse,rdr/mesh,rdr/mosaic,rdr/tileset", HelpText = "comma separated list of subdirs to exclude")]
+        public string ExcludeSubdirs { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Download PNG products")]
         public bool WithPNG { get; set; }
 
@@ -119,15 +122,42 @@ namespace OPS.Landform
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Comma separated list of filename extensions to trace")]
+        public string Trace { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Quiet output")]
+        public bool Quiet { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Verbose output")]
         public bool Verbose { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Debug output")]
+        public bool Debug { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override log file")]
+        public string LogFile { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override temp dir")]
+        public string TempDir { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override config dir (for compatibility)")]
+        public string ConfigFolder { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Print summary")]
         public bool Summary { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        public bool DryRun { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Synonymous with --dryrun (for compatibility)")]
+        public bool NoSave { get; set; }
     }
 
     public class FetchData
     {
+        //NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4 chars
+        public const string SOL_WILDCARD = "#####";
+
         private FetchDataOptions options;
         private MissionSpecific mission;
 
@@ -135,6 +165,8 @@ namespace OPS.Landform
 
         private Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>> unifiedMeshes =
             new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
+
+        private string[] traceExts, excludeSubdirs;
 
         private StorageHelper _storageHelper;
         private StorageHelper storageHelper
@@ -152,7 +184,20 @@ namespace OPS.Landform
         public FetchData(FetchDataOptions opts)
         {
             options = opts;
+
+            options.DryRun |= options.NoSave;
+
+            traceExts = StringHelper.ParseList(options.Trace);
+            excludeSubdirs = StringHelper.ParseList(options.ExcludeSubdirs);
             
+            Logging.ConfigureLogging(commandName: "fetch", quiet: options.Quiet, debug: options.Debug,
+                                     logFilename: options.LogFile);
+
+            if (!string.IsNullOrEmpty(options.TempDir))
+            {
+                TemporaryFile.TemporaryDirectory = options.TempDir;
+            }
+
             mission = MissionSpecific.GetInstance(options.Mission);
 
             if (mission != null)
@@ -166,6 +211,11 @@ namespace OPS.Landform
                     options.AWSProfile = mission.GetDefaultAWSProfile();
                 }
             }
+        }
+
+        private bool TraceExt(string file)
+        {
+            return traceExts.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
         }
 
         private IEnumerable<string> IndexFiles(string searchDir)
@@ -189,7 +239,7 @@ namespace OPS.Landform
             }
         }
 
-        private string[] ExpandSolSpecifier(string solString)
+        public static string[] ExpandSolSpecifier(string solString)
         {
             string[] parts = solString.Split(',');
             List<int> sols = new List<int>();
@@ -210,7 +260,11 @@ namespace OPS.Landform
                     sols.Add(int.Parse(part));
                 }                       
             }
-            return sols.Distinct().OrderBy(x => x).Select(x => x.ToString("00000")).ToArray();
+            return sols
+                .Distinct()
+                .OrderBy(sol => sol)
+                .Select(sol => StringHelper.FixedWidthInt(SOL_WILDCARD, sol))
+                .ToArray();
         }
 
         private List<string> Filter(List<string> products)
@@ -245,31 +299,47 @@ namespace OPS.Landform
                 .ToList();
 
             var acceptedExtensions = new HashSet<string>();
+
             if (!options.NoPDS)
             {
-                acceptedExtensions.Add(".IMG");
-                if (mission != null && mission.AllowPDSLabelFiles())
+                if (mission != null)
                 {
-                    acceptedExtensions.Add(".LBL");
+                    foreach (var ext in StringHelper.ParseExts(mission.GetPDSExts()))
+                    {
+                        acceptedExtensions.Add(ext.ToUpper());
+                    }
+                }
+                else
+                {
+                    acceptedExtensions.Add(".IMG");
                 }
             }
+
             if (options.WithVIC)
             {
                 acceptedExtensions.Add(".VIC");
             }
+            else
+            {
+                acceptedExtensions.Remove(".VIC");
+            }
+
             if (options.WithPNG)
             {
                 acceptedExtensions.Add(".PNG");
             }
+
             if (options.WithRGB)
             {
                 acceptedExtensions.Add(".RGB");
             }
+
             if (!options.NoOBJ)
             {
                 acceptedExtensions.Add(".OBJ");
                 acceptedExtensions.Add(".MTL");
             }
+
             if (!options.NoIV)
             {
                 acceptedExtensions.Add(".IV");
@@ -379,10 +449,14 @@ namespace OPS.Landform
             var filtered = new List<string>();
             foreach (var product in products.OrderBy(p => p)) //sort makes spew more readable
             {
+                string reason = null;
                 string ext = StringHelper.GetUrlExtension(product).ToUpper();
                 string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
-                string reason = null;
-                if (!acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 means let nothing in
+                if (excludeSubdirs.Any(sd => product.IndexOf(sd) >= 0))
+                {
+                    reason = "excluded subdir " + excludeSubdirs.Where(sd => product.IndexOf(sd) >= 0).First();
+                }
+                else if (!acceptedExtensions.Contains(ext)) //acceptedExtensions.Count == 0 means let nothing in
                 {
                     reason = "disallowed extension " + ext;
                 }
@@ -426,10 +500,16 @@ namespace OPS.Landform
                         filtered.Add(product);
                     }
                 }
-                if (options.Verbose && !string.IsNullOrEmpty(reason))
+                if ((options.Verbose || TraceExt(product)) && !string.IsNullOrEmpty(reason))
                 {
-                    logger.InfoFormat("rejected {0}: {1}", idStr, reason);
+                    logger.InfoFormat("rejected {0}: {1}", product, reason);
                 }
+            }
+
+            Action<string> verbose = null;
+            if (options.Verbose)
+            {
+                verbose = msg => logger.Info(msg);
             }
 
             //it might be nice if we could group products by observation frame here
@@ -451,7 +531,9 @@ namespace OPS.Landform
             int nf = filtered.Count;
             filtered = filtered
                 .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
-                .SelectMany(files => RoverObservationComparator.FilterProductIdGroups(files, mission))
+                .SelectMany(files => RoverObservationComparator
+                            .FilterProductIdGroups(files, mission,
+                                                   TraceExt(files.First()) ? msg => logger.Info(msg) : verbose))
                 .ToList();
             logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
 
@@ -467,7 +549,7 @@ namespace OPS.Landform
                 {
                     umFiltered.Add(product);
                 }
-                else if (options.Verbose)
+                else if (options.Verbose || TraceExt(product))
                 { 
                     //checkUnifiedMeshes() = false implies that id is an OPGSProductId
                     var sd = ((OPGSProductId)id).SiteDrive;
@@ -480,11 +562,22 @@ namespace OPS.Landform
                         path = ums.ContainsKey(cam) ? ums[cam].Path : ums.ContainsKey(oc) ? ums[oc].Path : null;
                     }
                     logger.InfoFormat("rejected {0}: not in unified mesh{1}",
-                                      idStr, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
+                                      product, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
                 }
             }
             logger.InfoFormat("unified meshes rejected {0} products", filtered.Count - umFiltered.Count);
             filtered = umFiltered;
+
+            if (traceExts.Length > 0)
+            {
+                foreach (var product in filtered)
+                {
+                    if (TraceExt(product))
+                    {
+                        logger.InfoFormat("accepted {0}", product);
+                    }
+                }
+            }
             
             logger.InfoFormat("filtered {0}->{1} products, site drives {2}, extensions {3}, {4} specific product ids",
                               products.Count, filtered.Count,
@@ -508,6 +601,11 @@ namespace OPS.Landform
         private long DownloadFile(string url)
         {
             var localPath = LocalPath(url);    
+            if (options.DryRun)
+            {
+                logger.InfoFormat("DRY download {0} -> {1}", url, localPath);
+                return 0;
+            }
             PathHelper.EnsureExists(Path.GetDirectoryName(localPath));
             bool s3 = url.ToLower().StartsWith("s3");
             string filename = StringHelper.GetLastUrlPathSegment(url);
@@ -588,8 +686,11 @@ namespace OPS.Landform
                 long bytes = DownloadFile(f);
                 Interlocked.Add(ref totalBytes, bytes);
                 Interlocked.Increment(ref downloaded);
-                logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
-                                  downloaded, remaining, (downloaded * 100) / remaining);
+                if (!options.DryRun)
+                {
+                    logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
+                                      downloaded, remaining, (downloaded * 100) / remaining);
+                }
             });
             return totalBytes;
         }
@@ -630,7 +731,8 @@ namespace OPS.Landform
                     var prods = new List<string>();
                     foreach (var location in locations)
                     {
-                        var solLocation = location.Replace("#####", sol);
+                        var solLocation = StringHelper.ReplaceFixedWidthIntWildcard(location, SOL_WILDCARD,
+                                                                                    int.Parse(sol));
                         prods.AddRange(IndexFiles(solLocation));
                     }
                     solToProducts.TryAdd(sol, prods);
@@ -656,7 +758,10 @@ namespace OPS.Landform
                     }
                     logger.InfoFormat("downloading {0} unified meshes", urls.Count);
                     bytes += DownloadFiles(urls);
-                    unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
+                    if (!options.DryRun)
+                    {
+                        unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
+                    }
                 }
 
                 foreach (var sol in sols)
@@ -672,12 +777,14 @@ namespace OPS.Landform
                         var groups = solToProducts[sol]
                             .Select(product => StringHelper.GetLastUrlPathSegment(product, stripExtension: true))
                             .Select(idStr => RoverProductId.Parse(idStr, mission))
-                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeVariants: false))
-                            .Select(ids => ids.OrderBy(id => id.FullId).Distinct())
+                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeGeometry: false,
+                                                           includeVariants: false, includeVersion: false,
+                                                           includeStereoEye: false))
+                            .Select(ids => ids.Distinct().OrderBy(id => id.FullId).ToList())
                             .ToList();
                         logger.InfoFormat("-- fetching {0} product ids for sol {1} --",
-                                          groups.Select(group => group.Count()).Sum(), sol);
-                        groups.ForEach(group => group.ToList().ForEach(id => logger.Info(id.FullId)));
+                                          groups.Select(group => group.Count).Sum(), sol);
+                        groups.ForEach(group => group.ForEach(id => logger.Info(id.FullId)));
                     }
                 }
                 
