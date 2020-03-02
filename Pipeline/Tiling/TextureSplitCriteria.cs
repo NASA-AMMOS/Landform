@@ -72,10 +72,10 @@ namespace OPS.Pipeline
             if (intersectingCameras.Count == 0)
                 return false;
 
-            if (!GetCandidateDestTexelArea(clippedMesh, out double dstPixelsArea))
+            if (!GetDestTexelPerArea(clippedMesh, out double dstPixelsArea))
                 return false;
 
-            if (!GetCandidateSourcePixelArea(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsArea))
+            if (!GetSourcePixelPerArea(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsArea))
                 return false;
 
             double ratioOfSrcToDest = srcPixelsArea / dstPixelsArea;
@@ -84,8 +84,8 @@ namespace OPS.Pipeline
 
 
         //single pixel api, for a representative pixel what is the ratio of source to dest pixel areas
-        protected abstract bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea);
-        protected abstract bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea);
+        protected abstract bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea);
+        protected abstract bool GetDestTexelPerArea(Mesh clippedMesh, out double dstPixelArea);
     }
 
     public class TextureSplitCriteriaBackproject : TextureSplitCriteria
@@ -95,7 +95,7 @@ namespace OPS.Pipeline
         public TextureSplitCriteriaBackproject(SplitByTextureOpts opts) : base(opts)
         { }
 
-        protected override bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea)
+        protected override bool GetDestTexelPerArea(Mesh clippedMesh, out double dstPixelArea)
         {
             //current approach is based on maximum of all the images, of the user specified percentage of tested pixels
             // sourcepixels per single output pixel. this function returns a single pixel area to match the single source pixel area
@@ -103,7 +103,7 @@ namespace OPS.Pipeline
             return true;
         }
 
-        protected override bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
         {
             srcPixelArea = 0;
 
@@ -263,9 +263,9 @@ namespace OPS.Pipeline
         {
         }
 
-        protected override bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea)
+        protected override bool GetDestTexelPerArea(Mesh clippedMesh, out double dstTexelArea)
         {
-            dstPixelArea = 0;
+            dstTexelArea = 0;
             double clippedArea = clippedMesh.SurfaceArea();
             if (clippedArea <= 0)
             {
@@ -277,10 +277,10 @@ namespace OPS.Pipeline
             //the uv atlas wastes some amount of pixels on gutter, accounted for here by APPROX_TEXTURE_UTILIZATION
             // the uv atlas also allocates area unequally in the atlas, could spend 80% of the pixels
             // on 20% of the area (not accounted for here)
-            dstPixelArea = APPROX_TEXTURE_UTILIZATION * numTexels / clippedArea;
+            dstTexelArea = APPROX_TEXTURE_UTILIZATION * numTexels / clippedArea;
             return true;
         }
-        protected override bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
         {
             srcPixelArea = 0;
 
