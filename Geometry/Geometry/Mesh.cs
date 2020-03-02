@@ -1413,7 +1413,8 @@ namespace OPS.Geometry
         /// <summary>
         /// computes target bounds from image pixels
         /// </summary>
-        public void RescaleUVsForTexture(int texWidth, int texHeight, int borderPixels = 2, double growThreshold = 0.1)
+        public void RescaleUVsForTexture(int texWidth, int texHeight, double borderPixels = 2,
+                                         double growThreshold = 0.1)
         {
             var border = borderPixels * Vector2.One;
             var targetMin = Image.PixelToUV(border, texWidth, texHeight);

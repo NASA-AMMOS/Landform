@@ -55,6 +55,9 @@
     <Reference Include="RTree, Version=1.1.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\RTree.1.1.0\lib\netstandard2.0\RTree.dll</HintPath>
     </Reference>
+    <Reference Include="Sharp3DBinPacking, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <HintPath>..\packages\Sharp3DBinPacking.1.2.0\lib\net45\Sharp3DBinPacking.dll</HintPath>
+    </Reference>
     <Reference Include="Supercluster.KDTree, Version=1.0.4.0, Culture=neutral, PublicKeyToken=4423da5f8ba350cf, processorArchitecture=MSIL">
       <HintPath>..\packages\Supercluster.KDTree.1.0.4\lib\Supercluster.KDTree.dll</HintPath>
       <Private>True</Private>
@@ -81,6 +84,7 @@
     <Compile Include="Geometry\DemOperations.cs" />
     <Compile Include="Geometry\Geohash.cs" />
     <Compile Include="Geometry\MeshException.cs" />
+    <Compile Include="Geometry\NaiveAtlas.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableEdge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableEdgeGraph.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableVertexNode.cs" />
