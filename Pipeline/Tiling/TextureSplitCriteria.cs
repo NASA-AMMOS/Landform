@@ -309,11 +309,11 @@ namespace OPS.Pipeline
 
                 //calculate the distance between pixel corners and use the diagonal to approximate the area 
                 // (uses a square pixel approximation) 
-                var corners = Image.GetPixelCorners(new Vector2(camInst.widthPixels / 2.0, camInst.heightPixels / 2.0));
-                Vector3 ptUpperLeftCorner = camInst.cameraModel.Unproject(corners.ElementAt(0), minDist);
-                Vector3 ptUpperRightCorner = camInst.cameraModel.Unproject(corners.ElementAt(1), minDist);
-                Vector3 ptLowerRightCorner = camInst.cameraModel.Unproject(corners.ElementAt(2), minDist);
-                Vector3 ptLowerLeftCorner = camInst.cameraModel.Unproject(corners.ElementAt(3), minDist);
+                Vector2 []corners = Image.GetPixelCorners(new Vector2(camInst.widthPixels / 2.0, camInst.heightPixels / 2.0));
+                Vector3 ptUpperLeftCorner = camInst.cameraModel.Unproject(corners[0], minDist);
+                Vector3 ptUpperRightCorner = camInst.cameraModel.Unproject(corners[1], minDist);
+                Vector3 ptLowerRightCorner = camInst.cameraModel.Unproject(corners[2], minDist);
+                Vector3 ptLowerLeftCorner = camInst.cameraModel.Unproject(corners[3], minDist);
                 double curAreaPerPixelInMeters = Vector3.Distance(ptUpperLeftCorner, ptUpperRightCorner) * Vector3.Distance(ptUpperLeftCorner, ptLowerLeftCorner);
                 if (curAreaPerPixelInMeters < minAreaPerPixelInMeters)
                 {
