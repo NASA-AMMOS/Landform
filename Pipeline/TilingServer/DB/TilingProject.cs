@@ -6,6 +6,7 @@ using System.Threading;
 using Amazon.DynamoDBv2.DataModel;
 using log4net;
 using Newtonsoft.Json.Linq;
+using OPS.Pipeline;
 using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Util;
@@ -32,7 +33,7 @@ namespace OPS.Pipeline.TilingServer
 
         public bool TilesDefined;
 
-        public string ProjectType;
+        public PipelineStateMachine.ProjectType ProjectType;
 
         public bool StartedRunning;
 
@@ -87,9 +88,9 @@ namespace OPS.Pipeline.TilingServer
         /// </summary>
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
-                                MeshReconstructionMethod reconMethod, int faces, int resolution, string projectType,
-                                string exportMeshFormat, string exportImageFormat,
-                                int maxLeafGroupSize)
+                                MeshReconstructionMethod reconMethod, int faces, int resolution,
+                                PipelineStateMachine.ProjectType projectType,
+                                string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
             : this()
         {
             Name = name;
@@ -108,8 +109,8 @@ namespace OPS.Pipeline.TilingServer
 
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconstructionMethod reconMethod, int faces,
-                                           int resolution, string projectType, string exportMeshFormat,
-                                           string exportImageFormat, int maxLeafGroupSize)
+                                           int resolution, PipelineStateMachine.ProjectType projectType,
+                                           string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
                                                       projectType, exportMeshFormat, exportImageFormat,
