@@ -1452,7 +1452,8 @@ namespace OPS.Geometry
         /// <summary>
         /// computes target bounds from image pixels
         /// </summary>
-        public void RescaleUVsForTexture(int texWidth, int texHeight, int borderPixels = 2, double growThreshold = 0.1)
+        public void RescaleUVsForTexture(int texWidth, int texHeight, double borderPixels = 2,
+                                         double growThreshold = 0.1)
         {
             var border = borderPixels * Vector2.One;
             var targetMin = Image.PixelToUV(border, texWidth, texHeight);
@@ -1543,6 +1544,36 @@ namespace OPS.Geometry
                 area += triArea;
             }
             return area;
+        }
+
+        /// <summary>
+        /// Apply UV atlas results to a mesh.
+        /// The mesh is not modified, a new mesh is created.
+        /// </summary>
+        public static Mesh ApplyAtlas(Mesh mesh, float[] u, float[] v, int[] indices, int[] vertexRemap)
+        {
+            if (indices.Length % 3 != 0)
+            {
+                throw new ArgumentException("indices not divisible by 3");
+            }
+
+            Mesh result = new Mesh(hasUVs: true, hasNormals: mesh.HasNormals, hasColors: mesh.HasColors);
+
+            for (int i = 0; i < vertexRemap.Length; i++)
+            {
+                var vert = new Vertex(mesh.Vertices[vertexRemap[i]]);
+                vert.UV = new Vector2(u[i], v[i]);
+                result.Vertices.Add(vert);
+            }
+
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                result.Faces.Add(new Face(indices[i], indices[i + 1], indices[i + 2]));
+            }
+
+            result.Clean();
+
+            return result;
         }
 
         /// <summary>
