@@ -35,8 +35,7 @@ namespace OPS.Pipeline
         {
             if (message is CreateProjectMessage)
             {
-                return (ProjectType)Enum.Parse(typeof(ProjectType), ((CreateProjectMessage)message).ProjectType,
-                                               ignoreCase: true);
+                return ((CreateProjectMessage)message).ProjectType;
             }
             else
             {
@@ -45,7 +44,7 @@ namespace OPS.Pipeline
                 TilingProject project = TilingProject.Find(pipeline, message.ProjectName);
                 if (project != null)
                 {
-                    return (ProjectType)Enum.Parse(typeof(ProjectType), project.ProjectType, ignoreCase: true);
+                    return project.ProjectType;
                 }
                 else
                 {
@@ -635,7 +634,7 @@ namespace OPS.Pipeline
         public MeshReconstructionMethod ReconstructionMethod;
         public int FacesPerTile;
         public int TileResolution;
-        public string ProjectType;
+        public PipelineStateMachine.ProjectType ProjectType;
         public string ExportMeshFormat;
         public string ExportImageFormat;
         public int MaxLeafGroupSize;
