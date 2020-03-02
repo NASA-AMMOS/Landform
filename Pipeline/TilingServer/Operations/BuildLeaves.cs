@@ -23,7 +23,7 @@ namespace OPS.Pipeline.TilingServer
 
     public class BuildLeaves : PipelineOperation
     {
-        public const int DEF_MAX_TEXTURE_RESOLUTION = 256;
+        public const int DEF_MAX_TEXTURE_RESOLUTION = 512;
 
         private readonly BuildLeavesMessage message;
 

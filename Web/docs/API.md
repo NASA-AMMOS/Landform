@@ -14,7 +14,7 @@ Accepts the following arugments:
 * *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `None`
 * *reconstructionmethod*: mesh reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
-* *textureresolution*: (max) image resolution per tile, if negative and texturemode=Clip then unlimited; default 256
+* *textureresolution*: (max) image resolution per tile, if negative and texturemode=Clip then unlimited; default 512
 * *maxtexturestretch*: max texture atlas stretch, 0 = no stretch, 1 = unlimited; default 1
 * *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
 * *projecttype*: project type; currently only `GenericTiling` is supported

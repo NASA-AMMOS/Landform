@@ -30,7 +30,7 @@ namespace OPS.TilingServer
         [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
 
-        [Option(Default = 256, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
+        [Option(Default = 512, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
         public int TextureResolution { get; set; }
 
         [Option(Default = 1, HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)")]
