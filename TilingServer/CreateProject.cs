@@ -33,6 +33,9 @@ namespace OPS.TilingServer
         [Option(Default = 256, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
         public int TextureResolution { get; set; }
 
+        [Option(Default = 1, HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)")]
+        public float MaxTextureStretch { get; set; }
+
         [Option(Default = TextureMode.Bake, HelpText = "texture mode (None, Clip, Bake)")]
         public TextureMode TextureMode { get; set; }
 
@@ -149,6 +152,7 @@ namespace OPS.TilingServer
                                          FacesPerTile = options.FacesPerTile,
                                          ProjectType = options.ProjectType,
                                          TextureResolution = options.TextureResolution,
+                                         MaxTextureStretch = options.MaxTextureStretch,
                                          TextureMode = options.TextureMode,
                                          ExportMeshFormat = exMeshFmt,
                                          ExportImageFormat = exImageFmt,

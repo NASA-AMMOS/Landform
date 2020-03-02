@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.RayTrace;
@@ -31,7 +32,9 @@ namespace OPS.Pipeline
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
 
-        public Action<string> progress;
+        public Action<string> progress, info;
+
+        public float maxTextureStretch;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
@@ -114,7 +117,9 @@ namespace OPS.Pipeline
             {
                 try
                 {
-                    clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution);
+                    clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution,
+                                                maxStretch: options.maxTextureStretch,
+                                                logger: new ThunkLogger() { Info = options.info });
                     if (clippedMesh == null)
                         return false;
                 }

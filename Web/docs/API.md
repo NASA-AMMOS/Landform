@@ -15,6 +15,7 @@ Accepts the following arugments:
 * *reconstructionmethod*: mesh reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
 * *textureresolution*: (max) image resolution per tile, if negative and texturemode=Clip then unlimited; default 256
+* *maxtexturestretch*: max texture atlas stretch, 0 = no stretch, 1 = unlimited; default 1
 * *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
 * *projecttype*: project type; currently only `GenericTiling` is supported
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none

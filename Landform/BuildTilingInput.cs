@@ -675,11 +675,12 @@ namespace OPS.Landform
                     }
                     if (cams != null && cams.Length > 0 && sceneCaster != null)
                     {
-                        Action<string> progress = null;
+                        Action<string> progress = null, info = null;
                         if (!options.NoProgress)
                         {
                             progress = msg => pipeline.LogInfo(msg);
                         }
+                        info = msg => pipeline.LogInfo(msg);
                         texSplitOpts = new SplitByTextureOpts()
                         {
                             pctPixelsToTest = options.SplitByTexturePctToTest,
@@ -689,7 +690,9 @@ namespace OPS.Landform
                             tileResolution = tileResolution,
                             scInMesh = sceneCaster,
                             cameraInstances = cams,
-                            progress = progress
+                            maxTextureStretch = maxTextureStretch,
+                            progress = progress,
+                            info = info
                         };
                     }
                 }
@@ -879,7 +882,8 @@ namespace OPS.Landform
                 Image index = null;
                 if (textureMode == TextureMode.Bake)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, tileResolution, maxTextureStretch,
+                                                        msg => pipeline.LogVerbose(msg));
                     if (newMP != null)
                     {
                         mp.Mesh = newMP.Mesh;
@@ -1097,7 +1101,8 @@ namespace OPS.Landform
                                             tile.Name, tileResolution);
                         try
                         {
-                            tileMesh = UVAtlas.Atlas(tileMesh, tileResolution, tileResolution);
+                            tileMesh = UVAtlas.Atlas(tileMesh, tileResolution, tileResolution,
+                                                     maxStretch: maxTextureStretch, logger: pipeline);
                             if (tileMesh == null)
                             {
                                 throw new Exception("unknown error");

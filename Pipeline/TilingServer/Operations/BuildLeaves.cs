@@ -189,7 +189,8 @@ namespace OPS.Pipeline.TilingServer
                         {
                             mesh.RescaleUVsForTexture(maxTexRes, maxTexRes);
                         }
-                        pair = clipper.BakeTexture(mesh, maxTexRes, msg => LogInfo(msg)); //will UVAtlas if necessary
+                        //BakeTexture() will call UVAtlas if necessary
+                        pair = clipper.BakeTexture(mesh, maxTexRes, project.MaxTextureStretch, msg => LogInfo(msg));
                     }
                     else if (project.TextureMode == TextureMode.Clip)
                     {

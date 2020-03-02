@@ -18,6 +18,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 4096)]
         public virtual int TextureResolution { get; set; }
+
+        [Option(HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = 1)]
+        public virtual float MaxTextureStretch { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -27,6 +30,7 @@ namespace OPS.Landform
         protected Mesh mesh; //finest LOD
         protected string meshFrame;
         protected int sceneTextureResolution;
+        protected float maxTextureStretch;
 
         public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {
@@ -49,6 +53,12 @@ namespace OPS.Landform
             if (!NumberHelper.IsPowerOfTwo(sceneTextureResolution))
             {
                 pipeline.LogWarn("scene texture resolution {0} not a power of two", sceneTextureResolution);
+            }
+
+            maxTextureStretch = gcopts.MaxTextureStretch;
+            if (maxTextureStretch < 0 || maxTextureStretch > 1)
+            {
+                throw new Exception("MaxTextureStretch must be between 0 and 1");
             }
 
             return true;
@@ -203,7 +213,8 @@ namespace OPS.Landform
 
             try
             {
-                mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution);
+                mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution, maxStretch: maxTextureStretch,
+                                     logger: pipeline);
                 if (mesh == null)
                 {
                     throw new Exception("unknown error");

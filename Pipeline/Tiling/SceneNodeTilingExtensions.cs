@@ -153,7 +153,7 @@ namespace OPS.Pipeline
         public static bool BuildGeometryFromChildren
             (this SceneNode node, SceneNode root, MeshReconstructionMethod reconstructionMethod,
              int maxFaceCountTarget, SkirtMode? skirtAxis, TextureMode textureMode, int maxTextureSize,
-             TextureProjector textureProjector = null, Image textureImage = null,
+             float maxTextureStretch, TextureProjector textureProjector = null, Image textureImage = null,
              double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
              Action<string> info = null, Action<string> error = null)
         {
@@ -240,6 +240,8 @@ namespace OPS.Pipeline
             Image img = null;
             if (size != 0)
             {
+                var logger = new ThunkLogger() { Info = info, Warn = error, Error = error };
+
                 if (textureProjector != null)
                 {
                     info(string.Format("atlasing parent tile with texture projection"));
@@ -254,7 +256,8 @@ namespace OPS.Pipeline
                 else
                 {
                     info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
-                    combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
+                    combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size, maxStretch: maxTextureStretch,
+                                                      logger: logger);
                     if (combinedDecimated == null)
                     {
                         error("failed to atlas parent tile with UVAtlas");
@@ -264,7 +267,6 @@ namespace OPS.Pipeline
 
                 if (textureMode == TextureMode.Clip && textureProjector != null && textureImage != null)
                 {
-                    var logger = new ThunkLogger() { Info = info, Warn = error, Error = error };
                     var tmc = new TexturedMeshClipper(logger: logger);
                     var pair = tmc.RemapMeshClipImage(combinedDecimated, textureImage, size);
                     combinedDecimated = pair.Mesh;

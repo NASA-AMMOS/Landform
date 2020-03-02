@@ -19,7 +19,7 @@ namespace OPS.Geometry
         /// `gutter` indicates minimum distance between components in pixels
         /// </summary>
         public static Mesh Atlas(Mesh mesh, int width = 512, int height = 512, int maxCharts = 0,
-                                 float maxStretch = 0.1666f, float gutter = 2, bool forceHighestQuality = false,
+                                 float maxStretch = 1, float gutter = 2, bool forceHighestQuality = false,
                                  float adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true)
         {
             int nVerts = mesh.Vertices.Count;
@@ -82,7 +82,14 @@ namespace OPS.Geometry
                 }
             }
 
-            return NaiveAtlas.AtlasMesh(mesh, outU, outV, indices, outVertexRemap);
+            Mesh result = NaiveAtlas.AtlasMesh(mesh, outU, outV, indices, outVertexRemap);
+
+            if (maxStretch == 1)
+            {
+                result.RescaleUVsForTexture(width, height, gutter);
+            }
+
+            return result;
         }
     }
 }

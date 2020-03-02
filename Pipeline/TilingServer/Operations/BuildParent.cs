@@ -97,8 +97,8 @@ namespace OPS.Pipeline.TilingServer
                 if (!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.ReconstructionMethod,
                                                                project.FacesPerTile, project.SkirtMode,
                                                                project.TextureMode, maxTextureSize,
-                                                               textureProjector, textureImage,
-                                                               info: msg => LogInfo(msg),
+                                                               project.MaxTextureStretch, textureProjector,
+                                                               textureImage, info: msg => LogInfo(msg),
                                                                error: msg => { throw new Exception(msg); }))
                 {
                     throw new Exception("failed to build parent from children");

@@ -20,6 +20,7 @@ async function createProject(req, res) {
       reconstructionmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       facespertile: { type: 'int' },
       textureresolution: { type: 'int' },
+      maxtexturestretch: { type: 'float' },
       texturemode: { type: 'enum', options: ['None', 'Clip', 'Bake' ] },
       projecttype: { type: 'enum', options: ['GenericTiling'] },
       exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
