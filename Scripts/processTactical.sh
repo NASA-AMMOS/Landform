@@ -15,12 +15,14 @@ if [ ! -f "$landform" ]; then
     exit 1
 fi
 
-help="USAGE: processTactical.sh DIR MISSION [--meshext EXT] [--imgext EXT] [--nomanifest] [--nolods] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
+help="USAGE: processTactical.sh DIR MISSION [--meshext EXT] [--imgext EXT] [--nomanifest] [--nolods] [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
 
 if [ $# -lt 2 ]; then
     echo $help
     exit 1
 fi
+
+cmdline="$0 $@"
 
 dir=$1
 shift
@@ -39,6 +41,7 @@ cleanup=true
 only_cleanup=
 upload=
 s3rdrdir=
+suffix=
 
 # this only works for subcommands that use PipelineCoreOptions (so not configure-local)
 dbg=""
@@ -63,6 +66,14 @@ while (( "$#" )); do
                 exit 1
             fi
             s3rdrdir=$1
+            ;;
+        "--suffix")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing suffix"
+                exit 1
+            fi
+            suffix="_$1"
             ;;
         "--meshext")
             shift
@@ -106,9 +117,11 @@ for f in `find ${dir} -name '*'.${meshext}`; do
     bn=${f%.${meshext}}
     mesh=$bn.${meshext}
     img=$bn.${imgext}
-    proj=${bn##*/}
+    proj=${bn##*/}${suffix}
     venue=local_${mission}_${proj}
     tileset_dir=$storage/$venue/tiling/TileSet/passthroughFrame/best/$proj
+    log=processTactical_${proj}_log.txt
+    if [ "$dry" ]; then log=; else echo "$cmdline" > $log; fi
 
     # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
     # apparently it is possible that foo.iv might refer to bar.rgb as its texture
@@ -135,8 +148,8 @@ for f in `find ${dir} -name '*'.${meshext}`; do
 
         if [ "$generate" ]; then
             ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-            ${dry}$landform build-tiling-input $dbg $lods --mission $mission --inputmesh $mesh --inputtexture $img
-            ${dry}$landform build-tileset $proj $dbg
+            ${dry}$landform build-tiling-input $proj $dbg $lods --mission $mission --inputmesh $mesh --inputtexture $img | tee -a $log
+            ${dry}$landform build-tileset $proj $dbg | tee -a $log
 
             ${dry}rm -rf $proj
             ${dry}cp -R $tileset_dir .
@@ -144,8 +157,10 @@ for f in `find ${dir} -name '*'.${meshext}`; do
             if [ -f $proj/stats.txt ]; then ${dry}mv $proj/stats.txt $proj/${proj}_stats.txt; fi
 
             if [ "$manifest" ]; then
-                ${dry}$landform update-scene-manifest $dbg --mission $mission --manifestfile $proj/${proj}_scene.json --nocontextual --nourls --tacticalpdsfile $img 
+                ${dry}$landform update-scene-manifest $dbg --mission $mission --manifestfile $proj/${proj}_scene.json --nocontextual --nourls --tacticalpdsfile $img | tee -a $log
             fi
+
+            ${dry}mv $log $proj
         fi
         
         if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
