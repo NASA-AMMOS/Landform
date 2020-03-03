@@ -197,6 +197,10 @@ namespace OPS.Pipeline.TilingServer
                         LogInfo("clipping leaf texture");
                         pair = clipper.ClipWithTexture(bounds, maxTexRes);
                     }
+                    if (pair.Mesh != null && pair.Image != null && project.MaxTextureStretch < 1)
+                    {
+                        pair.Image = pair.Mesh.ClipImageAndRemapUVs(pair.Image);
+                    }
                 }
                 else
                 {

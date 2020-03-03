@@ -902,6 +902,11 @@ namespace OPS.Landform
                     mp.Image = newMP.Image;
                 }
 
+                if (mp.Mesh != null && mp.Image != null && maxTextureStretch < 1)
+                {
+                    mp.Image = mp.Mesh.ClipImageAndRemapUVs(mp.Image);
+                }
+
                 if (mp.Mesh != null && (!withTextures || mp.Image != null))
                 {
                     SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave, tile.IsLeaf);

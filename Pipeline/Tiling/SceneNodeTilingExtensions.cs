@@ -284,10 +284,17 @@ namespace OPS.Pipeline
                     //but a parent tile can only get usable UVs for clipping by texture projection
                 }
 
+                if (maxTextureStretch < 1)
+                {
+                    img = combinedDecimated.ClipImageAndRemapUVs(img);
+                }
+
                 // Estimate the size of a pixel for this texture
                 // If this is greater than the geometric error use it instead
                 var ext = minimumBounds.Extent();
-                double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(size / 2, size / 2).Length();
+                double sizePerPixel =
+                    new Vector2(ext.X, ext.Z).Length() /
+                    new Vector2(img.Width / 2, img.Height / 2).Length();
                 geoError.Error = Math.Max(geoError.Error, sizePerPixel);
             }
 

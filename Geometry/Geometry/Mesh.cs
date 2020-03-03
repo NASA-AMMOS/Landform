@@ -1437,16 +1437,11 @@ namespace OPS.Geometry
         /// </param>
         public void RescaleUVs(BoundingBox targetBounds, double maxStretch = 1, double growThreshold = 0.1)
         {
-            if (!HasUVs)
-            {
-                throw new Exception("mesh does not have UVs");
-            }
-            var targetSz = targetBounds.Max - targetBounds.Min;
-
-            var b = UVBounds();
+            var b = UVBounds(); //ensures HasUVs=true
             var uvMin = new Vector2(b.Min.X, b.Min.Y);
             var uvMax = new Vector2(b.Max.X, b.Max.Y);
             var sz = uvMax - uvMin;
+            var targetSz = targetBounds.Max - targetBounds.Min;
 
             if (growThreshold > 0 &&
                 targetBounds.Contains(b) == ContainmentType.Contains &&
@@ -1486,6 +1481,29 @@ namespace OPS.Geometry
             {
                 v.UV = targetMin + (v.UV - uvMin) * rescale;
             }
+        }
+
+        /// <summary>
+        /// Clip image to just the area referenced by texture coordinates of this mesh, plus a border.
+        /// Then remap the texture coordinates of this mesh in-place to match the clipped image.
+        /// Consider TexturedMeshClipper.RemapMeshClipImage() if the mesh uses sparse and disconnected islands in image.
+        /// </summary>
+        public Image ClipImageAndRemapUVs(Image image, double borderPixels = 2)
+        {
+            var b = image.UVToPixel(UVBounds()); //ensures HasUVs=true
+            var l = new Vector2(Math.Max(0, b.Min.X - borderPixels), Math.Max(0, b.Min.Y - borderPixels));
+            var u = new Vector2(Math.Min(image.Width - 1, b.Max.X + borderPixels),
+                                Math.Min(image.Height - 1, b.Max.Y + borderPixels));
+            if (l.X == 0 && l.Y == 0 && u.X == image.Width - 1 && u.Y == image.Height - 1)
+            {
+                return image;
+            }
+            var ret = image.Crop((int)l.Y, (int)l.X, (int)(u.X - l.X + 1), (int)(u.Y - l.Y + 1));
+            foreach (Vertex v in this.Vertices)
+            {
+                v.UV = ret.PixelToUV(image.UVToPixel(v.UV) - l);
+            }
+            return ret;
         }
 
         /// <summary>
