@@ -59,10 +59,11 @@ namespace OPS.TilingServer
             var md = new Metadata();
             md.Project = project;
 
-            var inputs = TilingInput.Find(pipeline, project).ToList();
             var sanitizedInputs = new List<SanitizedInput>();
-            foreach (var input in inputs)
+            foreach (var inputName in project.LoadInputNames(pipeline))
             {
+                var input = TilingInput.Find(pipeline, options.ProjectName, inputName);
+
                 //if project deletion is ongoing then input could be null here
                 if (input != null)
                 {
@@ -103,7 +104,7 @@ namespace OPS.TilingServer
             md.OutputUrl =
                 CloudPipeline.ConvertS3UrlToHttps(pipeline.GetStorageUrl("www", project.Name, "tileset.json"));
 
-            var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNames" };
+            var ignore = new string[] { "TilingProject.NodeIdsUrl", "TilingProject.InputNamesUrl" };
             Console.WriteLine(JsonHelper.ToJson(md, indent: true, autoTypes: false, ignoreProperties: ignore));
 
             return 0;

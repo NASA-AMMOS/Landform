@@ -198,6 +198,7 @@ namespace OPS.Landform
                              tileList.LeafNames.Count(), tileList.ParentNames.Count(),
                              withTextures ? " and textures" : "");
 
+            var inputs = new List<string>();
             foreach (var tile in tileNames)
             {
                 if (!options.NoProgress)
@@ -207,8 +208,12 @@ namespace OPS.Landform
                 var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
                 var imgUrl =
                     withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt) : null;
-                TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, tile);
+                var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, tile);
+                inputs.Add(input.Name);
             }
+
+            tilingProject.SaveInputNames(inputs, pipeline);
+            pipeline.SaveDatabaseItem(tilingProject);
         }
 
         private void BuildTilesAndDefineParents()
@@ -241,7 +246,6 @@ namespace OPS.Landform
                 
                 //re-fetch project record to ensure database synchronization
                 tp = TilingProject.Find(pipeline, project.Name);
-
             }
             while (tp != null && !tp.FinishedRunning);
 

@@ -122,11 +122,12 @@ namespace OPS.TilingServer
                         return 2; //internal error
                     }
                     Thread.Sleep(SLEEP_MS);
-                    project = TilingProject.Find(pipeline, options.ProjectName);
-                    lock (project.InputNames)
+                    try
                     {
-                        added = project.InputNames.Contains(name);
+                        project = TilingProject.Find(pipeline, options.ProjectName); //reload project from database
+                        added = project.LoadInputNames(pipeline).Contains(name);
                     }
+                    catch (Exception) { /* e.g. maybe read while write json file */ }
                 }
                 while (!added);
                 pipeline.LogInfo("input \"{0}\" has been added to project \"{1}\"", name, options.ProjectName);

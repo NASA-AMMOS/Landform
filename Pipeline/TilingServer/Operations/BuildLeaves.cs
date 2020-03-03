@@ -68,10 +68,14 @@ namespace OPS.Pipeline.TilingServer
 
             // Get a list of all chunks that overlap with a leaf tile
             LogInfo("collecting input chunks per leaf");
-            var inputs = TilingInput.Find(pipeline, project).ToList();
             List<InputChunkGroup> inputGroups = new List<InputChunkGroup>();
-            foreach (var input in inputs)
+            foreach (var inputName in project.LoadInputNames(pipeline))
             {
+                var input = TilingInput.Find(pipeline, projectName, inputName);
+                if (input == null)
+                {
+                    throw new Exception("tiling input not found: " + inputName);
+                }
                 var group = new InputChunkGroup() { Input = input };
                 IEnumerable<string> chunks = null;
                 lock (input.ChunkIds)
