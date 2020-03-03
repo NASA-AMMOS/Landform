@@ -382,6 +382,7 @@ namespace OPS.Pipeline.TilingServer
 
             var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
 
+            Action<string> info = null;
             if (texOpts != null)
             {
                 if (texOpts.useApproximateTileSplit)
@@ -391,12 +392,13 @@ namespace OPS.Pipeline.TilingServer
                 else
                 {
                     splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
+                    info = msg => pipeline.LogInfo(msg);
                 }
                
             }
 
             pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);
-            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), msg => { pipeline.LogInfo(msg); });
+            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), info);
         }
 
         private static ITilingScheme GetTilingScheme(TilingScheme tilingScheme)
@@ -443,7 +445,6 @@ namespace OPS.Pipeline.TilingServer
             while (queue.Count > 0)
             {
                 List<SceneNode> toProcess = new List<SceneNode>(queue.Count());
-                info(string.Format("Queue Depth: {0}", queue.Count()));
                 while (queue.Count() > 0)
                 {
                     toProcess.Add(queue.Dequeue());
@@ -455,7 +456,7 @@ namespace OPS.Pipeline.TilingServer
 
                 if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
                 {
-                    info(string.Format("Splitting tile: {0}", cur.Name));
+                    info(string.Format("splitting tile: {0}", cur.Name));
                     var childBounds = tilingScheme.Split(null, curBounds);
                     childBounds = multiClipper.FilterEmptyBounds(childBounds);
 
@@ -479,7 +480,7 @@ namespace OPS.Pipeline.TilingServer
                 }
                 else
                 {
-                    info(string.Format("Not Splitting tile: {0} ({1})", cur.Name, Interlocked.Increment(ref tilesComplete)));
+                    info(string.Format("not Splitting tile: {0} ({1})", cur.Name, Interlocked.Increment(ref tilesComplete)));
                 }
             });
             }
