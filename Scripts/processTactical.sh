@@ -15,7 +15,7 @@ if [ ! -f "$landform" ]; then
     exit 1
 fi
 
-help="USAGE: processTactical.sh DIR MISSION [--meshext EXT] [--imgext EXT] [--nomanifest] [--nolods] [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
+help="USAGE: processTactical.sh DIR MISSION [--meshext iv] [--imgext IMG] [--nomanifest] [--nolods] [--suffix foo] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
 
 if [ $# -lt 2 ]; then
     echo $help
@@ -42,6 +42,7 @@ only_cleanup=
 upload=
 s3rdrdir=
 suffix=
+export=
 
 # this only works for subcommands that use PipelineCoreOptions (so not configure-local)
 dbg=""
@@ -74,6 +75,22 @@ while (( "$#" )); do
                 exit 1
             fi
             suffix="_$1"
+            ;;
+        "--exportmeshext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            export="$export --exportmeshformat $1"
+            ;;
+        "--exportimgext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            export="$export --exportimageformat $1"
             ;;
         "--meshext")
             shift
@@ -149,7 +166,7 @@ for f in `find ${dir} -name '*'.${meshext}`; do
         if [ "$generate" ]; then
             ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
             ${dry}$landform build-tiling-input $proj $dbg $lods --mission $mission --inputmesh $mesh --inputtexture $img | tee -a $log
-            ${dry}$landform build-tileset $proj $dbg | tee -a $log
+            ${dry}$landform build-tileset $proj $dbg $export | tee -a $log
 
             ${dry}rm -rf $proj
             ${dry}cp -R $tileset_dir .
@@ -161,6 +178,8 @@ for f in `find ${dir} -name '*'.${meshext}`; do
             fi
 
             ${dry}mv $log $proj
+
+            if [ -z "$dry" ]; then echo "moved output to ./$proj"; fi
         fi
         
         if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi

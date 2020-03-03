@@ -15,7 +15,7 @@ if [ ! -f "$landform" ]; then
     exit 1
 fi
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
 
 if [ $# -lt 4 ]; then
     echo $help
@@ -65,6 +65,7 @@ only_cleanup=
 upload=
 s3rdrdir=
 suffix=
+export=
 
 # this only works for subcommands that use PipelineCoreOptions (so not configure-local)
 dbg=""
@@ -97,6 +98,22 @@ while (( "$#" )); do
                 exit 1
             fi
             suffix="_$1"
+            ;;
+        "--exportmeshext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            export="$export --exportmeshformat $1"
+            ;;
+        "--exportimgext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            export="$export --exportimageformat $1"
             ;;
         "--copycombinedmanifest")
             shift
@@ -174,7 +191,7 @@ if [ "$generate" ]; then
         ${dry}$landform build-geometry $proj $dbg --meshframe $sd | tee -a $log
         ${dry}$landform build-tiling-input $proj $dbg --meshframe $sd | tee -a $log
         ${dry}$landform blend-images $proj $dbg --meshframe $sd | tee -a $log
-        ${dry}$landform build-tileset $proj $dbg --meshframe $sd | tee -a $log
+        ${dry}$landform build-tileset $proj $dbg $export --meshframe $sd | tee -a $log
         
         ${dry}rm -rf $proj
         ${dry}cp -R $tileset_dir .
@@ -195,6 +212,8 @@ if [ "$generate" ]; then
         fi
 
         ${dry}mv $log $proj
+
+        if [ -z "$dry" ]; then echo "moved output to ./$proj"; fi
     fi
 fi
 
