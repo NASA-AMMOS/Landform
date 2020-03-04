@@ -19,17 +19,20 @@ namespace OPS.Landform
 {
     public class TilingCommandOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited/default", Default = 512)]
+        [Option(HelpText = "Target maximum faces per tile", Default = TilingDefaults.MAX_FACES_PER_TILE)]
+        public int MaxFacesPerTile { get; set; }
+
+        [Option(HelpText = "Max tile resolution, 0 disables texturing, negative for unlimited/default", Default = TilingDefaults.MAX_TEXTURE_RESOLUTION)]
         public int MaxTileResolution { get; set; }
 
-        [Option(HelpText = "Require power of two textures", Default = false)]
+        [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
+        public override double MaxTextureStretch { get; set; }
+
+        [Option(HelpText = "Require power of two tile textures", Default = false)]
         public bool PowerOfTwoTextures { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
         public bool NoTextures { get; set; }
-
-        [Option(HelpText = "Target maximum faces per tile", Default = 2000)]
-        public int FacesPerTile { get; set; }
 
         [Option(HelpText = "Don't delete tiling project if it already exists", Default = false)]
         public bool UseExistingTilingProject { get; set; }

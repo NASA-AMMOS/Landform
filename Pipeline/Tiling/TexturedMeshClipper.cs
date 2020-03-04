@@ -43,7 +43,9 @@ namespace OPS.Pipeline
         /// If rotation is allowed in packing, small pixel texture may be introduced.
         /// rotation is potentially unstable and may result in half pixel texture offsets
         /// </summary>
-        public TexturedMeshClipper(int borderSize = 5, bool powerOfTwoTextures = false, bool allowRotation = false,
+        public TexturedMeshClipper(int borderSize = TilingDefaults.TEXTURE_PATCH_BORDER_SIZE,
+                                   bool powerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES,
+                                   bool allowRotation = TilingDefaults.TEXTURE_PATCH_ALLOW_ROTATION,
                                    ILogger logger = null)
         {
             this.borderSize = borderSize;

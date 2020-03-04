@@ -18,41 +18,39 @@ namespace OPS.TilingServer
     [Verb("createproject", HelpText = "creates a project")]
     public class CreateProjectOptions : TilingServerCommandOptions
     {
-        [Option(Default = TilingScheme.Bin, HelpText = "tiling scheme")]
+        [Option(Default = ProjectType.GenericTiling, HelpText = "processing pipline, currently only GenericTiling is supported")]
+        public ProjectType ProjectType { get; set; }
+
+        [Option(Default = TilingDefaults.TILING_SCHEME, HelpText = "tiling scheme")]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(Default = SkirtMode.None, HelpText = "skirt mode")]
+        [Option(Default = TilingDefaults.MAX_FACES_PER_TILE, HelpText = "target maximum faces per tile")]
+        public int MaxFacesPerTile { get; set; }
+
+        [Option(Default = TilingDefaults.PARENT_RECONSTRUCTION_METHOD, HelpText = "parent tile mesh reconstruction method")]
+        public MeshReconstructionMethod ParentReconstructionMethod { get; set; }
+
+        [Option(Default = TilingDefaults.SKIRT_MODE, HelpText = "skirt mode")]
         public SkirtMode SkirtMode { get; set; }
 
-        [Option(Default = MeshReconstructionMethod.Poisson, HelpText = "mesh reconstruction method")]
-        public MeshReconstructionMethod ReconstructionMethod { get; set; }
+        [Option(Default = TilingDefaults.TEXTURE_MODE, HelpText = "texture mode (None, Clip, Bake)")]
+        public TextureMode TextureMode { get; set; }
 
-        [Option(Default = 2000, HelpText = "target maximum faces per tile")]
-        public int FacesPerTile { get; set; }
-
-        [Option(Default = 512, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
+        [Option(Default = TilingDefaults.MAX_TEXTURE_RESOLUTION, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
         public int MaxTextureResolution { get; set; }
+
+
+        [Option(Default = TilingDefaults.MAX_TEXTURE_STRETCH, HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)")]
+        public double MaxTextureStretch { get; set; }
 
         [Option(HelpText = "Require power of two textures", Default = false)]
         public bool PowerOfTwoTextures { get; set; }
-
-        [Option(Default = 1, HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)")]
-        public float MaxTextureStretch { get; set; }
-
-        [Option(Default = TextureMode.Bake, HelpText = "texture mode (None, Clip, Bake)")]
-        public TextureMode TextureMode { get; set; }
-
-        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline, currently only GenericTiling is supported")]
-        public PipelineStateMachine.ProjectType ProjectType { get; set; }
 
         [Option(Default = null, HelpText = "write additional mesh format, or \"help\" to list")]
         public string ExportMeshFormat { get; set; }
 
         [Option(Default = null, HelpText = "write additional image format, or \"help\" to list")]
         public string ExportImageFormat { get; set; }
-
-        [Option(Default = 32, HelpText = "maximum number of leaves to process as a group")]
-        public int MaxLeafGroupSize { get; set; }
 
         [Option(Default = false, HelpText = "do not wait until project has been created")]
         public bool NoWait { get; set; }
@@ -78,10 +76,10 @@ namespace OPS.TilingServer
         public int Run()
         {
 
-            if (options.ProjectType != PipelineStateMachine.ProjectType.GenericTiling)
+            if (options.ProjectType != ProjectType.GenericTiling)
             {
                 pipeline.LogError("unsupported project type: {0}, currently only {1} is supported",
-                                  options.ProjectType, PipelineStateMachine.ProjectType.GenericTiling);
+                                  options.ProjectType, ProjectType.GenericTiling);
                 return 1;
             }
 
@@ -149,19 +147,21 @@ namespace OPS.TilingServer
 
             pipeline.EnqueueToMaster(new CreateProjectMessage(options.ProjectName)
                                      {
-                                         TilingScheme = options.TilingScheme,
-                                         SkirtMode = options.SkirtMode,
-                                         ReconstructionMethod = options.ReconstructionMethod,
-                                         FacesPerTile = options.FacesPerTile,
                                          ProjectType = options.ProjectType,
-                                         MaxTextureResolution = options.MaxTextureResolution,
-                                         PowerOfTwoTextures = options.PowerOfTwoTextures,
-                                         MaxTextureStretch = options.MaxTextureStretch,
+                                         ProductPath = productUrl,
+
+                                         TilingScheme = options.TilingScheme,
+                                         MaxFacesPerTile = options.MaxFacesPerTile,
+                                         ParentReconstructionMethod = options.ParentReconstructionMethod,
+                                         SkirtMode = options.SkirtMode,
+
                                          TextureMode = options.TextureMode,
+                                         MaxTextureResolution = options.MaxTextureResolution,
+                                         MaxTextureStretch = options.MaxTextureStretch,
+                                         PowerOfTwoTextures = options.PowerOfTwoTextures,
+
                                          ExportMeshFormat = exMeshFmt,
-                                         ExportImageFormat = exImageFmt,
-                                         MaxLeafGroupSize = options.MaxLeafGroupSize,
-                                         ProductPath = productUrl
+                                         ExportImageFormat = exImageFmt
                                      });
 
             if (!options.NoWait)

@@ -8,6 +8,8 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
 {
+    public enum ProjectType { GenericTiling, ParentTiling };
+
     //TODO this needs to get refactored to be a generic base class for all Landform workflows, not just tiling
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
     public abstract class PipelineStateMachine : ILogger
@@ -16,8 +18,6 @@ namespace OPS.Pipeline
         public static bool SingleWorkflowSpew;
 
         public const double DEF_LONG_TASK_WARN_SEC = 5 * 60;
-
-        public enum ProjectType { GenericTiling, ParentTiling };
 
         public static Dictionary<ProjectType, Type> StateMachines = new Dictionary<ProjectType, Type>()
         {
@@ -213,10 +213,22 @@ namespace OPS.Pipeline
             if (project == null)
             {
                 LogInfo("creating project");
-                TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconstructionMethod,
-                                     m.FacesPerTile, m.MaxTextureResolution, m.MaxTextureStretch, m.PowerOfTwoTextures,
-                                     m.TextureMode, m.ProjectType, m.ExportMeshFormat, m.ExportImageFormat,
-                                     m.MaxLeafGroupSize, m.ProductPath);
+                project = TilingProject.Create(pipeline, projectName, m.ProjectType, m.ProductPath);
+
+                project.TilingScheme = m.TilingScheme;
+                project.MaxFacesPerTile = m.MaxFacesPerTile;
+                project.ParentReconstructionMethod = m.ParentReconstructionMethod;
+                project.SkirtMode = m.SkirtMode;
+
+                project.TextureMode = m.TextureMode;
+                project.MaxTextureResolution = m.MaxTextureResolution;
+                project.MaxTextureStretch = m.MaxTextureStretch;
+                project.PowerOfTwoTextures = m.PowerOfTwoTextures;
+
+                project.ExportMeshFormat = m.ExportMeshFormat;
+                project.ExportImageFormat = m.ExportImageFormat;
+
+                pipeline.SaveDatabaseItem(project);
             }
             else
             {
@@ -382,7 +394,7 @@ namespace OPS.Pipeline
 
             LogInfo("enqueueing leaf jobs");
             List<List<SceneNode>> leafGroups = new List<List<SceneNode>>();
-            CollectLeafGroupsByChunkDependency(root, leafGroups, project.MaxLeafGroupSize);
+            CollectLeafGroupsByChunkDependency(root, leafGroups, TilingDefaults.MAX_LEAF_GROUP);
             int totalLeaves = 0, leafJobs = 0, toGo = 0;
             foreach (var group in leafGroups)
             {
@@ -443,9 +455,9 @@ namespace OPS.Pipeline
         virtual protected Queue<SceneNode> CollectLeafGroups(SceneNode node, List<List<SceneNode>> groups,
                                                              int maxGroupSize)
         {
-            if(maxGroupSize < 1)
+            if (maxGroupSize < 1)
             {
-                throw new Exception("CollectLeafGroups must have maxGroupSize of 1 or more.  Called with: " + maxGroupSize);
+                throw new ArgumentException("maxGroupSize < 1: " + maxGroupSize);
             }
             var result = new Queue<SceneNode>();
             if (node.IsLeaf)
@@ -479,20 +491,21 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// collects leaves into groups based on the chunks that they depend on. All leaves in any given group will depend
-        /// on the exact same set of chunks. This should increase performance of BuilbakedLeaves.process since the minimum number
-        /// of chunks will be loaded when performing a mesh clip to define the meshes for individual leaves
+        /// collects leaves into groups based on the chunks that they depend on. All leaves in any given group will
+        /// depend on the exact same set of chunks. This should increase performance of BuilbakedLeaves.process since
+        /// the minimum number of chunks will be loaded when performing a mesh clip to define the meshes for individual
+        /// leaves
         /// </summary>
         /// <param name="root">The root node of the tree whose leaves should be grouped</param>
         /// <param name="groups">the output list of scene node groups 'collected' by this function</param>
         /// <param name="maxGroupSize">the maximum size of any given group</param>
-        virtual protected void CollectLeafGroupsByChunkDependency(SceneNode root, List<List<SceneNode>> groups, int maxGroupSize)
+        virtual protected void CollectLeafGroupsByChunkDependency(SceneNode root, List<List<SceneNode>> groups,
+                                                                  int maxGroupSize)
         {
             // make sure group size is positive
             if (maxGroupSize < 1)
             {
-                throw new Exception("CollectLeafGroupsByChunkDependency must have maxGroupSize of 1 or more.  " +
-                    "Called with: " + maxGroupSize);
+                throw new ArgumentException("maxGroupSize < 1: " + maxGroupSize);
             }
 
             // TODO: consider looking at intersection of parent tile, only checking intersection of children on subset
@@ -630,19 +643,22 @@ namespace OPS.Pipeline
 
     public class CreateProjectMessage : PipelineMessage
     {
+        public ProjectType ProjectType;
+        public string ProductPath;
+
         public TilingScheme TilingScheme;
+        public int MaxFacesPerTile;
+        public MeshReconstructionMethod ParentReconstructionMethod;
         public SkirtMode SkirtMode;
-        public MeshReconstructionMethod ReconstructionMethod;
-        public int FacesPerTile;
-        public int MaxTextureResolution;
-        public float MaxTextureStretch;
-        public bool PowerOfTwoTextures;
+
         public TextureMode TextureMode;
-        public PipelineStateMachine.ProjectType ProjectType;
+        public int MaxTextureResolution;
+        public double MaxTextureStretch;
+        public bool PowerOfTwoTextures;
+
         public string ExportMeshFormat;
         public string ExportImageFormat;
-        public int MaxLeafGroupSize;
-        public string ProductPath;
+
         public CreateProjectMessage() { }
         public CreateProjectMessage(string projectName) : base(projectName) { }
     }

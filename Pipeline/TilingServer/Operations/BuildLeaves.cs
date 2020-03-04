@@ -153,7 +153,7 @@ namespace OPS.Pipeline.TilingServer
                     {
                         if (maxTexRes < 0)
                         {
-                            maxTexRes = DEF_MAX_TEXTURE_RESOLUTION;
+                            maxTexRes = TilingDefaults.MAX_TEXTURE_RESOLUTION;
                         }
                         clipper.InitTextureBaker();
                         break;

@@ -36,7 +36,7 @@ namespace OPS.Landform
         [Option(HelpText = "Ratio of observation pixels to tile texels that would trigger a split", Default = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL)]
         public double SplitByTextureMaxPixelsPerTexel { get; set; }
 
-        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, Oct)", Default = TilingScheme.Bin)]
+        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, Oct)", Default = TilingDefaults.TILING_SCHEME)]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(Default = "auto", HelpText = "Texture mode (None, Clip, Bake, Backproject, auto)")]
@@ -697,10 +697,10 @@ namespace OPS.Landform
                 }
 
                 pipeline.LogInfo("building tile tree, tiling scheme {0}, max {1} faces/leaf{2}",
-                                 options.TilingScheme, options.FacesPerTile,
+                                 options.TilingScheme, options.MaxFacesPerTile,
                                  texSplitOpts != null ?
                                  (", texture split enabled, max leaf texture resolution " + maxTileResolution) : "");
-                tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
+                tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.MaxFacesPerTile,
                                                                options.PowerOfTwoTextures,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
                                                                texSplitOpts, !options.NoApproxTileSplit);

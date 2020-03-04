@@ -15,23 +15,23 @@ namespace OPS.Landform
     [Verb("build-tileset", HelpText = "builds a tileset from pre-built tiles")]
     public class BuildTilesetOptions : TilingCommandOptions
     {
-        [Option(HelpText = "Option disabled for this command", Default = false)]
-        public override bool NoSave { get; set; }
+        [Option(Default = TilingDefaults.PARENT_RECONSTRUCTION_METHOD, HelpText = "Parent mesh reconstruction method (FSSR, Poisson)")]
+        public MeshReconstructionMethod ParentReconstructionMethod { get; set; }
 
-        [Option(Required = false, Default = SkirtMode.None, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
+        [Option(Default = TilingDefaults.SKIRT_MODE, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
         public SkirtMode SkirtMode { get; set; }
-
-        [Option(Default = MeshReconstructionMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
-        public MeshReconstructionMethod ReconstructionMethod { get; set; }
-
-        [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
-        public double MaxTime { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
         public string ExportMeshFormat { get; set; }
 
         [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
         public string ExportImageFormat { get; set; }
+
+        [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
+        public double MaxTime { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSave { get; set; }
     }
 
     public class BuildTileset : TilingCommand
@@ -40,7 +40,6 @@ namespace OPS.Landform
 
         private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
-        private const int MAX_LEAF_GROUP_SIZE = 32;
         private const int SLEEP_MS = 500;
 
         private BuildTilesetOptions options;
@@ -159,40 +158,36 @@ namespace OPS.Landform
 
             if (tilingProject == null)
             {
-                //in a user defined tiling scheme the inputs give a subset of all the tiles
-                //including at least all the leaves
-                //the tree topology is encoded in the names of the given tiles
-                //such that all tiles with the same name prefix XXXX are parented to a tile named XXXX
-                //we'll automatically create any and all parent tiles which were not provided as input
-                //in practice for the local-build-leaves -> local-build-tileset workflow
-                //all and only the leaves of the tree are supplied as user defined tiles here
-                var tilingScheme = TilingScheme.UserDefined;
-
-                var projectType = PipelineStateMachine.ProjectType.ParentTiling;
-
-                int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
-
-                var texMode = TextureMode.None;
+                var parentTileTextureMode = TextureMode.None;
                 if (withTextures)
                 {
+                    parentTileTextureMode = TextureMode.Bake;
                     if (tileList.TextureMode == TextureMode.Clip && sceneMesh.TextureProjectorGuid != Guid.Empty &&
                         pipeline.GetDataProduct<TextureProjector>(project, sceneMesh.TextureProjectorGuid).TextureGuid
                         != Guid.Empty)
                     {
-                        texMode = TextureMode.Clip;
-                    }
-                    else
-                    {
-                        texMode = TextureMode.Bake;
+                        parentTileTextureMode = TextureMode.Clip;
                     }
                 }
 
                 tilingProject =
-                    TilingProject.Create(pipeline, project.Name, tilingScheme, options.SkirtMode,
-                                         options.ReconstructionMethod, options.FacesPerTile,
-                                         maxTileResolution, maxTextureStretch, options.PowerOfTwoTextures, texMode,
-                                         projectType, options.ExportMeshFormat, options.ExportImageFormat,
-                                         maxTileGroupSize, project.ProductPath);
+                    TilingProject.Create(pipeline, project.Name, ProjectType.ParentTiling, project.ProductPath);
+
+                //in user defined tiling the inputs give a subset of all the tiles, at least including all the leaves
+                //the tree topology is encoded in the names of the given tiles
+                //such that all tiles with the same name prefix XXXX are parented to a tile named XXXX
+                tilingProject.TilingScheme = TilingScheme.UserDefined;
+                tilingProject.MaxFacesPerTile = options.MaxFacesPerTile;
+                tilingProject.ParentReconstructionMethod = options.ParentReconstructionMethod;
+                tilingProject.SkirtMode = options.SkirtMode;
+
+                tilingProject.TextureMode = parentTileTextureMode;
+                tilingProject.MaxTextureResolution = maxTileResolution;
+                tilingProject.MaxTextureStretch = options.MaxTextureStretch;
+                tilingProject.PowerOfTwoTextures = options.PowerOfTwoTextures;
+
+                tilingProject.ExportMeshFormat = options.ExportMeshFormat;
+                tilingProject.ExportImageFormat = options.ExportImageFormat;
 
                 tilingProject.ExportDir = null;
                 if (!string.IsNullOrEmpty(options.ExportMeshFormat) || !string.IsNullOrEmpty(options.ExportImageFormat))
@@ -212,9 +207,6 @@ namespace OPS.Landform
                 tilingProject.TilesetDir = tilesetFolder;
 
                 tilingProject.TextureProjectorGuid = sceneMesh.TextureProjectorGuid;
-
-                tilingProject.StartedRunning = false;
-                tilingProject.FinishedRunning = false;
 
                 tilingProject.Save(pipeline);
             }

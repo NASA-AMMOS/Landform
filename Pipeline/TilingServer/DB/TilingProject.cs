@@ -6,31 +6,13 @@ using System.Threading;
 using Amazon.DynamoDBv2.DataModel;
 using log4net;
 using Newtonsoft.Json.Linq;
-using OPS.Pipeline;
+using OPS.Util;
 using OPS.Cloud;
 using OPS.Geometry;
-using OPS.Util;
+using OPS.Pipeline;
 
 namespace OPS.Pipeline.TilingServer
 {
-    public enum TilingScheme
-    {        
-        Bin,
-        QuadX,
-        QuadY,
-        QuadZ,
-        Oct,
-        UserDefined
-    }
-
-    public enum TextureMode
-    {
-        None,
-        Clip,       //generate tile textures by clipping regions out of the source texture and offsetting uvs
-        Bake,       //generate tile textures by atlassing tiles and sampling source texture at a desired resolution
-        Backproject //generate tile textures by choosing the best data from observations that viewed the mesh
-    }
-
     [DynamoDBTable("TilingProjects")]
     [DynamoDBReadCapacity(5, 50)]
     [DynamoDBWriteCapacity(5, 50)]
@@ -39,25 +21,28 @@ namespace OPS.Pipeline.TilingServer
         [DynamoDBHashKey]
         public string Name;
 
-        public TilingScheme TilingScheme;
+        public ProjectType ProjectType;
 
-        public SkirtMode SkirtMode;
+        public string ProductPath;
 
-        public MeshReconstructionMethod ReconstructionMethod;
+        public TilingScheme TilingScheme = TilingDefaults.TILING_SCHEME;
 
-        public int FacesPerTile;
+        public int MaxFacesPerTile = TilingDefaults.MAX_FACES_PER_TILE;
 
-        public int MaxTextureResolution;
+        public MeshReconstructionMethod ParentReconstructionMethod = TilingDefaults.PARENT_RECONSTRUCTION_METHOD;
 
-        public float MaxTextureStretch;
+        public SkirtMode SkirtMode = TilingDefaults.SKIRT_MODE;
 
-        public bool PowerOfTwoTextures;
+        public TextureMode TextureMode = TilingDefaults.TEXTURE_MODE;
 
-        public TextureMode TextureMode;
+        public int MaxTextureResolution = TilingDefaults.MAX_TEXTURE_RESOLUTION;
+
+
+        public double MaxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
+
+        public bool PowerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES;
 
         public bool TilesDefined;
-
-        public PipelineStateMachine.ProjectType ProjectType;
 
         public bool StartedRunning;
 
@@ -67,27 +52,23 @@ namespace OPS.Pipeline.TilingServer
 
         public string NodeIdsUrl;
 
-        public int MaxLeafGroupSize;
-
-        public string ProductPath;
-
-        public string ExportDir = "www"; //disable exporting meshes and images if null or empty
+        public string ExportDir = TilingDefaults.EXPORT_DIR; //disable exporting meshes and images if null or empty
 
         public string ExportMeshFormat = null; //disable exporting meshes if null or empty
 
         public string ExportImageFormat = null; //disable exporting images if null or empty
 
-        public string InternalTileDir = "tiles"; //disable saving internal tile meshes and images if null or empty
+        public string InternalTileDir = TilingDefaults.INTERNAL_TILE_DIR; //disable saving internal tile meshes and images if null or empty
 
-        public string InternalMeshFormat = "ply";
+        public string InternalMeshFormat = TilingDefaults.INTERNAL_MESH_FORMAT;
 
-        public string InternalImageFormat = "png";
+        public string InternalImageFormat = TilingDefaults.INTERNAL_IMAGE_FORMAT;
 
-        public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
+        public string TilesetDir = TilingDefaults.TILESET_DIR; //disable saving 3D tiles format tiles if null or empty
 
-        public string TilesetMeshFormat = "b3dm"; //but pointclouds will be saved as pnts
+        public string TilesetMeshFormat = TilingDefaults.TILESET_MESH_FORMAT; //but pointclouds will be saved as pnts
 
-        public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
+        public string TilesetImageFormat = TilingDefaults.TILESET_IMAGE_FORMAT; //jpg or png, will be embedded in b3dm
 
         public Guid TextureProjectorGuid;
 
@@ -103,48 +84,18 @@ namespace OPS.Pipeline.TilingServer
         //This constructor must be public for DynamoDB but should not be used
         public TilingProject() { }
 
-        /// <summary>
-        /// Creates Project object locally.  
-        /// </summary>
-        /// <param name="name">Project names in the database must be unique</param>
-        protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
-                                MeshReconstructionMethod reconstructionMethod, int faces,
-                                int maxTextureResolution, float maxTextureStretch, bool powerOfTwoTextures,
-                                TextureMode textureMode, PipelineStateMachine.ProjectType projectType,
-                                string exportMeshFormat, string exportImageFormat,
-                                int maxLeafGroupSize, string productPath)
+        protected TilingProject(string name, ProjectType projectType, string productPath)
         {
             Name = name;
-            TilingScheme = tilingScheme;
-            SkirtMode = skirtMode;
-            ReconstructionMethod = reconstructionMethod;
-            FacesPerTile = faces;
-            MaxTextureResolution = maxTextureResolution;
-            MaxTextureStretch = maxTextureStretch;
-            PowerOfTwoTextures = powerOfTwoTextures;
-            TextureMode = textureMode;
             ProjectType = projectType;
-            TilesDefined = false;
-            ExportMeshFormat = exportMeshFormat;
-            ExportImageFormat = exportImageFormat;
-            MaxLeafGroupSize = maxLeafGroupSize;
             ProductPath = productPath;
             IsValid();
         }
 
-
-        public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
-                                           SkirtMode skirtMode, MeshReconstructionMethod reconstructionMethod,
-                                           int faces, int maxTextureResolution, float maxTextureStretch,
-                                           bool powerOfTwoTextures, TextureMode textureMode,
-                                           PipelineStateMachine.ProjectType projectType,
-                                           string exportMeshFormat, string exportImageFormat,
-                                           int maxLeafGroupSize, string productPath)
+        public static TilingProject Create(PipelineCore pipeline, string name, ProjectType projectType,
+                                           string productPath)
         {
-            TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconstructionMethod, faces,
-                                                      maxTextureResolution, maxTextureStretch, powerOfTwoTextures,
-                                                      textureMode, projectType, exportMeshFormat, exportImageFormat,
-                                                      maxLeafGroupSize, productPath);
+            TilingProject project = new TilingProject(name, projectType, productPath);
             project.Save(pipeline);
             return project;
         }

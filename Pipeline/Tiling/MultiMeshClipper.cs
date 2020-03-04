@@ -43,7 +43,9 @@ namespace OPS.Pipeline
         private TextureBaker textureBaker;
         private TexturedMeshClipper texturedMeshClipper;
 
-        public MultiMeshClipper(int borderSize = 5, bool powerOfTwoTextures = false, bool allowRotation = false,
+        public MultiMeshClipper(int borderSize = TilingDefaults.TEXTURE_PATCH_BORDER_SIZE,
+                                bool powerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES,
+                                bool allowRotation = TilingDefaults.TEXTURE_PATCH_ALLOW_ROTATION,
                                 ILogger logger = null)
         {
             texturedMeshClipper = new TexturedMeshClipper(borderSize, powerOfTwoTextures, allowRotation, logger);

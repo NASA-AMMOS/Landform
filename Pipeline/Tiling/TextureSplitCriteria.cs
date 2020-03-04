@@ -88,7 +88,7 @@ namespace OPS.Pipeline
             }
 
             double meshArea = clippedMesh.SurfaceArea();
-            int res = options.MaxTileResolution;
+            int res = options.maxTileResolution;
 
             // finer frustum test: get all observations that intersect mesh hull
             ConvexHull clippedHull = new ConvexHull(clippedMesh);

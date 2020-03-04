@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline.TilingServer;
@@ -15,9 +16,6 @@ namespace OPS.Pipeline
 {
     public static class SceneNodeTilingExtensions
     {
-
-        public const double DEFAULT_SEARCH_RATIO = 1.1f;
-
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply", string imageExtension = "jpg")
         {
             meshExtension = "." + meshExtension;
@@ -108,8 +106,9 @@ namespace OPS.Pipeline
             return node.Children.All(n => n.HasComponent<MeshImagePair>());
         }
 
-        public static List<SceneNode> FindNodesRequiredForParent
-            (this SceneNode node, SceneNode root, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static List<SceneNode>
+            FindNodesRequiredForParent(this SceneNode node, SceneNode root,
+                                       double childBoundSearchRatio = TilingDefaults.CHILD_BOUNDS_SEARCH_RATIO)
         {
             BoundingBox tmp;
             return FindNodesRequiredForParent(node, root, out tmp, childBoundSearchRatio);
@@ -129,9 +128,9 @@ namespace OPS.Pipeline
         ///
         /// NOTE: as in all the tiling code bounds are all in same coordinate frame (all node Transforms are identity)
         /// </summary>
-        public static List<SceneNode> FindNodesRequiredForParent
-            (this SceneNode node, SceneNode root, out BoundingBox searchBounds,
-             double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
+        public static List<SceneNode>
+            FindNodesRequiredForParent(this SceneNode node, SceneNode root, out BoundingBox searchBounds,
+                                       double childBoundSearchRatio = TilingDefaults.CHILD_BOUNDS_SEARCH_RATIO)
         {
             int childDepth = node.Children.First().Transform.Depth();
             searchBounds = node.ChildBounds();
@@ -144,18 +143,12 @@ namespace OPS.Pipeline
         /// <summary>
         /// Assumes all nodes below this node have been processed
         /// </summary>
-        /// <param name="node"></param>
-        /// <param name="root"></param>
-        /// <param name="maxFaceCountTarget"></param>
-        /// <param name="maxTextureSize"></param>
-        /// <param name="skirtAxis"></param>
-        /// <param name="childBoundSearchRatio"></param>
         public static bool BuildGeometryFromChildren
-            (this SceneNode node, SceneNode root, MeshReconstructionMethod reconstructionMethod,
-             int maxFaceCountTarget, SkirtMode? skirtAxis, TextureMode textureMode, int maxTextureSize,
-             float maxTextureStretch, bool powerOfTwoTextures,
-             TextureProjector textureProjector = null, Image textureImage = null,
-             double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
+            (this SceneNode node, SceneNode root,
+             int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, SkirtMode skirtAxis,
+             TextureMode textureMode, int maxTextureRes, double maxTextureStretch,
+             bool powerOfTwoTextures, TextureProjector textureProjector = null, Image textureImage = null,
+             double childBoundSearchRatio = TilingDefaults.CHILD_BOUNDS_SEARCH_RATIO,
              Action<string> info = null, Action<string> error = null)
         {
             info = info ?? (msg => {});
@@ -209,14 +202,11 @@ namespace OPS.Pipeline
             else
             { 
                 Vector3? cornerDirection = null;
-                if (skirtAxis.HasValue)
+                switch (skirtAxis)
                 {
-                    switch (skirtAxis.Value)
-                    {
-                        case SkirtMode.X: cornerDirection = Vector3.UnitX; break;
-                        case SkirtMode.Y: cornerDirection = Vector3.UnitY; break;
-                        case SkirtMode.Z: cornerDirection = Vector3.UnitZ; break;
-                    }
+                    case SkirtMode.X: cornerDirection = Vector3.UnitX; break;
+                    case SkirtMode.Y: cornerDirection = Vector3.UnitY; break;
+                    case SkirtMode.Z: cornerDirection = Vector3.UnitZ; break;
                 }
                 info("decimating parent tile mesh");
                 combinedDecimated = combinedFull.ResampleDecimation(maxFaceCountTarget, reconstructionMethod,
@@ -236,7 +226,7 @@ namespace OPS.Pipeline
             int size = 0;
             if (textureMode != TextureMode.None)
             {
-                size = ComputeParentTileResolution(childMeshImagePairs, combinedDecimated.Bounds(), maxTextureSize);
+                size = ComputeParentTileResolution(childMeshImagePairs, combinedDecimated.Bounds(), maxTextureRes);
             }
             Image img = null;
             if (size != 0)
@@ -257,8 +247,8 @@ namespace OPS.Pipeline
                 else
                 {
                     info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
-                    combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size, maxStretch: maxTextureStretch,
-                                                      logger: logger);
+                    combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size,
+                                                      maxStretch: maxTextureStretch, logger: logger);
                     if (combinedDecimated == null)
                     {
                         error("failed to atlas parent tile with UVAtlas");

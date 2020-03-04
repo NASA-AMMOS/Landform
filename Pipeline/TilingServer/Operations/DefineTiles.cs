@@ -205,8 +205,8 @@ namespace OPS.Pipeline.TilingServer
                     pairs.Add(DownloadInput(input));
                 }
                 LogInfo("loaded {0} input meshes, building tree", inputs.Count);
-                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, project.PowerOfTwoTextures,
-                                               pairs, logPrefix: logPrefix);
+                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.MaxFacesPerTile,
+                                               project.PowerOfTwoTextures, pairs, logPrefix: logPrefix);
             }
 
             LogInfo("computing tiling node dependencies");
@@ -298,7 +298,7 @@ namespace OPS.Pipeline.TilingServer
 
             SceneNode root = BuildFixedLevelsBoundsTree(LODs, scheme, out int emptyTileCount);
 
-            if(emptyTileCount > 0)
+            if (emptyTileCount > 0)
             {
                 pipeline.LogInfo("{0} tiles were empty", emptyTileCount);
             }
@@ -371,7 +371,7 @@ namespace OPS.Pipeline.TilingServer
         }
 
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        int facesPerTile, bool powerOfTwoTextures,
+                                                        int maxFacesPerTile, bool powerOfTwoTextures,
                                                         List<MeshImagePair> pairs, SplitByTextureOpts texOpts = null,
                                                         bool useTexSplitApprox = true, string logPrefix = null)
         {
@@ -386,7 +386,7 @@ namespace OPS.Pipeline.TilingServer
 
             ITilingScheme scheme = GetTilingScheme(tilingScheme);
 
-            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
+            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(maxFacesPerTile) };
 
             if (texOpts != null)
             {

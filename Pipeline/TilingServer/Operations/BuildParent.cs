@@ -94,13 +94,11 @@ namespace OPS.Pipeline.TilingServer
                     }
                 }
 
-                if (!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.ReconstructionMethod,
-                                                               project.FacesPerTile, project.SkirtMode,
-                                                               project.TextureMode, maxTextureSize,
-                                                               project.MaxTextureStretch, project.PowerOfTwoTextures,
-                                                               textureProjector, textureImage,
-                                                               info: msg => LogInfo(msg),
-                                                               error: msg => { throw new Exception(msg); }))
+                if (!parentSceneNode.BuildGeometryFromChildren
+                    (parentSceneNode, project.MaxFacesPerTile, project.ParentReconstructionMethod, project.SkirtMode,
+                     project.TextureMode, maxTextureSize, project.MaxTextureStretch,
+                     project.PowerOfTwoTextures, textureProjector, textureImage,
+                     info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); }))
                 {
                     throw new Exception("failed to build parent from children");
                 }

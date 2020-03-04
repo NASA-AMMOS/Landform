@@ -117,7 +117,7 @@ namespace OPS.TilingServer
                     {
                         if (!stateMachines.ContainsKey(m.ProjectName))
                         {
-                            PipelineStateMachine.ProjectType? pt = PipelineStateMachine.GetProjectType(this, m);
+                            ProjectType? pt = PipelineStateMachine.GetProjectType(this, m);
                             if (pt.HasValue)
                             {
                                 var sm = PipelineStateMachine.CreateInstance(this, pt.Value, m.ProjectName);
