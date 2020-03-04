@@ -222,6 +222,7 @@ namespace OPS.Pipeline
 
                 project.TextureMode = m.TextureMode;
                 project.MaxTextureResolution = m.MaxTextureResolution;
+                project.MaxTexelsPerMeter = m.MaxTexelsPerMeter;
                 project.MaxTextureStretch = m.MaxTextureStretch;
                 project.PowerOfTwoTextures = m.PowerOfTwoTextures;
 
@@ -653,6 +654,7 @@ namespace OPS.Pipeline
 
         public TextureMode TextureMode;
         public int MaxTextureResolution;
+        public double MaxTexelsPerMeter;
         public double MaxTextureStretch;
         public bool PowerOfTwoTextures;
 

@@ -687,7 +687,9 @@ namespace OPS.Landform
                             pctPixelsSatisfied = options.SplitByTexturePctSatisfied,
                             maxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
                             maxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
+                            maxTexelsPerMeter = options.MaxTexelsPerMeter,
                             maxTextureStretch = maxTextureStretch,
+                            powerOfTwoTextures = options.PowerOfTwoTextures,
                             scInMesh = sceneCaster,
                             cameraInstances = cams,
                             progress = progress,
@@ -879,10 +881,12 @@ namespace OPS.Landform
 
                 MeshImagePair mp = tile.GetComponent<MeshImagePair>();
 
+                int res = SceneNodeTilingExtensions.
+                    GetTileResolution(mp.Mesh, maxTileResolution, options.MaxTexelsPerMeter, options.PowerOfTwoTextures);
                 Image index = null;
                 if (textureMode == TextureMode.Bake)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, maxTileResolution, maxTextureStretch,
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, res, maxTextureStretch,
                                                         msg => pipeline.LogVerbose(msg));
                     if (newMP != null)
                     {
@@ -892,12 +896,12 @@ namespace OPS.Landform
                 }
                 else if (textureMode == TextureMode.Backproject)
                 {
-                    index = !options.NoBackprojectIndexImages ? new Image(3, maxTileResolution, maxTileResolution) : null;
-                    mp.Image = BackprojectTile(tile, mp.Mesh, index);
+                    index = !options.NoBackprojectIndexImages ? new Image(3, res, res) : null;
+                    mp.Image = BackprojectTile(tile, mp.Mesh, res, index);
                 }
                 else if (textureMode == TextureMode.Clip)
                 {
-                    var newMP = texClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, maxTileResolution);
+                    var newMP = texClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, res);
                     mp.Mesh = newMP.Mesh;
                     mp.Image = newMP.Image;
                 }
@@ -1090,6 +1094,9 @@ namespace OPS.Landform
                 return null;
             }
 
+            int res = SceneNodeTilingExtensions.
+                GetTileResolution(tileMesh, maxTileResolution, options.MaxTexelsPerMeter, options.PowerOfTwoTextures);
+
             if (textureMode == TextureMode.Bake || textureMode == TextureMode.Backproject)
             {
                 if (!tileMesh.HasUVs || options.RedoTileMeshUVs)
@@ -1098,16 +1105,15 @@ namespace OPS.Landform
                     {
                         pipeline.LogVerbose("(re-)atlasing tile mesh {0} with texture projection", tile.Name);
                         ProjectTexture(tileMesh);
-                        tileMesh.RescaleUVsForTexture(maxTileResolution, maxTileResolution, maxTextureStretch);
+                        tileMesh.RescaleUVsForTexture(res, res, maxTextureStretch);
                     }
                     else
                     {
                         pipeline.LogVerbose("(re-)atlasing tile mesh {0} with UVAtlas, texture resolution {1}",
-                                            tile.Name, maxTileResolution);
+                                            tile.Name, res);
                         try
                         {
-                            tileMesh = UVAtlas.Atlas(tileMesh, maxTileResolution, maxTileResolution,
-                                                     maxStretch: maxTextureStretch, logger: pipeline);
+                            tileMesh = UVAtlas.Atlas(tileMesh, res, res, maxStretch: maxTextureStretch, logger: pipeline);
                             if (tileMesh == null)
                             {
                                 throw new Exception("unknown error");
@@ -1123,7 +1129,7 @@ namespace OPS.Landform
                 else
                 {
                     pipeline.LogVerbose("using existing UVs on tile {0}", tile.Name);
-                    tileMesh.RescaleUVsForTexture(maxTileResolution, maxTileResolution, maxTextureStretch);
+                    tileMesh.RescaleUVsForTexture(res, res, maxTextureStretch);
                 }
             }
             else if (textureMode == TextureMode.Clip)
@@ -1144,11 +1150,11 @@ namespace OPS.Landform
             return tileMesh;
         }
 
-        private Image BackprojectTile(SceneNode node, Mesh mesh, Image index = null)
+        private Image BackprojectTile(SceneNode node, Mesh mesh, int texRes, Image index = null)
         {
             try
             {
-                var backprojectResults = BackprojectObservations(mesh, maxTileResolution, debugSubdir: node.Name);
+                var backprojectResults = BackprojectObservations(mesh, texRes, debugSubdir: node.Name);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)
@@ -1161,7 +1167,7 @@ namespace OPS.Landform
                     Backproject.FillIndexImage(backprojectResults, index);
                 }
 
-                Image image = new Image(3, maxTileResolution, maxTileResolution);
+                Image image = new Image(3, texRes, texRes);
                 Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
                                               !options.DontInpaint, fallbackToOriginal: true);
                 return image;

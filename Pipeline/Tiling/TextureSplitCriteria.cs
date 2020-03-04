@@ -34,7 +34,9 @@ namespace OPS.Pipeline
         public double maxPixelsPerTexel = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL;
 
         public int maxTileResolution = TilingDefaults.MAX_TEXTURE_RESOLUTION;
+        public double maxTexelsPerMeter = TilingDefaults.MAX_TEXELS_PER_METER;
         public double maxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
+        public bool powerOfTwoTextures = TilingDefaults.POWER_OF_TWO_TEXTURES;
 
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
@@ -88,7 +90,10 @@ namespace OPS.Pipeline
             }
 
             double meshArea = clippedMesh.SurfaceArea();
-            int res = options.maxTileResolution;
+
+            int res = SceneNodeTilingExtensions.
+                GetTileResolution(meshArea, options.maxTileResolution, options.maxTexelsPerMeter,
+                                  options.powerOfTwoTextures);
 
             // finer frustum test: get all observations that intersect mesh hull
             ConvexHull clippedHull = new ConvexHull(clippedMesh);

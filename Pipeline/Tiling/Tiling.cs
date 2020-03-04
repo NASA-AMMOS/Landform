@@ -31,6 +31,7 @@ namespace OPS.Pipeline
         public const TextureMode TEXTURE_MODE = TextureMode.Bake;
         public const int MAX_TEXTURE_RESOLUTION = 512;
         public const int MIN_TEXTURE_RESOLUTION = 16;
+        public const double MAX_TEXELS_PER_METER = 1024;
         public const double MAX_TEXTURE_STRETCH = 1;
         public const bool POWER_OF_TWO_TEXTURES = false; //changing to true requires refactoring comand line options
 

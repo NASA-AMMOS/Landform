@@ -183,6 +183,7 @@ namespace OPS.Landform
 
                 tilingProject.TextureMode = parentTileTextureMode;
                 tilingProject.MaxTextureResolution = maxTileResolution;
+                tilingProject.MaxTexelsPerMeter = options.MaxTexelsPerMeter;
                 tilingProject.MaxTextureStretch = options.MaxTextureStretch;
                 tilingProject.PowerOfTwoTextures = options.PowerOfTwoTextures;
 

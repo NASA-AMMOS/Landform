@@ -161,9 +161,9 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="box"></param>
         /// <returns></returns>
-        public MeshImagePair ClipWithTexture(BoundingBox box, int maxTextureSize)
+        public MeshImagePair ClipWithTexture(BoundingBox box, int maxTextureSize = -1, double maxTexelsPerMeter = -1)
         {
-            return texturedMeshClipper.Clip(box, maxTextureSize);
+            return texturedMeshClipper.Clip(box, maxTextureSize, maxTexelsPerMeter);
         }
 
         /// <summary>

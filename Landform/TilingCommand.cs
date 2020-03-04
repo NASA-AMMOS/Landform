@@ -25,6 +25,9 @@ namespace OPS.Landform
         [Option(HelpText = "Max tile resolution, 0 disables texturing, negative for unlimited/default", Default = TilingDefaults.MAX_TEXTURE_RESOLUTION)]
         public int MaxTileResolution { get; set; }
 
+        [Option(HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited", Default = TilingDefaults.MAX_TEXELS_PER_METER)]
+        public double MaxTexelsPerMeter { get; set; }
+
         [Option(HelpText = "Max tile texture atlas stretch (0 = no stretch, 1 = unlimited)", Default = TilingDefaults.MAX_TEXTURE_STRETCH)]
         public override double MaxTextureStretch { get; set; }
 

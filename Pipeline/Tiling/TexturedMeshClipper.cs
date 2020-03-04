@@ -90,12 +90,23 @@ namespace OPS.Pipeline
         /// Creates new combined texture of packed patches from original images for each portion of clipped mesh.
         /// Creates new combined mesh merging all the clipped triangles.
         /// </summary>
-        public MeshImagePair Clip(BoundingBox box, int maxTextureSize = -1)
+        public MeshImagePair Clip(BoundingBox box, int maxTextureSize = -1, double maxTexelsPerMeter = -1)
         {
             var patches = new List<TexturePatch>();
+            double area = 0;
             foreach (var pair in pairs)
             {
-                patches.AddRange(ComputePatches(pair.MeshOperator.Clip(box), pair.Image));
+                var mesh = pair.MeshOperator.Clip(box);
+                if (maxTextureSize > 0 && maxTexelsPerMeter > 0)
+                {
+                    area += mesh.SurfaceArea();
+                }
+                patches.AddRange(ComputePatches(mesh, pair.Image));
+            }
+            if (area > 0)
+            {
+                maxTextureSize = SceneNodeTilingExtensions.
+                    GetTileResolution(area, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
             }
             return ClipAndRemapPatches(patches, maxTextureSize, true);
         }
@@ -104,11 +115,17 @@ namespace OPS.Pipeline
         /// Clip out the portion of fullImage used by clippedMesh, then remap the UVs of clippedMesh to match.
         /// Note: mutates the UVs of clippedMesh in place.
         /// </summary>
-        public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image fullImage, int maxTextureSize = -1)
+        public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image fullImage, int maxTextureSize = -1,
+                                                double maxTexelsPerMeter = -1)
         {
             if (!clippedMesh.HasUVs)
             {
                 throw new ArgumentException("clipped mesh must have UVs");
+            }
+            if (maxTextureSize > 0 && maxTexelsPerMeter > 0)
+            {
+                maxTextureSize = SceneNodeTilingExtensions.
+                    GetTileResolution(clippedMesh, maxTextureSize, maxTexelsPerMeter, powerOfTwoTextures);
             }
             var ret = ClipAndRemapPatches(ComputePatches(clippedMesh, fullImage), maxTextureSize, false);
             ret.Mesh = clippedMesh;

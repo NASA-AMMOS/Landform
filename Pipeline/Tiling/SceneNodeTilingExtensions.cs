@@ -65,29 +65,36 @@ namespace OPS.Pipeline
             return result;
         }
 
-        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> childMeshImagePairs,
-                                                      BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
+        public static int GetTileResolution(Mesh mesh, int maxRes = -1, double maxTexelsPerMeter = -1,
+                                            bool powerOfTwoTextures = false)
         {
-            if (maxTextureSize == 0)
+            return GetTileResolution(mesh.SurfaceArea(), maxRes, maxTexelsPerMeter, powerOfTwoTextures);
+        }
+
+        public static int GetTileResolution(double meshArea, int maxRes = -1, double maxTexelsPerMeter = -1,
+                                            bool powerOfTwoTextures = false)
+        {
+            if (maxRes == 0)
             {
-                return 0; //texturing disabled
+                return 0;
             }
-            if (maxTextureSize < 0)
+            if (maxRes < 0)
             {
-                maxTextureSize = int.MaxValue;
+                maxRes = TilingDefaults.MAX_TEXTURE_RESOLUTION;
             }
-            // Read all overlapping meshes, crop each to the extent of the leaf tile
-            // and calculate the area the triangles occupy in units of pixels.  Sum all
-            // the areas and round up to nearest power of two to decide size of the new tile
-            double totalPixels = 0;
-            foreach (var p in childMeshImagePairs)
+            if (maxTexelsPerMeter > 0)
             {
-                var clipped = Mesh.Clip(p.Mesh, cropBounds);
-                totalPixels += TextureBaker.ComputePixelArea(clipped, p.Image);
+                double squareTexelsPerSquareMeter = maxTexelsPerMeter * maxTexelsPerMeter;
+                double texelArea = meshArea * squareTexelsPerSquareMeter;
+                double res = Math.Sqrt(texelArea);
+                res = Math.Max(TilingDefaults.MIN_TEXTURE_RESOLUTION, res);
+                if (powerOfTwoTextures)
+                {
+                    res = MathE.CeilPowerOf2(res);
+                }
+                maxRes = Math.Min(maxRes, (int)res);
             }
-            int size =  TextureBaker.PixelAreaToSquareDimension(totalPixels);
-            size = Math.Min(size, maxTextureSize);
-            return size;
+            return maxRes;
         }
 
         /// <summary>
@@ -146,7 +153,7 @@ namespace OPS.Pipeline
         public static bool BuildGeometryFromChildren
             (this SceneNode node, SceneNode root,
              int maxFaceCountTarget, MeshReconstructionMethod reconstructionMethod, SkirtMode skirtAxis,
-             TextureMode textureMode, int maxTextureRes, double maxTextureStretch,
+             TextureMode textureMode, int maxTextureRes, double maxTexelsPerMeter, double maxTextureStretch,
              bool powerOfTwoTextures, TextureProjector textureProjector = null, Image textureImage = null,
              double childBoundSearchRatio = TilingDefaults.CHILD_BOUNDS_SEARCH_RATIO,
              Action<string> info = null, Action<string> error = null)
@@ -226,7 +233,7 @@ namespace OPS.Pipeline
             int size = 0;
             if (textureMode != TextureMode.None)
             {
-                size = ComputeParentTileResolution(childMeshImagePairs, combinedDecimated.Bounds(), maxTextureRes);
+                size = GetTileResolution(combinedDecimated, maxTextureRes, maxTexelsPerMeter, powerOfTwoTextures);
             }
             Image img = null;
             if (size != 0)

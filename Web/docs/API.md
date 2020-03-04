@@ -16,6 +16,7 @@ Accepts the following arugments:
 * *parentreconstructionmethod*: parent tile mesh reconstruction method; one of `Poisson`, `FSSR`; default `FSSR`
 * *texturemode*: texture generation method; one of `None`, `Clip`, `Bake`; default `Bake`
 * *maxtextureresolution*: max resolution per tile, 0 disables texturing, negative for unlimited/default; default 512
+* *maxtexelspermeter*: max texels per meter (lineal not areal), 0 or negative for unlimited; default 1024
 * *maxtexturestretch*: max texture atlas stretch, 0 = no stretch, 1 = unlimited; default 1
 * *poweroftwotextures*: use power of two textures; default false
 * *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `None`

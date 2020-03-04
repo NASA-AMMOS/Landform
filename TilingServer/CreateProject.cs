@@ -39,6 +39,8 @@ namespace OPS.TilingServer
         [Option(Default = TilingDefaults.MAX_TEXTURE_RESOLUTION, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
         public int MaxTextureResolution { get; set; }
 
+        [Option(Default = TilingDefaults.MAX_TEXELS_PER_METER, HelpText = "Max texels per meter (lineal not areal), 0 or negative for unlimited")]
+        public double MaxTexelsPerMeter { get; set; }
 
         [Option(Default = TilingDefaults.MAX_TEXTURE_STRETCH, HelpText = "Max texture atlas stretch (0 = no stretch, 1 = unlimited)")]
         public double MaxTextureStretch { get; set; }
@@ -157,6 +159,7 @@ namespace OPS.TilingServer
 
                                          TextureMode = options.TextureMode,
                                          MaxTextureResolution = options.MaxTextureResolution,
+                                         MaxTexelsPerMeter = options.MaxTexelsPerMeter,
                                          MaxTextureStretch = options.MaxTextureStretch,
                                          PowerOfTwoTextures = options.PowerOfTwoTextures,
 

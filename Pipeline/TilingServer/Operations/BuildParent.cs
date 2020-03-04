@@ -96,7 +96,7 @@ namespace OPS.Pipeline.TilingServer
 
                 if (!parentSceneNode.BuildGeometryFromChildren
                     (parentSceneNode, project.MaxFacesPerTile, project.ParentReconstructionMethod, project.SkirtMode,
-                     project.TextureMode, maxTextureSize, project.MaxTextureStretch,
+                     project.TextureMode, maxTextureSize, project.MaxTexelsPerMeter, project.MaxTextureStretch,
                      project.PowerOfTwoTextures, textureProjector, textureImage,
                      info: msg => LogInfo(msg), error: msg => { throw new Exception(msg); }))
                 {

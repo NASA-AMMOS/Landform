@@ -37,6 +37,7 @@ namespace OPS.Pipeline.TilingServer
 
         public int MaxTextureResolution = TilingDefaults.MAX_TEXTURE_RESOLUTION;
 
+        public double MaxTexelsPerMeter = TilingDefaults.MAX_TEXELS_PER_METER;
 
         public double MaxTextureStretch = TilingDefaults.MAX_TEXTURE_STRETCH;
 

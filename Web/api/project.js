@@ -21,6 +21,7 @@ async function createProject(req, res) {
       parentreconstructionmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       texturemode: { type: 'enum', options: ['None', 'Clip', 'Bake' ] },
       maxtextureresolution: { type: 'int' },
+      maxtexelspermeter: { type: 'float' },
       maxtexturestretch: { type: 'float' },
       poweroftwotextures: { type: 'bool' },
       skirtmode: { type: 'enum', options: ['None', 'Normal', 'X', 'Y', 'Z'] },
