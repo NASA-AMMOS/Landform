@@ -19,8 +19,8 @@ namespace OPS.Geometry
         /// `gutter` indicates minimum distance between components in pixels
         /// </summary>
         public static Mesh Atlas(Mesh mesh, int width = 512, int height = 512, int maxCharts = 0,
-                                 float maxStretch = 1, float gutter = 2, bool forceHighestQuality = false,
-                                 float adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true)
+                                 double maxStretch = 1, double gutter = 2, bool forceHighestQuality = false,
+                                 double adjacencyEpsilon = 0, ILogger logger = null, bool fallbackToNaive = true)
         {
             int nVerts = mesh.Vertices.Count;
             float[] inX = new float[nVerts];
@@ -53,7 +53,8 @@ namespace OPS.Geometry
             UVAtlasNET.UVAtlas.ReturnCode rc =
                 UVAtlasNET.UVAtlas.Atlas(inX, inY, inZ, indices,
                                          out outU, out outV, out indices, out outVertexRemap,
-                                         maxCharts, maxStretch, gutter, width, height, quality, adjacencyEpsilon);
+                                         maxCharts, (float)maxStretch, (float)gutter,
+                                         width, height, quality, (float)adjacencyEpsilon);
 
             if (rc != UVAtlasNET.UVAtlas.ReturnCode.SUCCESS)
             {

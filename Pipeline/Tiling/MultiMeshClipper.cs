@@ -178,7 +178,7 @@ namespace OPS.Pipeline
         /// <param name="mesh"></param>
         /// <param name="textureSize"></param>
         /// <returns></returns>
-        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, float maxStretch = 1, Action<string> info = null)
+        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, double maxStretch = 1, Action<string> info = null)
         {
             if (textureBaker == null)
             {
