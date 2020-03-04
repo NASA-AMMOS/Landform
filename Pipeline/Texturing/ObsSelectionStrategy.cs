@@ -14,7 +14,6 @@ namespace OPS.Pipeline.Texturing
     public enum ObsSelectionStrategyName
     {
         Exhaustive,
-        Greedy,
         Spatial
     };
 
@@ -43,22 +42,19 @@ namespace OPS.Pipeline.Texturing
         {
             switch (name)
             {
-                case Texturing.ObsSelectionStrategyName.Exhaustive:
-                    return new Texturing.ObsSelectionExhaustive();
-                case Texturing.ObsSelectionStrategyName.Greedy:
-                    return new Texturing.ObsSelectionGreedy();
-                case Texturing.ObsSelectionStrategyName.Spatial:
-                    return new Texturing.ObsSelectionSpatial();
-                default:
-                    throw new Exception("Unknown ObsSelectionStrategy: " + name);
+                case Texturing.ObsSelectionStrategyName.Exhaustive: return new Texturing.ObsSelectionExhaustive();
+                case Texturing.ObsSelectionStrategyName.Spatial: return new Texturing.ObsSelectionSpatial();
+                default: throw new Exception("Unknown ObsSelectionStrategy: " + name);
             }
         }
 
         public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
-                               bool writeDebug, string localOutputPath);
+                                        List<Backproject.Context> allContexts, double quality,
+                                        bool writeDebug, string localOutputPath);
 
         //sorts observations from best to worst
-        public abstract void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs);
+        public abstract void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts,
+                                                   List<Backproject.Context> sortedContexts,
+                                                   Dictionary<string, double> scoresByObs);
     }
 }

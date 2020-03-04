@@ -27,15 +27,14 @@ namespace OPS.Pipeline.Texturing
 
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
-                               bool writeDebug, string localOutputPath)
+                                        List<Backproject.Context> allContexts, double quality, bool writeDebug,
+                                        string localOutputPath)
         {
             MeshOp = meshOp;
             OcclusionScene = occlusionScene;          
             WriteDebug = writeDebug;
             LocalOutputPath = localOutputPath;
-
-    }
+        }
 
     public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
         {

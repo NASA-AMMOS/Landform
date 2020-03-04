@@ -24,8 +24,8 @@ namespace OPS.Pipeline.Texturing
         Dictionary<string, List<ObsSelectionStrategy.ScoredPoint>> ScoredRefPtsByObs;
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
-                               bool writeDebug, string localOutputPath)
+                                        List<Backproject.Context> allContexts, double quality, bool writeDebug,
+                                        string localOutputPath)
         {
             // collect points on the surface of the mesh
             double samplesPerMeter = quality * 100.0;
@@ -81,7 +81,7 @@ namespace OPS.Pipeline.Texturing
 
                 //exhaustively sort for each sample point
                 ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
-                refSelect.Initialize(mesh, meshOp, occlusionScene, allContexts, outputTextureResolution, quality, writeDebug, ptDebugPath);
+                refSelect.Initialize(mesh, meshOp, occlusionScene, allContexts, quality, writeDebug, ptDebugPath);
                 Dictionary<string, double> ptScoresByObs = new Dictionary<string, double>();
 
                 List<Backproject.Context> sortedContexts = new List<Backproject.Context>(allContexts.Count());

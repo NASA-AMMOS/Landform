@@ -123,8 +123,7 @@ namespace OPS.Landform
                     RunPhase("build leaf meshes", BuildLeafMeshes);
                 }
 
-                if (withTextures && texGenMode == TextureGenMode.Backproject &&
-                    options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
+                if (withTextures && texGenMode == TextureGenMode.Backproject)
                 {
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
                 }
@@ -714,25 +713,7 @@ namespace OPS.Landform
         {
             try
             {
-                var strategy = backprojectStrategy;
-                if (strategy == null)
-                {
-                    //no global selection strategy, create one local to this tile
-                    strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                    var tileHull = new ConvexHull(mesh);
-                    var tileOp = new MeshOperator(mesh);
-                    var tileObs = imageObservations
-                        .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
-                        .ToList();
-                    var contexts =
-                        Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
-                                                  options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
-                    strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
-                                        options.BackprojectQuality, options.WriteDebug,
-                                        Path.Combine(backprojectDebugDir, node.Name));
-                }
-                
-                var backprojectResults = BackprojectObservations(mesh, strategy, node.Name);
+                var backprojectResults = BackprojectObservations(mesh, options.TextureResolution, debugSubdir: node.Name);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count == 0)

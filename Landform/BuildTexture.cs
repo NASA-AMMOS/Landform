@@ -54,6 +54,7 @@ namespace OPS.Landform
                 RunPhase("loading input mesh", () => LoadInputMesh(requireUVs: true));
                 RunPhase("build occlusion datastructures", BuildSceneCaster);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
+                RunPhase("initialize backproject strategy", InitBackprojectStrategy);
                 RunPhase("backproject observations", BackprojectObservations);
 
                 if (!options.NoIndex)

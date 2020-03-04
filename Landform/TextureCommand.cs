@@ -464,29 +464,29 @@ namespace OPS.Landform
             {
                 throw new Exception("must build mesh operator before initializing backproject strategy");
             }
-            pipeline.LogInfo("initializing backproject observation seletion strategy {0} for {1} observations",
+            pipeline.LogInfo("initializing backproject observation selection strategy {0} for {1} observations",
                              tcopts.ObsSelectionStrategy, imageObservations.Count);
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
             var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,
-                                           tcopts.BackprojectQuality, tcopts.WriteDebug, backprojectDebugDir);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.BackprojectQuality,
+                                           tcopts.WriteDebug, backprojectDebugDir);
         }
 
         protected void BackprojectObservations()
         {
-            if (backprojectStrategy == null)
-            {
-                InitBackprojectStrategy();
-            }
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            BackprojectObservations(mesh, backprojectStrategy);
+            BackprojectObservations(mesh, resolution);
         }
 
-        protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, string debugSubdir = "")
+        protected IDictionary<Pixel, Backproject.ObsPixel> BackprojectObservations(Mesh mesh, int resolution,
+                                                                                   string debugSubdir = "")
         {
+            if (backprojectStrategy == null)
+            {
+                throw new Exception("must initialize backproject strategy before backprojecting observations");
+            }
             bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
             {
@@ -505,7 +505,7 @@ namespace OPS.Landform
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteDebug,
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
-                obsSelectionStrategy = strategy,
+                obsSelectionStrategy = backprojectStrategy,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
