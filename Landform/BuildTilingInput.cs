@@ -27,14 +27,14 @@ namespace OPS.Landform
         [Option(Default = false, HelpText = "Replace existing tile mesh texture coordinates with UVAtlas")]
         public bool RedoTileMeshUVs { get; set; }
 
-        [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = 0.03)]
+        [Option(HelpText = "Percentage of pixels to test when deciding to split a tile based on resolution (speed vs quality), 0 disables texture based split", Default = TilingDefaults.TEX_SPLIT_PERCENT_TO_TEST)]
         public double SplitByTexturePctToTest { get; set; }
 
-        [Option(HelpText = "Percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = 0.5)]
+        [Option(HelpText = "Percentage of pixels tested that should satisfy the requirement to avoid splitting a tile", Default = TilingDefaults.TEX_SPLIT_PERCENT_SATISFIED)]
         public double SplitByTexturePctSatisfied { get; set; }
 
-        [Option(HelpText = "Ratio of source pixels to destination pixels that would trigger a split", Default = 16)]
-        public double SplitByTextureSamplingRatio { get; set; }
+        [Option(HelpText = "Ratio of observation pixels to tile texels that would trigger a split", Default = TilingDefaults.TEX_SPLIT_MAX_PIXELS_PER_TEXEL)]
+        public double SplitByTextureMaxPixelsPerTexel { get; set; }
 
         [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, Oct)", Default = TilingScheme.Bin)]
         public TilingScheme TilingScheme { get; set; }
@@ -684,13 +684,12 @@ namespace OPS.Landform
                         texSplitOpts = new SplitByTextureOpts()
                         {
                             pctPixelsToTest = options.SplitByTexturePctToTest,
-                            pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
-                            splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
-                            useApproximateTileSplit = !options.NoApproxTileSplit,
-                            maxTileResolution = maxTileResolution, //> 0 because otherwise texture split would be disabled
+                            pctPixelsSatisfied = options.SplitByTexturePctSatisfied,
+                            maxPixelsPerTexel = options.SplitByTextureMaxPixelsPerTexel,
+                            maxTileResolution = maxTileResolution, //> 0 otherwise texture split would be disabled
+                            maxTextureStretch = maxTextureStretch,
                             scInMesh = sceneCaster,
                             cameraInstances = cams,
-                            maxTextureStretch = maxTextureStretch,
                             progress = progress,
                             info = info
                         };
@@ -704,7 +703,7 @@ namespace OPS.Landform
                 tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
                                                                options.PowerOfTwoTextures,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               texSplitOpts);
+                                                               texSplitOpts, !options.NoApproxTileSplit);
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));

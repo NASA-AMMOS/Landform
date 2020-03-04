@@ -206,7 +206,7 @@ namespace OPS.Pipeline.TilingServer
                 }
                 LogInfo("loaded {0} input meshes, building tree", inputs.Count);
                 root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, project.PowerOfTwoTextures,
-                                               pairs, null, logPrefix);
+                                               pairs, logPrefix: logPrefix);
             }
 
             LogInfo("computing tiling node dependencies");
@@ -373,7 +373,7 @@ namespace OPS.Pipeline.TilingServer
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
                                                         int facesPerTile, bool powerOfTwoTextures,
                                                         List<MeshImagePair> pairs, SplitByTextureOpts texOpts = null,
-                                                        string logPrefix = null)
+                                                        bool useTexSplitApprox = true, string logPrefix = null)
         {
             EnsureLogPrefix(ref logPrefix);
 
@@ -390,7 +390,7 @@ namespace OPS.Pipeline.TilingServer
 
             if (texOpts != null)
             {
-                if (texOpts.useApproximateTileSplit)
+                if (useTexSplitApprox)
                 {
                     splitCriteria.Add(new TextureSplitCriteriaApproximate(texOpts));
                 }
