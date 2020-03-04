@@ -134,65 +134,45 @@ namespace OPS.Geometry
         /// <returns></returns>
         public double Area()
         {
+            return Area(V0.Position, V1.Position, V2.Position);
+        }
+
+        public static double Area(Vector3 v0, Vector3 v1, Vector3 v2)
+        {
             // Compute the length of all 3 sides of the triangle
-            double a = (this.V0.Position - this.V1.Position).Length();
-            double b = (this.V1.Position - this.V2.Position).Length();
-            double c = (this.V2.Position - this.V0.Position).Length();
+            double a = (v0 - v1).Length();
+            double b = (v1 - v2).Length();
+            double c = (v2 - v0).Length();
+
+            void swap(ref double x, ref double y)
+            {
+                double tmp = x;
+                x = y;
+                y = tmp;
+            }
+
             // Sort such that a >= b >= c
             if (a < b)
             {
-                Swap(ref a, ref b);
+                swap(ref a, ref b);
             }
             if (b < c)
             {
-                Swap(ref b, ref c);
+                swap(ref b, ref c);
             }
             if (a < b)
             {
-                Swap(ref a, ref b);
+                swap(ref a, ref b);
             }
+
             if (c - (a - b) < 0)
             {
-                // Not a real triangle
-                return 0;
+                return 0; // Not a real triangle
             }
+
             double v = ((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c)));
             v = Math.Sqrt(v) / 4;
             return v;
-        }
-
-        /// <summary>
-        /// Helper method swaps two doubles
-        /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        void Swap(ref double x, ref double y)
-        {
-            double tmp = x;
-            x = y;
-            y = tmp;
-        }
-
-        /// <summary>
-        /// Helper method for adding vertices to an array.  Returns the index of the added vertex.
-        /// If an identical vertex already exists do not add v but instead return the index of the existing vert.
-        /// </summary>
-        /// <param name="vertices"></param>
-        /// <param name="v"></param>
-        /// <returns></returns>
-        static int AddVertex(List<Vertex> vertices, Vertex v)
-        {
-            int i;
-            for (i = 0; i < vertices.Count; i++)
-            {
-                if ((vertices[i].AlmostEqual(v)))
-                {
-                    return i;
-                }
-            }
-            int res = vertices.Count;
-            vertices.Add(v);
-            return res;
         }
 
         /// <summary>
@@ -202,12 +182,31 @@ namespace OPS.Geometry
         public IEnumerable<Triangle> Clip(Plane plane)
         {
             List<Vertex> vertices = new List<Vertex>();
+
+            // Returns the index of the added vertex.
+            // If an identical vertex already exists do not add v but instead return the index of the existing vert.
+            int addVertex(Vertex v)
+            {
+                int i;
+                for (i = 0; i < vertices.Count; i++)
+                {
+                    if ((vertices[i].AlmostEqual(v)))
+                    {
+                        return i;
+                    }
+                }
+                int res = vertices.Count;
+                vertices.Add(v);
+                return res;
+            }
+
             Vertex[][] edges = new Vertex[][]
             {
                 new Vertex[] {V0, V1},
                 new Vertex[] {V1, V2},
                 new Vertex[] {V2, V0}
             };
+
             foreach (Vertex[] edge in edges)
             {
 
@@ -225,8 +224,8 @@ namespace OPS.Geometry
                          Vector3.Dot(edge[1].Position, plane.Normal) >= dist)
                 {
                     // Or above the plane
-                    AddVertex(vertices, edge[0]);
-                    AddVertex(vertices, edge[1]);
+                    addVertex(edge[0]);
+                    addVertex(edge[1]);
                     continue;
                 }
                 // Intersection vertex
@@ -234,22 +233,22 @@ namespace OPS.Geometry
                 if (intervert == null)
                 {
                     // No intersection
-                    AddVertex(vertices, edge[0]);
-                    AddVertex(vertices, edge[1]);
+                    addVertex(edge[0]);
+                    addVertex(edge[1]);
                 }
                 else
                 {
                     if (Vector3.Dot(edge[0].Position, plane.Normal) >= dist)
                     {
                         // First point is above the plane
-                        AddVertex(vertices, edge[0]);
-                        AddVertex(vertices, intervert);
+                        addVertex(edge[0]);
+                        addVertex(intervert);
                     }
                     else
                     {
                         // Second point is above the plane
-                        AddVertex(vertices, intervert);
-                        AddVertex(vertices, edge[1]);
+                        addVertex(intervert);
+                        addVertex(edge[1]);
                     }
                 }
             }

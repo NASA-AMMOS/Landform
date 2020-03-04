@@ -992,12 +992,7 @@ namespace OPS.Geometry
         /// <returns></returns>
         public double SurfaceArea()
         {
-            double area = 0;
-            this.Triangles().ForEach(tri =>
-            {
-                area += tri.Area();
-            });
-            return area;
+            return Faces.Sum(f => Triangle.Area(Vertices[f.P0].Position, Vertices[f.P1].Position, Vertices[f.P2].Position));
         }
 
         /// <summary>
@@ -1538,15 +1533,11 @@ namespace OPS.Geometry
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
             if (HasFaces)
             {
-                var referencedIndices = VertexIndicesReferencedByFaces();
-                for (int idxVert = 0; idxVert < this.Vertices.Count(); idxVert++)
+                foreach (var idxVert in VertexIndicesReferencedByFaces())
                 {
-                    if (referencedIndices.Contains(idxVert))
-                    {
-                        var v = this.Vertices[idxVert];
-                        b.Min = Vector3.Min(b.Min, v.Position);
-                        b.Max = Vector3.Max(b.Max, v.Position);
-                    }
+                    var v = this.Vertices[idxVert];
+                    b.Min = Vector3.Min(b.Min, v.Position);
+                    b.Max = Vector3.Max(b.Max, v.Position);
                 }
             }
             else
