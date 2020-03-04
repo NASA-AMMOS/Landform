@@ -14,7 +14,6 @@ namespace OPS.Pipeline.Texturing
     public enum ObsSelectionStrategyName
     {
         Exhaustive,
-        Greedy,
         Spatial
     };
 
@@ -50,7 +49,6 @@ namespace OPS.Pipeline.Texturing
             switch (name)
             {
                 case Texturing.ObsSelectionStrategyName.Exhaustive: return new Texturing.ObsSelectionExhaustive();
-                case Texturing.ObsSelectionStrategyName.Greedy: return new Texturing.ObsSelectionGreedy();
                 case Texturing.ObsSelectionStrategyName.Spatial: return new Texturing.ObsSelectionSpatial();
                 default: throw new Exception("Unknown ObsSelectionStrategy: " + name);
             }
@@ -63,8 +61,8 @@ namespace OPS.Pipeline.Texturing
         //sorts observations from best to worst
         //returns filtered and sorted contexts
         //optionally returns scores for each observation
-        public abstract List<Backproject.Context>
-            FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> contexts,
-                                  Dictionary<string, double> scoresByObs = null);
+        public abstract List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
+                                                                        List<Backproject.Context> contexts,
+                                                                        Dictionary<string, double> scoresByObs = null);
     }
 }

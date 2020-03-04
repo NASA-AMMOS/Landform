@@ -147,8 +147,7 @@ namespace OPS.Landform
                     RunPhase("build leaf meshes", BuildLeafMeshes);
                 }
 
-                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject &&
-                    options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
+                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject)
                 {
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
                 }
@@ -759,33 +758,9 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    var strategy = backprojectStrategy;
-                    if (strategy == null)
-                    {
-                        //no global selection strategy, create one local to this tile
-                        strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                        var tileHull = new ConvexHull(mesh);
-                        var tileOp = new MeshOperator(mesh);
-                        var tileObs = imageObservations
-                            .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
-                            .ToList();
-                        var contexts =
-                            Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache,
-                                                      meshFrame, options.UsePriors, options.OnlyAligned,
-                                                      msg => pipeline.LogWarn(msg));
-                        if (options.WriteBackprojectDebug)
-                        {
-                            strategy.DebugOutputPath = Path.Combine(backprojectDebugDir, node.Name);
-                        }
-                        if (!options.NoOrbital)
-                        {
-                            strategy.OrbitalMetersPerPixel = orbitalMetersPerPixel;
-                        }
-                        strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
-                                            options.BackprojectQuality);
-                    }
                     missingPixels = new List<PixelPoint>();
-                    backprojectResults = BackprojectRoverObservations(mesh, strategy, missingPixels, node.Name);
+                    backprojectResults = BackprojectRoverObservations(mesh, options.TextureResolution, missingPixels,
+                                                                      debugSubdir: node.Name);
                 }
 
                 Interlocked.Add(ref numBackprojectFailedSurfacePixels, missingPixels.Count);
