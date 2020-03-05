@@ -15,6 +15,7 @@ function setTilingEnv(env) {
     LANDFORM_AWS_PROFILE: 'awsProfile',
     LANDFORM_S3_URL: 's3Url',
     LANDFORM_MSLICE_AWS_PROFILE: 'MSLICEAWSProfile',
+    LANDFORM_MSLICE_AWS_REGION: 'MSLICEAWSRegion',
     LANDFORM_MSLICE_S3_URL: 'MSLICES3Url',
   };
   Object.entries(vars).forEach(([varName, cfgKey]) => { if (!(varName in env)) env[varName] = config.app[cfgKey]; });
