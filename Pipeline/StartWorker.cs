@@ -75,7 +75,9 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public StartWorker(StartWorkerOptions options, string queuePrefix = "tiling")
+        public StartWorker(StartWorkerOptions options) : this(options, "tiling") {}
+
+        public StartWorker(StartWorkerOptions options, string queuePrefix)
             : base(options, queuePrefix: queuePrefix)
         {
             this.options = options;
