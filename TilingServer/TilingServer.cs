@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommandLine;
 using OPS.Util;
 using OPS.Pipeline;
+using OPS.Landform;
 
 namespace OPS.TilingServer
 {
@@ -28,6 +29,7 @@ namespace OPS.TilingServer
 
             var verbs = new Dictionary<Type, Type>()
                 {
+                    { typeof(ConfigureCloudOptions), typeof(ConfigureCloud) },
                     { typeof(CreateProjectOptions), typeof(CreateProject) },
                     { typeof(UploadInputOptions), typeof(UploadInput) },
                     { typeof(RunProjectOptions), typeof(RunProject) },

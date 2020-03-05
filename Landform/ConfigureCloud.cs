@@ -120,7 +120,7 @@ c:\temp\vc_redist_2015.x64.exe /quiet
 Import-Module AWSPowerShell
 (new-object net.webclient).DownloadFile('https://aws-codedeploy-us-west-1.s3.amazonaws.com/latest/codedeploy-agent.msi','c:\temp\codedeploy-agent.msi')
 c:\temp\codedeploy-agent.msi /quiet /l c:\temp\host-agent-install-log.txt
-powershell.exe -Command Read-S3Object -BucketName {2} -Key {0}{3}/app/landform-worker.zip -File c:\temp\landform-worker.zip
+powershell.exe -Command Read-S3Object -BucketName {2} -Key {3}/app/landform-worker.zip -File c:\temp\landform-worker.zip
 # ExtractToDirectory() will not overwrite existing files
 # and this EC2 instance filesystem is persistent across reboots
 # so to handle the case that landform-worker.zip has been updated, first blow away any existing c:\landform
@@ -128,8 +128,8 @@ powershell.exe -Command Read-S3Object -BucketName {2} -Key {0}{3}/app/landform-w
 Remove-Item c:\landform -Force -Recurse -ErrorAction SilentlyContinue
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory(""C:\temp\landform-worker.zip"", ""c:\landform"")
-c:\landform\{5} configure-cloud --venue={0} --s3url={1} --awsregion={4} --awsprofile=null --nouserdata
-Start-Process -WorkingDirectory c:\landform c:\landform\{5} startworker
+c:\landform\{11} configure-cloud --venue={0} --s3url={1} --awsregion={4} --awsprofile=null --msliceawsprofile={5} --msliceawsregion={6} --mslices3url={7} --maxcores={8} --randomseed={9} --legacycompat={10} --nouserdata
+Start-Process -WorkingDirectory c:\landform c:\landform\{11} startworker
 </powershell>
 <persist>true</persist>";
             S3Url url = new S3Url(config.S3Url);
@@ -139,8 +139,13 @@ Start-Process -WorkingDirectory c:\landform c:\landform\{5} startworker
                                  url.BucketName, //2
                                  url.Path, //3
                                  config.AWSRegion, //4
-                                 options.WorkerExecutable); //5
-
+                                 config.MSLICEAWSProfile, //5
+                                 config.MSLICEAWSRegion, //6
+                                 config.MSLICES3Url, //7
+                                 config.MaxCores, //8
+                                 config.RandomSeed, //9
+                                 config.LegacyCompat, //10
+                                 options.WorkerExecutable); //11
         }
     }
 }

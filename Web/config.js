@@ -44,6 +44,7 @@ const development = {
 
     //TODO MSL specific
     MSLICEAWSProfile: env.LANDFORM_MSLICE_AWS_PROFILE || 'mslice',
+    MSLICEAWSRegion: env.LANDFORM_MSLICE_AWS_REGION || 'us-west-1',
     MSLICES3Url: env.LANDFORM_MSLICE_S3_URL || 's3://red-product',
 
     reapOldTasks: 60 * 60 * 24, //24h in sec
