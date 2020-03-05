@@ -1,5 +1,4 @@
 # Landform Dev Team Settings
-
 For development and integration testing use the `-dev` names, e.g. `landformweb-dev`, for production omit `-dev`.
 
 * AWS console:
@@ -28,6 +27,7 @@ For development and integration testing use the `-dev` names, e.g. `landformweb-
   For internal Landform use we keep an archive of the HTTPS key, CSR, and PEM files, so be sure to discuss with the team before creating new ones.
 * LDAP group: `landform`
 * Environment variables
+    * also see the [AWS Credentials](#aws-credentials) section for additional environment variables specfic to each AWS account
     * `NODE_ENV`: `production` (`integration` for testing)
         * setting `NODE_ENV` should be sufficient for internal Landform use as all other environment variables will be set automatically based on that
         * otherwise, use `NODE_ENV=production` and customize the variables below
@@ -35,11 +35,7 @@ For development and integration testing use the `-dev` names, e.g. `landformweb-
     * `TOKEN_SECRET`: any private string
     * `SAML_ENTRY_POINT`: for internal Landform use SSO should already be properly configured.  Otherwise you will need to contact JPL IT to set up SSO for your deployment.  Typically this field will have a form like `https://SSO_HOST.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=LANDFORM_URL` where `SSO_HOST` is `ssoint` for integration testing and `sso1` for production, and `LANDFORM_URL` is the URL to your Landform master server.
     * `SAML_CERT`: for internal Landform use SSO should already be properly configured depending on `NODE_ENV`.  Otherwise typically copy the X509Certificate field from `https://SSO_HOST.jpl.nasa.gov/oamfed/idp/metadata`.
-    * `LANDFORM_AWS_REGION`: `us-west-1`
-    * `LANDFORM_AWS_PROFILE`: `default`
     * `LANDFORM_VENUE`: `landformweb[-dev]` (recommended, but can be any name) - this is the Landform venue name for the deployment; it must match the venue name in the Landform worker configuration.
-    * `LANDFORM_S3_URL`: `s3://landlords-dev` (internal landform use only, otherwise use your own S3 bucket)
-    * `LANDFORM_MSLICE_S3_URL`: `s3://red-product`
     * `LANDFORM_LDAP_GROUP`: `landform` (internal landform use only, otherwise use your own LDAP group)
 * EC2 key pair: `landform-ec2`
 * EC2 worker launch template name: `landformweb[-dev]-workers`
@@ -48,14 +44,13 @@ For development and integration testing use the `-dev` names, e.g. `landformweb-
 * EC2 auto scaling group name: `landformweb[-dev]-workers`
 
 ## AWS Credentials
-
 Most development and deployment tasks require AWS credentials.
 
 In most cases your JPL username needs to be added to an LDAP group to enable you to login to an AWS account.  For example, for the "landlords" AWS account 589270964471 the LDAP group is aws.589270964471.account_owner.  If you are not already in the LDAP group, you need to be added.
 
 * for "landlords" account 589270964471 talk to Parker Abercrombie or Kevin Reeves
 * for "m2020-dev-gov" account 017717573760 talk to Reynaldo Lopez-Roig or Jordan Lei
-* for "mipl-dev" account 105249944904 talk to Jeff Liu
+* for "mipl-dev" account 105249944904 talk to Adrian Tinio or Jeff Liu
 
 Once you are added to the appropriate LDAP group you should be able to acquire temporary credentials using the [credss.exe](https://github.jpl.nasa.gov/CS3/credss) application from CS3.
 
