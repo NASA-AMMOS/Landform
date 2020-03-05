@@ -1,5 +1,6 @@
 const path = require('path');
 const os = require('os');
+const tls = require('tls');
 
 const env = process.env;
 const cwd = process.cwd();
@@ -50,11 +51,12 @@ const development = {
     reapOldTasks: 60 * 60 * 24, //24h in sec
   },
   ldap: {
+    reconnect: true,
     url: 'ldaps://ldap.jpl.nasa.gov',
     searchFilter: 'uid={{username}}',
     searchBase: 'ou=personnel,dc=dir,dc=jpl,dc=nasa,dc=gov',
     tlsOptions: {
-      ciphers: 'RC4-MD5',
+      secureContext: tls.createSecureContext({ secureProtocol: 'TLSv1_method' }),
     },
   },
   sso: {
@@ -63,14 +65,14 @@ const development = {
       path: env.SAML_PATH || '/sso/complete',
       entryPoint: null, //SSO only works in integration or production environments
       issuer: 'passport-saml',
-      cert: null,
+      cert: 'none', //cannot be null or empty
     },
   },
 };
 
 //work with Mark Nastri to update SSO configuration
 //mark.a.nastri@jpl.nasa.gov
-//https://wiki.jpl.nasa.gov/pages/viewpage.action?pageId=186145545
+//JPL wiki page for Landform SSO configuration: https://wiki.jpl.nasa.gov/pages/viewpage.action?pageId=186145545
 
 // override select values for integration
 const integration = JSON.parse(JSON.stringify(development)); //deep copy
