@@ -1,5 +1,4 @@
 # AWS Setup
-
 The AWS services used are
 
 * Elastic Compute Cloud EC2 (<https://aws.amazon.com/ec2>)
@@ -27,14 +26,11 @@ The workers perform tasks defined by the master and are not externally accessibl
 Each deployment on AWS is configured with a unique venue name used to partition the DynamoDB, S3, and SQS entries specific to that venue.
 
 ## 1. S3 Bucket Setup
-
 Input and output datasets are stored an AWS S3 bucket.  The bucket needs to be fully accessible by the account in which the server components (master and workers) are deployed.  Typically this is ensured by using the same account to create the S3 bucket as for deploying the server components.
 
 The bucket typically also needs external `https` access so that results can be accessed for viewing and downstream use.  The instructions below show how to set this up limited to clients with JPL IP addresses.
 
-1. http://goto.jpl.nasa.gov/awsconsole
-1. Log in with the same AWS account you use to deploy the server components
-1. Select region `us-west-1` (North California)
+1. Log in to the AWS web console for the AWS account you use to deploy the server components
 1. Services -> Storage -> S3
 1. Create Bucket
     1. enter a bucket name - note it must be globally unique across all S3 bucket names
@@ -76,7 +72,6 @@ The bucket typically also needs external `https` access so that results can be a
         1. Save
 
 ## 2. Create Elastic Beanstalk Environment for Master Server
-
 This step creates the Elastic Beanstalk application and environment into which the master server will be deployed.
 
 1. Log in to the AWS web console with an AWS account and region that can access the S3 bucket you setup above.
@@ -135,7 +130,6 @@ This step creates the Elastic Beanstalk application and environment into which t
         1. once you complete the DNS setup steps below, for deployments at JPL you can check that you got them all by going to <http://jplsoc2.jpl.nasa.gov/ciphers/ciphers_check.cfm> and verifying that no ciphers are shown in red for the DNS name of your depolyment.
 
 ## 3. Configure DNS
-
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  These instructions use the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
 
 If you forgo this step you can still access the server at a URL like `https://EBENV.AWSREGION.elasticbeanstalk.com` where `EBENV` is the Elastic Beanstalk environment name and AWSREGION is the AWS region containing it.
@@ -152,7 +146,6 @@ If you forgo this step you can still access the server at a URL like `https://EB
     1. Create
 
 ## 4. Configure HTTPS
-
 This step uses the JPL and AWS certificate managers to generate and deploy cryptographic certificates to enable secure HTTPS connection to the server.
 
 The overall flow is
@@ -166,7 +159,6 @@ The overall flow is
 Many steps below require the end-user DNS name for your server which will be noted as `DNS_NAME`.
 
 ### 1. Generate Certificate Signing Request
-
 You will need a command line that includes the `openssl` tool.  On Windows one option is Git bash (<https://gitforwindows.org>).
 
 1. generate an RSA private key: `openssl genrsa > DNS_NAME.key`
@@ -175,7 +167,6 @@ You will need a command line that includes the `openssl` tool.  On Windows one o
     * other values will be specific to your deployment
 
 ### 2. Generate Signed Certificate
-
 Now you will submit the CSR to a certificate signing authority to generate a signed certificate.  The instructions below can be used within JPL.
 
 1. Login to JPL Certificate manager at <https://ssl.jpl.nasa.gov>
@@ -244,7 +235,6 @@ Now you will submit the CSR to a certificate signing authority to generate a sig
         1. Apply
 
 ## 5. Restrict to JPL IPs
-
 This step is optional but recommended for deployments within JPL.  It restricts access to your Landform master server to clients within the JPL IP address space.
 
 1. Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
@@ -261,7 +251,6 @@ This step is optional but recommended for deployments within JPL.  It restricts 
         * `HTTPS TCP 443 137.228.0.0/16`
 
 ## 6. Configure Elastic Beanstalk Environment
-
 This step configures the Elastic Beanstalk environment with specifics of your deployment.
 
 1. Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
@@ -285,7 +274,6 @@ This step configures the Elastic Beanstalk environment with specifics of your de
 1. Apply
 
 ## 7. Deploy Server Binaries to Elastic Beanstalk
-
 The following instructions assume you have a `landform-master[-VERSION].zip` release bundle.
 
 1. Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
@@ -304,11 +292,9 @@ Once the server is deployed it will be live.  To shut it down, either terminate 
 where `ENVIRONMENT` is the Elastic Beanstalk environment name and `PROFILE` is the AWS profile to use.
 
 ## 8. Deploy Worker Binaries to EC2 Auto Scale Group
-
 The following instructions assume you have a `landform-worker[-VERSION].zip` release bundle and an `ec2userdata.txt` file.
 
 ### 1. Setup Security
-
 These steps only need to be performed once before your first deployment.
 
 1. Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
@@ -330,7 +316,6 @@ These steps only need to be performed once before your first deployment.
     1. you can use a tool like `ssh-keygen -t rsa` to generate a key pair
 
 ### 2. Create Launch Template
-
 These instructions only need to be run once for a new venue or when the venue configuration (`ec2userdata.txt`) changes.
 
 1. Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
@@ -364,13 +349,12 @@ These instructions only need to be run once for a new venue or when the venue co
 1. Create Launch Tempate
 
 ### 3. Upload New Worker
-
 These instructions only needs to be run when the Landform worker version changes (`landform-worker[-VERSION].zip`).
 
 1. Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
 1. Services -> Storage -> S3
 1. select your S3 bucket
-1. select or create a subfolder matching your venue name
+1. select or create the subfolder matching your S3 URL
 1. select or create subfolder `app`
 1. if `landform-worker[-VERSION].zip` exists, delete it
 1. upload `landform-worker[-VERSION].zip`
