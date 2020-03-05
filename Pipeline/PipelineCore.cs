@@ -219,8 +219,6 @@ namespace OPS.Pipeline
             {
                 DumpConfig();
             }
-
-            InitPhase("scan for user image masks", InitUserMasks);
         }
 
         protected void InitPhase(string phase, Action func)
