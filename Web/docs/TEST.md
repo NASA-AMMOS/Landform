@@ -2,15 +2,18 @@
 
 ## Authentication Test
 
-1. Note this will only work on https://landform.hi.jpl.nasa.gov because that is the domain SSO is configured to use.
+1. Access the web front end in Google Chrome:
+    * test and demo deployment: https://landform.hi.jpl.nasa.gov
+    * for SSO integration testing: https://landform-dev.hi.jpl.nasa.gov
+    * for local test and dev: http://localhost:3000
 1. Click `API Token` and confirm the response is `not authenticated`.
-1. Click `Login (SSO)`.
+1. Click `Login (SSO)`, or `Login (LDAP)` if using a local deployment
 1. Enter credentials for a JPL user identity that is a member of the LDAP group configured when the Landform master server was deployed.  For test and production deployments managed by the Landform team, this is `landform`.
 1. Click `API Token` and confirm the response is a web token - copy the token ID for later.
 1. Click `Logout`.
 1. Click `API Token` and confirm the response is `not authenticated`.
 
-Note: SSO will only work in a deployment where the Landform master server DNS name matches a configuration registered with the JPL SSO service.  If you are running the server locally within the JPL IP address space, e.g. for testing, then you can use the LDAP login instead of SSO.
+Note: SSO login will only work in a deployment where the Landform master server DNS name matches a configuration registered with the JPL SSO service.  If you are running the server locally (within the JPL firewall) then you can use the LDAP login instead of SSO.
 
 ## REST API Tests
 

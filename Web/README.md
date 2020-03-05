@@ -41,6 +41,30 @@ First install latest [node.js](https://nodejs.org), [acquire AWS credentials and
     1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
 1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.
 1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
+1. Run the test projects defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) using the [tools/runTests.js](toosl/runTests.js) script:
+    1. Download and unzip https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+    1. The venue to be tested is defined by `serverUrl` in `landform-test-data/landform-test-config.json`.  It defaults to `http://localhost:8081`, which is for a local venue. Start up the landform master and worker locally following the [development workflow](#development-workflow) above.
+    1. Run `npm run tests /path/to/landform-test-data`.
+
+    TLDR:
+    ```
+    # install node.js
+    
+    # in terminal 1
+    cd Landform/Web
+    npm install
+    npm run server
+    
+    # in terminal 2
+    cd Landform/Web
+    npm run worker
+    
+    # in terminal 3
+    cd Landform/Web
+    curl -O https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+    unzip landform-test-data.zip
+    npm run tests landform-test-data
+    ```
 
 ### Issues & Workarounds
 * CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
@@ -95,30 +119,4 @@ First install latest [node.js](https://nodejs.org), [acquire AWS credentials and
 1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
 1. `npm run bundle-worker` - this will generate `landform-worker.zip` containing the binaries the instances in the autoscale group will run.
 1. Deploy the worker using the AWS EC2 web console as documented in the [AWS setup](docs/SETUP.md) instructions.
-
-### Running the Test Projects Locally
-Runs the tests defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) using the [tools/runTests.js](toosl/runTests.js) script
-
-1. Download and unzip https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
-2. The venue to be tested is defined by `serverUrl` in `landform-test-data/landform-test-config.json`.  It defaults to `http://localhost:8081`, which is for a local venue. Start up the landform master and worker locally following the [development workflow](#development-workflow) above.
-3. Run `npm run tests /path/to/landform-test-data`.
-
-TLDR:
-
-    # install node.js
-
-    # in terminal 1
-    cd Landform/Web
-    npm install
-    npm run server
-
-    # in terminal 2
-    cd Landform/Web
-    npm run worker
-
-    # in terminal 3
-    cd Landform/Web
-    curl -O https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
-    unzip landform-test-data.zip
-    npm run tests landform-test-data
 
