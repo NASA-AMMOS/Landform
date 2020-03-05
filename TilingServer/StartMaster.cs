@@ -17,6 +17,9 @@ namespace OPS.TilingServer
     {
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
+
+        [Option(Default = false, HelpText = "Support alignment workflows")]
+        public bool SupportAlignment { get; set; }
     }
 
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
@@ -28,14 +31,19 @@ namespace OPS.TilingServer
         public const double LONG_TASK_WARN_SEC = 5 * 60;
 
         private StartMasterOptions options;
+        private string queuePrefix;
 
         private Task workerTask = null;
         private Dictionary<string, PipelineStateMachine> stateMachines =
             new Dictionary<string, PipelineStateMachine>();
 
-        public StartMaster(StartMasterOptions options) : base(options, queuePrefix: "tiling")
+        public StartMaster(StartMasterOptions options) : this(options, options.SupportAlignment ? "" : "tiling") {}
+
+        public StartMaster(StartMasterOptions options, string queuePrefix)
+            : base(options, initAlignmentTables: options.SupportAlignment, queuePrefix: queuePrefix)
         {
             this.options = options;
+            this.queuePrefix = queuePrefix;
         }
 
         public int Run()
@@ -48,12 +56,22 @@ namespace OPS.TilingServer
                         try
                         {
                             var opts = new StartWorkerOptions();
+                            opts.OptionsFile = options.OptionsFile;
+                            opts.ConfigDir = options.ConfigDir;
+                            opts.ConfigFolder = options.ConfigFolder;
+                            opts.LogFile = options.LogFile;
+                            opts.LogDir = options.LogDir;
+                            opts.TempDir = options.TempDir;
                             opts.Quiet = options.Quiet;
                             opts.Verbose = options.Verbose;
                             opts.Debug = options.Debug;
-                            opts.LogFile = options.LogFile;
+                            opts.ClearCache = options.ClearCache;
+                            opts.StackTraces = options.StackTraces;
                             opts.SingleThreaded = options.SingleThreaded;
-                            var worker = new StartWorker(opts, "alignment");
+                            opts.UserMasksDirectory = options.UserMasksDirectory;
+                            opts.UserMasksInverted = options.UserMasksInverted;
+                            opts.SupportAlignment = options.SupportAlignment;
+                            var worker = new StartWorker(opts, queuePrefix);
                             worker.EnableCleanupTempDir = false;
                             worker.Run();
                         }

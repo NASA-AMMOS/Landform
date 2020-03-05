@@ -37,7 +37,7 @@ namespace OPS.Pipeline
         public CloudPipeline(PipelineCoreOptions options, ILog logger = null, bool quietInit = false,
                              int? lruImageCache = null, int? lruDataProductCache = null, 
                              bool enableS3 = true, bool enableDynamo = true,
-                             bool initQueues = true, bool initTables = true,
+                             bool initQueues = true, bool initAlignmentTables = true, bool initTilingTables = true,
                              string queuePrefix = null, string tablePrefix = null, int? maxCores = null)
             : base(options, CloudPipelineConfig.Instance,
                    StringHelper.NormalizeUrl(CloudPipelineConfig.Instance.S3Url, "s3://"),
@@ -88,9 +88,10 @@ namespace OPS.Pipeline
                 this.tablePrefix = makePrefix(tablePrefix);
                 dynamoContext = DBUtil.MakeContext(this.tablePrefix, AWSProfile, AWSRegion);
                 dynamoClient = DBUtil.GetClientForContext(dynamoContext);
-                if (initTables)
+                if (initAlignmentTables || initTilingTables)
                 {
-                    InitPhase("initialize database", () => InitializeDatabase(Quiet || quietInit));
+                    InitPhase("initialize database",
+                              () => InitializeDatabase(Quiet || quietInit, initAlignmentTables, initTilingTables));
                 }
             }
 
@@ -241,21 +242,22 @@ namespace OPS.Pipeline
             return GetStorageHelper(url).SearchObjects(url, globPattern, recursive, ignoreCase);
         }
 
-        private void InitializeDatabase(bool quiet = false)
+        private void InitializeDatabase(bool quiet, bool alignment, bool tiling)
         {
+            var tables = InitTableTypes(quiet, alignment, tiling);
             int n = 0;
-            foreach (var t in tableTypes)
+            foreach (var t in tables)
             {
                 DBUtil.CreateOrUpdateTable(dynamoClient, t, tablePrefix, quiet ? null : Logger);
                 n++;
             }
-            foreach (var t in tableTypes)
+            foreach (var t in tables)
             {
                 DBUtil.WaitForTable(dynamoClient, t, tablePrefix, logger: quiet ? null : Logger);
             }
-            if (!quiet)
+            if (!quiet && n > 0)
             {
-                LogInfo("{0} tables initialized", n);
+                LogInfo("initialized {0} database tables", n);
             }
         }
 

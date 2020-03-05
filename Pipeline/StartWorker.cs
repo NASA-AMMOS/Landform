@@ -22,6 +22,9 @@ namespace OPS.Pipeline
     {
         [Option(Default = false, HelpText = "Limit multiple workers to one core each")]
         public bool OneCorePerWorker { get; set; }
+
+        [Option(Default = false, HelpText = "Support alignment workflows")]
+        public bool SupportAlignment { get; set; }
     }
 
     //TODO: https://github.jpl.nasa.gov/ProtoSpace/ps-pipeline/issues/159
@@ -61,24 +64,29 @@ namespace OPS.Pipeline
         private readonly StartWorkerOptions options;
         private readonly string queuePrefix;
 
-        public static TypeDispatcher MakeDispatcher(PipelineCore pipeline)
+        public static TypeDispatcher MakeDispatcher(PipelineCore pipeline, bool supportAlignment)
         {
             var ret = new TypeDispatcher()
                 .Case((DefineTilesMessage m) => new DefineTiles(pipeline, m).Process())
                 .Case((ChunkInputMessage m) => new ChunkInput(pipeline, m).Process())
                 .Case((BuildLeavesMessage m) => new BuildLeaves(pipeline, m).Process())
                 .Case((BuildParentMessage m) => new BuildParent(pipeline, m).Process())
-                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process())
-                .Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process())
-                .Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
+                .Case((BuildTilesetJsonMessage m) => new BuildTilesetJson(pipeline, m).Process());
+
+            if (supportAlignment)
+            {
+                ret.Case((DetectFeaturesMessage m) => new DetectFeatures(pipeline, m).Process());
+                ret.Case((MatchImagesMessage m) => new MatchImages(pipeline, m).Process());
+            }
+
             ret.Unhandled = (t, x) => pipeline.LogError("unknown worker message type: " + t);
             return ret;
         }
 
-        public StartWorker(StartWorkerOptions options) : this(options, "tiling") {}
+        public StartWorker(StartWorkerOptions options) : this(options, options.SupportAlignment ? "" : "tiling") {}
 
         public StartWorker(StartWorkerOptions options, string queuePrefix)
-            : base(options, queuePrefix: queuePrefix)
+            : base(options, initAlignmentTables: options.SupportAlignment, queuePrefix: queuePrefix)
         {
             this.options = options;
             this.queuePrefix = queuePrefix;
@@ -384,9 +392,10 @@ namespace OPS.Pipeline
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/611
             var pipeline = new CloudPipeline(options, logger: Logger, quietInit: true,
                                              lruImageCache: IMAGE_CACHE, lruDataProductCache: DATA_PRODUCT_CACHE,
-                                             initQueues: true, initTables: false, queuePrefix: queuePrefix);
+                                             initQueues: true, initAlignmentTables: options.SupportAlignment,
+                                             queuePrefix: queuePrefix);
 
-            var dispatcher = MakeDispatcher(pipeline);
+            var dispatcher = MakeDispatcher(pipeline, options.SupportAlignment);
 
             void sendStatus(PipelineMessage m, string status, bool done = false)
             {

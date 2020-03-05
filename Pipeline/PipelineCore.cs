@@ -600,6 +600,18 @@ namespace OPS.Pipeline
 
         //****************** Database API *****************
 
+        protected Type[] InitTableTypes(bool quiet, bool alignment, bool tiling)
+        {
+            Func<Type, bool> isTiling = t => t.Name.StartsWith("Tiling");
+            var tables = tableTypes.Where(t => (alignment && !isTiling(t)) || (tiling && isTiling(t))).ToArray();
+            if (!quiet && tables.Length > 0)
+            {
+                LogInfo("initializing {0} database tables for {1}...", tables.Length,
+                        alignment && tiling ? "alignment and tiling" : alignment ? "alignment" : "tiling");
+            }
+            return tables;
+        }
+
         public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
                                                  bool quiet = false);
 
