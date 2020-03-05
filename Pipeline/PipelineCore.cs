@@ -286,7 +286,7 @@ namespace OPS.Pipeline
         protected void AddAnyUserMask(string url, Image image)
         {
             var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-            if (userMasks.ContainsKey(basename))
+            if (userMasks != null && userMasks.ContainsKey(basename))
             {
                 lock (image)
                 {
