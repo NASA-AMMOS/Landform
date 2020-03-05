@@ -64,12 +64,12 @@ namespace OPS.Pipeline
 
         public string Serialize()
         {
-            return JsonHelper.ToJson(this, ignoreProperties: noSerialize);
+            return JsonHelper.ToJson(this, autoTypes: false, ignoreProperties: noSerialize);
         }
         
         public static MeshImagePairStats Deserialize(string str)
         {
-            return (MeshImagePairStats)JsonHelper.FromJson(str, ignoreProperties: noSerialize);
+            return JsonHelper.FromJson<MeshImagePairStats>(str, autoTypes: false, ignoreProperties: noSerialize);
         }
     }
 
@@ -107,7 +107,7 @@ namespace OPS.Pipeline
 
         public DynamoDBEntry ToEntry(object value)
         {
-            return JsonConvert.SerializeObject(((MeshImagePairStats)value).Serialize());
+            return ((MeshImagePairStats)value).Serialize();
         }
     }
 }
