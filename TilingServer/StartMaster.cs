@@ -77,8 +77,7 @@ namespace OPS.TilingServer
                         }
                         catch (Exception e)
                         {
-                            LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                            LogError(e.StackTrace);
+                            LogException(e, "error in worker task", stackTrace: true);
                         }
                     });
                 workerTask.Start();
@@ -92,10 +91,8 @@ namespace OPS.TilingServer
                 }
                 catch (Exception e)
                 {
-                    LogError("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
-                    LogError(e.StackTrace);
-                    // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
-                    Thread.Sleep(2000);  
+                    LogException(e, "error in master task", stackTrace: true);
+                    Thread.Sleep(2000); // limit spew just in case a misconfiguration is causing this error
                 }
             }
 #pragma warning disable 0162
@@ -142,9 +139,7 @@ namespace OPS.TilingServer
                     }
                     catch (Exception e)
                     {
-                        LogError("{0}: processing error ({1}): {2}", m.Info(), e.GetType().FullName, e.Message);
-                        LogError(e.StackTrace);
-
+                        LogException(e, m.Info() + ": processing error", stackTrace: true);
                         try
                         {
                             //try to make the message available in our queue again soon

@@ -122,10 +122,8 @@ namespace OPS.Pipeline
                             }
                             catch (Exception e)
                             {
-                                LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                                LogError(e.StackTrace);
-                                // limit debug spew just in case a misconfiguration is causing this error
-                                Thread.Sleep(2000);
+                                LogException(e, "error in worker task", stackTrace: true);
+                                Thread.Sleep(2000); // limit spew just in case a misconfiguration is causing this error
                             }
                         }
                     });
@@ -425,9 +423,7 @@ namespace OPS.Pipeline
                             catch (Exception e)
                             {
                                 sendStatus(m, "error: " + e.Message, done: true);
-                                LogError("{0}: processing error ({1}): {2}",
-                                          m.Info(), e.GetType().FullName, e.Message);
-                                LogError(e.StackTrace);
+                                LogException(e, m.Info() + ": processing error", stackTrace: true);
                             }
 
                             //always try to remove from messagesInFlight if we started processing
@@ -479,9 +475,7 @@ namespace OPS.Pipeline
                     }
                     catch (Exception e)
                     {
-                        LogError("{0}: error in message loop ({1}): {2}",
-                                           m.Info(), e.GetType().FullName, e.Message);
-                        LogError(e.StackTrace);
+                        LogException(e, m.Info() + ": error in message loop", stackTrace: true);
                     }
                 }
                 int sleepMS = (int)(DEQUEUE_THROTTLE_MS - sw.ElapsedMilliseconds);
