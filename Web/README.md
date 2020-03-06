@@ -65,13 +65,13 @@ First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credential
 ## Test & Deployment Workflow
 First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
 
-### 1. Generate Release Bundle
+### 1. Generate Server Release Bundle
 Run `npm run build` to generate `landform-master.zip`.
 
-This is sugar for `npm install && npm run build-client && npm run bundle`.
+This is sugar for `npm install && npm run build-client && npm run bundle-master`.
 * `npm install` installs `node_modules` and `client/node_modules`
-* `npm run build-client` runs `npm run build` to webpack `client/build`
-* `npm run bundle` creates `landform-master.zip` containing
+* `npm run build-client` runs `npm run build` in `client/` to webpack `client/build`
+* `npm run bundle-master` creates `landform-master.zip` containing
     * full archive of current git HEAD for the `Web` subtree
     * current `client/build` subtree
     * required binaries from `../TilingServer/bin/Release` under `bin`
@@ -105,8 +105,7 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
 1. Make sure a [tiling worker](#tiling-worker) is running in the venue.
 1. Run through the [test procedures](docs/TEST.md).
 
-### Deploy Worker to EC2
-First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).
+### 4. Deploy Worker to EC2
 
 1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
 1. `npm run bundle-worker` - this will generate `landform-worker.zip` containing the binaries the instances in the autoscale group will run.
