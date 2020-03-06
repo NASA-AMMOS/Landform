@@ -128,7 +128,7 @@ router.get('/:name/result', (req, res) => {
 
 router.get('/:name/view', (req, res) => {
   const redirect = parseArgs(req, { redirect: { type: 'bool', default: true } }).redirect;
-  const ret = `/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`;
+  const ret = `/viewer/index.html?Tileset=${encodeURIComponent(resultURL(req.params.name))}`;
   if (redirect) res.redirect(ret);
   else {
     //this is tricky
