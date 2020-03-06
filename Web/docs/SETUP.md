@@ -37,38 +37,45 @@ The bucket typically also needs external `https` access so that results can be a
     1. Create
 1. Select bucket in list
     1. Permissions -> Bucket Policy
-        1. paste the following, replacing `BUCKET_NAME` with your bucket name
-           ```
-            {
-              "Version": "2012-10-17",
-              "Id": "S3PolicyId1",
-              "Statement": [
-                {
-                  "Sid": "allow readonly from JPL",
-                  "Effect": "Allow",
-                  "Principal": {
-                      "AWS": "*"
-                  },
-                  "Action": "s3:GetObject",
-                  "Resource": "arn:aws:s3:::BUCKET_NAME/*",
-                  "Condition": {
-                    "IpAddress": {
-                      "aws:SourceIp": [
-                        "128.149.0.0/16",
-                        "137.78.0.0/16",
-                        "137.79.0.0/16",
-                        "137.228.0.0/16"
-                      ]
-                    }
-                  }
-                }
-              ]
-            } 
+        1. paste the following, replacing `BUCKET_NAME` with your bucket name (use `arn:aws-us-gov` for govcloud)
             ```
+             {
+               "Version": "2012-10-17",
+               "Id": "S3PolicyId1",
+               "Statement": [
+                 {
+                  "Sid": "allow readonly from JPL",
+                   "Effect": "Allow",
+                   "Principal": {
+                       "AWS": "*"
+                   },
+                   "Action": "s3:GetObject",
+                   "Resource": "arn:aws:s3:::BUCKET_NAME/*",
+                   "Condition": {
+                     "IpAddress": {
+                       "aws:SourceIp": [
+                         "128.149.0.0/16",
+                         "137.78.0.0/16",
+                         "137.79.0.0/16",
+                         "137.228.0.0/16"
+                       ]
+                     }
+                   }
+                 }
+               ]
+             } 
+             ```
         1. Save
-    1. Properties -> Static website hosting
-        1. Use this bucket to host a website
-        1. Index document: `index.html`
+    1. Permissions -> CORS configuration
+        1. paste the following
+            ``` 
+            <CORSConfiguration>
+              <CORSRule>
+                <AllowedOrigin>*</AllowedOrigin>
+                <AllowedMethod>GET</AllowedMethod>
+              </CORSRule>
+            </CORSConfiguration>
+            ```
         1. Save
 
 ## 2. Create Elastic Beanstalk Environment for Master Server
