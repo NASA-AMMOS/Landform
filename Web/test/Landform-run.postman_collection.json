@@ -258,7 +258,7 @@
 							"});",
 							"",
 							"pm.test(\"body is correct\", function () {",
-							"    pm.response.to.have.body(new RegExp(`https://.+[.]s3[.]amazonaws[.]com/.+/www/${pm.variables.get('PROJECT_NAME')}/tileset.json`));",
+							"    pm.response.to.have.body(new RegExp(`http.*${pm.variables.get('PROJECT_NAME')}/tileset.json`));",
 							"});"
 						]
 					}

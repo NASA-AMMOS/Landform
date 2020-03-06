@@ -11,6 +11,8 @@ Additional docs:
 
 ### Issues & Workarounds
 * If you have specialized your `HOME` environment variable to be different from `USERPROFILE` then you will need to create a symlink `USERPROFILE/.aws` -> `HOME/.aws`.  Unfortunately on Windows NPM brutally replaces any custom setting for `HOME` with the value of `USERPROFILE`, which breaks resolution of AWS credentials for commands run as NPM scripts (e.g. `npm start`, `npm run deploy`).  To create a symlink on Windows first enable developer mode in Windows settings.  Then use [mklink](https://blogs.windows.com/buildingapps/2016/12/02/symlinks-windows-10) to create the link.  For example, in Windows `cmd` prompt: `mklink /d %USERPROFILE%\.aws %HOME%\.aws`.
+* CTRL-C may not work correctly to kill some things in a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
+* if using git bash commands that need interactive input may need to be prefixed with `winpty`
 
 ## TilingServer
 The node.js web server will run the .NET tiling server (`../TilingServer`) as a subprocess.  Thus, most development and deployment tasks require that you first use VisualStudio to build the `TilingServer` subproject.
@@ -26,13 +28,8 @@ In order to run projects you will also need at least one running tiling worker c
 
 For production or integration testing the worker is [deployed to an EC2 autoscale group](#deploy-worker-to-ec2).
 
-### Issues & Workarounds
-* CTRL-C may not work correctly to kill the worker if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
-
----
-
 ## Development Workflow
-First install latest [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).
+First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).
 
 1. `npm install`
 1. `npm run show-config` - the server will connect to live AWS services for the displayed venue.
@@ -41,7 +38,7 @@ First install latest [node.js](https://nodejs.org), [acquire AWS credentials and
     1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
 1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.
 1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
-1. Run the test projects defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) using the [tools/runTests.js](toosl/runTests.js) script:
+1. Run the test projects defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) using the [tools/runTests.js](toosl/runTests.js) script.  This uses [newman](https://github.com/postmanlabs/newman) which is a command line version of [postman](https://www.postman.com).  (You don't have to manually install newman because it is an npm dev dependency.)
     1. Download and unzip https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
     1. The venue to be tested is defined by `serverUrl` in `landform-test-data/landform-test-config.json`.  It defaults to `http://localhost:8081`, which is for a local venue. Start up the landform master and worker locally following the [development workflow](#development-workflow) above.
     1. Run `npm run tests /path/to/landform-test-data`.
@@ -66,12 +63,8 @@ First install latest [node.js](https://nodejs.org), [acquire AWS credentials and
     npm run tests landform-test-data
     ```
 
-### Issues & Workarounds
-* CTRL-C may not work correctly to kill the backend server if you started it from a cygwin prompt; consider using a Git bash prompt or Windows `cmd` instead.
-* if using git bash some commands may need to be prefixed with `winpty`
-
 ## Test & Deployment Workflow
-First install latest [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
+First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
 
 ### 1. Generate Release Bundle
 Run `npm run build` to generate `landform-master.zip`.
@@ -114,7 +107,7 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
 1. Run through the [test procedures](docs/TEST.md).
 
 ### Deploy Worker to EC2
-First install latest [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).
+First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).
 
 1. `npm run configure-backend -- [venue-name]` - this will generate a customized `ec2userdata.txt`.  This file will be used to configure instances in an EC2 autoscale group.
 1. `npm run bundle-worker` - this will generate `landform-worker.zip` containing the binaries the instances in the autoscale group will run.
