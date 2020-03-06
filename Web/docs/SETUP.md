@@ -30,89 +30,89 @@ Input and output datasets are stored an AWS S3 bucket.  The bucket needs to be f
 
 The bucket typically also needs external `https` access so that results can be accessed for viewing and downstream use.  The instructions below show how to set this up limited to clients with JPL IP addresses.
 
-1. Log in to the AWS web console for the AWS account you use to deploy the server components
-1. Services -> Storage -> S3
-1. Create Bucket
-    1. enter a bucket name - note it must be globally unique across all S3 bucket names
-    1. Create
-1. Select bucket in list
-    1. Permissions -> Bucket Policy
-        1. paste the following, replacing `BUCKET_NAME` with your bucket name (use `arn:aws-us-gov` for govcloud)
-            ```
-             {
-               "Version": "2012-10-17",
-               "Id": "S3PolicyId1",
-               "Statement": [
-                 {
-                  "Sid": "allow readonly from JPL",
-                   "Effect": "Allow",
-                   "Principal": {
-                       "AWS": "*"
-                   },
-                   "Action": "s3:GetObject",
-                   "Resource": "arn:aws:s3:::BUCKET_NAME/*",
-                   "Condition": {
-                     "IpAddress": {
-                       "aws:SourceIp": [
-                         "128.149.0.0/16",
-                         "137.78.0.0/16",
-                         "137.79.0.0/16",
-                         "137.228.0.0/16"
-                       ]
+1.  Log in to the AWS web console for the AWS account you use to deploy the server components
+1.  Services -> Storage -> S3
+1.  Create Bucket
+    1.  enter a bucket name - note it must be globally unique across all S3 bucket names
+    1.  Create
+1.  Select bucket in list
+    1.  Permissions -> Bucket Policy
+        1.  paste the following, replacing `BUCKET_NAME` with your bucket name (use `arn:aws-us-gov` for govcloud)
+
+                {
+                   "Version": "2012-10-17",
+                   "Id": "S3PolicyId1",
+                   "Statement": [
+                     {
+                      "Sid": "allow readonly from JPL",
+                       "Effect": "Allow",
+                       "Principal": {
+                           "AWS": "*"
+                       },
+                       "Action": "s3:GetObject",
+                       "Resource": "arn:aws:s3:::BUCKET_NAME/*",
+                       "Condition": {
+                         "IpAddress": {
+                           "aws:SourceIp": [
+                             "128.149.0.0/16",
+                             "137.78.0.0/16",
+                             "137.79.0.0/16",
+                             "137.228.0.0/16"
+                           ]
+                         }
+                       }
                      }
-                   }
-                 }
-               ]
-             } 
-             ```
-        1. Save
-    1. Permissions -> CORS configuration
-        1. paste the following
-            ``` 
-            <CORSConfiguration>
-              <CORSRule>
-                <AllowedOrigin>*</AllowedOrigin>
-                <AllowedMethod>GET</AllowedMethod>
-              </CORSRule>
-            </CORSConfiguration>
-            ```
-        1. Save
+                   ]
+                } 
+
+        1.  Save
+    1.  Permissions -> CORS configuration
+        1.  paste the following
+
+                <CORSConfiguration>
+                  <CORSRule>
+                    <AllowedOrigin>*</AllowedOrigin>
+                    <AllowedMethod>GET</AllowedMethod>
+                  </CORSRule>
+                </CORSConfiguration>
+    
+        1.  Save
 
 ## 2. Create Elastic Beanstalk Environment for Master Server
 This step creates the Elastic Beanstalk application and environment into which the master server will be deployed.
 
-1. Log in to the AWS web console with an AWS account and region that can access the S3 bucket you setup above.
-1. Services -> Compute -> Elastic Beanstalk
-1. Create application and assign it a unique name
-1. Create new web sever environment
-    1. assign a unique environment name
-    1. Platform: `docker`
-    1. Configure more options
-        1. Modify instances
-            1. Instance type: `t2.medium`
-            1. Instance security groups: default creates a security group that can only talk to the load balancer which is what we want
-    1. Modify Capacity -> Load balanced, min = 1, max = 1
-    1. Modify security -> IAM instance profile: typically set this to match your AWS account
-    1. Modify network
-        1. Visibility: Public
-        1. Load balancer subnets:
-           ```
-           us-west-1c subnet-148d7971 172.31.16.0/20
-           ```           
-        1. Instance subnets: same as load balancer
-1. Create Environment - it takes a few minutes
-1. Adjust elastic load balancer settings.
-    1. Log in to the AWS web console with the same AWS account and region as above.
-    1. Services -> Compute -> EC2
-    1. Load Balancing -> Load Balancers
-    1. Select the load balancer corresponding to the elastic beanstalk environment - on the "Instances" tab you should see an instance with the same  name as the elastic beanstalk environment
-    1. On the "Description" tab for the load balancer, click "Edit idle timeout" and set it to 1800 seconds
-    1. On the "Listeners" tab, click "Edit", and then change cipher.
-        1. Choose "Custom Security Policy"
-        1. under SSL Protocols make sure TLSv1 is unchecked (TLSv1.1 and greater are OK)
-        1. under SSL Ciphers make sure only ones from the following NASA approved list
+1.  Log in to the AWS web console with an AWS account and region that can access the S3 bucket you setup above.
+1.  Services -> Compute -> Elastic Beanstalk
+1.  Create application and assign it a unique name
+1.  Create new web sever environment
+    1.  assign a unique environment name
+    1.  Platform: `docker`
+    1.  Configure more options
+        1.  Modify instances
+            1.  Instance type: `t2.medium`
+            1.  Instance security groups: default creates a security group that can only talk to the load balancer which is what we want
+    1.  Modify Capacity -> Load balanced, min = 1, max = 1
+    1.  Modify security -> IAM instance profile: typically set this to match your AWS account
+    1.  Modify network
+        1.  Visibility: Public
+        1.  Load balancer subnets:
+
+                us-west-1c subnet-148d7971 172.31.16.0/20
+
+        1.  Instance subnets: same as load balancer
+1.  Create Environment - it takes a few minutes
+1.  Adjust elastic load balancer settings.
+    1.  Log in to the AWS web console with the same AWS account and region as above.
+    1.  Services -> Compute -> EC2
+    1.  Load Balancing -> Load Balancers
+    1.  Select the load balancer corresponding to the elastic beanstalk environment - on the "Instances" tab you should see an instance with the same  name as the elastic beanstalk environment
+    1.  On the "Description" tab for the load balancer, click "Edit idle timeout" and set it to 1800 seconds
+    1.  On the "Listeners" tab, click "Edit", and then change cipher.
+        1.  Choose "Custom Security Policy"
+        1.  under SSL Protocols make sure TLSv1 is unchecked (TLSv1.1 and greater are OK)
+        1.  under SSL Ciphers make sure only ones from the following NASA approved list
            <https://jplsoc2.jpl.nasa.gov/jplsoc/compliance/ciphers/supported_ciphers.txt>
-           are checked (the `TLS_` prefix may be missing)
+            are checked (the `TLS_` prefix may be missing)
             * `TLS_DHE_RSA_WITH_AES_128_GCM_SHA256`
             * `TLS_DHE_RSA_WITH_AES_256_GCM_SHA384`
             * `TLS_DHE_DSS_WITH_AES_128_CBC_SHA`
@@ -133,8 +133,8 @@ This step creates the Elastic Beanstalk application and environment into which t
             * `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256`
             * `TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA`
             * `TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384`
-        1. save the changes
-        1. once you complete the DNS setup steps below, for deployments at JPL you can check that you got them all by going to <http://jplsoc2.jpl.nasa.gov/ciphers/ciphers_check.cfm> and verifying that no ciphers are shown in red for the DNS name of your depolyment.
+        1.  save the changes
+        1.  once you complete the DNS setup steps below, for deployments at JPL you can check that you got them all by going to <http://jplsoc2.jpl.nasa.gov/ciphers/ciphers_check.cfm> and verifying that no ciphers are shown in red for the DNS name of your depolyment.
 
 ## 3. Configure DNS
 This step is optional.  It configures a public DNS entry to redirect to the Elastic Beanstalk environment configured above.  These instructions use the Amazon Route 53 DNS service, but any DNS provider that supports CNAME records should work.
@@ -176,70 +176,69 @@ You will need a command line that includes the `openssl` tool.  On Windows one o
 ### 2. Generate Signed Certificate
 Now you will submit the CSR to a certificate signing authority to generate a signed certificate.  The instructions below can be used within JPL.
 
-1. Login to JPL Certificate manager at <https://ssl.jpl.nasa.gov>
-1. Manage my certificates -> Request a Certificate
-    1. LDAP group: select an LDAP group for managing the certificate
-    1. Machine name: `DNS_NAME`
-    1. Server type: Apache
-    1. CSR: paste entire contents of the CSR here
-    1. wait a few minutes, you should get an email when the cert is ready
+1.  Login to JPL Certificate manager at <https://ssl.jpl.nasa.gov>
+1.  Manage my certificates -> Request a Certificate
+    1.  LDAP group: select an LDAP group for managing the certificate
+    1.  Machine name: `DNS_NAME`
+    1.  Server type: Apache
+    1.  CSR: paste entire contents of the CSR here
+    1.  wait a few minutes, you should get an email when the cert is ready
 1. Manage my certificates
-    1. click on `DNS_NAME`
-    1. paste entire contents of certificate to `DNS_NAME.pem`.  It shold have a form like this
-       ```
-       CERTIFICATE:
-       -----BEGIN CERTIFICATE-----
-       (cert)
-       -----END CERTIFICATE-----
-       INTERMEDIATE CERTIFICATE:
-       -----BEGIN CERTIFICATE-----
-       (intermediate cert)
-       -----END CERTIFICATE-----
-       ROOT CERTIFICATE:
-       -----BEGIN CERTIFICATE-----
-       (root cert)
-       -----END CERTIFICATE-----
-       ```
+    1.  click on `DNS_NAME`
+    1.  paste entire contents of certificate to `DNS_NAME.pem`.  It shold have a form like this
+
+            CERTIFICATE:
+            -----BEGIN CERTIFICATE-----
+            (cert)
+            -----END CERTIFICATE-----
+            INTERMEDIATE CERTIFICATE:
+            -----BEGIN CERTIFICATE-----
+            (intermediate cert)
+            -----END CERTIFICATE-----
+            ROOT CERTIFICATE:
+            -----BEGIN CERTIFICATE-----
+            (root cert)
+            -----END CERTIFICATE-----
 
 ### 3. Install Signed Certificate
 
-1. Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
-1. Security -> Certificate Manager -> Import a certificate
-    1. Paste 
-       ```
-       -----BEGIN CERTIFICATE-----
-       (cert)
-       -----END CERTIFICATE-----
-       ```
-       from your PEM file into the certificate body field.
-    1. Paste 
-       ```
-       -----BEGIN CERTIFICATE-----
-       (intermediate cert)
-       -----END CERTIFICATE-----
-       -----BEGIN CERTIFICATE-----
-       (root cert)
-       -----END CERTIFICATE-----
-       ```
-       from your PEM file into the certificate chain field.
-    1. Paste entire contents of your RSA private key file into the certificate private key field.
-    1. Review and Import -> Import
-    1. Open accordion for the cert
+1.  Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.
+1.  Security -> Certificate Manager -> Import a certificate
+    1.  Paste 
+
+            -----BEGIN CERTIFICATE-----
+            (cert)
+            -----END CERTIFICATE-----
+
+        from your PEM file into the certificate body field.
+    1.  Paste 
+
+            -----BEGIN CERTIFICATE-----
+            (intermediate cert)
+            -----END CERTIFICATE-----
+            -----BEGIN CERTIFICATE-----
+            (root cert)
+            -----END CERTIFICATE-----
+
+        from your PEM file into the certificate chain field.
+    1.  Paste entire contents of your RSA private key file into the certificate private key field.
+    1.  Review and Import -> Import
+    1.  Open accordion for the cert
         * edit name tag to be your Landform master server DNS name
         * Details -> Identifier GUID 
         * Make a note of the GUID
 1. Services -> Compute -> Elastic Beanstalk
-    1. Navigate into the Elastic Beanstalk application and environment you configured above
-    1. Configuration -> Modify load balancer
-        1. Classic load balancer
-        1. Turn off existing listener
-        1. Add listener
+    1.  Navigate into the Elastic Beanstalk application and environment you configured above
+    1.  Configuration -> Modify load balancer
+        1.  Classic load balancer
+        1.  Turn off existing listener
+        1.  Add listener
             * Listener port: `443`
             * Listener protocol: `HTTPS`
             * Instance port: `80`
             * Instance protocol: `HTTP`
             * Select the SSL certificate ID.  These may appear as `*.jpl.nasa.gov`, in which case you need to find the GUID matching the cert in the AWS Certificate Manager.
-        1. Apply
+        1.  Apply
 
 ## 5. Restrict to JPL IPs
 This step is optional but recommended for deployments within JPL.  It restricts access to your Landform master server to clients within the JPL IP address space.
@@ -268,15 +267,15 @@ This step configures the Elastic Beanstalk environment with specifics of your de
     * `SESSION_SECRET`: any private string
     * `TOKEN_SECRET`: any private string
     * `SAML_ENTRY_POINT`: for depoloyments within JPL you will need to contact JPL IT to set up SSO for your deployment and typically this field will have a form like
-      ```
-      https://SSO_HOST.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=https://DNS_NAME
-      ```
+
+        https://SSO_HOST.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=https://DNS_NAME
+
       where `SSO_HOST` is `ssoint` for integration testing and `sso1` for production, and `DNS_NAME` is your server DNS name.
     * `SAML_CERT`: for deployments within JPL typically copy the X509Certificate field from `https://SSO_HOST.jpl.nasa.gov/oamfed/idp/metadata`.
     * `LANDFORM_AWS_REGION`: same region you used to setup the Elastic Beanstalk environment
     * `LANDFORM_AWS_PROFILE`: `default`
     * `LANDFORM_VENUE`: choose a venue name for the deployment; it must match the venue name in the worker configuration below
-    * `LANDFORM_S3_URL`: `s3://BUCKET_NAME` where `BUCKET_NAME` is the S3 bucket you setup above
+    * `LANDFORM_S3_URL`: `s3://BUCKET_NAME/landform-web` where `BUCKET_NAME` is the S3 bucket you setup above
     * `LANDFORM_LDAP_GROUP`: LDAP group for SSO authentication
 1. Apply
 
@@ -314,9 +313,9 @@ These steps only need to be performed once before your first deployment.
        1. Add Rule
            * Type: `RDP`
            * Source:
-             ```
-             Custom: 128.149.0.0/16, 137.78.0.0/16, 137.79.0.0/16, 137.228.0.0/16
-             ```
+
+                 Custom: 128.149.0.0/16, 137.78.0.0/16, 137.79.0.0/16, 137.228.0.0/16
+
              this will restrict RDP access to JPL IP addresses
 1. Services -> Compute -> EC2
 1. Network & Security -> Key Pairs (optional - only if you want to be able to log in to the EC2 instances in the autoscale group for debugging or maintenance)
@@ -402,11 +401,11 @@ These instructions only needs to be run when the Landform worker version changes
 1. Double click RDP file to open remote desktop
 1. Username: `admin`, password as above
 1. The server should be located in `C:\landform`.  You can tail the server log by running the PowerShell command
-   ```
-   Get-Content c:\tileserver\log\log-tilingserver-worker*.txt -Wait -Tail 30
-   ```
+
+       Get-Content c:\tileserver\log\log-tilingserver-worker*.txt -Wait -Tail 30
+
 1. The EC2Launch (<https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html>) log for the user data script should be at
-   ```
-   C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution
-   ```
+
+       C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution
+
    You may need to show hidden files and folders (<https://support.microsoft.com/en-us/help/14201/windows-show-hidden-files>) to see `C:\ProgramData`.

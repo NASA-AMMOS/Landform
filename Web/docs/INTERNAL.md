@@ -54,8 +54,8 @@ In most cases your JPL username needs to be added to an LDAP group to enable you
 
 Once you are added to the appropriate LDAP group you should be able to acquire temporary credentials using the [credss.exe](https://github.jpl.nasa.gov/CS3/credss) application from CS3.
 
-* for "landlords" (max 4h token)
-    ```
+For "landlords" (max 4h token):
+
     export LANDFORM_AWS_REGION=us-west-1
     export LANDFORM_AWS_ACCOUNT=589270964471
     export LANDFORM_AWS_ROLE=account_owner
@@ -63,9 +63,9 @@ Once you are added to the appropriate LDAP group you should be able to acquire t
     export LANDFORM_AWS_PROFILE=credss-landlords
     export LANDFORM_AWS_DURATION=14400
     export LANDFORM_S3_URL=s3://landlords-dev/landform-web
-    ```
-* for "m2020-dev-gov" (max 8h token)
-    ```
+
+For "m2020-dev-gov" (max 8h token):
+
     export LANDFORM_AWS_REGION=us-gov-west-1
     export LANDFORM_AWS_ACCOUNT=017717573760
     export LANDFORM_AWS_ROLE=m20-dev-ids
@@ -73,9 +73,9 @@ Once you are added to the appropriate LDAP group you should be able to acquire t
     export LANDFORM_AWS_PROFILE=credss-m2020-dev
     export LANDFORM_AWS_DURATION=28800
     export LANDFORM_S3_URL=s3://m20-ids-g-landform/landform-web
-    ```
-* for "mipl-dev" (max 4h token)
-    ```
+
+For "mipl-dev" (max 4h token)
+
     export LANDFORM_AWS_REGION=us-gov-west-1
     export LANDFORM_AWS_ACCOUNT=105249944904
     export LANDFORM_AWS_ROLE=power_user
@@ -83,14 +83,11 @@ Once you are added to the appropriate LDAP group you should be able to acquire t
     export LANDFORM_AWS_PROFILE=credss-mipl-dev
     export LANDFORM_AWS_DURATION=14400
     export LANDFORM_S3_URL=s3://mipl-dev-landform/landform-web
-    ```
 
 We typically have a copy of `credss.exe` checked in under the `Utils` folder which is a sibling of `Web`.  You need to prefix the entire command line with `winpty` if using git bash to get password input to work.
 
-```
-cd Landform/Web
-winpty ../Utils/credss.exe --region $LANDFORM_AWS_REGION --account $LANDFORM_AWS_ACCOUNT --role $LANDFORM_AWS_ROLE --env $LANDFORM_AWS_ENV --section $LANDFORM_AWS_PROFILE --aws-only --duration $LANDFORM_AWS_DURATION
-```
+    cd Landform/Web
+    winpty ../Utils/credss.exe --region $LANDFORM_AWS_REGION --account $LANDFORM_AWS_ACCOUNT --role $LANDFORM_AWS_ROLE --env $LANDFORM_AWS_ENV --section $LANDFORM_AWS_PROFILE --aws-only --duration $LANDFORM_AWS_DURATION
 
 This will generate temporary AWS credentials in `$HOME/.aws/credentials`.
 

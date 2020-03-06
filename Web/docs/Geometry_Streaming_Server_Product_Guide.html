@@ -6,10 +6,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
   <title>Geometry Streaming Server Product Guide</title>
   <style>
-      code{white-space: pre-wrap;}
-      span.smallcaps{font-variant: small-caps;}
-      span.underline{text-decoration: underline;}
-      div.column{display: inline-block; vertical-align: top; width: 50%;}
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
   </style>
   <link rel="stylesheet" href="pandoc.css" />
   <!--[if lt IE 9]>
@@ -40,6 +42,12 @@
 <td>All</td>
 <td>Initial issue of document.</td>
 </tr>
+<tr class="even">
+<td>Initial</td>
+<td>TODO</td>
+<td>All</td>
+<td>Update to Landform 1.8.1.</td>
+</tr>
 </tbody>
 </table>
 <header id="title-block-header">
@@ -47,18 +55,21 @@
 </header>
 <nav id="TOC" role="doc-toc">
 <ul>
-<li><a href="#document-overview">Document Overview</a><ul>
+<li><a href="#document-overview">Document Overview</a>
+<ul>
 <li><a href="#identification">Identification</a></li>
 <li><a href="#purpose">Purpose</a></li>
 <li><a href="#overview">Overview</a></li>
 <li><a href="#terminology-and-notation">Terminology and Notation</a></li>
 <li><a href="#references">References</a></li>
 </ul></li>
-<li><a href="#aws-setup">AWS Setup</a><ul>
+<li><a href="#aws-setup">AWS Setup</a>
+<ul>
 <li><a href="#s3-bucket-setup">1. S3 Bucket Setup</a></li>
 <li><a href="#create-elastic-beanstalk-environment-for-master-server">2. Create Elastic Beanstalk Environment for Master Server</a></li>
 <li><a href="#configure-dns">3. Configure DNS</a></li>
-<li><a href="#configure-https">4. Configure HTTPS</a><ul>
+<li><a href="#configure-https">4. Configure HTTPS</a>
+<ul>
 <li><a href="#generate-certificate-signing-request">1. Generate Certificate Signing Request</a></li>
 <li><a href="#generate-signed-certificate">2. Generate Signed Certificate</a></li>
 <li><a href="#install-signed-certificate">3. Install Signed Certificate</a></li>
@@ -66,7 +77,8 @@
 <li><a href="#restrict-to-jpl-ips">5. Restrict to JPL IPs</a></li>
 <li><a href="#configure-elastic-beanstalk-environment">6. Configure Elastic Beanstalk Environment</a></li>
 <li><a href="#deploy-server-binaries-to-elastic-beanstalk">7. Deploy Server Binaries to Elastic Beanstalk</a></li>
-<li><a href="#deploy-worker-binaries-to-ec2-auto-scale-group">8. Deploy Worker Binaries to EC2 Auto Scale Group</a><ul>
+<li><a href="#deploy-worker-binaries-to-ec2-auto-scale-group">8. Deploy Worker Binaries to EC2 Auto Scale Group</a>
+<ul>
 <li><a href="#setup-security">1. Setup Security</a></li>
 <li><a href="#create-launch-template">2. Create Launch Template</a></li>
 <li><a href="#upload-new-worker">3. Upload New Worker</a></li>
@@ -74,7 +86,8 @@
 <li><a href="#to-remote-in-to-an-ec2-instance-in-the-autoscale-group">5. To Remote in to an EC2 Instance in the Autoscale Group</a></li>
 </ul></li>
 </ul></li>
-<li><a href="#rest-api-manual">REST API Manual</a><ul>
+<li><a href="#rest-api-manual">REST API Manual</a>
+<ul>
 <li><a href="#create-project-post-apiprojectsname">Create Project: POST /api/projects/<em>name</em></a></li>
 <li><a href="#upload-data-post-apiprojectsnameupload">Upload Data: POST /api/projects/<em>name</em>/upload</a></li>
 <li><a href="#run-project-post-apiprojectsnamerun">Run Project: POST /api/projects/<em>name</em>/run</a></li>
@@ -83,15 +96,18 @@
 <li><a href="#get-project-result-url-get-apiprojectsnameresult">Get Project Result URL: GET /api/projects/<em>name</em>/result</a></li>
 <li><a href="#view-project-get-apiprojectsnameview">View Project: GET /api/projects/<em>name</em>/view</a></li>
 <li><a href="#delete-project-delete-apiprojectsname">Delete Project: DELETE /api/projects/<em>name</em></a></li>
-<li><a href="#task-api">Task API</a><ul>
+<li><a href="#task-api">Task API</a>
+<ul>
 <li><a href="#get-master-task-id-get-apitasksmasterid">Get Master Task ID: GET /api/tasks/master/id</a></li>
 <li><a href="#get-task-metadata-get-apitasksid">Get Task Metadata: GET /api/tasks/<em>id</em></a></li>
 <li><a href="#get-task-log-get-apitasksidlog">Get Task Log: GET /api/tasks/<em>id</em>/log</a></li>
 </ul></li>
 </ul></li>
-<li><a href="#test-procedures">Test Procedures</a><ul>
+<li><a href="#test-procedures">Test Procedures</a>
+<ul>
 <li><a href="#authentication-test">Authentication Test</a></li>
-<li><a href="#rest-api-tests">REST API Tests</a><ul>
+<li><a href="#rest-api-tests">REST API Tests</a>
+<ul>
 <li><a href="#setup">Setup</a></li>
 <li><a href="#test-sequence">Test Sequence</a></li>
 </ul></li>
@@ -118,7 +134,7 @@
 </tr>
 <tr class="odd">
 <td>Version</td>
-<td>1.5.2</td>
+<td>1.8.1</td>
 </tr>
 </tbody>
 </table>
@@ -330,9 +346,7 @@
 <p>Input and output datasets are stored an AWS S3 bucket. The bucket needs to be fully accessible by the account in which the server components (master and workers) are deployed. Typically this is ensured by using the same account to create the S3 bucket as for deploying the server components.</p>
 <p>The bucket typically also needs external <code>https</code> access so that results can be accessed for viewing and downstream use. The instructions below show how to set this up limited to clients with JPL IP addresses.</p>
 <ol type="1">
-<li>http://goto.jpl.nasa.gov/awsconsole</li>
-<li>Log in with the same AWS account you use to deploy the server components</li>
-<li>Select region <code>us-west-1</code> (North California)</li>
+<li>Log in to the AWS web console for the AWS account you use to deploy the server components</li>
 <li>Services -&gt; Storage -&gt; S3</li>
 <li>Create Bucket
 <ol type="1">
@@ -343,13 +357,13 @@
 <ol type="1">
 <li>Permissions -&gt; Bucket Policy
 <ol type="1">
-<li><p>paste the following, replacing <code>BUCKET_NAME</code> with your bucket name</p>
-<pre><code> {
+<li><p>paste the following, replacing <code>BUCKET_NAME</code> with your bucket name (use <code>arn:aws-us-gov</code> for govcloud)</p>
+<pre><code>{
    &quot;Version&quot;: &quot;2012-10-17&quot;,
    &quot;Id&quot;: &quot;S3PolicyId1&quot;,
    &quot;Statement&quot;: [
      {
-       &quot;Sid&quot;: &quot;allow readonly from JPL&quot;,
+      &quot;Sid&quot;: &quot;allow readonly from JPL&quot;,
        &quot;Effect&quot;: &quot;Allow&quot;,
        &quot;Principal&quot;: {
            &quot;AWS&quot;: &quot;*&quot;
@@ -368,14 +382,19 @@
        }
      }
    ]
- } </code></pre></li>
+} </code></pre></li>
 <li><p>Save</p></li>
 </ol></li>
-<li>Properties -&gt; Static website hosting
+<li>Permissions -&gt; CORS configuration
 <ol type="1">
-<li>Use this bucket to host a website</li>
-<li>Index document: <code>index.html</code></li>
-<li>Save</li>
+<li><p>paste the following</p>
+<pre><code>&lt;CORSConfiguration&gt;
+  &lt;CORSRule&gt;
+    &lt;AllowedOrigin&gt;*&lt;/AllowedOrigin&gt;
+    &lt;AllowedMethod&gt;GET&lt;/AllowedMethod&gt;
+  &lt;/CORSRule&gt;
+&lt;/CORSConfiguration&gt;</code></pre></li>
+<li><p>Save</p></li>
 </ol></li>
 </ol></li>
 </ol>
@@ -593,13 +612,13 @@ ROOT CERTIFICATE:
 <li><p><code>SESSION_SECRET</code>: any private string</p></li>
 <li><p><code>TOKEN_SECRET</code>: any private string</p></li>
 <li><p><code>SAML_ENTRY_POINT</code>: for depoloyments within JPL you will need to contact JPL IT to set up SSO for your deployment and typically this field will have a form like</p>
-<pre><code>https://SSO_HOST.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=https://DNS_NAME</code></pre>
+<p>https://SSO_HOST.jpl.nasa.gov/oamfed/idp/initiatesso?providerid=https://DNS_NAME</p>
 <p>where <code>SSO_HOST</code> is <code>ssoint</code> for integration testing and <code>sso1</code> for production, and <code>DNS_NAME</code> is your server DNS name.</p></li>
 <li><p><code>SAML_CERT</code>: for deployments within JPL typically copy the X509Certificate field from <code>https://SSO_HOST.jpl.nasa.gov/oamfed/idp/metadata</code>.</p></li>
 <li><p><code>LANDFORM_AWS_REGION</code>: same region you used to setup the Elastic Beanstalk environment</p></li>
 <li><p><code>LANDFORM_AWS_PROFILE</code>: <code>default</code></p></li>
 <li><p><code>LANDFORM_VENUE</code>: choose a venue name for the deployment; it must match the venue name in the worker configuration below</p></li>
-<li><p><code>LANDFORM_S3_URL</code>: <code>s3://BUCKET_NAME</code> where <code>BUCKET_NAME</code> is the S3 bucket you setup above</p></li>
+<li><p><code>LANDFORM_S3_URL</code>: <code>s3://BUCKET_NAME/landform-web</code> where <code>BUCKET_NAME</code> is the S3 bucket you setup above</p></li>
 <li><p><code>LANDFORM_LDAP_GROUP</code>: LDAP group for SSO authentication</p></li>
 </ul></li>
 <li>Apply</li>
@@ -697,7 +716,7 @@ eb scale 0 ENVIRONMENT --profile=PROFILE</code></pre>
 <li>Log in to the AWS web console with the same AWS account and region that you used to set up the Elastic Beanstalk environment.</li>
 <li>Services -&gt; Storage -&gt; S3</li>
 <li>select your S3 bucket</li>
-<li>select or create a subfolder matching your venue name</li>
+<li>select or create the subfolder matching your S3 URL</li>
 <li>select or create subfolder <code>app</code></li>
 <li>if <code>landform-worker[-VERSION].zip</code> exists, delete it</li>
 <li>upload <code>landform-worker[-VERSION].zip</code></li>
@@ -743,8 +762,8 @@ eb scale 0 ENVIRONMENT --profile=PROFILE</code></pre>
 <li><p>Download remote desktop (RDP) file</p></li>
 <li><p>Double click RDP file to open remote desktop</p></li>
 <li><p>Username: <code>admin</code>, password as above</p></li>
-<li><p>The server should be located in <code>C:\tileserver</code>. You can tail the server log by running the PowerShell command</p>
-<pre><code>Get-Content c:\tileserver\log\log-tilingserver-startworker*.txt -Wait -Tail 30</code></pre></li>
+<li><p>The server should be located in <code>C:\landform</code>. You can tail the server log by running the PowerShell command</p>
+<pre><code>Get-Content c:\tileserver\log\log-tilingserver-worker*.txt -Wait -Tail 30</code></pre></li>
 <li><p>The EC2Launch (<a href="https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html" class="uri">https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html</a>) log for the user data script should be at</p>
 <pre><code>C:\ProgramData\Amazon\EC2-Windows\Launch\Log\UserdataExecution</code></pre>
 <p>You may need to show hidden files and folders (<a href="https://support.microsoft.com/en-us/help/14201/windows-show-hidden-files" class="uri">https://support.microsoft.com/en-us/help/14201/windows-show-hidden-files</a>) to see <code>C:\ProgramData</code>.</p></li>
@@ -761,7 +780,7 @@ eb scale 0 ENVIRONMENT --profile=PROFILE</code></pre>
 <li><em>reconmethod</em>: reconstruction method; one of <code>Poisson</code>, <code>FSSR</code>; default <code>Poisson</code></li>
 <li><em>facespertile</em>: target maximum faces per tile; default 2000</li>
 <li><em>tileresolution</em>: maximum image resolution per tile; default 256</li>
-<li><em>projecttype</em>: project type; one of <code>GenericTiling</code> or <code>MSL</code>, default <code>GenericTiling</code>.</li>
+<li><em>projecttype</em>: project type; currently only <code>GenericTiling</code> is supported</li>
 <li><em>exportmeshformat</em>: additional mesh format to write, one of <code>obj</code>, <code>ply</code>, <code>stl</code>, or none; default none</li>
 <li><em>exportimageformat</em>: additional image format to write, one of <code>tif</code>, <code>png</code>, <code>jpg</code>, or none; default none</li>
 <li><em>maxleafgroupsize</em>: maximum number of leaves to process as a group; default 32</li>
@@ -1094,42 +1113,58 @@ x-landform-token: API_TOKEN</code></pre>
 status: 200
 content-type: text/plain; charset=utf-8
 
-2018-09-17 17:17:55,414 OPS.Pipeline.TileServer.PipelineStateMachine: DefineTiles project:testproj
-2018-09-17 17:18:02,225 OPS.Pipeline.TileServer.PipelineStateMachine: ChunkInput project:testproj input:inputMeshSmall
-2018-09-17 17:18:02,263 OPS.Pipeline.TileServer.PipelineStateMachine: Build Leaves
-2018-09-17 17:18:13,798 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:110000000001
-2018-09-17 17:18:16,570 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010010010000
-2018-09-17 17:18:25,463 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:011010101001001101
-2018-09-17 17:18:26,130 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:111
-2018-09-17 17:18:27,726 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:1000
-2018-09-17 17:18:29,523 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010010001011
-2018-09-17 17:18:30,705 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:10010100
-2018-09-17 17:18:31,080 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:011010101001000100
-2018-09-17 17:18:32,427 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:1001010100
-2018-09-17 17:18:34,871 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010010000011
-2018-09-17 17:18:38,479 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010011
-2018-09-17 17:18:40,314 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101011
-2018-09-17 17:18:40,531 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:101
-2018-09-17 17:18:42,662 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0010
-2018-09-17 17:18:44,208 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:00110
-2018-09-17 17:18:44,427 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:011011
-2018-09-17 17:18:47,184 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:010
-2018-09-17 17:18:47,545 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0011110
-2018-09-17 17:18:52,385 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:001111111101
-2018-09-17 17:18:55,313 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:001111110
-2018-09-17 17:18:56,468 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:000</code></pre>
+logging to C:\cygwin64\home\vona\src\mine\Landform\TilingServer\bin\Release\log\log-TilingServer-master-20200306103133Z-08-28036.txt
+logging to C:\cygwin64\home\vona\src\mine\Landform\TilingServer\bin\Release\log\log-TilingServer-master-20200306103133Z-08-28036.txt
+2020-03-06 10:31:34,230 master INFO: Architecture: x64
+2020-03-06 10:31:34,241 master INFO: Venue: landform-dev-vona-quarth
+2020-03-06 10:31:34,241 master INFO: Storage URL: s3://landlords-dev/landform-web
+2020-03-06 10:31:34,241 master INFO: using 36 of 36 CPU cores
+2020-03-06 10:31:34,241 master INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+2020-03-06 10:31:34,241 master INFO: AWS profile: landlords
+2020-03-06 10:31:34,241 master INFO: AWS region: us-west-1
+2020-03-06 10:31:34,241 master INFO: MSLICE AWS profile: mslice
+2020-03-06 10:31:34,241 master INFO: MSLICE AWS region: us-west-1
+2020-03-06 10:31:34,241 master INFO: MSLICE S3 URL: s3://red-product
+2020-03-06 10:31:34,445 master INFO: initialize database
+2020-03-06 10:31:34,447 master INFO: initializing 4 database tables for tiling...
+2020-03-06 10:31:34,771 master INFO: table &quot;landform-dev-vona-quarth-TilingProjects&quot; exists, 1 items, 277 bytes (updated every ~6h)
+2020-03-06 10:31:34,789 master INFO: table &quot;landform-dev-vona-quarth-TilingInput&quot; exists, 1 items, 277 bytes (updated every ~6h)
+2020-03-06 10:31:34,804 master INFO: table &quot;landform-dev-vona-quarth-TilingNode&quot; exists, 49 items, 21888 bytes (updated every ~6h)
+2020-03-06 10:31:34,822 master INFO: table &quot;landform-dev-vona-quarth-TilingInputChunk&quot; exists, 1 items, 470 bytes (updated every ~6h)
+2020-03-06 10:31:34,898 master INFO: initialized 4 database tables
+2020-03-06 10:31:34,899 master INFO: initialize database: 0.453s, total 0.453s
+2020-03-06 10:31:34,899 master INFO: initialize message queues
+2020-03-06 10:31:35,294 master INFO: queue &quot;landform-dev-vona-quarth-tiling-master&quot; exists, approx 0 messages (0 in flight)
+2020-03-06 10:31:35,338 master INFO: queue &quot;landform-dev-vona-quarth-tiling-worker&quot; exists, approx 0 messages (0 in flight)
+2020-03-06 10:31:35,338 master INFO: queues initialized
+2020-03-06 10:31:35,338 master INFO: initialize message queues: 0.439s, total 0.439s
+2020-03-06 10:31:35,340 master INFO: Architecture: x64
+2020-03-06 10:31:35,340 master INFO: Venue: landform-dev-vona-quarth
+2020-03-06 10:31:35,340 master INFO: Storage URL: s3://landlords-dev/landform-web
+2020-03-06 10:31:35,340 master INFO: using 36 of 36 CPU cores
+2020-03-06 10:31:35,340 master INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+2020-03-06 10:31:35,340 master INFO: AWS profile: landlords
+2020-03-06 10:31:35,340 master INFO: AWS region: us-west-1
+2020-03-06 10:31:35,340 master INFO: MSLICE AWS profile: mslice
+2020-03-06 10:31:35,340 master INFO: MSLICE AWS region: us-west-1
+2020-03-06 10:31:35,341 master INFO: MSLICE S3 URL: s3://red-product</code></pre>
 <h1 id="test-procedures">Test Procedures</h1>
 <h2 id="authentication-test">Authentication Test</h2>
 <ol type="1">
-<li>Note this will only work on https://landform.hi.jpl.nasa.gov because that is the domain SSO is configured to use.</li>
+<li>Access the web front end in Google Chrome:
+<ul>
+<li>test and demo deployment: <a href="https://landform.hi.jpl.nasa.gov" class="uri">https://landform.hi.jpl.nasa.gov</a></li>
+<li>for SSO integration testing: <a href="https://landform-dev.hi.jpl.nasa.gov" class="uri">https://landform-dev.hi.jpl.nasa.gov</a></li>
+<li>for local test and dev: <a href="http://localhost:3000" class="uri">http://localhost:3000</a></li>
+</ul></li>
 <li>Click <code>API Token</code> and confirm the response is <code>not authenticated</code>.</li>
-<li>Click <code>Login (SSO)</code>.</li>
+<li>Click <code>Login (SSO)</code>, or <code>Login (LDAP)</code> if using a local deployment</li>
 <li>Enter credentials for a JPL user identity that is a member of the LDAP group configured when the Landform master server was deployed. For test and production deployments managed by the Landform team, this is <code>landform</code>.</li>
 <li>Click <code>API Token</code> and confirm the response is a web token - copy the token ID for later.</li>
 <li>Click <code>Logout</code>.</li>
 <li>Click <code>API Token</code> and confirm the response is <code>not authenticated</code>.</li>
 </ol>
-<p>Note: SSO will only work in a deployment where the Landform master server DNS name matches a configuration registered with the JPL SSO service. If you are running the server locally within the JPL IP address space, e.g. for testing, then you can use the LDAP login instead of SSO.</p>
+<p>Note: SSO login will only work in a deployment where the Landform master server DNS name matches a configuration registered with the JPL SSO service. If you are running the server locally (within the JPL firewall) then you can use the LDAP login instead of SSO.</p>
 <h2 id="rest-api-tests">REST API Tests</h2>
 <p>Three methods are supported for running <a href="../docs/API.md">REST API</a> tests:</p>
 <ol type="1">
@@ -1140,7 +1175,7 @@ content-type: text/plain; charset=utf-8
 <p>Details are given below for <code>curl</code> on the Windows 10 command prompt. To use another compatible command prompt you may need to modify the syntax slightly. For example, in <code>bash</code> style command prompts variable substitution syntax is <code>$VARIABLE</code> instead of <code>%VARIABLE%</code>.</p>
 <p>To use Postman</p>
 <ol type="1">
-<li>download and import this <a href="../test/Landform-run.postman_collection.json">Postman collection</a></li>
+<li>import the Postman collection <code>Landform-run.postman_collection.json</code> included with the Landform source code.</li>
 <li>define variables
 <ol type="1">
 <li>ellipsis menu for collection -&gt; Edit -&gt; Variables</li>
@@ -1151,67 +1186,66 @@ content-type: text/plain; charset=utf-8
 </ol>
 <h3 id="setup">Setup</h3>
 <ol type="1">
-<li>Login and get an API token using the authentication test procedure. Copy the token to the system clipboard, and then paste it on the windows command line to set a temporary environment variable by running a command like this:</li>
-</ol>
-<p><code>set API_TOKEN=(pasted token)</code></p>
-<ol start="2" type="1">
-<li>Set the server URL. For example, to test against the production or test server managed by the Landform team:</li>
-</ol>
-<p><code>set SERVER_URL=https://landform[-dev].hi.jpl.nasa.gov</code></p>
-<p>Otherwise substitute the end-user DNS name of your Landform master server.</p>
-<ol start="3" type="1">
+<li><p>Login and get an API token using the authentication test procedure. Copy the token to the system clipboard, and then paste it on the windows command line to set a temporary environment variable by running a command like this:</p>
+<pre><code>set API_TOKEN=(pasted token)</code></pre></li>
+<li><p>Set the server URL. For example, to test against the production or test server managed by the Landform team:</p>
+<pre><code>set SERVER_URL=https://landform[-dev].hi.jpl.nasa.gov</code></pre>
+<p>Or if you are running an instance of the server on your local machine:</p>
+<pre><code>set SERVER_URL=https://localhost:8081</code></pre>
+<p>Otherwise substitute the end-user DNS name of your Landform master server.</p></li>
 <li><p>Determine a unique name for a test project. For example, each time you run this procedure use a project name like <code>testN</code> where <code>N</code> is an integer that you increment.</p>
-<p><code>set PROJECT_NAME=testN</code></p></li>
-<li><p>Select a mesh and texture file for the test project. Several test datasets are available at <a href="https://landlords-dev.s3.amazonaws.com/landformweb-test-data/shared.zip" class="uri">https://landlords-dev.s3.amazonaws.com/landformweb-test-data/shared.zip</a>.</p>
-<p><code>set MESH_FILE=shared/stick/stick.ply</code> <code>set TEXTURE_FILE=shared/stick/stick.jpg</code></p></li>
+<pre><code>set PROJECT_NAME=testN</code></pre></li>
+<li><p>Select a mesh and texture file for the test project. Several test datasets are available at <a href="https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data-shared.zip" class="uri">https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data-shared.zip</a>. Download and unzip it and then choose one of the included datasets, e.g.:</p>
+<pre><code> set MESH_FILE=landform-test-data-shared/stick/stick.ply
+ set TEXTURE_FILE=landform-test-data-shared/stick/stick.jpg</code></pre></li>
 </ol>
 <p>Perform the remaining steps of this procedure in the same command window where these variables were set.</p>
 <h3 id="test-sequence">Test Sequence</h3>
 <ol type="1">
 <li><p>Create project:</p>
-<pre><code>curl -sS --request POST
-         --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
+<pre><code> curl -sS --request POST
+          --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid JSON object with <code>success=true</code>.</p></li>
 <li><p>List projects:</p>
-<pre><code>curl -sS --request GET
-         --url &quot;%SERVER_URL%/api/projects&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
+<pre><code> curl -sS --request GET
+          --url &quot;%SERVER_URL%/api/projects&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid JSON array of strings containing <code>%PROJECT_NAME%</code>.</p></li>
 <li><p>Upload input files:</p>
-<pre><code>curl -sS --request POST
-         --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/upload&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;
-         --form &quot;mesh=@%MESH_FILE%&quot;
-         --form &quot;texture=@%TEXTURE_FILE%&quot;</code></pre>
+<pre><code> curl -sS --request POST
+          --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/upload&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;
+          --form &quot;mesh=@%MESH_FILE%&quot;
+          --form &quot;texture=@%TEXTURE_FILE%&quot;</code></pre>
 <p>If using Postman select the “upload data” request, then click Body, then Choose Files.</p>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid JSON object with <code>success=true</code>.</p></li>
 <li><p>Run project:</p>
-<pre><code>curl -sS --request POST
-         --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/run&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
+<pre><code> curl -sS --request POST
+          --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/run&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid JSON object with <code>success=true</code>.</p></li>
 <li><p>Get project metadata:</p>
-<pre><code>curl -sS --request GET
-         --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
+<pre><code> curl -sS --request GET
+          --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid JSON object.</p></li>
 <li><p>Poll project metadata about every 10 seconds until <code>Project.FinishedRunning</code> is <code>true</code>.</p></li>
 <li><p>Get project result URL:</p>
-<pre><code>curl -sS --request GET
-         --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
+<pre><code> curl -sS --request GET
+          --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid URL.</p></li>
 <li><p>Get project viewer URL:</p>
-<pre><code>curl -sS --request GET
-         --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
+<pre><code> curl -sS --request GET
+          --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid URL.</p></li>
 <li><p>Load the project viewer URL in a Chrome browser to visually inspect the result.</p></li>
 <li><p>Delete project:</p>
-<pre><code>curl -sS --request DELETE
-         --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%&quot;
-         --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
+<pre><code> curl -sS --request DELETE
+          --url &quot;%SERVER_URL%/api/projects/%PROJECT_NAME%&quot;
+          --header &quot;x-landform-token: %API_TOKEN%&quot;</code></pre>
 <p>Validation: check that the response code is HTTP 200 (ok), the content type is <code>application/json</code>, and the response body is a valid JSON object with <code>success=true</code>.</p></li>
 </ol>
 </body>

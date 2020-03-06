@@ -31,37 +31,36 @@ For production or integration testing the worker is [deployed to an EC2 autoscal
 ## Development Workflow
 First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained [above](#tilingserver).
 
-1. `npm install`
-1. `npm run show-config` - the server will connect to live AWS services for the displayed venue.
-1. Make sure a [tiling worker](#tiling-worker) is running in that venue.
-1. `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
-    1. You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
-1. Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.
-1. Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
-1. Run the test projects defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) using the [tools/runTests.js](toosl/runTests.js) script.  This uses [newman](https://github.com/postmanlabs/newman) which is a command line version of [postman](https://www.postman.com).  (You don't have to manually install newman because it is an npm dev dependency.)
-    1. Download and unzip https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
-    1. The venue to be tested is defined by `serverUrl` in `landform-test-data/landform-test-config.json`.  It defaults to `http://localhost:8081`, which is for a local venue. Start up the landform master and worker locally following the [development workflow](#development-workflow) above.
-    1. Run `npm run tests /path/to/landform-test-data`.
+1.  `npm install`
+1.  `npm run show-config` - the server will connect to live AWS services for the displayed venue.
+1.  Make sure a [tiling worker](#tiling-worker) is running in that venue.
+1.  `npm start` will start both the backend api server on port 8081 and the frontend react dev server on port 3000 (the frontend server will proxy backend routes to the backend server).
+    1.  You can also run the api server and client servers independently with `npm run server` and `npm run client`.  This is convenient when doing backend dev so that you can independently restart the backend server.
+1.  Typically you should not need to restart the frontend server for frontend dev because it uses hot module reloading.  However, if you modify the backend server you will need to restart it.
+1.  Go to http://localhost:3000 and follow the instructions to login and generate an API token.  Note that SSO login will only work when deployed to the production server URL given above, and LDAP login will only work when the server is within the JPL firewall (i.e. not deployed to AWS for production).
+1.  Run the test projects defined in [test/data/landform-test-config.json](test/data/landform-test-config.json) using the [tools/runTests.js](toosl/runTests.js) script.  This uses [newman](https://github.com/postmanlabs/newman) which is a command line version of [postman](https://www.postman.com).  (You don't have to manually install newman because it is an npm dev dependency.)
+    1.  Download and unzip https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+    1.  The venue to be tested is defined by `serverUrl` in `landform-test-data/landform-test-config.json`.  It defaults to `http://localhost:8081`, which is for a local venue. Start up the landform master and worker locally following the [development workflow](#development-workflow) above.
+    1.  Run `npm run tests /path/to/landform-test-data`.
 
     TLDR:
-    ```
-    # install node.js
+
+        # install node.js
     
-    # in terminal 1
-    cd Landform/Web
-    npm install
-    npm run server
-    
-    # in terminal 2
-    cd Landform/Web
-    npm run worker
-    
-    # in terminal 3
-    cd Landform/Web
-    curl -O https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
-    unzip landform-test-data.zip
-    npm run tests landform-test-data
-    ```
+        # in terminal 1
+        cd Landform/Web
+        npm install
+        npm run server
+        
+        # in terminal 2
+        cd Landform/Web
+        npm run worker
+        
+        # in terminal 3
+        cd Landform/Web
+        curl -O https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data.zip
+        unzip landform-test-data.zip
+        npm run tests landform-test-data
 
 ## Test & Deployment Workflow
 First install latest 12.x [node.js](https://nodejs.org), [acquire AWS credentials and set environment vars](docs/INTERNAL.md#aws-credentials), and build `TilingServer.exe` with Visual Studio as explained above.
@@ -102,7 +101,7 @@ It is also possible to manually deploy the release bundle using the AWS Elastic 
     * `--force`: use existing landform-master.zip even if it might be outdated
     * `--profile=foo`: use AWS credentials profile `foo` instead of `default`
 1. The deployment process will take a few minutes. You can watch the deployment progress by logging in to the AWS web console.
-1. Once the deployment is complete the site will be live at https://landformweb-dev.$LANDFORM_AWS_REGION.elasticbeanstalk.com (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
+1. Once the deployment is complete the site will be live at https://landformweb-dev.LANDFORM_AWS_REGION.elasticbeanstalk.com (omit `-dev` for production).  Note, if using VPN full tunnel is required because we restrict access to JPL IP addresses.
 1. Make sure a [tiling worker](#tiling-worker) is running in the venue.
 1. Run through the [test procedures](docs/TEST.md).
 
