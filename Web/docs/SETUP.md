@@ -394,9 +394,9 @@ These instructions only needs to be run when the Landform worker version changes
 1. Download remote desktop (RDP) file
 1. Double click RDP file to open remote desktop
 1. Username: `admin`, password as above
-1. The server should be located in `C:\tileserver`.  You can tail the server log by running the PowerShell command
+1. The server should be located in `C:\landform`.  You can tail the server log by running the PowerShell command
    ```
-   Get-Content c:\tileserver\log\log-tilingserver-startworker*.txt -Wait -Tail 30
+   Get-Content c:\tileserver\log\log-tilingserver-worker*.txt -Wait -Tail 30
    ```
 1. The EC2Launch (<https://docs.aws.amazon.com/AWSEC2/latest/WindowsGuide/ec2-windows-user-data.html>) log for the user data script should be at
    ```

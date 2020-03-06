@@ -17,7 +17,7 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
 {
-    [Verb("startworker", HelpText = "Starts a worker to process tiling messages")]
+    [Verb("worker", HelpText = "Starts a worker to process tiling messages")]
     public class StartWorkerOptions : PipelineCoreOptions
     {
         [Option(Default = false, HelpText = "Limit multiple workers to one core each")]

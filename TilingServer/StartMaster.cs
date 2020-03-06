@@ -12,7 +12,7 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.TilingServer
 {
-    [Verb("startmaster", HelpText = "Runs a tiling workflow")]
+    [Verb("master", HelpText = "Runs a tiling workflow")]
     public class StartMasterOptions : PipelineCoreOptions
     {
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]

@@ -44,13 +44,13 @@ async function tilingMaster() {
   function abort(err) {
     //make sure spew gets to log even when log level is < debug, as in production
     if (logger.levels[logger.level] < logger.levels.debug) logger.error(masterTask.log.join('\n'));
-    logger.error(`aborting, error launching '${config.app.masterExe} startmaster': ${err.message}`);
+    logger.error(`aborting, error launching '${config.app.masterExe} master': ${err.message}`);
     logger.exception(err);
     process.exit(1);
   }
 
   try {
-    masterTask = await tilingTask('startmaster', null, { defaultLog: true });
+    masterTask = await tilingTask('master', null, { defaultLog: true });
     masterTask.promise.catch(err => abort(err));
   } catch (err) { abort(err); }
 

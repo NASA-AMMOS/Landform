@@ -129,7 +129,7 @@ Remove-Item c:\landform -Force -Recurse -ErrorAction SilentlyContinue
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory(""C:\temp\landform-worker.zip"", ""c:\landform"")
 c:\landform\{11} configure-cloud --venue={0} --s3url={1} --awsregion={4} --awsprofile=null --msliceawsprofile={5} --msliceawsregion={6} --mslices3url={7} --maxcores={8} --randomseed={9} --legacycompat={10} --nouserdata
-Start-Process -WorkingDirectory c:\landform c:\landform\{11} startworker
+Start-Process -WorkingDirectory c:\landform c:\landform\{11} worker
 </powershell>
 <persist>true</persist>";
             S3Url url = new S3Url(config.S3Url);
