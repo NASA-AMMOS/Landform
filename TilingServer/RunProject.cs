@@ -38,11 +38,6 @@ namespace OPS.TilingServer
             }
         }
 
-        public RunProject(PipelineCore pipeline, RunProjectOptions options, ExecutionMode exMode) : base(pipeline, exMode)
-        {
-            this.options = options;
-        }
-
         public int Run()
         {
             var project = TilingProject.Find(pipeline, options.ProjectName);

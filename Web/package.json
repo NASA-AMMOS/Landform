@@ -13,11 +13,11 @@
     "make-token": "node tools/makeToken.js",
     "tests": "node tools/runTests.js",
     "configure-backend": "node tools/configureBackend.js",
-    "bundle-worker": "node tools/bundleWorker.js --overwrite",
+    "git-archive": "git archive -o landform-master.zip --format=zip HEAD",
+    "bundle-master": "npm run git-archive && node tools/bundleClient.js --overwrite && node tools/bundleMaster.js --overwrite ",
     "build-client": "node tools/buildClient.js",
-    "bundle-server": "git archive -o landformweb.zip --format=zip HEAD",
-    "bundle": "npm run bundle-server && node tools/bundleClient.js --overwrite && node tools/bundleMaster.js --overwrite ",
-    "build": "npm install && npm run build-client && npm run bundle",
+    "build": "npm install && npm run build-client && npm run bundle-master",
+    "bundle-worker": "node tools/bundleWorker.js --overwrite",
     "deploy": "node tools/deploy.js",
     "local-deploy": "node tools/localDeploy.js",
     "delete-queues": "node tools/deleteQueues.js",
@@ -28,6 +28,9 @@
   ],
   "author": "",
   "license": "UNLICENSED",
+  "engines": {
+    "node": ">=8"
+  },
   "dependencies": {
     "aws-sdk": "^2.315.0",
     "body-parser": "^1.18.2",
@@ -39,12 +42,13 @@
     "fs-extra": "^7.0.0",
     "guid": "0.0.12",
     "jsonwebtoken": "^8.1.0",
-    "ldapjs": "^1.0.1",
+    "ldapjs": "^1.0.2",
     "memorystore": "^1.6.0",
     "multer": "^1.3.1",
-    "passport": "^0.4.0",
-    "passport-ldapauth": "^2.0.0",
-    "passport-saml": "^0.32.1",
+    "ldapauth-fork": "^4.3.0",
+    "passport": "^0.4.1",
+    "passport-ldapauth": "^2.1.3",
+    "passport-saml": "^1.3.3",
     "winston": "^3.1.0",
     "winston-daily-rotate-file": "^3.3.2",
     "xml2js": "^0.4.19"
@@ -59,7 +63,7 @@
     "eslint-plugin-jsx-a11y": "^6.1.1",
     "eslint-plugin-react": "^7.11.1",
     "json-parse-better-errors": "^1.0.2",
-    "newman": "^4.1.0",
+    "newman": "^4.6.0",
     "strip-json-comments": "^2.0.1"
   }
 }

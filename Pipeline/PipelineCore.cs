@@ -14,31 +14,13 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.Pipeline
 {
-    public class PipelineCoreOptions : CommandHelper.OptionsBase
+    public class PipelineCoreOptions : CommandHelper.BaseOptions
     {
         [Option(Default = false, HelpText = "Clear download cache at startup")]
         public bool ClearCache { get; set; }
 
-        [Option(Default = false, HelpText = "Suppress non-essential output")]
-        public bool Quiet { get; set; }
-
-        [Option(Default = false, HelpText = "Log verbose info")]
-        public bool Verbose { get; set; }
-
-        [Option(Default = false, HelpText = "Log debug info")]
-        public bool Debug { get; set; }
-
         [Option(Default = false, HelpText = "Log full stack traces")]
         public bool StackTraces { get; set; }
-
-        [Option(Default = null, HelpText = "Override default log filename")]
-        public string LogFile { get; set; }
-
-        [Option(Default = null, HelpText = "Override default log directory")]
-        public string LogDir { get; set; }
-
-        [Option(Default = null, HelpText = "Override default temp dir")]
-        public string TempDir { get; set; }
 
         [Option(Default = false, HelpText = "Disable parallism, e.g. for debugging")]
         public bool SingleThreaded { get; set; }
@@ -219,8 +201,6 @@ namespace OPS.Pipeline
             {
                 DumpConfig();
             }
-
-            InitPhase("scan for user image masks", InitUserMasks);
         }
 
         protected void InitPhase(string phase, Action func)
@@ -306,7 +286,7 @@ namespace OPS.Pipeline
         protected void AddAnyUserMask(string url, Image image)
         {
             var basename = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
-            if (userMasks.ContainsKey(basename))
+            if (userMasks != null && userMasks.ContainsKey(basename))
             {
                 lock (image)
                 {
@@ -619,6 +599,18 @@ namespace OPS.Pipeline
         }
 
         //****************** Database API *****************
+
+        protected Type[] InitTableTypes(bool quiet, bool alignment, bool tiling)
+        {
+            Func<Type, bool> isTiling = t => t.Name.StartsWith("Tiling");
+            var tables = tableTypes.Where(t => (alignment && !isTiling(t)) || (tiling && isTiling(t))).ToArray();
+            if (!quiet && tables.Length > 0)
+            {
+                LogInfo("initializing {0} database tables for {1}...", tables.Length,
+                        alignment && tiling ? "alignment and tiling" : alignment ? "alignment" : "tiling");
+            }
+            return tables;
+        }
 
         public abstract void SaveDatabaseItem<T>(T obj, bool ignoreNulls = true, bool ignoreErrors = false,
                                                  bool quiet = false);

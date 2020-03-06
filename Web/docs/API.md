@@ -460,27 +460,38 @@ Response
     status: 200
     content-type: text/plain; charset=utf-8
 
-    2018-09-17 17:17:55,414 OPS.Pipeline.TileServer.PipelineStateMachine: DefineTiles project:testproj
-    2018-09-17 17:18:02,225 OPS.Pipeline.TileServer.PipelineStateMachine: ChunkInput project:testproj input:inputMeshSmall
-    2018-09-17 17:18:02,263 OPS.Pipeline.TileServer.PipelineStateMachine: Build Leaves
-    2018-09-17 17:18:13,798 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:110000000001
-    2018-09-17 17:18:16,570 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010010010000
-    2018-09-17 17:18:25,463 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:011010101001001101
-    2018-09-17 17:18:26,130 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:111
-    2018-09-17 17:18:27,726 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:1000
-    2018-09-17 17:18:29,523 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010010001011
-    2018-09-17 17:18:30,705 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:10010100
-    2018-09-17 17:18:31,080 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:011010101001000100
-    2018-09-17 17:18:32,427 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:1001010100
-    2018-09-17 17:18:34,871 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010010000011
-    2018-09-17 17:18:38,479 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101010011
-    2018-09-17 17:18:40,314 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0110101011
-    2018-09-17 17:18:40,531 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:101
-    2018-09-17 17:18:42,662 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0010
-    2018-09-17 17:18:44,208 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:00110
-    2018-09-17 17:18:44,427 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:011011
-    2018-09-17 17:18:47,184 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:010
-    2018-09-17 17:18:47,545 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:0011110
-    2018-09-17 17:18:52,385 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:001111111101
-    2018-09-17 17:18:55,313 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:001111110
-    2018-09-17 17:18:56,468 OPS.Pipeline.TileServer.PipelineStateMachine: TileCompleted project:testproj tile:000
+    logging to C:\cygwin64\home\vona\src\mine\Landform\TilingServer\bin\Release\log\log-TilingServer-master-20200306103133Z-08-28036.txt
+    logging to C:\cygwin64\home\vona\src\mine\Landform\TilingServer\bin\Release\log\log-TilingServer-master-20200306103133Z-08-28036.txt
+    2020-03-06 10:31:34,230 master INFO: Architecture: x64
+    2020-03-06 10:31:34,241 master INFO: Venue: landform-dev-vona-quarth
+    2020-03-06 10:31:34,241 master INFO: Storage URL: s3://landlords-dev/landform-web
+    2020-03-06 10:31:34,241 master INFO: using 36 of 36 CPU cores
+    2020-03-06 10:31:34,241 master INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+    2020-03-06 10:31:34,241 master INFO: AWS profile: landlords
+    2020-03-06 10:31:34,241 master INFO: AWS region: us-west-1
+    2020-03-06 10:31:34,241 master INFO: MSLICE AWS profile: mslice
+    2020-03-06 10:31:34,241 master INFO: MSLICE AWS region: us-west-1
+    2020-03-06 10:31:34,241 master INFO: MSLICE S3 URL: s3://red-product
+    2020-03-06 10:31:34,445 master INFO: initialize database
+    2020-03-06 10:31:34,447 master INFO: initializing 4 database tables for tiling...
+    2020-03-06 10:31:34,771 master INFO: table "landform-dev-vona-quarth-TilingProjects" exists, 1 items, 277 bytes (updated every ~6h)
+    2020-03-06 10:31:34,789 master INFO: table "landform-dev-vona-quarth-TilingInput" exists, 1 items, 277 bytes (updated every ~6h)
+    2020-03-06 10:31:34,804 master INFO: table "landform-dev-vona-quarth-TilingNode" exists, 49 items, 21888 bytes (updated every ~6h)
+    2020-03-06 10:31:34,822 master INFO: table "landform-dev-vona-quarth-TilingInputChunk" exists, 1 items, 470 bytes (updated every ~6h)
+    2020-03-06 10:31:34,898 master INFO: initialized 4 database tables
+    2020-03-06 10:31:34,899 master INFO: initialize database: 0.453s, total 0.453s
+    2020-03-06 10:31:34,899 master INFO: initialize message queues
+    2020-03-06 10:31:35,294 master INFO: queue "landform-dev-vona-quarth-tiling-master" exists, approx 0 messages (0 in flight)
+    2020-03-06 10:31:35,338 master INFO: queue "landform-dev-vona-quarth-tiling-worker" exists, approx 0 messages (0 in flight)
+    2020-03-06 10:31:35,338 master INFO: queues initialized
+    2020-03-06 10:31:35,338 master INFO: initialize message queues: 0.439s, total 0.439s
+    2020-03-06 10:31:35,340 master INFO: Architecture: x64
+    2020-03-06 10:31:35,340 master INFO: Venue: landform-dev-vona-quarth
+    2020-03-06 10:31:35,340 master INFO: Storage URL: s3://landlords-dev/landform-web
+    2020-03-06 10:31:35,340 master INFO: using 36 of 36 CPU cores
+    2020-03-06 10:31:35,340 master INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+    2020-03-06 10:31:35,340 master INFO: AWS profile: landlords
+    2020-03-06 10:31:35,340 master INFO: AWS region: us-west-1
+    2020-03-06 10:31:35,340 master INFO: MSLICE AWS profile: mslice
+    2020-03-06 10:31:35,340 master INFO: MSLICE AWS region: us-west-1
+    2020-03-06 10:31:35,341 master INFO: MSLICE S3 URL: s3://red-product

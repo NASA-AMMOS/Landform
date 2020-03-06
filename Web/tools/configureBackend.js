@@ -17,9 +17,12 @@ const args = [
   `--awsregion=${config.app.awsRegion}`,
   `--awsprofile=${config.app.awsProfile}`,
   `--msliceawsprofile=${config.app.MSLICEAWSProfile}`,
+  `--msliceawsregion=${config.app.MSLICEAWSRegion}`,
   `--mslices3url=${config.app.MSLICES3Url}`,
   `--workerexecutable=${config.app.workerExe}`,
   '--maxcores=0',
+  '--randomseed=-1',
+  '--legacycompat=false',
 ];
 
 if (!hasFlag('persist')) args.push('--nopersist');

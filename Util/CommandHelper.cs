@@ -10,52 +10,82 @@ namespace OPS.Util
 {
     public class CommandHelper
     {
-        public class OptionsBase
+        [Verb("base-options")]
+        public class BaseOptions
         {
             [Option(Default = null, HelpText = "Override command line options from JSON file")]
             public string OptionsFile { get; set; }
+
+            [Option(Default = null, HelpText = "Override default config dir (defaults to user home dir)")]
+            public string ConfigDir { get; set; }
+            
+            [Option(Default = null, HelpText = "Override default config folder (defaults to .landform)")]
+            public string ConfigFolder { get; set; }
+            
+            [Option(Default = null, HelpText = "Override default log filename")]
+            public string LogFile { get; set; }
+            
+            [Option(Default = null, HelpText = "Override default log directory")]
+            public string LogDir { get; set; }
+            
+            [Option(Default = null, HelpText = "Override default temp dir")]
+            public string TempDir { get; set; }
+
+            [Option(Default = false, HelpText = "Suppress non-essential output")]
+            public bool Quiet { get; set; }
+            
+            [Option(Default = false, HelpText = "Log verbose info")]
+            public bool Verbose { get; set; }
+            
+            [Option(Default = false, HelpText = "Log debug info")]
+            public bool Debug { get; set; }
         }
 
         /// <summary>
-        /// Can be called more than once.
-        /// Only non-null settings are applied.
+        /// Early parse of standard command line arguments to set up Config and Logging.
         /// </summary>
-        public static void Configure(string[] args = null, string baseCommand = null,
-                                     string configDir = null, string configFolder = null,
-                                     bool quiet = false, bool debug = false, string logFilename = null,
-                                     string logDir = null, string tempDir = null)
+        public static bool Configure(string[] args, string baseCommand)
         {
-            if (args != null)
-            {
-                Config.CommandLineArgs = args;
-            }
+            Config.CommandLineArgs = args;
+            Config.BaseCommand = baseCommand;
 
-            if (args != null && args.Length > 0)
+            var opts = new BaseOptions();
+            if (args.Length > 0)
             {
                 Config.SubCommand = args[0];
+
+                try
+                {
+                    var optsArgs = (string[])args.Clone();
+                    optsArgs[0] = "base-options";
+                    opts = (BaseOptions)ParseCommandLineOpts(optsArgs, new Type[] { typeof(BaseOptions) },
+                                                             allowUnknown: true);
+                }
+                catch (Exception ex)
+                {
+                    Console.Error.WriteLine("error parsing command line options: {0}", ex.Message);
+                    return false;
+                }
             }
 
-            if (!string.IsNullOrEmpty(baseCommand))
-            { 
-                Config.BaseCommand = baseCommand;
-            }
-
-            if (!string.IsNullOrEmpty(configDir))
+            if (!string.IsNullOrEmpty(opts.ConfigDir))
             {
-                Config.ConfigDir = configDir;
+                Config.ConfigDir = opts.ConfigDir;
             }
 
-            if (!string.IsNullOrEmpty(configFolder))
+            if (!string.IsNullOrEmpty(opts.ConfigFolder))
             {
-                Config.ConfigFolder = configFolder;
+                Config.ConfigFolder = opts.ConfigFolder;
             }
 
-            if (!string.IsNullOrEmpty(tempDir))
+            if (!string.IsNullOrEmpty(opts.TempDir))
             {
-                TemporaryFile.TemporaryDirectory = tempDir;
+                TemporaryFile.TemporaryDirectory = opts.TempDir;
             }
 
-            Logging.ConfigureLogging(Config.FullCommand, quiet, debug, logFilename, logDir);
+            Logging.ConfigureLogging(Config.FullCommand, opts.Quiet, opts.Debug, opts.LogFile, opts.LogDir);
+
+            return true;
         }
 
         public static void DumpConfig(ILog logger, Config config = null)
@@ -72,7 +102,7 @@ namespace OPS.Util
             logger.InfoFormat("log file: {0}", Logging.GetLogFile());
         }
 
-        public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes)
+        public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes, bool allowUnknown = false)
         {
             Func<string, string, bool> startsWith = (s, p) => s.StartsWith(p, true, null);
             Func<string, string, bool> isArg = (a, n) => startsWith(a, "--" + n) || startsWith(a, "-" + n);
@@ -147,7 +177,12 @@ namespace OPS.Util
             }
             else
             {
-                var res = CommandLine.Parser.Default.ParseArguments(args, optsTypes.ToArray());
+                var parser = new Parser((ParserSettings settings) => 
+                        {
+                            settings.HelpWriter = Console.Error;
+                            settings.IgnoreUnknownArguments = allowUnknown;
+                        });
+                var res = parser.ParseArguments(args, optsTypes.ToArray());
                 if (res is Parsed<object>)
                 {
                     return ((Parsed<object>)res).Value;

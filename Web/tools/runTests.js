@@ -105,7 +105,7 @@ function runTest(projDir) {
             else summary.run.executions = summary.run.executions.map(parseJsonResponse);
           }
 
-          fs.writeJsonSync(`log-${projName}-${stamp}-${coll}.txt`, summary, { spaces: 2 });
+          if (!dryRun) fs.writeJsonSync(`log-${projName}-${stamp}-${coll}.txt`, summary, { spaces: 2 });
 
           err = err || summary.error;
           if (err) {
@@ -195,7 +195,7 @@ function runTest(projDir) {
 //if you run this from a Cygwin terminal, don't expect ctrl-c to work right
 //we could try to detect that and warn
 //but let's not - it's more important that this be runnable from non-tty contexts (like from cron)
-console.log(`${timeStamp()}: running ${testCfg.testDirs.length} projects in ${testDir}`);
+console.log(`running ${testCfg.testDirs.length} projects in ${testDir}`);
 console.log(`server: ${testCfg.serverUrl}`);
 if (dryRun) console.log('dry run');
 testCfg.testDirs.reduce((promise, dir) => promise.then(() => runTest(dir)), Promise.resolve());

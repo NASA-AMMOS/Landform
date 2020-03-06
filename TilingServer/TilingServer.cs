@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using CommandLine;
 using OPS.Util;
 using OPS.Pipeline;
+using OPS.Landform;
 
 namespace OPS.TilingServer
 {
@@ -14,7 +15,10 @@ namespace OPS.TilingServer
     {
         static int Main(string[] args)
         {
-            CommandHelper.Configure(args, "TilingServer");
+            if (!CommandHelper.Configure(args, "TilingServer"))
+            {
+                return 1;
+            }
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
             //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap
@@ -28,6 +32,7 @@ namespace OPS.TilingServer
 
             var verbs = new Dictionary<Type, Type>()
                 {
+                    { typeof(ConfigureCloudOptions), typeof(ConfigureCloud) },
                     { typeof(CreateProjectOptions), typeof(CreateProject) },
                     { typeof(UploadInputOptions), typeof(UploadInput) },
                     { typeof(RunProjectOptions), typeof(RunProject) },

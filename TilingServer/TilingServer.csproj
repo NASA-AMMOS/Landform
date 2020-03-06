@@ -166,6 +166,10 @@
       <Project>{c3ec3ab5-8dfd-4daa-9833-246f0db6a805}</Project>
       <Name>Imaging</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Landform\Landform.csproj">
+      <Project>{b9104593-faf8-4c00-965d-025678be9d66}</Project>
+      <Name>Landform</Name>
+    </ProjectReference>
     <ProjectReference Include="..\MathExtensions\MathExtensions.csproj">
       <Project>{8c7c8a71-0a4b-4d75-9cb2-32803bd8f86f}</Project>
       <Name>MathExtensions</Name>
