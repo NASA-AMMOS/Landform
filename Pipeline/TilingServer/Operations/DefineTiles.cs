@@ -237,6 +237,10 @@ namespace OPS.Pipeline.TilingServer
                 {
                     tilingNode.GeometricError = sceneNode.GetComponent<NodeGeometricError>().Error;
                 }
+                else if (sceneNode.IsLeaf)
+                {
+                    tilingNode.GeometricError = 0;
+                }
 
                 tilingNode.Save(pipeline);
 
