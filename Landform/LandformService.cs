@@ -84,11 +84,6 @@ namespace OPS.Landform
 
         public int Run()
         {
-            if (!lvopts.Service)
-            {
-                StartStopwatch();
-            }
-
             try
             {
                 if (!ParseArguments())

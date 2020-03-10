@@ -67,6 +67,8 @@ namespace OPS.Landform
         {
             this.lcopts = lcopts;
 
+            StartStopwatch();
+
             if (!string.IsNullOrEmpty(lcopts.ConfigDir))
             {
                 Config.ConfigDir = lcopts.ConfigDir;
@@ -109,8 +111,7 @@ namespace OPS.Landform
                 return;
             }
 
-            var totalMS = stopwatch.ElapsedMilliseconds + pipeline.InitMSPerPhase.Values.Sum();
-            pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(totalMS));
+            pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(stopwatch.ElapsedMilliseconds));
 
             if (brief)
             {

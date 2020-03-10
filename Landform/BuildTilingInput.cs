@@ -83,8 +83,6 @@ namespace OPS.Landform
 
         public int Run()
         {
-            StartStopwatch();
-
             try
             {
                 if (!ParseArgumentsAndLoadCaches())

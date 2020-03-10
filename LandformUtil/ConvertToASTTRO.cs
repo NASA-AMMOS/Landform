@@ -48,8 +48,6 @@ namespace OPS.LandformUtil
 
         public int Run()
         {
-            StartStopwatch();
-
             try
             {
                 if (!ParseArgumentsAndLoadCaches(OutputDirectory))
