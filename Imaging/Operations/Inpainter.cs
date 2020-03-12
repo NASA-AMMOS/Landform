@@ -149,10 +149,6 @@ namespace OPS.Imaging
                 }
                 foreach (Vector2 edge in edgePoints)
                 {
-                    image.SetMaskValue((int)edge.X, (int)edge.Y, true);
-                }
-                foreach (Vector2 edge in edgePoints)
-                {
                     if (useAnyNeighbor)
                     {
                         FillWithAnyNeighbor((int)edge.X, (int)edge.Y, image);
@@ -175,25 +171,29 @@ namespace OPS.Imaging
                     if (r > 0 && !image.IsValid(r - 1, c))
                     {
                         newEdgePoints.Add(new Vector2(r - 1, c));
-                        //image.SetMaskValue(r-1, c, false);
+                        image.SetMaskValue(r-1, c, false);
                     }
                     if (c > 0 && !image.IsValid(r, c - 1))
                     {
                         newEdgePoints.Add(new Vector2(r, c - 1));
-                        //image.SetMaskValue(r, c-1, false);
+                        image.SetMaskValue(r, c-1, false);
                     }
                     if (r < image.Height - 1 && !image.IsValid(r + 1, c))
                     {
                         newEdgePoints.Add(new Vector2(r + 1, c));
-                        //image.SetMaskValue(r+1, c, false);
+                        image.SetMaskValue(r+1, c, false);
                     }
                     if (c < image.Width - 1 && !image.IsValid(r, c + 1))
                     {
                         newEdgePoints.Add(new Vector2(r, c + 1));
-                        //image.SetMaskValue(r, c+1, false);
+                        image.SetMaskValue(r, c+1, false);
                     }
                 }
                 edgePoints = newEdgePoints.ToList();
+                foreach (Vector2 edge in edgePoints)
+                {
+                    image.SetMaskValue((int)edge.X, (int)edge.Y, true);
+                }
             }
         }
     }
