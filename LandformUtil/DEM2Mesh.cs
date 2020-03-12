@@ -302,7 +302,9 @@ namespace OPS.LandformUtil
                     {
                         for (int col = 0; col < dem.Width; col++)
                         {
-                            //Mask out (0,0,0) points
+                            //Mask out (0,0,0) points as they inidcate missing value.
+                            //See msl cam sis 5.2.1.4 for detailed description.
+                            //Same for M2020 as of 3/12/20.
                             mask[0, row, col] = (xyz[0, row, col] == 0 &&
                                                  xyz[1, row, col] == 0 &&
                                                  xyz[2, row, col] == 0) ? 0 : 1;
