@@ -112,7 +112,6 @@ namespace OPS.Landform
             foreach (Image img in dems.Values)
             {
                 img.CameraModel = new OrthographicCameraModel(Matrix.Identity, img.Width, img.Height, MetersPerPixel);
-                img.DilateMask(15); //TODO: Issue 952 Revisit bev masks. Getting (some) points far below terrain in sparse areas
             }
 
             //Select highest priority site drive as base
