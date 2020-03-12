@@ -305,7 +305,7 @@ namespace OPS.LandformUtil
                             //Mask out (0,0,0) points
                             mask[0, row, col] = (xyz[0, row, col] == 0 &&
                                                  xyz[1, row, col] == 0 &&
-                                                 xyz[2, row, col] == 0) ? 1 : 0;
+                                                 xyz[2, row, col] == 0) ? 0 : 1;
                         }
                     }
                 }
