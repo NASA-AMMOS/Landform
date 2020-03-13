@@ -59,6 +59,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Debug option to write out the clipped dem in base site drive frame after alignment. Default does not write", Default = "")]
         public string WriteClippedDemToPath { get; set; }
+
+        [Option(HelpText = "Disable orbital alignment.", Default = false, Required = false)]
+        public bool NoOrbital { get; set; }
     }
 
     public class HeightmapAligner : BEVCommand
@@ -68,6 +71,21 @@ namespace OPS.Landform
         private const string OUT_DIR = "orbital/Products";
 
         protected new List<SiteDrive> siteDrives;
+
+        private Dictionary<SiteDrive, TransformSource> SiteDrivePriorSources = new Dictionary<SiteDrive, TransformSource>();
+        private Dictionary<SiteDrive, Matrix> SiteDriveToWorldPreviousBestTransforms = new Dictionary<SiteDrive, Matrix>();
+        private Dictionary<string, double> SquaredDistances = new Dictionary<string, double>();
+        private Dictionary<SiteDrive, Matrix> WorldPriorToWorldTransforms = new Dictionary<SiteDrive, Matrix>();
+        private SiteDrive BaseSiteDrive;
+        private SparseDEMImage Dem;
+        private Matrix DemToBaseSiteDrive;
+        private Matrix BaseSiteDriveToWorld;
+        private Matrix DemToWorld;
+
+        private List<SiteDrive> Aligned = new List<SiteDrive>();
+        private List<SiteDrive> Unaligned = new List<SiteDrive>();
+
+        private Func<SiteDrive, Matrix> CreateBEVToWorldMatrix;
 
         public HeightmapAligner(HeightmapAlignerOptions options) : base(options)
         {
@@ -80,11 +98,9 @@ namespace OPS.Landform
         /// <returns></returns>
         public int Run()
         {
-            this.ParseArgumentsAndLoadCaches(OUT_DIR);
-
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+            if (!ParseArgumentsAndLoadCaches())
             {
-                return 1;
+                return 0; //help
             }
 
             var wedgeOpts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
@@ -107,13 +123,88 @@ namespace OPS.Landform
                 .OrderByDescending(sd => sd)
                 .ToList();
 
-            LoadOrRenderBEVs();
+            RunPhase("load or render birds eye views.", LoadOrRenderBevDems); //observations -> bevs, dems
+            RunPhase("Prioritize site drives.", PrioritizeSiteDrives);
+            pipeline.LogInfo("Base site drive for alignment is {0}.", BaseSiteDrive);
+            RunPhase("Load prior transforms.", LoadPriorTransforms);
+            RunPhase("Compute pairwise distances between site drive centers.", ComputePairwiseDistances);
+          
+            CreateBEVToWorldMatrix = siteDrive =>
+            {
+                //Computes transform from unprojected (orthographic) bev to root frame
+                //First convert to site drive frame:
+                //  Flip Y axis as ortho projects y-up, bevs are rendered y-down
+                //  Offset to center on site drive computed in pixel space, then scaled to meters:
+                //  1. Compute pixel corresponding to site drive origin in bev. 
+                //     This logic is the same as BevAligner.PointToPixel() but includes z offset.
+                //     Note that bevs are rendered using priors, we use the same here 
+                //  2. Points are unprojected relative to image center, so offset by width/2, height/2
+                //Then convert to root frame using best available transform
 
+                Matrix flipY = new Matrix(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
+
+                var sdToRootPrior = frameCache.GetBestPrior(siteDrive.ToString()).Transform.Mean;
+                var zOff = Vector3.Transform(new Vector3(0, 0, 0), sdToRootPrior).Z;
+
+                var sdDem = dems[siteDrive];
+                var sdOriginPixel = this.sdOriginPixel[siteDrive];
+                var offsetCorrection = Matrix.CreateTranslation((sdDem.Width / 2.0 - sdOriginPixel.X) * MetersPerPixel,
+                                                                (sdDem.Height / 2.0 - sdOriginPixel.Y) * MetersPerPixel,
+                                                                -zOff);
+
+                var sdToRoot = frameCache.GetBestTransform(siteDrive.ToString()).Transform.Mean;
+
+                return flipY * offsetCorrection * sdToRoot;
+            };
+
+            RunPhase("Per site drive alignment to base site drive.", AlignSurfaceToBaseSiteDrive);
+
+            if (!options.NoOrbital)
+            {
+                RunPhase("Load oribital dem.", LoadOrbital);
+            }
+
+            if (!options.NoOrbital) //May be overwritten if LoadOrbital fails
+            {
+                RunPhase("Align orbital to successfully aligned sitedrives.", AlignOrbital);
+                //Alignment to dem off by enough that it's generally better to leave out failed sitedrives
+                if (options.AlignToDem)
+                {
+                    RunPhase("Align remaining sitedrives to orbital.", AlignRemainingSiteDrivesToOrbital);
+                }
+            }
+
+            RunPhase("Save surface transforms.", WriteSurfaceTransforms);
+            if(!options.NoOrbital)
+            {
+                RunPhase("Save orbital transform.", WriteOrbitalTransform);
+            }
+
+            return 0;
+        }
+
+        private bool ParseArgumentsAndLoadCaches()
+        {
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+            {
+                return false; //help
+            }
+
+            return true;
+        }
+
+        private void LoadOrRenderBevDems()
+        {
+            //TODO: Only need DEMs for heightmap align
+            base.LoadOrRenderBEVs();
             foreach (Image img in dems.Values)
             {
                 img.CameraModel = new OrthographicCameraModel(Matrix.Identity, img.Width, img.Height, MetersPerPixel);
             }
+        }
 
+        private void PrioritizeSiteDrives()
+        {
             //Select highest priority site drive as base
             Action<SiteDrivePriority> sortSiteDrives = priority =>
             {
@@ -143,87 +234,58 @@ namespace OPS.Landform
             };
 
             //Choose the highest priority site drive as the base for alignment
-            SiteDrive baseSiteDrive;
+
             if (String.IsNullOrEmpty(options.BaseSiteDrive))
             {
                 sortSiteDrives(options.BaseSiteDrivePriority);
-                baseSiteDrive = siteDrives[0];
-            } else
-            {
-                baseSiteDrive = new SiteDrive(options.BaseSiteDrive); //Allow either SSSDDDD or SSSSSDDDDD
+                BaseSiteDrive = siteDrives[0];
             }
-            siteDrives.Remove(baseSiteDrive);
-
-            pipeline.LogInfo("Base site drive for alignment is {0}", baseSiteDrive);
+            else
+            {
+                BaseSiteDrive = new SiteDrive(options.BaseSiteDrive); //Allow either SSSDDDD or SSSSSDDDDD
+            }
+            siteDrives.Remove(BaseSiteDrive);
 
             //Sort remaining by secondary priority
             sortSiteDrives(options.RemainingSiteDrivePriority);
-            siteDrives.Insert(0, baseSiteDrive);
+            siteDrives.Insert(0, BaseSiteDrive);
 
-            //Site drive to world priors
-            Dictionary<SiteDrive, TransformSource> siteDrivePriorSources = new Dictionary<SiteDrive, TransformSource>();
-            Dictionary<SiteDrive, Matrix> siteDriveToWorldPreviousBestTransforms = new Dictionary<SiteDrive, Matrix>();
+            WorldPriorToWorldTransforms[BaseSiteDrive] = Matrix.Identity;
+            Aligned.Add(BaseSiteDrive);
+        }
+
+        private void LoadPriorTransforms()
+        {
             foreach (SiteDrive siteDrive in siteDrives)
             {
                 var rec = frameCache.GetBestTransform(siteDrive.ToString());
-                siteDriveToWorldPreviousBestTransforms[siteDrive] = rec.Transform.Mean;
-                siteDrivePriorSources[siteDrive] = rec.Source;
+                SiteDriveToWorldPreviousBestTransforms[siteDrive] = rec.Transform.Mean;
+                SiteDrivePriorSources[siteDrive] = rec.Source;
                 pipeline.LogInfo("Read in {0} transform for site drive {1}", rec.Source, siteDrive);
             }
 
-            Matrix baseSiteDriveToWorld = siteDriveToWorldPreviousBestTransforms[baseSiteDrive];
+            BaseSiteDriveToWorld = SiteDriveToWorldPreviousBestTransforms[BaseSiteDrive];
+        }
 
+        private void ComputePairwiseDistances()
+        {
             //Compute pairwise distances between site drive centers
-            pipeline.LogInfo("Computing pairwise distances between site drive centers");
-            Dictionary<string, double> squaredDistances = new Dictionary<string, double>();
             foreach (SiteDrive sd1 in siteDrives)
             {
                 var p1 = rootOriginPixel[sd1];
                 foreach (SiteDrive sd2 in siteDrives)
                 {
-                    var p2 = rootOriginPixel[sd2]; 
-                    squaredDistances[sd1.ToString() + sd2.ToString()] = Math.Pow(p1.X - p2.X, 2) + Math.Pow(p1.Y - p2.Y, 2);
+                    var p2 = rootOriginPixel[sd2];
+                    SquaredDistances[sd1.ToString() + sd2.ToString()] = Math.Pow(p1.X - p2.X, 2) + Math.Pow(p1.Y - p2.Y, 2);
                 }
             }
+        }
 
-            //Alignments computed for each site drive in world frame 
-            Dictionary<SiteDrive, Matrix> worldPriorToWorldTransforms = new Dictionary<SiteDrive, Matrix>();
-            worldPriorToWorldTransforms[baseSiteDrive] = Matrix.Identity;
-
-            List<SiteDrive> aligned = new List<SiteDrive> { baseSiteDrive };
-            List<SiteDrive> unaligned = new List<SiteDrive>();
-          
-            Func<SiteDrive, Matrix> CreateBEVToWorldMatrix = siteDrive =>
-            {
-                //Computes transform from unprojected (orthographic) bev to root frame
-                //First convert to site drive frame:
-                //  Flip Y axis as ortho projects y-up, bevs are rendered y-down
-                //  Offset to center on site drive computed in pixel space, then scaled to meters:
-                //  1. Compute pixel corresponding to site drive origin in bev. 
-                //     This logic is the same as BevAligner.PointToPixel() but includes z offset.
-                //     Note that bevs are rendered using priors, we use the same here 
-                //  2. Points are unprojected relative to image center, so offset by width/2, height/2
-                //Then convert to root frame using best available transform
-
-                Matrix flipY = new Matrix(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-
-                var sdToRootPrior = frameCache.GetBestPrior(siteDrive.ToString()).Transform.Mean;
-                var zOff = Vector3.Transform(new Vector3(0, 0, 0), sdToRootPrior).Z;
-
-                var sdDem = dems[siteDrive];
-                var sdOriginPixel = this.sdOriginPixel[siteDrive];
-                var offsetCorrection = Matrix.CreateTranslation((sdDem.Width / 2.0 - sdOriginPixel.X) * MetersPerPixel,
-                                                                (sdDem.Height / 2.0 - sdOriginPixel.Y) * MetersPerPixel,
-                                                                -zOff);
-
-                var sdToRoot = frameCache.GetBestTransform(siteDrive.ToString()).Transform.Mean;
-
-                return flipY * offsetCorrection * sdToRoot;
-            };
-
+        private void AlignSurfaceToBaseSiteDrive()
+        {
             foreach (SiteDrive siteDrive in siteDrives.GetRange(1, siteDrives.Count - 1))
             {
-                pipeline.LogInfo("Beginning alignment for site drive: {0}", siteDrive.ToString());            
+                pipeline.LogInfo("Beginning alignment for site drive: {0}", siteDrive.ToString());
                 var image = dems[siteDrive];
 
                 //Align to the highest priority sitedrive with sufficient overlap
@@ -231,10 +293,10 @@ namespace OPS.Landform
                 Matrix adjustedSiteDriveToWorld = Matrix.Identity;
 
                 //Try to align to closest site drives first
-                foreach (SiteDrive otherSiteDrive in siteDrives.OrderBy(sd => squaredDistances[siteDrive.ToString() + sd.ToString()]))
+                foreach (SiteDrive otherSiteDrive in siteDrives.OrderBy(sd => SquaredDistances[siteDrive.ToString() + sd.ToString()]))
                 {
                     //Only align unalinged to aligned
-                    if (!aligned.Contains(otherSiteDrive))
+                    if (!Aligned.Contains(otherSiteDrive))
                     {
                         continue;
                     }
@@ -254,160 +316,138 @@ namespace OPS.Landform
                     }
                     Matrix adjustment = temp.Value;
                     //Align current site drive's world prior to some other site drives prior, then chain that site drive's transform.
-                    worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(adjustment) * worldPriorToWorldTransforms[otherSiteDrive];
+                    WorldPriorToWorldTransforms[siteDrive] = Matrix.Invert(adjustment) * WorldPriorToWorldTransforms[otherSiteDrive];
                     pipeline.LogInfo("Aligned site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
                     success = true;
-                    aligned.Add(siteDrive);
+                    Aligned.Add(siteDrive);
                     break;
                 }
 
                 if (!success)
                 {
                     pipeline.LogInfo("No sufficient overlap with any aligned sitedrive. Will align to orbital");
-                    unaligned.Add(siteDrive);
+                    Unaligned.Add(siteDrive);
                 }
             }
+        }
 
+        private void LoadOrbital()
+        {
             string demFilePath = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : //override by cmdline opt
                 OrbitalConfig.Instance.GetDEMFullPath(project.Mission);
-
-            bool runOrbitalAlign = true;
-            SparseDEMImage dem = null;
-            Matrix demToBaseSiteDrive = Matrix.Identity;
 
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
             if (s.GetType() != typeof(GDALSerializer))
             {
-                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
+                pipeline.LogWarn("Could not load orbital as sparse image. Partial image read only supported for GDALSerializer.");
+                options.NoOrbital = true;
             }
 
             if (File.Exists(demFilePath))
             {
                 ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out int width, out int height);
-                dem = new SparseDEMImage(demFilePath);
-                if (dem.CameraModel == null)
+                Dem = new SparseDEMImage(demFilePath);
+                if (Dem.CameraModel == null)
                 {
-                    dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
+                    Dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, Dem.Width, Dem.Height, mission.GetDemMetersPerPixel());
                 }
-                if (mission.GetDemToSiteDriveOffset(baseSiteDrive, out Matrix demToSD, demFilePath)) {
-
-                    demToBaseSiteDrive = demToSD * DemOperations.demToSitedriveCoordinateFlip;
-                } else
+                if (mission.GetDemToSiteDriveOffset(BaseSiteDrive, out Matrix demToSD, demFilePath))
                 {
-                    pipeline.LogWarn("Failed to access places; running without orbital");
-                    runOrbitalAlign = false;
+
+                    DemToBaseSiteDrive = demToSD * DemOperations.demToSitedriveCoordinateFlip;
+                }
+                else
+                {
+                    pipeline.LogWarn("Failed to access places; running without orbital.");
+                    options.NoOrbital = true;
                 }
             }
             else
             {
                 pipeline.LogWarn("Failed to load orbital DEM, running without orbital");
-                runOrbitalAlign = false;
+                options.NoOrbital = true;
             }
+        }
 
-            //Align dem to all aligned site drives
-            if (runOrbitalAlign)
+        private void AlignOrbital()
+        {
+            pipeline.LogInfo("Beginning alignment for DEM");
+
+            var alignedImages = Aligned.Select(sd => dems[sd]).ToArray();
+            Matrix[] bevsToWorld = Aligned.Select(sd => CreateBEVToWorldMatrix(sd) * WorldPriorToWorldTransforms[sd]).ToArray();
+
+            //First do naive vertical alignment in base site drive since transform to world may have slight rotation (not commutative)
+            Matrix zCorrectedPrior = DemToBaseSiteDrive *
+                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(BaseSiteDriveToWorld), Dem, DemToBaseSiteDrive,
+                false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+
+            //Run alignment for dem in world frame
+            Matrix demToWorldPrior = zCorrectedPrior * frameCache.GetBestTransform(BaseSiteDrive.ToString()).Transform.Mean;
+            Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, Dem, demToWorldPrior, false,
+                options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+            DemToWorld = demToWorldPrior * demWorldPriorToWorld;
+
+            if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))
             {
-                pipeline.LogInfo("Beginning alignment for DEM");
+                Vector2 sdOriginPixel;
+                mission.GetSiteDriveOriginPixelInDem(BaseSiteDrive, out sdOriginPixel);
 
-                var alignedImages = aligned.Select(sd => dems[sd]).ToArray();
-                Matrix[] bevsToWorld = aligned.Select(sd => CreateBEVToWorldMatrix(sd) * worldPriorToWorldTransforms[sd]).ToArray();            
+                //Get subset of dem around sitedrive
+                int pixelRadius = (int)(200 / mission.GetDemMetersPerPixel());
+                int baseC = (int)Math.Max(sdOriginPixel.X - pixelRadius, 0);
+                int baseR = (int)Math.Max(sdOriginPixel.Y - pixelRadius, 0);
+                int pixelWidth = (int)Math.Min(sdOriginPixel.X + pixelRadius, Dem.Width) - baseC;
+                int pixelHeight = (int)Math.Min(sdOriginPixel.Y + pixelRadius, Dem.Height) - baseR;
 
-                //First do naive vertical alignment in base site drive since transform to world may have slight rotation (not commutative)
-                Matrix zCorrectedPrior = demToBaseSiteDrive *
-                    DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive,
-                    false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
-
-                //Run alignment for dem in world frame
-                Matrix demToWorldPrior = zCorrectedPrior * frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean;
-                Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, false,
-                    options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
-                Matrix demToWorld = demToWorldPrior * demWorldPriorToWorld;
-
-                //Alignment to dem off by enough that it's better to leave out
-                if (options.AlignToDem)
+                //Create dem mesh in root site drive frame
+                Mesh demPointCloud = new Mesh();
+                for (int r = 0; r < pixelHeight; r++)
                 {
-                    //Align remaining sitedrives to dem
-                    foreach (SiteDrive siteDrive in unaligned)
+                    for (int c = 0; c < pixelWidth; c++)
                     {
-                        pipeline.LogInfo("Aligning site drive {0} to DEM.", siteDrive);
-                        var image = dems[siteDrive];
-
-                        Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
-                        Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
-                            false, options.NumAnnealingStages, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
-                        worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
-                    }
-                }
-
-                if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))
-                {
-                    Vector2 sdOriginPixel;
-                    mission.GetSiteDriveOriginPixelInDem(baseSiteDrive, out sdOriginPixel);
-
-                    //Get subset of dem around sitedrive
-                    int pixelRadius = (int)(200 / mission.GetDemMetersPerPixel());
-                    int baseC = (int)Math.Max(sdOriginPixel.X - pixelRadius, 0);
-                    int baseR = (int)Math.Max(sdOriginPixel.Y - pixelRadius, 0);
-                    int pixelWidth = (int)Math.Min(sdOriginPixel.X + pixelRadius, dem.Width) - baseC;
-                    int pixelHeight = (int)Math.Min(sdOriginPixel.Y + pixelRadius, dem.Height) - baseR;
-
-                    //Create dem mesh in root site drive frame
-                    Mesh demPointCloud = new Mesh();
-                    for (int r = 0; r < pixelHeight; r++)
-                    {
-                        for (int c = 0; c < pixelWidth; c++)
+                        var pos = DemOperations.GetXYZ(Dem, baseR + r, baseC + c, options.VerticalScale, true, options.DEMMinFilter, options.DEMMaxFilter);
+                        if (pos.HasValue)
                         {
-                            var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c, options.VerticalScale, true, options.DEMMinFilter, options.DEMMaxFilter);
-                            if (pos.HasValue)
-                            {
-                                Vertex v = new Vertex();
-                                v.Position = pos.Value;
-                                v.UV = dem.PixelToUV(new Vector2(baseC + c, baseR + r));
-                                demPointCloud.Vertices.Add(v);
-                            }
+                            Vertex v = new Vertex();
+                            v.Position = pos.Value;
+                            v.UV = Dem.PixelToUV(new Vector2(baseC + c, baseR + r));
+                            demPointCloud.Vertices.Add(v);
                         }
                     }
-                    Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
-                    demMesh.Transform(demToWorld * Matrix.Invert(frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean));
-                    demMesh.Save(options.WriteClippedDemToPath);
                 }
-
-                string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
-                //Orbital frame
-                {
-                    var demUt = new UncertainRigidTransform(demToWorld);
-                    var rootFrame = frameCache.GetFrame(baseSiteDrive.ToString()).GetParent(pipeline);
-                    if (!frameCache.ContainsFrame(orbitalFrameName))
-                    {
-                        frameCache.Add(Frame.Create(pipeline, project.Name, orbitalFrameName, rootFrame));
-                    }
-                    var orbitalFrame = frameCache.GetFrame(orbitalFrameName);
-                    var demFt = FrameTransform.FindOrCreate(pipeline, orbitalFrame, TransformSource.LandformOrbital, demUt);
-                    demFt.Transform = demUt;
-                    demFt.Save(pipeline);
-                    bool added = false;
-                    lock (orbitalFrame.Transforms)
-                    {
-                        added = orbitalFrame.Transforms.Add(demFt.Source);
-                    }
-                    if (added)
-                    {
-                        orbitalFrame.Save(pipeline);
-                    }
-                    pipeline.LogInfo("saved {0} adjusted transform for {1}", TransformSource.LandformOrbital, orbitalFrameName);
-                }
+                Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
+                demMesh.Transform(DemToWorld * Matrix.Invert(frameCache.GetBestTransform(BaseSiteDrive.ToString()).Transform.Mean));
+                demMesh.Save(options.WriteClippedDemToPath);
             }
+        }
 
+        private void AlignRemainingSiteDrivesToOrbital()
+        {
+            //Align remaining sitedrives to dem
+            foreach (SiteDrive siteDrive in Unaligned)
+            {
+                pipeline.LogInfo("Aligning site drive {0} to DEM.", siteDrive);
+                var image = dems[siteDrive];
+
+                Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
+                Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, Dem, DemToWorld,
+                    false, options.NumAnnealingStages, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+                WorldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
+            }
+        }
+
+        private void WriteSurfaceTransforms()
+        {
             foreach (SiteDrive siteDrive in siteDrives)
             {
-                if(!worldPriorToWorldTransforms.ContainsKey(siteDrive))
+                if (!WorldPriorToWorldTransforms.ContainsKey(siteDrive))
                 {
                     pipeline.LogWarn("Failed to generate {0} transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
                     continue;
                 }
 
                 var adjustedSiteDriveToWorld = frameCache.GetBestTransform(siteDrive.ToString()).Transform.Mean
-                                               * worldPriorToWorldTransforms[siteDrive];
+                                                * WorldPriorToWorldTransforms[siteDrive];
 
                 var ut = new UncertainRigidTransform(adjustedSiteDriveToWorld);
                 var frame = frameCache.GetFrame(siteDrive.ToString());
@@ -424,8 +464,35 @@ namespace OPS.Landform
                     frame.Save(pipeline);
                 }
                 pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
-            }            
-            return 0;
+            }
+        }
+
+        private void WriteOrbitalTransform()
+        {
+            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
+            //Orbital frame
+            {
+                var demUt = new UncertainRigidTransform(DemToWorld);
+                var rootFrame = frameCache.GetFrame(BaseSiteDrive.ToString()).GetParent(pipeline);
+                if (!frameCache.ContainsFrame(orbitalFrameName))
+                {
+                    frameCache.Add(Frame.Create(pipeline, project.Name, orbitalFrameName, rootFrame));
+                }
+                var orbitalFrame = frameCache.GetFrame(orbitalFrameName);
+                var demFt = FrameTransform.FindOrCreate(pipeline, orbitalFrame, TransformSource.LandformOrbital, demUt);
+                demFt.Transform = demUt;
+                demFt.Save(pipeline);
+                bool added = false;
+                lock (orbitalFrame.Transforms)
+                {
+                    added = orbitalFrame.Transforms.Add(demFt.Source);
+                }
+                if (added)
+                {
+                    orbitalFrame.Save(pipeline);
+                }
+                pipeline.LogInfo("saved {0} adjusted transform for {1}", TransformSource.LandformOrbital, orbitalFrameName);
+            }
         }
     }
 }
