@@ -629,23 +629,23 @@ namespace OPS.Geometry
                 EdgeGraph edgeGraph = new EdgeGraph(copy);
 
                 //Compute a skirt location for each perimeter vertex based on the normals of surrounding triangles. If a previous skirt vertex is "good enough" based on `threshold', it may be used instead of creating a new one
-                foreach (VertexNode vNode in edgeGraph.VertNodes)
+                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
                 {
                     if (vNode.IsOnPerimeter)
                     {
                         List<Vertex> candidates = new List<Vertex>();
                         Vector3 averageNormal = new Vector3(0, 0, 0);
-                        foreach (OPS.Geometry.Edge e1 in vNode.AdjacentEdges)
+                        foreach (Edge e1 in vNode.GetAdjacentEdges())
                         {
                             if (e1.IsPerimeterEdge)
                             {
-                                candidates.Add(e1.Dst.Vert);
+                                candidates.Add(e1.Dst);
                             }
-                            foreach (OPS.Geometry.Edge e2 in e1.Dst.AdjacentEdges)
+                            foreach (Edge e2 in e1.Dst.GetAdjacentEdges())
                             {
                                 if (e2.Left != null)
                                 {
-                                    Triangle t = new Triangle(e2.Src.Vert.Position, e2.Dst.Vert.Position, e2.Left.Vert.Position);
+                                    Triangle t = new Triangle(e2.Src.Position, e2.Dst.Position, e2.Left.Position);
                                     averageNormal += t.Normal * t.Area();
                                 }
                             }
@@ -653,16 +653,16 @@ namespace OPS.Geometry
                         averageNormal.Normalize();
                         Vector3 offset = averageNormal * -1 * height;
 
-                        Vertex vSkirt = new Vertex(vNode.Vert.Position + offset, vNode.Vert.Normal, vNode.Vert.Color, vNode.Vert.UV);
+                        Vertex vSkirt = new Vertex(vNode.Position + offset, vNode.Normal, vNode.Color, vNode.UV);
 
                         bool shouldAddSkirtVertex = true;
 
                         foreach (Vertex candidate in skirtMap.Keys)
                         {
                             Vertex skirtCandidate = skirtMap[candidate];
-                            if ((vSkirt.Position - vNode.Vert.Position).LengthSquared() > (skirtCandidate.Position - vNode.Vert.Position).LengthSquared() || (skirtCandidate.Position - vSkirt.Position).Length() < threshold * offset.Length())
+                            if ((vSkirt.Position - vNode.Position).LengthSquared() > (skirtCandidate.Position - vNode.Position).LengthSquared() || (skirtCandidate.Position - vSkirt.Position).Length() < threshold * offset.Length())
                             {
-                                skirtMap.Add(vNode.Vert, skirtCandidate);
+                                skirtMap.Add(vNode, skirtCandidate);
                                 shouldAddSkirtVertex = false;
                                 break;
                             }
@@ -672,28 +672,28 @@ namespace OPS.Geometry
                         {
                             this.Vertices.Add(vSkirt);
                             posToVert.Add(vSkirt.Position, new List<Vertex> { vSkirt });
-                            skirtMap.Add(vNode.Vert, vSkirt);
+                            skirtMap.Add(vNode, vSkirt);
                         }
                     }
 
                 }
 
                 //Add in the faces for the new skirt vertices
-                foreach (VertexNode vNode in edgeGraph.VertNodes)
+                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
                 {
                     if (vNode.IsOnPerimeter)
                     {
-                        foreach (OPS.Geometry.Edge e in vNode.AdjacentEdges)
+                        foreach (Edge e in vNode.GetAdjacentEdges())
                         {
                             if (e.IsPerimeterEdge && e.Left != null)
                             {
-                                Vertex v1 = skirtMap[e.Src.Vert];
-                                Vertex v2 = skirtMap[e.Dst.Vert];
+                                Vertex v1 = skirtMap[e.Src];
+                                Vertex v2 = skirtMap[e.Dst];
 
                                 int v1Index = Vertices.IndexOf(posToVert[v1.Position][0]);
                                 int v2Index = Vertices.IndexOf(posToVert[v2.Position][0]);
-                                int srcIndex = Vertices.IndexOf(posToVert[e.Src.Vert.Position][0]);
-                                int dstIndex = Vertices.IndexOf(posToVert[e.Dst.Vert.Position][0]);
+                                int srcIndex = Vertices.IndexOf(posToVert[e.Src.Position][0]);
+                                int dstIndex = Vertices.IndexOf(posToVert[e.Dst.Position][0]);
                                 this.Faces.Add(new Face(srcIndex, v1Index, dstIndex));
                                 this.Faces.Add(new Face(v1Index, v2Index, dstIndex));
                             }
@@ -739,38 +739,38 @@ namespace OPS.Geometry
                 }
 
                 // List of resulting exterior edges that are connected by only one face
-                List<Edge> edges = GetExteriorEdges();
+                List<SimpleEdge> edges = GetExteriorEdges();
 
                 // Pairing between points at the edge and the corresponding skirt point on the mesh
                 Dictionary<Vertex, Vertex> edgeToSkirtPoints = new Dictionary<Vertex, Vertex>();
 
                 // Copy each vertex down from the edge of the mesh to the skirt and form two triangles along the edge
-                foreach (Edge edge in edges)
+                foreach (SimpleEdge edge in edges)
                 {
                     // Copy edge vertex A to the skirt position
-                    if (!edgeToSkirtPoints.ContainsKey(edge.A))
+                    if (!edgeToSkirtPoints.ContainsKey(edge.Src))
                     {
-                        Vertex newVertex = new Vertex(edge.A.Position + offset, edge.A.Normal, edge.A.Color, edge.A.UV);
+                        Vertex newVertex = new Vertex(edge.Src.Position + offset, edge.Src.Normal, edge.Src.Color, edge.Src.UV);
                         Vertices.Add(newVertex);
-                        edgeToSkirtPoints.Add(edge.A, newVertex);
+                        edgeToSkirtPoints.Add(edge.Src, newVertex);
                     }
-                    Vertex aSkirt = edgeToSkirtPoints[edge.A];
+                    Vertex aSkirt = edgeToSkirtPoints[edge.Src];
 
                     // Get the indexes of the new point and skirt point in the list of mesh vertices
-                    int aIndex = Vertices.IndexOf(edge.A);
+                    int aIndex = Vertices.IndexOf(edge.Src);
                     int aSkirtIndex = Vertices.IndexOf(aSkirt);
 
                     // Copy edge vertex B to the skirt position
-                    if (!edgeToSkirtPoints.ContainsKey(edge.B))
+                    if (!edgeToSkirtPoints.ContainsKey(edge.Dst))
                     {
-                        Vertex newVertex = new Vertex(edge.B.Position + offset, edge.B.Normal, edge.B.Color, edge.B.UV);
+                        Vertex newVertex = new Vertex(edge.Dst.Position + offset, edge.Dst.Normal, edge.Dst.Color, edge.Dst.UV);
                         Vertices.Add(newVertex);
-                        edgeToSkirtPoints.Add(edge.B, newVertex);
+                        edgeToSkirtPoints.Add(edge.Dst, newVertex);
                     }
-                    Vertex bSkirt = edgeToSkirtPoints[edge.B];
+                    Vertex bSkirt = edgeToSkirtPoints[edge.Dst];
 
                     // Get the indexes of the new point and skirt point in the list of mesh vertices
-                    int bIndex = Vertices.IndexOf(edge.B);
+                    int bIndex = Vertices.IndexOf(edge.Dst);
                     int bSkirtIndex = Vertices.IndexOf(bSkirt);
 
                     // Construct both triangles for the face
@@ -785,13 +785,13 @@ namespace OPS.Geometry
         public List<Vertex> EdgeVertices()
         {
             // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
-            List<Edge> edges = GetExteriorEdges();
+            List<SimpleEdge> edges = GetExteriorEdges();
             // Put each vertex in another hashset from all the edges
             HashSet<Vertex> edgeVertices = new HashSet<Vertex>();
-            foreach (Edge edge in edges)
+            foreach (SimpleEdge edge in edges)
             {
-                edgeVertices.Add(edge.A);
-                edgeVertices.Add(edge.B);
+                edgeVertices.Add(edge.Src);
+                edgeVertices.Add(edge.Dst);
             }
             return edgeVertices.ToList();
         }
@@ -800,15 +800,15 @@ namespace OPS.Geometry
         /// Returns a list of edge structs holding the two vertices forming the edges wherever the mesh has only one face using the edge
         /// </summary>
         /// <returns></returns>
-        private List<Edge> GetExteriorEdges()
+        private List<SimpleEdge> GetExteriorEdges()
         {
             // Unordered set of edges
-            HashSet<Edge> edges = new HashSet<Edge>();
+            HashSet<SimpleEdge> edges = new HashSet<SimpleEdge>();
 
             // Put each edge in the hashset and remove it if it already exists
             foreach (Face face in Faces)
             {
-                Edge edge0 = new Edge(Vertices[face.P0], Vertices[face.P1]);
+                SimpleEdge edge0 = new SimpleEdge(Vertices[face.P0], Vertices[face.P1]);
                 if (edges.Contains(edge0))
                 {
                     edges.Remove(edge0);
@@ -818,7 +818,7 @@ namespace OPS.Geometry
                     edges.Add(edge0);
                 }
 
-                Edge edge1 = new Edge(Vertices[face.P1], Vertices[face.P2]);
+                SimpleEdge edge1 = new SimpleEdge(Vertices[face.P1], Vertices[face.P2]);
                 if (edges.Contains(edge1))
                 {
                     edges.Remove(edge1);
@@ -828,7 +828,7 @@ namespace OPS.Geometry
                     edges.Add(edge1);
                 }
 
-                Edge edge2 = new Edge(Vertices[face.P2], Vertices[face.P0]);
+                SimpleEdge edge2 = new SimpleEdge(Vertices[face.P2], Vertices[face.P0]);
                 if (edges.Contains(edge2))
                 {
                     edges.Remove(edge2);
@@ -1717,15 +1717,15 @@ namespace OPS.Geometry
 
             min = double.PositiveInfinity;
             max = double.NegativeInfinity;
-            foreach (var v in graph.VertNodes)
+            foreach (var v in graph.GetVertNodes())
             {
                 double maxAbsCurvature = 0;
-                foreach (var e in v.AdjacentEdges)
+                foreach (var e in v.GetAdjacentEdges())
                 {
-                    var c = Math.Abs(Curvature(v.Vert.Position, e.Dst.Vert.Position, v.Vert.Normal, e.Dst.Vert.Normal));
+                    var c = Math.Abs(Curvature(v.Position, e.Dst.Position, v.Normal, e.Dst.Normal));
                     maxAbsCurvature = Math.Max(maxAbsCurvature, c);
                 }
-                v.Vert.Color.X = v.Vert.Color.Y = v.Vert.Color.Z = maxAbsCurvature;
+                v.Color.X = v.Color.Y = v.Color.Z = maxAbsCurvature;
                 min = Math.Min(min, maxAbsCurvature);
                 max = Math.Max(max, maxAbsCurvature);
             }
@@ -1862,36 +1862,6 @@ namespace OPS.Geometry
                 throw new MeshSerializerException("Mesh format not supported");
             }
             return s.LoadAllLODs(filename);
-        }
-
-        /// <summary>
-        /// An edge that holds two vertices
-        /// </summary>
-        private struct Edge
-        {
-            public Vertex A;
-            public Vertex B;
-
-            public Edge(Vertex a, Vertex b)
-            {
-                A = a;
-                B = b;
-            }
-
-            public override int GetHashCode()
-            {
-                // Warning: Unlike the Equals() method below, this is exact, not AlmostEqual
-                return A.GetHashCode() + B.GetHashCode();
-            }
-
-            public override bool Equals(Object other)
-            {
-                if (other.GetType() != typeof(Edge)) return false;
-
-                Edge e = (Edge)other;
-                return (A.Position.AlmostEqual(e.A.Position) && B.Position.AlmostEqual(e.B.Position))
-                    || (B.Position.AlmostEqual(e.A.Position) && A.Position.AlmostEqual(e.B.Position));
-            }
         }
 
         public struct FaceStats

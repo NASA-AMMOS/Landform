@@ -153,13 +153,17 @@ namespace OPS.Landform
 
         public int Run()
         {
-            StartStopwatch();
-
             try
             {
                 if (!ParseArgumentsAndLoadCaches())
                 {
                     return 0; //help
+                }
+
+                if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
+                {
+                    pipeline.LogWarn("at least two site drives required");
+                    return 0;
                 }
 
                 pipeline.LogInfo("computing birds eye view alignment for {0} site drives", siteDrives.Length);
@@ -227,11 +231,6 @@ namespace OPS.Landform
             if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
             {
                 return false; //help
-            }
-
-            if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
-            {
-                throw new Exception("at least two site drives required");
             }
 
             return true;

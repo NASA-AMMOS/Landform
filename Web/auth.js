@@ -38,7 +38,7 @@ router.get('/auth/logout', (req, res) => {
 
 function checkLDAPGroup(uid) {
   return new Promise((resolve, reject) => {
-    const ldapClient = createLDAPClient({ url: config.ldap.url });
+    const ldapClient = createLDAPClient({ url: config.ldap.url, tlsOptions: config.ldap.tlsOptions });
     let found = false;
     function onConnect() {
       ldapClient.search(

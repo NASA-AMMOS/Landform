@@ -38,7 +38,7 @@ namespace OPS.Pipeline.TilingServer
 
         public bool FinishedRunning;
 
-        public HashSet<string> InputNames = new HashSet<string>(); //MT safety: lock before accessing
+        public string InputNamesUrl;
 
         public string NodeIdsUrl;
 
@@ -151,10 +151,11 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
-            var inputs = TilingInput.Find(pipeline, this, pipeline.Logger);
-            pipeline.LogInfo("deleting {0} inputs", inputs.Count());
-            foreach (var input in inputs)
+            var inputNames = LoadInputNames(pipeline);
+            pipeline.LogInfo("deleting {0} inputs", inputNames.Count());
+            foreach (var inputName in inputNames)
             {
+                var input = TilingInput.Find(pipeline, Name, inputName);
                 if (input != null)
                 {
                     input.Delete(pipeline, ignoreErrors, keepMeshes);
@@ -185,6 +186,12 @@ namespace OPS.Pipeline.TilingServer
                 pipeline.DeleteFile(NodeIdsUrl, ignoreErrors);
             }
 
+            if (!string.IsNullOrEmpty(InputNamesUrl))
+            {
+                pipeline.LogInfo("deleting input names");
+                pipeline.DeleteFile(InputNamesUrl, ignoreErrors);
+            }
+
             pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
@@ -213,28 +220,50 @@ namespace OPS.Pipeline.TilingServer
 
         public List<string> LoadNodeIds(PipelineCore pipeline)
         {
-            List<string> ids = null;
-            if (!string.IsNullOrEmpty(NodeIdsUrl))
-            {
-                pipeline.GetFile(NodeIdsUrl, f =>
-                {
-                    ids = ((JArray)JsonHelper.FromJson(File.ReadAllText(f), autoTypes: false)).ToObject<List<string>>();
-                });
-            }
-            return ids;
+            return LoadStringArray(NodeIdsUrl, pipeline);
         }
 
         public string SaveNodeIds(List<string> ids, PipelineCore pipeline)
         {
             var url = pipeline.GetStorageUrl(InternalTileDir, Name, "nodeids.json");
-            TemporaryFile.GetAndDelete(".json", tmpJson =>
-            {
-                var json = JsonHelper.ToJson(ids, autoTypes: false);
-                File.WriteAllText(tmpJson, json);
-                pipeline.SaveFile(tmpJson, url);
-            });
+            SaveStringArray(url, ids, pipeline);
             NodeIdsUrl = url;
             return url;
+        }
+
+        public List<string> LoadInputNames(PipelineCore pipeline)
+        {
+            return LoadStringArray(InputNamesUrl, pipeline);
+        }
+
+        public string SaveInputNames(List<string> names, PipelineCore pipeline)
+        {
+            var url = pipeline.GetStorageUrl(InternalTileDir, Name, "inputnames.json");
+            SaveStringArray(url, names, pipeline);
+            InputNamesUrl = url;
+            return url;
+        }
+
+        private List<string> LoadStringArray(string url, PipelineCore pipeline)
+        {
+            List<string> ret = new List<string>();
+            if (!string.IsNullOrEmpty(url))
+            {
+                pipeline.GetFile(url, f =>
+                {
+                    ret = ((JArray)JsonHelper.FromJson(File.ReadAllText(f), autoTypes: false)).ToObject<List<string>>();
+                });
+            }
+            return ret;
+        }
+
+        private void SaveStringArray(string url, List<string> strings, PipelineCore pipeline)
+        {
+            TemporaryFile.GetAndDelete(".json", tmpJson =>
+            {
+                File.WriteAllText(tmpJson, JsonHelper.ToJson(strings, autoTypes: false));
+                pipeline.SaveFile(tmpJson, url);
+            });
         }
     }
 }

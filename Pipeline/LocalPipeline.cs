@@ -24,7 +24,8 @@ namespace OPS.Pipeline
         public LocalPipeline(PipelineCoreOptions options, LocalPipelineConfig config,
                              ILog logger = null, bool quietInit = false,
                              int? lruImageCache = null, int? lruDataProductCache = null,
-                             bool initQueues = true, bool initTables = true, int? maxCores = null)
+                             bool initQueues = true, bool initAlignmentTables = true, bool initTilingTables = true,
+                             int? maxCores = null)
             : base(options, config,
                    StringHelper.NormalizeUrl(config.StorageDir, "file://"),
                    config.Venue, logger, quietInit,
@@ -44,17 +45,19 @@ namespace OPS.Pipeline
                 InitPhase("initialize message queues", InitializeQueues);
             }
 
-            if (initTables)
+            if (initAlignmentTables || initTilingTables)
             {
-                InitPhase("initialize database", () => InitializeDatabase(Quiet || quietInit));
+                InitPhase("initialize database",
+                          () => InitializeDatabase(Quiet || quietInit, initAlignmentTables, initTilingTables));
             }
         }
 
         public LocalPipeline(PipelineCoreOptions options, ILog logger = null, bool quietInit = false,
                              int? lruImageCache = null, int? lruDataProductCache = null,
-                             bool initQueues = true, bool initTables = true, int? maxCores = null)
+                             bool initQueues = true, bool initAlignmentTables = true, bool initTilingTables = true,
+                             int? maxCores = null)
             : this(options, LocalPipelineConfig.Instance, logger, quietInit, lruImageCache, lruDataProductCache,
-                   initQueues, initTables, maxCores)
+                   initQueues, initAlignmentTables, initTilingTables, maxCores)
         {}
 
         private string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
@@ -392,15 +395,11 @@ namespace OPS.Pipeline
             return GetDatabaseTableUrl(ti) + hash + (!string.IsNullOrEmpty(range) ? "-" + range : "") + ".json";
         }
 
-        private void InitializeDatabase(bool quiet = false)
+        private void InitializeDatabase(bool quiet, bool alignment, bool tiling)
         {
-            if (!quiet)
-            {
-                LogInfo("initializing {0} database tables...", tableTypes.Length);
-            }
             double startSec = UTCTime.Now();
             int nt = 0, ni = 0;
-            foreach (var t in tableTypes)
+            foreach (var t in InitTableTypes(quiet, alignment, tiling))
             {
                 nt++;
                 var ti = GetTableInfo(t, expectExists: false);
@@ -436,7 +435,7 @@ namespace OPS.Pipeline
                                ti.Name, nti, ti.TypeName, baseUrl, ti.HashKey, ti.RangeKey);
                 }
             }
-            if (!quiet)
+            if (!quiet && nt > 0)
             {
                 LogInfo("initialized {0} database tables, {1} total items, {2:F3} sec", nt, ni, UTCTime.Now() - startSec);
             }

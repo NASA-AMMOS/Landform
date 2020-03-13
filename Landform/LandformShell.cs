@@ -31,10 +31,10 @@ namespace OPS.Landform
         public override string ImageFormat { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Recursively search for meshes under input folders")]
-        public bool RecursiveSearch { get; set; }
+        public virtual bool RecursiveSearch { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Case sensitive search for meshes and images")]
-        public bool CaseSensitiveSearch { get; set; }
+        public virtual bool CaseSensitiveSearch { get; set; }
 
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
@@ -62,10 +62,23 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
         public int MaxCores { get; set; }
+
+        [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
+        public string ExportMeshFormat { get; set; }
+
+        [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
+        public string ExportImageFormat { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
     {
+        public const string TILESET_JSON = "tileset.json";
+        public const string SCENE_JSON = "scene.json";
+        public const string STATS_TXT = "stats.txt";
+
+        public const string RDR_SUBDIR = "rdr";
+        public const string TILESET_SUBDIR = "tileset";
+
         protected LandformShellOptions lsopts;
 
         protected string landformExe;
@@ -101,6 +114,24 @@ namespace OPS.Landform
 
         protected virtual bool ParseArguments()
         {
+            if (!string.IsNullOrEmpty(lsopts.ExportMeshFormat))
+            {
+                if (MeshSerializers.Instance.CheckFormat(lsopts.ExportMeshFormat, pipeline) == null)
+                {
+                    return false; //help
+                }
+                pipeline.LogInfo("export mesh format: {0}", lsopts.ExportMeshFormat);
+            }
+            
+            if (!string.IsNullOrEmpty(lsopts.ExportImageFormat))
+            {
+                if (ImageSerializers.Instance.CheckFormat(lsopts.ExportImageFormat, pipeline) == null)
+                {
+                    return false; //help
+                }
+                pipeline.LogInfo("export image format: {0}", lsopts.ExportImageFormat);
+            }
+
             project = GetProject();
             if (project != null)
             {
@@ -165,6 +196,11 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override bool ParseArguments(string outDir)
+        {
+            throw new InvalidOperationException(); //only the no-arg version is supported here
+        }
+
         protected override MissionSpecific GetMission()
         {
             return MissionSpecific.GetInstance(lsopts.Mission);
@@ -205,7 +241,7 @@ namespace OPS.Landform
 
         protected void SaveFile(string file, string url)
         {
-            SaveFile(pipeline, () => storageHelper, file, url, lsopts.DryRun);
+            SaveFile(pipeline, () => storageHelper, file, url, lsopts.DryRun || lsopts.NoSave);
         }
 
         public static bool FileExists(PipelineCore pipeline, Func<StorageHelper> storageHelper, string url)
@@ -244,10 +280,11 @@ namespace OPS.Landform
 
             pipeline.LogInfo("{0}getting {1}", dryRun ? "dry " : "", url);
 
-            if (url.StartsWith("s3://") && !(pipeline is CloudPipeline))
+            if ((url.StartsWith("s3://") && !(pipeline is CloudPipeline)) || dryRun)
             {
                 path = pipeline.DownloadCachePath(cacheDir, filename);
-                if (!File.Exists(path))
+                pipeline.LogInfo("{0}downloading {1} -> {2}", dryRun ? "dry " : "", url, path);
+                if (!File.Exists(path) && !dryRun)
                 {
                     for (int tries = maxRetries; tries > 0; tries--)
                     {
@@ -303,10 +340,10 @@ namespace OPS.Landform
 
         protected void RunCommand(string cmd, params string[] args)
         {
-            RunCommand(null, cmd, args);
+            RunCommand(cmd, null, args);
         }
 
-        protected void RunCommand(HashSet<string> flags, string cmd, params string[] args)
+        protected void RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
         {
             cmd = cmd + " " + string.Join(" ", args);
             var stdFlags = new Dictionary<string, bool>()
@@ -323,7 +360,7 @@ namespace OPS.Landform
                 };
             foreach (var entry in stdFlags)
             {
-                if ((flags == null || flags.Contains(entry.Key)) && entry.Value)
+                if ((allowedFlags == null || allowedFlags.Contains(entry.Key)) && entry.Value)
                 {
                     cmd += " " + entry.Key;
                 }
@@ -403,8 +440,8 @@ namespace OPS.Landform
 
         protected void Configure(string venue)
         {
-            var flags = new HashSet<string>() { "--quiet", "--debug" };
-            RunCommand(flags, "configure-local", "--venue", venue, "--storagedir", storageDir,
+            var allowedFlags = new HashSet<string>() { "--quiet", "--debug" };
+            RunCommand("configure-local", allowedFlags, "--venue", venue, "--storagedir", storageDir,
                        "--maxcores", lsopts.MaxCores.ToString(), "--randomseed", lsopts.RandomSeed.ToString());
         }
 
@@ -414,6 +451,76 @@ namespace OPS.Landform
             if (ms > 0)
             {
                 Thread.Sleep(ms);
+            }
+        }
+
+        protected string GetTilesetDir(string venue, string meshFrame, string project)
+        {
+            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}",
+                                 storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, project);
+        }
+
+        protected string GetDestDir(string inputFolder)
+        {
+            if (!string.IsNullOrEmpty(outputFolder))
+            {
+                return outputFolder;
+            }
+            inputFolder = StringHelper.EnsureTrailingSlash(StringHelper.NormalizeSlashes(inputFolder));
+            string rdrSegment = string.Format("/{0}/", RDR_SUBDIR.ToLower());
+            int rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
+            return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegment.Length) : inputFolder) + TILESET_SUBDIR;
+        }
+
+        protected void BuildTileset(string project, params string[] extraArgs)
+        {
+            var args = new List<string>() { project };
+
+            if (!string.IsNullOrEmpty(lsopts.ExportMeshFormat))
+            {
+                args.Add("--exportmeshformat");
+                args.Add(lsopts.ExportMeshFormat);
+            }
+
+            if (!string.IsNullOrEmpty(lsopts.ExportImageFormat))
+            {
+                args.Add("--exportimageformat");
+                args.Add(lsopts.ExportImageFormat);
+            }
+
+            RunCommand("build-tileset", args.Concat(extraArgs).ToArray());
+        }
+
+        protected void SaveTileset(string tilesetDir, string project, string destDir)
+        {
+            destDir = string.Format("{0}/{1}", destDir, project);
+            
+            pipeline.LogInfo("{0}saving tileset from {1} to {2}", lsopts.DryRun ? "dry " : "", tilesetDir, destDir);
+            
+            if (!lsopts.DryRun)
+            {
+                if (!Directory.Exists(tilesetDir))
+                {
+                    throw new Exception(string.Format("local tileset directory {0} not found", tilesetDir));
+                }
+                
+                string tilesetFile = string.Format("{0}/{1}", tilesetDir, TILESET_JSON);
+                if (!File.Exists(tilesetFile))
+                {
+                    throw new Exception(string.Format("local tileset {0} not found", tilesetFile));
+                }
+                
+                foreach (var f in PathHelper.ListFiles(tilesetDir, recursive: false))
+                {
+                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON || f.Name == STATS_TXT)
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}_{2}", destDir, project, f.Name));
+                    }
+                    else
+                    {
+                        SaveFile(f.FullName, string.Format("{0}/{1}", destDir, f.Name));
+                    }
+                }
             }
         }
     }

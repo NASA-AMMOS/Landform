@@ -12,11 +12,14 @@ using OPS.Pipeline.TilingServer;
 
 namespace OPS.TilingServer
 {
-    [Verb("startmaster", HelpText = "Runs a tiling workflow")]
+    [Verb("master", HelpText = "Runs a tiling workflow")]
     public class StartMasterOptions : PipelineCoreOptions
     {
         [Option(HelpText = "Start a worker in the same process (useful for debugging)", Default = false)]
         public bool StartWorker { get; set; }
+
+        [Option(Default = false, HelpText = "Support alignment workflows")]
+        public bool SupportAlignment { get; set; }
     }
 
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/399
@@ -28,14 +31,19 @@ namespace OPS.TilingServer
         public const double LONG_TASK_WARN_SEC = 5 * 60;
 
         private StartMasterOptions options;
+        private string queuePrefix;
 
         private Task workerTask = null;
         private Dictionary<string, PipelineStateMachine> stateMachines =
             new Dictionary<string, PipelineStateMachine>();
 
-        public StartMaster(StartMasterOptions options) : base(options, queuePrefix: "tiling")
+        public StartMaster(StartMasterOptions options) : this(options, options.SupportAlignment ? "" : "tiling") {}
+
+        public StartMaster(StartMasterOptions options, string queuePrefix)
+            : base(options, initAlignmentTables: options.SupportAlignment, queuePrefix: queuePrefix)
         {
             this.options = options;
+            this.queuePrefix = queuePrefix;
         }
 
         public int Run()
@@ -48,19 +56,28 @@ namespace OPS.TilingServer
                         try
                         {
                             var opts = new StartWorkerOptions();
+                            opts.OptionsFile = options.OptionsFile;
+                            opts.ConfigDir = options.ConfigDir;
+                            opts.ConfigFolder = options.ConfigFolder;
+                            opts.LogFile = options.LogFile;
+                            opts.LogDir = options.LogDir;
+                            opts.TempDir = options.TempDir;
                             opts.Quiet = options.Quiet;
                             opts.Verbose = options.Verbose;
                             opts.Debug = options.Debug;
-                            opts.LogFile = options.LogFile;
+                            opts.ClearCache = options.ClearCache;
+                            opts.StackTraces = options.StackTraces;
                             opts.SingleThreaded = options.SingleThreaded;
-                            var worker = new StartWorker(opts, "alignment");
+                            opts.UserMasksDirectory = options.UserMasksDirectory;
+                            opts.UserMasksInverted = options.UserMasksInverted;
+                            opts.SupportAlignment = options.SupportAlignment;
+                            var worker = new StartWorker(opts, queuePrefix);
                             worker.EnableCleanupTempDir = false;
                             worker.Run();
                         }
                         catch (Exception e)
                         {
-                            LogError("error in worker task ({0}): {1}", e.GetType().FullName, e.Message);
-                            LogError(e.StackTrace);
+                            LogException(e, "error in worker task", stackTrace: true);
                         }
                     });
                 workerTask.Start();
@@ -74,10 +91,8 @@ namespace OPS.TilingServer
                 }
                 catch (Exception e)
                 {
-                    LogError("error in master task ({0}): {1}", e.GetType().FullName, e.Message);
-                    LogError(e.StackTrace);
-                    // Introduce a sleep here to limit debug spew just in case a misconfiguration is causing this error
-                    Thread.Sleep(2000);  
+                    LogException(e, "error in master task", stackTrace: true);
+                    Thread.Sleep(2000); // limit spew just in case a misconfiguration is causing this error
                 }
             }
 #pragma warning disable 0162
@@ -124,9 +139,7 @@ namespace OPS.TilingServer
                     }
                     catch (Exception e)
                     {
-                        LogError("{0}: processing error ({1}): {2}", m.Info(), e.GetType().FullName, e.Message);
-                        LogError(e.StackTrace);
-
+                        LogException(e, m.Info() + ": processing error", stackTrace: true);
                         try
                         {
                             //try to make the message available in our queue again soon

@@ -9,7 +9,7 @@ using OPS.Pipeline;
 
 namespace OPS.Landform
 {
-    public class ConfigureBaseOptions : CommandHelper.OptionsBase
+    public class ConfigureBaseOptions : CommandHelper.BaseOptions
     {
         //null defaults force interactive prompt
         
@@ -21,47 +21,17 @@ namespace OPS.Landform
 
         [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
         public string RandomSeed { get; set; }
-
-        [Option(Default = null, HelpText = "Override default config dir (defaults to user home dir)")]
-        public string ConfigDir { get; set; }
-
-        [Option(Default = null, HelpText = "Override default config folder (defaults to .landform)")]
-        public string ConfigFolder { get; set; }
-
-        [Option(Default = false, HelpText = "Suppress non-essential output")]
-        public bool Quiet { get; set; }
-
-        [Option(Default = false, HelpText = "Log debug info")]
-        public bool Debug { get; set; }
-
-        [Option(Default = null, HelpText = "Override default log filename")]
-        public string LogFile { get; set; }
-
-        [Option(Default = null, HelpText = "Override default log directory")]
-        public string LogDir { get; set; }
-
-        [Option(Default = null, HelpText = "Override default temp dir")]
-        public string TempDir { get; set; }
     }
 
     public class ConfigureBase
     {
         private ConfigureBaseOptions cbopts;
             
-        protected ILog logger;
+        protected ILog logger = LogManager.GetLogger(typeof(ConfigureBase));
 
         public ConfigureBase(ConfigureBaseOptions cbopts)
         {
             this.cbopts = cbopts;
-
-            //this was already called in Landform.cs with args and baseCommand
-            //calling again now that we have parsed command line options
-            CommandHelper.Configure(args: null, baseCommand: null,
-                                    configDir: cbopts.ConfigDir, configFolder: cbopts.ConfigFolder, 
-                                    quiet: cbopts.Quiet, debug: cbopts.Debug, logFilename: cbopts.LogFile,
-                                    logDir: cbopts.LogDir, tempDir: cbopts.TempDir);
-
-            logger = LogManager.GetLogger(GetType());
 
             if (!cbopts.Quiet)
             {

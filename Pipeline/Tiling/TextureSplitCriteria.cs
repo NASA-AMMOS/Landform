@@ -26,7 +26,7 @@ namespace OPS.Pipeline
         public double pctPixelsToTest;              // how densely should the uv atlas pixels be tested be sampled (1.0: test all atlas pixels, 0.5: test half atlas pixels, etc)
         public double pctSampledPixelsSatisfied;    // of all the pixels sampled for a given source texture, what percentage of them need to be above the split criteria (1.0 any pixel that needs a split is enough, 0.5 at least half the pixels need a split, etc)
         public double splitPixelTexelRatio;         // valid values > 1.0. a value of 2.0 would mean if 2 source textures are being squeezed into a single output texture that incur a split
-
+        public bool useApproximateTileSplit;               // if true use a faster and less accurate method of determining when to split tiles
         public int tileResolution;
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
@@ -61,39 +61,41 @@ namespace OPS.Pipeline
 
             // may have too few faces to ever service texture resolution (output atlas too low res)
             Mesh clippedMesh = meshOperator.Clip(areaOfInterest);
-            if (clippedMesh.Faces.Count == 1)
+            if (clippedMesh.Faces.Count <= 2)
                 return false;
 
             // finer frustum test: get all observations that intersect mesh hull
             ConvexHull clippedHull = new ConvexHull(clippedMesh);
-            intersectingCameras = options.cameraInstances.Where(ci => clippedHull.Intersects(ci.hullInMesh)).ToList();
+            intersectingCameras = intersectingCameras.Where(ci => clippedHull.Intersects(ci.hullInMesh)).ToList();
 
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)
                 return false;
 
-            if (!GetCandidateDestTexelArea(clippedMesh, out double dstPixelsArea))
+            if (!GetDestTexelPerArea(clippedMesh, out double dstPixelsArea))
                 return false;
 
-            if (!GetCandidateSourcePixelArea(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsArea))
+            if (!GetSourcePixelPerArea(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsArea))
                 return false;
 
             double ratioOfSrcToDest = srcPixelsArea / dstPixelsArea;
-            return ratioOfSrcToDest >= options.splitPixelTexelRatio;
+            return ratioOfSrcToDest > options.splitPixelTexelRatio;
         }
 
 
         //single pixel api, for a representative pixel what is the ratio of source to dest pixel areas
-        protected abstract bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea);
-        protected abstract bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea);
+        protected abstract bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea);
+        protected abstract bool GetDestTexelPerArea(Mesh clippedMesh, out double dstPixelArea);
     }
 
     public class TextureSplitCriteriaBackproject : TextureSplitCriteria
     {
+        const double MESHHULLTESTEPSILON = 0.00001;
+
         public TextureSplitCriteriaBackproject(SplitByTextureOpts opts) : base(opts)
         { }
 
-        protected override bool GetCandidateDestTexelArea(Mesh clippedMesh, out double dstPixelArea)
+        protected override bool GetDestTexelPerArea(Mesh clippedMesh, out double dstPixelArea)
         {
             //current approach is based on maximum of all the images, of the user specified percentage of tested pixels
             // sourcepixels per single output pixel. this function returns a single pixel area to match the single source pixel area
@@ -101,7 +103,7 @@ namespace OPS.Pipeline
             return true;
         }
 
-        protected override bool GetCandidateSourcePixelArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
         {
             srcPixelArea = 0;
 
@@ -137,7 +139,7 @@ namespace OPS.Pipeline
                 //if the points are spilling onto other tiles, they aren't great candidates for testing.
                 // In addition to handling cases where you are peeking through a valley or keyhole in the terrain
                 // and all points are landing on other mesh tiles, this is a performance optimization.
-                if (!clippedHull.Contains(destPixelPt.Point)) 
+                if (!clippedHull.Contains(destPixelPt.Point, MESHHULLTESTEPSILON))
                 {
                     continue;
                 }
@@ -151,11 +153,10 @@ namespace OPS.Pipeline
                 }
 
                 // calculate src pixels area contributing to the pixel  
-                Vector2[] pixelCorners = Image.GetPixelCorners(destPixelPt.Pixel);
-                var uvsCorners =
-                    pixelCorners.Select(c => Image.PixelToUV(c, options.tileResolution, options.tileResolution));
+                Vector2[] dstPixelCorners = Image.GetPixelCorners(destPixelPt.Pixel);
+                var dstUVCorners = dstPixelCorners.Select(c => Image.PixelToUV(c, options.tileResolution, options.tileResolution));
                 var destPixelMeshPositions =
-                    uvsCorners
+                    dstUVCorners
                     .Select(uv => clippedOp.UVToBarycentric(uv))
                     .Where(bary => bary != null)
                     .Select(bary => bary.Position);
@@ -164,20 +165,31 @@ namespace OPS.Pipeline
                     .Select(meshPos => ProjectedPixelDistances.GetCameraPixelForMeshPosition(options.scInMesh, bestCamera.cameraModel,
                                                                      bestCamera.cameraToMesh, bestCamera.meshToCamera,
                                                                      bestCamera.hullInMesh, meshPos,
-                                                                     bestCamera.widthPixels, bestCamera.heightPixels));
+                                                                     bestCamera.widthPixels, bestCamera.heightPixels))
+                    .Where(x => x.HasValue);
 
-                // if all 4 pixels landed in the source image, find their area in pixels
-                if (4 == srcPixels.Where(x => x.HasValue).Count())
+                // if enough pixels landed in the source image, find their area in pixels
+                int countValidPixels = srcPixels.Count();
+                double srcPixelAreaForDestPixel = 0;
+                if (4 == countValidPixels)
                 {
-                    double srcPixelAreaForDestPixel = Image.CalculateQuadPixelArea(srcPixels.Select(x => x.Value).ToArray());
-                    if (!srcAreaByCamera.ContainsKey(bestCamera))
-                    {
-                        srcAreaByCamera.Add(bestCamera, new List<double>() { srcPixelAreaForDestPixel });
-                    }
-                    else
-                    {
-                        srcAreaByCamera[bestCamera].Add(srcPixelAreaForDestPixel);
-                    }
+                    srcPixelAreaForDestPixel = Image.CalculateQuadPixelArea(srcPixels.Select(x => x.Value).ToArray());
+                }
+                else if (3 == countValidPixels)
+                {
+                    srcPixelAreaForDestPixel = Image.CalculateTriPixelArea(srcPixels.Select(x => x.Value).ToArray());
+                }
+
+                if (srcPixelAreaForDestPixel <= 0)
+                    continue;
+
+                if (!srcAreaByCamera.ContainsKey(bestCamera))
+                {
+                    srcAreaByCamera.Add(bestCamera, new List<double>() { srcPixelAreaForDestPixel });
+                }
+                else
+                {
+                    srcAreaByCamera[bestCamera].Add(srcPixelAreaForDestPixel);
                 }
             }
 
@@ -192,12 +204,6 @@ namespace OPS.Pipeline
             {
                 var pixelsTested = srcAreaByCamera[key];
                 if (pixelsTested == null)
-                {
-                    continue;
-                }
-
-                // is current atlas fine for texture resolution
-                if (!pixelsTested.Any(x => x > 1.0))
                 {
                     continue;
                 }
@@ -246,6 +252,78 @@ namespace OPS.Pipeline
             }
 
             return minSpread != double.MaxValue;
+        }
+    }
+
+    public class TextureSplitCriteriaApproximate : TextureSplitCriteria
+    {
+        public const double APPROX_TEXTURE_UTILIZATION = 0.5;
+
+        public TextureSplitCriteriaApproximate(SplitByTextureOpts opts) : base(opts)
+        {
+        }
+
+        protected override bool GetDestTexelPerArea(Mesh clippedMesh, out double dstTexelArea)
+        {
+            dstTexelArea = 0;
+            double clippedArea = clippedMesh.SurfaceArea();
+            if (clippedArea <= 0)
+            {
+                return false;
+            }
+
+            double numTexels = options.tileResolution * options.tileResolution;
+
+            //the uv atlas wastes some amount of pixels on gutter, accounted for here by APPROX_TEXTURE_UTILIZATION
+            // the uv atlas also allocates area unequally in the atlas, could spend 80% of the pixels
+            // on 20% of the area (not accounted for here)
+            dstTexelArea = APPROX_TEXTURE_UTILIZATION * numTexels / clippedArea;
+            return true;
+        }
+        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+        {
+            srcPixelArea = 0;
+
+            double minAreaPerPixelInMeters = double.MaxValue;
+            foreach (var camInst in intersectingCameras)
+            {
+                //find the closest point on the mesh to the camera
+                // this will be used for the estimate of the pixel density
+                // in an attempt to be conservative
+                Vector3 camInMesh = Vector3.Transform(((CAHV)camInst.cameraModel).C, camInst.cameraToMesh);
+                double minDistSq = double.MaxValue;
+                foreach (var vert in clippedMesh.Vertices)
+                {
+                    double curDistSq = Vector3.DistanceSquared(camInMesh, vert.Position);
+                    if (curDistSq < minDistSq)
+                    {
+                        minDistSq = curDistSq;
+                    }
+                }
+
+                if (minDistSq == double.MaxValue)
+                {
+                    continue;
+                }
+                double minDist = Math.Sqrt(minDistSq);
+
+                //calculate the distance between pixel corners and use the diagonal to approximate the area 
+                // (uses a square pixel approximation) 
+                Vector2 []corners = Image.GetPixelCorners(new Vector2(camInst.widthPixels / 2.0, camInst.heightPixels / 2.0));
+                Vector3 ptUpperLeftCorner = camInst.cameraModel.Unproject(corners[0], minDist);
+                Vector3 ptUpperRightCorner = camInst.cameraModel.Unproject(corners[1], minDist);
+                Vector3 ptLowerRightCorner = camInst.cameraModel.Unproject(corners[2], minDist);
+                Vector3 ptLowerLeftCorner = camInst.cameraModel.Unproject(corners[3], minDist);
+                double curAreaPerPixelInMeters = Vector3.Distance(ptUpperLeftCorner, ptUpperRightCorner) * Vector3.Distance(ptUpperLeftCorner, ptLowerLeftCorner);
+                if (curAreaPerPixelInMeters < minAreaPerPixelInMeters)
+                {
+                    minAreaPerPixelInMeters = curAreaPerPixelInMeters;
+                }
+            }
+
+            //convert area in m^2 of 1 pixel to number of pixels in 1 m^2
+            srcPixelArea = 1 / minAreaPerPixelInMeters;
+            return minAreaPerPixelInMeters != double.MaxValue;
         }
     }
 }

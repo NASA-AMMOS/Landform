@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using CommandLine;
 using OPS.Geometry;
+using OPS.Imaging;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
@@ -26,6 +27,11 @@ namespace OPS.Landform
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
         public double MaxTime { get; set; }
 
+        [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
+        public string ExportMeshFormat { get; set; }
+
+        [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
+        public string ExportImageFormat { get; set; }
     }
 
     public class BuildTileset : TilingCommand
@@ -49,8 +55,6 @@ namespace OPS.Landform
 
         public int Run()
         {
-            StartStopwatch();
-
             try
             {
                 if (!ParseArgumentsAndLoadCaches())
@@ -82,6 +86,18 @@ namespace OPS.Landform
             }
 
             if (!base.ParseArgumentsAndLoadCaches())
+            {
+                return false; //help
+            }
+
+            if (!string.IsNullOrEmpty(options.ExportMeshFormat) &&
+                MeshSerializers.Instance.CheckFormat(options.ExportMeshFormat, pipeline) == null)
+            {
+                return false; //help
+            }
+            
+            if (!string.IsNullOrEmpty(options.ExportImageFormat) &&
+                ImageSerializers.Instance.CheckFormat(options.ExportImageFormat, pipeline) == null)
             {
                 return false; //help
             }
@@ -154,26 +170,28 @@ namespace OPS.Landform
 
                 var projectType = PipelineStateMachine.ProjectType.ParentTiling;
 
-                string exportMeshFormat = null;
-                string exportImageFormat = null;
-
                 int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      options.SkirtMode, options.ReconstructionMethod,
                                                      options.FacesPerTile, resolution, projectType.ToString(),
-                                                     exportMeshFormat, exportImageFormat, maxTileGroupSize);
+                                                     options.ExportMeshFormat, options.ExportImageFormat,
+                                                     maxTileGroupSize);
 
                 tilingProject.ExportDir = null;
+                if (!string.IsNullOrEmpty(options.ExportMeshFormat) || !string.IsNullOrEmpty(options.ExportImageFormat))
+                {
+                    tilingProject.ExportDir = tilesetFolder;
+                }
 
                 //our own internal representation of the tile meshes are stored here
                 //typically in ply / png formats
-                //note this is the same folder and formats that local-build-leaves used to save the tile meshes
+                //this must be the same folder and formats that build-tiling-input used to save the tile inputs
                 tilingProject.InternalTileDir = outputFolder;
                 tilingProject.InternalMeshFormat = options.MeshFormat;
                 tilingProject.InternalImageFormat = options.ImageFormat;
 
-                //acutal output tileset is saved here
+                //actual output tileset is saved here
                 //typically in b3dm / jpg formats
                 tilingProject.TilesetDir = tilesetFolder;
 
@@ -184,9 +202,18 @@ namespace OPS.Landform
             }
 
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
-            pipeline.LogInfo("{0} {1} tileset meshes and {2} tile textures to {3}",
-                             pipeline is CloudPipeline ? "uploading" : "saving",
+            pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",
                              tilingProject.TilesetMeshFormat, tilingProject.TilesetImageFormat, tilesetUrl);
+            if (!string.IsNullOrEmpty(options.ExportMeshFormat))
+            {
+                pipeline.LogInfo("also {0} {1} tile meshes to {2}", pipeline is CloudPipeline ? "uploading" : "saving",
+                                 tilingProject.ExportMeshFormat, tilesetUrl);
+            }
+            if (!string.IsNullOrEmpty(options.ExportImageFormat))
+            {
+                pipeline.LogInfo("also {0} {1} tile images to {2}", pipeline is CloudPipeline ? "uploading" : "saving",
+                                 tilingProject.ExportImageFormat, tilesetUrl);
+            }
         }
 
         private void AddTileMeshes()
@@ -198,6 +225,7 @@ namespace OPS.Landform
                              tileList.LeafNames.Count(), tileList.ParentNames.Count(),
                              withTextures ? " and textures" : "");
 
+            var inputs = new List<string>();
             foreach (var tile in tileNames)
             {
                 if (!options.NoProgress)
@@ -207,8 +235,12 @@ namespace OPS.Landform
                 var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
                 var imgUrl =
                     withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt) : null;
-                TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, tile);
+                var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, tile);
+                inputs.Add(input.Name);
             }
+
+            tilingProject.SaveInputNames(inputs, pipeline);
+            pipeline.SaveDatabaseItem(tilingProject);
         }
 
         private void BuildTilesAndDefineParents()
@@ -241,7 +273,6 @@ namespace OPS.Landform
                 
                 //re-fetch project record to ensure database synchronization
                 tp = TilingProject.Find(pipeline, project.Name);
-
             }
             while (tp != null && !tp.FinishedRunning);
 

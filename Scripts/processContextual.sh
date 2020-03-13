@@ -1,18 +1,28 @@
 #!/bin/bash
 
-# https://stackoverflow.com/a/246128
-scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-landform=$scriptdir/../Landform/bin/Release/Landform.exe
 home=c:/Users/$USERNAME
 storage=$home/Documents/landform-storage
 config=$home/.landform/landform-local.json
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
+# https://stackoverflow.com/a/246128
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+for d in . .. ../Landform/bin/Release ../Landform/bin/Debug; do
+    landform=$scriptdir/$d/Landform.exe
+    if [ -f $landform ]; then break; fi
+done
+if [ ! -f "$landform" ]; then
+    echo "could not find Landform.exe"
+    exit 1
+fi
+
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
 
 if [ $# -lt 4 ]; then
     echo $help
     exit 1
 fi
+
+cmdline="$0 $@"
 
 dir=$1
 shift
@@ -28,29 +38,24 @@ if ! [[ $sol =~ ^[0-9]{4}$ ]]; then
     exit 1
 fi
 
-# use last sitedrive as project name
-# pipeline will also pick it by default as mesh frame
-sd="0"
+# first listed sitedrive is primary
 sitedrives=$1
 IFS=',' read -ra sds <<< $1
+sd=${sds[0]}
+num_sd=${#sds[@]}
+sds=$1
 shift
-for i in "${sds[@]}"; do
-    if [ $i -gt $sd ]; then sd=$i; fi
-done
 
 if ! [[ $sd =~ ^[0-9]{7}$ ]]; then
     echo "sitedrive must be 7 digits" 
     exit 1
 fi
 
-proj=${sol}_${sd}
-venue=local_${mission}_${sol}_${sd}
-tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
-
 combined_manifest=true
 copy_combined_manifest=
 only_ingest=
 s3_proxy=
+cameras=
 
 manifest=true
 dry=
@@ -59,6 +64,8 @@ cleanup=true
 only_cleanup=
 upload=
 s3rdrdir=
+suffix=
+export=
 
 # this only works for subcommands that use PipelineCoreOptions (so not configure-local)
 dbg=""
@@ -84,6 +91,30 @@ while (( "$#" )); do
             fi
             s3rdrdir=$1
             ;;
+        "--suffix")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing suffix"
+                exit 1
+            fi
+            suffix="_$1"
+            ;;
+        "--exportmeshext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            export="$export --exportmeshformat $1"
+            ;;
+        "--exportimgext")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing extension"
+                exit 1
+            fi
+            export="$export --exportimageformat $1"
+            ;;
         "--copycombinedmanifest")
             shift
             if [ $# -lt 1 ]; then
@@ -104,9 +135,23 @@ while (( "$#" )); do
         "--onlycopycombinedmanifest") cleanup=; only_cleanup=; generate=; upload=;;
         "--nocombinedmanifest") combined_manifest=;;
         "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
+        "--onlyforcameras")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing cameras list"
+                exit 1
+            fi
+            cameras="--onlyforcameras $1"
+            ;;
     esac
     shift
 done
+
+proj=${sol}_${sd}${suffix}
+venue=local_${mission}_${proj}
+tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
+log=processContextual_${proj}_log.txt
+if [ "$dry" ]; then log=; else echo "$cmdline" > $log; fi
 
 backup_config() { if [ -f $config -a ! -f $config.BAK ]; then ${dry}cp $config $config.BAK; fi }
 
@@ -114,7 +159,7 @@ restore_config() { if [ -f $config.BAK ]; then ${dry}mv $config.BAK $config; fi 
 
 delete_venue() { ${dry}rm -rf $storage/$venue; }
 
-echo "processing ${mission} contextual mesh for sitedrive ${sd} in sol ${sol} from ${dir}"
+echo "processing ${mission} contextual mesh for sitedrive ${sd} from ${num_sd} sitedrives in sol ${sol} from ${dir}"
 
 if [ "$cleanup" ]; then delete_venue; fi
 
@@ -139,14 +184,14 @@ if [ "$generate" ]; then
     done
     
     ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-    ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sitedrives
+    ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sds $cameras | tee -a $log
 
     if [ ! "$only_ingest" ]; then
-        ${dry}$landform bev-align $proj $dbg
-        ${dry}$landform build-geometry $proj $dbg
-        ${dry}$landform build-tiling-input $proj $dbg
-        ${dry}$landform blend-images $proj $dbg
-        ${dry}$landform build-tileset $proj $dbg
+        ${dry}$landform bev-align $proj $dbg --fixsitedrives $sd | tee -a $log
+        ${dry}$landform build-geometry $proj $dbg --meshframe $sd | tee -a $log
+        ${dry}$landform build-tiling-input $proj $dbg --meshframe $sd | tee -a $log
+        ${dry}$landform blend-images $proj $dbg --meshframe $sd | tee -a $log
+        ${dry}$landform build-tileset $proj $dbg $export --meshframe $sd | tee -a $log
         
         ${dry}rm -rf $proj
         ${dry}cp -R $tileset_dir .
@@ -156,15 +201,19 @@ if [ "$generate" ]; then
         if [ "$manifest" ]; then
             # create/update scene manifests here where we have access to the contextual mesh alignment project database
             # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
-            ${dry}$landform update-scene-manifest $proj $dbg --manifestfile $proj/${proj}_scene.json --notactical --nourls --sol=$sol --sitedrive=$sd
+            ${dry}$landform update-scene-manifest $proj $dbg --manifestfile $proj/${proj}_scene.json --notactical --nourls --sol=$sol --sitedrive=$sd | tee -a $log
             
             if [ "$combined_manifest" ]; then
                 # this scene manifest contains both the contextual mesh tileset
                 # as well as any sibling tactical mesh tilesets that already exist
                 # and it has local file:// URLs
-                ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd
+                ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd | tee -a $log
             fi
         fi
+
+        ${dry}mv $log $proj
+
+        if [ -z "$dry" ]; then echo "moved output to ./$proj"; fi
     fi
 fi
 

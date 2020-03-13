@@ -17,6 +17,8 @@ namespace OPS.Pipeline
     //using how far the pixels are apart (in meters) when projected onto a specific mesh
     public class ProjectedPixelDistances
     {
+        const double FRUSTUMHULLTESTEPSILON = 0.00001;
+
         static public IDictionary<string, double> //observation name => median pixel spread
             Calculate(FrameCache frameCache, SceneCaster occlusionScene,
                       IDictionary<string, ConvexHull> obsToHull, BoundingBox specificMeshBounds,
@@ -88,7 +90,7 @@ namespace OPS.Pipeline
                     PixelPoint pt = samples[sampleIndex];
                     spreadToSample[spreadIndex] = sampleIndex;
 
-                    if (obsHull.Contains(pt.Point)) //protect against bad ray calculations from camera model
+                    if (obsHull.Contains(pt.Point, FRUSTUMHULLTESTEPSILON)) //protect against bad ray calculations from camera model
                     {
                         //Issue #523: want median or average in case glancing angle?
                         //want a term that looks for consistancy in spacing? implies dead on?
@@ -171,10 +173,10 @@ namespace OPS.Pipeline
         }
 
         public static Vector2? GetCameraPixelForMeshPosition(SceneCaster sc, CameraModel camera, Matrix camToMesh,
-                                                     Matrix meshToCam, ConvexHull camHull,
+                                                     Matrix meshToCam, ConvexHull camHullInMesh,
                                                      Vector3 meshPos, int widthPixels, int heightPixels)
         {
-            if (!camHull.Contains(meshPos))
+            if (!camHullInMesh.Contains(meshPos, FRUSTUMHULLTESTEPSILON))
             {
                 return null;
             }

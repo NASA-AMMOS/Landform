@@ -26,12 +26,13 @@ namespace OPS.Pipeline
             this.pipeline = pipeline;
         }
 
-        public static PipelineExecutive MakeExecutive(PipelineCore pipeline, ExecutionMode mode)
+        public static PipelineExecutive MakeExecutive(PipelineCore pipeline, ExecutionMode mode,
+                                                      bool supportAlignment = false)
         {
             switch (mode)
             {
-                case ExecutionMode.Immediate: return new ImmediateExecutive(pipeline);
-                case ExecutionMode.Deferred: return new DeferredExecutive(pipeline);
+                case ExecutionMode.Immediate: return new ImmediateExecutive(pipeline, supportAlignment);
+                case ExecutionMode.Deferred: return new DeferredExecutive(pipeline, supportAlignment);
                 case ExecutionMode.None: return null;
                 default: throw new ArgumentException("unknown execution mode: " + mode);
             }
@@ -65,7 +66,7 @@ namespace OPS.Pipeline
     //https://github.jpl.nasa.gov/OnSight/Landform/issues/699
     public class ImmediateExecutive : PipelineExecutive
     {
-        public ImmediateExecutive(PipelineCore pipeline) : base(pipeline)
+        public ImmediateExecutive(PipelineCore pipeline, bool supportAlignment = false) : base(pipeline)
         {
             pipeline.EnqueuedToMaster += msg => {
 
@@ -86,7 +87,7 @@ namespace OPS.Pipeline
                 return false; //now discard message
             };
 
-            var workerDispatcher = StartWorker.MakeDispatcher(pipeline);
+            var workerDispatcher = StartWorker.MakeDispatcher(pipeline, supportAlignment);
             pipeline.EnqueuedToWorkers += msg => {
                 try
                 {
@@ -101,7 +102,7 @@ namespace OPS.Pipeline
         }
     }
 
-    //multi threaded executive - use for large workflows'
+    //multi threaded executive - use for large workflows
     //spins up one thread for the master and a pool of worker threads corresponding to number of available cores
     //enqueuing a message to the master is a low cost constant time operation
     //but the ensuing work will be performed asynchronously at a later point as messages are processed
@@ -120,7 +121,7 @@ namespace OPS.Pipeline
 
         private const int THROTTLE_MS = 50;
 
-        public DeferredExecutive(PipelineCore pipeline) : base(pipeline)
+        public DeferredExecutive(PipelineCore pipeline, bool supportAlignment = false) : base(pipeline)
         {
             if (!(pipeline is LocalPipeline))
             {
@@ -132,7 +133,7 @@ namespace OPS.Pipeline
 
             masterTask = Task.Run(() => MasterLoop()); //lambda needed to compile
 
-            workerDispatcher = StartWorker.MakeDispatcher(pipeline);
+            workerDispatcher = StartWorker.MakeDispatcher(pipeline, supportAlignment);
 
             workerTasks = new Task[CoreLimitedParallel.GetMaxCores()];
             for (int i = 0; i < workerTasks.Length; i++)

@@ -125,8 +125,9 @@ function readJson(file) { return parseJson(stripJsonComments(fs.readFileSync(fil
 function binFileFilter(n) {
   const ok =
     !n.startsWith('tmp') &&
-    !(n.startsWith('log') && n.endsWith('.txt')) &&
-    !n.startsWith('TestData') && !n.startsWith('TrainingSpaces') && !n.startsWith('Rover');
+    !/^log.*\.txt.*$/g.test(n) && //filter e.g. log/*.txt, log/*.txt.1, etc, but keep log4net.dll
+    !(n === 'log/') && //filter the log directory itself
+    !n.startsWith('TestData') && !n.startsWith('TrainingSpaces') && !n.startsWith('MissionSpecific');
   return ok;
 }
 

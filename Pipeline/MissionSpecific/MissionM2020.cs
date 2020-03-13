@@ -78,6 +78,7 @@ namespace OPS.Pipeline
             // positive if a is "worse than" b
             int ext(RoverObservation a, RoverObservation b)
             {
+                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
                 if (IsHazcam(a.Camera) || IsNavcam(a.Camera))
                 {
                     //EECAM downsampling A,L,M,N, prefer higher
@@ -131,6 +132,8 @@ namespace OPS.Pipeline
             foreach (var group in groups)
             {
                 var filtered = group.Select(id => id);
+
+                //https://docs.google.com/document/d/15iZgxqsecD6svOUuiEQm2J10a2ziKYeQQXU_f-VXGZc#heading=h.76imaw5jdp48
 
                 //EECAM downsampling A,L,M,N, prefer higher
                 //note the SIS changed to allow only A or M here, but this code should remain correct (prefer M over A)
@@ -313,12 +316,12 @@ namespace OPS.Pipeline
 
         public override string GetTacticalMeshQueueName()
         {
-            throw new NotImplementedException(); //TODO testing with m20-ids-g-sqs-landform-lftest1
+            return "m20-ids-g-sqs-landform-iandt2";
         }
 
         public override string GetTacticalMeshFailQueueName()
         {
-            return "m20-ids-g-sqs-landform-tactical-fail";
+            return "m20-ids-g-sqs-landform-iandt2-fail";
         }
 
         public override QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
@@ -407,6 +410,31 @@ namespace OPS.Pipeline
         public override QueueMessage ParseTacticalMeshQueueMessage(string json)
         {
             return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+        }
+
+        public override string GetContextualMeshQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override string GetContextualMeshFailQueueName()
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
+        {
+            throw new NotImplementedException(); //TODO
+        }
+
+        public override QueueMessage ParseContextualMeshQueueMessage(string json)
+        {
+            throw new NotImplementedException(); //TODO
         }
 
         public override string GetS3Proxy()
@@ -564,6 +592,23 @@ namespace OPS.Pipeline
                 name += "_" + angle.ToString();
             }
             return name;
+        }
+
+        //MASTCAMZ images have 'unk' in image_type metadata
+        public override RoverProductSize GetRoverProductSize(PDSParser parser)
+        {
+            RoverProductSize prodSize = parser.ImageSizeType;
+            if(prodSize == RoverProductSize.Unknown)
+            {
+                RoverProductId prodId = this.ParseProductId(parser.ProductIdString);
+                if (prodId != null)
+                {
+                    OPGSProductId id = prodId as OPGSProductId;
+                    prodSize = id.Size; 
+                }
+            }
+
+            return prodSize;
         }
 
         public override string GetS3Proxy()

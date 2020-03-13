@@ -222,7 +222,8 @@ namespace OPS.Geometry
                 if (mesh.HasUVs && img != null)
                 {
                     var src = img.UVToPixel(Vector2.Clamp(v0.UV * alpha + v1.UV * beta + v2.UV * gamma, zero, one));
-                    int sr = (int)src.Y, sc = (int)src.X;
+                    int sr = MathE.Clamp((int)src.Y, 0, img.Height - 1);
+                    int sc = MathE.Clamp((int)src.X, 0, img.Width - 1);
                     if (img.IsValid(sr, sc))
                     {
                         blend(0, r, c, img[0, sr, sc], overdraw);

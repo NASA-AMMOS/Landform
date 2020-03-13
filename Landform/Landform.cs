@@ -9,7 +9,10 @@ namespace OPS.Landform
     {
         static int Main(string[] args)
         {
-            CommandHelper.Configure(args, "Landform");
+            if (!CommandHelper.Configure(args, "Landform"))
+            {
+                return 1;
+            }
 
             //MeshSerializers in the OPS.Geometry subproject will auto-register themselves
             //in the static initializer for the OPS.Geometry.MeshSerializers SerializerMap
@@ -36,6 +39,7 @@ namespace OPS.Landform
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
                     { typeof(ProcessTacticalOptions), typeof(ProcessTactical) },
+                    { typeof(ProcessContextualOptions), typeof(ProcessContextual) },
                     { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
                 };
 

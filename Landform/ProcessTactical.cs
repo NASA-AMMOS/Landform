@@ -35,13 +35,14 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = "*", HelpText = "Comma separated list of wildcard patterns for input folders")]
         public string SearchPattern { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Don't generate tileset")]
+        public bool NoTileset { get; set; }
     }
 
     public class ProcessTactical : LandformService
     {
-        public const string TILESET_JSON = "tileset.json";
-        public const string SCENE_JSON = "scene.json";
-        public const string STATS_TXT = "stats.txt";
+        public const string MESH_FRAME = "passthrough";
 
         protected ProcessTacticalOptions options;
 
@@ -76,7 +77,7 @@ namespace OPS.Landform
             RunPhase("index input meshes", IndexMeshes);
             foreach (var entry in meshes)
             {
-                RunPhase("build tileset " + entry.Key, () => BuildTileset(entry.Value));
+                RunPhase("build tileset " + entry.Key, () => BuildTacticalTileset(entry.Value));
             }
         }
 
@@ -127,6 +128,13 @@ namespace OPS.Landform
                 mission.DequeueTacticalMeshMessage(queue);
         }
 
+        protected override QueueMessage ParseMessage(string json)
+        {
+            return options.UseGenericMessageType ?
+                JsonHelper.FromJson<GenericTacticalMeshMessage>(json, autoTypes: false) :
+                mission.ParseTacticalMeshQueueMessage(json);
+        }
+
         protected override bool AcceptMessage(QueueMessage msg)
         {
             try
@@ -166,7 +174,7 @@ namespace OPS.Landform
                 {
                     var pair = new MeshImagePair { mesh = meshUrl };
                     AddImage(pair); //throws exception if image cannot be found
-                    BuildTileset(pair); //throws exception on error or if killed
+                    BuildTacticalTileset(pair); //throws exception on error or if killed
                     return true; //successfully processed, remove message from queue
                 }
             }
@@ -182,13 +190,6 @@ namespace OPS.Landform
             //if it gets too old without successfully being handled
 
             return false; //leave message in queue for now
-        }
-
-        protected override QueueMessage ParseMessage(string json)
-        {
-            return options.UseGenericMessageType ?
-                JsonHelper.FromJson<GenericTacticalMeshMessage>(json, autoTypes: false) :
-                mission.ParseTacticalMeshQueueMessage(json);
         }
 
         protected override bool ParseArguments()
@@ -337,13 +338,15 @@ namespace OPS.Landform
             } 
         }
             
-        private void BuildTileset(MeshImagePair pair)
+        private void BuildTacticalTileset(MeshImagePair pair)
         {
             string missionStr = mission.GetMission().ToString();
             string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName :
                 StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
             string venueDir = storageDir + "/" + venue;
+            string tilesetDir = GetTilesetDir(venue, MESH_FRAME, project);
+            string destDir = TILESET_SUBDIR; //default output to ./TILESET_SUBDIR (e.g. if input is a filename)
 
             pipeline.LogInfo("building tileset {0} for {1}", project, pair);
 
@@ -355,21 +358,27 @@ namespace OPS.Landform
                 
                 string meshFile = GetFile(pair.mesh);
                 string imageFile = GetFile(pair.image);
-                
-                RunCommand("build-tiling-input", project, "--mission", missionStr,
-                           "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
-                
-                RunCommand("build-tileset", project);
 
-                string tilesetDir = string.Format("{0}/{1}/{2}/passthroughFrame/best/{3}",
-                                                  storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, project);
+                string meshUrl = StringHelper.NormalizeSlashes(pair.mesh);
+                if (meshUrl.IndexOf("/") >= 0)
+                {
+                    destDir = GetDestDir(StringHelper.StripLastUrlPathSegment(meshUrl));
+                }
 
-                RunCommand("update-scene-manifest", "--mission", missionStr,
-                           "--awsprofile", awsProfile, "--awsregion", awsRegion,
-                           "--manifestfile", tilesetDir + "/" + SCENE_JSON,
-                           "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
-
-                SaveTileset(tilesetDir, project, pair.mesh);
+                if (!options.NoTileset)
+                {
+                    RunCommand("build-tiling-input", project, "--mission", missionStr,
+                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
+                    
+                    BuildTileset(project);
+                    
+                    RunCommand("update-scene-manifest", "--mission", missionStr,
+                               "--awsprofile", awsProfile, "--awsregion", awsRegion,
+                               "--manifestfile", tilesetDir + "/" + SCENE_JSON,
+                               "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);
+                    
+                    SaveTileset(tilesetDir, project, destDir);
+                }
 
                 Cleanup(venueDir);
             }
@@ -377,71 +386,6 @@ namespace OPS.Landform
             {
                 Cleanup(venueDir);
                 throw;
-            }
-        }
-
-        private string GetDestDir(string meshUrl)
-        {
-            if (!string.IsNullOrEmpty(outputFolder))
-            {
-                return outputFolder;
-            }
-            return MakeTilesetUrlFromRDRUrl(meshUrl);
-        }
-
-        public static string MakeTilesetUrlFromRDRUrl(string rdrUrl)
-        {
-            string rdrSubdir = "/rdr/";
-            string tilesetSubdir = "tileset";
-            int rdrIdx = StringHelper.NormalizeSlashes(rdrUrl).ToLower().LastIndexOf(rdrSubdir);
-            if (rdrIdx >= 0)
-            {
-                return rdrUrl.Substring(0, rdrIdx + rdrSubdir.Length) + tilesetSubdir;
-            }
-            else
-            {
-                string dir = StringHelper.StripLastUrlPathSegment(rdrUrl);
-                if (dir != rdrUrl)
-                {
-                    return dir + "/" + tilesetSubdir;
-                }
-                else
-                {
-                    return tilesetSubdir; //rdrUrl had only one path segment, i.e. it was a filename with no path
-                }
-            }
-        }
-
-        private void SaveTileset(string tilesetDir, string project, string meshUrl)
-        {
-            string tilesetFile = string.Format("{0}/{1}", tilesetDir, TILESET_JSON);
-            string dest = string.Format("{0}/{1}", GetDestDir(meshUrl), project);
-            
-            pipeline.LogInfo("{0}saving tileset from {1} to {2}", options.DryRun ? "dry " : "", tilesetDir, dest);
-            
-            if (!options.DryRun)
-            {
-                if (!Directory.Exists(tilesetDir))
-                {
-                    throw new Exception(string.Format("local tileset directory {0} not found", tilesetDir));
-                }
-                
-                if (!File.Exists(tilesetFile))
-                {
-                    throw new Exception(string.Format("local tileset {0} not found", tilesetFile));
-                }
-                
-                foreach (var f in PathHelper.ListFiles(tilesetDir, recursive: false))
-                {
-                    if (f.Name == TILESET_JSON || f.Name == SCENE_JSON || f.Name == STATS_TXT)
-                    {
-                        SaveFile(f.FullName, string.Format("{0}/{1}_{2}", dest, project, f.Name));
-                    }
-                    else
-                    {
-                        SaveFile(f.FullName, string.Format("{0}/{1}", dest, f.Name));
-                    }
-                }
             }
         }
     }

@@ -258,7 +258,14 @@ namespace OPS.Pipeline
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
                     LogLess("adding/updating input {0}", m.Name);
-                    TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
+                    var input = TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
+                    var inputs = project.LoadInputNames(pipeline);
+                    if (!inputs.Contains(input.Name))
+                    {
+                        inputs.Add(input.Name);
+                        project.SaveInputNames(inputs, pipeline);
+                        pipeline.SaveDatabaseItem(project);
+                    }
                 }
                 else
                 {
@@ -322,9 +329,13 @@ namespace OPS.Pipeline
         virtual protected bool ChunkInputs(TilingProject project)
         {
             bool allChunked = true;
-            foreach (var inputName in project.InputNames)
+            foreach (var inputName in project.LoadInputNames(pipeline))
             {
                 var input = TilingInput.Find(pipeline, projectName, inputName);
+                if (input == null)
+                {
+                    throw new Exception("tiling input not found: " + inputName);
+                }
                 if (!input.Chunked)
                 {
                     allChunked = false;
@@ -484,16 +495,19 @@ namespace OPS.Pipeline
                     "Called with: " + maxGroupSize);
             }
 
-            // TODO:
-            //   -consider looking at intersection of parent tile, only checking intersection 
-            //     of children on subset of chunks that intersect the parent
+            // TODO: consider looking at intersection of parent tile, only checking intersection of children on subset
+            // of chunks that intersect the parent
 
-            // get chunks
-            var chunks = new List<TilingInputChunk>();
             var project = TilingProject.Find(pipeline, projectName);
-            var inputs = TilingInput.Find(pipeline, project).ToList();
-            foreach (var input in inputs)
+
+            var chunks = new List<TilingInputChunk>();
+            foreach (var inputName in project.LoadInputNames(pipeline))
             {
+                var input = TilingInput.Find(pipeline, projectName, inputName);
+                if (input == null)
+                {
+                    throw new Exception("tiling input not found: " + inputName);
+                }
                 IEnumerable<string> chunkIds = null;
                 lock (input.ChunkIds)
                 {

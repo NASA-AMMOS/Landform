@@ -149,10 +149,6 @@ namespace OPS.Imaging
                 }
                 foreach (Vector2 edge in edgePoints)
                 {
-                    image.SetMaskValue((int)edge.X, (int)edge.Y, true);
-                }
-                foreach (Vector2 edge in edgePoints)
-                {
                     if (useAnyNeighbor)
                     {
                         FillWithAnyNeighbor((int)edge.X, (int)edge.Y, image);
@@ -194,6 +190,10 @@ namespace OPS.Imaging
                     }
                 }
                 edgePoints = newEdgePoints.ToList();
+                foreach (Vector2 edge in edgePoints)
+                {
+                    image.SetMaskValue((int)edge.X, (int)edge.Y, true);
+                }
             }
         }
     }

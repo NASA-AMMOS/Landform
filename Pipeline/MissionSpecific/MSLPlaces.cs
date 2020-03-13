@@ -30,7 +30,7 @@ namespace OPS.Pipeline
         public string AuthCookieValue { get; set; }
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_FILE")]
-        public string AuthCookieFile { get; set; } = "~/.cssotoken/dev/ssosession";
+        public string AuthCookieFile { get; set; } = "~/.cssotoken/dev-old/ssosession";
 
         [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
         public string View { get; set; } = "best_tactical"; //MSL: best_tactical, localized_pos, localized_interp 

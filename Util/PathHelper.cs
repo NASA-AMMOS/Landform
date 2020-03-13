@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.ComponentModel;
 using log4net;
 
 namespace OPS.Util
@@ -117,6 +118,11 @@ namespace OPS.Util
 
         public static void MoveFileAtomic(string src, string dst)
         {
+            if (!File.Exists(src))
+            {
+                throw new IOException(string.Format("error moving {0} to {1}: not found", src, dst));
+            }
+
             //there is a fighting chance that this is atomic
             //https://docs.microsoft.com/en-us/windows/desktop/FileIO/deprecation-of-txf#applications-updating-a-single-file-with-document-like-data
             //unfortunately it doesn't work when the destination file doesn't already exist
@@ -128,7 +134,24 @@ namespace OPS.Util
             //rather than introduce a lock here or do a race-prone existence check
             //let's try this https://stackoverflow.com/a/38372760
             //flags 11 = MOVEFILE_COPY_ALLOWED (2) | MOVEFILE_REPLACE_EXISTING (1) | MOVEFILE_WRITE_THROUGH (8)
-            MoveFileEx(src, dst, 11);
+            //using MoveFileExW() vs MoveFileEx() or MoveFileExA() to avoid the MAX_PATH=260 limitation
+            //but actually getting long paths to work both here and across the whole codebase requires
+            //* .NET 4.6.2 or greater
+            //* Windows 10 version 1607 or later
+            //* HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled=1 in registry
+            //* longPathAware=true in app.manifest
+            //https://docs.microsoft.com/en-us/windows/win32/fileio/naming-a-file#enable-long-paths-in-windows-10-version-1607-and-later
+            if (!MoveFileExW(src, dst, 11))
+            {
+                int code = Marshal.GetLastWin32Error(); 
+                throw new IOException(string.Format("error moving {0} to {1}: {2} ({3})", src, dst,
+                                                    code, new Win32Exception(code).Message));
+            }
+
+            if (!File.Exists(dst))
+            {
+                throw new IOException(string.Format("error moving {0} to {1}: move failed", src, dst));
+            }
         }
 
         //this seems to be the most palatable option to try to atomically move a file
@@ -138,7 +161,7 @@ namespace OPS.Util
         //https://stackoverflow.com/a/1364762
         [return: MarshalAs(UnmanagedType.Bool)]
         [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
-        private static extern bool MoveFileEx(string existingFileName, string newFileName, int flags);
+        private static extern bool MoveFileExW(string existingFileName, string newFileName, int flags);
 
         public const int DELETE_RETRIES = 5;
         public const int DELETE_RETRY_SEC = 10;

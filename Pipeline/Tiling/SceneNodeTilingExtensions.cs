@@ -355,26 +355,9 @@ namespace OPS.Pipeline
             int numLevels = levels.Count();
             writeLine(string.Format("tile tree has {0} levels, {1} total tiles, {2} leaves",
                                     numLevels, nodes.Count, nodes.Count(node => node.IsLeaf)));
-            foreach (var level in levels)
+
+            void dumpLevel(IEnumerable<SceneNode> level, string msg)
             {
-                string msg = string.Format("level {0}: {1} tiles, {2} leaves",
-                                           level.Key, level.Count(), level.Count(n => n.IsLeaf));
-
-                var parents = level.Where(node => node.Children.Count() > 0).ToList();
-                if (parents.Count > 0)
-                {
-                    int minBranch = parents.Min(node => node.Children.Count());
-                    if (minBranch > 0)
-                    {
-                        msg += string.Format("; branching factor {0}", minBranch);
-                        int maxBranch = parents.Max(node => node.Children.Count());
-                        if (maxBranch > minBranch)
-                        {
-                            msg += string.Format("-{0}", maxBranch);
-                        }
-                    }
-                }
-
                 var errors = level
                     .Where(node => node.HasComponent<NodeGeometricError>())
                     .Select(node => node.GetComponent<NodeGeometricError>().Error)
@@ -416,9 +399,10 @@ namespace OPS.Pipeline
                     {
                         var minImg = imgStats.First();
                         var maxImg = imgStats.Last();
-                        msg = string.Format("  {0} images {1}x{2}-{3}x{4}", imgStats.Count,
+                        msg = string.Format("  {0} images {1}x{2}-{3}x{4}, {5} total pixels", imgStats.Count,
                                             minImg.ImageWidth, minImg.ImageHeight,
-                                            maxImg.ImageWidth, maxImg.ImageHeight);
+                                            maxImg.ImageWidth, maxImg.ImageHeight,
+                                            Fmt.KMG(imgStats.Sum(s => s.NumPixels)));
                     }
 
                     var vertStats = mipStats.Where(s => s.NumVerts > 0).OrderBy(s => s.NumVerts).ToList();
@@ -443,9 +427,12 @@ namespace OPS.Pipeline
                             var minTriArea = triStats.Min(s => s.MinTriArea);
                             var maxTriArea = triStats.Max(s => s.MaxTriArea);
                             
-                            msg += string.Format(", {0}-{1} tris, mesh area {2:f3}-{3:f3}; tri area {4:f3}-{5:f3}",
+                            msg += string.Format(", {0}-{1} tris ({2} total), mesh area {3:f3}-{4:f3} ({5} total)"
+                                                 + "; tri area {6:f3}-{7:f3}",
                                                  Fmt.KMG(minTris), Fmt.KMG(maxTris),
-                                                 minMeshArea, maxMeshArea, minTriArea, maxTriArea);
+                                                 Fmt.KMG(triStats.Sum(s => s.NumTris)),
+                                                 minMeshArea, maxMeshArea, Fmt.KMG(triStats.Sum(s => s.MeshArea)),
+                                                 minTriArea, maxTriArea);
                             writeLine(msg);
                             
                             var minUVArea = triStats.Min(s => s.UVArea);
@@ -468,6 +455,34 @@ namespace OPS.Pipeline
                     }
                 }
             }
+
+            foreach (var level in levels)
+            {
+                string msg = string.Format("level {0}: {1} tiles, {2} leaves",
+                                           level.Key, level.Count(), level.Count(n => n.IsLeaf));
+
+                var parents = level.Where(node => node.Children.Count() > 0).ToList();
+                if (parents.Count > 0)
+                {
+                    int minBranch = parents.Min(node => node.Children.Count());
+                    if (minBranch > 0)
+                    {
+                        msg += string.Format("; branching factor {0}", minBranch);
+                        int maxBranch = parents.Max(node => node.Children.Count());
+                        if (maxBranch > minBranch)
+                        {
+                            msg += string.Format("-{0}", maxBranch);
+                        }
+                    }
+                }
+
+                dumpLevel(level, msg);
+            }
+
+            var leaves = nodes.Where(node => node.IsLeaf);
+            var leafLevels = leaves.Select(n => n.Transform.Depth()).DefaultIfEmpty(-1);
+            dumpLevel(leaves, string.Format("{0} leaves at level(s) {1}-{2}",
+                                            leaves.Count(), leafLevels.Min(), leafLevels.Max()));
         }
 
         /// <summary>

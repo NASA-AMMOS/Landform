@@ -6,17 +6,23 @@ using OPS.Pipeline;
 namespace OPS.TilingServer
 {
     [Verb("deletequeues", HelpText = "Delete queues")]
-    public class DeleteQueuesOptions : PipelineCoreOptions
+    public class DeleteQueuesOptions : TilingServerCommandOptions
     {       
         [Option(Default = false, HelpText = "Disable confirmation prompt")]
         public bool Force { get; set; }
+
+        [Value(0, Required = false, HelpText = "Option disabled for this command", Default = null)]
+        public override string ProjectName { get; set; }
+
+        [Option(Default = false, HelpText = "Option disabled for this command")]
+        public override bool Local { get; set; }
     }
 
-    public class DeleteQueues : CloudPipeline
+    public class DeleteQueues : TilingServerCommand
     {
         private DeleteQueuesOptions options;
 
-        public DeleteQueues(DeleteQueuesOptions options) : base(options, queuePrefix: "tiling")
+        public DeleteQueues(DeleteQueuesOptions options) : base(options, local: false, initTables: false)
         {
             this.options = options;
         }
@@ -25,12 +31,12 @@ namespace OPS.TilingServer
         {
             if (!options.Force)
             {
-                Console.WriteLine("delete queues in venue " + Venue + " (yes/no)?");
+                Console.WriteLine("delete queues in venue " + pipeline.Venue + " (yes/no)?");
                 var response = Console.ReadLine();
                 if (response.ToLower() != "yes") return 1;
             }
-            LogInfo("deleting queues");
-            DeleteQueues();
+            pipeline.LogInfo("deleting queues in venue {0}", pipeline.Venue);
+            (pipeline as CloudPipeline).DeleteQueues();
             return 0;
         }
     }

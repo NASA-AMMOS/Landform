@@ -175,8 +175,6 @@ namespace OPS.Landform
 
     public class UpdateSceneManifest : GeometryCommand
     {
-        //NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4 chars
-        public const string WILDCARD = "#####";
         public const string SCENE_SUFFIX = "_scene";
 
         private UpdateSceneManifestOptions options;
@@ -279,8 +277,6 @@ namespace OPS.Landform
 
         public int Run()
         {
-            StartStopwatch();
-
             try
             {
                 if (!ParseArgumentsAndLoadCaches())
@@ -375,11 +371,11 @@ namespace OPS.Landform
 
             if (!string.IsNullOrEmpty(options.RDRDir))
             {
-                int firstWildcard = options.RDRDir.IndexOf(WILDCARD);
-                int lastWildcard = options.RDRDir.LastIndexOf(WILDCARD);
+                int firstWildcard = options.RDRDir.IndexOf(FetchData.SOL_WILDCARD);
+                int lastWildcard = options.RDRDir.LastIndexOf(FetchData.SOL_WILDCARD);
                 if (firstWildcard >= 0 && firstWildcard != lastWildcard)
                 {
-                    throw new Exception("--rdrdir must contain up to one wildcard " + WILDCARD); 
+                    throw new Exception("--rdrdir must contain up to one wildcard " + FetchData.SOL_WILDCARD); 
                 }
                 options.RDRDir = StringHelper.NormalizeUrl(options.RDRDir, preserveTrailingSlash: false) + "/";
                 pipeline.LogInfo("RDR dir: {0}", options.RDRDir);
@@ -413,21 +409,6 @@ namespace OPS.Landform
                 pipeline.LogInfo("site drive: {0}", options.SiteDrive);
             }
 
-            if (string.IsNullOrEmpty(options.ManifestFile))
-            {
-                if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
-                    SiteDrive.IsSiteDriveString(options.SiteDrive))
-                {
-                    options.ManifestFile = string.Format("{0}{1:D4}_{2}{3}.json", options.TilesetDir, options.Sol,
-                                                         options.SiteDrive, SCENE_SUFFIX);
-                    pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
-                }
-                else
-                {
-                    throw new Exception("--tilesetdir, --sol, and --sitedrive required to infer --manifestfile");
-                }
-            }
-
             if (!string.IsNullOrEmpty(options.OnlyForSiteDrives))
             {
                 throw new Exception("--onlyforsitedrives not implemented for this command");
@@ -443,7 +424,27 @@ namespace OPS.Landform
                 return false; // help
             }
 
-            //mission has now been initialized
+            //mission and project have now been initialized
+
+            if (string.IsNullOrEmpty(options.ManifestFile))
+            {
+                if (project != null)
+                {
+                    options.ManifestFile = string.Format("{0}{1}{2}.json",
+                                                         options.TilesetDir, project.Name, SCENE_SUFFIX);
+                }
+                else if (!string.IsNullOrEmpty(options.TilesetDir) && options.Sol >= 0 &&
+                         SiteDrive.IsSiteDriveString(options.SiteDrive))
+                {
+                    options.ManifestFile = string.Format("{0}{1:D4}_{2}{3}.json", options.TilesetDir, options.Sol,
+                                                         options.SiteDrive, SCENE_SUFFIX);
+                }
+                else
+                {
+                    throw new Exception("--tilesetdir, --sol, and --sitedrive required to infer --manifestfile");
+                }
+                pipeline.LogInfo("manifest file: {0}", options.ManifestFile);
+            }
 
             if (string.IsNullOrEmpty(options.ImageRDRExts) || options.ImageRDRExts.ToLower() == "mission")
             {
@@ -523,7 +524,7 @@ namespace OPS.Landform
 
         protected void SaveFile(string file, string url)
         {
-            LandformShell.SaveFile(pipeline, () => storageHelper, file, url);
+            LandformShell.SaveFile(pipeline, () => storageHelper, file, url, dryRun: options.NoSave);
         }
 
         private void LoadOrCreateManifest()
@@ -563,7 +564,7 @@ namespace OPS.Landform
         {
             var exts = imageExts.Concat(pdsExts).ToList(); //includes leading dot
 
-            int wildcardIndex = options.RDRDir.IndexOf(WILDCARD);
+            int wildcardIndex = options.RDRDir.IndexOf(FetchData.SOL_WILDCARD);
 
             int total = 0;
 
@@ -619,12 +620,12 @@ namespace OPS.Landform
                     string pat = "*";
                     if (wildcardIndex >= 0)
                     {
-                        dir = dir.Replace(WILDCARD, string.Format("{0:D" + WILDCARD.Length + "}", sol));
+                        dir = StringHelper.ReplaceFixedWidthIntWildcard(dir, FetchData.SOL_WILDCARD, sol);
                     }
                     else
                     {
                         //handle case where options.RDRDir is a base directory
-                        pat = string.Format("*/sol/{0:D" + WILDCARD.Length + "}/*", sol);
+                        pat = string.Format("*/sol/{0}/*", StringHelper.FixedWidthInt(FetchData.SOL_WILDCARD, sol));
                     }
                     searchRDRs(dir, pat);
                 }
@@ -655,7 +656,14 @@ namespace OPS.Landform
 
         private void UpdateContextualMeshManifest()
         {
-            string tilesetId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
+            //by convention the contextual mesh project name is TTTT_SSSDDDD
+            //where TTTT is the sol, SSS the site, and DDDD the drive
+            //but for variant processing there might be e.g. an extra suffix
+            //so rather than rigidly assume that it's always TTTT_SSSDDDD
+            //use the project name which would include any variant suffix
+            //string tilesetId = string.Format("{0:D4}_{1}", options.Sol, options.SiteDrive);
+            string tilesetId = project.Name;
+
             string tilesetUrl = null;
             if (!options.NoURLs)
             {
@@ -865,7 +873,7 @@ namespace OPS.Landform
 
                 var ids = idToPDSFile.Keys.ToList();
                 HashSet<string> keepers = null;
-                if (idToPDSFile.Count > 1 && !options.NoFilterTacticalMeshIDs)
+                if (ids.Count > 1 && !options.NoFilterTacticalMeshIDs)
                 {
                     Action<string> log = null;
                     if (pipeline.Verbose)
@@ -874,16 +882,42 @@ namespace OPS.Landform
                     }
                     keepers = new HashSet<string>(RoverObservationComparator.FilterProductIdGroups(ids, mission, log));
                 }
+                else
+                {
+                    keepers = new HashSet<string>(ids);
+                }
+
                 foreach (var id in ids)
                 {
-                    if (keepers == null || keepers.Contains(id))
+                    if (keepers.Contains(id))
                     {
                         UpdateTacticalMeshManifest(idToPDSFile[id], !options.NoURLs ? idToUrl[id] : null);
                     }
                     else
                     {
                         bool removed = sceneManifest.RemoveTileset(id);
-                        pipeline.LogWarn("tactical mesh product ID {0} was filtered out{1}",
+                        pipeline.LogWarn("tactical mesh {0} was filtered out{1}",
+                                         id, removed ? " (removed from manifest)" : "");
+                    }
+                }
+
+                //remove any stale tactical mesh tilesets currently in manifest
+                var currentlyInManifest = sceneManifest.Tilesets.Keys.ToList(); //can't modify collection in foreach
+                foreach (var id in currentlyInManifest)
+                {
+                    if (id == contextualId)
+                    {
+                        continue;
+                    }
+                    if (RoverProductId.Parse(id, mission, throwOnFail: false) == null)
+                    {
+                        continue;
+                    }
+                    //should get here only if id is a tactical mesh
+                    if (!keepers.Contains(id))
+                    {
+                        bool removed = sceneManifest.RemoveTileset(id);
+                        pipeline.LogWarn("tactical mesh {0} in manifest but no longer exists or was filtered out{1}",
                                          id, removed ? " (removed from manifest)" : "");
                     }
                 }

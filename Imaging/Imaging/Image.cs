@@ -68,10 +68,10 @@ namespace OPS.Imaging
 
         private static readonly Vector2[] PixelCorners =
         {
-            new Vector2(  0.0,  0.0), // upper left
-            new Vector2(  0.0,  1.0), // upper right
-            new Vector2(  1.0,  1.0), // lower right
-            new Vector2(  1.0,  0.0)  // lower left
+            new Vector2(  0.0,  0.0), // upper left: 0
+            new Vector2(  0.0,  1.0), // upper right: 1
+            new Vector2(  1.0,  1.0), // lower right: 2
+            new Vector2(  1.0,  0.0)  // lower left: 3
                 
         };
 
@@ -106,8 +106,38 @@ namespace OPS.Imaging
             return result;
         }
 
-        //method based on TerrainTools GetSourceAreaForRowCol()
-        //half the area reported by the cross product is the area of that triangle
+        //float pixel addresses are the top left corners of pixel. if you intend to include
+        // the full contents of a pixel in the area, be sure to pad by 1. For example, a 2x2 pixel grid is
+        //
+        //    0,0----1,0----2,0
+        //     |      |      |
+        //    0,1----1,1----2,1
+        //     |      |      |
+        //    0,2----1,2----2,2
+        //
+        // To find the triangle that covers half of that grid, pass (0,0) (0,2) (2,0)
+        public static double CalculateTriPixelArea(Vector2[] pixels)
+        {
+            if (pixels.Length != 3)
+            {
+                throw new Exception("Need three pixels for area");
+            }
+
+            Vector2 pxA = pixels[0];
+            Vector2 pxB = pixels[1];
+            Vector2 pxC = pixels[2];
+           
+            //area when you know the three side lengths heron's formula
+            //https://en.wikipedia.org/wiki/Heron%27s_formula
+            double lenAB = (pxB - pxA).Length();
+            double lenAC = (pxC - pxA).Length();
+            double lenCB = (pxB - pxC).Length();
+            double s = (lenAB + lenAC + lenCB)/2.0;
+            return Math.Sqrt(s * (s - lenAB) * (s - lenAC) * (s - lenCB));
+        }
+
+        //float pixel addresses are the top left corners of pixel. if you intend to include
+        // the full contents of a pixel in the area, be sure to pad by 1
         public static double CalculateQuadPixelArea(Vector2[] pixels)
         {
             if (pixels.Length != 4)

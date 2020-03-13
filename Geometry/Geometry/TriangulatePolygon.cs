@@ -26,7 +26,7 @@ namespace OPS.Geometry
 
             //2d spatial lookup for checking that triangles are empty
             VertexKDTree kdTree = new VertexKDTree(perimeter.Select(e => {
-                var ret = e.Src.Vert;
+                Vertex ret = e.Src;
                 ret.Position.Z = 0;
                 return ret;
             }).ToList());
@@ -36,9 +36,9 @@ namespace OPS.Geometry
             Dictionary<Vector3, List<Vector3>> posToEdgeDirs = new Dictionary<Vector3, List<Vector3>>();
             foreach (Edge e in perimeter)
             {
-                var s = e.Src.Vert.Position;
+                var s = e.Src.Position;
                 s.Z = 0;
-                var d = e.Dst.Vert.Position;
+                var d = e.Dst.Position;
                 d.Z = 0;
                 if(posToEdgeDirs.ContainsKey(s))
                 {
@@ -74,13 +74,13 @@ namespace OPS.Geometry
                         //For non-convex polygons still need to check that ear is empty
                         bool empty = true;
                         Vertex v1 = new Vertex();
-                        v1.UV = new Vector2(e1.Src.Vert.Position.X, e1.Src.Vert.Position.Y);
+                        v1.UV = new Vector2(e1.Src.Position.X, e1.Src.Position.Y);
                         v1.Position = new Vector3(v1.UV, 0);
                         Vertex v2 = new Vertex();
-                        v2.UV = new Vector2(e1.Dst.Vert.Position.X, e1.Dst.Vert.Position.Y);
+                        v2.UV = new Vector2(e1.Dst.Position.X, e1.Dst.Position.Y);
                         v2.Position = new Vector3(v2.UV, 0);
                         Vertex v3 = new Vertex();
-                        v3.UV = new Vector2(e2.Dst.Vert.Position.X, e2.Dst.Vert.Position.Y);
+                        v3.UV = new Vector2(e2.Dst.Position.X, e2.Dst.Position.Y);
                         v3.Position = new Vector3(v3.UV, 0);
                         Triangle tri = new Triangle(v1, v2, v3);
 
@@ -93,7 +93,7 @@ namespace OPS.Geometry
                                                          Vector3.DistanceSquared(new Vector3(v3.UV, 0), center)));
                             foreach (Vertex v in kdTree.NearestDistance(center, Math.Sqrt(testDistSq) + 1E-8))
                             {
-                                if (v == e1.Src.Vert || v == e1.Dst.Vert || v == e2.Dst.Vert)
+                                if (v == e1.Src || v == e1.Dst || v == e2.Dst)
                                 {
                                     continue; //Don't test against triangle verts
                                 }

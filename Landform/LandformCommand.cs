@@ -41,12 +41,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Output image format, e.g. png, jpg, help for list", Default = "png")]
         public virtual string ImageFormat { get; set; }
-
-        [Option(Default = null, HelpText = "Override default config dir (defaults to user home dir)")]
-        public string ConfigDir { get; set; }
-
-        [Option(Default = null, HelpText = "Override default config folder (defaults to .landform)")]
-        public string ConfigFolder { get; set; }
     }
 
     public class LandformCommand
@@ -73,6 +67,8 @@ namespace OPS.Landform
         {
             this.lcopts = lcopts;
 
+            StartStopwatch();
+
             if (!string.IsNullOrEmpty(lcopts.ConfigDir))
             {
                 Config.ConfigDir = lcopts.ConfigDir;
@@ -90,6 +86,8 @@ namespace OPS.Landform
             {
                 pipeline = new LocalPipeline(lcopts);
             }
+
+            RunPhase("scan for user image masks", () => pipeline.InitUserMasks());
 
             PDSSerializer.DataPath = pipeline.PDSDataPath;
 
@@ -113,8 +111,7 @@ namespace OPS.Landform
                 return;
             }
 
-            var totalMS = stopwatch.ElapsedMilliseconds + pipeline.InitMSPerPhase.Values.Sum();
-            pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(totalMS));
+            pipeline.LogInfo("-- {0} total elapsed time --", Fmt.HMS(stopwatch.ElapsedMilliseconds));
 
             if (brief)
             {

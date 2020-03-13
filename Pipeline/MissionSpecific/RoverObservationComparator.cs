@@ -301,6 +301,7 @@ namespace OPS.Pipeline
                     return keepers;
                 }
 
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/953
                 return observations
                     .Where(obs => obs is RoverObservation)
                     .Cast<RoverObservation>()
@@ -415,14 +416,18 @@ namespace OPS.Pipeline
                                  RoverStereoPair.IsStereoEye(id.Camera, preferEyeForGeometry));
             }
 
-            var idToProduct = new Dictionary<RoverProductId, string>();
+            var idToProducts = new Dictionary<RoverProductId, List<string>>();
             foreach (var product in products)
             {
                 string idStr = StringHelper.GetLastUrlPathSegment(product, stripExtension: true);
                 var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
                 if (id != null)
                 {
-                    idToProduct[id] = product;
+                    if (!idToProducts.ContainsKey(id))
+                    {
+                        idToProducts[id] = new List<string>();
+                    }
+                    idToProducts[id].Add(product);
                 }
             }
 
@@ -431,8 +436,9 @@ namespace OPS.Pipeline
             //not that it wouldn't be nice if we could do that
             //but the code just doesn't support that
             //KeepBestRoverObservations() does consider producer
-            foreach (var typeGroup in idToProduct.Keys.GroupBy(id => id.GetType()))
+            foreach (var typeGroup in idToProducts.Keys.GroupBy(id => id.GetType()))
             {
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/953
                 foreach (var obsGroup in typeGroup.GroupBy(id => id.GetPartialId(mission,
                                                                                  includeProductType: false,
                                                                                  includeColorFilter: false,
@@ -498,16 +504,20 @@ namespace OPS.Pipeline
                     
                     if (log != null && filtered.Count < orig.Count)
                     {
-                        log(string.Format("keeping best products(s) {0} of {1}", 
-                                          String.Join(", ", filtered.Select(id => StringHelper
-                                                                            .GetLastUrlPathSegment(idToProduct[id]))),
-                                          String.Join(", ", orig.Select(id => StringHelper
-                                                                        .GetLastUrlPathSegment(idToProduct[id])))));
+                        log(string.Format
+                            ("keeping best products(s) {0} of {1}", 
+                             String.Join(", ", filtered.Select(id => StringHelper
+                                                               .GetLastUrlPathSegment(idToProducts[id][0]))),
+                             String.Join(", ", orig.Select(id => StringHelper
+                                                           .GetLastUrlPathSegment(idToProducts[id][0])))));
                     }
 
                     foreach (var id in filtered)
                     {
-                        yield return idToProduct[id];
+                        foreach (var product in idToProducts[id])
+                        {
+                            yield return product;
+                        }
                     }
                 }
             }

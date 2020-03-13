@@ -114,8 +114,10 @@ async function runProject(req, res) {
 router.post('/:name/run', runProject);
 
 function resultURL(name) {
-  const s3Bucket = new url.URL(config.app.s3Url).hostname;
-  return `https://${s3Bucket}.s3.amazonaws.com/${config.app.venue}/www/${name}/tileset.json`;
+  const bucket = new url.URL(config.app.s3Url).hostname;
+  const folder = new url.URL(config.app.s3Url).pathname; //starts with slash
+  const region = config.app.awsRegion;
+  return `https://${bucket}.s3-${region}.amazonaws.com${folder}/${config.app.venue}/www/${name}/tileset.json`;
 }
 
 router.get('/:name/result', (req, res) => {
@@ -126,7 +128,7 @@ router.get('/:name/result', (req, res) => {
 
 router.get('/:name/view', (req, res) => {
   const redirect = parseArgs(req, { redirect: { type: 'bool', default: true } }).redirect;
-  const ret = `/viewer/index.html?TilesetURL=${encodeURIComponent(resultURL(req.params.name))}`;
+  const ret = `/viewer/index.html?Tileset=${encodeURIComponent(resultURL(req.params.name))}`;
   if (redirect) res.redirect(ret);
   else {
     //this is tricky
