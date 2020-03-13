@@ -396,7 +396,7 @@ namespace OPS.Landform
                     .Distinct() //ConcurrentBag is not necessarily a set
                     .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
                     .ToArray();
-                    
+
                     if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture)
                     {
                         var pair = Mesh.MergeMeshesAndTextures(inputs);
@@ -405,7 +405,12 @@ namespace OPS.Landform
                     }
                     else
                     {
-                        mesh = Mesh.Merge(inputs.Select(pr => pr.Item1).ToArray());
+                        var meshes = inputs.Select(pr => pr.Item1).Where(m => m.HasUVs).ToArray();
+                        if (meshes.Count() != inputs.Count())
+                        {
+                            pipeline.LogWarn("Merging {0}/{1} meshes with UVs for sitedrive {2}", meshes.Count(), inputs.Count(), siteDrive);
+                        }
+                        mesh = Mesh.Merge(meshes);
                     }
                     
                     switch (bcopts.BEVColoring)
@@ -540,6 +545,11 @@ namespace OPS.Landform
                             }
 
                             dems[siteDrive] = dem;
+                            if(bcopts.WriteDebug)
+                            {
+                                SaveFloatTIFF(dems[siteDrive], siteDrive + "_DEM");
+                            }
+
                         }
                     }
                         
