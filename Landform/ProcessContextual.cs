@@ -351,7 +351,7 @@ namespace OPS.Landform
                     
                     RunCommand("blend-images", project, "--meshframe", sdStr);
                     
-                    RunCommand("build-tileset", project, "--meshframe", sdStr);
+                    BuildTileset(project, "--meshframe", sdStr);
                     
                     RunCommand("update-scene-manifest", project, "--notactical", "--nourls",
                                "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);

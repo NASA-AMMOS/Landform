@@ -62,6 +62,12 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
         public int MaxCores { get; set; }
+
+        [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
+        public string ExportMeshFormat { get; set; }
+
+        [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
+        public string ExportImageFormat { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -108,6 +114,24 @@ namespace OPS.Landform
 
         protected virtual bool ParseArguments()
         {
+            if (!string.IsNullOrEmpty(lsopts.ExportMeshFormat))
+            {
+                if (MeshSerializers.Instance.CheckFormat(lsopts.ExportMeshFormat, pipeline) == null)
+                {
+                    return false; //help
+                }
+                pipeline.LogInfo("export mesh format: {0}", lsopts.ExportMeshFormat);
+            }
+            
+            if (!string.IsNullOrEmpty(lsopts.ExportImageFormat))
+            {
+                if (ImageSerializers.Instance.CheckFormat(lsopts.ExportImageFormat, pipeline) == null)
+                {
+                    return false; //help
+                }
+                pipeline.LogInfo("export image format: {0}", lsopts.ExportImageFormat);
+            }
+
             project = GetProject();
             if (project != null)
             {
@@ -446,6 +470,25 @@ namespace OPS.Landform
             string rdrSegment = string.Format("/{0}/", RDR_SUBDIR.ToLower());
             int rdrIdx = inputFolder.ToLower().LastIndexOf(rdrSegment);
             return (rdrIdx >= 0 ? inputFolder.Substring(0, rdrIdx + rdrSegment.Length) : inputFolder) + TILESET_SUBDIR;
+        }
+
+        protected void BuildTileset(string project, params string[] extraArgs)
+        {
+            var args = new List<string>() { project };
+
+            if (!string.IsNullOrEmpty(lsopts.ExportMeshFormat))
+            {
+                args.Add("--exportmeshformat");
+                args.Add(lsopts.ExportMeshFormat);
+            }
+
+            if (!string.IsNullOrEmpty(lsopts.ExportImageFormat))
+            {
+                args.Add("--exportimageformat");
+                args.Add(lsopts.ExportImageFormat);
+            }
+
+            RunCommand("build-tileset", args.Concat(extraArgs).ToArray());
         }
 
         protected void SaveTileset(string tilesetDir, string project, string destDir)

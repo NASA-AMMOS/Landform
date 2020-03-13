@@ -53,31 +53,12 @@ namespace OPS.Pipeline.TilingServer
         {
             TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
             input.Save(pipeline);
-
-            bool added = false;
-            lock (project.InputNames)
-            {
-                added = project.InputNames.Add(name);
-            }
-            if (added)
-            {
-                pipeline.SaveDatabaseItem(project);
-            }
-            
             return input;
         }
 
         public static TilingInput Find(PipelineCore pipeline, string projectName, string name)
         {
             return pipeline.LoadDatabaseItem<TilingInput>(name, projectName);
-        }
-
-        public static IEnumerable<TilingInput> Find(PipelineCore pipeline, TilingProject project, ILog logger = null)
-        {
-            foreach (var name in project.InputNames)
-            {
-                yield return Find(pipeline, project.Name, name);
-            }
         }
 
         public void Save(PipelineCore pipeline)

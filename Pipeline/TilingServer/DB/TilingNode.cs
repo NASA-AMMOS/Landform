@@ -79,7 +79,10 @@ namespace OPS.Pipeline.TilingServer
             List<string> ids = null;
             try
             {
-                ids = project.LoadNodeIds(pipeline);
+                if (!string.IsNullOrEmpty(project.NodeIdsUrl))
+                {
+                    ids = project.LoadNodeIds(pipeline);
+                }
             }
             catch (Exception)
             {
