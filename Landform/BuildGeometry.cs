@@ -62,6 +62,9 @@ namespace OPS.Landform
         [Option(HelpText = "Only use orbital beyond this distance from surface", Default = 0.25)]
         public double FilterRadius { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
+        public string OrbitalDEM { get; set; }
+
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
 
@@ -90,7 +93,6 @@ namespace OPS.Landform
         private SparseImage dem;
         private Matrix demToBaseSiteDrive;
 
-        //Intermediates
         private Mesh shrinkwrappedSurface;
         private Mesh surfaceMaskMesh;
         private Mesh replacementMesh;
@@ -115,7 +117,8 @@ namespace OPS.Landform
                 RunPhase("build observation point clouds", BuildObservationPointClouds);
                 RunPhase("merge point clouds", MergePointClouds);
                 RunPhase("reconstruct mesh", ReconstructMesh);
-                if (options.FillHoles || options.UseOrbital && EnsureOrbital())
+
+                if ((options.FillHoles || options.UseOrbital) && EnsureOrbital())
                 {
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
@@ -402,14 +405,27 @@ namespace OPS.Landform
 
         private bool EnsureOrbital()
         {
-            string demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
+            var cfg = OrbitalConfig.Instance;
+
+            string demFilePath = options.OrbitalDEM;
+            if (string.IsNullOrEmpty(demFilePath) && !string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+            {
+                demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
+            }
+            else
+            {
+                pipeline.LogWarn("orbital DEM not available for mission {0}", mission.GetMission());
+                return false;
+            }
 
             if (!File.Exists(demFilePath))
             {
-                pipeline.LogWarn("Orbital dem not found at {0}", demFilePath);
+                pipeline.LogWarn("mission {0} orbital DEM not found at {1}", mission.GetMission(), demFilePath);
                 return false;
             }
             dem = new SparseImage(demFilePath);
+            dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height,
+                                                          cfg.OrbitalDEMMetersPerPixel);
 
             if (options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
@@ -417,15 +433,15 @@ namespace OPS.Landform
                 return false;
             }
 
-            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
+            string orbitalFrameName = cfg.OrbitalFrameName;
             FrameTransform ft = frameCache.GetBestTransform(orbitalFrameName);
             if (ft == null)
             {
-                pipeline.LogWarn("Failed to retrieve orbital alignment.");
+                pipeline.LogWarn("failed to retrieve aligned orbital transform");
                 return false;
             }
-            demToBaseSiteDrive = ft.Transform.Mean
-                                 * Matrix.Invert(frameCache.GetBestTransform(meshFrame).Transform.Mean);
+            demToBaseSiteDrive =
+                ft.Transform.Mean * Matrix.Invert(frameCache.GetBestTransform(meshFrame).Transform.Mean);
 
             return true;
         }
@@ -511,22 +527,21 @@ namespace OPS.Landform
 
         private void ReconstructOrbitalToMask()
         {
-            double demMetersPerPixel = mission.GetDemMetersPerPixel();
-
-            dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, demMetersPerPixel);
+            var cfg = OrbitalConfig.Instance;
 
             Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
             Vector3 demOriginXYZ = Vector3.Transform(Vector3.Zero, baseSiteDriveToDem);
-            Vector2 center = new Vector2(dem.Width / 2 + demOriginXYZ.X / demMetersPerPixel,
-                                 dem.Height / 2 - demOriginXYZ.Y / demMetersPerPixel);
+            Vector2 center = new Vector2(dem.Width / 2 + demOriginXYZ.X / cfg.OrbitalDEMMetersPerPixel,
+                                         dem.Height / 2 - demOriginXYZ.Y / cfg.OrbitalDEMMetersPerPixel);
 
             //Ensure orbital covers clip extent
-            int orbitalRadiusPixels = (int)(Math.Ceiling(options.ClipExtent / demMetersPerPixel) + 2);
+            int orbitalRadiusPixels = (int)(Math.Ceiling(options.ClipExtent / cfg.OrbitalDEMMetersPerPixel) + 2);
 
-            Func<Vector3, Vector3> adjust;
+            Func<Vector3, Vector3> adjust = new Func<Vector3, Vector3>(p => p);
             if (options.AdjustOrbital)
             {
-                var adjustments = DemOperations.CreateAdjustments(dem, surfaceUVMeshOp, center, demToBaseSiteDrive, orbitalRadiusPixels);
+                var adjustments = DemOperations.CreateAdjustments(dem, surfaceUVMeshOp, center, demToBaseSiteDrive,
+                                                                  orbitalRadiusPixels);
                 foreach(Vertex v in surfaceMaskMesh.Vertices)
                 {
                     Vector3 demPos = Vector3.Transform(v.Position, Matrix.Invert(demToBaseSiteDrive));
@@ -567,13 +582,10 @@ namespace OPS.Landform
                     return ret;
                 });
             }
-            else
-            {
-                adjust = new Func<Vector3, Vector3>(p => p);
-            }
 
             orbitalMesh = DemOperations.BuildOrbitalMeshAroundSurface(dem, surfaceMaskMesh, center, demToBaseSiteDrive,
-                orbitalRadiusPixels, options.FilterRadius, options.OrbitalPointsPerMeter, adjust);
+                                                                      orbitalRadiusPixels, options.FilterRadius,
+                                                                      options.OrbitalPointsPerMeter, adjust);
         }
 
         private void MergeOrbitalToSurface()

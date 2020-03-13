@@ -442,14 +442,21 @@ namespace OPS.Pipeline
             return "https://data.m20-dev.jpl.nasa.gov";
         }
 
-        public override float GetDemMetersPerPixel()
+        public override string GetPlacesConfigDefaults()
         {
-            throw new NotImplementedException();
-        }
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
+            //per Kevin Grimes on 3/18/20 M20 dev CWS data will soon be available at
+            //htps://places-pipeline.dev.m20.jpl.nasa.gov
 
-        public override bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null)
-        {
-            throw new NotImplementedException();
+            //return
+            //    "{ " +
+            //    "\"Url\": \"https://places-pipeline.dev.m20.jpl.nasa.gov\", " +
+            //    "\"View\": \"best_tactical\", " +
+            //    "\"AuthCookieName\": \"ssosession\", " +
+            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+            //    "}";
+
+            return null;
         }
     }
 
@@ -472,6 +479,20 @@ namespace OPS.Pipeline
         {
             return TranslateCamera(ParseProductId(parser.ProductIdString).Camera);
         }
+
+        public override string GetPlacesConfigDefaults()
+        {
+            //NOTE as of 3/19/20 it doesn't look like this PLACES instance is live anymore
+            //return
+            //    "{ " +
+            //    "\"Url\": \"https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places\", " +
+            //    "\"View\": \"best_tactical\", " +
+            //    "\"AuthCookieName\": \"ssosession\", " +
+            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+            //    "}";
+
+            return null;
+        }
     }
 
     public class MissionTT4 : MissionM2020
@@ -493,6 +514,20 @@ namespace OPS.Pipeline
             }
             yield return new int[] { SEQUENCE_FIELD, SEQUENCE_FIELD_LENGTH };
             yield break;
+        }
+
+        public override string GetPlacesConfigDefaults()
+        {
+            //NOTE as of 3/19/20 it is unlikely that this PLACES instance still is populated with TT4 data
+            //return
+            //    "{ " +
+            //    "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\", " +
+            //    "\"View\": \"best_tactical\", " +
+            //    "\"AuthCookieName\": \"ssosession\", " +
+            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+            //    "}";
+
+            return null;
         }
     }
 
@@ -614,6 +649,21 @@ namespace OPS.Pipeline
         public override string GetS3Proxy()
         {
             return "https://data-roastt.m20-training.jpl.nasa.gov";
+        }
+
+        public override string GetPlacesConfigDefaults()
+        {
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
+            //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
+            //htps://places-roastt.dev.m20.jpl.nasa.gov
+
+            return
+                "{ " +
+                "\"Url\": \"https://places-rocs.dev.m20.jpl.nasa.gov\", " +
+                "\"View\": \"best_tactical\", " +
+                "\"AuthCookieName\": \"ssosession\", " +
+                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+                "}";
         }
     }
 }

@@ -107,7 +107,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// X = longitude, Y = latitude
+        /// X = longitude, Y = latitude, Z = altitude => X = col, Y = row, Z = altitude
         /// </summary>
         public Vector3 LatLonToImage(Vector3 bodyPos)
         {
@@ -115,6 +115,15 @@ namespace OPS.Imaging
             latLonToProjected.TransformPoint(res, bodyPos.X, bodyPos.Y, bodyPos.Z);
             Vector3 inPixelSpace = Vector3.Transform(new Vector3(res[0], res[1], res[2]), invGeoTransform);
             return inPixelSpace;
+        }
+
+        /// <summary>
+        /// X = longitude, Y = latitude => X = col, Y = row
+        /// </summary>
+        public Vector2 LatLonToImage(Vector2 latLon)
+        {
+            var tmp = LatLonToImage(latLon);
+            return new Vector2(tmp.X, tmp.Y);
         }
 
         /// <summary>

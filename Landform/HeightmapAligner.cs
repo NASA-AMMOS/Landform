@@ -47,7 +47,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = 20000, HelpText = "Maximum number of samples to use when aligning SD -> SD")]
         public int TargetSampleNum { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override default dem location from config")]
+        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
         public string OrbitalDEM { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Turn on alignment to dem if no sufficient overlap to another sitedrive")]
@@ -69,6 +69,7 @@ namespace OPS.Landform
         private Dictionary<SiteDrive, Matrix> worldPriorToWorldTransforms = new Dictionary<SiteDrive, Matrix>();
         private SiteDrive baseSiteDrive;
         private SparseDEMImage dem;
+        private GDALDEM gdalDEM;
         private Matrix demToBaseSiteDrive;
         private Matrix baseSiteDriveToWorld;
         private Matrix demToWorld;
@@ -315,31 +316,40 @@ namespace OPS.Landform
 
         private void LoadOrbital()
         {
-            string demFilePath = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : //override by cmdline opt
-                OrbitalConfig.Instance.GetDEMFullPath(project.Mission);
+            var cfg = OrbitalConfig.Instance;
 
-            if (File.Exists(demFilePath))
+            try
             {
-                dem = new SparseDEMImage(demFilePath);
-                if (dem.CameraModel == null)
+                string demFilePath = options.OrbitalDEM;
+                if (string.IsNullOrEmpty(demFilePath) && !string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
                 {
-                    dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height,
-                                                                  mission.GetDemMetersPerPixel());
-                }
-                if (mission.GetDemToSiteDriveOffset(baseSiteDrive, out Matrix demToSD, demFilePath))
-                {
-
-                    demToBaseSiteDrive = demToSD * DemOperations.demToSitedriveCoordinateFlip;
+                    demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
                 }
                 else
                 {
-                    pipeline.LogWarn("failed to access places, running without orbital");
-                    options.NoOrbital = true;
+                    throw new Exception("orbital DEM not available for mission " + mission.GetMission());
                 }
+
+                if (!File.Exists(demFilePath))
+                {
+                    throw new Exception(string.Format("mission {0} orbital DEM not found at {1}",
+                                                      mission.GetMission(), demFilePath));
+                }
+
+                dem = new SparseDEMImage(demFilePath);
+                dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height,
+                                                              cfg.OrbitalDEMMetersPerPixel);
+
+                gdalDEM = GDALDEM.MarsDEM(demFilePath);
+
+                var placesDB = new PlacesDB(pipeline, requireOrbital: true);
+                var baseSiteDriveLatLon = placesDB.GetEstimatedLatLon(baseSiteDrive);
+                demToBaseSiteDrive = mission.GetOrbitalDEMToSiteDriveTransform(baseSiteDriveLatLon, gdalDEM,
+                                                                               cfg.OrbitalDEMMetersPerPixel);
             }
-            else
+            catch (Exception ex)
             {
-                pipeline.LogWarn("failed to load orbital DEM, running without orbital");
+                pipeline.LogWarn("failed to load orbital DEM or PlacesDB, running without orbital: {0}", ex.Message);
                 options.NoOrbital = true;
             }
         }
@@ -360,17 +370,17 @@ namespace OPS.Landform
                 options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
             demToWorld = demToWorldPrior * demWorldPriorToWorld;
 
+
             if (options.WriteDebug)
             {
-                Vector2 sdOriginPixel;
-                mission.GetSiteDriveOriginPixelInDem(baseSiteDrive, out sdOriginPixel);
+                Vector2 baseSDOriginPixelInOrbitalDEM = gdalDEM.LatLonToImage(baseSiteDriveLatLon);
 
                 //Get subset of dem around sitedrive
-                int pixelRadius = (int)(200 / mission.GetDemMetersPerPixel());
-                int baseC = (int)Math.Max(sdOriginPixel.X - pixelRadius, 0);
-                int baseR = (int)Math.Max(sdOriginPixel.Y - pixelRadius, 0);
-                int pixelWidth = (int)Math.Min(sdOriginPixel.X + pixelRadius, dem.Width) - baseC;
-                int pixelHeight = (int)Math.Min(sdOriginPixel.Y + pixelRadius, dem.Height) - baseR;
+                int pixelRadius = (int)(200 / OrbitalConfig.Instance.OrbitalDEMMetersPerPixel);
+                int baseC = (int)Math.Max(baseSDOriginPixelInOrbitalDEM.X - pixelRadius, 0);
+                int baseR = (int)Math.Max(baseSDOriginPixelInOrbitalDEM.Y - pixelRadius, 0);
+                int pixelWidth = (int)Math.Min(baseSDOriginPixelInOrbitalDEM.X + pixelRadius, dem.Width) - baseC;
+                int pixelHeight = (int)Math.Min(baseSDOriginPixelInOrbitalDEM.Y + pixelRadius, dem.Height) - baseR;
 
                 //Create dem mesh in root site drive frame
                 Mesh demPointCloud = new Mesh();
@@ -399,12 +409,15 @@ namespace OPS.Landform
         {
             foreach (SiteDrive siteDrive in unaligned)
             {
-                pipeline.LogInfo("aligning site drive {0} to DEM", siteDrive);
+                pipeline.LogInfo("aligning site drive {0} to orbital DEM", siteDrive);
                 var image = dems[siteDrive];
 
                 Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
-                Matrix demWorldToSDWorld = DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
-                    false, options.NumAnnealingStages, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+                Matrix demWorldToSDWorld =
+                    DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld, false,
+                                                  options.NumAnnealingStages, null, 0,
+                                                  options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum)
+                    .Value;
                 worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
             }
         }
@@ -444,7 +457,7 @@ namespace OPS.Landform
 
         private void WriteOrbitalTransform()
         {
-            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
+            string orbitalFrameName = OrbitalConfig.Instance.OrbitalFrameName;
             var demUt = new UncertainRigidTransform(demToWorld);
             var rootFrame = frameCache.GetFrame(baseSiteDrive.ToString()).GetParent(pipeline);
             if (!frameCache.ContainsFrame(orbitalFrameName))
@@ -464,8 +477,7 @@ namespace OPS.Landform
             {
                 orbitalFrame.Save(pipeline);
             }
-            pipeline.LogInfo("saved {0} adjusted transform for {1}",
-                             TransformSource.LandformOrbital, orbitalFrameName);
+            pipeline.LogInfo("saved {0} adjusted transform for {1}", TransformSource.LandformOrbital, orbitalFrameName);
         }
     }
 }

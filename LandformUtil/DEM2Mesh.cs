@@ -90,8 +90,8 @@ namespace OPS.LandformUtil
                                    Int32.TryParse(options.OutputFrame.Substring(5, 5), out drive);
                 if (useSiteDriveFame)
                 {
-                    MSLPlaces places = new MSLPlaces();
-                    Vector2 latlon = places.GetEstimatedLatLon(new SiteDrive(site, drive));
+                    var placesDB = new PlacesDB();
+                    Vector2 latlon = placesDB.GetEstimatedLatLon(new SiteDrive(site, drive));
                     GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
                     colRowOffset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
                     zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);

@@ -17,6 +17,22 @@ namespace OPS.Pipeline
 {
     public class PlacesConfig : SingletonConfig<PlacesConfig>
     {
+        public const string CONFIG_FILENAME = "places"; //config file will be ~/.landform/places.json
+        public override string ConfigFileName()
+        {
+            return CONFIG_FILENAME;
+        }
+
+        //default is empty which disables PlacesDB
+        //default is overridden by MissionSpecific.GetPlacesConfigDefaults()
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
+        public string Url { get; set; }
+
+        //default is empty which disables PlacesDB
+        //default is overridden by MissionSpecific.GetPlacesConfigDefaults()
+        [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
+        public string View { get; set; }
+
         [ConfigEnvironmentVariable("LANDFORM_PLACES_USERNAME")]
         public string Username { get; set; }
 
@@ -32,35 +48,21 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_FILE")]
         public string AuthCookieFile { get; set; } = "~/.cssotoken/dev-old/ssosession";
 
-        [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
-        public string View { get; set; } = "best_tactical"; //MSL: best_tactical, localized_pos, localized_interp 
-
-        [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
-        public string Url { get; set; } = "https://places-dev.m20-dev.jpl.nasa.gov"; //M2020 dev copy of MSL data
-        //https://mslplaces.jpl.nasa.gov:9443/msl-ops/places //MSL mission server - don't use for dev
-        //https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places //ROASTT
-        //https://places-sstage.m20.jpl.nasa.gov //TT4 - requires m2020-prod-gov credentials
-
         [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
         public string ResponseType { get; set; } = "application/xml"; //application/xml or application/json (experimental)
-
-        public override string ConfigFileName()
-        {
-            return "places";
-        }
     }
 
     /// <summary>
-    /// Places is a service that JPL runs for storing and reporting
-    /// different position estimates of spacecraft such as rovers.
-    /// This class interfaces with the MSL version of places to compute relative 
-    /// rover positions between site drives
+    /// PLACES is a service that JPL runs for storing and reporting position estimates of spacecraft such as rovers.
+    /// This class interfaces with PLACES to compute relative rover positions between site drives.
     /// </summary>
-    public class MSLPlaces
+    public class PlacesDB
     {
         public string FALLBACK_VIEW = "telemetry";
 
         private ILogger logger;
+
+        private PlacesConfig config;
 
         private string view;
         private string cookieValue;
@@ -77,11 +79,16 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
 
-        public MSLPlaces(ILogger logger = null)
+        public PlacesDB(ILogger logger = null, bool requireOrbital = false)
         {
             this.logger = logger;
 
-            var config = PlacesConfig.Instance;
+            config = PlacesConfig.Instance;
+
+            if (string.IsNullOrEmpty(config.Url) || string.IsNullOrEmpty(config.View))
+            {
+                throw new Exception("no PLACES database for mission");
+            }
 
             if (!string.IsNullOrEmpty(config.AuthCookieValue))
             {
@@ -99,11 +106,10 @@ namespace OPS.Pipeline
                     cookieValue = File.ReadAllText(path);
                 }
             }
-                
-            view = config.View;
 
             try
             {
+                view = config.View;
                 GetEstimatedOffsetToStart(new SiteDrive(1, 0)); //test query
             }
             catch
@@ -117,7 +123,7 @@ namespace OPS.Pipeline
                 logger.LogWarn("trying fallback view {0}", view);
                 try
                 {
-                    GetEstimatedOffsetToStart(new SiteDrive(1, 0)); //test query
+                    GetEstimatedOffsetToStart(new SiteDrive(1, 0));
                 }
                 catch
                 {
@@ -139,26 +145,28 @@ namespace OPS.Pipeline
                 if (logger != null)
                 {
                     logger.LogError("error getting ellipsoid radius from PlacesDB: {0}", ex.Message);
+                    if (requireOrbital)
+                    {
+                        throw;
+                    }
                 }
             }
         }
 
-        private string Fetch(string url)
+        private string Fetch(string query)
         {
             lock (cache)
             {
-                if (cache.ContainsKey(url))
+                if (cache.ContainsKey(query))
                 {
-                    var doc = cache[url];
+                    var doc = cache[query];
                     if (doc == null)
                     {
-                        throw new Exception(string.Format("PlacesDB: request '{0}' failed, not retrying", url));
+                        throw new Exception(string.Format("PlacesDB: query {0} failed, not retrying", query));
                     }
                     return doc;
                 }
 
-                var config = PlacesConfig.Instance;
-                
                 Uri uri = new Uri(config.Url);
                 
                 RestClient client = new RestClient();
@@ -177,7 +185,7 @@ namespace OPS.Pipeline
                 }
                 
                 var request = new RestRequest();
-                request.Resource = url;
+                request.Resource = query;
 
                 if (!string.IsNullOrEmpty(config.ResponseType))
                 {
@@ -189,16 +197,16 @@ namespace OPS.Pipeline
                 if (response.ResponseStatus != ResponseStatus.Completed ||
                     response.StatusCode != System.Net.HttpStatusCode.OK)
                 {
-                    cache[url] = null;
-                    throw new Exception(string.Format("PlacesDB: {0} connecting for request '{1}': {2}",
-                                                      response.StatusCode, config.Url + "/" + url,
+                    cache[query] = null;
+                    throw new Exception(string.Format("PlacesDB: {0} connecting for request {1}: {2}",
+                                                      response.StatusCode, config.Url + "/" + query,
                                                       response.ErrorMessage));
                 }
                 
                 string content = response.Content;
-                cache[url] = content;
+                cache[query] = content;
 
-                Debug("MSLPlaces request: {0}, response:\n{1}", config.Url + "/" + url, content);
+                Debug("PlacesDB request: {0}, response:\n{1}", config.Url + "/" + query, content);
 
                 return content;
             }
@@ -218,7 +226,7 @@ namespace OPS.Pipeline
 #endif
         }
 
-        private XmlDocument ParseXml(string url, string response)
+        private XmlDocument ParseXml(string query, string response)
         {
             try
             {
@@ -229,7 +237,7 @@ namespace OPS.Pipeline
             catch (System.Xml.XmlException ex)
             {
                 throw new Exception(string.Format("PlacesDB: error parsing response for request {0}: {1}",
-                                                  url, ex.Message));
+                                                  query, ex.Message));
             }
         }
 
@@ -243,18 +251,18 @@ namespace OPS.Pipeline
             public JsonTranslation[] translations = new JsonTranslation[0];
         }
 
-        private JsonDocument ParseJson(string url, string response)
+        private JsonDocument ParseJson(string query, string response)
         {
             return JsonHelper.FromJson<JsonDocument>(response);
         }
 
-        private Vector3 GetOffset(string url)
+        private Vector3 GetOffset(string query)
         {
-            string response = Fetch(url);
+            string response = Fetch(query);
             Vector3 offset = new Vector3();
             if (response.StartsWith("{"))
             {
-                JsonDocument doc = ParseJson(url, response);
+                JsonDocument doc = ParseJson(query, response);
                 var translations = doc.translations;
                 if (translations.Length != 1)
                 {
@@ -264,7 +272,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                XmlDocument doc = ParseXml(url, response);
+                XmlDocument doc = ParseXml(query, response);
                 XmlNodeList nodes = doc.GetElementsByTagName("offset");
                 if (nodes.Count != 1)
                 {
@@ -275,15 +283,15 @@ namespace OPS.Pipeline
                                      double.Parse(nodes[0].Attributes["z"].Value));
             }
 
-            Debug("MSLPlaces request {0}, offset {1}", url, offset);
+            Debug("PlacesDB request: {0}, offset {1}", query, offset);
 
             return offset;
         }
 
         private double GetEllipsoidRadius()
         {
-            string url = string.Format("rmc/orbital(0)/metadata");
-            string response = Fetch(url);
+            string query = string.Format("rmc/orbital(0)/metadata");
+            string response = Fetch(query);
             double radius = 0;
             if (response.StartsWith("{"))
             {
@@ -292,7 +300,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                XmlDocument doc = ParseXml(url, response);
+                XmlDocument doc = ParseXml(query, response);
                 bool ok = false;
                 foreach (XmlElement itemNode in doc.GetElementsByTagName("item"))
                 {
@@ -310,7 +318,7 @@ namespace OPS.Pipeline
                 }
             }
 
-            Debug("MSLPlaces request {0}, radius {1}", url, radius);
+            Debug("PlacesDB request {0}, radius {1}", query, radius);
 
             return radius;
         }
@@ -324,8 +332,9 @@ namespace OPS.Pipeline
             {
                 throw new Exception("PlacesDB: ellipsoid radius not available");
             }
-            string url = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)", view, sd.Site, sd.Drive);
-            Vector3 v = GetOffset(url);
+            string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)",
+                                         view, sd.Site, sd.Drive);
+            Vector3 v = GetOffset(query);
             // x is northing, y is easting
             double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
             double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
@@ -337,16 +346,17 @@ namespace OPS.Pipeline
         /// </summary>
         public Vector3 GetEstimatedOffsetToSite(SiteDrive fromSD, int toSite)
         {
-            string url = null;
+            string query = null;
             if (fromSD.Drive > 0)
             {
-                url = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})", view, fromSD.Site, fromSD.Drive, toSite);
+                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})",
+                                      view, fromSD.Site, fromSD.Drive, toSite);
             }
             else
             {
-                url = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSite);
+                query = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSite);
             }
-            return GetOffset(url);
+            return GetOffset(query);
         }
 
         /// <summary>

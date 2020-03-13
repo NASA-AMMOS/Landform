@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
+using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using Microsoft.Xna.Framework;
 using System.IO;
@@ -14,8 +15,23 @@ namespace OPS.Pipeline
 {
     public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20 }
 
-    public abstract class MissionSpecific
+    public abstract class MissionSpecific : ConfigDefaultsProvider
     {
+        protected MissionSpecific()
+        {
+            Config.DefaultsProvider = this;
+        }
+
+        public string GetConfigDefaults(string configFilename)
+        {
+            switch (StringHelper.StripUrlExtension(configFilename))
+            {
+                case OrbitalConfig.CONFIG_FILENAME: return GetOrbitalConfigDefaults();
+                case PlacesConfig.CONFIG_FILENAME: return GetPlacesConfigDefaults();
+                default: return null;
+            }
+        }
+
         public static MissionSpecific GetInstance(Mission mission)
         {
             switch (mission)
@@ -879,38 +895,29 @@ namespace OPS.Pipeline
             return null;
         }
 
-        private int demWidth = -1; //Lazily computed
-        private int demHeight = -1;
-
-        public virtual bool GetDemToSiteDriveOffset(SiteDrive siteDrive, out Matrix demToSD, string demFilePath = null)
+        /// <summary>
+        /// Get Orbital -> SiteDrive transform
+        /// </summary>
+        public virtual Matrix GetOrbitalDEMToSiteDriveTransform(Vector2 siteDriveLatLon, GDALDEM orbitalDEM,
+                                                                double demMetersPerPixel = 1)
         {
-            demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
-                OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
-            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
-            if (s.GetType() != typeof(GDALSerializer))
-            {
-                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
-            }
-            if (demWidth == -1)
-            {
-                ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out demWidth, out demHeight);
-            }
+            Vector2 sdPixelInDEM = orbitalDEM.LatLonToImage(siteDriveLatLon);
 
-            if(!GetSiteDriveOriginPixelInDem(siteDrive, out Vector2 colRowOffset, demFilePath))
-            {
-                demToSD = Matrix.Identity;
-                return false;
-            }
-
-            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - demWidth / 2.0) * GetDemMetersPerPixel(),
-                                                 -1 * (colRowOffset.Y - demHeight / 2.0) * GetDemMetersPerPixel(),
+            Vector3 demSDOriginXYZ = new Vector3((sdPixelInDEM.X - orbitalDEM.Width / 2.0) * demMetersPerPixel,
+                                                 -1 * (sdPixelInDEM.Y - orbitalDEM.Height / 2.0) * demMetersPerPixel,
                                                  0);
 
-            demToSD = Matrix.CreateTranslation(-1 * demSDOriginXYZ);
-            return true;
+            return Matrix.CreateTranslation(-1 * demSDOriginXYZ) * DemOperations.demToSitedriveCoordinateFlip;
         }
 
-        public abstract float GetDemMetersPerPixel();
-        public abstract bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null);
+        public virtual string GetOrbitalConfigDefaults()
+        {
+            return null;
+        }
+
+        public virtual string GetPlacesConfigDefaults()
+        {
+            return null;
+        }
     }
 }

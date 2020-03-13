@@ -15,8 +15,9 @@ namespace OPS.Pipeline
 {
     public class IngestPDSImage : IngestImage
     {
+        public PlacesDB Places;
+
         public MSLLocations Locations;
-        public MSLPlaces Places;
         public MSLLegacyManifest LegacyManifest; 
 
         private Project project;
