@@ -138,7 +138,6 @@ for f in `find ${dir} -name '*'.${meshext}`; do
     venue=local_${mission}_${proj}
     tileset_dir=$storage/$venue/tiling/TileSet/passthroughFrame/best/$proj
     log=processTactical_${proj}_log.txt
-    if [ "$dry" ]; then log=; else echo "$cmdline" > $log; fi
 
     # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
     # apparently it is possible that foo.iv might refer to bar.rgb as its texture
@@ -151,6 +150,10 @@ for f in `find ${dir} -name '*'.${meshext}`; do
     #
     # for now what we do is find the highest version .IMG that otherwise matches the .iv or .obj product ID
     # and use that both for texturing and metadata
+    #
+    # aaand this is still broken in a few ways
+    # * it's M2020 mission specific
+    # * it will only find .IMG with version numbers less than or equal to the version of the .iv
 
     id=${bn##*/}
     ver=${id:52:2}
@@ -160,6 +163,8 @@ for f in `find ${dir} -name '*'.${meshext}`; do
     done
 
     if [ -f $mesh -a -f $img ]; then
+
+        if [ "$dry" ]; then log=; else printf "${cmdline}\r\n" > $log; fi
 
         if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
 
@@ -176,10 +181,6 @@ for f in `find ${dir} -name '*'.${meshext}`; do
             if [ "$manifest" ]; then
                 ${dry}$landform update-scene-manifest $dbg --mission $mission --manifestfile $proj/${proj}_scene.json --nocontextual --nourls --tacticalpdsfile $img | tee -a $log
             fi
-
-            ${dry}mv $log $proj
-
-            if [ -z "$dry" ]; then echo "moved output to ./$proj"; fi
         fi
         
         if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
@@ -187,8 +188,15 @@ for f in `find ${dir} -name '*'.${meshext}`; do
         if [ "$upload" ]; then
             ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj --acl bucket-owner-full-control 
         fi
+
+        if [ ! "$dry" ]; then
+            printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
+            if [ -d $proj ]; then
+                printf "moved output to ./${proj}\r\n" | tee -a $log
+                mv $log $proj
+            fi
+        fi
     fi
 done
 
 restore_config
-

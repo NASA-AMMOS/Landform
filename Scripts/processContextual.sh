@@ -162,7 +162,7 @@ proj=${sol}_${sd}${suffix}
 venue=local_${mission}_${proj}
 tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 log=processContextual_${proj}_log.txt
-if [ "$dry" ]; then log=; else echo "$cmdline" > $log; fi
+if [ "$dry" ]; then log=; else printf "${cmdline}\r\n" > $log; fi
 
 backup_config() { if [ -f $config -a ! -f $config.BAK ]; then ${dry}cp $config $config.BAK; fi }
 
@@ -224,10 +224,6 @@ if [ "$generate" ]; then
                 ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd | tee -a $log
             fi
         fi
-
-        ${dry}mv $log $proj
-
-        if [ -z "$dry" ]; then echo "moved output to ./$proj"; fi
     fi
 fi
 
@@ -257,3 +253,12 @@ fi
 if [ "$cleanup" ]; then delete_venue; fi
 
 if [ ! "$only_ingest" ]; then restore_config; fi
+
+if [ ! "$dry" ]; then
+    printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
+    if [ -d $proj ]; then
+        printf "moved output to ./${proj}\r\n" | tee -a $log
+        mv $log $proj
+    fi
+fi
+
