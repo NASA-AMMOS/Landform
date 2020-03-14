@@ -507,7 +507,7 @@ namespace OPS.Landform
 
             dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, demMetersPerPixel);
 
-            FrameTransform ft = frameCache.GetBestTransform(orbitalFrameName, out bool success);
+            FrameTransform ft = frameCache.GetBestTransform(orbitalFrameName);
             if (ft == null)
             {
                 pipeline.LogWarn("Failed to retrieve orbital alignment.");
@@ -526,7 +526,8 @@ namespace OPS.Landform
             int orbitalRadiusPixels = (int)(Math.Ceiling(options.ClipExtent / demMetersPerPixel) + 2);
 
             Func<Vector3, Vector3> adjust;
-            if (options.AdjustOrbital) {
+            if (options.AdjustOrbital)
+            {
                 var adjustments = DemOperations.CreateAdjustments(dem, surfaceUVMeshOp, center, demToBaseSiteDrive, orbitalRadiusPixels);
                 foreach(Vertex v in surfaceMaskMesh.Vertices)
                 {
