@@ -27,8 +27,8 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer", Default = "auto")]
         public string StereoEye { get; set; }
 
-        [Option(HelpText = "Always reconstruct wedge triangle meshes", Default = false)]
-        public bool AlwaysReconstructWedgeMeshes { get; set; }
+        [Option(HelpText = "Use mesh RDRs when available instead of reconstructing wedge meshes from observation pointclouds", Default = false)]
+        public bool UseMeshRDRs { get; set; }
 
         [Option(HelpText = "Wedge reconstruction method (Organized, Poisson, or FSSR)", Default = MeshReconstructionMethod.Organized)]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
@@ -222,9 +222,9 @@ namespace OPS.Landform
                                                             bcopts.OnlyForCameras, mission)
             {
                 RequireMeshable = true,
-                RequirePoints = bcopts.AlwaysReconstructWedgeMeshes,
-                RequireNormals = bcopts.BEVColoring == BirdsEyeView.ColorMode.Tilt &&
-                bcopts.AlwaysReconstructWedgeMeshes && bcopts.NoGenerateNormals,
+                RequirePoints = !bcopts.UseMeshRDRs,
+                RequireNormals = (bcopts.BEVColoring == BirdsEyeView.ColorMode.Tilt && !bcopts.UseMeshRDRs &&
+                                  bcopts.NoGenerateNormals),
                 RequireTextures = bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture,
                 IncludeForAlignment = true,
                 IncludeForMeshing = false,
@@ -276,7 +276,7 @@ namespace OPS.Landform
                                          np, nc, no);
                     }
 
-                    var mbsObs = (obs.HasMesh && !bcopts.AlwaysReconstructWedgeMeshes) ? obs.Texture : obs.Points;
+                    var mbsObs = (obs.HasMesh && bcopts.UseMeshRDRs) ? obs.Texture : obs.Points;
                     int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
                                                              bcopts.DecimateWedgeMeshes,
                                                              bcopts.TargetWedgeMeshResolution);
@@ -286,8 +286,8 @@ namespace OPS.Landform
                     }
                     var mo = meshOpts.Clone();
                     mo.Decimate = mbs;
-                    Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo,
-                                              bcopts.AlwaysReconstructWedgeMeshes, bcopts.ReconstructionMethod);
+                    Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, alwaysReconstruct: !bcopts.UseMeshRDRs,
+                                              method: bcopts.ReconstructionMethod);
 
                     Image img = null;
                     if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
