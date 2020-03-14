@@ -1166,7 +1166,7 @@ namespace OPS.Geometry
                 }
             }
 
-            var merged = Merge(meshes, clean: false);
+            var merged = MergeWithCommonAttributes(meshes, clean: false);
 
             Image atlas = null;
             if (textures.Length > 0)

@@ -551,9 +551,23 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            if (!mesh.HasUVs && opts.ApplyTexture && TextureImage != null)
+            if (!mesh.HasUVs && opts.ApplyTexture)
             {
-                mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
+                if (TextureImage != null)
+                {
+                    mesh.ProjectTexture(TextureImage, opts.RemoveVertsOutsideView);
+                }
+                else if (PointsImage != null)
+                {
+                    pipeline.LogWarn("no texture image for {0}, using points image to project texture coordinates",
+                                     refObs.Name);
+                    mesh.ProjectTexture(PointsImage, opts.RemoveVertsOutsideView);
+                }
+                else
+                {
+                    pipeline.LogWarn("no points or texture image for {0}, cannot project texture coordinates",
+                                     refObs.Name);
+                }
             }
 
             var xform = frameCache.GetObservationTransform(refObs, opts.Frame, opts.UsePriors, opts.OnlyAligned);
@@ -563,6 +577,12 @@ namespace OPS.Pipeline
                 return null; 
             }
             mesh.Transform(xform.Mean);
+
+            pipeline.LogVerbose("wedge mesh {0}: {1} faces, {2} verts, {3} normals, {4} UVs, {5} colors",
+                                refObs.Name, Fmt.KMG(mesh.Faces.Count), Fmt.KMG(mesh.Vertices.Count),
+                                mesh.HasNormals ? "has" : "no",
+                                mesh.HasUVs ? "has" : "no",
+                                mesh.HasColors ? "has" : "no");
 
             return mesh;
         }

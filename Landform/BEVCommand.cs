@@ -305,7 +305,7 @@ namespace OPS.Landform
                         }
                     }
 
-                    var input = new Tuple<string, Mesh, Image>(obs.Points.Name, mesh, img);
+                    var input = new Tuple<string, Mesh, Image>(obs.Name, mesh, img);
                     wedgeMeshes.AddOrUpdate(obs.SiteDrive,
                                             _ => new ConcurrentBag<Tuple<string, Mesh, Image>>(new [] { input }),
                                             (_, bag) => { bag.Add(input); return bag; });
@@ -366,6 +366,7 @@ namespace OPS.Landform
 
         /// <summary>
         /// render any BEV and DEM images that were not loaded from database
+        /// if any BEV or DEM fails to render that site drive is removed from siteDrives
         /// </summary>
         protected void RenderBEVs()
         {
@@ -376,9 +377,11 @@ namespace OPS.Landform
             var demOptions = bevOptions.Clone();
             demOptions.BlendMode = BlendMode.Average;
 
-            int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(bevsNeeded, siteDrive => {
-
+            int np = 0, nc = 0, nf = 0;
+            CoreLimitedParallel.ForEach(bevsNeeded, siteDrive =>
+            {
+                try
+                {
                     Interlocked.Increment(ref np);
 
                     if (!bcopts.NoProgress)
@@ -394,23 +397,36 @@ namespace OPS.Landform
                     var inputs = wedgeMeshes[siteDrive]
                     .OrderBy(inp => inp.Item1) //order by observation name
                     .Distinct() //ConcurrentBag is not necessarily a set
-                    .Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3))
-                    .ToArray();
+                    .ToList();
 
                     if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture)
                     {
-                        var pair = Mesh.MergeMeshesAndTextures(inputs);
+                        var bad = inputs.Where(inp => !inp.Item2.HasUVs || inp.Item3 == null).ToList();
+                        if (bad.Count > 0)
+                        {
+                            pipeline.LogWarn("{0} wedges missing UVs or texture image, " +
+                                             "excluding from BEV for site drive {1}: {2}",
+                                             bad.Count, siteDrive, String.Join(", ", bad.Select(inp => inp.Item1)));
+                            inputs = inputs.Where(inp => inp.Item2.HasUVs && inp.Item3 != null).ToList();
+                        }
+                    }
+
+                    var pairs = inputs.Select(inp => new Tuple<Mesh, Image>(inp.Item2, inp.Item3)).ToArray();
+
+                    if (pairs.Length == 0)
+                    {
+                        throw new Exception("no wedges to render BEV");
+                    }
+                    
+                    if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture)
+                    {
+                        var pair = Mesh.MergeMeshesAndTextures(pairs);
                         mesh = pair.Item1;
                         img = pair.Item2;
                     }
                     else
                     {
-                        var meshes = inputs.Select(pr => pr.Item1).Where(m => m.HasUVs).ToArray();
-                        if (meshes.Count() != inputs.Count())
-                        {
-                            pipeline.LogWarn("Merging {0}/{1} meshes with UVs for sitedrive {2}", meshes.Count(), inputs.Count(), siteDrive);
-                        }
-                        mesh = Mesh.Merge(meshes);
+                        mesh = Mesh.MergeWithCommonAttributes(pairs.Select(pr => pr.Item1).ToArray());
                     }
                     
                     switch (bcopts.BEVColoring)
@@ -485,9 +501,9 @@ namespace OPS.Landform
                         }
                         catch (Exception ex)
                         {
-                            throw new Exception(string.Format("cannot densify birds eye view for site drive {0}, " +
-                                                              "try increasing BEV decimation (currently {1}): {2}",
-                                                              siteDrive, bcopts.BEVDecimation, ex.Message));
+                            throw new Exception(string.Format("cannot densify birds eye view, " +
+                                                              "try increasing BEV decimation (currently {0}): {1}",
+                                                              bcopts.BEVDecimation, ex.Message));
                         }
 
                         bevs[siteDrive] = bev;
@@ -539,25 +555,31 @@ namespace OPS.Landform
                             }
                             catch (Exception ex)
                             {
-                                throw new Exception(string.Format("cannot densify DEM for site drive {0}, " +
-                                                                  "try increasing BEV decimation (currently {1}): {2}",
-                                                                  siteDrive, bcopts.BEVDecimation, ex.Message));
+                                throw new Exception(string.Format("cannot densify DEM, " +
+                                                                  "try increasing BEV decimation (currently {0}): {1}",
+                                                                  bcopts.BEVDecimation, ex.Message));
                             }
 
                             dems[siteDrive] = dem;
-                            if(bcopts.WriteDebug)
-                            {
-                                SaveFloatTIFF(dems[siteDrive], siteDrive + "_DEM");
-                            }
-
                         }
                     }
                         
-                    Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
-                });
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, "error rendering BEV for site drive " + siteDrive);
+                    Interlocked.Increment(ref nf);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref np);
+                }
+            });
 
-            pipeline.LogInfo("generated {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
+            siteDrives = siteDrives.Where(sd => bevs.ContainsKey(sd) && dems.ContainsKey(sd)).ToArray();
+
+            pipeline.LogInfo("generated {0} birds eye views, {1} failures({2:F3}s)", nc, nf, UTCTime.Now() - startSec);
         }
 
         /// <summary>
