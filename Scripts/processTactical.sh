@@ -50,7 +50,7 @@ dbg=""
 while (( "$#" )); do
     case $1 in
         "--help") echo $help; exit 0;;
-        "--dryrun") dry="echo DRY ";;
+        "--dryrun") dry="echo ";;
         "--nocleanup") cleanup=;;
         "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
         "--onlyupload") cleanup=; only_cleanup=; generate=;;
