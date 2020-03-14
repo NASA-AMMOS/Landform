@@ -139,6 +139,8 @@ namespace OPS.Landform
         //(modelSiteDrive, dataSiteDrive), (modelSiteDrive, dataSiteDrive), ...
         List<Tuple<SiteDrive, SiteDrive>> siteDrivePairs = new List<Tuple<SiteDrive, SiteDrive>>();
         
+        private HashSet<SiteDrive> fixedSiteDrives = new HashSet<SiteDrive>();
+
         public BEVAligner(BEVAlignerOptions options) : base(options)
         {
             this.options = options;
@@ -183,6 +185,13 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("rendered birds eye views for {0} site drives and detected features ({1:F3}s)",
                                      bevs.Count, 0.001 * stopwatch.ElapsedMilliseconds);
+                    return 0;
+                }
+
+                //some BEVs may have failed to render
+                if (siteDrives.Length < 2)
+                {
+                    pipeline.LogWarn("at least two site drives required");
                     return 0;
                 }
 
@@ -858,6 +867,25 @@ namespace OPS.Landform
         /// </summary>
         private void ComputePairs()
         {
+            var fx = StringHelper.ParseList(options.FixSiteDrives);
+
+            var specials = new Dictionary<string, SiteDrive>();
+            specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
+            specials["oldest"] = siteDrives.OrderBy(sd => sd).FirstOrDefault();
+            specials["largest"] = siteDrives.OrderByDescending(sd => bevs[sd].Area).FirstOrDefault();
+            specials["smallest"] = siteDrives.OrderBy(sd => bevs[sd].Area).FirstOrDefault();
+
+            for (int i = 0; i < fx.Length; i++)
+            {
+                var sd = fx[i];
+                if (specials.ContainsKey(sd))
+                {
+                    fx[i] = specials[sd].ToString();
+                }
+            }
+
+            fixedSiteDrives.UnionWith(fx.Select(sd => new SiteDrive(sd)));
+
             switch (options.SiteDrivePriority)
             {
                 case SiteDrivePriority.NewestFirst:
@@ -889,7 +917,15 @@ namespace OPS.Landform
             {
                 for (int j = i + 1; j < siteDrives.Length; j++)
                 {
-                    siteDrivePairs.Add(new Tuple<SiteDrive, SiteDrive>(siteDrives[i], siteDrives[j]));
+                    var model = siteDrives[i];
+                    var data = siteDrives[j];
+                    if (fixedSiteDrives.Contains(data) && !fixedSiteDrives.Contains(model))
+                    {
+                        var tmp = model;
+                        model = data;
+                        data = tmp;
+                    }
+                    siteDrivePairs.Add(new Tuple<SiteDrive, SiteDrive>(model, data));
                 }
             }
 
@@ -1127,7 +1163,6 @@ namespace OPS.Landform
         }
         private List<Node> nodes = new List<Node>();
         private Dictionary<SiteDrive, Node> siteDriveToNode = new Dictionary<SiteDrive, Node>();
-        private HashSet<SiteDrive> fixedNodes = new HashSet<SiteDrive>();
 
         /// <summary>
         /// build graph of sitedrive nodes  
@@ -1144,25 +1179,6 @@ namespace OPS.Landform
                 nodes.Add(node);
                 siteDriveToNode[sd] = node;
             }
-
-            var fx = StringHelper.ParseList(options.FixSiteDrives);
-
-            var specials = new Dictionary<string, SiteDrive>();
-            specials["newest"] = siteDrives.OrderByDescending(sd => sd).FirstOrDefault();
-            specials["oldest"] = siteDrives.OrderBy(sd => sd).FirstOrDefault();
-            specials["largest"] = siteDrives.OrderByDescending(sd => bevs[sd].Area).FirstOrDefault();
-            specials["smallest"] = siteDrives.OrderBy(sd => bevs[sd].Area).FirstOrDefault();
-
-            for (int i = 0; i < fx.Length; i++)
-            {
-                var sd = fx[i];
-                if (specials.ContainsKey(sd))
-                {
-                    fx[i] = specials[sd].ToString();
-                }
-            }
-
-            fixedNodes.UnionWith(fx.Select(sd => new SiteDrive(sd)));
 
             foreach (var pair in siteDrivePairs)
             {
@@ -1238,6 +1254,11 @@ namespace OPS.Landform
             {
                 calfSDs.Remove(node.siteDrive);
                 calfSDs.Remove(node.parent.siteDrive);
+            }
+
+            foreach (var sd in fixedSiteDrives)
+            {
+                calfSDs.Remove(sd);
             }
 
             var calves = calfSDs.Select(name => siteDriveToNode[name]);
@@ -1370,7 +1391,7 @@ namespace OPS.Landform
             var nodesToAlign = new List<Node>();
             foreach (var node in nodes)
             {
-                if ((node.parent != null || node.children.Count > 0) && !fixedNodes.Contains(node.siteDrive))
+                if ((node.parent != null || node.children.Count > 0) && !fixedSiteDrives.Contains(node.siteDrive))
                 {
                     nodesToAlign.Add(node);
                 }
@@ -1450,7 +1471,7 @@ namespace OPS.Landform
             //a node has a parent iff we found enough ransac matches from that node to a higher-priority sitedrive
             var nodesToAlign = nodes
                 .Where(n => n.parent != null)
-                .Where(n => !fixedNodes.Contains(n.siteDrive))
+                .Where(n => !fixedSiteDrives.Contains(n.siteDrive))
                 .ToList();
             pipeline.LogInfo("pairwise aligning {0} site drives", nodesToAlign.Count);
             int nc = 0, np = 0;
