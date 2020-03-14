@@ -420,6 +420,22 @@ namespace OPS.Landform
                         //remove geometry field from IDs
                         idA = idA.Substring(0, gms) + idA.Substring(gms + gml);
                         idB = idB.Substring(0, gms) + idB.Substring(gms + gml);
+
+                        //remove version field from IDs
+                        if (id.GetVersionSpan(out int vrs, out int vrl))
+                        {
+                            if (vrs > gms)
+                            {
+                                vrs -= gml;
+                            }
+                            idA = idA.Substring(0, vrs) + idA.Substring(vrs + vrl);
+                            idB = idB.Substring(0, vrs) + idB.Substring(vrs + vrl);
+                        }
+                        else
+                        {
+                            vrs = int.MaxValue;
+                        }
+
                         //also remove the stereo partner field
                         //so that if the unified mesh is linearized and lists just one stereo partner
                         //then all stereo partners are allowed
@@ -427,10 +443,16 @@ namespace OPS.Landform
                         //regardless of stereo partner
                         if (id.GetStereoPartnerSpan(out int sps, out int spl))
                         {
+                            int offset = 0;
                             if (sps > gms)
                             {
-                                sps -= gml;
+                                offset += gml;
                             }
+                            if (sps > vrs)
+                            {
+                                offset += vrl;
+                            }
+                            sps -= offset;
                             idA = idA.Substring(0, sps) + idA.Substring(sps + spl);
                             idB = idB.Substring(0, sps) + idB.Substring(sps + spl);
                         }
