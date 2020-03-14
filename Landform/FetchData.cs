@@ -123,6 +123,9 @@ namespace OPS.Landform
         public Mission Mission { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Comma separated list of filename extensions to trace")]
+        public string TraceExts { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Comma separated list of filename prefixes to trace")]
         public string Trace { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Quiet output")]
@@ -166,7 +169,8 @@ namespace OPS.Landform
         private Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>> unifiedMeshes =
             new Dictionary<SiteDrive, Dictionary<RoverProductCamera, UnifiedMesh>>();
 
-        private string[] traceExts, excludeSubdirs;
+        private string[] traceExts, tracePrefixes;
+        private string[] excludeSubdirs;
 
         private StorageHelper _storageHelper;
         private StorageHelper storageHelper
@@ -187,7 +191,8 @@ namespace OPS.Landform
 
             options.DryRun |= options.NoSave;
 
-            traceExts = StringHelper.ParseList(options.Trace);
+            traceExts = StringHelper.ParseList(options.TraceExts);
+            tracePrefixes = StringHelper.ParseList(options.Trace);
             excludeSubdirs = StringHelper.ParseList(options.ExcludeSubdirs);
             
             Logging.ConfigureLogging(commandName: "fetch", quiet: options.Quiet, debug: options.Debug,
@@ -213,9 +218,11 @@ namespace OPS.Landform
             }
         }
 
-        private bool TraceExt(string file)
+        private bool ShouldTrace(string file)
         {
-            return traceExts.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase));
+            return options.Verbose ||
+                traceExts.Any(ext => file.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) ||
+                tracePrefixes.Any(pfx => StringHelper.GetLastUrlPathSegment(file).StartsWith(pfx));
         }
 
         private IEnumerable<string> IndexFiles(string searchDir)
@@ -500,16 +507,10 @@ namespace OPS.Landform
                         filtered.Add(product);
                     }
                 }
-                if ((options.Verbose || TraceExt(product)) && !string.IsNullOrEmpty(reason))
+                if (ShouldTrace(product) && !string.IsNullOrEmpty(reason))
                 {
                     logger.InfoFormat("rejected {0}: {1}", product, reason);
                 }
-            }
-
-            Action<string> verbose = null;
-            if (options.Verbose)
-            {
-                verbose = msg => logger.Info(msg);
             }
 
             //it might be nice if we could group products by observation frame here
@@ -532,8 +533,7 @@ namespace OPS.Landform
             filtered = filtered
                 .GroupBy(file => StringHelper.GetUrlExtension(file).ToUpper())
                 .SelectMany(files => RoverObservationComparator
-                            .FilterProductIdGroups(files, mission,
-                                                   TraceExt(files.First()) ? msg => logger.Info(msg) : verbose))
+                            .FilterProductIdGroups(files, mission, msg => logger.Info(msg), ShouldTrace))
                 .ToList();
             logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
 
@@ -549,7 +549,7 @@ namespace OPS.Landform
                 {
                     umFiltered.Add(product);
                 }
-                else if (options.Verbose || TraceExt(product))
+                else if (ShouldTrace(product))
                 { 
                     //checkUnifiedMeshes() = false implies that id is an OPGSProductId
                     var sd = ((OPGSProductId)id).SiteDrive;
@@ -572,7 +572,7 @@ namespace OPS.Landform
             {
                 foreach (var product in filtered)
                 {
-                    if (TraceExt(product))
+                    if (ShouldTrace(product))
                     {
                         logger.InfoFormat("accepted {0}", product);
                     }
@@ -758,10 +758,11 @@ namespace OPS.Landform
                     }
                     logger.InfoFormat("downloading {0} unified meshes", urls.Count);
                     bytes += DownloadFiles(urls);
-                    if (!options.DryRun)
-                    {
-                        unifiedMeshes = UnifiedMesh.LoadAll(urls.Select(url => LocalPath(url)).ToList(), mission);
-                    }
+                    var files = urls
+                        .Select(url => LocalPath(url))
+                        .Where(path => !options.DryRun || File.Exists(path))
+                        .ToList();
+                    unifiedMeshes = UnifiedMesh.LoadAll(files, mission);
                 }
 
                 foreach (var sol in sols)
