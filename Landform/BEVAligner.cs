@@ -151,6 +151,15 @@ namespace OPS.Landform
                 options.RedoFeatures = true;
                 options.RedoMatches = true;
             }
+            else if (options.RedoBEVs)
+            {
+                options.RedoFeatures = true;
+                options.RedoMatches = true;
+            }
+            else if (options.RedoFeatures)
+            {
+                options.RedoMatches = true;
+            }
         }
 
         public int Run()
