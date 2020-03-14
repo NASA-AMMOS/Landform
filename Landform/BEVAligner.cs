@@ -1549,7 +1549,6 @@ namespace OPS.Landform
             //otherwise it's the concatenation of adjusted transforms along ancestor chain from node to world
             foreach (var node in nodes.Where(n => n.treeParent == null))
             {
-                pipeline.LogInfo("setting world transform for root node {0}", node.siteDrive);
                 node.worldTransform = SiteDrivePrior(node.siteDrive);
             }
             foreach (var node in nodesToAlign)
