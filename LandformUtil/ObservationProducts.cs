@@ -31,6 +31,9 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Auto wedge mesh decimation target resolution", Default = 256)]
         public override int TargetWedgeMeshResolution { get; set; }
 
+        [Option(HelpText = "Only create products for observations marked for use in specific phases, comma separated list of (alignment,meshing,texturing)", Default = null)]
+        public string OnlyForPhases { get; set; }
+
         [Option(HelpText = "Only create products for observations with normals", Default = false)]
         public bool RequireNormals { get; set; }
 
@@ -238,16 +241,18 @@ namespace OPS.LandformUtil
             {
                 return false; // help
             }
-            
+
+            var phases = StringHelper.ParseList(options.OnlyForPhases).Select(p => p.ToLower()).ToList();
+
             var opts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
                                                            options.OnlyForCameras, mission)
                 {
                     RequirePoints = false,
                     RequireNormals = options.RequireNormals,
                     RequireTextures = options.RequireTextures,
-                    IncludeForAlignment = true,
-                    IncludeForMeshing = true,
-                    IncludeForTexturing = true,
+                    IncludeForAlignment = phases.Count == 0 || phases.Contains("alignment"),
+                    IncludeForMeshing = phases.Count == 0 || phases.Contains("meshing"),
+                    IncludeForTexturing = phases.Count == 0 || phases.Contains("texturing"),
                     RequirePriorTransform = options.UsePriors,
                     RequireAdjustedTransform = options.OnlyAligned,
                     TargetFrame = meshFrame
