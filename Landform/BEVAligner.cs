@@ -25,7 +25,7 @@ namespace OPS.Landform
 {
     public enum SiteDrivePriority { NewestFirst, OldestFirst, BiggestFirst, SmallestFirst };
     
-    public enum AlignmentMode { PairwiseMinimal, PairwiseMaximal, Simultaneous, None };
+    public enum AlignmentMode { Pairwise, Simultaneous, None };
 
     public enum CalfMode { None, Centroid, Temporal };
 
@@ -44,7 +44,7 @@ namespace OPS.Landform
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
 
-        [Option(HelpText = "Alignment algorithm: PairwiseMinimal, PairwiseMaximal, Simultaneous, None (match only)", Default = AlignmentMode.PairwiseMinimal)]
+        [Option(HelpText = "Alignment algorithm: Pairwise, Simultaneous, None (match only)", Default = AlignmentMode.Pairwise)]
         public AlignmentMode AlignmentMode { get; set; }
 
         [Option(HelpText = "Algorithm to bring un-aligned \"calf\" site drives along for the ride: None, Centroid (match to aligned site drive with closest horizontal centroid), Temporal (match to closest aligned site drive by acquisition time)", Default = CalfMode.Centroid)]
@@ -205,6 +205,13 @@ namespace OPS.Landform
                 }
 
                 RunPhase("compute site drive pairs", ComputePairs); //siteDrives -> siteDrivePairs
+
+                //at least one member of each pair is not in fixedSiteDrives
+                if (siteDrivePairs.Count == 0)
+                {
+                    pipeline.LogWarn("at least one movable site drive required");
+                    return 0;
+                }
 
                 int nm = 0, na = 0;
 
@@ -928,8 +935,12 @@ namespace OPS.Landform
                 {
                     var model = siteDrives[i];
                     var data = siteDrives[j];
-                    if (fixedSiteDrives.Contains(data) && !fixedSiteDrives.Contains(model))
+                    if (fixedSiteDrives.Contains(data))
                     {
+                        if (fixedSiteDrives.Contains(model))
+                        {
+                            continue;
+                        }
                         var tmp = model;
                         model = data;
                         data = tmp;
@@ -1159,9 +1170,10 @@ namespace OPS.Landform
         private class Node
         {
             public SiteDrive siteDrive;
-            public Node parent;
-            public List<Node> children = new List<Node>();
-            public int depth; //length of path along ancestor chain to world
+            public Node treeParent;
+            public HashSet<Node> parents = new HashSet<Node>();
+            public HashSet<Node> children = new HashSet<Node>();
+            public bool visited;
             public Matrix transform; //to parent
             public Matrix? worldTransform; //to world
 
@@ -1199,7 +1211,7 @@ namespace OPS.Landform
                     var parent = siteDriveToNode[model];
                     var child = siteDriveToNode[data];
                     parent.children.Add(child);
-                    child.parent = parent; //for now any parent will do
+                    child.parents.Add(parent);
                 }
             }
         }
@@ -1262,12 +1274,17 @@ namespace OPS.Landform
             foreach (var node in aligned)
             {
                 calfSDs.Remove(node.siteDrive);
-                calfSDs.Remove(node.parent.siteDrive);
+                calfSDs.Remove(node.treeParent.siteDrive);
             }
 
             foreach (var sd in fixedSiteDrives)
             {
                 calfSDs.Remove(sd);
+            }
+
+            if (calfSDs.Count == 0)
+            {
+                return;
             }
 
             var calves = calfSDs.Select(name => siteDriveToNode[name]);
@@ -1295,7 +1312,7 @@ namespace OPS.Landform
                                     closestParent = node;
                                 }
                             }
-                            calf.parent = closestParent;
+                            calf.treeParent = closestParent;
                         }
                         break;
                     }
@@ -1315,7 +1332,7 @@ namespace OPS.Landform
                                     closestParent = node;
                                 }
                             }
-                            calf.parent = closestParent;
+                            calf.treeParent = closestParent;
                         }
                         break;
                     }
@@ -1323,13 +1340,13 @@ namespace OPS.Landform
 
             foreach (var calf in calves)
             {
-                if (calf.parent != null)
+                if (calf.treeParent != null)
                 {
                     var calfToWorldPrior = SiteDrivePrior(calf.siteDrive);
-                    var parentToWorldPrior = SiteDrivePrior(calf.parent.siteDrive);
+                    var parentToWorldPrior = SiteDrivePrior(calf.treeParent.siteDrive);
                     //row matrix transforms compose left to right
                     var calfToParent = calfToWorldPrior * Matrix.Invert(parentToWorldPrior);
-                    calf.worldTransform = calfToParent * calf.parent.worldTransform.Value;
+                    calf.worldTransform = calfToParent * calf.treeParent.worldTransform.Value;
                 }
                 else
                 {
@@ -1337,22 +1354,21 @@ namespace OPS.Landform
                 }
             }
 
-            pipeline.LogInfo("birds eye view calf mode: {0}", options.CalfMode);
+            pipeline.LogInfo("calf mode: {0}", options.CalfMode);
             var calvesFor = new Dictionary<SiteDrive, List<SiteDrive>>();
             foreach (var calf in calves)
             {
-                if (calf.parent != null)
+                if (calf.treeParent != null)
                 {
-                    if (!calvesFor.ContainsKey(calf.parent.siteDrive))
+                    if (!calvesFor.ContainsKey(calf.treeParent.siteDrive))
                     {
-                        calvesFor[calf.parent.siteDrive] = new List<SiteDrive>();
+                        calvesFor[calf.treeParent.siteDrive] = new List<SiteDrive>();
                     }
-                    calvesFor[calf.parent.siteDrive].Add(calf.siteDrive);
+                    calvesFor[calf.treeParent.siteDrive].Add(calf.siteDrive);
                 }
             }
 
-            pipeline.LogInfo("{0} birds eye view calves: {1}",
-                             calves.Count(), String.Join(", ", calves.Select(n => n.siteDrive)));
+            pipeline.LogInfo("{0} calves: {1}", calves.Count(), String.Join(", ", calves.Select(n => n.siteDrive)));
 
             foreach (var parent in calvesFor.Keys)
             {
@@ -1374,8 +1390,7 @@ namespace OPS.Landform
             switch (options.AlignmentMode)
             {
                 case AlignmentMode.Simultaneous: return SimultaneousAlign();
-                case AlignmentMode.PairwiseMaximal: return PairwiseAlign(maximal: true);
-                case AlignmentMode.PairwiseMinimal: return PairwiseAlign(maximal: false);
+                case AlignmentMode.Pairwise: return PairwiseAlign();
             }
             return 0;
         }
@@ -1400,7 +1415,7 @@ namespace OPS.Landform
             var nodesToAlign = new List<Node>();
             foreach (var node in nodes)
             {
-                if ((node.parent != null || node.children.Count > 0) && !fixedSiteDrives.Contains(node.siteDrive))
+                if ((node.parents.Count > 0 || node.children.Count > 0) && !fixedSiteDrives.Contains(node.siteDrive))
                 {
                     nodesToAlign.Add(node);
                 }
@@ -1429,62 +1444,48 @@ namespace OPS.Landform
         /// then compute the adjusted sitedrive -> root transforms and write them back to the database
         /// using TransformSource = LandformBEV
         /// </summary>
-        private int PairwiseAlign(bool maximal)
+        private int PairwiseAlign()
         {
             double startSec = UTCTime.Now();
             pipeline.LogInfo("pairwise aligning...");
 
             MakeGraph();
 
-            //BFS the graph to set the best parent for each node
-            //the best parent is the one to follow to get to a root along a best path
+            //treat the graph as undirectred and BFS it to make spanning trees
             foreach (var node in nodes)
             {
-                node.depth = maximal ? int.MinValue : int.MaxValue;
+                node.visited = false;
             }
-            foreach (var node in nodes.Where(n => n.parent == null))
+            void bfs(Node node)
             {
-                node.depth = 0;
                 var queue = new Queue<Node>();
                 queue.Enqueue(node);
                 while (queue.Count > 0)
                 {
-                    var parent = queue.Dequeue();
-                    var depth = parent.depth + 1;
-                    foreach (var child in parent.children)
+                    node = queue.Dequeue();
+                    node.visited = true;
+                    foreach (var nbr in node.children.Concat(node.parents))
                     {
-                        if ((maximal && child.depth < depth) || (!maximal && child.depth > depth))
+                        if (nbr != null && !nbr.visited && !fixedSiteDrives.Contains(nbr.siteDrive))
                         {
-                            child.parent = parent;
-                            child.depth = depth;
-                            queue.Enqueue(child);
+                            nbr.treeParent = node;
+                            queue.Enqueue(nbr);
                         }
                     }
                 }
             }
-
-            var closures = new HashSet<string>();
-            foreach (var node in nodes)
+            foreach (var node in nodes.Where(n => fixedSiteDrives.Contains(n.siteDrive)))
             {
-                foreach (var child in node.children)
-                {
-                    if (child.parent != node)
-                    {
-                        closures.Add(node.siteDrive + "-" + child.siteDrive);
-                    }
-                }
+                bfs(node);
             }
-            pipeline.LogInfo("{0} birds eye view loop closures: {1}", closures.Count, String.Join(", ", closures));
+            foreach (var node in nodes.Where(n => n.parents.Count == 0 && !n.visited))
+            {
+                bfs(node);
+            }
 
-            //align every node to its a parent
-            //a node has a parent iff we found enough ransac matches from that node to a higher-priority sitedrive
-            var nodesToAlign = nodes
-                .Where(n => n.parent != null)
-                .Where(n => !fixedSiteDrives.Contains(n.siteDrive))
-                .ToList();
+            var nodesToAlign = nodes.Where(n => n.treeParent != null).ToList();
             pipeline.LogInfo("pairwise aligning {0} site drives", nodesToAlign.Count);
             int nc = 0, np = 0;
-            var aligned = new HashSet<string>();
             CoreLimitedParallel.ForEach(nodesToAlign, node => {
 
                     Interlocked.Increment(ref np);
@@ -1495,39 +1496,49 @@ namespace OPS.Landform
                                          np, nc, nodesToAlign.Count);
                     }
 
-                    var model = node.parent.siteDrive;
-                    var data = node.siteDrive;
+                    var parent = node.treeParent.siteDrive;
+                    var child = node.siteDrive;
                     
-                    var modelToRootPrior = SiteDrivePrior(model);
-                    var dataToRootPrior = SiteDrivePrior(data);
-                    var rootToModelPrior = Matrix.Invert(modelToRootPrior);
+                    var parentToRootPrior = SiteDrivePrior(parent);
+                    var childToRootPrior = SiteDrivePrior(child);
+                    var rootToParentPrior = Matrix.Invert(parentToRootPrior);
                     
-                    //the spatial matches are in root frame, transform them to model prior frame
-                    var pair = model + "-" + data;
-                    var sm = spatialMatches[pair];
-                    var modelPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToModelPrior)).ToArray();
-                    var dataPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToModelPrior)).ToArray();
+                    //the spatial matches are in root frame, transform them to parent prior frame
+                    Vector3[] parentPts = null, childPts = null;
+                    SpatialMatch[] sm = null;
+                    var pair = parent + "-" + child;
+                    if (spatialMatches.ContainsKey(pair))
+                    {
+                        sm = spatialMatches[pair];
+                        parentPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToParentPrior)).ToArray();
+                        childPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToParentPrior)).ToArray();
+                    }
+                    else
+                    {
+                        pair = child + "-" + parent;
+                        sm = spatialMatches[pair];
+                        parentPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToParentPrior)).ToArray();
+                        childPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToParentPrior)).ToArray();
+                    }
                     
                     double priorResidual = 0;
-                    for (int i = 0; i < modelPts.Length; i++)
+                    for (int i = 0; i < parentPts.Length; i++)
                     {
-                        priorResidual += Vector3.DistanceSquared(modelPts[i], dataPts[i]);
+                        priorResidual += Vector3.DistanceSquared(parentPts[i], childPts[i]);
                     }
-                    priorResidual = Math.Sqrt(priorResidual / modelPts.Length);
+                    priorResidual = Math.Sqrt(priorResidual / parentPts.Length);
                     
-                    //compute transform adj that best aligns data points to model points
-                    var residual = Procrustes.CalculateRigid(dataPts, modelPts, out Matrix adj);
+                    //compute transform adj that best aligns child points to parent points
+                    var residual = Procrustes.CalculateRigid(childPts, parentPts, out Matrix adj);
                     
-                    pipeline.LogInfo("aligned {0} ({1} matches), residual {2}->{3}m",
-                                     pair, sm.Length, priorResidual, residual);
+                    pipeline.LogInfo("aligned {0} to {1} ({2} matches), residual {3}->{4}m",
+                                     child, parent, sm.Length, priorResidual, residual);
 
-                    aligned.Add(pair);
-                    
                     //row matrix transforms compose left to right
-                    var dataToModelPrior = dataToRootPrior * rootToModelPrior;
+                    var childToParentPrior = childToRootPrior * rootToParentPrior;
                     
-                    //adjusted transform taking points in data frame to points in model frame
-                    node.transform = dataToModelPrior * adj;
+                    //adjusted transform taking points in child frame to points in parent frame
+                    node.transform = childToParentPrior * adj;
 
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
@@ -1536,22 +1547,23 @@ namespace OPS.Landform
             //compute a world transform for each node (i.e. sitedrive to root transform)
             //for a node with no parent this is just the prior
             //otherwise it's the concatenation of adjusted transforms along ancestor chain from node to world
-            foreach (var node in nodes.Where(n => n.parent == null))
+            foreach (var node in nodes.Where(n => n.treeParent == null))
             {
+                pipeline.LogInfo("setting world transform for root node {0}", node.siteDrive);
                 node.worldTransform = SiteDrivePrior(node.siteDrive);
             }
             foreach (var node in nodesToAlign)
             {
                 var stack = new Stack<Node>();
-                for (var n = node; n.worldTransform == null; n = n.parent)
+                for (var n = node; n.worldTransform == null; n = n.treeParent)
                 {
-                    stack.Push(node);
+                    stack.Push(n);
                 }
                 while (stack.Count > 0)
                 {
                     var n = stack.Pop();
                     //row matrix transforms compose left to right
-                    n.worldTransform = n.transform * n.parent.worldTransform.Value;
+                    n.worldTransform = n.transform * n.treeParent.worldTransform.Value;
                 }
             }
 
@@ -1560,9 +1572,8 @@ namespace OPS.Landform
                 SaveTransforms(nodesToAlign, TransformSource.LandformBEV);
             }
 
-            var roots = nodesToAlign.Select(n => n.parent).Where(n => n.parent == null).Distinct();
-            pipeline.LogInfo("{0} birds eye view roots: {1}",
-                             roots.Count(), String.Join(", ", roots.Select(node => node.siteDrive)));
+            var roots = nodesToAlign.Select(n => n.treeParent).Where(n => n.treeParent == null).Distinct();
+            pipeline.LogInfo("{0} roots: {1}", roots.Count(), String.Join(", ", roots.Select(node => node.siteDrive)));
 
             if (!options.NoSave)
             {
