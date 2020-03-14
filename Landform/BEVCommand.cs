@@ -361,6 +361,31 @@ namespace OPS.Landform
                         Interlocked.Increment(ref nc);
                     });
                 pipeline.LogInfo("saved {0} birds eye view images ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
+
+                startSec = UTCTime.Now();
+                np = 0; nc = 0;
+                CoreLimitedParallel.ForEach(dems, pair => {
+
+                        Interlocked.Increment(ref np);
+
+                        if (!bcopts.NoProgress)
+                        {
+                            pipeline.LogInfo("saving {0} DEM images in parallel, completed {1}/{2}",
+                                             np, nc, dems.Count);
+                        }
+
+                        var siteDrive = pair.Key;
+                        var dem = new Image(pair.Value);
+
+                        var stats = new ImageStatistics(dem);
+                        dem.ScaleValues((float)stats.Average(0).Min, (float)stats.Average(0).Max, 0, 1);
+
+                        SaveImage(dem, siteDrive + "_DEM");
+
+                        Interlocked.Decrement(ref np);
+                        Interlocked.Increment(ref nc);
+                    });
+                pipeline.LogInfo("saved {0} DEM images ({1:F3}s)", dems.Count, UTCTime.Now() - startSec);
             }
         }
 
