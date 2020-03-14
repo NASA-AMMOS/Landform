@@ -86,7 +86,8 @@ namespace OPS.Landform
         private SceneMesh sceneMesh;
 
         private bool failedOrbital = false;
-        
+        private SparseImage dem;
+
         //Intermediates
         private Mesh shrinkwrappedSurface;
         private Mesh surfaceMaskMesh;
@@ -113,13 +114,13 @@ namespace OPS.Landform
                 RunPhase("merge point clouds", MergePointClouds);
                 RunPhase("reconstruct mesh", ReconstructMesh);
                 //Only overwrites mesh if all orbital steps succeed.
-                if(options.UseOrbital)
+                if (options.UseOrbital && EnsureOrbital())
                 {
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
                     RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
-                    if(!failedOrbital) { RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask); }
-                    if(!failedOrbital) { RunPhase("merge orbital to surface", MergeOrbitalToSurface); }
+                    if (!failedOrbital) { RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask); }
+                    if (!failedOrbital) { RunPhase("merge orbital to surface", MergeOrbitalToSurface); }
                 }
                 RunPhase("clip mesh", ClipMesh);
                 RunPhase("clean mesh", CleanMesh);
@@ -394,10 +395,24 @@ namespace OPS.Landform
                 throw new Exception("failed to build mesh");
             }
 
-            if(options.PreClipMeshExtent > 0)
+            if (options.PreClipMeshExtent > 0)
             {
                 ClipMesh(options.PreClipMeshExtent);
             }
+        }
+
+        private bool EnsureOrbital()
+        {
+            string demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
+
+            if (!File.Exists(demFilePath))
+            {
+                pipeline.LogWarn("Orbital dem not found at {0}", demFilePath);
+                failedOrbital = true;
+                return false;
+            }
+            dem = new SparseImage(demFilePath);
+            return true;
         }
 
         private void CreateShrinkwrappedSurfaceMesh()
@@ -441,7 +456,7 @@ namespace OPS.Landform
 
         private void ReconstructSurfaceToMask()
         {
-            if(options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
+            if (options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
                 pipeline.LogWarn("Orbital requires poisson surface trimmer. Continuing without orbital.");
                 failedOrbital = true;
@@ -490,27 +505,17 @@ namespace OPS.Landform
             string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
             double demMetersPerPixel = mission.GetDemMetersPerPixel();
 
-            string demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, project.Mission, OrbitalConfig.Instance.DEMRelPath);
-
-            if(!File.Exists(demFilePath))
-            {
-                pipeline.LogWarn("Orbital dem not found at {0}", demFilePath);
-                failedOrbital = true;
-                return;
-            }
-
-            SparseImage dem = new SparseImage(demFilePath);
             dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, demMetersPerPixel);
 
-            Matrix demToBaseSiteDrive = frameCache.GetBestTransform(orbitalFrameName, out bool success).Transform.Mean
-                                        * Matrix.Invert(frameCache.GetBestTransform(meshFrame).Transform.Mean);
-
-            if (!success)
+            FrameTransform ft = frameCache.GetBestTransform(orbitalFrameName, out bool success);
+            if (ft == null)
             {
                 pipeline.LogWarn("Failed to retrieve orbital alignment.");
                 failedOrbital = true;
                 return;
             }
+            Matrix demToBaseSiteDrive = ft.Transform.Mean
+                                        * Matrix.Invert(frameCache.GetBestTransform(meshFrame).Transform.Mean);
 
             Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
             Vector3 demOriginXYZ = Vector3.Transform(Vector3.Zero, baseSiteDriveToDem);
@@ -528,7 +533,7 @@ namespace OPS.Landform
                     Vector3 demPos = Vector3.Transform(v.Position, Matrix.Invert(demToBaseSiteDrive));
                     Vector2 demRC = dem.CameraModel.Project(demPos, out double throwaway);
                     Vector3? demSample = DemOperations.GetInterpolatedXYZ(dem, demRC.Y, demRC.X);
-                    if(demSample.HasValue)
+                    if (demSample.HasValue)
                     {
                         Vector3 demPoint = Vector3.Transform(demSample.Value, demToBaseSiteDrive);
                         adjustments.Add(new Vector3(v.Position.X, v.Position.Y, v.Position.Z - demPoint.Z));
@@ -551,7 +556,7 @@ namespace OPS.Landform
                     foreach (Vector3 adj in adjustments)
                     {
                         distSq = Math.Pow(adj.X - p.X, 2) + Math.Pow(adj.Y - p.Y, 2);
-                        if(distSq < minD)
+                        if (distSq < minD)
                         {
                             minD = distSq;
                         }
@@ -562,7 +567,8 @@ namespace OPS.Landform
                     ret.Z += (zAdjust / sum) * decay(minD); //weighted average
                     return ret;
                 });
-            } else
+            }
+            else
             {
                 adjust = new Func<Vector3, Vector3>(p => p);
             }

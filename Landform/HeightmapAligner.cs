@@ -400,7 +400,7 @@ namespace OPS.Landform
 
             foreach (SiteDrive siteDrive in siteDrives)
             {
-                if(!worldPriorToWorldTransforms.ContainsKey(siteDrive))
+                if (!worldPriorToWorldTransforms.ContainsKey(siteDrive))
                 {
                     pipeline.LogWarn("Failed to generate {0} transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
                     continue;

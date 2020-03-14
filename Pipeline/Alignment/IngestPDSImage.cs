@@ -224,7 +224,7 @@ namespace OPS.Pipeline
                                                                 covariance);
                         pdsSiteOffsets.AddOrUpdate(key, _ => xform, (_, __) => xform);
                     }
-                    else if(parser.Site != 1)
+                    else if (parser.Site != 1)
                     {
                         //The SITE_COORDINATE_SYSTEM group is only set if the SITE Index is greater than 1
                         //and the Site Quaternion is not 0,0,0,0 (unknown).
