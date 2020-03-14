@@ -291,7 +291,11 @@ namespace OPS.Landform
                     Image img = pipeline.LoadImage(obs.Url);
 
                     var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
-                    var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault();
+                    var maskObs = comparator
+                    .KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both,
+                                               RoverProductType.RoverMask)
+                    .Where(o => o.IsLinear == obs.IsLinear)
+                    .FirstOrDefault();
 
                     Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
 

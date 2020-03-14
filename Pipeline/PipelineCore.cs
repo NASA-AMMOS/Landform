@@ -567,35 +567,44 @@ namespace OPS.Pipeline
             string url = Path.Combine(path, guid).Replace('\\','/');
             CheckStorageUrl(url);
 
-            TemporaryFile.FilenameDelegate writeAndUpload = file =>
-            {
-                File.WriteAllBytes(file, product.Serialize());
-                SaveFile(file, url);
-            };
+            dataProductCache[product.Guid] = product;
 
-            if (EnableDataProductDiskCache() && cacheFolder != null)
+            if (!FileExists(url))
             {
-                var file = DownloadCachePath(cacheFolder, guid);
-                if (!File.Exists(file))
+                TemporaryFile.FilenameDelegate writeAndUpload = file =>
                 {
-                    //it is possible for multiple threads to get here for the same data product
-                    //in that case we are relying on the atomicity of GetAndMove()
-                    //and also that SaveFile() is OK with multiple threads uploading to the same dest
-                    TemporaryFile.GetAndMove(file, tmpFile => writeAndUpload(tmpFile),
-                                             replaceExisting: false, moveLock: dataCacheLock);
+                    File.WriteAllBytes(file, product.Serialize());
+                    SaveDataProductImpl(file, url);
+                };
+                
+                if (EnableDataProductDiskCache() && cacheFolder != null)
+                {
+                    var file = DownloadCachePath(cacheFolder, guid);
+                    if (!File.Exists(file))
+                    {
+                        //it is possible for multiple threads to get here for the same data product
+                        //in that case we are relying on the atomicity of GetAndMove()
+                        TemporaryFile.GetAndMove(file, tmpFile => writeAndUpload(tmpFile),
+                                                 replaceExisting: false, moveLock: dataCacheLock);
+                    }
+                }
+                else
+                {
+                    TemporaryFile.GetAndDelete("", writeAndUpload);
                 }
             }
-            else
-            {
-                TemporaryFile.GetAndDelete("", writeAndUpload);
-            }
-
-            dataProductCache[product.Guid] = product;
         }
 
         public void SaveDataProduct(Project project, DataProduct product)
         {
             SaveDataProduct(project.ProductPath, product, project.Name);
+        }
+
+        protected virtual void SaveDataProductImpl(string file, string url)
+        {
+            //it is possible for multiple threads to get here for the same data product
+            //in that case we are relying SaveFile() being OK with multiple threads uploading to the same dest
+            SaveFile(file, url);
         }
 
         //****************** Database API *****************
