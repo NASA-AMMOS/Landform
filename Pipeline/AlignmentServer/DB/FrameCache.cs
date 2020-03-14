@@ -225,6 +225,13 @@ namespace OPS.Pipeline.AlignmentServer
             return GetTransform(frame.Name, source);
         }
 
+        public FrameTransform GetBestTransform(string name, out bool success)
+        {
+            var xforms = GetTransforms(name);
+            success = xforms.Count() > 0;
+            return xforms.FirstOrDefault();
+        }
+
         public FrameTransform GetBestTransform(string name)
         {
             return GetTransforms(name).FirstOrDefault();
