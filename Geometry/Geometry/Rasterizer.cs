@@ -25,6 +25,7 @@ namespace OPS.Geometry
             public bool Greyscale = false;
             public double SparseBlockSize = 0.005;
             public double MinSparseBlockValidRatio = 0.8;
+            public double KeepLargestComponents = 0.2; //keep components within this tol of size of largest, 0 disables
             public int Inpaint = 20;
             public int Blur = 0;
             public int Decimate = 2;
@@ -315,7 +316,10 @@ namespace OPS.Geometry
                     (int)options.SparseBlockSize;
                 sbs = Math.Max(sbs, 1);
                 ret.InvalidateSparseExternalBlocks(sbs, options.MinSparseBlockValidRatio);
-                ret.InvalidateAllButLargestValidBlob();
+                if (options.KeepLargestComponents > 0)
+                {
+                    ret.InvalidateAllButLargestValidBlobs(options.KeepLargestComponents);
+                }
                 ret = ret.Trim(out Vector2 ulc);
                 meshOrigin -= ulc;
             }
