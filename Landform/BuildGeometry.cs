@@ -85,8 +85,8 @@ namespace OPS.Landform
         private Mesh mesh;
         private SceneMesh sceneMesh;
 
-        private bool failedOrbital = false;
         private SparseImage dem;
+        private Matrix demToBaseSiteDrive;
 
         //Intermediates
         private Mesh shrinkwrappedSurface;
@@ -119,8 +119,8 @@ namespace OPS.Landform
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
                     RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
-                    if (!failedOrbital) { RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask); }
-                    if (!failedOrbital) { RunPhase("merge orbital to surface", MergeOrbitalToSurface); }
+                    RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask);
+                    RunPhase("merge orbital to surface", MergeOrbitalToSurface);
                 }
                 RunPhase("clip mesh", ClipMesh);
                 RunPhase("clean mesh", CleanMesh);
@@ -408,10 +408,26 @@ namespace OPS.Landform
             if (!File.Exists(demFilePath))
             {
                 pipeline.LogWarn("Orbital dem not found at {0}", demFilePath);
-                failedOrbital = true;
                 return false;
             }
             dem = new SparseImage(demFilePath);
+
+            if (options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
+            {
+                pipeline.LogWarn("Orbital requires poisson surface trimmer. Continuing without orbital.");
+                return false;
+            }
+
+            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
+            FrameTransform ft = frameCache.GetBestTransform(orbitalFrameName);
+            if (ft == null)
+            {
+                pipeline.LogWarn("Failed to retrieve orbital alignment.");
+                return false;
+            }
+            demToBaseSiteDrive = ft.Transform.Mean
+                                 * Matrix.Invert(frameCache.GetBestTransform(meshFrame).Transform.Mean);
+
             return true;
         }
 
@@ -456,13 +472,6 @@ namespace OPS.Landform
 
         private void ReconstructSurfaceToMask()
         {
-            if (options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
-            {
-                pipeline.LogWarn("Orbital requires poisson surface trimmer. Continuing without orbital.");
-                failedOrbital = true;
-                return;
-            }
-
             //Build uv mesh op for mask
             foreach (Vertex v in surfaceMaskMesh.Vertices)
             {
@@ -502,20 +511,9 @@ namespace OPS.Landform
 
         private void ReconstructOrbitalToMask()
         {
-            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
             double demMetersPerPixel = mission.GetDemMetersPerPixel();
 
             dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, demMetersPerPixel);
-
-            FrameTransform ft = frameCache.GetBestTransform(orbitalFrameName);
-            if (ft == null)
-            {
-                pipeline.LogWarn("Failed to retrieve orbital alignment.");
-                failedOrbital = true;
-                return;
-            }
-            Matrix demToBaseSiteDrive = ft.Transform.Mean
-                                        * Matrix.Invert(frameCache.GetBestTransform(meshFrame).Transform.Mean);
 
             Matrix baseSiteDriveToDem = Matrix.Invert(demToBaseSiteDrive);
             Vector3 demOriginXYZ = Vector3.Transform(Vector3.Zero, baseSiteDriveToDem);
