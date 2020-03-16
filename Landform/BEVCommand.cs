@@ -616,7 +616,17 @@ namespace OPS.Landform
             double startSec = UTCTime.Now();
             CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
                     var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
-                    if (rec != null && rec.CreationOptions == JsonHelper.ToJson(bevOptions))
+                    if (rec == null)
+                    {
+                        pipeline.LogVerbose("no cached BEV for {0}", siteDrive);
+                    }
+                    else if (rec.CreationOptions != JsonHelper.ToJson(bevOptions))
+                    {
+                        pipeline.LogVerbose("options mismatch for cached BEV {0}", siteDrive);
+                        pipeline.LogVerbose("cached options: {0}", rec.CreationOptions);
+                        pipeline.LogVerbose("required options: {0}", JsonHelper.ToJson(bevOptions));
+                    }
+                    else
                     {
                         var bev = pipeline.GetDataProduct<TiffDataProduct>(project, rec.BEVGuid).Image;
                         var dem = pipeline.GetDataProduct<TiffDataProduct>(project, rec.DEMGuid).Image;
