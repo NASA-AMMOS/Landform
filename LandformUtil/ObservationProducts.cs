@@ -58,8 +58,8 @@ namespace OPS.LandformUtil
         [Option(HelpText = "Create point clouds instead of triangle meshes", Default = false)]
         public bool PointCloud { get; set; }
 
-        [Option(HelpText = "Always reconstruct wedge triangle meshes", Default = false)]
-        public bool AlwaysReconstructWedgeMeshes { get; set; }
+        [Option(HelpText = "Use mesh RDRs when available instead of reconstructing wedge meshes from observation pointclouds", Default = false)]
+        public bool UseMeshRDRs { get; set; }
 
         [Option(HelpText = "Wedge reconstruction method (Organized, Poisson, or FSSR)", Default = MeshReconstructionMethod.Organized)]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
@@ -312,7 +312,7 @@ namespace OPS.LandformUtil
                 string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
                 //mesh decimation blocksize
-                var mbsObs = (obs.HasMesh && !options.AlwaysReconstructWedgeMeshes) ? obs.Texture : obs.Points;
+                var mbsObs = (obs.HasMesh && options.UseMeshRDRs) ? obs.Texture : obs.Points;
                 int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
                                                          options.DecimateWedgeMeshes,
                                                          options.TargetWedgeMeshResolution);
@@ -328,7 +328,8 @@ namespace OPS.LandformUtil
 
                 int npts = 0, nn = 0, nt = 0;
                 Mesh mesh = null;
-                if (buildWedgeMeshes && obs.Meshable)
+                if (buildWedgeMeshes && ((options.UseMeshRDRs && obs.HasMesh) ||
+                                         (!options.UseMeshRDRs && obs.Points != null)))
                 {
                     Exception ex = null;
                     try
@@ -521,7 +522,7 @@ namespace OPS.LandformUtil
             else
             {
                 pipeline.LogVerbose("building triangle mesh for {0}", obs.Name);
-                return obs.BuildMesh(pipeline, frameCache, masker, mo, options.AlwaysReconstructWedgeMeshes,
+                return obs.BuildMesh(pipeline, frameCache, masker, mo, !options.UseMeshRDRs,
                                      options.ReconstructionMethod);
             }
         }
