@@ -44,6 +44,9 @@ namespace OPS.Landform
         [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 8.0)]
         public double TrimmerLevel { get; set; }
 
+        [Option(HelpText = "Fill holes in largest island created from surface trimmer. Cull other islands", Default = false)]
+        public bool FillHoles { get; set; }
+
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.8)]
         public double TrimmerIslandPct { get; set; }
 
@@ -113,14 +116,17 @@ namespace OPS.Landform
                 RunPhase("build observation point clouds", BuildObservationPointClouds);
                 RunPhase("merge point clouds", MergePointClouds);
                 RunPhase("reconstruct mesh", ReconstructMesh);
-                //Only overwrites mesh if all orbital steps succeed.
-                if (options.UseOrbital && EnsureOrbital())
+                if (options.FillHoles || options.UseOrbital && EnsureOrbital())
                 {
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
                     RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
-                    RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask);
-                    RunPhase("merge orbital to surface", MergeOrbitalToSurface);
+                    //If FillHoles true, still need to check orbital here
+                    if (options.FillHoles && options.UseOrbital && EnsureOrbital())
+                    {
+                        RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask);
+                        RunPhase("merge orbital to surface", MergeOrbitalToSurface);
+                    }                  
                 }
                 RunPhase("clip mesh", ClipMesh);
                 RunPhase("clean mesh", CleanMesh);
@@ -507,6 +513,7 @@ namespace OPS.Landform
 
             replacementMesh.RemoveFloaters();
             replacementMesh.RemoveUnreferencedVertices();
+            this.mesh = replacementMesh;
         }
 
         private void ReconstructOrbitalToMask()
