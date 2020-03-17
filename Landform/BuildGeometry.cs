@@ -79,7 +79,6 @@ namespace OPS.Landform
         private BuildGeometryOptions options;
 
         private Observation[] onlyForObs;
-        private RoverStereoEye stereoEye;
         private PoissonReconstruction.Options poissonOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
@@ -163,8 +162,6 @@ namespace OPS.Landform
 
             onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
 
-            stereoEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
-
             if (options.ReconstructionMethod != MeshReconstructionMethod.FSSR &&
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
@@ -233,15 +230,11 @@ namespace OPS.Landform
                     IncludeForTexturing = false,
                     RequirePriorTransform = options.UsePriors,
                     RequireAdjustedTransform = options.OnlyAligned,
-                    TargetFrame = meshFrame
+                    TargetFrame = meshFrame,
+                    FilterMeshableWedgesForEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission)
                 };
 
             var wedges = WedgeObservations.Collect(frameCache, observationCache, collectOpts);
-
-            if (stereoEye != RoverStereoEye.Any)
-            {
-                wedges = WedgeObservations.FilterForEye(wedges, stereoEye).ToList(); 
-            }
 
             if (wedges.Count == 0)
             {

@@ -23,24 +23,34 @@ namespace OPS.Pipeline.AlignmentServer
 
         public class BEVOptions : Rasterizer.BEVOptions
         {
-            public int DecimateWedgeMeshes; //Wedge mesh decimation blocksize, 0 to disable, -1 for auto
-            public int TargetWedgeMeshResolution; //used when DecimateWedgeMeshes = -1 (auto)
-            public int DecimateWedgeImages; //Wedge image decimation blocksize, 0 to disable, -1 for auto
-            public int TargetWedgeImageResolution; //used when DecimateWedgeImages = -1 (auto)
+            public WedgeObservations.CollectOptions WedgeCollectOptions;
+            public WedgeObservations.MeshOptions WedgeMeshOptions;
+
+            public int DecimateWedgeMeshes;
+            public int TargetWedgeMeshResolution;
+            public int DecimateWedgeImages;
+            public int TargetWedgeImageResolution;
+
             public ColorMode Coloring;
+            public bool StretchContrast;
+
+            public string Serialize()
+            {
+                return JsonHelper.ToJson(this, indent: true);
+            }
         }
 
         [DynamoDBRangeKey]
         public string ProjectName;
 
         [DynamoDBHashKey]
-        public string Name; //sitedrive in form SSSDDDD
+        public string Name; //SSSDDDD-OptionsSHA1
 
         [DynamoDBIgnore]
         [JsonIgnore]
         public SiteDrive SiteDrive
         {
-            get { return new SiteDrive(Name); }
+            get { return new SiteDrive(Name.Substring(0, SiteDrive.StringLength)); }
         }
 
         public long CreationTime; //UTC ms since epoch when this BEV was created
@@ -91,30 +101,34 @@ namespace OPS.Pipeline.AlignmentServer
         public Guid DEMGuid;
         public Guid MaskGuid;
 
-        protected void IsValid()
+        private void IsValid()
         {
             if (!(ProjectName != null && Name != null &&
-                  BEVGuid != null && BEVGuid != Guid.Empty &&
-                  DEMGuid != null && DEMGuid != Guid.Empty &&
+                  BEVGuid != null && DEMGuid != null && (BEVGuid != Guid.Empty || DEMGuid != Guid.Empty) &&
                   MaskGuid != null && MaskGuid != Guid.Empty))
             {
                 throw new Exception("missing required property in BirdsEyeView");
             }
         }
 
+        private static string MakeName(SiteDrive siteDrive, BEVOptions opts)
+        {
+            return string.Format("{0}-{1}", siteDrive.ToString(), StringHelper.SHA1(opts.Serialize()));
+        }
+
         //This constructor must be public for DynamoDb but should not be used
         public BirdsEyeView() { }
 
-        protected BirdsEyeView(string projectName, SiteDrive siteDrive, BEVOptions bevOptions,
+        protected BirdsEyeView(string projectName, SiteDrive siteDrive, BEVOptions opts,
                                Guid bevGuid, Guid demGuid, Guid maskGuid,
                                Vector2 rootOriginPixels, Vector2 siteDriveOriginPixels,
                                int widthPixels, int heightPixels)
         {
             ProjectName = projectName;
-            Name = siteDrive.ToString();
+            Name = MakeName(siteDrive, opts);
             CreationTime = (long)UTCTime.NowMS();
-            CreationOptions = JsonHelper.ToJson(bevOptions);
-            MetersPerPixel = bevOptions.MetersPerPixel * bevOptions.Decimate;
+            CreationOptions = opts.Serialize();
+            MetersPerPixel = opts.MetersPerPixel * opts.Decimate;
             RootOriginXPixels = rootOriginPixels.X;
             RootOriginYPixels = rootOriginPixels.Y;
             SiteDriveOriginXPixels= siteDriveOriginPixels.X;
@@ -128,24 +142,51 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         public static BirdsEyeView Create(PipelineCore pipeline, Project project, SiteDrive siteDrive,
-                                          BEVOptions bevOptions, Image bev, Image dem, Image mask,
+                                          BEVOptions opts, Image bev, Image dem, Image mask,
                                           Vector2 rootOriginPixels, Vector2 siteDriveOriginPixels)
         {
-            int width = bev.Width;
-            int height = bev.Height;
-            if (dem.Width != width || dem.Height != height || mask.Width != width || mask.Height != height)
+            if (bev == null && dem == null)
             {
-                throw new ArgumentException("DEM and mask dimensions must match BEV");
+                throw new ArgumentException("at least one of BEV or DEM must be given");
             }
-            var bevProd = new TiffDataProduct(bev);
-            var demProd = new TiffDataProduct(dem);
-            var maskProd = new PngDataProduct(mask);
-            pipeline.SaveDataProduct(project, bevProd);
-            pipeline.SaveDataProduct(project, demProd);
+
+            int width = (bev ?? dem).Width;
+            int height = (bev ?? dem).Height;
+
+            if (bev != null && dem != null && (dem.Width != bev.Width || dem.Height != bev.Height))
+            {
+                throw new ArgumentException("DEM dimensions must match BEV");
+            }
+
+            if (mask == null || mask.Width != width || mask.Height != height)
+            {
+                throw new ArgumentException("mask image must be given and same size as BEV/DEM");
+            }
+
+            Guid bevGuid = Guid.Empty;
+            if (bev != null)
+            {
+                var bevProd = new TiffDataProduct(bev);
+                pipeline.SaveDataProduct(project, bevProd);
+                bevGuid = bevProd.Guid;
+            }
+
+            Guid demGuid = Guid.Empty;
+            if (dem != null)
+            {
+                var demProd = new TiffDataProduct(dem);
+                pipeline.SaveDataProduct(project, demProd);
+                demGuid = demProd.Guid;
+            }
+
+            var maskProd = new TiffDataProduct(mask);
             pipeline.SaveDataProduct(project, maskProd);
-            var ret = new BirdsEyeView(project.Name, siteDrive, bevOptions, bevProd.Guid, demProd.Guid, maskProd.Guid,
-                                       rootOriginPixels, siteDriveOriginPixels, width, height);
+            Guid maskGuid = maskProd.Guid;
+
+            var ret = new BirdsEyeView(project.Name, siteDrive, opts, bevGuid, demGuid, maskGuid, rootOriginPixels,
+                                       siteDriveOriginPixels, width, height);
             ret.Save(pipeline);
+
             return ret;
         }
 
@@ -155,14 +196,9 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.SaveDatabaseItem(this);
         }
 
-        public static BirdsEyeView Find(PipelineCore pipeline, string projectName, SiteDrive siteDrive)
+        public static BirdsEyeView Find(PipelineCore pipeline, string projectName, SiteDrive siteDrive, BEVOptions opts)
         {
-            return Find(pipeline, projectName, siteDrive.ToString());
-        }
-
-        public static BirdsEyeView Find(PipelineCore pipeline, string projectName, string siteDrive)
-        {
-            return pipeline.LoadDatabaseItem<BirdsEyeView>(siteDrive, projectName);
+            return pipeline.LoadDatabaseItem<BirdsEyeView>(projectName, MakeName(siteDrive, opts));
         }
 
         public static IEnumerable<BirdsEyeView> Find(PipelineCore pipeline, string projectName)

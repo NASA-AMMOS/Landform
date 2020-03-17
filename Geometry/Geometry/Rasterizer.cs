@@ -5,8 +5,8 @@ using System.Collections.Concurrent;
 using System.Linq;
 using System.Text;
 using System.Diagnostics;
-using log4net;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
@@ -34,8 +34,14 @@ namespace OPS.Geometry
             public int WidthPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
             public int HeightPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
             public Vector2? MeshOffset = null; //XY plane offset to apply to mesh, auto compute if null
+
+            [JsonIgnore]
             public Func<int, int, int, Image> ImageFactory = null; //defaults to new Image()
+
+            [JsonIgnore]
             public Func<int, int, Image> MaskFactory = null; //defaults to use ImageFactory
+
+            [JsonIgnore]
             public Func<Mesh, Face, bool> FaceFilter = null; //true = rasterize face
 
             public BEVOptions Clone()

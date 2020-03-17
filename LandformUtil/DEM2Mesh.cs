@@ -10,7 +10,6 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
-using OPS.Imaging.Imaging;
 
 namespace OPS.LandformUtil
 {

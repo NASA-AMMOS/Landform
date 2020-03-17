@@ -10,11 +10,7 @@ using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
-using OPS.Landform;
-using log4net;
 using OPS.Pipeline.AlignmentServer;
-using Util;
-using OPS.Imaging.Imaging;
 
 namespace OPS.Landform
 {
@@ -70,8 +66,6 @@ namespace OPS.Landform
 
         private const string OUT_DIR = "orbital/Products";
 
-        protected new List<SiteDrive> siteDrives;
-
         private Dictionary<SiteDrive, TransformSource> siteDrivePriorSources = new Dictionary<SiteDrive, TransformSource>();
         private Dictionary<SiteDrive, Matrix> siteDriveToWorldPreviousBestTransforms = new Dictionary<SiteDrive, Matrix>();
         private Dictionary<string, double> squaredDistances = new Dictionary<string, double>();
@@ -98,33 +92,12 @@ namespace OPS.Landform
         {
             try
             {
-                if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+                if (!ParseArgumentsAndLoadCaches())
                 {
-                    return 0;
+                    return 0; //help
                 }
 
-                var wedgeOpts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
-                                                               options.OnlyForCameras, mission)
-                {
-                    RequirePoints = true,
-                    RequireNormals = false,
-                    RequireTextures = false,
-                    IncludeForAlignment = true,
-                    IncludeForMeshing = false,
-                    IncludeForTexturing = false,
-                    RequirePriorTransform = true,
-                    TargetFrame = "root"
-                };
-                var meshObservations = WedgeObservations.Collect(frameCache, observationCache, wedgeOpts);
-
-                siteDrives = meshObservations
-                    .Select(obs => obs.SiteDrive)
-                    .Distinct()
-                    .OrderByDescending(sd => sd)
-                    .ToList();
-
                 RunPhase("load or render birds eye views", LoadOrRenderBevDems); //observations -> bevs, dems
-                RunPhase("prioritize site drives", PrioritizeSiteDrives);
                 RunPhase("load prior transforms", LoadPriorTransforms);
                 RunPhase("compute pairwise distances between site drive centers", ComputePairwiseDistances);
                 RunPhase("per site drive alignment to base site drive", AlignSurfaceToBaseSiteDrive);
@@ -161,6 +134,36 @@ namespace OPS.Landform
             return 0;
         }
 
+        private bool ParseArgumentsAndLoadCaches()
+        {
+            if (!ParseArgumentsAndLoadCaches(OUT_DIR))
+            {
+                return false; //help
+            }
+            
+            if (siteDrives.Length < 1)
+            {
+                throw new Exception("at least one site drive required");
+            }
+            
+            var baseSiteDrive = !string.IsNullOrEmpty(options.BaseSiteDrive) ?
+                new SiteDrive(options.BaseSiteDrive) : //Allow either SSSDDDD or SSSSSDDDDD
+                SortSiteDrives(siteDrives, options.BaseSiteDrivePriority).First();
+            
+            if (!siteDrives.Contains(baseSiteDrive))
+            {
+                throw new Exception("specified base site drive not found: " + baseSiteDrive);
+            }
+            
+            pipeline.LogInfo("base site drive: {0}", baseSiteDrive);
+            
+            siteDrives = new List<SiteDrive> { baseSiteDrive }
+                .Concat(SortSiteDrives(siteDrives.Where(sd => sd != baseSiteDrive), options.RemainingSiteDrivePriority))
+                .ToArray();
+
+            return true;
+        }
+
         private void LoadOrRenderBevDems()
         {
             //TODO: Only need DEMs for heightmap align
@@ -169,57 +172,6 @@ namespace OPS.Landform
             {
                 img.CameraModel = new OrthographicCameraModel(Matrix.Identity, img.Width, img.Height, MetersPerPixel);
             }
-        }
-
-        private void PrioritizeSiteDrives()
-        {
-            //Select highest priority site drive as base
-            Action<SiteDrivePriority> sortSiteDrives = priority =>
-            {
-                switch (priority)
-                {
-                    case SiteDrivePriority.NewestFirst:
-                        {
-                            siteDrives = siteDrives.OrderByDescending(sd => sd.ToString()).ToList();
-                            break;
-                        }
-                    case SiteDrivePriority.OldestFirst:
-                        {
-                            siteDrives = siteDrives.OrderBy(sd => sd.ToString()).ToList();
-                            break;
-                        }
-                    case SiteDrivePriority.BiggestFirst:
-                        {
-                            siteDrives = siteDrives.OrderByDescending(sd => dems[sd].Area).ToList();
-                            break;
-                        }
-                    case SiteDrivePriority.SmallestFirst:
-                        {
-                            siteDrives = siteDrives.OrderBy(sd => dems[sd].Area).ToList();
-                            break;
-                        }
-                }
-            };
-
-            //Choose the highest priority site drive as the base for alignment
-
-            if (String.IsNullOrEmpty(options.BaseSiteDrive))
-            {
-                sortSiteDrives(options.BaseSiteDrivePriority);
-                baseSiteDrive = siteDrives[0];
-            }
-            else
-            {
-                baseSiteDrive = new SiteDrive(options.BaseSiteDrive); //Allow either SSSDDDD or SSSSSDDDDD
-            }
-            siteDrives.Remove(baseSiteDrive);
-
-            //Sort remaining by secondary priority
-            sortSiteDrives(options.RemainingSiteDrivePriority);
-            siteDrives.Insert(0, baseSiteDrive);
-            worldPriorToWorldTransforms[baseSiteDrive] = Matrix.Identity;
-            aligned.Add(baseSiteDrive);
-            pipeline.LogInfo("Base site drive for alignment is {0}.", baseSiteDrive);
         }
 
         private Matrix CreateBEVToWorldMatrix(SiteDrive siteDrive)
@@ -279,8 +231,10 @@ namespace OPS.Landform
 
         private void AlignSurfaceToBaseSiteDrive()
         {
-            foreach (SiteDrive siteDrive in siteDrives.GetRange(1, siteDrives.Count - 1))
+            for (int i = 1; i < siteDrives.Length; i++)
             {
+                var siteDrive = siteDrives[i];
+
                 pipeline.LogInfo("Beginning alignment for site drive: {0}", siteDrive.ToString());
                 var image = dems[siteDrive];
 
@@ -488,6 +442,33 @@ namespace OPS.Landform
                     orbitalFrame.Save(pipeline);
                 }
                 pipeline.LogInfo("saved {0} adjusted transform for {1}", TransformSource.LandformOrbital, orbitalFrameName);
+            }
+        }
+
+        protected override bool AutoUseMeshRDRs()
+        {
+            return true;
+        }
+
+        protected override void MakeCollectOpts()
+        {
+            MakeCollectOpts(requireNormals: false, requireTextures: false);
+        }
+
+        protected override void MakeMeshOpts()
+        {
+            MakeMeshOpts(applyTexture: false);
+        }
+
+        private IEnumerable<SiteDrive> SortSiteDrives(IEnumerable<SiteDrive> sds, SiteDrivePriority priority)
+        {
+            switch (priority)
+            {
+                case SiteDrivePriority.NewestFirst: return sds.OrderByDescending(sd => sd.ToString());
+                case SiteDrivePriority.OldestFirst: return sds.OrderBy(sd => sd.ToString());
+                case SiteDrivePriority.BiggestFirst: return sds.OrderByDescending(sd => dems[sd].Area);
+                case SiteDrivePriority.SmallestFirst: return sds.OrderBy(sd => dems[sd].Area);
+                default: throw new Exception("unknown site drive priority: " + priority);
             }
         }
     }

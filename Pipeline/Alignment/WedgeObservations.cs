@@ -132,11 +132,15 @@ namespace OPS.Pipeline
 
         public bool HasMesh { get { return MeshObservation != null; } }
 
-        public bool Meshable { get { return Points != null || HasMesh; } }
+        public bool Reconstructable { get { return Points != null || Range != null; } }
+
+        public bool Meshable { get { return Reconstructable || HasMesh; } }
 
         public class CollectOptions
         {
             public bool RequireMeshable = false;
+            public bool RequireReconstructable = false;
+
             public bool RequirePoints = false;
             public bool RequireNormals = false;
             public bool RequireTextures = false;
@@ -175,6 +179,10 @@ namespace OPS.Pipeline
             //automatically set if mission is supplied to constructor
             //otherwise defaults to iv, obj
             public string[] MeshExts = null;
+
+            //if not RoverStereoEye.Any then for all Meshable wedges that are available for both eyes
+            //keep only the preferred one
+            public RoverStereoEye FilterMeshableWedgesForEye = RoverStereoEye.Any;
 
             public CollectOptions(string onlyForSiteDrives = null, string onlyForFrames = null,
                                   string onlyForCameras = null, MissionSpecific mission = null)
@@ -270,23 +278,18 @@ namespace OPS.Pipeline
                 ret.Range = linObs.Find(obs => obs.ObservationType == RoverProductType.Range);
 
                 ret.Points = linObs.Find(obs => obs.ObservationType == RoverProductType.Points);
-                if (ret.Points == null)
+                if (opts.RequirePoints && ret.Points == null)
                 {
-                    // NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
-                    // because stereo correlation often uses 2D disparity
-                    // which means the recovered surface point for a pixel
-                    // may not actually lie on the ray through that pixel
-                    // but in some contexts (e.g. MSL using mslice data) we only have range products
-                    // https://github.jpl.nasa.gov/OnSight/Landform/issues/471
-                    ret.Points = ret.Range;
-                    if (opts.RequirePoints && ret.Points == null)
-                    {
-                        continue;
-                    }
+                    continue;
                 }
 
                 ret.Texture = linObs.Find(obs => obs.ObservationType == RoverProductType.Image);
                 if (opts.RequireTextures && ret.Texture == null)
+                {
+                    continue;
+                }
+
+                if (opts.RequireReconstructable && !ret.Reconstructable)
                 {
                     continue;
                 }
@@ -337,7 +340,7 @@ namespace OPS.Pipeline
         /// corresponding to observations in the passed observation cache
         /// </summary>
         public static List<WedgeObservations> Collect(FrameCache frameCache, ObservationCache observationCache,
-                                                     CollectOptions opts = null)
+                                                      CollectOptions opts = null)
         {
             if (opts == null)
             {
@@ -353,6 +356,23 @@ namespace OPS.Pipeline
                     ret.Add(obs);
                 }
             }
+
+            ret = ret.Where(obs => !obs.Empty)
+                .OrderBy(obs => obs.FrameName)
+                .OrderBy(obs => obs.Day)
+                .OrderBy(obs => obs.StereoFrameName)
+                .ToList();
+
+            var eye = opts.FilterMeshableWedgesForEye;
+            if (eye != RoverStereoEye.Any)
+            {
+                var filtered = ret.Where(obs => obs.Meshable)
+                    .GroupBy(obs => obs.StereoFrameName)
+                    .SelectMany(g => g.Any(obs => obs.StereoEye == eye) ? g.Where(obs => obs.StereoEye == eye) : g);
+                ret = ret.Where(obs => !obs.Meshable).ToList();
+                ret.AddRange(filtered);
+            }
+
             return ret;
         }
 
@@ -378,6 +398,10 @@ namespace OPS.Pipeline
 
             public MeshDecimationMethod MeshDecimator = MeshDecimationMethod.EdgeCollapse; //used by LoadMesh()
 
+            public bool AlwaysReconstruct = true; //ignore MeshObservation, if any
+
+            public MeshReconstructionMethod ReconstructionMethod = MeshReconstructionMethod.Organized;
+
             public MeshOptions Clone()
             {
                 return (MeshOptions) MemberwiseClone();
@@ -392,6 +416,11 @@ namespace OPS.Pipeline
         /// does nothing if the images have already been loaded
         /// if any image fails to load it will be null and a warning will be issued
         /// if the Points observation fails to yield any valid points then falls back to the Range observation
+        /// NOTE: it is subtly incorrect to use a range map to substitute for an XYZ map
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/471
+        /// because stereo correlation often uses 2D disparity
+        /// which means the recovered surface point for a pixel may not actually lie on the ray through that pixel
+        /// but in some contexts (e.g. MSL using mslice data) we only have range products
         /// </summary>
         public void LoadOrGenerateImages(PipelineCore pipeline, RoverMasker masker = null, MeshOptions opts = null,
                                          bool loadTexture = true)
@@ -415,15 +444,14 @@ namespace OPS.Pipeline
                 }
                 catch (Exception ex)
                 {
-                    if (Range != null && Range != Points) //Points=Range if there is only an RNG product
+                    if (Range != null)
                     {
                         pipeline.LogWarn("failed to load {0}, falling back to {1}: {2}",
                                          Points.Name, Range.Name, ex.Message);
                     }
                     else
                     {
-                        pipeline.LogWarn("failed to load {0}{1}: {2}", Points.Name,
-                                         Range == Points ? "" : ", RNG unavailable", ex.Message);
+                        pipeline.LogWarn("failed to load {0}, RNG unavailable: {1}", Points.Name, ex.Message);
                     }
                 }
             }
@@ -432,7 +460,7 @@ namespace OPS.Pipeline
             bool hadPoints = pointsRaw != null;
             PointsImage = hadPoints ? (new PDSImage(pointsRaw)).ConvertPoints() : null;
 
-            if (PointsImage == null && Range != null && Range != Points)
+            if (PointsImage == null && Range != null)
             {
                 if (hadPoints)
                 {
@@ -773,25 +801,28 @@ namespace OPS.Pipeline
         /// <summary>
         /// dispatches to the different Build*() functions  
         /// </summary>
-        public Mesh BuildMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts,
-                              bool alwaysReconstruct = false,
-                              MeshReconstructionMethod method = MeshReconstructionMethod.Organized)
+        public Mesh BuildMesh(PipelineCore pipeline, FrameCache frameCache, RoverMasker masker, MeshOptions opts)
         {
             if (!Meshable)
             {
                 pipeline.LogWarn("{0} not meshable", Name);
                 return null;
             }
-            if (HasMesh && !alwaysReconstruct)
+            if (HasMesh && !opts.AlwaysReconstruct)
             {
                 return LoadMesh(pipeline, frameCache, opts);
             }
-            switch (method)
+            if (!Reconstructable && opts.AlwaysReconstruct)
+            {
+                pipeline.LogWarn("{0} not reconstructable", Name);
+                return null;
+            }
+            switch (opts.ReconstructionMethod)
             {
                 case MeshReconstructionMethod.Organized: return BuildOrganizedMesh(pipeline, frameCache, masker, opts);
                 case MeshReconstructionMethod.Poisson: return BuildPoissonMesh(pipeline, frameCache, masker, opts);
                 case MeshReconstructionMethod.FSSR: return BuildFSSRMesh(pipeline, frameCache, masker, opts);
-                default: throw new ArgumentException("unknown method: " + method);
+                default: throw new ArgumentException("unknown reconstruction method: " + opts.ReconstructionMethod);
             }
         }
 
@@ -890,31 +921,6 @@ namespace OPS.Pipeline
             double maxDim = (double)Math.Max(obs.Width, obs.Height);
 
             return Math.Max((int)Math.Round(maxDim / targetResolution), 1);
-        }
-
-        /// <summary>
-        /// if group contains a MeshObservations for eye, return the first of those
-        /// otherwise just return the first thing in group
-        /// </summary>
-        public static T FilterForEye<T>(IEnumerable<T> group, RoverStereoEye eye, Func<T, WedgeObservations> getObs)
-        {
-            foreach (var thing in group)
-            {
-                if (getObs(thing).StereoEye == eye)
-                {
-                    return thing;
-                }
-            }
-            return group.FirstOrDefault();
-        }
-
-        public static IEnumerable<WedgeObservations> FilterForEye(IEnumerable<WedgeObservations> observations,
-                                                                 RoverStereoEye eye)
-        {
-            return observations 
-                .GroupBy(obs => obs.StereoFrameName)
-                .Select(group => FilterForEye(group, eye, obs => obs))
-                .Where(obs => obs != null);
         }
     }
 }

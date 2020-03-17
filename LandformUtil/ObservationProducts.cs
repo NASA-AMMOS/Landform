@@ -245,9 +245,8 @@ namespace OPS.LandformUtil
             var phases = StringHelper.ParseList(options.OnlyForPhases).Select(p => p.ToLower()).ToList();
 
             var opts = new WedgeObservations.CollectOptions(options.OnlyForSiteDrives, options.OnlyForFrames,
-                                                           options.OnlyForCameras, mission)
+                                                            options.OnlyForCameras, mission)
                 {
-                    RequirePoints = false,
                     RequireNormals = options.RequireNormals,
                     RequireTextures = options.RequireTextures,
                     IncludeForAlignment = phases.Count == 0 || phases.Contains("alignment"),
@@ -255,10 +254,11 @@ namespace OPS.LandformUtil
                     IncludeForTexturing = phases.Count == 0 || phases.Contains("texturing"),
                     RequirePriorTransform = options.UsePriors,
                     RequireAdjustedTransform = options.OnlyAligned,
-                    TargetFrame = meshFrame
+                    TargetFrame = meshFrame,
+                    FilterMeshableWedgesForEye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission)
                 }; 
 
-            wedgeObservations = CollectWedgeObservations(opts, options.StereoEye);
+            wedgeObservations = WedgeObservations.Collect(frameCache, observationCache, opts);
 
             return true;
         }
@@ -294,7 +294,9 @@ namespace OPS.LandformUtil
                     MaxTriangleAspect = options.MaxTriangleAspect,
                     IsolatedPointSize = options.IsolatedPointSize,
                     GenerateNormals = !options.NoGenerateNormals,
-                    MeshDecimator = options.MeshDecimator
+                    MeshDecimator = options.MeshDecimator,
+                    AlwaysReconstruct = !options.UseMeshRDRs,
+                    ReconstructionMethod = options.ReconstructionMethod
                 };
 
             int np = 0, nc = 0;
@@ -312,7 +314,7 @@ namespace OPS.LandformUtil
                 string sdPrefix = !options.SuppressSiteDriveDirectories ? siteDrive + "/" : "";
 
                 //mesh decimation blocksize
-                var mbsObs = (obs.HasMesh && options.UseMeshRDRs) ? obs.Texture : obs.Points;
+                var mbsObs = (obs.HasMesh && options.UseMeshRDRs) ? obs.MeshObservation : obs.Points ?? obs.Range;
                 int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
                                                          options.DecimateWedgeMeshes,
                                                          options.TargetWedgeMeshResolution);
@@ -328,8 +330,8 @@ namespace OPS.LandformUtil
 
                 int npts = 0, nn = 0, nt = 0;
                 Mesh mesh = null;
-                if (buildWedgeMeshes && ((options.UseMeshRDRs && obs.HasMesh) ||
-                                         (!options.UseMeshRDRs && obs.Points != null)))
+                if (buildWedgeMeshes && ((options.UseMeshRDRs && obs.Meshable) ||
+                                         (!options.UseMeshRDRs && obs.Reconstructable)))
                 {
                     Exception ex = null;
                     try
@@ -522,8 +524,7 @@ namespace OPS.LandformUtil
             else
             {
                 pipeline.LogVerbose("building triangle mesh for {0}", obs.Name);
-                return obs.BuildMesh(pipeline, frameCache, masker, mo, !options.UseMeshRDRs,
-                                     options.ReconstructionMethod);
+                return obs.BuildMesh(pipeline, frameCache, masker, mo);
             }
         }
 
@@ -680,16 +681,6 @@ namespace OPS.LandformUtil
                     .Distinct() //ConcurrentBag is not necessarily a set
                     .ToArray();
 
-                var eye = RoverStereoPair.ParseEyeForGeometry(options.StereoEye, mission);
-                if (eye != RoverStereoEye.Any)
-                {
-                    inputs = inputs
-                        .GroupBy(inp => inp.Item1.StereoFrameName)
-                        .Select(group => WedgeObservations.FilterForEye(group, eye, inp => inp.Item1))
-                        .Where(inp => inp != null)
-                        .ToArray();
-                }
-                
                 int hasNormals = 0, hasTextures = 0;
                 var bands = new Dictionary<int, int>();
                 foreach (var input in inputs)
@@ -715,7 +706,7 @@ namespace OPS.LandformUtil
                 
                 pipeline.LogInfo("generating merged mesh for site drive {0} from {1} {2} eye wedge meshes, " +
                                  "{3} with normals, {4} with textures{5}",
-                                 siteDrive, inputs.Length, eye, hasNormals, hasTextures,
+                                 siteDrive, inputs.Length, options.StereoEye, hasNormals, hasTextures,
                                  hasTextures > 0 ? 
                                  (": " + string.Join(", ", bands.Select(e => string.Format("{0} with {1} bands",
                                                                                            e.Value, e.Key))))

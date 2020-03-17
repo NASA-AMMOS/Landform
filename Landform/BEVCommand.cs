@@ -27,8 +27,11 @@ namespace OPS.Landform
         [Option(HelpText = "Stereo eye to prefer", Default = "auto")]
         public string StereoEye { get; set; }
 
-        [Option(HelpText = "Use mesh RDRs when available instead of reconstructing wedge meshes from observation pointclouds", Default = false)]
-        public bool UseMeshRDRs { get; set; }
+        //need to be able to default this differently for bev-align vs heighmap-align
+        //unfortunately can't just make it virtual bool because can't default a bool flag to true
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1001
+        [Option(HelpText = "Use mesh RDRs when available instead of reconstructing wedge meshes from observation pointclouds (\"true\", \"false\", or \"auto\")", Default = "auto")]
+        public string UseMeshRDRs { get; set; }
 
         [Option(HelpText = "Wedge reconstruction method (Organized, Poisson, or FSSR)", Default = MeshReconstructionMethod.Organized)]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
@@ -86,6 +89,10 @@ namespace OPS.Landform
     {
         private BEVCommandOptions bcopts;
 
+        private bool useMeshRDRs;
+
+        protected WedgeObservations.CollectOptions wedgeCollectOpts;
+        protected WedgeObservations.MeshOptions wedgeMeshOpts;
         protected BirdsEyeView.BEVOptions bevOptions;
 
         //observations grouped by wedge
@@ -147,6 +154,13 @@ namespace OPS.Landform
                 return false; //help
             }
 
+            var useMeshRDRsStr = bcopts.UseMeshRDRs.ToLower().Trim();
+            useMeshRDRs = useMeshRDRsStr == "auto" ? AutoUseMeshRDRs() : useMeshRDRsStr == "true";
+
+            MakeCollectOpts();
+            MakeMeshOpts();
+            MakeBEVOpts();
+                             
             //if user did not specify --onlyforsitedrves then find all site drives in project
             if (siteDrives.Length == 0)
             {
@@ -156,7 +170,73 @@ namespace OPS.Landform
 
             //lexicographically sort siteDrives so that older ones come before newer just to give a canonical order
             siteDrives = siteDrives.Distinct().OrderBy(sd => sd).ToArray();
-            
+
+            return true;
+        }
+
+        protected override bool ObservationFilter(RoverObservation obs)
+        {
+            return obs.UseForAlignment;
+        }
+
+        protected override string DescribeObservationFilter()
+        {
+            return " alignment";
+        }
+
+        protected virtual bool AutoUseMeshRDRs()
+        {
+            return false;
+        }
+
+        protected void MakeCollectOpts(bool requireNormals, bool requireTextures)
+        {
+            wedgeCollectOpts = new WedgeObservations.CollectOptions(bcopts.OnlyForSiteDrives, bcopts.OnlyForFrames,
+                                                                    bcopts.OnlyForCameras, mission)
+            {
+                RequireMeshable = true,
+                RequireReconstructable = !useMeshRDRs,
+                RequireNormals = requireNormals,
+                RequireTextures = requireTextures,
+                IncludeForAlignment = true,
+                IncludeForMeshing = false,
+                IncludeForTexturing = false,
+                RequirePriorTransform = true,
+                TargetFrame = "root",
+                FilterMeshableWedgesForEye = RoverStereoPair.ParseEyeForGeometry(bcopts.StereoEye, mission)
+            };
+        }
+
+        protected virtual void MakeCollectOpts()
+        {
+            MakeCollectOpts(requireNormals: (bcopts.BEVColoring == BirdsEyeView.ColorMode.Tilt &&
+                                             !useMeshRDRs && bcopts.NoGenerateNormals),
+                            requireTextures: bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture);
+        }
+
+        protected void MakeMeshOpts(bool applyTexture)
+        {
+            wedgeMeshOpts = new WedgeObservations.MeshOptions()
+            {
+                Frame = "root",
+                LoadedFrame = mission.GetTacticalMeshFrame(),
+                UsePriors = true,
+                ApplyTexture = applyTexture,
+                MaxTriangleAspect = bcopts.MaxTriangleAspect,
+                GenerateNormals = !bcopts.NoGenerateNormals,
+                MeshDecimator = bcopts.MeshDecimator,
+                AlwaysReconstruct = !useMeshRDRs,
+                ReconstructionMethod = bcopts.ReconstructionMethod
+            };
+        }
+
+        protected virtual void MakeMeshOpts()
+        {
+            MakeMeshOpts(applyTexture: bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture);
+        }
+
+        protected void MakeBEVOpts()
+        {
             bevOptions = new BirdsEyeView.BEVOptions
             {
                 BlendMode = bcopts.BEVBlending,
@@ -196,49 +276,22 @@ namespace OPS.Landform
                     }
                 },
 
+                WedgeCollectOptions = wedgeCollectOpts,
+                WedgeMeshOptions = wedgeMeshOpts,
+
                 DecimateWedgeMeshes = bcopts.DecimateWedgeMeshes,
                 TargetWedgeMeshResolution = bcopts.TargetWedgeMeshResolution,
                 DecimateWedgeImages = bcopts.DecimateWedgeImages,
                 TargetWedgeImageResolution = bcopts.TargetWedgeImageResolution,
-                Coloring = bcopts.BEVColoring
+
+                Coloring = bcopts.BEVColoring,
+                StretchContrast = bcopts.StretchContrast
             };
-
-            return true;
-        }
-
-        protected override bool ObservationFilter(RoverObservation obs)
-        {
-            return obs.UseForAlignment;
-        }
-
-        protected override string DescribeObservationFilter()
-        {
-            return " alignment";
         }
 
         protected void CollectWedgeObservations()
         {
-            var opts = new WedgeObservations.CollectOptions(bcopts.OnlyForSiteDrives, bcopts.OnlyForFrames,
-                                                            bcopts.OnlyForCameras, mission)
-            {
-                RequireMeshable = true,
-                RequirePoints = !bcopts.UseMeshRDRs,
-                RequireNormals = (bcopts.BEVColoring == BirdsEyeView.ColorMode.Tilt && !bcopts.UseMeshRDRs &&
-                                  bcopts.NoGenerateNormals),
-                RequireTextures = bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture,
-                IncludeForAlignment = true,
-                IncludeForMeshing = false,
-                IncludeForTexturing = false,
-                RequirePriorTransform = true,
-                TargetFrame = "root"
-            };
-            wedgeObservations = WedgeObservations.Collect(frameCache, observationCache, opts);
-
-            var stereoEye = RoverStereoPair.ParseEyeForGeometry(bcopts.StereoEye, mission);
-            if (stereoEye != RoverStereoEye.Any)
-            {
-                wedgeObservations = WedgeObservations.FilterForEye(wedgeObservations, stereoEye).ToList(); 
-            }
+            wedgeObservations = WedgeObservations.Collect(frameCache, observationCache, wedgeCollectOpts);
         }
 
         /// <summary>
@@ -254,17 +307,6 @@ namespace OPS.Landform
             int no = wedgeObservations.Count;
             pipeline.LogInfo("creating wedge meshes for {0} observations...", no);
 
-            var meshOpts = new WedgeObservations.MeshOptions()
-                {
-                    Frame = "root",
-                    LoadedFrame = mission.GetTacticalMeshFrame(),
-                    UsePriors = true,
-                    ApplyTexture = bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture,
-                    MaxTriangleAspect = bcopts.MaxTriangleAspect,
-                    GenerateNormals = !bcopts.NoGenerateNormals,
-                    MeshDecimator = bcopts.MeshDecimator
-                };
-
             int np = 0, nc = 0;
             CoreLimitedParallel.ForEach(wedgeObservations, obs => { 
 
@@ -276,7 +318,7 @@ namespace OPS.Landform
                                          np, nc, no);
                     }
 
-                    var mbsObs = (obs.HasMesh && bcopts.UseMeshRDRs) ? obs.Texture : obs.Points;
+                    var mbsObs = (obs.HasMesh && useMeshRDRs) ? obs.MeshObservation : obs.Points ?? obs.Range;
                     int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok
                                                              bcopts.DecimateWedgeMeshes,
                                                              bcopts.TargetWedgeMeshResolution);
@@ -284,10 +326,9 @@ namespace OPS.Landform
                     {
                         pipeline.LogVerbose("auto decimating wedge mesh {0} with blocksize {1}", obs.Name, mbs);
                     }
-                    var mo = meshOpts.Clone();
+                    var mo = wedgeMeshOpts.Clone();
                     mo.Decimate = mbs;
-                    Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo, alwaysReconstruct: !bcopts.UseMeshRDRs,
-                                              method: bcopts.ReconstructionMethod);
+                    Mesh mesh = obs.BuildMesh(pipeline, frameCache, masker, mo);
 
                     Image img = null;
                     if (bcopts.BEVColoring == BirdsEyeView.ColorMode.Texture && obs.Texture != null)
@@ -615,16 +656,16 @@ namespace OPS.Landform
         {
             double startSec = UTCTime.Now();
             CoreLimitedParallel.ForEach(siteDrives, siteDrive => {
-                    var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive);
+                    var rec = BirdsEyeView.Find(pipeline, project.Name, siteDrive, bevOptions);
                     if (rec == null)
                     {
                         pipeline.LogVerbose("no cached BEV for {0}", siteDrive);
                     }
-                    else if (rec.CreationOptions != JsonHelper.ToJson(bevOptions))
+                    else if (rec.CreationOptions != bevOptions.Serialize())
                     {
                         pipeline.LogVerbose("options mismatch for cached BEV {0}", siteDrive);
                         pipeline.LogVerbose("cached options: {0}", rec.CreationOptions);
-                        pipeline.LogVerbose("required options: {0}", JsonHelper.ToJson(bevOptions));
+                        pipeline.LogVerbose("required options: {0}", bevOptions.Serialize());
                     }
                     else
                     {
