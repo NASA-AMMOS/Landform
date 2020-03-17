@@ -482,6 +482,48 @@ namespace OPS.Geometry
             return arrayToTransform(adjustment) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation));
         }
 
+        public static List<Vector3> CreateAdjustments(Image dem, MeshOperator surfaceMeshOp, Vector2 pixelCenter,
+            Matrix demToSurface, int orbitalRadiusPixels)
+        {
+            //Get subset of dem around sitedrive
+            int baseC = (int)Math.Max(pixelCenter.X - orbitalRadiusPixels, 0);
+            int baseR = (int)Math.Max(pixelCenter.Y - orbitalRadiusPixels, 0);
+            int pixelWidth = (int)Math.Min(pixelCenter.X + orbitalRadiusPixels, dem.Width) - baseC;
+            int pixelHeight = (int)Math.Min(pixelCenter.Y + orbitalRadiusPixels, dem.Height) - baseR;
+
+            if (!dem.HasMask)
+            {
+                dem.CreateMask();
+            }
+
+            Matrix baseSiteDriveToDem = Matrix.Invert(demToSurface);
+            List<Vector3> adjustments = new List<Vector3>();
+
+            for (int y = 0; y < 2 * orbitalRadiusPixels; y++)
+            {
+                for (int x = 0; x < 2 * orbitalRadiusPixels; x++)
+                {
+                    int r = baseR + y;
+                    int c = baseC + x;
+                    var demPoint = DemOperations.GetXYZ(dem, r, c);
+                    if (demPoint.HasValue)
+                    {
+                        var transformedDemPoint = Vector3.Transform(demPoint.Value, demToSurface);
+                        var bp = surfaceMeshOp.UVToBarycentric(new Vector2(transformedDemPoint.X, transformedDemPoint.Y));
+                        if (bp != null)
+                        {
+                            Vector3 meshPoint = bp.Position;
+                            adjustments.Add(new Vector3(transformedDemPoint.X,
+                                                        transformedDemPoint.Y,
+                                                        meshPoint.Z - transformedDemPoint.Z));
+                        }
+                    }
+                }
+            }
+
+            return adjustments;
+        }
+
         /// <summary>
         /// Build mesh from dem points surrounding surface mesh, with a padding of filterRadius.
         /// Extent is determined by orbitalRadiusPixels around pixelCenter.
@@ -497,7 +539,7 @@ namespace OPS.Geometry
         /// <param name="subSampleFactor"></param>
         /// <returns></returns>
         public static Mesh BuildOrbitalMeshAroundSurface(Image dem, Mesh surfaceMesh, Vector2 pixelCenter, 
-            Matrix demToSurface, int orbitalRadiusPixels, double filterRadius, double subSampleFactor)
+            Matrix demToSurface, int orbitalRadiusPixels, double filterRadius, double subSampleFactor, Func<Vector3, Vector3> adjust)
         {
             //Get subset of dem around sitedrive
             int baseC = (int)Math.Max(pixelCenter.X - orbitalRadiusPixels, 0);
@@ -546,7 +588,7 @@ namespace OPS.Geometry
                         if (mo.UVToBarycentric(new Vector2(transformedPos.X, transformedPos.Y)) == null)
                         {
                             Vertex v = new Vertex();
-                            v.Position = transformedPos;
+                            v.Position = adjust(transformedPos);
                             v.Normal = DemOperations.GetInterpolatedNormal(dem, r, c) ?? new Vector3(0, 0, -1);
                             v.Normal = Vector3.Normalize(Vector3.TransformNormal(v.Normal, demToSurface));
                             demMesh.Vertices.Add(v);

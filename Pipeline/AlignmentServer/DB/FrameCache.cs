@@ -718,7 +718,7 @@ namespace OPS.Pipeline.AlignmentServer
             string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
             foreach (var frame in GetAllFrames())
             {
-                if(frame.Name == orbitalFrameName)
+                if (frame.Name == orbitalFrameName)
                 {
                     continue;
                 }
