@@ -206,7 +206,7 @@ namespace OPS.Landform
                 var rec = frameCache.GetBestTransform(siteDrive.ToString());
                 siteDriveToWorldPreviousBestTransforms[siteDrive] = rec.Transform.Mean;
                 siteDrivePriorSources[siteDrive] = rec.Source;
-                pipeline.LogInfo("Read in {0} transform for site drive {1}", rec.Source, siteDrive);
+                pipeline.LogInfo("loaded {0} transform for site drive {1}", rec.Source, siteDrive);
             }
 
             baseSiteDriveToWorld = siteDriveToWorldPreviousBestTransforms[baseSiteDrive];
@@ -232,7 +232,7 @@ namespace OPS.Landform
             {
                 var siteDrive = siteDrives[i];
 
-                pipeline.LogInfo("Beginning alignment for site drive: {0}", siteDrive.ToString());
+                pipeline.LogInfo("beginning alignment for site drive: {0}", siteDrive.ToString());
                 var image = dems[siteDrive];
 
                 //Align to the highest priority sitedrive with sufficient overlap
@@ -248,7 +248,7 @@ namespace OPS.Landform
                         continue;
                     }
 
-                    pipeline.LogInfo("Attempting alignment from site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
+                    pipeline.LogInfo("attempting alignment from site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
 
                     var otherImg = dems[otherSiteDrive];
 
@@ -264,7 +264,7 @@ namespace OPS.Landform
                     Matrix adjustment = temp.Value;
                     //Align current site drive's world prior to some other site drives prior, then chain that site drive's transform.
                     worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(adjustment) * worldPriorToWorldTransforms[otherSiteDrive];
-                    pipeline.LogInfo("Aligned site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
+                    pipeline.LogInfo("aligned site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
                     success = true;
                     aligned.Add(siteDrive);
                     break;
@@ -272,7 +272,7 @@ namespace OPS.Landform
 
                 if (!success)
                 {
-                    pipeline.LogInfo("No sufficient overlap with any aligned sitedrive. Will align to orbital");
+                    pipeline.LogInfo("no sufficient overlap with any aligned sitedrive");
                     unaligned.Add(siteDrive);
                 }
             }
@@ -286,7 +286,7 @@ namespace OPS.Landform
             ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
             if (s.GetType() != typeof(GDALSerializer))
             {
-                pipeline.LogWarn("Could not load orbital as sparse image. Partial image read only supported for GDALSerializer.");
+                pipeline.LogWarn("could not load orbital as sparse image (partial read only supported for GDALSerializer)");
                 options.NoOrbital = true;
             }
 
@@ -305,21 +305,19 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    pipeline.LogWarn("Failed to access places; running without orbital.");
+                    pipeline.LogWarn("failed to access places, running without orbital");
                     options.NoOrbital = true;
                 }
             }
             else
             {
-                pipeline.LogWarn("Failed to load orbital DEM, running without orbital");
+                pipeline.LogWarn("failed to load orbital DEM, running without orbital");
                 options.NoOrbital = true;
             }
         }
 
         private void AlignOrbital()
         {
-            pipeline.LogInfo("Beginning alignment for DEM");
-
             var alignedImages = aligned.Select(sd => dems[sd]).ToArray();
             Matrix[] bevsToWorld = aligned.Select(sd => CreateBEVToWorldMatrix(sd) * worldPriorToWorldTransforms[sd]).ToArray();
 
@@ -371,10 +369,9 @@ namespace OPS.Landform
 
         private void AlignRemainingSiteDrivesToOrbital()
         {
-            //Align remaining sitedrives to dem
             foreach (SiteDrive siteDrive in unaligned)
             {
-                pipeline.LogInfo("Aligning site drive {0} to DEM.", siteDrive);
+                pipeline.LogInfo("aligning site drive {0} to DEM", siteDrive);
                 var image = dems[siteDrive];
 
                 Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
@@ -390,7 +387,8 @@ namespace OPS.Landform
             {
                 if (!worldPriorToWorldTransforms.ContainsKey(siteDrive))
                 {
-                    pipeline.LogWarn("Failed to generate {0} transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
+                    pipeline.LogWarn("failed to generate {0} transform for site drive {1}",
+                                     TransformSource.LandformOrbital, siteDrive);
                     continue;
                 }
 
@@ -411,36 +409,35 @@ namespace OPS.Landform
                 {
                     frame.Save(pipeline);
                 }
-                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", TransformSource.LandformOrbital, siteDrive);
+                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}",
+                                 TransformSource.LandformOrbital, siteDrive);
             }
         }
 
         private void WriteOrbitalTransform()
         {
             string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
-            //Orbital frame
+            var demUt = new UncertainRigidTransform(demToWorld);
+            var rootFrame = frameCache.GetFrame(baseSiteDrive.ToString()).GetParent(pipeline);
+            if (!frameCache.ContainsFrame(orbitalFrameName))
             {
-                var demUt = new UncertainRigidTransform(demToWorld);
-                var rootFrame = frameCache.GetFrame(baseSiteDrive.ToString()).GetParent(pipeline);
-                if (!frameCache.ContainsFrame(orbitalFrameName))
-                {
-                    frameCache.Add(Frame.Create(pipeline, project.Name, orbitalFrameName, rootFrame));
-                }
-                var orbitalFrame = frameCache.GetFrame(orbitalFrameName);
-                var demFt = FrameTransform.FindOrCreate(pipeline, orbitalFrame, TransformSource.LandformOrbital, demUt);
-                demFt.Transform = demUt;
-                demFt.Save(pipeline);
-                bool added = false;
-                lock (orbitalFrame.Transforms)
-                {
-                    added = orbitalFrame.Transforms.Add(demFt.Source);
-                }
-                if (added)
-                {
-                    orbitalFrame.Save(pipeline);
-                }
-                pipeline.LogInfo("saved {0} adjusted transform for {1}", TransformSource.LandformOrbital, orbitalFrameName);
+                frameCache.Add(Frame.Create(pipeline, project.Name, orbitalFrameName, rootFrame));
             }
+            var orbitalFrame = frameCache.GetFrame(orbitalFrameName);
+            var demFt = FrameTransform.FindOrCreate(pipeline, orbitalFrame, TransformSource.LandformOrbital, demUt);
+            demFt.Transform = demUt;
+            demFt.Save(pipeline);
+            bool added = false;
+            lock (orbitalFrame.Transforms)
+            {
+                added = orbitalFrame.Transforms.Add(demFt.Source);
+            }
+            if (added)
+            {
+                orbitalFrame.Save(pipeline);
+            }
+            pipeline.LogInfo("saved {0} adjusted transform for {1}",
+                             TransformSource.LandformOrbital, orbitalFrameName);
         }
 
         protected override bool AutoUseMeshRDRs()
