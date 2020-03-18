@@ -53,9 +53,6 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Turn on alignment to dem if no sufficient overlap to another sitedrive")]
         public bool AlignToDem { get; set; }
 
-        [Option(HelpText = "Debug option to write out the clipped dem in base site drive frame after alignment. Default does not write", Default = "")]
-        public string WriteClippedDemToPath { get; set; }
-
         [Option(HelpText = "Disable orbital alignment.", Default = false, Required = false)]
         public bool NoOrbital { get; set; }
     }
@@ -337,7 +334,7 @@ namespace OPS.Landform
                 options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
             demToWorld = demToWorldPrior * demWorldPriorToWorld;
 
-            if (!String.IsNullOrEmpty(options.WriteClippedDemToPath))
+            if (options.WriteDebug)
             {
                 Vector2 sdOriginPixel;
                 mission.GetSiteDriveOriginPixelInDem(baseSiteDrive, out sdOriginPixel);
@@ -366,8 +363,9 @@ namespace OPS.Landform
                     }
                 }
                 Mesh demMesh = Delaunay.Triangulate(demPointCloud.Vertices);
-                demMesh.Transform(demToWorld * Matrix.Invert(frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean));
-                demMesh.Save(options.WriteClippedDemToPath);
+                var sdFrame = baseSiteDrive.ToString();
+                demMesh.Transform(demToWorld * Matrix.Invert(frameCache.GetBestTransform(sdFrame).Transform.Mean));
+                SaveMesh(demMesh, "clippedOrbitalDEMin" + sdFrame + ".ply");
             }
         }
 
