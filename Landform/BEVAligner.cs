@@ -116,7 +116,7 @@ namespace OPS.Landform
 
     public class BEVAligner : BEVCommand
     {
-        private const string OUT_DIR = "alignment/AdjustProducts";
+        private const string OUT_DIR = "alignment/BEVProducts";
 
         private BEVAlignerOptions options;
 

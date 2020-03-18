@@ -64,7 +64,7 @@ namespace OPS.Landform
     {
         private HeightmapAlignerOptions options;
 
-        private const string OUT_DIR = "orbital/Products";
+        private const string OUT_DIR = "alignment/HeightmapProducts";
 
         private Dictionary<SiteDrive, TransformSource> siteDrivePriorSources = new Dictionary<SiteDrive, TransformSource>();
         private Dictionary<SiteDrive, Matrix> siteDriveToWorldPreviousBestTransforms = new Dictionary<SiteDrive, Matrix>();
