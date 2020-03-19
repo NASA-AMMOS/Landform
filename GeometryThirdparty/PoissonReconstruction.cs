@@ -51,9 +51,10 @@ namespace OPS.Geometry
         public class Options
         {
             public BoundaryTypes Boundary;          //exe defaults: Neumann
-            public float MinOctreeCellWidthMeters;  //exe defaults: doesn't use this parameter, uses --depth 8
+            public int OctreeDepth;                 //exe defaults: --depth 8, mutually exclusive with MinOctreeCellWidthMeters
+            public float MinOctreeCellWidthMeters;  //exe defaults: default doesn't use this parameter, OctreeDepth
             public float MinOctreeSamplesPerCell;   //exe defaults: 1, recommends 1-5 clean data 15-20 noisy data
-            public int BSplineDegree;               //exe defaults: 1, supports 1-2
+            public int BSplineDegree;               //exe defaults: 2
             public bool UseNormalsForConfidence;    //exe defaults: no, if true magnitude of normal indicates confidence            
             public double TrimmerLevel;             //exe defaults: 7, if tree level for density is less than amount, remove (higher number == more culling)
             public double TrimmerIslandPct;         //exe defaults: 0.001, if an island surface area is < this percentage of whole mesh surface area, remove it (higher number == more culling)
@@ -130,6 +131,15 @@ namespace OPS.Geometry
                     {
                         string arguments = "--in " + inputFile + " --out " + reconOutputFile;
 
+                        if(options.OctreeDepth != 0 && options.MinOctreeCellWidthMeters != 0.0)
+                        {
+                            throw new MeshException("OctreeDepth and MinOctreeCellWidthMeters are mutually exclusive, but both had requested values");
+                        }
+                        else if (options.OctreeDepth == 0 && options.MinOctreeCellWidthMeters == 0)
+                        {
+                            throw new MeshException("either OctreeDepth and MinOctreeCellWidthMeters must be specified");
+                        }
+
                         if (!cfg.PoissonExeLegacy)
                         {
                             if (pointCloud.HasColors)
@@ -137,23 +147,28 @@ namespace OPS.Geometry
                                 arguments += " --colors";
                             }
 
-                            arguments += " --normals";
+                            arguments += " --normals";              //emit normals from solver
                             arguments += " --tempDir " + tmpDir;
                             
                             if (options != null)
                             {
                                 arguments +=
-                                    String.Format(" --bType {0} --width {1} --samplesPerNode {2} --degree {3} --confidence {4} {5}",
-                                                  (int)options.Boundary, options.MinOctreeCellWidthMeters,
-                                                  options.MinOctreeSamplesPerCell, options.BSplineDegree,
-                                                  options.UseNormalsForConfidence ? 2 : 0,
-                                                  options.TrimmerLevel > 0 ? "--density" : "");
+                                    String.Format(" --bType {0} --samplesPerNode {1} --degree {2}{3}{4}{5}{6}",
+                                                (int)options.Boundary,
+                                                options.MinOctreeSamplesPerCell,
+                                                options.BSplineDegree,
+                                                options.MinOctreeCellWidthMeters > 0 ? " --width " + options.MinOctreeCellWidthMeters : "",
+                                                options.OctreeDepth > 0 ? " --depth " + options.OctreeDepth : "",
+                                                options.UseNormalsForConfidence ? " --confidence 2" : "",
+                                                options.TrimmerLevel > 0 ? " --density" : "");
                             }
 
                             //a workaround for running on powerful machines. without it there is an ERROR about not
                             // being able to open a file (likely a bug in multithread buffered file reading)
                             arguments += " --threads 1";
                         }
+
+                        logger.Info(String.Format("Running: {0} {1}", reconstructExe, arguments));
 
                         ProgramRunner pr = new ProgramRunner(reconstructExe, arguments, captureOutput: true);
                         try
@@ -210,7 +225,8 @@ namespace OPS.Geometry
                                                           (float)options.TrimmerLevel,
                                                           options.TrimmerIslandPct > 0 ?
                                                           "--aRatio " + (float)options.TrimmerIslandPct : "");
-                                
+                                logger.Info(String.Format("Running: {0} {1}", trimmerExe, arguments));
+
                                 pr = new ProgramRunner(trimmerExe, arguments, captureOutput: true);
                                 try
                                 {
@@ -282,6 +298,7 @@ namespace OPS.Geometry
                 Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
                 MinOctreeCellWidthMeters = 0.05f,
                 MinOctreeSamplesPerCell = 15,
+                OctreeDepth = 0,
                 BSplineDegree = 1,
                 UseNormalsForConfidence = normalsAreScaledByConfidence
             };

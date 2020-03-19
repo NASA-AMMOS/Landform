@@ -41,13 +41,13 @@ namespace OPS.Landform
         [Option(HelpText = "Post-meshing clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
 
-        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 8.0)]
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 7.0)]
         public double TrimmerLevel { get; set; }
 
         [Option(HelpText = "Fill holes in largest island created from surface trimmer. Cull other islands", Default = false)]
         public bool FillHoles { get; set; }
 
-        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.8)]
+        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
         [Option(HelpText = "Use orbital to fill in outer edges of mesh", Default = false)]
@@ -74,11 +74,14 @@ namespace OPS.Landform
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
 
-        [Option(HelpText = "Poisson cell size (meters)", Default = 0.05f)]
+        [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = 0.0)]
         public double PoissonCellSize { get; set; }
 
         [Option(HelpText = "Deform oribital to fit surface", Default = false)]
         public bool AdjustOrbital { get; set; }
+
+        [Option(HelpText = "Poisson octtree depth, mutually exclusive with PoissonCellSize, 0 to disable", Default = 8)]
+        public int PoissonTreeDepth { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -192,10 +195,13 @@ namespace OPS.Landform
             {
                 //extrapolates the edges of the mesh
                 Boundary = PoissonReconstruction.BoundaryTypes.Neumann,
-                
+
                 // no features should be finer than this many meters as this is the finest the octree will dice
                 MinOctreeCellWidthMeters = (float)(options.PoissonCellSize),
-                
+
+                // depth the octree should resolve to. mutually exclusive with MinOctreeCellWidthMeters
+                OctreeDepth = options.PoissonTreeDepth,
+
                 // a value on the upper end of the suggested range in the docs
                 // meaning we think our data in noisy, so wait for this many samples in a cell
                 MinOctreeSamplesPerCell = 15,
