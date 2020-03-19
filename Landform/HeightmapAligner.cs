@@ -94,7 +94,7 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("load or render birds eye views", LoadOrRenderBevDems); //observations -> bevs, dems
+                RunPhase("load or render site drive DEMs", LoadOrRenderBEVs);
                 RunPhase("sort site drives", SortSiteDrives);
                 RunPhase("load prior transforms", LoadPriorTransforms);
                 RunPhase("compute pairwise distances between site drive centers", ComputePairwiseDistances);
@@ -197,10 +197,9 @@ namespace OPS.Landform
                 .ToArray();
         }
 
-        private void LoadOrRenderBevDems()
+        protected override void LoadOrRenderBEVs()
         {
-            //TODO: Only need DEMs for heightmap align
-            base.LoadOrRenderBEVs();
+            LoadOrRenderBEVs(includeBEVs: false, includeDEMs: true);
             foreach (Image img in dems.Values)
             {
                 img.CameraModel = new OrthographicCameraModel(Matrix.Identity, img.Width, img.Height, MetersPerPixel);
