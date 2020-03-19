@@ -7,6 +7,7 @@ using System.Text;
 using System.Diagnostics;
 using log4net;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
@@ -168,6 +169,7 @@ namespace OPS.Pipeline
 
             //used to disambiguate observations if non-null
             //automatically set if mission is supplied to constructor
+            [JsonIgnore]
             public IComparer<RoverObservation> Comparator = null;
 
             //used to disambiguate observations if non-null

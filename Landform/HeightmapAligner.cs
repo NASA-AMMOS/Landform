@@ -17,7 +17,7 @@ namespace OPS.Landform
     [Verb("heightmap-align", HelpText = "")]
     public class HeightmapAlignerOptions : BEVCommandOptions
     {
-        [Option(HelpText = "Manually specify a base site drive to align others to. By default BaseSiteDrivePriority will be used to pick the base site drive", Default = "")]
+        [Option(HelpText = "Manually specify a base site drive to align others to. By default BaseSiteDrivePriority will be used to pick the base site drive", Default = null)]
         public string BaseSiteDrive { get; set; }
 
         [Option(HelpText = "Base site drive chosen by highest priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst) unless set manually with BaseSiteDrive. Remaining sorted by RemainingSiteDrivePriority", Default = SiteDrivePriority.BiggestFirst)]
@@ -95,6 +95,7 @@ namespace OPS.Landform
                 }
 
                 RunPhase("load or render birds eye views", LoadOrRenderBevDems); //observations -> bevs, dems
+                RunPhase("sort site drives", SortSiteDrives);
                 RunPhase("load prior transforms", LoadPriorTransforms);
                 RunPhase("compute pairwise distances between site drive centers", ComputePairwiseDistances);
                 RunPhase("per site drive alignment to base site drive", AlignSurfaceToBaseSiteDrive);
@@ -143,22 +144,57 @@ namespace OPS.Landform
                 throw new Exception("at least one site drive required");
             }
             
-            var baseSiteDrive = !string.IsNullOrEmpty(options.BaseSiteDrive) ?
-                new SiteDrive(options.BaseSiteDrive) : //Allow either SSSDDDD or SSSSSDDDDD
-                SortSiteDrives(siteDrives, options.BaseSiteDrivePriority).First();
-            
-            if (!siteDrives.Contains(baseSiteDrive))
+            if (!string.IsNullOrEmpty(options.BaseSiteDrive))
             {
-                throw new Exception("specified base site drive not found: " + baseSiteDrive);
+                baseSiteDrive = new SiteDrive(options.BaseSiteDrive); //allow either SSSDDDD or SSSSSDDDDD
+                if (!siteDrives.Contains(baseSiteDrive))
+                {
+                    throw new Exception("specified base site drive not found: " + options.BaseSiteDrive);
+                }
+                pipeline.LogInfo("base site drive: {0}", baseSiteDrive);
             }
             
-            pipeline.LogInfo("base site drive: {0}", baseSiteDrive);
+            return true;
+        }
+
+        protected override bool AutoUseMeshRDRs()
+        {
+            return true;
+        }
+
+        protected override void MakeCollectOpts()
+        {
+            MakeCollectOpts(requireNormals: false, requireTextures: false);
+        }
+
+        protected override void MakeMeshOpts()
+        {
+            MakeMeshOpts(applyTexture: false);
+        }
+
+        private void SortSiteDrives()
+        {
+            IEnumerable<SiteDrive> sort(IEnumerable<SiteDrive> sds, SiteDrivePriority priority)
+            {
+                switch (priority)
+                {
+                    case SiteDrivePriority.NewestFirst: return sds.OrderByDescending(sd => sd.ToString());
+                    case SiteDrivePriority.OldestFirst: return sds.OrderBy(sd => sd.ToString());
+                    case SiteDrivePriority.BiggestFirst: return sds.OrderByDescending(sd => dems[sd].Area);
+                    case SiteDrivePriority.SmallestFirst: return sds.OrderBy(sd => dems[sd].Area);
+                    default: throw new Exception("unknown site drive priority: " + priority);
+                }
+            }
+
+            if (string.IsNullOrEmpty(options.BaseSiteDrive))
+            {
+                baseSiteDrive = sort(siteDrives, options.BaseSiteDrivePriority).First();
+                pipeline.LogInfo("base site drive ({0}): {1}", options.BaseSiteDrivePriority, baseSiteDrive);
+            }
             
             siteDrives = new List<SiteDrive> { baseSiteDrive }
-                .Concat(SortSiteDrives(siteDrives.Where(sd => sd != baseSiteDrive), options.RemainingSiteDrivePriority))
+                .Concat(sort(siteDrives.Where(sd => sd != baseSiteDrive), options.RemainingSiteDrivePriority))
                 .ToArray();
-
-            return true;
         }
 
         private void LoadOrRenderBevDems()
@@ -438,33 +474,6 @@ namespace OPS.Landform
             }
             pipeline.LogInfo("saved {0} adjusted transform for {1}",
                              TransformSource.LandformOrbital, orbitalFrameName);
-        }
-
-        protected override bool AutoUseMeshRDRs()
-        {
-            return true;
-        }
-
-        protected override void MakeCollectOpts()
-        {
-            MakeCollectOpts(requireNormals: false, requireTextures: false);
-        }
-
-        protected override void MakeMeshOpts()
-        {
-            MakeMeshOpts(applyTexture: false);
-        }
-
-        private IEnumerable<SiteDrive> SortSiteDrives(IEnumerable<SiteDrive> sds, SiteDrivePriority priority)
-        {
-            switch (priority)
-            {
-                case SiteDrivePriority.NewestFirst: return sds.OrderByDescending(sd => sd.ToString());
-                case SiteDrivePriority.OldestFirst: return sds.OrderBy(sd => sd.ToString());
-                case SiteDrivePriority.BiggestFirst: return sds.OrderByDescending(sd => dems[sd].Area);
-                case SiteDrivePriority.SmallestFirst: return sds.OrderBy(sd => dems[sd].Area);
-                default: throw new Exception("unknown site drive priority: " + priority);
-            }
         }
     }
 }

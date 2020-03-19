@@ -36,7 +36,7 @@ namespace OPS.Pipeline.AlignmentServer
 
             public string Serialize()
             {
-                return JsonHelper.ToJson(this, indent: true);
+                return JsonHelper.ToJson(this, autoTypes: false);
             }
         }
 
@@ -198,7 +198,7 @@ namespace OPS.Pipeline.AlignmentServer
 
         public static BirdsEyeView Find(PipelineCore pipeline, string projectName, SiteDrive siteDrive, BEVOptions opts)
         {
-            return pipeline.LoadDatabaseItem<BirdsEyeView>(projectName, MakeName(siteDrive, opts));
+            return pipeline.LoadDatabaseItem<BirdsEyeView>(MakeName(siteDrive, opts), projectName);
         }
 
         public static IEnumerable<BirdsEyeView> Find(PipelineCore pipeline, string projectName)

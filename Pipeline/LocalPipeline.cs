@@ -502,7 +502,8 @@ namespace OPS.Pipeline
                     dbCache.TryGetValue(dbKey, out json);
                     if (!quiet)
                     {
-                        LogDebug("LoadDatabaseItem key={0} json={1}", dbKey, StringHelper.CollapseWhitespace(json));
+                        LogDebug("LoadDatabaseItem key={0} json={1}", dbKey,
+                                 json != null ? StringHelper.CollapseWhitespace(json) : "null");
                     }
                     return json != null ? FromJson<T>(json, ignoreNulls) : null;
                 });
