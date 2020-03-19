@@ -77,7 +77,7 @@ namespace OPS.LandformUtil
         private MissionSpecific mission;
 
         private bool useSiteDriveFrame;
-        private Vector3 colRowOffset; //x = col, y = row
+        private Vector2 colRowOffset; //x = col, y = row
         private double zOffset;
         
         public DEM2Mesh(DEM2MeshOptions options)
@@ -94,10 +94,10 @@ namespace OPS.LandformUtil
                 {
                     var siteDrive = new SiteDrive(options.OutputFrame);
                     var placesDB = new PlacesDB(new ThunkLogger(logger));
-                    Vector2 latlon = placesDB.GetEstimatedLatLon(siteDrive);
-                    GDALDEM dem = GDALDEM.Load(options.InputDem, OrbitalConfig.Instance.OrbitalBodyName);
-                    colRowOffset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
-                    zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);
+                    var dem = GDALDEM.Load(options.InputDem, OrbitalConfig.Instance.OrbitalBodyName);
+                    var latLon = placesDB.GetEstimatedLatLon(siteDrive);
+                    colRowOffset = dem.LatLonToImage(latLon);
+                    zOffset = dem.InterpolateElevationAtLatLon(latLon);
                     useSiteDriveFrame = true;
                 }
                 catch (Exception ex)
@@ -354,7 +354,7 @@ namespace OPS.LandformUtil
                     if (!useSiteDriveFrame)
                     {
                         //set origin to image center
-                        colRowOffset = new Vector3(width / 2.0, height/ 2.0, 0);
+                        colRowOffset = new Vector2(width / 2.0, height/ 2.0);
                         zOffset = 0;
                     }
                     //Mesh subset of dem around sitedrive

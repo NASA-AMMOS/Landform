@@ -344,6 +344,7 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Finds the estimated mars lat and lon for a given site drive
+        /// returned X = longitude, Y = latitude
         /// </summary>
         public Vector2 GetEstimatedLatLon(SiteDrive sd)
         {
@@ -357,7 +358,7 @@ namespace OPS.Pipeline
             // x is northing, y is easting
             double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
             double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
-            return new Vector2(lat, lon);
+            return new Vector2(lon, lat);
         }
 
         /// <summary>

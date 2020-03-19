@@ -145,7 +145,7 @@ namespace OPS.Imaging
         /// </summary>
         public Vector2 LatLonToImage(Vector2 latLon)
         {
-            var tmp = LatLonToImage(latLon);
+            var tmp = LatLonToImage(new Vector3(latLon.X, latLon.Y, 0));
             return new Vector2(tmp.X, tmp.Y);
         }
 
@@ -185,6 +185,14 @@ namespace OPS.Imaging
 
         private ConcurrentDictionary<Tuple<Vector2, int>, double> interpCache =
             new ConcurrentDictionary<Tuple<Vector2, int>, double>();
+
+        /// <summary>
+        /// X = longitude, Y = latitude
+        /// </summary>
+        public double InterpolateElevationAtLatLon(Vector2 latLon, int radius = 2)
+        {
+            return InterpolateElevationAtLatLon(latLon.Y, latLon.X);
+        }
 
         public double InterpolateElevationAtLatLon(double lat, double lon, int radius = 2)
         {

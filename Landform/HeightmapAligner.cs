@@ -266,6 +266,8 @@ namespace OPS.Landform
 
         private void AlignSurfaceToBaseSiteDrive()
         {
+            aligned.Add(baseSiteDrive);
+
             for (int i = 1 /* don't attempt to align base site drive */; i < siteDrives.Length; i++)
             {
                 var siteDrive = siteDrives[i];
@@ -334,15 +336,18 @@ namespace OPS.Landform
                 var cfg = OrbitalConfig.Instance;
 
                 string demFilePath = options.OrbitalDEM;
-                if (string.IsNullOrEmpty(demFilePath) && !string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+                if (string.IsNullOrEmpty(demFilePath))
                 {
-                    demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
+                    if (!string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+                    {
+                        demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
+                    }
+                    else
+                    {
+                        throw new Exception("orbital DEM not available for mission " + mission.GetMission());
+                    }
                 }
-                else
-                {
-                    throw new Exception("orbital DEM not available for mission " + mission.GetMission());
-                }
-
+                    
                 if (!File.Exists(demFilePath))
                 {
                     throw new Exception(string.Format("mission {0} orbital DEM not found at {1}",

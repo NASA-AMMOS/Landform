@@ -408,14 +408,17 @@ namespace OPS.Landform
             var cfg = OrbitalConfig.Instance;
 
             string demFilePath = options.OrbitalDEM;
-            if (string.IsNullOrEmpty(demFilePath) && !string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+            if (string.IsNullOrEmpty(demFilePath))
             {
-                demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
-            }
-            else
-            {
-                pipeline.LogWarn("orbital DEM not available for mission {0}", mission.GetMission());
-                return false;
+                if (!string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+                {
+                    demFilePath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
+                }
+                else
+                {
+                    pipeline.LogWarn("orbital DEM not available for mission {0}", mission.GetMission());
+                    return false;
+                }
             }
 
             if (!File.Exists(demFilePath))
