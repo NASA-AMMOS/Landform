@@ -266,46 +266,57 @@ namespace OPS.Landform
 
         private void AlignSurfaceToBaseSiteDrive()
         {
-            for (int i = 1; i < siteDrives.Length; i++)
+            for (int i = 1 /* don't attempt to align base site drive */; i < siteDrives.Length; i++)
             {
                 var siteDrive = siteDrives[i];
 
-                pipeline.LogInfo("beginning alignment for site drive: {0}", siteDrive.ToString());
+                pipeline.LogInfo("beginning alignment for site drive {0}", siteDrive.ToString());
+
                 var image = dems[siteDrive];
+                Matrix sceneToWorld = CreateBEVToWorldMatrix(siteDrive);
 
-                //Align to the highest priority sitedrive with sufficient overlap
                 bool success = false;
-                Matrix adjustedSiteDriveToWorld = Matrix.Identity;
 
-                //Try to align to closest site drives first
-                foreach (SiteDrive otherSiteDrive in siteDrives.OrderBy(sd => squaredDistances[siteDrive.ToString() + sd.ToString()]))
+                //align to the highest priority sitedrive with sufficient overlap
+                var otherSDs = siteDrives
+                    .Where(sd => sd != siteDrive && aligned.Contains(sd)) //only align unalinged to aligned
+                    .OrderBy(sd => squaredDistances[siteDrive.ToString() + sd.ToString()])
+                    .ToList();
+
+                foreach (var otherSD in otherSDs)
                 {
-                    //Only align unalinged to aligned
-                    if (!aligned.Contains(otherSiteDrive))
+                    try
                     {
-                        continue;
+                        pipeline.LogInfo("attempting to align site drive {0} to site drive {1}", siteDrive, otherSD);
+                        
+                        var otherImg = dems[otherSD];
+                        
+                        Matrix otherSceneToWorld = CreateBEVToWorldMatrix(otherSD);
+                        
+                        var adjustment = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld,
+                                                                       options.NumAnnealingStages, null,
+                                                                       options.PreserveXY, options.MinOverlapPercent,
+                                                                       options.DEMMinFilter, options.DEMMaxFilter,
+                                                                       options.TargetSampleNum,
+                                                                       log: msg => pipeline.LogInfo(msg));
+
+                        //align current site drive's world prior to other site drive's prior
+                        //then chain that site drive's transform
+                        worldPriorToWorldTransforms[siteDrive] =
+                            Matrix.Invert(adjustment) * worldPriorToWorldTransforms[otherSD];
+
+                        pipeline.LogInfo("aligned site drive {0} to site drive {1}", siteDrive, otherSD);
+
+                        success = true;
+                        aligned.Add(siteDrive);
+
+                        break;
                     }
-
-                    pipeline.LogInfo("attempting alignment from site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
-
-                    var otherImg = dems[otherSiteDrive];
-
-                    Matrix sceneToWorld = CreateBEVToWorldMatrix(siteDrive);
-                    Matrix otherSceneToWorld = CreateBEVToWorldMatrix(otherSiteDrive);
-
-                    var temp = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld, options.PreserveXY,
-                        options.NumAnnealingStages, null, options.MinOverlapPercent, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum);
-                    if (!temp.HasValue)
+                    catch (Exception ex)
                     {
-                        continue;
+                        pipeline.LogVerbose("failed to align site drive {0} to site drive {1}: {2}",
+                                            siteDrive, otherSD, ex.Message);
                     }
-                    Matrix adjustment = temp.Value;
-                    //Align current site drive's world prior to some other site drives prior, then chain that site drive's transform.
-                    worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(adjustment) * worldPriorToWorldTransforms[otherSiteDrive];
-                    pipeline.LogInfo("aligned site drive {0} to site drive {1}", siteDrive, otherSiteDrive);
-                    success = true;
-                    aligned.Add(siteDrive);
-                    break;
                 }
 
                 if (!success)
@@ -362,19 +373,27 @@ namespace OPS.Landform
                                                                                      cfg.OrbitalDEMMetersPerPixel);
 
             var alignedImages = aligned.Select(sd => dems[sd]).ToArray();
-            Matrix[] bevsToWorld = aligned.Select(sd => CreateBEVToWorldMatrix(sd) * worldPriorToWorldTransforms[sd]).ToArray();
+            Matrix[] bevsToWorld = aligned
+                .Select(sd => CreateBEVToWorldMatrix(sd) * worldPriorToWorldTransforms[sd])
+                .ToArray();
 
-            //First do naive vertical alignment in base site drive since transform to world may have slight rotation (not commutative)
+            //first do naive vertical alignment in base site drive
+            //since transform to world may have slight rotation (not commutative)
             Matrix zCorrectedPrior = demToBaseSiteDrive *
-                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld), dem, demToBaseSiteDrive,
-                false, 0, null, 0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * Matrix.Invert(baseSiteDriveToWorld),
+                                              dem, demToBaseSiteDrive, 0, null, false, 0,
+                                              options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum,
+                                              msg => pipeline.LogInfo(msg));
 
             //Run alignment for dem in world frame
-            Matrix demToWorldPrior = zCorrectedPrior * frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean;
-            Matrix demWorldPriorToWorld = DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior, false,
-                options.NumAnnealingStages, null, 0.0, options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum).Value;
+            Matrix demToWorldPrior =
+                zCorrectedPrior * frameCache.GetBestTransform(baseSiteDrive.ToString()).Transform.Mean;
+            Matrix demWorldPriorToWorld =
+                DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior,
+                                               options.NumAnnealingStages, null, false, 0,
+                                               options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum,
+                                               msg => pipeline.LogInfo(msg));
             demToWorld = demToWorldPrior * demWorldPriorToWorld;
-
 
             if (options.WriteDebug)
             {
@@ -393,7 +412,8 @@ namespace OPS.Landform
                 {
                     for (int c = 0; c < pixelWidth; c++)
                     {
-                        var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c, options.VerticalScale, true, options.DEMMinFilter, options.DEMMaxFilter);
+                        var pos = DemOperations.GetXYZ(dem, baseR + r, baseC + c, options.VerticalScale, true,
+                                                       options.DEMMinFilter, options.DEMMaxFilter);
                         if (pos.HasValue)
                         {
                             Vertex v = new Vertex();
@@ -419,10 +439,10 @@ namespace OPS.Landform
 
                 Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
                 Matrix demWorldToSDWorld =
-                    DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld, false,
-                                                  options.NumAnnealingStages, null, 0,
-                                                  options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum)
-                    .Value;
+                    DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
+                                                  options.NumAnnealingStages, null, false, 0,
+                                                  options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum,
+                                                  msg => pipeline.LogInfo(msg));
                 worldPriorToWorldTransforms[siteDrive] = Matrix.Invert(demWorldToSDWorld);
             }
         }

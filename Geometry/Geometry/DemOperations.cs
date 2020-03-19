@@ -13,8 +13,6 @@ namespace OPS.Geometry
 {
     public static class DemOperations
     {
-        static ILog logger = LogManager.GetLogger(typeof(DemOperations));
-
         //Swap x, y and negate z
         public static Matrix demToSitedriveCoordinateFlip = new Matrix(0, 1, 0, 0,
                                                                        1, 0, 0, 0,
@@ -284,36 +282,29 @@ namespace OPS.Geometry
             return ret;
         }
 
-        public static Matrix? AlignSceneToDem(Image scenemap, Matrix sceneToWorld, Image dem, Matrix demToWorld, 
-            bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, 
-            double minOverlap = 0.5, double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
+        public static Matrix AlignSceneToDem(Image scenemap, Matrix sceneToWorld, Image dem, Matrix demToWorld, 
+                                             int numAnnealingStages, SimulatedAnnealingOptions saOpts = null,
+                                             bool preserveXY = false, double minOverlap = 0,
+                                             double minFilter = -1000000, double maxFilter = 1000000,
+                                             int sampleLimit = 3000, Action<string> log = null)
         {
-            return AlignScenesToDem(new[] { scenemap }, new[] { sceneToWorld }, dem, demToWorld, 
-                preserveXY, numAnnealingStages, saOpts, minOverlap, minOverlap, maxFilter, sampleLimit);
+            return AlignScenesToDem(new[] { scenemap }, new[] { sceneToWorld }, dem, demToWorld,
+                                    numAnnealingStages, saOpts, preserveXY, minOverlap, minFilter, maxFilter,
+                                    sampleLimit, log);
         }
 
         /// <summary>
         /// Returns alignment from dem to first passed in scenemap (using samples from full list)
         /// </summary>
-        /// <param name="scenemaps"></param>
-        /// <param name="sceneColOffsets"></param>
-        /// <param name="sceneRowOffsets"></param>
-        /// <param name="sceneMetersPerPixel"></param>
-        /// <param name="dem"></param>
-        /// <param name="newDemRowOffset"></param>
-        /// <param name="newDemColOffset"></param>
-        /// <param name="demMetersPerPixel"></param>
-        /// <param name="preserveXY"></param>
-        /// <param name="minOverlap"></param>
-        /// <param name="targetHeightmapRes"></param>
-        /// <param name="minFilter"></param>
-        /// <param name="maxFilter"></param>
-        /// <returns></returns>
-        public static Matrix? AlignScenesToDem(Image[] scenemaps, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, 
-            bool preserveXY, int numAnnealingStages, SimulatedAnnealingOptions saOpts = null, double minOverlap = 0.5, 
-            double minFilter = -1000000, double maxFilter = 1000000, int sampleLimit = 3000)
+        public static Matrix AlignScenesToDem(Image[] scenemaps, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, 
+                                              int numAnnealingStages, SimulatedAnnealingOptions saOpts = null,
+                                              bool preserveXY = false, double minOverlap = 0, 
+                                              double minFilter = -1000000, double maxFilter = 1000000,
+                                              int sampleLimit = 3000, Action<string> log = null)
         {
-            if(sceneToWorlds.Count() != scenemaps.Count())
+            log = log ?? (msg => {});
+
+            if (sceneToWorlds.Count() != scenemaps.Count())
             {
                 throw new Exception("Number of scenemaps does not match number of priors.");
             }
@@ -368,9 +359,9 @@ namespace OPS.Geometry
 
             if (succeeded / (double)total < minOverlap)
             {
-                logger.InfoFormat("Overlap {0}/{1} is insufficient. Min ratio is {2}", succeeded, total, minOverlap);
-                return null;
-            } else
+                throw new Exception(string.Format("insufficient overlap {0}/{1} < {2}", succeeded, total, minOverlap));
+            }
+            else
             {
                 //Trim outliers
                 int initialSampleCount = samples.Count;
@@ -379,8 +370,8 @@ namespace OPS.Geometry
                 var deviations = samples.Select(s => Math.Abs(s.Z - median)).ToArray();
                 double mad = deviations.OrderBy(x => x).ToArray()[samples.Count / 2];
                 samples = samples.Where(s => Math.Abs(s.Z - median) < 20 * mad).ToList();
-                logger.InfoFormat("Trimmed {0} outliers", initialSampleCount - samples.Count);
-                logger.InfoFormat("Proceeding with {0}/{1} overlapping samples", succeeded, total);        
+                log(string.Format("trimmed {0} outliers", initialSampleCount - samples.Count));
+                log(string.Format("proceeding with {0}/{1} overlapping samples", succeeded, total));
             }
 
             if (succeeded == 0)
@@ -485,14 +476,15 @@ namespace OPS.Geometry
 
             for (int i = 0; i < numAnnealingStages; i++)
             {
-                logger.InfoFormat("Annealing pass {0}/{1} :  Error = {2}", i + 1, numAnnealingStages, meanZSquaredError(adjustment));
+                log(string.Format("annealing pass {0}/{1}: error {2}", i + 1, numAnnealingStages,
+                                  meanZSquaredError(adjustment)));
                 sa.temperatureExponent = 1.0 / (Math.Max(4, numAnnealingStages) - i);
                 double[] saTransform = sa.Minimize(meanZSquaredError, adjustment);
                 adjustment = saTransform;
                 zTranslation -= meanZOffset();
             }
 
-            logger.InfoFormat("Finished annealing. Final error = {0}", meanZSquaredError(adjustment));
+            log(string.Format("finished annealing, final error {0}", meanZSquaredError(adjustment)));
 
             return arrayToTransform(adjustment) * Matrix.CreateTranslation(new Vector3(0, 0, zTranslation));
         }
