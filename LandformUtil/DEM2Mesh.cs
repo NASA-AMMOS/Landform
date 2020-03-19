@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using Microsoft.Xna.Framework;
 using CommandLine;
+using log4net;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -72,12 +73,14 @@ namespace OPS.LandformUtil
 
     public class DEM2Mesh
     {
-        DEM2MeshOptions options;
+        private static readonly ILog logger = LogManager.GetLogger(typeof(DEM2Mesh));
 
-        bool useSiteDriveFame;
-        //x = col, y = row
-        Vector3 colRowOffset;
-        double zOffset;
+        private DEM2MeshOptions options;
+
+        private bool useSiteDriveFame;
+
+        private Vector3 colRowOffset; //x = col, y = row
+        private double zOffset;
 
         public DEM2Mesh(DEM2MeshOptions options)
         {
@@ -90,7 +93,7 @@ namespace OPS.LandformUtil
                                    Int32.TryParse(options.OutputFrame.Substring(5, 5), out drive);
                 if (useSiteDriveFame)
                 {
-                    var placesDB = new PlacesDB();
+                    var placesDB = new PlacesDB(new ThunkLogger(logger));
                     Vector2 latlon = placesDB.GetEstimatedLatLon(new SiteDrive(site, drive));
                     GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
                     colRowOffset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
