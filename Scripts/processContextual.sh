@@ -15,7 +15,7 @@ if [ ! -f "$landform" ]; then
     exit 1
 fi
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ] [--heightmapalign] [--orbitaldem path/to/dem.tif]"
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ] [--heightmapalign] [--orbitalgeometry] [--orbitaldem path/to/dem.tif]"
 
 if [ $# -lt 4 ]; then
     echo $help
@@ -57,6 +57,7 @@ only_ingest=
 s3_proxy=
 cameras=
 heightmap_align=
+orbital_geometry=
 orbital_dem=
 
 manifest=true
@@ -146,6 +147,7 @@ while (( "$#" )); do
             cameras="--onlyforcameras $1"
             ;;
         "--heightmapalign") heightmap_align=true;;
+        "--orbitalgeometry") orbital_geometry="--useorbital";;
         "--orbitaldem")
             shift
             if [ $# -lt 1 ]; then
@@ -202,7 +204,7 @@ if [ "$generate" ]; then
         if [ "$heightmap_align" ]; then
             ${dry}$landform heightmap-align $proj $dbg --basesitedrive $sd $orbital_dem | tee -a $log
         fi
-        ${dry}$landform build-geometry $proj $dbg --meshframe $sd | tee -a $log
+        ${dry}$landform build-geometry $proj $dbg --meshframe $sd $orbital_geometry $orbital_dem | tee -a $log
         ${dry}$landform build-tiling-input $proj $dbg --meshframe $sd | tee -a $log
         ${dry}$landform blend-images $proj $dbg --meshframe $sd | tee -a $log
         ${dry}$landform build-tileset $proj $dbg $export --meshframe $sd | tee -a $log
