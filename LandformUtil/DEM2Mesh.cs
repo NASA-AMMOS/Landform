@@ -56,17 +56,14 @@ namespace OPS.LandformUtil
         [Option(Required = false, Default = 1000000, HelpText = "Dem values larger than this will be ignored")]
         public float DEMMaxFilter { get; set; }
 
-        [Option(Required = false, Default = "", HelpText = "Output to sitedrive frame SSSSSDDDDD, default puts origin at dem center")]
+        [Option(Required = false, Default = "", HelpText = "Output to sitedrive frame SSSSSDDDDD or SSSDDDD, default puts origin at DEM center")]
         public string OutputFrame { get; set; }
-
-        [Option(Required = false, Default = "", HelpText = "Scene in given sitedrive frame to align with")]
-        public string AlignToScene { get; set; }
-
-        [Option(Required = false, Default = "", HelpText = "Path to save in memory heightmap created for AlignToScene mesh, default does not save")]
-        public string WriteHeightmapPath { get; set; }
 
         [Option(Required =false, Default = -1, HelpText = "Radius in meters around origin to build mesh")]
         public float Radius { get; set; }
+
+        [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
+        public Mission Mission { get; set; }
 
         // TODO: Skirt option?
     }
@@ -77,31 +74,37 @@ namespace OPS.LandformUtil
 
         private DEM2MeshOptions options;
 
-        private bool useSiteDriveFame;
+        private MissionSpecific mission;
 
+        private bool useSiteDriveFrame;
         private Vector3 colRowOffset; //x = col, y = row
         private double zOffset;
-
+        
         public DEM2Mesh(DEM2MeshOptions options)
         {
             this.options = options;
-            if(options.OutputFrame.Length == 10)
+
+            //even if we don't directly use the mission instance
+            //this has the important side effect of setting defaults for PlacesConfig and OrbitalConfig
+            mission = MissionSpecific.GetInstance(options.Mission);
+
+            if (SiteDrive.IsSiteDriveString(options.OutputFrame))
             {
-                int site = 0;
-                int drive = 0;
-                useSiteDriveFame = Int32.TryParse(options.OutputFrame.Substring(0, 5), out site) &&
-                                   Int32.TryParse(options.OutputFrame.Substring(5, 5), out drive);
-                if (useSiteDriveFame)
+                try
                 {
+                    var siteDrive = new SiteDrive(options.OutputFrame);
                     var placesDB = new PlacesDB(new ThunkLogger(logger));
-                    Vector2 latlon = placesDB.GetEstimatedLatLon(new SiteDrive(site, drive));
-                    GDALDEM dem = GDALDEM.MarsDEM(options.InputDem);
+                    Vector2 latlon = placesDB.GetEstimatedLatLon(siteDrive);
+                    GDALDEM dem = GDALDEM.Load(options.InputDem, OrbitalConfig.Instance.OrbitalBodyName);
                     colRowOffset = dem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
                     zOffset = dem.InterpolateElevationAtLatLon(latlon.X, latlon.Y);
+                    useSiteDriveFrame = true;
                 }
-            } else
-            {
-                useSiteDriveFame = false;
+                catch (Exception ex)
+                {
+                    throw new Exception(string.Format("cannot output in frame {0}: {1}",
+                                                      options.OutputFrame, ex.Message));
+                }
             }
         }
 
@@ -348,7 +351,7 @@ namespace OPS.LandformUtil
                 double squaredError = options.Error * options.Error;
                 if (options.Radius != -1)
                 {
-                    if(!useSiteDriveFame)
+                    if (!useSiteDriveFrame)
                     {
                         //set origin to image center
                         colRowOffset = new Vector3(width / 2.0, height/ 2.0, 0);
@@ -398,16 +401,10 @@ namespace OPS.LandformUtil
 
             Matrix siteDriveTransform = Matrix.Identity;
             List<Vector3> samples = new List<Vector3>();
-            if (useSiteDriveFame)
+            if (useSiteDriveFrame)
             {
-                if(options.AlignToScene != "")
-                {
-                    throw new Exception("Deprecated - Use OrbitalAligner.");
-                } else
-                {
-                    //Shift image origin and apply vertical offset based on places priors
-                    siteDriveTransform = Matrix.CreateTranslation(options.MetersPerPixel * (-1 * colRowOffset.X + (double)width / 2.0), options.MetersPerPixel * (colRowOffset.Y - (double)height / 2.0), -1 * zOffset);
-                }
+                //Shift image origin and apply vertical offset based on places priors
+                siteDriveTransform = Matrix.CreateTranslation(options.MetersPerPixel * (-1 * colRowOffset.X + (double)width / 2.0), options.MetersPerPixel * (colRowOffset.Y - (double)height / 2.0), -1 * zOffset);
             }
 
             foreach (Vertex v in mesh.Vertices)

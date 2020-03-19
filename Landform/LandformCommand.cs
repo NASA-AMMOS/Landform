@@ -220,7 +220,7 @@ namespace OPS.Landform
             }
 
             project = GetProject(); //might create project
-            mission = GetMission();
+            mission = GetMission(); //side effect: sets Config.DefaultsProvider
             masker = GetMasker();
 
             if (outDir != null)

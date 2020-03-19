@@ -29,8 +29,26 @@ namespace OPS.Imaging
         public SpatialReference MakeSphericalSpatialReference()
         {
             var ret = new SpatialReference(null);
-            ret.SetGeogCS("Mars Spherical", "SPHERICAL_MARS", "Mars", GetRadius(), 0, "Marsridian", 0.0, "Degree",
-                          Math.PI / 180.0);
+            ret.SetGeogCS("Mars Spherical", "SPHERICAL_MARS", "Mars",
+                          GetRadius(), 0, "Marsridian", 0.0, "Degree", Math.PI / 180.0);
+            return ret;
+        }
+    }
+
+    //https://gdal.org/tutorials/osr_api_tut.html#defining-a-geographic-coordinate-reference-system
+    public class EarthBody : DEMBody
+    {
+        public double GetRadius()
+        {
+            return Osr.SRS_WGS84_SEMIMAJOR;
+        }
+
+        public SpatialReference MakeSphericalSpatialReference()
+        {
+            var ret = new SpatialReference(null);
+            ret.SetGeogCS("Earth CRS", "World Geodetic System 1984", "Earth",
+                          Osr.SRS_WGS84_SEMIMAJOR, Osr.SRS_WGS84_INVFLATTENING,
+                          "Greenwich", 0.0, "Degree", Math.PI / 180.0);
             return ret;
         }
     }
@@ -89,9 +107,14 @@ namespace OPS.Imaging
             projectedToLatLon = new CoordinateTransformation(projectedFrame, bodyFrame);
         }
 
-        public static GDALDEM MarsDEM(string file)
+        public static GDALDEM Load(string file, string body)
         {
-            return new GDALDEM(file, new MarsBody());
+            switch(body.ToLower())
+            {
+                case "mars": return new GDALDEM(file, new MarsBody());
+                case "earth": return new GDALDEM(file, new EarthBody());
+                default: throw new Exception("orbital DEM for planetary body not supported: " + body);
+            }
         }
 
         /// <summary>

@@ -353,7 +353,7 @@ namespace OPS.Landform
                 dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height,
                                                               cfg.OrbitalDEMMetersPerPixel);
 
-                gdalDEM = GDALDEM.MarsDEM(demFilePath);
+                gdalDEM = GDALDEM.Load(demFilePath, cfg.OrbitalBodyName);
 
                 var placesDB = new PlacesDB(pipeline, requireOrbital: true);
                 baseSiteDriveLatLon = placesDB.GetEstimatedLatLon(baseSiteDrive);

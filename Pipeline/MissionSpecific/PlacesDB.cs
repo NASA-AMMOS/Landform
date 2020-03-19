@@ -23,31 +23,50 @@ namespace OPS.Pipeline
             return CONFIG_FILENAME;
         }
 
-        //default is empty which disables PlacesDB
-        //default is overridden by MissionSpecific.GetPlacesConfigDefaults()
+        //PLACES instance URL
+        //default is null which disables PlacesDB
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_URL")]
         public string Url { get; set; }
 
-        //default is empty which disables PlacesDB
-        //default is overridden by MissionSpecific.GetPlacesConfigDefaults()
+        //PLACES solution view
+        //default is null which disables PlacesDB
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_VIEW")]
         public string View { get; set; }
 
+        //username for http basic auth
+        //default is null whcih means disable basic auth
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_USERNAME")]
         public string Username { get; set; }
 
+        //password for http basic auth
+        //default is null whcih means disable basic auth
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_API_KEY")]
         public string APIKey { get; set; }
 
+        //name of auth cookie
+        //null means no auth cookie
+        //default is "ssosession"
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_NAME")]
         public string AuthCookieName { get; set; } = "ssosession";
-
+ 
+        //auth cookie
+        //default is null which means read from file, if any
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_VALUE")]
         public string AuthCookieValue { get; set; }
 
+        //read auth cookie from file
+        //default is null which disables auth cookie file
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_FILE")]
         public string AuthCookieFile { get; set; } = "~/.cssotoken/dev-old/ssosession";
 
+        //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
         public string ResponseType { get; set; } = "application/xml"; //application/xml or application/json (experimental)
     }

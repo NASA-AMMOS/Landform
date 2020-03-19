@@ -203,6 +203,8 @@ namespace OPS.Landform
                 TemporaryFile.TemporaryDirectory = options.TempDir;
             }
 
+            //even if we don't directly use the mission instance
+            //this has the important side effect of setting defaults for PlacesConfig and OrbitalConfig
             mission = MissionSpecific.GetInstance(options.Mission);
 
             if (mission != null)

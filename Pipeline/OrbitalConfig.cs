@@ -17,20 +17,29 @@ namespace OPS.Pipeline
         }
 
         //path below LocalPipelineConfig.Instance.StorageDir containing the orbital DEM
-        //default is empty which disables orbital DEM
-        //overridden by MissionSpecific.GetOrbitalConfigDefaults()
+        //default is null which disables orbital DEM
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_DEM_STORAGE_PATH")]
         public string OrbitalDEMStoragePath { get; set; }
 
         //path below LocalPipelineConfig.Instance.StorageDir containing the orbital ortho image
-        //default is empty which disables orbital texturing
-        //overridden by MissionSpecific.GetOrbitalConfigDefaults()
+        //default is null which disables orbital texturing
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_IMAGE_STORAGE_PATH")]
         public string OrbitalImageStoragePath { get; set; }
 
+        //Mars or Earth
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
+        [ConfigEnvironmentVariable("LANDFORM_ORBITAL_BODY_NAME")]
+        public string OrbitalBodyName { get; set; } = "Mars";
+
+        //meters per pixel for obital DEM
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_DEM_METERS_PER_PIXEL")]
         public double OrbitalDEMMetersPerPixel { get; set; } = 1;
 
+        //name for orbital adjusted frame transform
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_FRAME_NAME")]
         public string OrbitalFrameName { get; set; } = "Orbital";
     }

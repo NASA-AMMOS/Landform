@@ -606,6 +606,17 @@ namespace OPS.Pipeline
             }
             return base.ParseProductId(id);
         }
+
+        public override string GetOrbitalConfigDefaults()
+        {
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
+            return
+                "{ " +
+                "\"OrbitalDEMStoragePath\": \"\", " +
+                "\"OrbitalImageStoragePath\": \"\", " +
+                "\"OrbitalBodyName\": \"Earth\"" +
+                "}";
+        }
     }
 
     public class MissionROASTT20 : MissionM2020
@@ -649,6 +660,17 @@ namespace OPS.Pipeline
         public override string GetS3Proxy()
         {
             return "https://data-roastt.m20-training.jpl.nasa.gov";
+        }
+
+        public override string GetOrbitalConfigDefaults()
+        {
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
+            return
+                "{ " +
+                "\"OrbitalDEMStoragePath\": \"\", " +
+                "\"OrbitalImageStoragePath\": \"\", " +
+                "\"OrbitalBodyName\": \"Earth\"" +
+                "}";
         }
 
         public override string GetPlacesConfigDefaults()
