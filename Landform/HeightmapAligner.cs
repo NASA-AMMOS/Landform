@@ -67,12 +67,14 @@ namespace OPS.Landform
         private Dictionary<SiteDrive, Matrix> siteDriveToWorldPreviousBestTransforms = new Dictionary<SiteDrive, Matrix>();
         private Dictionary<string, double> squaredDistances = new Dictionary<string, double>();
         private Dictionary<SiteDrive, Matrix> worldPriorToWorldTransforms = new Dictionary<SiteDrive, Matrix>();
-        private SiteDrive baseSiteDrive;
+
         private SparseDEMImage dem;
         private GDALDEM gdalDEM;
-        private Matrix demToBaseSiteDrive;
-        private Matrix baseSiteDriveToWorld;
         private Matrix demToWorld;
+
+        private SiteDrive baseSiteDrive;
+        private Vector2 baseSiteDriveLatLon;
+        private Matrix baseSiteDriveToWorld;
 
         private List<SiteDrive> aligned = new List<SiteDrive>();
         private List<SiteDrive> unaligned = new List<SiteDrive>();
@@ -316,10 +318,10 @@ namespace OPS.Landform
 
         private void LoadOrbital()
         {
-            var cfg = OrbitalConfig.Instance;
-
             try
             {
+                var cfg = OrbitalConfig.Instance;
+
                 string demFilePath = options.OrbitalDEM;
                 if (string.IsNullOrEmpty(demFilePath) && !string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
                 {
@@ -343,9 +345,7 @@ namespace OPS.Landform
                 gdalDEM = GDALDEM.MarsDEM(demFilePath);
 
                 var placesDB = new PlacesDB(pipeline, requireOrbital: true);
-                var baseSiteDriveLatLon = placesDB.GetEstimatedLatLon(baseSiteDrive);
-                demToBaseSiteDrive = mission.GetOrbitalDEMToSiteDriveTransform(baseSiteDriveLatLon, gdalDEM,
-                                                                               cfg.OrbitalDEMMetersPerPixel);
+                baseSiteDriveLatLon = placesDB.GetEstimatedLatLon(baseSiteDrive);
             }
             catch (Exception ex)
             {
@@ -356,6 +356,11 @@ namespace OPS.Landform
 
         private void AlignOrbital()
         {
+            var cfg = OrbitalConfig.Instance;
+
+            var demToBaseSiteDrive = DemOperations.GetOrbitalDEMToSiteDriveTransform(baseSiteDriveLatLon, gdalDEM,
+                                                                                     cfg.OrbitalDEMMetersPerPixel);
+
             var alignedImages = aligned.Select(sd => dems[sd]).ToArray();
             Matrix[] bevsToWorld = aligned.Select(sd => CreateBEVToWorldMatrix(sd) * worldPriorToWorldTransforms[sd]).ToArray();
 
@@ -376,7 +381,7 @@ namespace OPS.Landform
                 Vector2 baseSDOriginPixelInOrbitalDEM = gdalDEM.LatLonToImage(baseSiteDriveLatLon);
 
                 //Get subset of dem around sitedrive
-                int pixelRadius = (int)(200 / OrbitalConfig.Instance.OrbitalDEMMetersPerPixel);
+                int pixelRadius = (int)(200 / cfg.OrbitalDEMMetersPerPixel);
                 int baseC = (int)Math.Max(baseSDOriginPixelInOrbitalDEM.X - pixelRadius, 0);
                 int baseR = (int)Math.Max(baseSDOriginPixelInOrbitalDEM.Y - pixelRadius, 0);
                 int pixelWidth = (int)Math.Min(baseSDOriginPixelInOrbitalDEM.X + pixelRadius, dem.Width) - baseC;

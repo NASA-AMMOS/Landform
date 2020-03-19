@@ -895,21 +895,6 @@ namespace OPS.Pipeline
             return null;
         }
 
-        /// <summary>
-        /// Get Orbital -> SiteDrive transform
-        /// </summary>
-        public virtual Matrix GetOrbitalDEMToSiteDriveTransform(Vector2 siteDriveLatLon, GDALDEM orbitalDEM,
-                                                                double demMetersPerPixel = 1)
-        {
-            Vector2 sdPixelInDEM = orbitalDEM.LatLonToImage(siteDriveLatLon);
-
-            Vector3 demSDOriginXYZ = new Vector3((sdPixelInDEM.X - orbitalDEM.Width / 2.0) * demMetersPerPixel,
-                                                 -1 * (sdPixelInDEM.Y - orbitalDEM.Height / 2.0) * demMetersPerPixel,
-                                                 0);
-
-            return Matrix.CreateTranslation(-1 * demSDOriginXYZ) * DemOperations.demToSitedriveCoordinateFlip;
-        }
-
         public virtual string GetOrbitalConfigDefaults()
         {
             return null;

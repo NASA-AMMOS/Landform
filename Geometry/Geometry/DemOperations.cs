@@ -22,6 +22,21 @@ namespace OPS.Geometry
                                                                        0, 0, 0, 1);
 
         /// <summary>
+        /// Get Orbital -> SiteDrive transform
+        /// </summary>
+        public static Matrix GetOrbitalDEMToSiteDriveTransform(Vector2 siteDriveLatLon, GDALDEM orbitalDEM,
+                                                               double demMetersPerPixel = 1)
+        {
+            Vector2 sdPixelInDEM = orbitalDEM.LatLonToImage(siteDriveLatLon);
+
+            Vector3 demSDOriginXYZ = new Vector3((sdPixelInDEM.X - orbitalDEM.Width / 2.0) * demMetersPerPixel,
+                                                 -1 * (sdPixelInDEM.Y - orbitalDEM.Height / 2.0) * demMetersPerPixel,
+                                                 0);
+
+            return Matrix.CreateTranslation(-1 * demSDOriginXYZ) * demToSitedriveCoordinateFlip;
+        }
+
+        /// <summary>
         /// Do bilinear interpolation with potentially null points. x and y should be horizontal and vertical offset from the top left corner respectively, see diagram.
         /// </summary>
         /// <param name="x"></param>
