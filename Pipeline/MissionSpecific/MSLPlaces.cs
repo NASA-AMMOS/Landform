@@ -58,6 +58,8 @@ namespace OPS.Pipeline
     /// </summary>
     public class MSLPlaces
     {
+        public string FALLBACK_VIEW = "telemetry";
+
         private ILogger logger;
 
         private string view;
@@ -108,9 +110,24 @@ namespace OPS.Pipeline
             {
                 if (logger != null)
                 {
-                    logger.LogError("PlacesDB test query for sitedrive (1, 0) failed");
+                    logger.LogWarn("PlacesDB test query for sitedrive (1, 0) failed, URL {0}, view {1}",
+                                   config.Url, view);
                 }
-                throw;
+                view = FALLBACK_VIEW;
+                logger.LogWarn("trying fallback view {0}", view);
+                try
+                {
+                    GetEstimatedOffsetToStart(new SiteDrive(1, 0)); //test query
+                }
+                catch
+                {
+                    if (logger != null)
+                    {
+                        logger.LogError("PlacesDB test query for sitedrive (1, 0) failed, URL {0}, view {1}",
+                                        config.Url, view);
+                    }
+                    throw;
+                }
             }
 
             try
@@ -174,13 +191,14 @@ namespace OPS.Pipeline
                 {
                     cache[url] = null;
                     throw new Exception(string.Format("PlacesDB: {0} connecting for request '{1}': {2}",
-                                                      response.StatusCode, url, response.ErrorMessage));
+                                                      response.StatusCode, config.Url + "/" + url,
+                                                      response.ErrorMessage));
                 }
                 
                 string content = response.Content;
                 cache[url] = content;
 
-                Debug("MSLPlaces request: {0}, response:\n{1}", url, content);
+                Debug("MSLPlaces request: {0}, response:\n{1}", config.Url + "/" + url, content);
 
                 return content;
             }
