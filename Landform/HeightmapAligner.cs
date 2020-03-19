@@ -112,10 +112,13 @@ namespace OPS.Landform
                     }
                 }
 
-                RunPhase("save surface transforms", WriteSurfaceTransforms);
-                if (!options.NoOrbital)
+                if (!options.NoSave)
                 {
-                    RunPhase("save orbital transform", WriteOrbitalTransform);
+                    RunPhase("save surface transforms", WriteSurfaceTransforms);
+                    if (!options.NoOrbital)
+                    {
+                        RunPhase("save orbital transform", WriteOrbitalTransform);
+                    }
                 }
             }
             catch (Exception ex)
