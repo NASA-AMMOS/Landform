@@ -269,7 +269,7 @@ namespace OPS.LandformUtil
             bool useHashForMask;
             if((long)width * (long)height > MAX_SINGLE_CHUNK_SIZE * MAX_SINGLE_CHUNK_SIZE || options.Radius != -1)
             {
-                dem = new SparseDEMImage(options.InputDem);
+                dem = new DemOperations.SparseDEMImage(options.InputDem);
                 useHashForMask = true;
             }
             else

@@ -96,7 +96,6 @@
     <Compile Include="Imaging\ImageStatistics.cs" />
     <Compile Include="Imaging\LimberDMG.cs" />
     <Compile Include="Imaging\Mask.cs" />
-    <Compile Include="Imaging\SparseDemImage.cs" />
     <Compile Include="Operations\Blur.cs" />
     <Compile Include="Operations\Colorize.cs" />
     <Compile Include="Operations\Colorspace.cs" />

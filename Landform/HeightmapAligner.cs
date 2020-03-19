@@ -68,7 +68,7 @@ namespace OPS.Landform
         private Dictionary<string, double> squaredDistances = new Dictionary<string, double>();
         private Dictionary<SiteDrive, Matrix> worldPriorToWorldTransforms = new Dictionary<SiteDrive, Matrix>();
 
-        private SparseDEMImage dem;
+        private DemOperations.SparseDEMImage dem;
         private GDALDEM gdalDEM;
         private Matrix demToWorld;
 
@@ -349,7 +349,7 @@ namespace OPS.Landform
                                                       mission.GetMission(), demFilePath));
                 }
 
-                dem = new SparseDEMImage(demFilePath);
+                dem = new DemOperations.SparseDEMImage(demFilePath);
                 dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height,
                                                               cfg.OrbitalDEMMetersPerPixel);
 

@@ -13,6 +13,9 @@ namespace OPS.Geometry
 {
     public static class DemOperations
     {
+        public const int CHUNK_SIZE = 512;
+        public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
+
         //Swap x, y and negate z
         public static Matrix demToSitedriveCoordinateFlip = new Matrix(0, 1, 0, 0,
                                                                        1, 0, 0, 0,
@@ -32,6 +35,26 @@ namespace OPS.Geometry
                                                  0);
 
             return Matrix.CreateTranslation(-1 * demSDOriginXYZ) * demToSitedriveCoordinateFlip;
+        }
+
+        /// <summary>
+        /// Sparse DEM image backed by an image file.
+        /// File format must support partial reads, currently only GDALSerializer does.
+        /// The chunks are loaded lazily.  Call Populate() to load them all.
+        /// </summary>
+        public class SparseDEMImage : SparseImage
+        {
+            public SparseDEMImage(string path) : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE) { }
+
+            protected override IImageConverter GetReadConverter()
+            {
+                return ImageConverters.PassThrough;
+            }
+            
+            protected override IImageConverter GetWriteConverter()
+            {
+                return ImageConverters.PassThrough;
+            }
         }
 
         /// <summary>
