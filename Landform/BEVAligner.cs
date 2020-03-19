@@ -32,15 +32,6 @@ namespace OPS.Landform
     [Verb("bev-align", HelpText = "birds eye view alignment")]
     public class BEVAlignerOptions : BEVCommandOptions
     {
-        [Option(HelpText = "Option disabled for this command - always loads priors", Default = true)]
-        public override bool UsePriors { get; set; }
-
-        [Option(HelpText = "Option disabled for this command - always loads priors", Default = false)]
-        public override bool OnlyAligned { get; set; }
-
-        [Option(HelpText = "Option disabled for this command - always loads priors", Default = null)]
-        public override string AdjustedTransformSources { get; set; }
-
         [Option(HelpText = "Don't adjust specified site drives (or \"newest\", \"oldest\", \"largest\", \"smallest\"), comma separated", Default = null)]
         public string FixSiteDrives { get; set; }
 
@@ -162,11 +153,17 @@ namespace OPS.Landform
             }
         }
 
+        protected override HashSet<TransformSource> GetDefaultExcludedAdjustedTransformSources()
+        {
+            return new HashSet<TransformSource>()
+            { TransformSource.LandformBEV, TransformSource.LandformBEVRoot, TransformSource.LandformBEVCalf };
+        }
+
         public int Run()
         {
             try
             {
-                if (!ParseArgumentsAndLoadCaches())
+                if (!ParseArgumentsAndLoadCaches(OUT_DIR))
                 {
                     return 0; //help
                 }
@@ -234,31 +231,6 @@ namespace OPS.Landform
             StopStopwatch();
 
             return 0;
-        }
-
-        private bool ParseArgumentsAndLoadCaches()
-        {
-            if (!options.UsePriors)
-            {
-                throw new Exception("--usepriors=false not supported for this command");
-            } 
-
-            if (options.OnlyAligned)
-            {
-                throw new Exception("--onlyaligned not supported for this command");
-            } 
-
-            if (!string.IsNullOrEmpty(options.AdjustedTransformSources))
-            {
-                throw new Exception("--adjustedtransformsources not supported for this command");
-            } 
-
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
-            {
-                return false; //help
-            }
-
-            return true;
         }
 
         /// <summary>

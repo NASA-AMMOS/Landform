@@ -18,6 +18,9 @@ namespace OPS.Landform
 {
     public class BEVCommandOptions : WedgeCommandOptions
     {
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool OnlyAligned { get; set; }
+
         [Option(HelpText = "Auto wedge image decimation target resolution", Default = 512)]
         public override int TargetWedgeImageResolution { get; set; }
 
@@ -85,7 +88,7 @@ namespace OPS.Landform
         public double StretchStdDevs { get; set; }
     }
 
-    public class BEVCommand : WedgeCommand
+    public abstract class BEVCommand : WedgeCommand
     {
         private BEVCommandOptions bcopts;
 
@@ -101,6 +104,7 @@ namespace OPS.Landform
 
         //sitedrive => (observation, mesh, image), (observation, mesh, image), ...
         //populated by BuildWedgeMeshes()
+        //wedge meshes are always generated in root frame using transform priors
         protected ConcurrentDictionary<SiteDrive, ConcurrentBag<Tuple<string, Mesh, Image>>> wedgeMeshes =
             new ConcurrentDictionary<SiteDrive, ConcurrentBag<Tuple<string, Mesh, Image>>>();
 
@@ -132,6 +136,17 @@ namespace OPS.Landform
         }
 
         /// <summary>
+        /// convenicence method to best available transform from siteDrive to project root frame
+        /// if there is an adjusted transform from one of the allowed sources (typically any source but this aligner)
+        /// then that is used
+        /// otherwise returns the best prior
+        /// </summary>
+        protected Matrix SiteDriveBest(SiteDrive siteDrive)
+        {
+            return frameCache.GetBestTransform(siteDrive.ToString()).Transform.Mean;
+        }
+
+        /// <summary>
         /// map a 3D point in meters from a given site drive to a 2D point in pixels in a given site drive
         /// </summary>
         protected Vector2 PointToPixel(Vector3 srcPoint, SiteDrive srcSiteDrive, SiteDrive dstSiteDrive)
@@ -149,6 +164,22 @@ namespace OPS.Landform
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
+            if (bcopts.OnlyAligned)
+            {
+                //wedge meshes are always generated in root frame using transform priors
+                throw new Exception("--onlyaligned not supported for this command");
+            } 
+
+            if (!bcopts.UsePriors && string.IsNullOrEmpty(bcopts.AdjustedTransformSources))
+            {
+                var excluded = GetDefaultExcludedAdjustedTransformSources();
+                var allowed = Enum.GetValues(typeof(TransformSource)).Cast<TransformSource>()
+                    .Where(s => s < TransformSource.Prior && !excluded.Contains(s))
+                    .Select(s => s.ToString());
+                bcopts.AdjustedTransformSources = String.Join(",", allowed);
+                pipeline.LogInfo("allowing adjusted transform sources: {0}", bcopts.AdjustedTransformSources);
+            } 
+
             if (!base.ParseArgumentsAndLoadCaches(outDir))
             {
                 return false; //help
@@ -173,6 +204,8 @@ namespace OPS.Landform
 
             return true;
         }
+
+        protected abstract HashSet<TransformSource> GetDefaultExcludedAdjustedTransformSources();
 
         protected override bool ObservationFilter(RoverObservation obs)
         {
