@@ -318,20 +318,13 @@ namespace OPS.Landform
             string demFilePath = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : //override by cmdline opt
                 OrbitalConfig.Instance.GetDEMFullPath(project.Mission);
 
-            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
-            if (s.GetType() != typeof(GDALSerializer))
-            {
-                pipeline.LogWarn("could not load orbital as sparse image (partial read only supported for GDALSerializer)");
-                options.NoOrbital = true;
-            }
-
             if (File.Exists(demFilePath))
             {
-                ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out int width, out int height);
                 dem = new SparseDEMImage(demFilePath);
                 if (dem.CameraModel == null)
                 {
-                    dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height, mission.GetDemMetersPerPixel());
+                    dem.CameraModel = new OrthographicCameraModel(Matrix.Identity, dem.Width, dem.Height,
+                                                                  mission.GetDemMetersPerPixel());
                 }
                 if (mission.GetDemToSiteDriveOffset(baseSiteDrive, out Matrix demToSD, demFilePath))
                 {
