@@ -11,27 +11,89 @@ namespace Util
     {
         //Number of iterations per annealing
         public int maxIterations;
+
+        //Temperature controls the chance of the algorithm moving to a worse solution (to avoid local minima),
+        //as well as how far the solution can move. Higher temperature = higher chance of larger movement.
+        //Temperature decays with each iteration 
+
         //Used to scale the temperature by a constant factor
         public double temperatureScale;
-        //Scales the error perceived by the algorithm between a candidate solution and the current solution. Higher probability scale = more likely to stay in local minima
+
+        //Controls the shape of temperature decay, higher exponent = sharper decay
+        public double temperatureExponent;
+
+        //Scales the error perceived by the algorithm between a candidate solution and the current solution.
+        //Higher probability scale = more likely to stay in local minima
         public double probabilityScale;
-        public bool verbose;
-        //Allows weighting how much to fluctuate the current solution per dimension. For the case of a transformation, we likely want to perturb the rotation on a different scale than the translation. Higher sigma value for dimension d = more fluctuation of d 
+
+        //Allows weighting how much to fluctuate the current solution per dimension.
+        //For a transformation we likely want to perturb the rotation on a different scale than the translation.
+        //Higher sigma value for dimension d = more fluctuation of d.
+        //Zero sigma value for dimension d = no fluctuation of d.
         public double[] sigma;
+
+        public Action<string> verbose;
     }
 
     public class SimulatedAnnealing
     {
         public SimulatedAnnealingOptions opts;
 
-        static void Copy(double[] from, double[] to)
+        public double[] Minimize(Func<double[], double> errorFunction, double[] x0)
+        {
+            int dimensions = x0.Length;
+            double[] x = new double[dimensions];
+            double[] bestX = new double[dimensions];
+            double[] candidateX = new double[dimensions];
+            Copy(x0, x);
+            Copy(x0, bestX);
+
+            double currentError = errorFunction(x);
+            double bestError = currentError;
+
+            Random r = NumberHelper.MakeRandomGenerator();
+            for (int i = 0; i < opts.maxIterations; i++)
+            {
+                double temperature = 1 - (i / (double)opts.maxIterations);
+                temperature = Math.Pow(temperature, opts.temperatureExponent) * opts.temperatureScale;
+
+                Copy(x, candidateX);
+                for (int j = 0; j < dimensions; j++)
+                {
+                    candidateX[j] += NormalRandom(r) * opts.sigma[j] * temperature;
+                }
+
+                double candidateError = errorFunction(candidateX);
+                if (candidateError < currentError ||
+                    r.NextDouble() < Math.Exp(-(candidateError - currentError) * opts.probabilityScale / temperature))
+                {
+                    currentError = candidateError;
+                    Copy(candidateX, x);
+                }
+                if (currentError < bestError)
+                {
+                    bestError = currentError;
+                    Copy(x, bestX);
+                }
+
+                if (opts.verbose != null && i % 50 == 0)
+                {
+                    opts.verbose(string.Format("{0}% - best error: {1}",
+                                               (int)(((i + 1) / (float)opts.maxIterations) * 100), bestError));
+                }
+            }
+            return bestX;
+        }
+
+        private static void Copy(double[] from, double[] to)
         {
             for (int i = 0; i < from.Length; i++)
             {
                 to[i] = from[i];
             }
         }
-        static void Add(double[] to, double[] from)
+
+        private static void Add(double[] to, double[] from)
         {
             int i;
             for (i = 0; i < from.Length; i++)
@@ -39,9 +101,10 @@ namespace Util
                 to[i] += from[i];
             }
         }
-        static bool haveExtraRandom = false;
-        static double extraRandom = 0.0;
-        static double NormalRandom(Random r)
+
+        private static bool haveExtraRandom = false;
+        private static double extraRandom = 0.0;
+        private static double NormalRandom(Random r)
         {
             if (haveExtraRandom)
             {
@@ -62,55 +125,6 @@ namespace Util
             haveExtraRandom = true;
             extraRandom = v * scale;
             return u * scale;
-        }
-
-        //Temperature controls the chance of the algorithm moving to a worse solution (to avoid local minima), as well as how far the solution can move. Higher temperature = higher chance of larger movement. Temperature decays with each iteration 
-        //Controls the shape of temperature decay, higher exponent = sharper decay
-        public double temperatureExponent;
-
-        public double[] Minimize(Func<double[], double> errorFunction, double[] x0)
-        {
-            int dimensions = x0.Length;
-            double[] x = new double[dimensions];
-            double[] bestX = new double[dimensions];
-            double[] candidateX = new double[dimensions];
-            Copy(x0, x);
-            Copy(x0, bestX);
-
-            double currentError = errorFunction(x);
-            double bestError = currentError;
-
-            Random r = NumberHelper.MakeRandomGenerator();
-            int i;
-            for (i = 0; i < opts.maxIterations; i++)
-            {
-                double temperature = 1 - (i / (double)opts.maxIterations);
-                temperature = Math.Pow(temperature, temperatureExponent) * opts.temperatureScale;
-
-                Copy(x, candidateX);
-                for (int j = 0; j < dimensions; j++)
-                {
-                    candidateX[j] += NormalRandom(r) * opts.sigma[j] * temperature;
-                }
-
-                double candidateError = errorFunction(candidateX);
-                if (candidateError < currentError || r.NextDouble() < Math.Exp(-(candidateError - currentError) * opts.probabilityScale / temperature))
-                {
-                    currentError = candidateError;
-                    Copy(candidateX, x);
-                }
-                if (currentError < bestError)
-                {
-                    bestError = currentError;
-                    Copy(x, bestX);
-                }
-
-                if (opts.verbose && i % 50 == 0)
-                {
-                    Console.WriteLine("{0}% - best error: {1}", (int)(((i + 1) / (float)opts.maxIterations) * 100), bestError);
-                }
-            }
-            return bestX;
         }
     }
 }

@@ -41,8 +41,11 @@ namespace OPS.Landform
         [Option(Required = false, Default = 16, HelpText = "Number of annealing stages to run per alignment operation")]
         public int NumAnnealingStages { get; set; }
 
-        [Option(Required = false, Default = 0.25f, HelpText = "The minimum sample percentage overlap between site drives required to run alignment. (Align to orbital if all site drive options fail)")]
+        [Option(Required = false, Default = 0.25f, HelpText = "The minimum sample percentage overlap between site drives required to run alignment")]
         public float MinOverlapPercent { get; set; }
+
+        [Option(Required = false, Default = 0.05f, HelpText = "Run simulated annealing until reaching this RMS error (meters)")]
+        public float ErrorThreshold { get; set; }
 
         [Option(Required = false, Default = 20000, HelpText = "Maximum number of samples to use when aligning SD -> SD")]
         public int TargetSampleNum { get; set; }
@@ -59,6 +62,8 @@ namespace OPS.Landform
 
     public class HeightmapAligner : BEVCommand
     {
+        public const double ORBITAL_DEM_SUBSET_RADIUS_METERS = 200;
+
         private HeightmapAlignerOptions options;
 
         private const string OUT_DIR = "alignment/HeightmapProducts";
@@ -95,7 +100,7 @@ namespace OPS.Landform
 
                 RunPhase("load or render site drive DEMs", LoadOrRenderBEVs);
                 RunPhase("sort site drives", SortSiteDrives);
-                RunPhase("per site drive alignment to base site drive", AlignSurfaceToBaseSiteDrive);
+                RunPhase("align other site drives to base site drive", AlignSurfaceToBaseSiteDrive);
 
                 if (!options.NoOrbital)
                 {
@@ -241,6 +246,7 @@ namespace OPS.Landform
         private void AlignSurfaceToBaseSiteDrive()
         {
             aligned.Add(baseSiteDrive);
+            sdAdjustmentInWorld[baseSiteDrive] = Matrix.Identity;
 
             for (int i = 1 /* don't attempt to align base site drive */; i < siteDrives.Length; i++)
             {
@@ -269,12 +275,13 @@ namespace OPS.Landform
                         
                         Matrix otherSceneToWorld = CreateBEVToWorldMatrix(otherSD);
                         
-                        var adjustment = DemOperations.AlignSceneToDem(image, sceneToWorld, otherImg, otherSceneToWorld,
-                                                                       options.NumAnnealingStages, null,
-                                                                       options.PreserveXY, options.MinOverlapPercent,
-                                                                       options.DEMMinFilter, options.DEMMaxFilter,
-                                                                       options.TargetSampleNum,
-                                                                       log: msg => pipeline.LogInfo(msg));
+                        var adjustment =
+                            DemOperations.
+                            AlignDemToScene(image, sceneToWorld, otherImg, otherSceneToWorld,
+                                            options.NumAnnealingStages, null,
+                                            options.PreserveXY, options.MinOverlapPercent,
+                                            options.ErrorThreshold, options.DEMMinFilter, options.DEMMaxFilter,
+                                            options.TargetSampleNum, log: msg => pipeline.LogInfo(msg));
 
                         //align current site drive's world prior to other site drive's prior
                         //then chain that site drive's transform
@@ -289,14 +296,14 @@ namespace OPS.Landform
                     }
                     catch (Exception ex)
                     {
-                        pipeline.LogVerbose("failed to align site drive {0} to site drive {1}: {2}",
-                                            siteDrive, otherSD, ex.Message);
+                        pipeline.LogInfo("failed to align site drive {0} to site drive {1}: {2}",
+                                         siteDrive, otherSD, ex.Message);
                     }
                 }
 
                 if (!success)
                 {
-                    pipeline.LogInfo("no sufficient overlap with any aligned sitedrive");
+                    pipeline.LogInfo("no sufficient overlap of site drive {0} with any aligned sitedrive", siteDrive);
                     unaligned.Add(siteDrive);
                 }
             }
@@ -345,10 +352,12 @@ namespace OPS.Landform
 
         private void AlignOrbital()
         {
-            var cfg = OrbitalConfig.Instance;
+            pipeline.LogInfo("aligning orbital DEM to {0} aligned site drives", aligned.Count);
 
-            var demToBaseSD = DemOperations.GetOrbitalDEMToSiteDriveTransform(baseSiteDriveLatLon, gdalDEM,
-                                                                              cfg.OrbitalDEMMetersPerPixel);
+            double orbitalMetersPerPixel = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
+
+            var demToBaseSD =
+                DemOperations.GetOrbitalDEMToSiteDriveTransform(baseSiteDriveLatLon, gdalDEM, orbitalMetersPerPixel);
 
             var alignedImages = aligned.Select(sd => dems[sd]).ToArray();
             var bevsToWorld = aligned.Select(sd => CreateBEVToWorldMatrix(sd) * sdAdjustmentInWorld[sd]).ToArray();
@@ -357,27 +366,31 @@ namespace OPS.Landform
             //since transform to world may have slight rotation (not commutative)
             Matrix baseSDToWorld = SiteDriveBest(baseSiteDrive);
             Matrix worldToBaseSD = Matrix.Invert(baseSDToWorld);
-            Matrix zCorrectedPrior = demToBaseSD *
-                DemOperations.AlignSceneToDem(alignedImages[0], bevsToWorld[0] * worldToBaseSD, dem, demToBaseSD,
-                                              /* numAnnealingStages */ 0, null, false, 0,
-                                              options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum,
-                                              msg => pipeline.LogInfo(msg));
+            Matrix adjustment =
+                DemOperations.AlignDemToScene(alignedImages[0], bevsToWorld[0] * worldToBaseSD, dem, demToBaseSD,
+                                              0, //numAnnealingStages
+                                              null, //saOpts
+                                              false, //preserveXY
+                                              0, //minOverlapPercent
+                                              options.ErrorThreshold, options.DEMMinFilter, options.DEMMaxFilter,
+                                              options.TargetSampleNum, msg => pipeline.LogInfo(msg));
 
             //Run alignment for dem in world frame
-            Matrix demToWorldPrior = zCorrectedPrior * baseSDToWorld;
-            Matrix demWorldPriorToWorld =
-                DemOperations.AlignScenesToDem(alignedImages, bevsToWorld, dem, demToWorldPrior,
-                                               options.NumAnnealingStages, null, false, 0,
-                                               options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum,
-                                               msg => pipeline.LogInfo(msg));
-            demToWorld = demToWorldPrior * demWorldPriorToWorld;
+            Matrix demToWorldPrior = demToBaseSD * adjustment * baseSDToWorld;
+            adjustment =
+                DemOperations.AlignDemToScene(alignedImages, bevsToWorld, dem, demToWorldPrior,
+                                              options.NumAnnealingStages, null, false, 0,
+                                              options.ErrorThreshold, options.DEMMinFilter, options.DEMMaxFilter,
+                                              options.TargetSampleNum, msg => pipeline.LogInfo(msg));
+
+            demToWorld = demToWorld * adjustment;
 
             if (options.WriteDebug)
             {
                 Vector2 baseSDOriginPixelInOrbitalDEM = gdalDEM.LatLonToImage(baseSiteDriveLatLon);
 
                 //Get subset of dem around sitedrive
-                int pixelRadius = (int)(200 / cfg.OrbitalDEMMetersPerPixel);
+                int pixelRadius = (int)(ORBITAL_DEM_SUBSET_RADIUS_METERS / orbitalMetersPerPixel);
                 int baseC = (int)Math.Max(baseSDOriginPixelInOrbitalDEM.X - pixelRadius, 0);
                 int baseR = (int)Math.Max(baseSDOriginPixelInOrbitalDEM.Y - pixelRadius, 0);
                 int pixelWidth = (int)Math.Min(baseSDOriginPixelInOrbitalDEM.X + pixelRadius, dem.Width) - baseC;
@@ -408,18 +421,20 @@ namespace OPS.Landform
 
         private void AlignRemainingSiteDrivesToOrbital()
         {
+            pipeline.LogInfo("aligning {0} unaligned site drives to orbital DEM", unaligned.Count);
+
             foreach (SiteDrive siteDrive in unaligned)
             {
                 pipeline.LogInfo("aligning site drive {0} to orbital DEM", siteDrive);
                 var image = dems[siteDrive];
 
                 Matrix sdToWorldPrior = CreateBEVToWorldMatrix(siteDrive);
-                Matrix demWorldToSDWorld =
-                    DemOperations.AlignSceneToDem(image, sdToWorldPrior, dem, demToWorld,
+                Matrix adjustment =
+                    DemOperations.AlignDemToScene(image, sdToWorldPrior, dem, demToWorld,
                                                   options.NumAnnealingStages, null, false, 0,
-                                                  options.DEMMinFilter, options.DEMMaxFilter, options.TargetSampleNum,
-                                                  msg => pipeline.LogInfo(msg));
-                sdAdjustmentInWorld[siteDrive] = Matrix.Invert(demWorldToSDWorld);
+                                                  options.ErrorThreshold, options.DEMMinFilter, options.DEMMaxFilter,
+                                                  options.TargetSampleNum, msg => pipeline.LogInfo(msg));
+                sdAdjustmentInWorld[siteDrive] = Matrix.Invert(adjustment);
             }
         }
 
