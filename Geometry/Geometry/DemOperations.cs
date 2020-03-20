@@ -16,10 +16,6 @@ namespace OPS.Geometry
         public const int CHUNK_SIZE = 512;
         public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
 
-        public const double OUTLIER_MEAN_ABSOLUTE_DEVIATIONS = 20;
-        public const double ROTATION_SIGMA = 0.001;
-        public const double TRANSLATION_SIGMA = 0.02;
-
         //Swap x, y and negate z
         public static Matrix demToSitedriveCoordinateFlip = new Matrix(0, 1, 0, 0,
                                                                        1, 0, 0, 0,
@@ -309,54 +305,65 @@ namespace OPS.Geometry
             return ret;
         }
 
-        public static Matrix AlignDemToScene(Image scenemap, Matrix sceneToWorld, Image dem, Matrix demToWorld, 
-                                             int numAnnealingStages, SimulatedAnnealingOptions saOpts = null,
-                                             bool preserveXY = false, double minOverlap = 0, double minRMSError = 0.05,
-                                             double minFilter = -1000000, double maxFilter = 1000000,
-                                             int sampleLimit = 3000, Action<string> log = null)
+        public class AlignOptions
         {
-            return AlignDemToScene(new[] { scenemap }, new[] { sceneToWorld }, dem, demToWorld,
-                                   numAnnealingStages, saOpts, preserveXY, minOverlap, minRMSError,
-                                   minFilter, maxFilter, sampleLimit, log);
+            public int NumAnnealingStages = 16;
+
+            public SimulatedAnnealingOptions SAOpts = null;
+
+            public bool PreserveXY = false;
+
+            public double MinOverlap = 0;
+
+            public double MinRMSError = 0.05;
+
+            public double MinFilter = -1000000;
+            public double MaxFilter = 1000000;
+
+            public int SampleLimit = 3000;
+
+            public double OutlierMeanAbsoluteDeviations = 20;
+
+            public double RotationSigma = 0.001;
+            public double TranslationSigma = 0.02;
+
+            public Action<string> Info = null;
+            public Action<string> Progress = null;
+            public Action<string> Verbose = null;
         }
 
-        /// <summary>
-        /// Returns adjustment such that (demToWorld * adjustment) improves alignment of dem to scenemaps in world
-        /// </summary>
-        public static Matrix AlignDemToScene(Image[] scenemaps, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, 
-                                             int numAnnealingStages, SimulatedAnnealingOptions saOpts = null,
-                                             bool preserveXY = false, double minOverlap = 0, double minRMSError = 0.05,
-                                             double minFilter = -1000000, double maxFilter = 1000000,
-                                             int sampleLimit = 3000, Action<string> log = null)
+        public static List<Vector3> CollectOverlappingSamples(Image[] scenes, Matrix[] sceneToWorlds,
+                                                              Image dem, Matrix demToWorld, AlignOptions opts = null)
         {
-            log = log ?? (msg => {});
+            opts = opts ?? new AlignOptions();
+            var info = opts.Info ?? (msg => {});
 
-            if (sceneToWorlds.Count() != scenemaps.Count())
+            if (sceneToWorlds.Count() != scenes.Count())
             {
-                throw new Exception("number of scenemaps does not match number of transforms");
+                throw new Exception("number of scenes does not match number of transforms");
             }
 
-            log("collecting samples");
+            info("collecting samples");
             int total = 0;
             Matrix worldToDem = Matrix.Invert(demToWorld);
-            List<Vector3> samples = new List<Vector3>(); //points on scenemaps in world
+            List<Vector3> samples = new List<Vector3>(); //points on scenes in world
             long totalPixels = 0;
-            foreach (Image scenemap in scenemaps)
+            foreach (Image scene in scenes)
             {
-                totalPixels += (long)scenemap.Height * (long)scenemap.Width;
+                totalPixels += (long)scene.Height * (long)scene.Width;
             }
-            long skip = totalPixels / sampleLimit;
-            for (int i = 0; i < scenemaps.Length; i++)
+            long skip = totalPixels / opts.SampleLimit;
+            for (int i = 0; i < scenes.Length; i++)
             {
-                var scenemap = scenemaps[i];
+                var scene = scenes[i];
                 var sceneToWorld = sceneToWorlds[i];
 
-                long area = (long)scenemap.Height * (long)scenemap.Width;
+                long area = (long)scene.Height * (long)scene.Width;
                 for (long j = 0; j < area; j += skip)
                 {
-                    int r = Math.Min((int)(j / scenemap.Width), scenemap.Height -1);
-                    int c = Math.Min((int)(j % scenemap.Width), scenemap.Width - 1);
-                    Vector3? scenePoint = GetXYZ(scenemap, r, c);
+                    int r = Math.Min((int)(j / scene.Width), scene.Height -1);
+                    int c = Math.Min((int)(j % scene.Width), scene.Width - 1);
+                    Vector3? scenePoint = GetXYZ(scene, r, c);
                     if (scenePoint.HasValue)
                     {
                         total++;
@@ -367,7 +374,7 @@ namespace OPS.Geometry
                         {
                             //Unproject to get point on dem
                             Vector3? demPoint = GetInterpolatedXYZ(dem, demRowCol.Value.Y, demRowCol.Value.X,
-                                                                   minFilter, maxFilter);
+                                                                   opts.MinFilter, opts.MaxFilter);
                             if (demPoint.HasValue)
                             {
                                 samples.Add(worldPoint);
@@ -377,116 +384,200 @@ namespace OPS.Geometry
                 }
             }
 
+            //trim outliers
+            if (opts.OutlierMeanAbsoluteDeviations > 0)
+            {
+                int initialSampleCount = samples.Count;
+                samples = samples.OrderBy(s => s.Z).ToList();
+                double median = samples[samples.Count / 2].Z;
+                var deviations = samples.Select(s => Math.Abs(s.Z - median)).ToArray();
+                double mad = deviations.OrderBy(x => x).ToArray()[samples.Count / 2];
+                samples = samples
+                    .Where(s => Math.Abs(s.Z - median) < opts.OutlierMeanAbsoluteDeviations * mad)
+                    .ToList();
+                info(string.Format("trimmed {0} outliers", initialSampleCount - samples.Count));
+            }
+
             if (samples.Count == 0)
             {
-                throw new Exception("no overlap");
+                info("no overlap");
+                return null;
             }
-            else if (samples.Count / (double)total < minOverlap)
+            else if (samples.Count / (double)total < opts.MinOverlap)
             {
-                throw new Exception(string.Format("insufficient overlap {0}/{1} < {2}",
-                                                  samples.Count, total, minOverlap));
-            }
-
-            //trim outliers
-            int initialSampleCount = samples.Count;
-            samples = samples.OrderBy(s => s.Z).ToList();
-            double median = samples[samples.Count / 2].Z;
-            var deviations = samples.Select(s => Math.Abs(s.Z - median)).ToArray();
-            double mad = deviations.OrderBy(x => x).ToArray()[samples.Count / 2];
-            samples = samples.Where(s => Math.Abs(s.Z - median) < OUTLIER_MEAN_ABSOLUTE_DEVIATIONS * mad).ToList();
-            log(string.Format("trimmed {0} outliers", initialSampleCount - samples.Count));
-
-            log(string.Format("proceeding with {0}/{1} overlapping samples", samples.Count, total));
-
-            //adjustedDemToWorld = demToWorld * adjustment
-            double[] adjustment = { 0, 0, 0, 0, 0, 0 };
-
-            double[] sigma = new double[] { ROTATION_SIGMA, ROTATION_SIGMA, ROTATION_SIGMA,
-                                            TRANSLATION_SIGMA, TRANSLATION_SIGMA, 0 };
-            if (preserveXY)
-            {
-                sigma[2] = 0; //Prevent in plane rotation
-                sigma[3] = sigma[4] = 0; //Prevent in plane translation
+                info(string.Format("insufficient overlap {0}/{1} < {2}", samples.Count, total, opts.MinOverlap));
+                return null;
             }
 
-            Matrix arrayToTransform(double[] transform)
+            info(string.Format("{0}/{1} overlapping samples", samples.Count, total));
+
+            return samples;
+        }
+
+        /// <summary>
+        /// input is 6 element exponential map transform RX RY RZ TX TY TZ
+        /// </summary>
+        public static Matrix ArrayToTransform(double[] transform)
+        {
+            AxisAngleVector aav = new AxisAngleVector(transform[0], transform[1], transform[2]);
+            Quaternion rotation = aav.ToQuaternion();
+            Vector3 translation = new Vector3(transform[3], transform[4], transform[5]);
+            return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
+        }
+
+        /// <summary>
+        /// compute average z error between world points and corresponding projected points on DEM
+        /// return is positive when DEM points are above world points
+        /// </summary>
+        public static double MeanZError(List<Vector3> worldSamples, Image dem, Matrix demToWorld, double[] demAdjust,
+                                        AlignOptions opts = null, bool squared = false, bool rms = false)
+        {
+            opts = opts ?? new AlignOptions();
+            Matrix currentDemToWorld = demToWorld * ArrayToTransform(demAdjust);
+            Matrix currentWorldToDem = Matrix.Invert(currentDemToWorld);
+            double sum = 0, count = 0;
+            for (int i = 0; i < worldSamples.Count; i++)
             {
-                AxisAngleVector aav = new AxisAngleVector(transform[0], transform[1], transform[2]);
-                Quaternion rotation = aav.ToQuaternion();
-                Vector3 translation = new Vector3(transform[3], transform[4], transform[5]);
-                return Matrix.CreateFromQuaternion(rotation) * Matrix.CreateTranslation(translation);
-            }
-            
-            double meanZError(double[] transform, bool squared = false)
-            {
-                Matrix currentDemToWorld = demToWorld * arrayToTransform(transform);
-                Matrix currentWorldToDem = Matrix.Invert(currentDemToWorld);
-                double sum = 0, count = 0;
-                for (int i = 0; i < samples.Count; i++)
+                //Project onto dem
+                Vector2? demRowCol = GetRowCol(dem, Vector3.Transform(worldSamples[i], currentWorldToDem));
+                if (demRowCol.HasValue)
                 {
-                    //Project the transformed scene point onto dem
-                    Vector2? demRowCol = GetRowCol(dem, Vector3.Transform(samples[i], currentWorldToDem));
-                    if (demRowCol.HasValue)
+                    //Unproject to get point on dem
+                    Vector3? demPoint = GetInterpolatedXYZ(dem, demRowCol.Value.Y, demRowCol.Value.X,
+                                                           opts.MinFilter, opts.MaxFilter);
+                    //TODO: check half pixel on interpolate
+                    //TODO: Issue 644 - better way to handle when the scene samples no longer hit the dem?
+                    //Should be rare for orbital but could be a problem for more general use case
+                    if (demPoint.HasValue)
                     {
-                        //Unproject to get point on dem
-                        Vector3? demPoint = GetInterpolatedXYZ(dem, demRowCol.Value.Y, demRowCol.Value.X,
-                                                               minFilter, maxFilter);
-                        //TODO: check half pixel on interpolate
-                        //TODO: Issue 644 - better way to handle when the scene samples no longer hit the dem?
-                        //Should be rare for orbital but could be a problem for more general use case
-                        if (demPoint.HasValue)
+                        Vector3 demPointInWorld = Vector3.Transform(demPoint.Value, currentDemToWorld);
+                        double err = demPointInWorld.Z - worldSamples[i].Z;
+                        if (squared || rms)
                         {
-                            Vector3 demPointInWorld = Vector3.Transform(demPoint.Value, currentDemToWorld);
-                            double err = demPointInWorld.Z - samples[i].Z;
-                            if (squared)
-                            {
-                                err = err * err;
-                            }
-                            sum += err;
-                            ++count;
+                            err = err * err;
                         }
+                        sum += err;
+                        ++count;
                     }
                 }
-                return count == 0 ? double.MaxValue : sum / count;
+            }
+            if (count == 0)
+            {
+                return 0;
+            }
+            double avg = sum / count;
+            return rms ? Math.Sqrt(avg) : avg;
+        }
+        
+        /// <summary>
+        /// Returns adjustment such that (demToWorld * adjustment) improves alignment of dem to scenes in world
+        /// </summary>
+        public static Matrix? AlignDemToScene(Image[] scenes, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, 
+                                              out double initialRMS, out double finalRMS, AlignOptions opts = null)
+        {
+            opts = opts ?? new AlignOptions();
+            var info = opts.Info ?? (msg => {});
+            var progress = opts.Progress ?? (msg => {});
+
+            initialRMS = finalRMS = 0;
+
+            var worldSamples = CollectOverlappingSamples(scenes, sceneToWorlds, dem, demToWorld, opts);
+            if (worldSamples == null)
+            {
+                return null;
             }
             
-            double meanZErrorSquared(double[] transform)
+            double[] adjustment = { 0, 0, 0, 0, 0, 0 };
+
+            double[] sigma = new double[] { opts.RotationSigma, opts.RotationSigma, opts.RotationSigma,
+                                            opts.TranslationSigma, opts.TranslationSigma, 0 };
+            if (opts.PreserveXY)
             {
-                return meanZError(transform, squared: true);
+                sigma[2] = 0; //prevent in plane rotation
+                sigma[3] = sigma[4] = 0; //prevent in plane translation
             }
 
-            SimulatedAnnealing sa = new SimulatedAnnealing();
-            if (saOpts == null)
+            double meanError(double[] transform)
             {
-                saOpts = new SimulatedAnnealingOptions();
-                saOpts.maxIterations = 800;
-                saOpts.temperatureScale = 4; //1
-                saOpts.temperatureExponent = 1;
-                saOpts.probabilityScale = 1000; //100
-                saOpts.sigma = sigma;
+                return MeanZError(worldSamples, dem, demToWorld, transform, opts);
             }
-            sa.opts = saOpts;
 
-            adjustment[5] = -meanZError(adjustment);
-
-            for (int i = 0; i < numAnnealingStages; i++)
+            double errorSquared(double[] transform)
             {
-                double rmsError = Math.Sqrt(meanZErrorSquared(adjustment));
-                if (rmsError < minRMSError)
+                return MeanZError(worldSamples, dem, demToWorld, transform, opts, squared: true);
+            }
+
+            double rmsError(double[] transform)
+            {
+                return MeanZError(worldSamples, dem, demToWorld, transform, opts, rms: true);
+            }
+
+            initialRMS = rmsError(adjustment);
+
+            adjustment[5] = -meanError(adjustment); //always at least do a z adjustment
+
+            if (opts.NumAnnealingStages > 0)
+            {
+                SimulatedAnnealing sa = new SimulatedAnnealing();
+                var saOpts = opts.SAOpts;
+                if (saOpts == null)
                 {
-                    log(string.Format("RMS error {0} < {1}m", rmsError, minRMSError));
-                    break;
+                    saOpts = new SimulatedAnnealingOptions();
+                    saOpts.maxIterations = 800;
+                    saOpts.temperatureScale = 4; //1
+                    saOpts.temperatureExponent = 1;
+                    saOpts.probabilityScale = 1000; //100
+                    saOpts.sigma = sigma;
+                    saOpts.verbose = opts.Verbose ?? (msg => {});
                 }
-                log(string.Format("annealing pass {0}/{1}: RMS error {2}m", i + 1, numAnnealingStages, rmsError));
-                //saOpts.temperatureExponent = 1.0 / Math.Max(4, numAnnealingStages - i);
-                saOpts.temperatureExponent = Math.Max(4, i + 1);
-                adjustment = sa.Minimize(meanZErrorSquared, adjustment);
-                adjustment[5] = -meanZError(adjustment);
-            }
-                                                                 
-            log(string.Format("finished annealing, RMS error {0}m", Math.Sqrt(meanZErrorSquared(adjustment))));
+                sa.opts = saOpts;
+                
+                for (int i = 0; i < opts.NumAnnealingStages; i++)
+                {
+                    double rms = rmsError(adjustment);
+                    if (rms < opts.MinRMSError)
+                    {
+                        info(string.Format("RMS error {0} < {1}m", rms, opts.MinRMSError));
+                        break;
+                    }
+                    progress(string.Format("annealing stage {0}/{1}: RMS error {2}m",
+                                           i + 1, opts.NumAnnealingStages, rms));
+                    //saOpts.temperatureExponent = 1.0 / Math.Max(4, opts.NumAnnealingStages - i);
+                    saOpts.temperatureExponent = Math.Max(4, i + 1);
+                    adjustment = sa.Minimize(errorSquared, adjustment);
+                    adjustment[5] = -meanError(adjustment);
+                }
 
-            return arrayToTransform(adjustment);
+                finalRMS = rmsError(adjustment);
+                info(string.Format("finished annealing, RMS error {0}m", finalRMS));
+            }
+            else
+            {
+                finalRMS = rmsError(adjustment);
+            }
+
+            return ArrayToTransform(adjustment);
+        }
+
+        public static Matrix? AlignDemToScene(Image[] scenes, Matrix[] sceneToWorlds, Image dem, Matrix demToWorld, 
+                                              AlignOptions opts = null)
+        {
+            return AlignDemToScene(scenes, sceneToWorlds, dem, demToWorld,
+                                   out double initialRMS, out double finalRMS, opts);
+        }
+
+        public static Matrix? AlignDemToScene(Image scene, Matrix sceneToWorld, Image dem, Matrix demToWorld, 
+                                              out double initialRMS, out double finalRMS, AlignOptions opts = null)
+        {
+            return AlignDemToScene(new[] { scene}, new[] { sceneToWorld }, dem, demToWorld,
+                                   out initialRMS, out finalRMS, opts);
+        }
+
+        public static Matrix? AlignDemToScene(Image scene, Matrix sceneToWorld, Image dem, Matrix demToWorld, 
+                                              AlignOptions opts = null)
+        {
+            return AlignDemToScene(new[] { scene}, new[] { sceneToWorld }, dem, demToWorld,
+                                   out double initialRMS, out double finalRMS, opts);
         }
 
         public static List<Vector3> CreateAdjustments(Image dem, MeshOperator surfaceMeshOp, Vector2 pixelCenter,
