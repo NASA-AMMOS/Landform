@@ -165,7 +165,8 @@ namespace OPS.Geometry
 
                             //a workaround for running on powerful machines. without it there is an ERROR about not
                             // being able to open a file (likely a bug in multithread buffered file reading)
-                            arguments += " --threads 1";
+                            //arguments += " --threads 1";
+                            arguments += " --threads " + CoreLimitedParallel.GetMaxDegreeOfParallelism();
                         }
 
                         logger.Info(String.Format("Running: {0} {1}", reconstructExe, arguments));
