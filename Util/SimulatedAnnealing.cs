@@ -51,6 +51,7 @@ namespace Util
             double currentError = errorFunction(x);
             double bestError = currentError;
 
+            int numJumps = 0, numImprovements = 0;
             Random r = NumberHelper.MakeRandomGenerator();
             for (int i = 0; i < opts.maxIterations; i++)
             {
@@ -64,22 +65,26 @@ namespace Util
                 }
 
                 double candidateError = errorFunction(candidateX);
-                if (candidateError < currentError ||
-                    r.NextDouble() < Math.Exp(-(candidateError - currentError) * opts.probabilityScale / temperature))
+                double jumpThreshold = Math.Exp(-(candidateError - currentError) * opts.probabilityScale / temperature);
+                if (candidateError < currentError || r.NextDouble() < jumpThreshold)
                 {
                     currentError = candidateError;
                     Copy(candidateX, x);
+                    numJumps++;
                 }
                 if (currentError < bestError)
                 {
                     bestError = currentError;
                     Copy(x, bestX);
+                    numImprovements++;
                 }
 
                 if (opts.verbose != null && i % 50 == 0)
                 {
-                    opts.verbose(string.Format("{0}% - best error: {1}",
-                                               (int)(((i + 1) / (float)opts.maxIterations) * 100), bestError));
+                    opts.verbose(string.Format("simulated annealing {0}%: best error {1}, " +
+                                               "temperature {2}, jump threshold {3}, {4} jumps, {5} improvements",
+                                               (int)(((i + 1) / (float)opts.maxIterations) * 100),
+                                               bestError, temperature, jumpThreshold, numJumps, numImprovements));
                 }
             }
             return bestX;
