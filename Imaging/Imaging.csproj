@@ -87,7 +87,6 @@
     <Compile Include="Imaging\FITSMetadata.cs" />
     <Compile Include="Imaging\GDALDEM.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
-    <Compile Include="CameraModels\GDALCameraModel.cs" />
     <Compile Include="Imaging\IImageLoader.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageCoordinate.cs" />
