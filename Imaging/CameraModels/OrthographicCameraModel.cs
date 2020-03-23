@@ -12,14 +12,14 @@ namespace OPS.Imaging
     /// </summary>
     public class OrthographicCameraModel : CameraModel
     {
-        private Matrix transform;
-        private Vector2 resolution;
-        private Vector2 extent;
-        private Matrix invertTransform;
-        private Vector3 Image_Center;
-        private Vector3 Image_Normal;
-        private Vector3 H_Axis;
-        private Vector3 V_Axis;
+        private Vector3 center;
+        private Vector3 forward;
+        private Vector3 right;
+        private Vector3 down;
+        private Vector3 normal;
+        private Vector2 centerPixel;
+        private double ff, rr, dd;
+        private int width, height;
 
         public override bool Linear
         {
@@ -30,118 +30,84 @@ namespace OPS.Imaging
         {
             get
             {
-                throw new NotImplementedException();
+                return normal;
+            }
+        }
+
+        public Vector2 MetersPerPixel
+        {
+            get
+            {
+                return new Vector2(right.Length(), down.Length());
             }
         }
 
         /// <summary>
-        /// Create a camera at the location and orientation specified by transform
-        /// Use the XY pixel resolution
-        /// verticalExtent is the size in meters along the Y pixel axis of the camera.  The horiziontal extent will be calcualted accordingly
+        /// Create an orthograpic camera model.
+        /// The vectors forward, right, and down make a basis.
+        /// They do not have to be mutually orthogonal or right-handed (but often are).
+        /// They also do not have to be unit length.
+        /// The length of the right vector defines the horizontal scale of the camera (i.e. the width of a pixel) 
+        /// The length of the down vector defines the vertical scale of the camera (i.e. the height of a pixel)
+        /// The length of the forward vector defines the range scale of the camera.
         /// </summary>
-        /// <param name="transform"></param>
-        /// <param name="resolution"></param>
-        /// <param name="verticleExtent"></param>
-        public OrthographicCameraModel(Matrix transform, Vector2 resolution, double verticleExtent)
-        {
-            this.transform = transform;
-            this.invertTransform = Matrix.Invert(transform);
-            this.resolution = resolution;
-            double metersPerPixel = verticleExtent / resolution.Y;
-            this.extent = new Vector2(metersPerPixel*resolution.X, verticleExtent);
-            this.Image_Center = new Vector3(invertTransform.M41, invertTransform.M42, invertTransform.M43);
-            this.Image_Normal = -1.0 * new Vector3(invertTransform.M31, invertTransform.M32, invertTransform.M33);
-            this.H_Axis = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
-            this.V_Axis = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
-            this.Image_Normal.Normalize();
-            this.H_Axis.Normalize();
-            this.V_Axis.Normalize();      
-        }
-
-        public OrthographicCameraModel(Matrix transform, double width, double height, double metersPerPixel)
-        {
-            this.transform = transform;
-            this.invertTransform = Matrix.Invert(transform);
-            this.resolution = new Vector2(width, height);
-            this.extent = new Vector2(metersPerPixel * resolution.X, metersPerPixel * resolution.Y);
-            this.Image_Center = new Vector3(invertTransform.M41, invertTransform.M42, invertTransform.M43);
-            this.Image_Normal = -1.0 * new Vector3(invertTransform.M31, invertTransform.M32, invertTransform.M33);
-            this.H_Axis = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
-            this.V_Axis = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
-            this.Image_Normal.Normalize();
-            this.H_Axis.Normalize();
-            this.V_Axis.Normalize();
-        }
-
-        /// <summary>
-        /// Similar to the other constructor but allows you to control the extent in both the X and Y pixel directions
-        /// </summary>
-        /// <param name="transform"></param>
-        /// <param name="resolution"></param>
-        /// <param name="extent"></param>
-        public OrthographicCameraModel(Matrix transform, Vector2 resolution, Vector2 extent)
-        {
-            this.transform = transform;
-            this.invertTransform = Matrix.Invert(transform);
-            this.resolution = resolution;
-            this.extent = extent;
-            this.Image_Center = new Vector3(invertTransform.M41, invertTransform.M42, invertTransform.M43);
-            this.Image_Normal = -1.0 * new Vector3(invertTransform.M31, invertTransform.M32, invertTransform.M33);
-            this.H_Axis = new Vector3(invertTransform.M11, invertTransform.M12, invertTransform.M13);
-            this.V_Axis = new Vector3(invertTransform.M21, invertTransform.M22, invertTransform.M23);
-            this.Image_Normal.Normalize();
-            this.H_Axis.Normalize();
-            this.V_Axis.Normalize();
-        }
-
-        /// <summary>
-        /// Allows passing in basis vectors directly
-        /// </summary>
-        /// <param name="pos"></param>
-        /// <param name="range"></param>
+        /// <param name="center">3D point corresponding pixel location (c, r) = (width, height) * 0.5</param>
+        /// <param name="forward">3D vector pointing outward from the camera</param>
+        /// <param name="right">3D vector pointing rightwards in the image plane</param>
+        /// <param name="down">3D vector pointing downwards in the image plane</param>
+        /// <param name="width">number of image columns</param>
+        /// <param name="height">number of image rows</param>
+        /// <param name="metersPerPixel">scale of image</param>
         /// <returns></returns>
-        public OrthographicCameraModel(Vector3 C, Vector3 A, Vector3 H, Vector3 V, Vector2 resolution, Vector2 extent)
+        public OrthographicCameraModel(Vector3 center, Vector3 forward, Vector3 right, Vector3 down,
+                                       int width, int height)
         {
-            this.resolution = resolution;
-            this.extent = extent;
-            this.Image_Center = C;
-            this.Image_Normal = A;
-            this.H_Axis = H;
-            this.V_Axis = V;
-            this.Image_Normal.Normalize();
-            this.H_Axis.Normalize();
-            this.V_Axis.Normalize();
+            this.center = center;
+            this.forward = forward;
+            this.right = right;
+            this.down = down;
+            this.width = width;
+            this.height = height;
+            Init();
         }
 
-        //TODO: Do we need to normalize axis vecetors here?
+        public OrthographicCameraModel(double r, double l, double t, double b, double far, double near,
+                                       int width, int height)
+        {
+            center = new Vector3((r - l) * 0.5, (t - b) * 0.5, near);
+            forward = new Vector3(0, 0, far - near);
+            right = new Vector3((r - l) / width, 0, 0);
+            down = new Vector3(0, (b - t) / height, 0);
+            this.width = width;
+            this.height = height;
+            Init();
+        }
+
+        private void Init()
+        {
+            normal = Vector3.Normalize(Vector3.Cross(right, down)); //yes this is a right handed cross product
+            centerPixel = new Vector2(width, height) * 0.5;
+            ff = Vector3.Dot(forward, forward);
+            rr = Vector3.Dot(right, right);
+            dd = Vector3.Dot(down, down);
+        }
+
         public override Vector2 Project(Vector3 pos, out double range)
         {
-            // Needs validation / review
-            Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
-            Vector3 origin = Image_Center;
-            Vector3 offset = pos - origin;
-            var pixelPos = Vector2.Zero;
-            double h_offset_meters = Vector3.Dot(H_Axis, offset);
-            double v_offset_meters = -1.0 * Vector3.Dot(V_Axis, offset); //Vertical flip as pixel row increases downwards
-            pixelPos.X = h_offset_meters / metersPerPixel.X + resolution.X / 2 - 0.5;
-            pixelPos.Y = v_offset_meters / metersPerPixel.Y + resolution.Y / 2 - 0.5;
-            range = Vector3.Dot(offset, Image_Normal);
-            return pixelPos;
+            pos -= center;
+            range = Vector3.Dot(pos, forward) / ff;
+            return new Vector2(Vector3.Dot(pos, right) / rr, Vector3.Dot(pos, down) / dd) + centerPixel;
+        }
+
+        public override void Unproject(ref Vector2 pixel, out Ray ray)
+        {
+            pixel -= centerPixel;
+            ray = new Ray(center + right * pixel.X + down * pixel.Y, forward);
         }
 
         public override object Clone()
         {
-            throw new NotImplementedException();
-        }
-
-        public override void Unproject(ref Vector2 pixelPos, out Ray ray)
-        {
-            Vector2 metersPerPixel = new Vector2(extent.X / resolution.X, extent.Y / resolution.Y);
-            Vector3 origin = Image_Center;
-            // Plus 0.5 for half pixel offset
-            origin += H_Axis * metersPerPixel.X * (pixelPos.X + 0.5  - (resolution.X / 2.0));
-            origin += -1.0 * V_Axis * metersPerPixel.Y * (pixelPos.Y + 0.5 - (resolution.Y / 2.0)); //Vertical flip as pixel row increases downwards
-            ray = new Ray(origin, Image_Normal);
+            return (OrthographicCameraModel) MemberwiseClone();
         }
     }
 }

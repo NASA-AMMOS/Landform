@@ -1,11 +1,8 @@
-﻿using OPS.Util;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Collections.Generic;
 
-namespace Util
+namespace OPS.Util
 {
     public class SimulatedAnnealingOptions
     {

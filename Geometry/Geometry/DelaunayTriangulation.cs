@@ -14,7 +14,8 @@ namespace OPS.Geometry
             return Triangulate(vertices.Select(v => new Vertex(v.X, v.Y, 0)));
         }
         
-        public static Mesh Triangulate(IEnumerable<Vertex> vertices, Func<Vertex, Vector2> projection = null, bool reverseWinding=false)
+        public static Mesh Triangulate(IEnumerable<Vertex> vertices, Func<Vertex, Vector2> projection = null,
+                                       bool reverseWinding = false)
         {
             if (projection == null)
             {

@@ -1,15 +1,14 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using log4net;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
-using Microsoft.Xna.Framework;
-using System.IO;
 
 namespace OPS.Pipeline
 {
@@ -903,6 +902,53 @@ namespace OPS.Pipeline
         public virtual string GetPlacesConfigDefaults()
         {
             return null;
+        }
+
+        public virtual OrthographicCameraModel MakeOrbitalCameraModel(int width, int height, double metersPerPixel,
+                                                                      Vector2 originPixel)
+        {
+            return DEM.DefaultOrbitalCameraModel(width, height, metersPerPixel, originPixel);
+        }
+
+        /// <summary>
+        /// Load an orbital DEM image.
+        /// demFile defaults to OrbitalConfig.OrbitalDEMStoragePath under LocalPipelineConfig.StorageDir.
+        /// metersPerPixel defaults to OrbitalConfig.OrbitalDEMMetersPerPixel.
+        /// Has OrthographicCameraModel that projects points in siteDrive frame to pixels on the DEM.
+        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
+        /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
+        /// Requires PlacesDB to map siteDrive to a Lat/Lon in DEM.
+        /// Uses the planetary body given by OrbitalConfig.OrbitalBodyName.
+        /// </summary>
+        public virtual DEM LoadOrbital(SiteDrive siteDrive, string demFile = null, double? metersPerPixel = null,
+                                       ILogger logger = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+            
+            if (string.IsNullOrEmpty(demFile))
+            {
+                if (!string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+                {
+                    demFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
+                }
+                else
+                {
+                    throw new Exception("orbital DEM not available");
+                }
+            }
+
+            if (!metersPerPixel.HasValue)
+            {
+                metersPerPixel = cfg.OrbitalDEMMetersPerPixel;
+            }
+
+            var placesDB = new PlacesDB(logger, requireOrbital: true);
+            var gdalDEM = GDALDEM.Load(demFile, cfg.OrbitalBodyName);
+            var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
+            
+            var img = new DEM.SparseDEMImage(demFile);
+            var cmod = MakeOrbitalCameraModel(img.Width, img.Height, metersPerPixel.Value, originPixel);
+            return new DEM(img, cmod);
         }
     }
 }

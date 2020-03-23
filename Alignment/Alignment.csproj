@@ -78,6 +78,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AlignmentUtils.cs" />
+    <Compile Include="DEMAligner.cs" />
     <Compile Include="ImageFeatures\FeatureDescriptor.cs" />
     <Compile Include="ImageFeatures\FeatureDetectorBase.cs" />
     <Compile Include="ImageFeatures\ImageFeature.cs" />
