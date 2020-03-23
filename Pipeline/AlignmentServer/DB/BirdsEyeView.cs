@@ -93,10 +93,13 @@ namespace OPS.Pipeline.AlignmentServer
         }
 
         //BEV, DEM, and mask images always correspond to each other 1:1
-        //they are always rendered using transform priors at the resolution given by MetersPerPixel
-        //use SiteDriveOriginPixel for site-drive relative alignment, or if a site-drive transform is known
-        //use RootOriginPixel for absolute alignment using transform priors
-        //typically project root frame is also mission root (site 1, drive 0) which enables orbital alignment
+        //always rendered in project root frame using transform priors at MetersPerPixel resolution, +X right, +Y down
+        //typically, but not always, project root frame is also mission root (site 1, drive 0)
+        //DEM elevations are always in meters relative to site drive origin, positive up
+        //careful - mission standard coordinate frames (SITE, LOCAL_LEVEL) are +Z down
+        //SiteDriveOriginPixel is the location of the site drive origin in the BEV/DEM image
+        //RootOriginPixel is the location of the project root frame origin in the BEV/DEM image
+        //both of those pixels may be outside the actual BEV/DEM image boundaries
         public Guid BEVGuid;
         public Guid DEMGuid;
         public Guid MaskGuid;

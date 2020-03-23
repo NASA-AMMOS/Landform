@@ -7,7 +7,6 @@ using System.Threading;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
-using log4net;
 using Emgu.CV;
 using Emgu.CV.Util;
 using Emgu.CV.CvEnum;
@@ -123,7 +122,7 @@ namespace OPS.Landform
         private ConcurrentDictionary<string, FeatureMatch[]> ransacMatches =
             new ConcurrentDictionary<string, FeatureMatch[]>();
 
-        //modelSiteDrive-dataSiteDrive => (modelPoint, dataPoint), (modelPoint, dataPoint), ...
+        //modelSiteDrive-dataSiteDrive => (modelPoint, dataPoint), (modelPoint, dataPoint), ... in project root frame
         private ConcurrentDictionary<string, SpatialMatch[]> spatialMatches =
             new ConcurrentDictionary<string, SpatialMatch[]>();
 
@@ -141,15 +140,18 @@ namespace OPS.Landform
                 options.RedoBEVs = true;
                 options.RedoFeatures = true;
                 options.RedoMatches = true;
+                options.UsePriors = true;
             }
             else if (options.RedoBEVs)
             {
                 options.RedoFeatures = true;
                 options.RedoMatches = true;
+                options.UsePriors = true;
             }
             else if (options.RedoFeatures)
             {
                 options.RedoMatches = true;
+                options.UsePriors = true;
             }
         }
 
@@ -249,7 +251,7 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                double crossRadius = 0.05 * PixelsPerMeter, circleRadius = 0.5 * PixelsPerMeter;
+                double crossRadius = 0.05 * BEVPixelsPerMeter, circleRadius = 0.5 * BEVPixelsPerMeter;
                 void drawOrigin(Image<Bgr, byte> img, Vector2 pixel, Vector3 color)
                 {
                     System.Drawing.PointF toPointF(Vector2 v)
@@ -290,7 +292,7 @@ namespace OPS.Landform
                                                                     stretch: false);
                         foreach (var otherSiteDrive in siteDrives)
                         {
-                            var pixel = PointToPixel(Vector3.Zero, otherSiteDrive, siteDrive);
+                            var pixel = BEVPointToPixel(BestTransform, Vector3.Zero, otherSiteDrive, siteDrive);
                             var color = new Vector3(otherSiteDrive != siteDrive ? 0 : 1,
                                                     otherSiteDrive != siteDrive ? 1 : 0,
                                                     0);
@@ -451,14 +453,14 @@ namespace OPS.Landform
                 var dataOrigin = sdOriginPixel[data];
 
                 //pixel corresponding to origin of data sitedrive in model BEV
-                var dataOriginInModel = PointToPixel(Vector3.Zero, data, model);
+                var dataOriginInModel = BEVPointToPixel(BestTransform, Vector3.Zero, data, model);
                 
                 //distance in pixels of model feature to origin of model sitedrive in model BEV
                 var modelDistances = modelFeatures.Select(f => Vector2.Distance(f.Location, modelOrigin)).ToArray();
 
                 //NOTE: features for a site drive are already sorted by distance to origin of that site drive
                 
-                double radius = options.MatchRadius * PixelsPerMeter;
+                double radius = options.MatchRadius * BEVPixelsPerMeter;
                 
                 for (int i = 0; i < dataFeatures.Length; i++)
                 {
@@ -556,7 +558,7 @@ namespace OPS.Landform
             var dataOrigin = sdOriginPixel[dataSiteDrive];
 
             //pixel corresponding to origin of data sitedrive in model BEV
-            var dataOriginInModel = PointToPixel(Vector3.Zero, dataSiteDrive, modelSiteDrive);
+            var dataOriginInModel = BEVPointToPixel(BestTransform, Vector3.Zero, dataSiteDrive, modelSiteDrive);
 
             //pixel offsets corresponding to model features relative to data sitedrive origin in model BEV
             var modelPts = matchArray
@@ -573,13 +575,13 @@ namespace OPS.Landform
             var tmpMatches = new List<int>(nm);
             double bestResidual = double.PositiveInfinity;
 
-            double radius = options.RansacMatchRadius * PixelsPerMeter;
+            double radius = options.RansacMatchRadius * BEVPixelsPerMeter;
             double radiusSquared = radius * radius;
 
-            double minSep = options.MinRansacSeparation * PixelsPerMeter;
+            double minSep = options.MinRansacSeparation * BEVPixelsPerMeter;
             double minSepSquared = minSep * minSep;
 
-            var maxResidual = options.MaxRansacResidual * PixelsPerMeter;
+            var maxResidual = options.MaxRansacResidual * BEVPixelsPerMeter;
 
             var random = NumberHelper.MakeRandomGenerator();
             int[,] shuffle = null;
@@ -770,10 +772,10 @@ namespace OPS.Landform
             nm = bestMatches.Count;
             var msg =
                 nm > 0 ? string.Format(", best transform ({0:F3}m, {1:F3}m, {2:F3}deg), residual {3:F3}m, {4} matches",
-                                       bestTransform.Translation.X * MetersPerPixel,
-                                       bestTransform.Translation.Y * MetersPerPixel,
+                                       bestTransform.Translation.X * BEVMetersPerPixel,
+                                       bestTransform.Translation.Y * BEVMetersPerPixel,
                                        MathHelper.ToDegrees(bestTransform.Rotation),
-                                       bestResidual * MetersPerPixel, nm)
+                                       bestResidual * BEVMetersPerPixel, nm)
                 : "";
             pipeline.LogInfo("performed {0}/{1} ransac tests for {2} ({3} combinations), max matches {4}{5} ({6:F3}s)",
                              nt, maxTests, pair, totalCombinations, maxMatches, msg, UTCTime.Now() - startSec);
@@ -797,6 +799,10 @@ namespace OPS.Landform
             var modelDEM = dems[modelSiteDrive];
             var dataDEM = dems[dataSiteDrive];
 
+            //DEM elevations are relative to site drive origin
+            double modelSiteDriveOriginZElevation = -Vector3.Transform(Vector3.Zero, PriorTransform(modelSiteDrive)).Z;
+            double dataSiteDriveOriginZElevation = -Vector3.Transform(Vector3.Zero, PriorTransform(dataSiteDrive)).Z;
+
             var pair = modelSiteDrive + "-" + dataSiteDrive;
 
             var pairs = new List<SpatialMatch>();
@@ -806,11 +812,19 @@ namespace OPS.Landform
                 var mf = modelFeatures[match.ModelIndex];
                 var df = dataFeatures[match.DataIndex];
 
-                var mxy = (mf.Location - modelOrigin) * MetersPerPixel;
-                var mz = modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X];
+                var mxy = (mf.Location - modelOrigin) * BEVMetersPerPixel;
+                var dxy = (df.Location - dataOrigin) * BEVMetersPerPixel;
 
-                var dxy = (df.Location - dataOrigin) * MetersPerPixel;
-                var dz = dataDEM[0, (int)df.Location.Y, (int)df.Location.X];
+                //DEM elevations were computed as
+                //elevationInSiteDrive = -1 * zInRoot - siteDriveOriginZElevation
+                //where the -1 is because the default definition of "up" in Mesh.ColorByElevation() is (0, 0, -1)
+                //which matches mission standard coordinate frames (SITE, LOCAL_LEVEL)
+                //so doing some algebra to solve for zInRoot:
+                //elevationInSiteDrive = -1 * zInRoot - siteDriveOriginZElevation
+                //-zInRoot = elevationInSiteDrive + siteDriveOriginZElevation
+                //zInRoot = -(elevationInSiteDrive + siteDriveOriginZElevation)
+                var mz = -(modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X] + modelSiteDriveOriginZElevation);
+                var dz = -(dataDEM[0, (int)df.Location.Y, (int)df.Location.X] + dataSiteDriveOriginZElevation);
 
                 var mp = new Vector3(mxy.X, mxy.Y, mz);
                 var dp = new Vector3(dxy.X, dxy.Y, dz);
@@ -1314,10 +1328,10 @@ namespace OPS.Landform
             {
                 if (calf.treeParent != null)
                 {
-                    var calfToWorldPrior = SiteDrivePrior(calf.siteDrive);
-                    var parentToWorldPrior = SiteDrivePrior(calf.treeParent.siteDrive);
+                    var calfToWorld = BestTransform(calf.siteDrive);
+                    var parentToWorld = BestTransform(calf.treeParent.siteDrive);
                     //row matrix transforms compose left to right
-                    var calfToParent = calfToWorldPrior * Matrix.Invert(parentToWorldPrior);
+                    var calfToParent = calfToWorld * Matrix.Invert(parentToWorld);
                     calf.worldTransform = calfToParent * calf.treeParent.worldTransform.Value;
                 }
                 else
@@ -1381,7 +1395,7 @@ namespace OPS.Landform
 
             foreach (var node in nodes)
             {
-                node.worldTransform = SiteDrivePrior(node.siteDrive);
+                node.worldTransform = BestTransform(node.siteDrive);
             }
 
             var nodesToAlign = new List<Node>();
@@ -1471,9 +1485,9 @@ namespace OPS.Landform
                     var parent = node.treeParent.siteDrive;
                     var child = node.siteDrive;
                     
-                    var parentToRootPrior = SiteDrivePrior(parent);
-                    var childToRootPrior = SiteDrivePrior(child);
-                    var rootToParentPrior = Matrix.Invert(parentToRootPrior);
+                    var parentToRoot = BestTransform(parent);
+                    var childToRoot = BestTransform(child);
+                    var rootToParent = Matrix.Invert(parentToRoot);
                     
                     //the spatial matches are in root frame, transform them to parent prior frame
                     Vector3[] parentPts = null, childPts = null;
@@ -1482,15 +1496,15 @@ namespace OPS.Landform
                     if (spatialMatches.ContainsKey(pair))
                     {
                         sm = spatialMatches[pair];
-                        parentPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToParentPrior)).ToArray();
-                        childPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToParentPrior)).ToArray();
+                        parentPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToParent)).ToArray();
+                        childPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToParent)).ToArray();
                     }
                     else
                     {
                         pair = child + "-" + parent;
                         sm = spatialMatches[pair];
-                        parentPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToParentPrior)).ToArray();
-                        childPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToParentPrior)).ToArray();
+                        parentPts = sm.Select(m => Vector3.Transform(m.DataPoint, rootToParent)).ToArray();
+                        childPts = sm.Select(m => Vector3.Transform(m.ModelPoint, rootToParent)).ToArray();
                     }
                     
                     double priorResidual = 0;
@@ -1507,21 +1521,19 @@ namespace OPS.Landform
                                      child, parent, sm.Length, priorResidual, residual);
 
                     //row matrix transforms compose left to right
-                    var childToParentPrior = childToRootPrior * rootToParentPrior;
+                    var childToParent = childToRoot * rootToParent;
                     
                     //adjusted transform taking points in child frame to points in parent frame
-                    node.transform = childToParentPrior * adj;
+                    node.transform = childToParent * adj;
 
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
 
             //compute a world transform for each node (i.e. sitedrive to root transform)
-            //for a node with no parent this is just the prior
-            //otherwise it's the concatenation of adjusted transforms along ancestor chain from node to world
             foreach (var node in nodes.Where(n => n.treeParent == null))
             {
-                node.worldTransform = SiteDrivePrior(node.siteDrive);
+                node.worldTransform = BestTransform(node.siteDrive);
             }
             foreach (var node in nodesToAlign)
             {

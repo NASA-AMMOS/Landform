@@ -1621,7 +1621,7 @@ namespace OPS.Geometry
         /// <summary>
         /// set vertex color components as absolute values of normal components
         /// if tiltMode is set then a greyscale color is set instead, see OrganizedPointCloud.NormalToTilt()
-        /// up defaults to (0, 0, -1)
+        /// up defaults to (0, 0, -1) which corresponds to standard mission frames (e.g. SITE, LOCAL_LEVEL)
         /// </summary>
         public void ColorByNormals(out double minTilt, out double maxTilt, TiltMode? tiltMode = null,
                                    Vector3? up = null) 
@@ -1665,12 +1665,13 @@ namespace OPS.Geometry
 
         /// <summary>
         /// compute elevation at each vertex and set it as greyscale vertex color
+        /// up defaults to (0, 0, -1) which corresponds to standard mission frames (e.g. SITE, LOCAL_LEVEL)
         /// </summary>
         public void ColorByElevation(out double min, out double max, bool absolute = false, Vector3? up = null) 
         {
             if (up == null)
             {
-                up = new Vector3(0, 0, 1);
+                up = new Vector3(0, 0, -1);
             }
 
             var ctr = absolute ? new Vector3(0, 0, 0) : Bounds().Center();

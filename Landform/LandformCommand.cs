@@ -231,7 +231,7 @@ namespace OPS.Landform
             return true;
         }
 
-        protected void SaveFloatTIFF(Image img, string name)
+        protected virtual void SaveFloatTIFF(Image img, string name)
         {
             string imageFile = Path.Combine(localOutputPath, name + ".tif");
             PathHelper.EnsureExists(Path.GetDirectoryName(imageFile)); //name could have a subpath in it
@@ -244,7 +244,7 @@ namespace OPS.Landform
             serializer.Write<float>(imageFile, img);
         }
 
-        protected void SaveImage(Image img, string name)
+        protected virtual void SaveImage(Image img, string name)
         {
             string imageFile = Path.Combine(localOutputPath, name + imageExt);
             PathHelper.EnsureExists(Path.GetDirectoryName(imageFile)); //name could have a subpath in it
@@ -255,7 +255,7 @@ namespace OPS.Landform
             img.Save<byte>(imageFile);
         }
 
-        protected void SaveMesh(Mesh mesh, string name, string texture = null)
+        protected virtual void SaveMesh(Mesh mesh, string name, string texture = null)
         {
             string meshFile = Path.Combine(localOutputPath, name + meshExt);
             PathHelper.EnsureExists(Path.GetDirectoryName(meshFile)); //name could have a subpath in it
