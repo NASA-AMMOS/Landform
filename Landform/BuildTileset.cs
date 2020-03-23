@@ -235,7 +235,10 @@ namespace OPS.Landform
                 var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
                 var imgUrl =
                     withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt) : null;
-                var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, tile);
+                var indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, 
+                    tile + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT);
+
+                var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, indexUrl, tile);
                 inputs.Add(input.Name);
             }
 

@@ -22,6 +22,8 @@ namespace OPS.Pipeline.TilingServer
 
         public string ImageUrl;
 
+        public string IndexUrl;
+
         public int ImageBands;
 
         public int ImageWidth;
@@ -37,21 +39,22 @@ namespace OPS.Pipeline.TilingServer
         //This constructor must be public for DynamoDB but should not be used
         public TilingInput() { }
 
-        protected TilingInput(string name, string projectName, string meshUrl, string imageUrl, string id) : this()
+        protected TilingInput(string name, string projectName, string meshUrl, string imageUrl, string indexUrl, string id) : this()
         {
             Name = name;
             ProjectName = projectName;
             MeshUrl = meshUrl;
             ImageUrl = imageUrl;
+            IndexUrl = indexUrl;
             TileId = id;
             Chunked = TileId != null;
             this.IsValid();
         }
 
         public static TilingInput Create(PipelineCore pipeline, string name, TilingProject project,
-                                         string meshUrl, string imageUrl, string id)
+                                         string meshUrl, string imageUrl, string indexUrl, string id)
         {
-            TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, id);
+            TilingInput input = new TilingInput(name, project.Name, meshUrl, imageUrl, indexUrl, id);
             input.Save(pipeline);
             return input;
         }

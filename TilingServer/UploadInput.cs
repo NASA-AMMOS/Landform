@@ -22,6 +22,9 @@ namespace OPS.TilingServer
         [Value(2, Required = false, HelpText = "Texture input file")]
         public string ImageFilepath { get; set; }
 
+        [Value(3, Required = false, HelpText = "Index image input file")]
+        public string IndexFilepath { get; set; }
+
         [Option(Default = null, HelpText = "Leaf tile ID if this input dataset represents a pretiled input.  This is only valid for projects using a user defined tiling scheme")]
         public string TileId { get; set; }
 
@@ -99,8 +102,21 @@ namespace OPS.TilingServer
                                  options.ProjectName);
             }
 
+            string indexUrl = null;
+            if(options.IndexFilepath != null)
+            {
+                indexUrl = pipeline.GetStorageUrl("index", options.ProjectName,
+                                                    Path.GetFileName(options.IndexFilepath));
+                pipeline.LogDebug("uploading input index image \"{0}\" for project \"{1}\"", options.IndexFilepath,
+                                options.ProjectName);
+                pipeline.SaveFile(options.IndexFilepath, indexUrl);
+                pipeline.LogDebug("uploading input index image \"{0}\" for project \"{1}\" complete", options.IndexFilepath,
+                                options.ProjectName);
+            }
+
             pipeline.EnqueueToMaster(new AddInputMessage(options.ProjectName)
-                                     { Name = name, MeshUrl = meshUrl, ImageUrl = imageUrl, TileId = options.TileId });
+                                     { Name = name, MeshUrl = meshUrl, ImageUrl = imageUrl,
+                                       IndexUrl = indexUrl, TileId = options.TileId });
             
             if (!options.NoWait)
             {
