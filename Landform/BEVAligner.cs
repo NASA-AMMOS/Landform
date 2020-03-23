@@ -973,7 +973,7 @@ namespace OPS.Landform
 
                         if (matches[pairName].Length > 0)
                         {
-                            SaveImage(ImageMatching
+                            SaveImage(AlignmentUtils
                                       .DrawMatches(bevs[model], bevs[data], features[model], features[data],
                                                    matches[pairName]
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
@@ -984,7 +984,7 @@ namespace OPS.Landform
 
                         if (ransacMatches[pairName].Length > 0)
                         {
-                            SaveImage(ImageMatching
+                            SaveImage(AlignmentUtils
                                       .DrawMatches(bevs[model], bevs[data], features[model], features[data],
                                                    ransacMatches[pairName]
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
@@ -995,10 +995,10 @@ namespace OPS.Landform
 
                         if (spatialMatches[pairName].Length > 0)
                         {
-                            SaveMesh(ImageMatching
-                                      .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
-                                                     spatialMatches[pairName].Select(p => p.DataPoint).ToArray()),
-                                      pairName + "_BEV_Matches");
+                            SaveMesh(AlignmentUtils
+                                     .MakeMatchMesh(spatialMatches[pairName].Select(p => p.ModelPoint).ToArray(),
+                                                    spatialMatches[pairName].Select(p => p.DataPoint).ToArray()),
+                                     pairName + "_BEV_Matches");
                         }
 
                         Interlocked.Decrement(ref np);
