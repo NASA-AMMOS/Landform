@@ -27,29 +27,38 @@ namespace OPS.Landform
         [Option(Required = false, Default = true, HelpText = "Only allow vertical adjustment and out of plane rotation between sitedrives (does not apply to orbital).")]
         public bool PreserveXY { get; set; }
 
-        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "DEM values less than this will be ignored")]
+        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "Orbital DEM values less than this will be ignored")]
         public double DEMMinFilter { get; set; }
 
-        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "DEM larger than this will be ignored")]
+        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "Orbital DEM larger than this will be ignored")]
         public double DEMMaxFilter { get; set; }
 
-        [Option(Required = false, Default = 16, HelpText = "Number of simulated annealing stages")]
+        [Option(Required = false, Default = 500, HelpText = "Orbital DEM will be ignored beyond this radius from base site drive origin")]
+        public double DEMRadiusFilter { get; set; }
+
+        [Option(Required = false, Default = 16, HelpText = "Number of ICP stages")]
+        public int NumICPStages { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "Number of simulated annealing stages")]
         public int NumAnnealingStages { get; set; }
 
-        [Option(Required = false, Default = 0.05f, HelpText = "Run simulated annealing until reaching this RMS error (meters)")]
+        [Option(Required = false, Default = 0.01f, HelpText = "Run simulated annealing until reaching this RMS error (meters)")]
         public float ErrorThreshold { get; set; }
 
-        [Option(Required = false, Default = 0.25f, HelpText = "Minimum required sample percentage overlap between site drives or sitedrive and orbital")]
-        public float MinOverlapPercent { get; set; }
+        [Option(Required = false, Default = 100, HelpText = "Minimum samples required to perform simulated annealing")]
+        public float MinSamples { get; set; }
 
-        [Option(Required = false, Default = 20000, HelpText = "Maximum number of samples to use when aligning SD -> SD")]
-        public int TargetSampleNum { get; set; }
+        [Option(Required = false, Default = 1000, HelpText = "Maximum number of samples for simulated annealing")]
+        public int MaxSamples { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
         public string OrbitalDEM { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Align sitedrives to aligned obital DEM if no sufficient overlap to another sitedrive")]
-        public bool AlignToDem { get; set; }
+        [Option(Required = false, Default = false, HelpText = "Disable final alignment of sitedrives to aligned obital DEM")]
+        public bool NoAlignToDem { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Only align unaligned sitedrives to aligned obital DEM")]
+        public bool OnlyAlignUnalignedToDem { get; set; }
 
         [Option(HelpText = "Disable orbital alignment", Default = false, Required = false)]
         public bool NoOrbital { get; set; }
@@ -57,6 +66,7 @@ namespace OPS.Landform
 
     public class HeightmapAligner : BEVCommand
     {
+        public const int MAX_SD_MESH_DEM_RESOLUTION = 1000;
         public const double MAX_MESH_RADIUS_METERS = 200;
 
         private HeightmapAlignerOptions options;
@@ -109,9 +119,9 @@ namespace OPS.Landform
                     RunPhase("align orbital to successfully aligned site drives", AlignOrbitalToSurface);
                 }
 
-                if (options.AlignToDem && orbitalAdjustment.HasValue)
+                if (!options.NoAlignToDem && orbitalAdjustment.HasValue)
                 {
-                    RunPhase("align remaining site drives to orbital", AlignRemainingSurfaceToOrbital);
+                    RunPhase("align site drives to orbital", AlignSurfaceToOrbital);
                 }
 
                 if (options.WriteDebug)
@@ -211,18 +221,20 @@ namespace OPS.Landform
             LoadOrRenderBEVs(includeBEVs: false, includeDEMs: true);
 
             //make OrthographicCameraModel that projects points in sitedrive frame to pixels in sitedrive DEM image
-            var forward = new Vector3(0, 0, -1); //sitedrive +Z is opposite of elevation
-            var right = new Vector3(1, 0, 0) * BEVMetersPerPixel;
-            var down = new Vector3(0, 1, 0) * BEVMetersPerPixel;
+            var upDir = new Vector3(0, 0, -1); //sitedrive +Z is opposite of elevation
+            var rightDir = new Vector3(1, 0, 0);
+            var downDir = new Vector3(0, 1, 0);
+
+            double elevationScale = 1; //sitedrive DEM elevations are always in meters
+            double originElevation = 0; //sitredrive DEM elevations are always relative to sitedrive origin
 
             foreach (var siteDrive in dems.Keys)
             {
                 var img = dems[siteDrive];
-                var dem = new DEM(img, DEM.MakeCameraModel(forward, right, down, img.Width, img.Height,
-                                                           sdOriginPixel[siteDrive]));
-                dem.MinFilter = options.DEMMinFilter;
-                dem.MaxFilter = options.DEMMaxFilter;
-                sdDEMs[siteDrive] = dem;
+                sdDEMs[siteDrive] = new DEM(dems[siteDrive], upDir, rightDir, downDir,
+                                            BEVMetersPerPixel, elevationScale,
+                                            sdOriginPixel[siteDrive], originElevation,
+                                            options.DEMMinFilter, options.DEMMaxFilter);
             }
         }
 
@@ -230,11 +242,13 @@ namespace OPS.Landform
         {
             var ret = new DEMAligner()
             {
+                NumICPStages = options.NumICPStages,
                 NumAnnealingStages = options.NumAnnealingStages,
                 PreserveXY = preserveXY.HasValue ? preserveXY.Value : options.PreserveXY,
-                MinOverlap = options.MinOverlapPercent,
+                MaxRadiusMeters = options.DEMRadiusFilter,
+                MinSamples = options.MinSamples,
+                MaxSamples = options.MaxSamples,
                 MinRMSError = options.ErrorThreshold,
-                SampleLimit = options.TargetSampleNum,
                 Info = msg => pipeline.LogInfo(msg)
             };
             if (!options.NoProgress)
@@ -308,9 +322,9 @@ namespace OPS.Landform
         {
             try
             {
-                orbitalDEM = mission.LoadOrbital(baseSiteDrive, options.OrbitalDEM, logger: pipeline);
-                orbitalDEM.MinFilter = options.DEMMinFilter;
-                orbitalDEM.MaxFilter = options.DEMMaxFilter;
+                orbitalDEM = mission.LoadOrbital(baseSiteDrive, options.OrbitalDEM,
+                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                 logger: pipeline);
             }
             catch (Exception ex)
             {
@@ -354,15 +368,20 @@ namespace OPS.Landform
             }
         }
 
-        private void AlignRemainingSurfaceToOrbital()
+        private void AlignSurfaceToOrbital()
         {
-            var unaligned = siteDrives.Where(sd => !sdAdjustment.ContainsKey(sd)).ToList();
-            pipeline.LogInfo("aligning {0} unaligned site drives to orbital DEM", unaligned.Count);
+            var sds = siteDrives.Where(sd => sd != baseSiteDrive).ToArray();
+            if (options.OnlyAlignUnalignedToDem)
+            {
+                sds = siteDrives.Where(sd => !sdAdjustment.ContainsKey(sd)).ToArray();
+            }
+                
+            pipeline.LogInfo("aligning {0} site drives to orbital DEM", sds.Length);
 
             var aligner = MakeAligner(preserveXY: false);
 
             var orbitalToWorld = BestTransform(baseSiteDrive) * orbitalAdjustment.Value;
-            foreach (SiteDrive siteDrive in unaligned)
+            foreach (SiteDrive siteDrive in sds)
             {
                 try
                 {
@@ -381,6 +400,10 @@ namespace OPS.Landform
                     pipeline.LogInfo("attempting to align site drive {0} to orbital DEM", siteDrive);
                     var dem = dems[siteDrive];
                     var sdToWorld = BestTransform(siteDrive);
+                    if (sdAdjustment.ContainsKey(siteDrive))
+                    {
+                        sdToWorld = sdToWorld * sdAdjustment[siteDrive];
+                    }
                     var adj = aligner.AlignDEMToScene(sdDEMs[siteDrive], BestTransform(siteDrive),
                                                       new DEM[] { orbitalDEM }, new Matrix[] { orbitalToWorld },
                                                       out double initialRMS, out double finalRMS);
@@ -406,7 +429,19 @@ namespace OPS.Landform
         {
             foreach (var siteDrive in sdDEMs.Keys)
             {
-                var mesh = sdDEMs[siteDrive].OrganizedMesh(MAX_MESH_RADIUS_METERS);
+                var sdDEM = sdDEMs[siteDrive]; 
+                var dem = sdDEM.DecimateTo(MAX_SD_MESH_DEM_RESOLUTION);
+                if (dem.Width != sdDEM.Width || dem.Height != sdDEM.Height)
+                {
+                    pipeline.LogInfo("decimated {0}x{1} DEM ({2} meters/pixel) for site drive {3} " +
+                                     "to {4}x{5} ({6} meters/pixel) for meshing",
+                                     sdDEM.Width, sdDEM.Height, sdDEM.AvgMetersPerPixel, siteDrive,
+                                     dem.Width, dem.Height, dem.AvgMetersPerPixel);
+                }
+                pipeline.LogInfo("organized meshing {0}x{1} DEM ({2}x{3}m) for site drive {3}, max radius {4}",
+                                 dem.Width, dem.Height, dem.WidthMeters, dem.HeightMeters, siteDrive,
+                                 MAX_MESH_RADIUS_METERS);
+                var mesh = dem.OrganizedMesh(MAX_MESH_RADIUS_METERS);
                 SaveMesh(Mesh.Transformed(mesh, BestTransform(siteDrive)), siteDrive.ToString() + "_Heightmap");
                 if (sdAdjustment.ContainsKey(siteDrive))
                 {
@@ -416,7 +451,10 @@ namespace OPS.Landform
             }
             if (orbitalDEM != null)
             {
-                var mesh = orbitalDEM.DelaunayMesh(MAX_MESH_RADIUS_METERS);
+                pipeline.LogInfo("delaunay meshing {0}x{1} orbital DEM ({2} meters/pixel, {3}x{4}m), max radius {5}",
+                                 orbitalDEM.Width, orbitalDEM.Height, orbitalDEM.AvgMetersPerPixel,
+                                 orbitalDEM.WidthMeters, orbitalDEM.HeightMeters, MAX_MESH_RADIUS_METERS);
+                var mesh = orbitalDEM.DelaunayMesh(MAX_MESH_RADIUS_METERS, reverseWinding: true);
                 SaveMesh(Mesh.Transformed(mesh, BestTransform(baseSiteDrive)), "orbital_Heightmap");
                 if (orbitalAdjustment.HasValue)
                 {

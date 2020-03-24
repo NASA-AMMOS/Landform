@@ -308,7 +308,7 @@ namespace OPS.Geometry
                                               double maxTriangleAspect = 20,
                                               bool generateUV = true, bool generateNormals = true,
                                               Vector3? flipGeneratedNormalsToward = null,
-                                              double isolatedPointSize = 0)
+                                              double isolatedPointSize = 0, bool reverseWinding = false)
         {
             if (points == null)
             {
@@ -344,7 +344,7 @@ namespace OPS.Geometry
                     }
                     if (generateUV)
                     {
-                        v.UV = points.PixelToUV(new Vector2(c, r));  // TODO: PixelToUV should handle the half pixel offset
+                        v.UV = points.PixelToUV(new Vector2(c, r));  // TODO: PixelToUV should handle half pixel offset
                     }
                     ret.Vertices.Add(v);
                 }
@@ -379,7 +379,10 @@ namespace OPS.Geometry
                 double u = Math.Max(s0, Math.Max(s1, s2));
                 if (l > 0 && u / l <= maxTriangleAspect)
                 {
-                    ret.Faces.Add(new Face(getOrAddVert(r0, c0), getOrAddVert(r1, c1), getOrAddVert(r2, c2)));
+                    int a = getOrAddVert(r0, c0);
+                    int b = getOrAddVert(r1, c1);
+                    int c = getOrAddVert(r2, c2);
+                    ret.Faces.Add(reverseWinding ? new Face(a, c, b) : new Face(a, b, c));
                 }
             };
 

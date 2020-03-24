@@ -324,7 +324,7 @@ namespace OPS.Landform
             bevOptions = new BirdsEyeView.BEVOptions
             {
                 BlendMode = bcopts.BEVBlending,
-                MetersPerPixel = bcopts.BEVMetersPerPixel,
+                MetersPerPixel = bcopts.BEVMetersPerPixel, //yes bcopts.BEVMetersPerPixel not this.BEVMetersPerPixel
                 SparseBlockSize = bcopts.BEVSparseBlocksize,
                 MinSparseBlockValidRatio = bcopts.BEVMinValidBlockRatio,
                 Inpaint = bcopts.BEVInpaint,
@@ -602,6 +602,9 @@ namespace OPS.Landform
 
                     var sdToWorld = PriorTransform(siteDrive);
                     var sdCenter = Vector3.Transform(Vector3.Zero, sdToWorld);
+
+                    //careful, use the raw bcopts.BEVMetersPerPixel here
+                    //not this.BEVMetersPerPixel which also accounts for BEVDecimation
                     var sdCenterPixel = new Vector2(sdCenter.X, sdCenter.Y) / bcopts.BEVMetersPerPixel;
 
                     if (renderBEV)

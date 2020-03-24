@@ -24,8 +24,8 @@ namespace OPS.LandformUtil
         [Option(Required = false, Default = "auto", HelpText = "Size of a pixel in the DEM in meters, or \"auto\" to use mission default, or 1 if no mission.")]
         public string MetersPerPixel { get; set; }
 
-        [Option(Required = false, Default = 1, HelpText = "Scale DEM values to vertical meters, ignored if zero")]
-        public double VerticalScale { get; set; }
+        [Option(Required = false, Default = "auto", HelpText = "Scale DEM values to vertical meters, or \"auto\" to use mission default, or 1 if no mission")]
+        public string VerticalScale { get; set; }
 
         [Option(Required = false, Default = "png", HelpText = "Export format for texture (examples: jpg or png")]
         public string ImageFormat { get; set; }
@@ -42,11 +42,14 @@ namespace OPS.LandformUtil
         [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "Dem values larger than this will be ignored")]
         public double DEMMaxFilter { get; set; }
 
-        [Option(Required = false, Default = "", HelpText = "Output to sitedrive frame SSSSSDDDDD or SSSDDDD, default puts origin at DEM center")]
+        [Option(Required = false, Default = "", HelpText = "Output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission, default puts origin at DEM center")]
         public string OutputFrame { get; set; }
 
         [Option(Required = false, Default = 200, HelpText = "Radius in meters around origin to build mesh, negative for unlimited")]
         public float Radius { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "If greater than one then decimate the input DEM by this blocksize")]
+        public int DecimateBlocksize { get; set; }
 
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
@@ -64,8 +67,6 @@ namespace OPS.LandformUtil
 
         private string meshExt, imageExt;
         private string outputMesh, outputImage;
-
-        private double metersPerPixel;
 
         private DEM dem;
 
@@ -131,6 +132,7 @@ namespace OPS.LandformUtil
             //this has the important side effect of setting defaults for PlacesConfig and OrbitalConfig
             mission = MissionSpecific.GetInstance(options.Mission);
 
+            double metersPerPixel = 1;
             if (string.IsNullOrEmpty(options.MetersPerPixel) || options.MetersPerPixel.ToLower() == "auto")
             {
                 metersPerPixel = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
@@ -144,6 +146,20 @@ namespace OPS.LandformUtil
                 metersPerPixel = double.Parse(options.MetersPerPixel);
             }
 
+            double elevationScale = 1;
+            if (string.IsNullOrEmpty(options.VerticalScale) || options.VerticalScale.ToLower() == "auto")
+            {
+                elevationScale = OrbitalConfig.Instance.OrbitalDEMElevationScale;
+                if (mission == null)
+                {
+                    logger.WarnFormat("no mission, using default orbital DEM elevation scale: {0}", elevationScale);
+                }
+            }
+            else
+            {
+                elevationScale = double.Parse(options.VerticalScale);
+            }
+
             if (SiteDrive.IsSiteDriveString(options.OutputFrame))
             {
                 if (mission == null)
@@ -151,19 +167,21 @@ namespace OPS.LandformUtil
                     throw new Exception("--mission required for output in site drive frame");
                 }
 
-                dem = mission.LoadOrbital(new SiteDrive(options.OutputFrame), options.InputDEM, metersPerPixel,
-                                          new ThunkLogger(logger));
+                dem = mission.LoadOrbital(new SiteDrive(options.OutputFrame), options.InputDEM,
+                                          metersPerPixel, elevationScale,
+                                          options.DEMMinFilter, options.DEMMaxFilter, new ThunkLogger(logger));
             }
             else
             {
-                var img = new DEM.SparseDEMImage(options.InputDEM);
-                var cmod = DEM.DefaultOrbitalCameraModel(img.Width, img.Height, metersPerPixel);
-                dem = new DEM(img, cmod);
+                Vector2? originPixel = null; //DEM constructor will compute this as center of dem
+                double? originElevation = null; //DEM constructor will look this up given originPixel
+                dem = new DEM(new DEM.SparseDEMImage(options.InputDEM), metersPerPixel, elevationScale,
+                              originPixel, originElevation, options.DEMMinFilter, options.DEMMaxFilter); 
             }
 
-            if (options.VerticalScale != 0)
+            if (options.DecimateBlocksize > 1)
             {
-                dem.ScaleValues(options.VerticalScale);
+                dem = dem.Decimated(options.DecimateBlocksize);
             }
 
             outputMesh = Path.ChangeExtension(options.InputDEM, options.MeshFormat);

@@ -62,13 +62,32 @@ namespace OPS.Util
                 }
 
                 double candidateError = errorFunction(candidateX);
+
+                if (candidateError < 0)
+                {
+                    if (opts.verbose != null)
+                    {
+                        opts.verbose(string.Format("simulated annealing {0}%: error {1}, aborting",
+                                                   (int)(((i + 1) / (float)opts.maxIterations) * 100),
+                                                   candidateError));
+                    }
+                    break;
+                }
+
                 double jumpThreshold = Math.Exp(-(candidateError - currentError) * opts.probabilityScale / temperature);
-                if (candidateError < currentError || r.NextDouble() < jumpThreshold)
+                bool advance = candidateError < currentError;
+                bool jump = !advance && r.NextDouble() < jumpThreshold;
+                if (advance || jump)
                 {
                     currentError = candidateError;
                     Copy(candidateX, x);
+                }
+
+                if (jump)
+                {
                     numJumps++;
                 }
+
                 if (currentError < bestError)
                 {
                     bestError = currentError;
@@ -82,6 +101,11 @@ namespace OPS.Util
                                                "temperature {2}, jump threshold {3}, {4} jumps, {5} improvements",
                                                (int)(((i + 1) / (float)opts.maxIterations) * 100),
                                                bestError, temperature, jumpThreshold, numJumps, numImprovements));
+                }
+
+                if (bestError == 0)
+                {
+                    break;
                 }
             }
             return bestX;

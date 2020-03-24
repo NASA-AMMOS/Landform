@@ -29,7 +29,7 @@ while read line; do
     file=${path##*/}
     id=${file%.*}
     ext=${file##*.}
-    results[$id]="${results[$id]} $ext"
-done < <($s3ls $dir --recursive | grep -E -i ".*(${products}).*\.(${exts})")
+    results[$id]="${results[$id]} ${ext}"
+done < <($s3ls $dir --recursive | grep -E -i ".*(${products}).*\.(${exts})" | tr -d '\r')
 
 sort <(for id in "${!results[@]}"; do echo "$id:${results[$id]}"; done)

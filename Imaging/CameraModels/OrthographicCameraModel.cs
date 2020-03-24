@@ -12,20 +12,24 @@ namespace OPS.Imaging
     /// </summary>
     public class OrthographicCameraModel : CameraModel
     {
-        private Vector3 center;
-        private Vector3 forward;
-        private Vector3 right;
-        private Vector3 down;
-        private Vector3 normal;
-        private Vector2 centerPixel;
+        public Vector3 Center { get; private set; }
+        public Vector3 Forward { get; private set; }
+        public Vector3 Right { get; private set; }
+        public Vector3 Down { get; private set; }
+
+        public Vector2 CenterPixel { get; private set; }
+
+        public int Width { get; private set; }
+        public int Height { get; private set; }
+
         private double ff, rr, dd;
-        private int width, height;
 
         public override bool Linear
         {
             get { return true; }
         }
 
+        private Vector3 normal;
         public override Vector3 ImagePlaneNormal
         {
             get
@@ -38,7 +42,7 @@ namespace OPS.Imaging
         {
             get
             {
-                return new Vector2(right.Length(), down.Length());
+                return new Vector2(Right.Length(), Down.Length());
             }
         }
 
@@ -62,52 +66,63 @@ namespace OPS.Imaging
         public OrthographicCameraModel(Vector3 center, Vector3 forward, Vector3 right, Vector3 down,
                                        int width, int height)
         {
-            this.center = center;
-            this.forward = forward;
-            this.right = right;
-            this.down = down;
-            this.width = width;
-            this.height = height;
+            this.Center = center;
+            this.Forward = forward;
+            this.Right = right;
+            this.Down = down;
+            this.Width = width;
+            this.Height = height;
             Init();
         }
 
         public OrthographicCameraModel(double r, double l, double t, double b, double far, double near,
                                        int width, int height)
         {
-            center = new Vector3((r - l) * 0.5, (t - b) * 0.5, near);
-            forward = new Vector3(0, 0, far - near);
-            right = new Vector3((r - l) / width, 0, 0);
-            down = new Vector3(0, (b - t) / height, 0);
-            this.width = width;
-            this.height = height;
+            Center = new Vector3((r - l) * 0.5, (t - b) * 0.5, near);
+            Forward = new Vector3(0, 0, far - near);
+            Right = new Vector3((r - l) / width, 0, 0);
+            Down = new Vector3(0, (b - t) / height, 0);
+            this.Width = width;
+            this.Height = height;
             Init();
         }
 
         private void Init()
         {
-            normal = Vector3.Normalize(Vector3.Cross(right, down)); //yes this is a right handed cross product
-            centerPixel = new Vector2(width, height) * 0.5;
-            ff = Vector3.Dot(forward, forward);
-            rr = Vector3.Dot(right, right);
-            dd = Vector3.Dot(down, down);
+            normal = Vector3.Normalize(Vector3.Cross(Right, Down)); //yes this is a right handed cross product
+            CenterPixel = new Vector2(Width, Height) * 0.5;
+            ff = Vector3.Dot(Forward, Forward);
+            rr = Vector3.Dot(Right, Right);
+            dd = Vector3.Dot(Down, Down);
         }
 
-        public override Vector2 Project(Vector3 pos, out double range)
+        public override Vector2 Project(Vector3 point, out double range)
         {
-            pos -= center;
-            range = Vector3.Dot(pos, forward) / ff;
-            return new Vector2(Vector3.Dot(pos, right) / rr, Vector3.Dot(pos, down) / dd) + centerPixel;
+            //NOTE: c = Vector3.Dot(a, b) / Vector3.Dot(b, b)
+            //computes c as component of a in direction of b measured in units of ||b||
+            var ctrToPt = point - Center;
+            range = Vector3.Dot(ctrToPt, Forward) / ff;
+            return new Vector2(Vector3.Dot(ctrToPt, Right) / rr, Vector3.Dot(ctrToPt, Down) / dd) + CenterPixel;
         }
 
         public override void Unproject(ref Vector2 pixel, out Ray ray)
         {
-            pixel -= centerPixel;
-            ray = new Ray(center + right * pixel.X + down * pixel.Y, forward);
+            pixel -= CenterPixel;
+            ray = new Ray(Center + Right * pixel.X + Down * pixel.Y, Forward);
         }
 
         public override object Clone()
         {
             return (OrthographicCameraModel) MemberwiseClone();
+        }
+
+        /// <summary>
+        /// Goes with Image.Decimated() and DEM.Decimated()
+        /// </summary>
+        public OrthographicCameraModel Decimated(int blocksize)
+        {
+            return new OrthographicCameraModel(Center, Forward, Right * blocksize, Down * blocksize,
+                                               Width / blocksize, Height / blocksize);
         }
     }
 }

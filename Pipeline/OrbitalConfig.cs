@@ -38,6 +38,11 @@ namespace OPS.Pipeline
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_DEM_METERS_PER_PIXEL")]
         public double OrbitalDEMMetersPerPixel { get; set; } = 1;
 
+        //elevation scale for obital DEM
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
+        [ConfigEnvironmentVariable("LANDFORM_ORBITAL_DEM_ELEVATION_SCALE")]
+        public double OrbitalDEMElevationScale { get; set; } = 1;
+
         //name for orbital adjusted frame transform
         //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_FRAME_NAME")]

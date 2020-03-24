@@ -471,6 +471,7 @@ namespace OPS.Imaging
             public int MinX, MinY, MaxX, MaxY;
             public int Width { get { return MaxX - MinX + 1; } }
             public int Height { get { return MaxY - MinY + 1; } }
+            public int Area { get { return Width * Height; } }
         }
 
         public Subrect GetSubrect(Vector2 center, double radiusPixels)
