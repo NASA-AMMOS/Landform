@@ -134,21 +134,40 @@ namespace OPS.Alignment
 
         public static Mesh MakeMatchMesh(Vector3[] modelPts, Vector3[] dataPts, Matrix modelToRoot, Matrix dataToRoot)
         {
-            var ret = new Mesh(hasNormals: true, hasColors: true);
             var lineColor = new Vector4(0, 0, 1, 0);
             var pointColor = new Vector4(0, 1, 0, 0);
             double pointSize = 0.05; //meters
             double lineSize = 0.02; //meters
             var pointMesh = BoundingBoxExtensions.MakeCube(pointSize).ToMesh(pointColor);
             var lineMesh = BoundingBoxExtensions.MakeCube(lineSize).ToMesh(lineColor);
+            var meshes = new List<Mesh>();
             for (int i = 0; i < modelPts.Length; i++)
             {
                 var mp = Vector3.Transform(modelPts[i], modelToRoot);
                 var dp = Vector3.Transform(dataPts[i], dataToRoot);
-                ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
-                ret.MergeWith(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
+                meshes.Add(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(mp)));
+                meshes.Add(Mesh.Transformed(pointMesh, Matrix.CreateTranslation(dp)));
                 var lineMat = BoundingBoxExtensions.StretchCubeAlongLineSegment(mp, dp, lineSize);
-                ret.MergeWith(Mesh.Transformed(lineMesh, lineMat));
+                meshes.Add(Mesh.Transformed(lineMesh, lineMat));
+            }
+            var ret = new Mesh(hasNormals: true, hasColors: true);
+            ret.Vertices = new List<Vertex>(meshes.Sum(mesh => mesh.Vertices.Count));
+            ret.Faces = new List<Face>(meshes.Sum(mesh => mesh.Faces.Count));
+            foreach (var mesh in meshes)
+            {
+                int nv = ret.Vertices.Count;
+                foreach (var face in mesh.Faces)
+                {
+                    var tmp = face;
+                    tmp.P0 += nv;
+                    tmp.P1 += nv;
+                    tmp.P2 += nv;
+                    ret.Faces.Add(tmp);
+                }
+                foreach (var vertex in mesh.Vertices)
+                {
+                    ret.Vertices.Add(vertex);
+                }
             }
             return ret;
         }
