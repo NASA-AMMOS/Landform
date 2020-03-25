@@ -57,8 +57,8 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Disable final alignment of sitedrives to aligned obital DEM")]
         public bool NoAlignToDem { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Only align unaligned sitedrives to aligned obital DEM")]
-        public bool OnlyAlignUnalignedToDem { get; set; }
+        [Option(Required = false, Default = false, HelpText = "Don't only align unaligned sitedrives to aligned obital DEM")]
+        public bool NoOnlyAlignUnalignedToDem { get; set; }
 
         [Option(HelpText = "Disable orbital alignment", Default = false, Required = false)]
         public bool NoOrbital { get; set; }
@@ -363,7 +363,7 @@ namespace OPS.Landform
         private void AlignSurfaceToOrbital()
         {
             var sds = siteDrives.Where(sd => sd != baseSiteDrive).ToArray();
-            if (options.OnlyAlignUnalignedToDem)
+            if (!options.NoOnlyAlignUnalignedToDem)
             {
                 sds = siteDrives.Where(sd => !sdAdjustment.ContainsKey(sd)).ToArray();
             }
