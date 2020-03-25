@@ -195,6 +195,10 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!transforms.ContainsKey(name))
             {
+                if (!frames.ContainsKey(name))
+                {
+                    return new List<FrameTransform>();
+                }
                 foreach (var transform in FrameTransform.Find(pipeline, GetFrame(name))) Add(transform);
             }
             return transforms[name].Values;
