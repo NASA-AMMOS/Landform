@@ -62,6 +62,15 @@ namespace OPS.Landform
         [Option(HelpText = "Only use orbital beyond this distance from surface in meters", Default = 0.25)]
         public double FilterRadius { get; set; }
 
+        [Option(HelpText = "Blend orbital within this distance from surface in meters", Default = 5)]
+        public double OrbitalBlendRadius { get; set; }
+
+        [Option(HelpText = "Orbital blend min blend, 0-1, larger preserves orbital more", Default = 0.1)]
+        public double OrbitalBlendMin { get; set; }
+
+        [Option(HelpText = "Sew orbital within this distance from surface in meters", Default = 0.2)]
+        public double OrbitalSewRadius { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
         public string OrbitalDEM { get; set; }
 
@@ -540,18 +549,14 @@ namespace OPS.Landform
                 SaveMesh(surfaceMaskMesh, dbgMeshPrefix + "-surfaceMask");
             }
 
-            maskUVMeshOp = MakeUVMeshOp(surfaceMaskMesh);
-        }
-
-        private MeshOperator MakeUVMeshOp(Mesh mesh)
-        {
-            foreach (Vertex v in mesh.Vertices)
+            foreach (Vertex v in surfaceMaskMesh.Vertices)
             {
                 v.UV = new Vector2(v.Position.X, v.Position.Y);
             }
-            mesh.HasUVs = true;
+            surfaceMaskMesh.HasUVs = true;
 
-            return new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+            maskUVMeshOp =
+                new MeshOperator(surfaceMaskMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
         }
 
         private void ReconstructSurfaceToMask()
@@ -634,10 +639,100 @@ namespace OPS.Landform
 
         private void MergeOrbitalToSurface()
         {
-            //TODO
-            int offset = mesh.Vertices.Count;
-            mesh.Vertices.AddRange(orbitalMesh.Vertices);
-            mesh.Faces.AddRange(orbitalMesh.Faces.Select(f => new Face(f.P0 + offset, f.P1 + offset, f.P2 + offset)));
+            var meshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: true, buildUVFaceTree: false);
+
+            double blendMin = options.OrbitalBlendMin;
+            double blendRadius = options.OrbitalBlendRadius;
+            double sewRadius = options.OrbitalSewRadius;
+            double smoothRadius = 0.1 * blendRadius;
+
+            double boundsRadius = options.ClipSurfaceExtent > 0 ? options.ClipSurfaceExtent + blendRadius : 0;
+            double blendRadiusSq = blendRadius * blendRadius;
+            double sewRadiusSq = sewRadius * sewRadius;
+
+            pipeline.LogInfo("collecting nearest surface vertices within {0}m of orbital", blendRadius);
+            var vertPairs = new ConcurrentDictionary<int, int>(); //orbitalMesh vert index -> mesh vert index
+            CoreLimitedParallel.For(0, orbitalMesh.Vertices.Count, i =>
+            {
+                var demVert = orbitalMesh.Vertices[i];
+                Vector3 demPt = demVert.Position;
+                if (boundsRadius <= 0 || (Math.Abs(demPt.X) <= boundsRadius && Math.Abs(demPt.Y) <= boundsRadius))
+                {
+                    double minDistSq = double.PositiveInfinity;
+                    int closest = -1;
+                    foreach (var j in meshOp.NearestVertexIndicesXY(demVert.Position, blendRadius))
+                    {
+                        Vector3 meshPt = mesh.Vertices[j].Position;
+                        double dx = meshPt.X - demPt.X;
+                        double dy = meshPt.Y - demPt.Y;
+                        double distSq = dx * dx + dy * dy;
+                        if (distSq < minDistSq)
+                        {
+                            minDistSq = distSq;
+                            closest = j;
+                        }
+                    }
+                    if (closest >= 0)
+                    {
+                        vertPairs[i]= closest;
+                    }
+                }
+            });
+            
+            pipeline.LogInfo("blending {0} orbital vertices", Fmt.KMG(vertPairs.Count));
+                    
+            var orbitalMeshOp =
+                new MeshOperator(orbitalMesh, buildFaceTree: false, buildVertexTree: true, buildUVFaceTree: false);
+
+            var blendedOrbitalMesh = new Mesh(orbitalMesh);
+            CoreLimitedParallel.ForEach(vertPairs, pair =>
+            {
+                var demVert = orbitalMesh.Vertices[pair.Key];
+                var blendedVert = blendedOrbitalMesh.Vertices[pair.Key];
+                var meshVert = mesh.Vertices[pair.Value];
+                var demPt = demVert.Position;
+                var meshPt = meshVert.Position;
+                double dx = meshPt.X - demPt.X;
+                double dy = meshPt.Y - demPt.Y;
+                double distSq = dx * dx + dy * dy;
+                if (distSq < sewRadiusSq)
+                {
+                    blendedVert.Position = meshPt;
+                }
+                else
+                {
+                    double mz = 0, n = 0;
+                    Vector2 mxy = Vector2.Zero;
+                    foreach (var i in orbitalMeshOp.NearestVertexIndicesXY(demPt, smoothRadius))
+                    {
+                        if (vertPairs.ContainsKey(i))
+                        {
+                            var mv = mesh.Vertices[vertPairs[i]];
+                            mz += mv.Position.Z;
+                            mxy.X += mv.Position.X;
+                            mxy.Y += mv.Position.Y;
+                            n++;
+                        }
+                    }
+                    mz = n > 0 ? mz / n : meshVert.Position.Z;
+                    double dist = n > 0 ? Vector2.Distance(mxy / n, new Vector2(demPt.X, demPt.Y)) : Math.Sqrt(distSq);
+                    double blend = Math.Min(1.0, Math.Max(blendMin, Math.Sqrt(dist / blendRadius)));
+                    blendedVert.Position.Z = demPt.Z * blend + mz * (1.0 - blend);
+                }
+            });
+
+            blendedOrbitalMesh.Clean();
+
+            if (options.WriteDebug)
+            {
+                SaveMesh(blendedOrbitalMesh, dbgMeshPrefix + "-blendedOrbital");
+            }
+
+            int nv = mesh.Vertices.Count;
+            mesh.Vertices.AddRange(blendedOrbitalMesh.Vertices);
+            mesh.Faces.AddRange(blendedOrbitalMesh.Faces.Select(f => new Face(f.P0 + nv, f.P1 + nv, f.P2 + nv)));
+
+            mesh.Clean();
         }
 
         private void ClipMesh(double extent, bool clipToPointCloudBounds = true)
@@ -669,6 +764,9 @@ namespace OPS.Landform
             {
                 throw new Exception("clipped mesh is empty");
             }
+
+            mesh.RemoveFloaters();
+            mesh.RemoveUnreferencedVertices();
 
             mesh.Clean(); // normalizes the normals
 
