@@ -35,25 +35,25 @@ namespace OPS.Landform
         [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
         public double PreClipPointCloudExtent { get; set; }
 
-        [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
-        public double PreClipMeshExtent { get; set; }
+        [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = 32)]
+        public double ClipSurfaceExtent { get; set; }
 
-        [Option(HelpText = "Post-meshing clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 32)]
+        [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 64)]
         public double ClipExtent { get; set; }
 
         [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 8.0)]
         public double TrimmerLevel { get; set; }
 
         [Option(HelpText = "Fill holes in largest island created from surface trimmer. Cull other islands", Default = false)]
-        public bool FillHoles { get; set; }
+        public bool NoFillHoles { get; set; }
 
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
-        [Option(HelpText = "Use orbital to fill in outer edges of mesh", Default = false)]
-        public bool UseOrbital { get; set; }
+        [Option(HelpText = "Don't use orbital to fill in outer edges of mesh", Default = false)]
+        public bool NoOrbital { get; set; }
 
-        [Option(HelpText = "Orbital resolution, interpolates for higher density", Default = 2)]
+        [Option(HelpText = "Orbital resolution, interpolates for higher density", Default = 20)]
         public double OrbitalPointsPerMeter { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 5)]
@@ -106,8 +106,9 @@ namespace OPS.Landform
         private Mesh surfaceMaskMesh;
         private Mesh orbitalMesh;
 
-        private MeshOperator premaskUVMeshOp; //for mesh before ReconstructSurfaceToMask()
         private MeshOperator maskUVMeshOp; //for surfaceMaskMesh
+
+        private string dbgMeshPrefix;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
@@ -127,31 +128,39 @@ namespace OPS.Landform
                 RunPhase("merge point clouds", MergePointClouds);
                 RunPhase("reconstruct mesh", ReconstructMesh);
 
-                if (options.UseOrbital)
+                if (!options.NoOrbital)
                 {
-                    RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.UseOrbital
+                    RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
                 }
 
-                if (options.UseOrbital && options.PreClipMeshExtent > 0)
+                if (options.NoOrbital)
                 {
-                    RunPhase("pre clip mesh", () => ClipMesh(options.PreClipMeshExtent, clipToPointCloudBounds: true));
+                    dbgMeshPrefix += "-noOrbital";
                 }
 
-                if (options.FillHoles || options.UseOrbital)
+                if (!options.NoFillHoles || !options.NoOrbital)
                 {
+                    RunPhase("clip surface mesh", ClipSurfaceMesh);
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
                     RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
                 }
 
-                if (options.UseOrbital)
+                if (!options.NoOrbital)
                 {
                     RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask);
                     RunPhase("merge orbital to surface", MergeOrbitalToSurface);
                 }
-
-                RunPhase("clip mesh", () => ClipMesh(options.ClipExtent, clipToPointCloudBounds: !options.UseOrbital));
-                RunPhase("clean mesh", CleanMesh);
+                else if (options.NoFillHoles)
+                {
+                    //no orbital or hole filling, just clip surface mesh
+                    double extent = options.ClipExtent;
+                    if (extent <= 0 || (options.ClipSurfaceExtent > 0 && options.ClipSurfaceExtent < extent))
+                    {
+                        extent = options.ClipSurfaceExtent;
+                    }
+                    RunPhase("clip final mesh", () => ClipMesh(extent));
+                }
 
                 if (options.TargetSceneMeshFaces > 0)
                 {
@@ -219,6 +228,9 @@ namespace OPS.Landform
                 // remove disconnected islands of pts
                 TrimmerIslandPct = options.TrimmerIslandPct
             };
+
+            var obsNames = onlyForObs.Select(o => o.Name).ToArray();
+            dbgMeshPrefix = SceneMesh.MakeName(meshFrame, MeshVariant.Default, siteDrives, obsNames);
 
             return true;
         }
@@ -420,6 +432,18 @@ namespace OPS.Landform
             {
                 throw new Exception("failed to build mesh");
             }
+
+            mesh.RemoveFloaters();
+            mesh.RemoveUnreferencedVertices();
+        }
+
+        private void ClipSurfaceMesh()
+        {
+            ClipMesh(options.ClipSurfaceExtent);
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, dbgMeshPrefix + "-clippedSurface");
+            }
         }
 
         private void LoadOrbital()
@@ -427,27 +451,27 @@ namespace OPS.Landform
             if (options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
                 pipeline.LogWarn("orbital geometry requires poisson surface trimmer");
-                options.UseOrbital = false;
+                options.NoOrbital = true;
                 return;
             }
 
             if (!SiteDrive.IsSiteDriveString(meshFrame))
             {
                 pipeline.LogWarn("mesh frame {0} is not a site drive, cannot use orbital", meshFrame);
-                options.UseOrbital = false;
+                options.NoOrbital = true;
                 return;
             }
 
             try
             {
-                orbitalDEM = mission.LoadOrbital(new SiteDrive(meshFrame), options.OrbitalDEM, logger: pipeline);
-                orbitalDEM.MinFilter = options.DEMMinFilter;
-                orbitalDEM.MaxFilter = options.DEMMaxFilter;
+                orbitalDEM = mission.LoadOrbital(new SiteDrive(meshFrame), options.OrbitalDEM,
+                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                 logger: pipeline);
             }
             catch (Exception ex)
             {
                 pipeline.LogWarn("failed to load orbital DEM or PlacesDB, running without orbital: {0}", ex.Message);
-                options.UseOrbital = false;
+                options.NoOrbital = true;
                 return;
             }
 
@@ -455,7 +479,7 @@ namespace OPS.Landform
             if (ft == null)
             {
                 pipeline.LogWarn("failed to retrieve aligned orbital transform");
-                options.UseOrbital = false;
+                options.NoOrbital = true;
                 return;
             }
 
@@ -476,6 +500,11 @@ namespace OPS.Landform
                                                    VertexProjection.ProjectionAxis.Z,
                                                    Shrinkwrap.ProjectionMissResponse.Clip);
             shrinkwrappedSurface.Clean();
+
+            if (options.WriteDebug)
+            {
+                SaveMesh(shrinkwrappedSurface, dbgMeshPrefix + "-shrinkwrap");
+            }
         }
 
         private void CreateSurfaceMaskMesh()
@@ -504,12 +533,14 @@ namespace OPS.Landform
                 }
             }
 
-            maskUVMeshOp = MakeUVMeshOp(surfaceMaskMesh);
+            surfaceMaskMesh.ReverseWinding();
 
-            if (options.UseOrbital)
+            if (options.WriteDebug)
             {
-                premaskUVMeshOp = MakeUVMeshOp(mesh);
+                SaveMesh(surfaceMaskMesh, dbgMeshPrefix + "-surfaceMask");
             }
+
+            maskUVMeshOp = MakeUVMeshOp(surfaceMaskMesh);
         }
 
         private MeshOperator MakeUVMeshOp(Mesh mesh)
@@ -548,177 +579,71 @@ namespace OPS.Landform
 
             mesh.RemoveFloaters();
             mesh.RemoveUnreferencedVertices();
+
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, dbgMeshPrefix + "-maskedSurface");
+            }
         }
 
         private void ReconstructOrbitalToMask()
         {
             var cfg = OrbitalConfig.Instance;
 
-            //Ensure orbital covers clip extent
-            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / cfg.OrbitalDEMMetersPerPixel) + 2;
+            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / cfg.OrbitalDEMMetersPerPixel);
 
-            Func<Vector3, Vector3> adjust = p => p;
-            if (options.AdjustOrbital)
-            {
-                var adjustments = CreateAdjustments(orbitalRadiusPixels);
-
-                //Weights the relative affect of nearby orbital -> surface error measurements
-                Func<double, double> weight = d => 1 / Math.Pow(Math.E, d);
-                //Scales the absolute effect of neaby orbital -> surface error
-                Func<double, double> decay = d => 1 / (d / 2 + 1);
-
-                adjust = p =>
-                {
-                    Vector3 ret = p;
-                    double distSq;
-                    double zAdjust = 0;
-                    double sum = 0;
-                    double minD = Double.PositiveInfinity;
-                    double w;
-                    foreach (Vector3 adj in adjustments)
-                    {
-                        distSq = Math.Pow(adj.X - p.X, 2) + Math.Pow(adj.Y - p.Y, 2);
-                        if (distSq < minD)
-                        {
-                            minD = distSq;
-                        }
-                        w = weight(distSq);
-                        zAdjust += adj.Z * w;
-                        sum += w;
-                    }
-                    ret.Z += (zAdjust / sum) * decay(minD); //weighted average
-                    return ret;
-                };
-            }
-
-            // Build mesh from dem points surrounding surface mesh, with a padding of filterRadius.
-            // Extent is determined by maxRadiusPixels around ctrPt.
-            // Point density (interpolated if higher than dem resolution) is controlled by subSamplePixels
-            
-            double filterRadiusPixels = options.FilterRadius / cfg.OrbitalDEMMetersPerPixel;
-            double filterRadiusSq = filterRadiusPixels * filterRadiusPixels;
-            orbitalDEM.Mask = new Mask(orbitalDEM.Width, orbitalDEM.Height, useHash: true);
-            foreach (var p in surfaceMaskMesh.Vertices)
-            {
-                var ctr = orbitalDEM.CameraModel.Project(Vector3.Transform(p.Position, meshToOrbital));
-                var b = orbitalDEM.GetSubrectPixels(filterRadiusPixels, ctr);
-                for (int r = b.MinY; r <= b.MaxY; r++)
-                {
-                    for (int c = b.MinX; c <= b.MaxX; c++)
-                    {
-                        double distSq = (ctr.Y - r) * (ctr.Y - r) + (ctr.X - c) * (ctr.X - c);
-                        if (distSq < filterRadiusSq)
-                        {
-                            orbitalDEM.Mask.SetInvalid(r, c);
-                        }
-                    }
-                }
-            }
-
-            orbitalMesh = new Mesh();
             var bounds = orbitalDEM.GetSubrectPixels(orbitalRadiusPixels);
-            double samplesPerPixel = options.OrbitalPointsPerMeter * cfg.OrbitalDEMMetersPerPixel;
+            int samplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * cfg.OrbitalDEMMetersPerPixel);
+            var points = new Image(3, bounds.Width * samplesPerPixel, bounds.Height * samplesPerPixel);
+            points.CreateMask();
             double step = 1.0 / samplesPerPixel;
             for (double r = bounds.MinY; r <= bounds.MaxY; r += step)
             {
                 for (double c = bounds.MinX; c <= bounds.MaxX; c += step)
                 {
+                    int cc = (int)((c - bounds.MinX) / step);
+                    int rr = (int)((r - bounds.MinY) / step);
+                    bool mask = true;
                     var px = new Vector2(c, r);
                     var pt = orbitalDEM.GetInterpolatedXYZ(px);
                     if (pt.HasValue)
                     {
-                        var demPt = Vector3.Transform(pt.Value, orbitalToMesh);
-                        if (maskUVMeshOp.UVToBarycentric(new Vector2(demPt.X, demPt.Y)) == null)
+                        pt = Vector3.Transform(pt.Value, orbitalToMesh);
+                        if (maskUVMeshOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
                         {
-                            Vertex v = new Vertex();
-                            v.Position = adjust(demPt);
-                            var n = orbitalDEM.GetInterpolatedNormal(px);
-                            if (!n.HasValue)
-                            {
-                                n = new Vector3(0, 0, -1); //LOCAL_LEVEL frame is Z down
-                            }
-                            v.Normal = Vector3.Normalize(Vector3.TransformNormal(n.Value, orbitalToMesh));
-                            orbitalMesh.Vertices.Add(v);
+                            points[0, rr, cc] = (float)pt.Value.X;
+                            points[1, rr, cc] = (float)pt.Value.Y;
+                            points[2, rr, cc] = (float)pt.Value.Z;
+                            mask = false;
                         }
                     }
-                }
-            }
-
-            orbitalMesh.Vertices.AddRange(surfaceMaskMesh.Vertices);
-
-            orbitalMesh = Delaunay.Triangulate(orbitalMesh.Vertices, reverseWinding: true);
-            orbitalMesh.Faces = orbitalMesh.Faces.Where(face =>
-            {
-                Triangle tri = new Triangle(orbitalMesh.Vertices[face.P0],
-                                            orbitalMesh.Vertices[face.P1],
-                                            orbitalMesh.Vertices[face.P2]);
-                Vector3 c = tri.Barycenter();
-                return maskUVMeshOp.UVToBarycentric(new Vector2(c.X, c.Y)) == null;
-            }).ToList();
-
-            orbitalMesh.RemoveUnreferencedVertices();
-        }
-
-        private List<Vector3> CreateAdjustments(double orbitalRadiusPixels)
-        {
-            var bounds = orbitalDEM.GetSubrectPixels(orbitalRadiusPixels);
-            var ret = new List<Vector3>();
-            for (int r = bounds.MinY; r <= bounds.MaxY; r++)
-            {
-                for (int c = bounds.MinX; c <= bounds.MaxX; c++)
-                {
-                    var pt = orbitalDEM.GetXYZ(r, c);
-                    if (pt.HasValue)
+                    if (mask)
                     {
-                        var demPt = Vector3.Transform(pt.Value, orbitalToMesh);
-                        var surfPt = premaskUVMeshOp.UVToBarycentric(new Vector2(demPt.X, demPt.Y));
-                        if (surfPt != null)
-                        {
-                            ret.Add(new Vector3(demPt.X, demPt.Y, surfPt.Position.Z - demPt.Z));
-                        }
+                        points.SetMaskValue(rr, cc, true);
                     }
                 }
             }
-            foreach (Vertex v in surfaceMaskMesh.Vertices)
+
+            orbitalMesh = OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: false);
+
+            if (options.WriteDebug)
             {
-                var px = orbitalDEM.GetPixel(Vector3.Transform(v.Position, meshToOrbital));
-                if (px.HasValue)
-                {
-                    var pt = orbitalDEM.GetInterpolatedXYZ(px.Value);
-                    if (pt.HasValue)
-                    {
-                        Vector3 demPt = Vector3.Transform(pt.Value, orbitalToMesh);
-                        ret.Add(new Vector3(v.Position.X, v.Position.Y, v.Position.Z - demPt.Z));
-                    }
-                }
+                SaveMesh(orbitalMesh, dbgMeshPrefix + "-orbital");
             }
-            return ret;
         }
 
         private void MergeOrbitalToSurface()
         {
-            Mesh merged = new Mesh();
-
-            merged.Vertices = orbitalMesh.Vertices;
-            merged.Vertices.AddRange(mesh.Vertices);
-
-            int offset = orbitalMesh.Vertices.Count;
-            merged.Faces = orbitalMesh.Faces;
-            merged.Faces.AddRange(mesh.Faces.Select(f => new Face(f.P0 + offset, f.P1 + offset, f.P2 + offset)));
-
-            //TODO: This is an approximate stitch that seems to work well where geometry/topology is simple.
-            //      If surface trimmer boundary fixed this may be good enough when combined with skirting
-            /*Mesh tris = Delaunay.Triangulate(merged.Vertices, reverseWinding: true);
-            merged.Faces.AddRange(tris.Faces.Where(f => !(f.P0 < offset && f.P1 < offset && f.P2 < offset ||
-                                                      f.P0 >= offset && f.P1 >= offset && f.P2 >= offset)));*/
-            //merged.AddSkirt(SkirtMode.Z, invert: true);
-
-            mesh = merged;
+            //TODO
+            int offset = mesh.Vertices.Count;
+            mesh.Vertices.AddRange(orbitalMesh.Vertices);
+            mesh.Faces.AddRange(orbitalMesh.Faces.Select(f => new Face(f.P0 + offset, f.P1 + offset, f.P2 + offset)));
         }
 
-        private void ClipMesh(double extent, bool clipToPointCloudBounds)
+        private void ClipMesh(double extent, bool clipToPointCloudBounds = true)
         {
             double minZ = double.NaN, maxZ = double.NaN;
+
             if (clipToPointCloudBounds)
             {
                 pipeline.LogInfo("clipping mesh to source point cloud bounds");
@@ -744,10 +669,7 @@ namespace OPS.Landform
             {
                 throw new Exception("clipped mesh is empty");
             }
-        }
 
-        private void CleanMesh()
-        {
             mesh.Clean(); // normalizes the normals
 
             if (mesh.Faces.Count == 0)
@@ -831,7 +753,7 @@ namespace OPS.Landform
                 
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, sceneMesh.Name);
+                SaveMesh(mesh, dbgMeshPrefix);
             }
 
             var bounds = mesh.Bounds().Size();
