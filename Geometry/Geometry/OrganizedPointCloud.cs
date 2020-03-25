@@ -351,20 +351,20 @@ namespace OPS.Geometry
                 return pixelToVert[r,c];
             }
 
-            void addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
+            bool addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
             {
                 if (!points.IsValid(r0, c0) || !points.IsValid(r1, c1) || !points.IsValid(r2, c2))
                 {
-                    return;
+                    return false;
                 }
                 if (normals != null &&
                     (!normals.IsValid(r0, c0) || !normals.IsValid(r1, c1) || !normals.IsValid(r2, c2)))
                 {
-                    return;
+                    return false;
                 }
                 if (mask != null && (mask[0, r0, c0] == 0 || mask[0, r1, c1] == 0 || mask[0, r2, c2] == 0))
                 {
-                    return;
+                    return false;
                 }
 
                 Vector3 v0 = new Vector3(points[0, r0, c0], points[1, r0, c0], points[2, r0, c0]);
@@ -384,24 +384,42 @@ namespace OPS.Geometry
                     int c = getOrAddVert(r2, c2);
                     ret.Faces.Add(reverseWinding ? new Face(a, c, b) : new Face(a, b, c));
                 }
+                return true;
             };
 
             List<int> tris = new List<int>();
-            for (int row = 0; row < points.Height - 1; row++)
+            for (int r = 0; r < points.Height - 1; r++)
             {
-                for (int col = 0; col < points.Width - 1; col++)
+                for (int c = 0; c < points.Width - 1; c++)
                 {
-                    //  (row, col)-----(row, col+1)
-                    //           |\    |       
-                    //           | \   |        
-                    //           |  \  |         
-                    //           |   \ |          
-                    //           |    \|           
-                    //(row+1, col)-----(row+1, col+1)
+                    //    (r, c)-----(r, c + 1)
+                    //         |\    |       
+                    //         | \ B |        
+                    //         |  \  |         
+                    //         | A \ |          
+                    //         |    \|           
+                    //(r + 1, c)-----(r + 1, c + 1)
 
-                    addFaceMaybe(row, col, row + 1, col + 1, row, col + 1); //upper triangle
+                    //    (r, c)-----(r, c + 1)
+                    //         |    /|       
+                    //         | C / |        
+                    //         |  /  |         
+                    //         | / D |          
+                    //         |/    |           
+                    //(r + 1, c)-----(r + 1, c + 1)
 
-                    addFaceMaybe(row, col, row + 1, col, row + 1, col + 1); //lower triangle
+                    if (addFaceMaybe(r, c, r + 1, c, r + 1, c + 1)) //A
+                    {
+                        addFaceMaybe(r, c, r + 1, c + 1, r, c + 1); //B
+                    }
+                    else if (addFaceMaybe(r, c, r + 1, c, r, c + 1)) //C
+                    {
+                        addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
+                    }
+                    else if (!addFaceMaybe(r, c, r + 1, c + 1, r, c + 1)) //B
+                    {
+                        addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
+                    }
                 }
             }
 
