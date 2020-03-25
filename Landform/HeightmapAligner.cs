@@ -42,13 +42,13 @@ namespace OPS.Landform
         [Option(Required = false, Default = 0, HelpText = "Number of simulated annealing stages")]
         public int NumAnnealingStages { get; set; }
 
-        [Option(Required = false, Default = 0.01f, HelpText = "Run simulated annealing until reaching this RMS error (meters)")]
+        [Option(Required = false, Default = 0.001f, HelpText = "Run alignment stages until reaching this RMS error (meters)")]
         public float ErrorThreshold { get; set; }
 
-        [Option(Required = false, Default = 100, HelpText = "Minimum samples required to perform simulated annealing")]
+        [Option(Required = false, Default = 100, HelpText = "Minimum samples required for alignment")]
         public float MinSamples { get; set; }
 
-        [Option(Required = false, Default = 1000, HelpText = "Maximum number of samples for simulated annealing")]
+        [Option(Required = false, Default = 1000, HelpText = "Maximum number of samples for alignment")]
         public int MaxSamples { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
@@ -263,57 +263,49 @@ namespace OPS.Landform
             sdAdjustment[baseSiteDrive] = Matrix.Identity;
 
             var aligner = MakeAligner();
-                    
+
+            var scenes = new List<DEM>() { sdDEMs[baseSiteDrive] };
+            var sceneToWorlds = new List<Matrix>() { BestTransform(baseSiteDrive) * sdAdjustment[baseSiteDrive] };
             for (int i = 1 /* don't attempt to align base site drive */; i < siteDrives.Length; i++)
             {
                 var siteDrive = siteDrives[i];
 
                 pipeline.LogInfo("beginning alignment for site drive {0}", siteDrive.ToString());
 
-                //align to the best aligned sitedrive with sufficient overlap
-                bool success = false;
-                foreach (var otherSD in siteDrives.Where(sd => sd != siteDrive && sdAdjustment.ContainsKey(sd)))
+                try
                 {
-                    try
+                    if (options.WriteDebug)
                     {
-                        if (options.WriteDebug)
+                        aligner.SavePriorMatchMesh = mesh =>
                         {
-                            aligner.SavePriorMatchMesh = mesh =>
-                            {
-                                SaveMesh(mesh, string.Format("{0}-{1}_Heightmap_Prior_Matches", otherSD, siteDrive));
-                            };
-                            aligner.SaveAdjustedMatchMesh = mesh =>
-                            {
-                                SaveMesh(mesh, string.Format("{0}-{1}_Heightmap_Adj_Matches", otherSD, siteDrive));
-                            };
-                        }
-                        pipeline.LogInfo("attempting to align site drive {0} to site drive {1}", siteDrive, otherSD);
-                        var adj = aligner.AlignDEMToScene(sdDEMs[siteDrive], BestTransform(siteDrive),
-                                                          new DEM[] { sdDEMs[otherSD] },
-                                                          new Matrix[] { BestTransform(otherSD) }, //un-adjusted other
-                                                          out double initialRMS, out double finalRMS);
-                        if (adj.HasValue)
+                            SaveMesh(mesh, string.Format("surface-{0}_Heightmap_Prior_Matches", siteDrive));
+                        };
+                        aligner.SaveAdjustedMatchMesh = mesh =>
                         {
-                            pipeline.LogInfo("aligned site drive {0} to site drive {1}: RMS error {2} -> {3}",
-                                             siteDrive, otherSD, initialRMS, finalRMS);
-                            sdAdjustment[siteDrive] = adj.Value * sdAdjustment[otherSD];
-                            success = true;
-                            break;
-                        }
-                        else
-                        {
-                            pipeline.LogInfo("insufficient overlap to align site drive {0} to {1}", siteDrive, otherSD);
-                        }
+                            SaveMesh(mesh, string.Format("surface-{0}_Heightmap_Adj_Matches", siteDrive));
+                        };
                     }
-                    catch (Exception ex)
+                    pipeline.LogInfo("attempting to align site drive {0}", siteDrive);
+                    var adj =
+                        aligner.AlignDEMToScene(sdDEMs[siteDrive], BestTransform(siteDrive),
+                                                scenes.ToArray(), sceneToWorlds.ToArray(),
+                                                out double initialRMS, out double finalRMS);
+                    if (adj.HasValue)
                     {
-                        pipeline.LogException(ex, string.Format("error aligning site drive {0} to site drive {1}",
-                                                                siteDrive, otherSD));
+                        pipeline.LogInfo("aligned site drive {0}: RMS error {1} -> {2}",
+                                         siteDrive, initialRMS, finalRMS);
+                        sdAdjustment[siteDrive] = adj.Value;
+                        scenes.Add(sdDEMs[siteDrive]);
+                        sceneToWorlds.Add(BestTransform(siteDrive) * sdAdjustment[siteDrive]);
+                    }
+                    else
+                    {
+                        pipeline.LogInfo("insufficient overlap to align site drive {0}", siteDrive);
                     }
                 }
-                if (!success)
+                catch (Exception ex)
                 {
-                    pipeline.LogInfo("no sufficient overlap of site drive {0} with any aligned sitedrive", siteDrive);
+                    pipeline.LogException(ex, string.Format("error aligning site drive {0}", siteDrive));
                 }
             }
         }

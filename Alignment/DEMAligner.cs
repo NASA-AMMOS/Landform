@@ -26,7 +26,7 @@ namespace OPS.Alignment
         //but an initial height adjustment is always run
         public int NumAnnealingStages = 0;
 
-        //disable XY translation and in-plane rotation
+        //disable XY translation and in-plane rotation (does not apply to ICP)
         public bool PreserveXY = false;
 
         //only use square DEM areas within this radius, if positive
@@ -38,10 +38,10 @@ namespace OPS.Alignment
         //collect up to this many pairs of sample points between DEM and (all) scenes
         public int MaxSamples = 3000;
 
-        //stop running simulated annealing stages if RMS error falls below this threshold
+        //stop alignment when RMS error falls below this threshold
         public double MinRMSError = 0.05;
 
-        //min relative reduction in RMS to continue
+        //min relative reduction in RMS to continue alignment
         public double MinRMSProgress = 0.01;
 
         //filter outlier sample pairs beyond this distance from the median
