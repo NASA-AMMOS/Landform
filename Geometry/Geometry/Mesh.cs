@@ -17,7 +17,7 @@ namespace OPS.Geometry
     /// </summary>
     public enum SkirtMode { X, Y, Z, Normal, None }
 
-    public enum MeshColor { None, Texture, Normals, Elevation, Curvature };
+    public enum MeshColor { None, Texture, Normals, NormalMagnitude, Elevation, Curvature };
     
     /// <summary>
     /// A class representing a 3D mesh
@@ -1668,6 +1668,54 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// set vertex color components from length of vertex normal
+        /// if zeroColor and maxColor are given they define a linear color ramp
+        /// otherwise zeroColor = (0, 0, 0) and maxColor = (1, 1, 1)
+        /// </summary>
+        public void ColorByNormalMagnitude(out double min, out double max,
+                                           Vector3? zeroColor = null, Vector3? maxColor = null)
+        {
+            if (!HasNormals)
+            {
+                throw new ArgumentException("cannot color mesh without normals by normal magnitude");
+            }
+            min = double.PositiveInfinity;
+            max = double.NegativeInfinity;
+            foreach (var v in Vertices)
+            {
+                double m = v.Normal.Length();
+                min = Math.Min(m, min);
+                max = Math.Max(m, max);
+            }
+            double range = max - min;
+            if (zeroColor.HasValue && maxColor.HasValue)
+            {
+                foreach (var v in Vertices)
+                {
+                    double m = v.Normal.Length();
+                    double t = (m - min) / range;
+                    v.Color.X = t * maxColor.Value.X + (1 - t) * zeroColor.Value.X;
+                    v.Color.Y = t * maxColor.Value.Y + (1 - t) * zeroColor.Value.Y;
+                    v.Color.Z = t * maxColor.Value.Z + (1 - t) * zeroColor.Value.Z;
+                }
+            }
+            else
+            {
+                foreach (var v in Vertices)
+                {
+                    double m = v.Normal.Length();
+                    v.Color.X = v.Color.Y = v.Color.Z = (m - min) / range;
+                }
+            }
+            HasColors = true;
+        }
+
+        public void ColorByNormalMagnitude(Vector3? zeroColor = null, Vector3? maxColor = null)
+        {
+            ColorByNormalMagnitude(out double min, out double max, zeroColor, maxColor);
+        }
+            
+        /// <summary>
         /// compute elevation at each vertex and set it as greyscale vertex color
         /// up defaults to (0, 0, -1) which corresponds to standard mission frames (e.g. SITE, LOCAL_LEVEL)
         /// </summary>
@@ -1763,6 +1811,12 @@ namespace OPS.Geometry
             {
                 case MeshColor.None: break;
                 case MeshColor.Texture: break;
+                case MeshColor.NormalMagnitude:
+                {
+                    ColorByNormalMagnitude(out min, out max);
+                    adjustColors = greyscale = true;
+                    break;
+                }
                 case MeshColor.Normals:
                 {
                     ColorByNormals(out min, out max, tiltMode);

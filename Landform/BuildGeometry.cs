@@ -464,6 +464,16 @@ namespace OPS.Landform
             //because we're dealing with natural terrain it is pretty reasonable to compute vertex normals from faces
             //i.e. no sharp crease angles expected
             mesh.Clean(); //removes degenerate faces
+
+            if (options.WriteDebug)
+            {
+                var colored = new Mesh(mesh);
+                var red = new Vector3(1, 0, 0);
+                var green = new Vector3(0, 1, 0);
+                colored.ColorByNormalMagnitude(red, green);
+                SaveMesh(colored, dbgMeshPrefix + "-confidence");
+            }
+
             mesh.GenerateVertexNormals();
         }
 
