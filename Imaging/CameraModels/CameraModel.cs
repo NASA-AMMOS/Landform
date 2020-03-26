@@ -51,6 +51,11 @@ namespace OPS.Imaging
         /// <returns></returns>
         public abstract Vector2 Project(Vector3 pos, out double range);
 
+        public Vector2 Project(Vector3 pos)
+        {
+            return Project(pos, out double range);
+        }
+
         /// <summary>
         /// If true, this camera model is purely linear.
         /// </summary>

@@ -383,7 +383,8 @@ namespace OPS.Pipeline
         /// </summary>
         public static IEnumerable<string> FilterProductIdGroups(IEnumerable<string> products,
                                                                 MissionSpecific mission = null,
-                                                                Action<string> log = null)
+                                                                Action<string> log = null,
+                                                                Func<string, bool> logFilter = null)
         {
             IEnumerable<RoverProductId> filterRNG(IEnumerable<RoverProductId> ids)
             {
@@ -429,6 +430,11 @@ namespace OPS.Pipeline
                     }
                     idToProducts[id].Add(product);
                 }
+            }
+
+            string idToFile(RoverProductId id)
+            {
+                return StringHelper.GetLastUrlPathSegment(idToProducts[id][0]);
             }
 
             //filter each type of ID separately
@@ -501,15 +507,13 @@ namespace OPS.Pipeline
                         .GroupBy(id => id.GetPartialId(includeVersion: false))
                         .Select(ids => ids.OrderByDescending(id => id.Version).First())
                         .ToList();
-                    
-                    if (log != null && filtered.Count < orig.Count)
+
+                    if (log != null && filtered.Count < orig.Count &&
+                        (logFilter == null || filtered.Any(id => logFilter(idToFile(id)))))
                     {
                         log(string.Format
                             ("keeping best products(s) {0} of {1}", 
-                             String.Join(", ", filtered.Select(id => StringHelper
-                                                               .GetLastUrlPathSegment(idToProducts[id][0]))),
-                             String.Join(", ", orig.Select(id => StringHelper
-                                                           .GetLastUrlPathSegment(idToProducts[id][0])))));
+                             String.Join(", ", filtered.Select(idToFile)), String.Join(", ", orig.Select(idToFile))));
                     }
 
                     foreach (var id in filtered)

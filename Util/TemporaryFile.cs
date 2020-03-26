@@ -59,38 +59,12 @@ namespace OPS.Util
             try
             {
                 func(file);
+                PathHelper.MoveFileAtomic(file, destination, replaceExisting, moveLock);
             }
             catch (Exception)
             {
                 PathHelper.DeleteWithRetry(file, logger);
                 throw;
-            }
-            finally
-            {
-                if (File.Exists(file))
-                {
-                    if (replaceExisting || !File.Exists(destination))
-                    {
-                        //OK if exists, creates parents
-                        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(destination)));
-
-                        if (moveLock != null)
-                        {
-                            lock (moveLock)
-                            {
-                                //re-do existence check now that we hold the lock
-                                if (replaceExisting || !File.Exists(destination))
-                                {
-                                    PathHelper.MoveFileAtomic(file, destination);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            PathHelper.MoveFileAtomic(file, destination);
-                        }
-                    }
-                }
             }
         }
 

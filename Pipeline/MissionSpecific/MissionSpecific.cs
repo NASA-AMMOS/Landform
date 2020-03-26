@@ -1,21 +1,36 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using log4net;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Imaging;
+using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
-using Microsoft.Xna.Framework;
-using System.IO;
 
 namespace OPS.Pipeline
 {
     public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20 }
 
-    public abstract class MissionSpecific
+    public abstract class MissionSpecific : ConfigDefaultsProvider
     {
+        protected MissionSpecific()
+        {
+            Config.DefaultsProvider = this;
+        }
+
+        public string GetConfigDefaults(string configFilename)
+        {
+            switch (StringHelper.StripUrlExtension(configFilename))
+            {
+                case OrbitalConfig.CONFIG_FILENAME: return GetOrbitalConfigDefaults();
+                case PlacesConfig.CONFIG_FILENAME: return GetPlacesConfigDefaults();
+                default: return null;
+            }
+        }
+
         public static MissionSpecific GetInstance(Mission mission)
         {
             switch (mission)
@@ -879,38 +894,90 @@ namespace OPS.Pipeline
             return null;
         }
 
-        private int demWidth = -1; //Lazily computed
-        private int demHeight = -1;
-
-        public virtual bool GetDemToSiteDriveOffset(SiteDrive siteDrive, out Matrix demToSD, string demFilePath = null)
+        public virtual string GetOrbitalConfigDefaults()
         {
-            demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
-                OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
-            ImageSerializer s = ImageSerializers.Instance.GetSerializer(Path.GetExtension(demFilePath));
-            if (s.GetType() != typeof(GDALSerializer))
-            {
-                throw new NotImplementedException("Partial image read only supported for GDALSerializer.");
-            }
-            if (demWidth == -1)
-            {
-                ((GDALSerializer)s).GetMetadata(demFilePath, out int bands, out demWidth, out demHeight);
-            }
-
-            if(!GetSiteDriveOriginPixelInDem(siteDrive, out Vector2 colRowOffset, demFilePath))
-            {
-                demToSD = Matrix.Identity;
-                return false;
-            }
-
-            Vector3 demSDOriginXYZ = new Vector3((colRowOffset.X - demWidth / 2.0) * GetDemMetersPerPixel(),
-                                                 -1 * (colRowOffset.Y - demHeight / 2.0) * GetDemMetersPerPixel(),
-                                                 0);
-
-            demToSD = Matrix.CreateTranslation(-1 * demSDOriginXYZ);
-            return true;
+            return null;
         }
 
-        public abstract float GetDemMetersPerPixel();
-        public abstract bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null);
+        public virtual string GetPlacesConfigDefaults()
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
+        /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
+        /// </summary>
+        public virtual void GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir,
+                                                               out Vector3 downDir)
+        {
+            upDir = new Vector3(0, 0, -1);
+            rightDir = new Vector3(0, 1, 0);
+            downDir = new Vector3(-1, 0, 0);
+        }
+
+        /// <summary>
+        /// Load an orbital DEM image.
+        ///
+        /// demFile defaults to OrbitalConfig.OrbitalDEMStoragePath under LocalPipelineConfig.StorageDir.
+        ///
+        /// metersPerPixel defaults to OrbitalConfig.OrbitalDEMMetersPerPixel.
+        ///
+        /// Has OrthographicCameraModel that projects points in siteDrive frame to pixels on the DEM.
+        ///
+        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
+        ///
+        /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
+        ///
+        /// Requires PlacesDB to map siteDrive to a Lat/Lon in DEM.
+        ///
+        /// Uses the planetary body given by OrbitalConfig.OrbitalBodyName.
+        ///
+        /// Throws exception if
+        /// * failed to get lat/lon for siteDrive 
+        /// * lat/lon for siteDrive outside bounds of DEM
+        /// * no vaid elevation at lat/lon for siteDrive in DEM
+        /// </summary>
+        public virtual DEM LoadOrbital(SiteDrive siteDrive, string demFile = null,
+                                       double? metersPerPixel = null, double? elevationScale = null,
+                                       double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
+                                       ILogger logger = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+            
+            if (string.IsNullOrEmpty(demFile))
+            {
+                if (!string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+                {
+                    demFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
+                }
+                else
+                {
+                    throw new Exception("orbital DEM not available");
+                }
+            }
+
+            if (!metersPerPixel.HasValue)
+            {
+                metersPerPixel = cfg.OrbitalDEMMetersPerPixel;
+            }
+
+            if (!elevationScale.HasValue)
+            {
+                elevationScale = cfg.OrbitalDEMElevationScale;
+            }
+
+            var placesDB = new PlacesDB(logger, requireOrbital: true);
+            var gdalDEM = GDALDEM.Load(demFile, cfg.OrbitalBodyName);
+            var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
+            
+            GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir, out Vector3 downDir);
+
+            double? originElevation = null; //DEM constructor will look this up given originPixel
+
+            return new DEM(new DEM.SparseDEMImage(demFile), upDir, rightDir, downDir,
+                           metersPerPixel.Value, elevationScale.Value,
+                           originPixel, originElevation, minFilter, maxFilter);
+        }
     }
 }

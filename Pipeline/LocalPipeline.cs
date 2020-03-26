@@ -90,11 +90,8 @@ namespace OPS.Pipeline
         public override void SaveFile(string file, string url, bool constrainToStorage = true)
         {
             string dest = UrlToFile(CheckUrl(url, constrainToStorage));
-            PathHelper.EnsureExists(Path.GetDirectoryName(dest));
-            //use TemporaryFile.GetAndMove() rather than directly copy file to dest
-            //this avoids IOException due to "the file is being used by another process"
+            //avoid IOException due to "the file is being used by another process"
             //when multiple threads attempt to save the same file
-            //WRONG: File.Copy(file, dest, overwrite: true);
             TemporaryFile.GetAndMove(dest, tmp => File.Copy(file, tmp), replaceExisting: true, moveLock: saveLock);
         }
 
@@ -236,6 +233,12 @@ namespace OPS.Pipeline
         protected override bool EnableDataProductDiskCache()
         {
             return false;
+        }
+
+        protected override void SaveDataProductImpl(string file, string url)
+        {
+            string dest = UrlToFile(CheckUrl(url, constrainToStorage: true));
+            PathHelper.MoveFileAtomic(file, dest, replaceExisting: false, moveLock: saveLock);
         }
 
         private static readonly char[] invalidChars = new char[] {'/', '\\' };
@@ -499,7 +502,8 @@ namespace OPS.Pipeline
                     dbCache.TryGetValue(dbKey, out json);
                     if (!quiet)
                     {
-                        LogDebug("LoadDatabaseItem key={0} json={1}", dbKey, StringHelper.CollapseWhitespace(json));
+                        LogDebug("LoadDatabaseItem key={0} json={1}", dbKey,
+                                 json != null ? StringHelper.CollapseWhitespace(json) : "null");
                     }
                     return json != null ? FromJson<T>(json, ignoreNulls) : null;
                 });

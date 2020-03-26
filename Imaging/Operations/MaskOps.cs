@@ -134,14 +134,14 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// invalidate all but the largest blob of valid (i.e. un-masked) pixels
+        /// invalidate all but the largest blobs of valid (i.e. un-masked) pixels
+        /// keeps the largest blob and all other blobs within tolerance of size of largest
         /// operates on the image in-place
         /// </summary>
-        public static Image InvalidateAllButLargestValidBlob(this Image img, out int largestBlobSize)
+        public static Image InvalidateAllButLargestValidBlobs(this Image img, double tolerance = 0.2)
         {
             if (!img.HasMask)
             {
-                largestBlobSize = img.Width * img.Height;
                 return img;
             }
 
@@ -175,8 +175,9 @@ namespace OPS.Imaging
                 return size;
             }
 
-            largestBlobSize = 0;
-            Pixel seedOfLargestBlob = new Pixel();
+            int largestBlobSize = 0;
+            var blobs = new Dictionary<Pixel, int>(); //seed -> size
+
             for (int row = 0; row < img.Height; row++)
             {
                 for (int col = 0; col < img.Width; col++)
@@ -185,16 +186,16 @@ namespace OPS.Imaging
                     {
                         var seed = new Pixel(row, col);
                         int size = markBlob(seed);
+                        blobs[seed] = size;
                         if (size > largestBlobSize)
                         {
                             largestBlobSize = size;
-                            seedOfLargestBlob = seed;
                         }
                     }
                 }
             }
 
-            if (largestBlobSize > 0)
+            if (blobs.Count > 0)
             {
                 for (int row = 0; row < img.Height; row++)
                 {
@@ -203,7 +204,13 @@ namespace OPS.Imaging
                         marked[row, col] = false;
                     }
                 }
-                markBlob(seedOfLargestBlob);
+                foreach (var blob in blobs)
+                {
+                    if (blob.Value >= tolerance * largestBlobSize)
+                    {
+                        markBlob(blob.Key);
+                    }
+                }
                 for (int row = 0; row < img.Height; row++)
                 {
                     for (int col = 0; col < img.Width; col++)
@@ -216,11 +223,6 @@ namespace OPS.Imaging
                 }
             }
             return img;
-        }
-
-        public static Image InvalidateAllButLargestValidBlob(this Image img)
-        {
-            return img.InvalidateAllButLargestValidBlob(out int largestBlobSize);
         }
 
         public static Image MaskToImage(this Image img, float valid = 0, float invalid = 1)

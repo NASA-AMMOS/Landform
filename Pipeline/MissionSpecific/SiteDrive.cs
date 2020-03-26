@@ -13,6 +13,8 @@ namespace OPS.Pipeline
     /// </summary>
     public struct SiteDrive : IComparable<SiteDrive>
     {
+        public const int StringLength = 7;
+
         public readonly int Site, Drive; //wildcard if negative
 
         public static bool IsSiteDriveString(string sd)

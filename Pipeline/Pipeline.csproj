@@ -214,7 +214,7 @@
     <Compile Include="PipelineExecutive.cs" />
     <Compile Include="PipelineRoutine.cs" />
     <Compile Include="MissionSpecific\LegacyManifest.cs" />
-    <Compile Include="MissionSpecific\MSLPlaces.cs" />
+    <Compile Include="MissionSpecific\PlacesDB.cs" />
     <Compile Include="MissionSpecific\PDSImage.cs" />
     <Compile Include="MissionSpecific\RoverMasker.cs" />
     <Compile Include="MissionSpecific\RoverObservationComparator.cs" />

@@ -65,7 +65,6 @@ namespace OPS.Imaging
             return new BinaryImage(width, height);
         }
 
-
         private static readonly Vector2[] PixelCorners =
         {
             new Vector2(  0.0,  0.0), // upper left: 0
@@ -465,6 +464,53 @@ namespace OPS.Imaging
                     }
                 }
             }
+        }
+
+        public class Subrect
+        {
+            public int MinX, MinY, MaxX, MaxY;
+            public int Width { get { return MaxX - MinX + 1; } }
+            public int Height { get { return MaxY - MinY + 1; } }
+            public int Area { get { return Width * Height; } }
+        }
+
+        public Subrect GetSubrect(Vector2 center, double radiusPixels)
+        {
+            return GetSubrect(center, new Vector2(radiusPixels, radiusPixels));
+        }
+
+        public Subrect GetSubrect(Vector2 center, Vector2 halfExtentPixels)
+        {
+            var ret = new Subrect();
+
+            if (halfExtentPixels.X > 0)
+            {
+                ret.MinX = (int)Math.Max(0, Math.Ceiling(center.X - halfExtentPixels.X));
+                ret.MaxX = (int)Math.Min(Width - 1, Math.Ceiling(center.X + halfExtentPixels.X));
+            }
+            else
+            {
+                ret.MinX = 0;
+                ret.MaxX = Width - 1;
+            }
+
+            if (halfExtentPixels.Y > 0)
+            {
+                ret.MinY = (int)Math.Max(0, Math.Ceiling(center.Y - halfExtentPixels.Y));
+                ret.MaxY = (int)Math.Min(Height - 1, Math.Ceiling(center.Y + halfExtentPixels.Y));
+            }
+            else
+            {
+                ret.MinX = 0;
+                ret.MaxX = Height - 1;
+            }
+
+            if (ret.MinX >= Width || ret.MinY >= Height || ret.MaxX < 0 || ret.MaxY < 0)
+            {
+                ret.MinX = ret.MinY = 0;
+                ret.MaxX = ret.MaxY = -1;
+            }
+            return ret;
         }
     }
 

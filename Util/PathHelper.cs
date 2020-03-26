@@ -116,6 +116,15 @@ namespace OPS.Util
                 .Select(i => i as DirectoryInfo);
         }
 
+        //this seems to be the most palatable option to try to atomically move a file
+        //whether or not the destination already exists
+        //https://stackoverflow.com/a/38372760
+        //and yes, it's kernel32.dll even on 64 bit windows
+        //https://stackoverflow.com/a/1364762
+        [return: MarshalAs(UnmanagedType.Bool)]
+        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
+        private static extern bool MoveFileExW(string existingFileName, string newFileName, int flags);
+
         public static void MoveFileAtomic(string src, string dst)
         {
             if (!File.Exists(src))
@@ -123,6 +132,8 @@ namespace OPS.Util
                 throw new IOException(string.Format("error moving {0} to {1}: not found", src, dst));
             }
 
+            EnsureExists(Path.GetDirectoryName(Path.GetFullPath(dst)));
+                
             //there is a fighting chance that this is atomic
             //https://docs.microsoft.com/en-us/windows/desktop/FileIO/deprecation-of-txf#applications-updating-a-single-file-with-document-like-data
             //unfortunately it doesn't work when the destination file doesn't already exist
@@ -144,7 +155,8 @@ namespace OPS.Util
             if (!MoveFileExW(src, dst, 11))
             {
                 int code = Marshal.GetLastWin32Error(); 
-                throw new IOException(string.Format("error moving {0} to {1}: {2} ({3})", src, dst,
+                throw new IOException(string.Format("error moving {0} (exists={1}) to {2} (exists={3}): {4} ({5})",
+                                                    src, File.Exists(src), dst, File.Exists(dst),
                                                     code, new Win32Exception(code).Message));
             }
 
@@ -154,14 +166,26 @@ namespace OPS.Util
             }
         }
 
-        //this seems to be the most palatable option to try to atomically move a file
-        //whether or not the destination already exists
-        //https://stackoverflow.com/a/38372760
-        //and yes, it's kernel32.dll even on 64 bit windows
-        //https://stackoverflow.com/a/1364762
-        [return: MarshalAs(UnmanagedType.Bool)]
-        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Unicode)]
-        private static extern bool MoveFileExW(string existingFileName, string newFileName, int flags);
+        public static void MoveFileAtomic(string src, string dst, bool replaceExisting, object moveLock = null)
+        {
+            if (replaceExisting || !File.Exists(dst))
+            {
+                if (moveLock != null)
+                {
+                    lock (moveLock)
+                    {
+                        if (replaceExisting || !File.Exists(dst)) //re-do check now that we hold the lock
+                        {
+                            MoveFileAtomic(src, dst);
+                        }
+                    }
+                }
+                else
+                {
+                    MoveFileAtomic(src, dst);
+                }
+            }
+        }
 
         public const int DELETE_RETRIES = 5;
         public const int DELETE_RETRY_SEC = 10;

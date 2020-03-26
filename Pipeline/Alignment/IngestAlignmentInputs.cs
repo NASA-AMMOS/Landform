@@ -119,11 +119,12 @@ namespace OPS.Pipeline
                                           indices, pdsSiteOffsets);
         }
 
-        public int Ingest(MSLLocations locations, MSLPlaces places, MSLLegacyManifest manifest,
+        public int Ingest(PlacesDB places, MSLLocations locations, MSLLegacyManifest manifest,
                           Action<IngestImage.Result> func = null)
         {
-            ingester.Locations = locations;
             ingester.Places = places;
+
+            ingester.Locations = locations;
             ingester.LegacyManifest = manifest;
 
             pipeline.LogInfo("locations db priors {0}, places db priors {1}, legacy manifest db priors {2}",

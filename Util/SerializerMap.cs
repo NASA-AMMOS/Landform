@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using log4net;
 
 namespace OPS.Util
 {
@@ -106,6 +107,13 @@ namespace OPS.Util
             return CheckFormat(fmt,
                                (msg, args) => logger.LogInfo(msg, args),
                                (msg, args) => logger.LogError(msg, args));
+        }
+
+        public string CheckFormat(string fmt, ILog logger)
+        {
+            return CheckFormat(fmt,
+                               (msg, args) => logger.InfoFormat(msg, args),
+                               (msg, args) => logger.ErrorFormat(msg, args));
         }
     }
 }

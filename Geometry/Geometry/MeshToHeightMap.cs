@@ -29,7 +29,7 @@ namespace OPS.Geometry
             var ret = BuildDem(mesh, sceneBounds, xDimPixels, yDimPixels);
             int sbs = 1;
             ret.InvalidateSparseExternalBlocks(sbs, 0.5);
-            ret.InvalidateAllButLargestValidBlob();
+            ret.InvalidateAllButLargestValidBlobs();
             int oldW = ret.Width;
             int oldH = ret.Height;
             ret = ret.Trim(out Vector2 ulc);
