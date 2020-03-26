@@ -164,10 +164,10 @@ namespace OPS.Pipeline
                 if (logger != null)
                 {
                     logger.LogError("error getting ellipsoid radius from PlacesDB: {0}", ex.Message);
-                    if (requireOrbital)
-                    {
-                        throw;
-                    }
+                }
+                if (requireOrbital)
+                {
+                    throw;
                 }
             }
         }
