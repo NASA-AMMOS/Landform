@@ -41,7 +41,7 @@ namespace OPS.Landform
         [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
 
-        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 8.0)]
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 7.5)]
         public double TrimmerLevel { get; set; }
 
         [Option(HelpText = "Fill holes in largest island created from surface trimmer, cull other islands (hole filling requires --reconstructionmethod=Poission)", Default = false)]
@@ -94,6 +94,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Discard observation point cloud normals with fewer than this man valid 8-neighbors", Default = 8)]
         public int NormalFilter { get; set; }
+
+        [Option(HelpText = "Scale observation point cloud normals by confidence", Default = true)]
+        public bool UsePointCloudConfidence { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -114,11 +117,9 @@ namespace OPS.Landform
         private DEM orbitalDEM;
         private Matrix orbitalToMesh, meshToOrbital;
 
-        private Mesh shrinkwrappedSurface;
-        private Mesh surfaceMaskMesh;
+        private Mesh shrinkwrapMesh;
+        private MeshOperator maskUVMeshOp;
         private Mesh orbitalMesh;
-
-        private MeshOperator maskUVMeshOp; //for surfaceMaskMesh
 
         private string dbgMeshPrefix;
 
@@ -155,7 +156,10 @@ namespace OPS.Landform
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
                     RunPhase("create surface mask mesh", CreateSurfaceMaskMesh);
-                    RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
+                    if (maskUVMeshOp != null) //CreateSurfaceMaskMesh() failed
+                    {
+                        RunPhase("reconstruct surface to mask", ReconstructSurfaceToMask);
+                    }
                 }
 
                 if (!options.NoOrbital)
@@ -248,7 +252,7 @@ namespace OPS.Landform
                 
                 // indicates the normal magnitudes are not uniformly unit scaled
                 // to indicate confidence in the position attached to it
-                UseNormalsForConfidence = true,
+                UseNormalsForConfidence = options.UsePointCloudConfidence,
 
                 // remove low density points
                 TrimmerLevel = options.TrimmerLevel,
@@ -311,7 +315,7 @@ namespace OPS.Landform
             {
                 Frame = meshFrame,
                 NormalFilter = options.NormalFilter,
-                ScaleNormalsByConfidence = true
+                ScaleNormalsByConfidence = options.UsePointCloudConfidence
             };
 
             int no = wedges.Count;
@@ -535,58 +539,60 @@ namespace OPS.Landform
                                              (int)(bounds.Size().X * options.ShrinkwrapPointsPerMeter),
                                              (int)(bounds.Size().Y * options.ShrinkwrapPointsPerMeter),
                                              VertexProjection.ProjectionAxis.Z);
-            shrinkwrappedSurface = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
-                                                   VertexProjection.ProjectionAxis.Z,
-                                                   Shrinkwrap.ProjectionMissResponse.Clip);
-            shrinkwrappedSurface.Clean();
+            shrinkwrapMesh = Shrinkwrap.Wrap(grid, mesh, Shrinkwrap.ShrinkwrapMode.Project,
+                                             VertexProjection.ProjectionAxis.Z,
+                                             Shrinkwrap.ProjectionMissResponse.Clip);
+            shrinkwrapMesh.Clean();
 
             if (options.WriteDebug)
             {
-                SaveMesh(shrinkwrappedSurface, dbgMeshPrefix + "-shrinkwrap");
+                SaveMesh(shrinkwrapMesh, dbgMeshPrefix + "-shrinkwrap");
             }
         }
 
         private void CreateSurfaceMaskMesh()
         {
-            EdgeGraph edgeGraph = new EdgeGraph(shrinkwrappedSurface);
-            List<Edge> perimeterEdges = edgeGraph.GetLargestPolygonalBoundary();
-
-            //Ensure perimeter orientation is CCW
-            EdgeGraph.EnsureCCW(perimeterEdges);
-
-            surfaceMaskMesh = new Mesh();
-            surfaceMaskMesh.Vertices = perimeterEdges.Select(e => new Vertex(e.Src.Position)).ToList();
-
-            int id = 0;
-            foreach (Edge e in perimeterEdges)
+            try
             {
-                e.Src.ID = id;
-                id++;
-            }
-
-            foreach (Edge e in TriangulatePolygon.Triangulate(perimeterEdges))
-            {
-                if (e.Left != null)
+                EdgeGraph edgeGraph = new EdgeGraph(shrinkwrapMesh);
+                List<Edge> perimeterEdges = edgeGraph.GetLargestPolygonalBoundary();
+                
+                EdgeGraph.EnsureCCW(perimeterEdges);
+                
+                var maskMesh = new Mesh();
+                maskMesh.Vertices = perimeterEdges.Select(e => new Vertex(e.Src.Position)).ToList();
+                
+                int id = 0;
+                foreach (Edge e in perimeterEdges)
                 {
-                    surfaceMaskMesh.Faces.Add(new Face(e.Src.ID, e.Dst.ID, e.Left.ID));
+                    e.Src.ID = id;
+                    id++;
                 }
+                
+                foreach (Edge e in TriangulatePolygon.Triangulate(perimeterEdges))
+                {
+                    if (e.Left != null)
+                    {
+                        maskMesh.Faces.Add(new Face(e.Src.ID, e.Dst.ID, e.Left.ID));
+                    }
+                }
+                
+                maskMesh.ReverseWinding();
+                
+                if (options.WriteDebug)
+                {
+                    SaveMesh(maskMesh, dbgMeshPrefix + "-surfaceMask");
+                }
+
+                maskMesh.XYToUV();
+                maskUVMeshOp =
+                    new MeshOperator(maskMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             }
-
-            surfaceMaskMesh.ReverseWinding();
-
-            if (options.WriteDebug)
+            catch (Exception ex)
             {
-                SaveMesh(surfaceMaskMesh, dbgMeshPrefix + "-surfaceMask");
+                pipeline.LogException(ex, "error creating surface mask, falling back to whole surface mesh",
+                                      stackTrace: true);
             }
-
-            foreach (Vertex v in surfaceMaskMesh.Vertices)
-            {
-                v.UV = new Vector2(v.Position.X, v.Position.Y);
-            }
-            surfaceMaskMesh.HasUVs = true;
-
-            maskUVMeshOp =
-                new MeshOperator(surfaceMaskMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
         }
 
         private void ReconstructSurfaceToMask()
@@ -621,6 +627,14 @@ namespace OPS.Landform
 
         private void BuildOrbitalMesh()
         {
+            var maskOp = maskUVMeshOp;
+            if (maskOp == null) //CreateSurfaceMaskMesh() failed
+            {
+                var tmp = new Mesh(mesh);
+                tmp.XYToUV();
+                maskOp = new MeshOperator(tmp, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
+            }
+
             var cfg = OrbitalConfig.Instance;
 
             int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / cfg.OrbitalDEMMetersPerPixel);
@@ -642,7 +656,7 @@ namespace OPS.Landform
                     if (pt.HasValue)
                     {
                         pt = Vector3.Transform(pt.Value, orbitalToMesh);
-                        if (maskUVMeshOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
+                        if (maskOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
                         {
                             points[0, rr, cc] = (float)pt.Value.X;
                             points[1, rr, cc] = (float)pt.Value.Y;

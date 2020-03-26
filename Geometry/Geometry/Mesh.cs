@@ -1853,6 +1853,15 @@ namespace OPS.Geometry
             }
         }
 
+        public void XYToUV()
+        {
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = new Vector2(v.Position.X, v.Position.Y);
+            }
+            HasUVs = true;
+        }
+
         /// <summary>
         /// add texture coordinates to a mesh by projecting vertices onto an image
         /// also optionally removes any vertices of the mesh that aren't visible in the image
