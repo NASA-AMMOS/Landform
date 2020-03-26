@@ -94,6 +94,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Scale observation point cloud normals by confidence", Default = true)]
         public bool UsePointCloudConfidence { get; set; }
+
+        [Option(HelpText = "Min required samples per octree cell in Poisson reconstruction, higher for noiser data", Default = 15)]
+        public int PoissonMinSamplesPerCell { get; set; }
+
+        [Option(HelpText = "Poisson reconstruction BSpline degree", Default = 2)]
+        public int PoissonBSplineDegree { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -242,10 +248,10 @@ namespace OPS.Landform
 
                 // a value on the upper end of the suggested range in the docs
                 // meaning we think our data in noisy, so wait for this many samples in a cell
-                MinOctreeSamplesPerCell = 15,
+                MinOctreeSamplesPerCell = options.PoissonMinSamplesPerCell,
                 
                 // attempts to allow higher order surfaces than the defaults
-                BSplineDegree = 2,
+                BSplineDegree = options.PoissonBSplineDegree,
                 
                 // indicates the normal magnitudes are not uniformly unit scaled
                 // to indicate confidence in the position attached to it
