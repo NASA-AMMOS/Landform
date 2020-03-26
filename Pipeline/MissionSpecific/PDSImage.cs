@@ -60,28 +60,38 @@ namespace OPS.Pipeline
             this.Parser = parser ?? new PDSParser(Metadata);
         }
 
-        /// <summary>
-        /// mask all pixels in dst corresponding to pixels in src which match the PDS MissingConstant, if any
-        /// if the parser is not supplied it will be created from src
-        /// </summary>
-        public static void AddMaskForMissingConstant(Image dst, Image src, PDSParser parser = null)
+        public static float[] GetMissingBandValues(Image img, PDSParser parser)
         {
-            parser = parser ?? new PDSParser((PDSMetadata)src.Metadata);
+            parser = parser ?? new PDSParser((PDSMetadata)img.Metadata);
 
             //nominal missing constant value is 0, MSL SIS
-            float[] missing = new float[] { 0.0f };
+            float[] missing = new float[] { 0.0f }; //will be extented to img.Bands below
             if (parser.HasMissingConstant)
             {
                 missing = parser.MissingConstant;
             }
 
             //ROASTT18 wart: single float missing constant for 3 channel navcam
-            if (missing.Count() == 1 && src.Bands > 1)
+            if (missing.Length == 1 && img.Bands > 1)
             {
-                missing = Enumerable.Repeat<float>(missing.First(), src.Bands).ToArray();
+                missing = Enumerable.Repeat<float>(missing[0], img.Bands).ToArray();
             }
 
-            dst.UnionMask(src, missing);
+            return missing;
+        }
+
+        public float[] GetMissingBandValues()
+        {
+            return GetMissingBandValues(this.Image, Parser);
+        }
+
+        /// <summary>
+        /// mask all pixels in dst corresponding to pixels in src which match the PDS MissingConstant, if any
+        /// if the parser is not supplied it will be created from src
+        /// </summary>
+        public static void AddMaskForMissingConstant(Image dst, Image src, PDSParser parser = null)
+        {
+            dst.UnionMask(src, GetMissingBandValues(src, parser));
         }
 
         /// <summary>
@@ -386,8 +396,8 @@ namespace OPS.Pipeline
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
             Image src = this.Image;
             Image ret = new Image(1, src.Width, src.Height);
-            AddMaskForMissingConstant(ret);
             bool hasMissingConstant = Parser.HasMissingConstant;
+            
             for (int row = 0; row < src.Height; row++)
             {
                 for (int col = 0; col < src.Width; col++)
@@ -409,9 +419,9 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// gnenerate normals in rover frame consistent to the UVW mission product
-        /// but normals within a pixel of an invalid area are ignored to avoid an issue
-        /// seen where normals close to invalid areas frequently face downwards
-        /// 
+        ///
+        /// filters out normals pointing away from camera or fewer than minValid8Neighbors valid neighbors
+        ///
         /// if a confidence map is also provided the returned normals are scaled by confidence
         /// as Poisson reconstruction uses the magnitude of the normal to indicate confidence
         ///
@@ -420,46 +430,73 @@ namespace OPS.Pipeline
         ///   
         /// returns null if there were no valid normals
         /// </summary>
-        public Image ConvertNormals(Image confidence = null)
+        public Image ConvertNormals(Image confidence = null, int minValid8Neighbors = 8)
         {
             CheckType(RoverProductType.Normals, "ConvertNormals");
+            CheckCameraFrame("ConvertNormals");
             Matrix xform = RoverCoordinateSystem.GetTransformToRoverFrame(Parser);
             bool nonIdentityXform = !xform.Equals(Matrix.Identity);
             Image src = this.Image;
             Image ret = new Image(src);
-            AddMaskForMissingConstant(ret);
+            ret.CreateMask();
             bool hasMissingConstant = Parser.HasMissingConstant;
+            float[] missing = GetMissingBandValues();
             bool anyValid = false;
+            bool isValid(int r, int c)
+            {
+                return src.IsValid(r, c) &&
+                    (!hasMissingConstant || !src.BandValuesEqual(r, c, missing)) &&
+                    (confidence == null || confidence.IsValid(r, c));
+            }
             for (int row = 0; row < src.Height; row++)
             {
                 for (int col = 0; col < src.Width; col++)
                 {
-                    int up = Math.Max(0, row - 1);
-                    int down = Math.Min(row + 1, src.Height - 1);
-                    int left = Math.Max(0, col - 1);
-                    int right = Math.Min(col + 1, src.Width - 1);
-                    if (!src.IsValid(row, col) || //respect input image mask if it has one
-                        (confidence != null && !confidence.IsValid(row, col)) ||
-                        !src.IsValid(up, left) || !src.IsValid(up, col) || !src.IsValid(up, right) ||
-                        !src.IsValid(row, left) || !src.IsValid(row, right) ||
-                        !src.IsValid(down, left) || !src.IsValid(down, col) || !src.IsValid(down, right))
+                    if (!isValid(row, col))
                     {
                         ret.SetMaskValue(row, col, true);
                     }
-                    else if (!hasMissingConstant || ret.IsValid(row, col))
+                    else
                     {
-                        anyValid = true;
-                        if (nonIdentityXform)
+                        int up = Math.Max(0, row - 1);
+                        int down = Math.Min(row + 1, src.Height - 1);
+                        int left = Math.Max(0, col - 1);
+                        int right = Math.Min(col + 1, src.Width - 1);
+                        int valid8Neighbors =
+                            (isValid(up, left) ? 1 : 0) +
+                            (isValid(up, col) ? 1 : 0) +
+                            (isValid(up, right) ? 1 : 0) +
+                            (isValid(row, left) ? 1 : 0) +
+                            (isValid(row, right) ? 1 : 0) +
+                            (isValid(down, left) ? 1 : 0) +
+                            (isValid(down, col) ? 1 : 0) +
+                            (isValid(down, right) ? 1 : 0);
+                        if (valid8Neighbors < minValid8Neighbors)
+                        {
+                            ret.SetMaskValue(row, col, true);
+                        }
+                        else
                         {
                             var n = new Vector3(src[0, row, col], src[1, row, col], src[2, row, col]);
-                            ret.SetBandValues(row, col, Vector3.TransformNormal(n, xform).ToFloatArray());
-                        }
-                        if (confidence != null)
-                        {
-                            ret[0, row, col] *= confidence[0, row, col];
+                            if (nonIdentityXform)
+                            {
+                                n = Vector3.TransformNormal(n, xform);
+                                ret.SetBandValues(row, col, n.ToFloatArray());
+                            }
+                            if (Vector3.Dot(n, src.CameraModel.Unproject(new Vector2(col, row)).Direction) > 0)
+                            {
+                                ret.SetMaskValue(row, col, true);
+                            }
+                            else
+                            {
+                                anyValid = true;
+                                if (confidence != null)
+                                {
+                                    ret[0, row, col] *= confidence[0, row, col];
+                                }
+                            }
                         }
                     }
-                    //else AddMaskForMissingConstant() already masked ret[row, col]
                 }
             }
             return anyValid ? ret : null;

@@ -91,6 +91,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Poisson octtree depth, mutually exclusive with PoissonCellSize, 0 to disable", Default = 10)]
         public int PoissonTreeDepth { get; set; }
+
+        [Option(HelpText = "Discard observation point cloud normals with fewer than this man valid 8-neighbors", Default = 8)]
+        public int NormalFilter { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -157,7 +160,7 @@ namespace OPS.Landform
 
                 if (!options.NoOrbital)
                 {
-                    RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask);
+                    RunPhase("build orbital mesh", BuildOrbitalMesh);
                     RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                 }
                 else if (options.NoFillHoles)
@@ -168,7 +171,7 @@ namespace OPS.Landform
                     {
                         extent = options.ClipSurfaceExtent;
                     }
-                    RunPhase("clip final mesh", () => ClipMesh(extent));
+                    RunPhase("clip mesh", () => ClipMesh(extent));
                 }
 
                 if (options.TargetSceneMeshFaces > 0)
@@ -206,6 +209,11 @@ namespace OPS.Landform
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
                 throw new Exception("orbital geometry and hole filling require poisson surface trimmer");
+            }
+
+            if (options.NormalFilter < 0 || options.NormalFilter > 8)
+            {
+                throw new Exception("--normalfilter must be between 0 and 8");
             }
 
             if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
@@ -299,7 +307,12 @@ namespace OPS.Landform
                 pipeline.LogError("no wedge observations");
             }
 
-            var meshOpts = new WedgeObservations.MeshOptions() { Frame = meshFrame, ScaleNormalsByConfidence = true };
+            var meshOpts = new WedgeObservations.MeshOptions()
+            {
+                Frame = meshFrame,
+                NormalFilter = options.NormalFilter,
+                ScaleNormalsByConfidence = true
+            };
 
             int no = wedges.Count;
             pipeline.LogInfo("building point clouds for {0} wedges", no);
@@ -606,7 +619,7 @@ namespace OPS.Landform
             }
         }
 
-        private void ReconstructOrbitalToMask()
+        private void BuildOrbitalMesh()
         {
             var cfg = OrbitalConfig.Instance;
 
