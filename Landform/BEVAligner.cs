@@ -173,6 +173,7 @@ namespace OPS.Landform
                 if (siteDrives.Length < 2 && !(options.OnlyRenderBEVs || options.OnlyDetectFeatures))
                 {
                     pipeline.LogWarn("at least two site drives required");
+                    StopStopwatch();
                     return 0;
                 }
 
@@ -184,6 +185,7 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("rendered birds eye views for {0} site drives ({1:F3}s)",
                                      bevs.Count, 0.001 * stopwatch.ElapsedMilliseconds);
+                    StopStopwatch();
                     return 0;
                 }
 
@@ -193,6 +195,7 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("rendered birds eye views for {0} site drives and detected features ({1:F3}s)",
                                      bevs.Count, 0.001 * stopwatch.ElapsedMilliseconds);
+                    StopStopwatch();
                     return 0;
                 }
 
@@ -200,6 +203,7 @@ namespace OPS.Landform
                 if (siteDrives.Length < 2)
                 {
                     pipeline.LogWarn("at least two site drives required");
+                    StopStopwatch();
                     return 0;
                 }
 
@@ -209,6 +213,7 @@ namespace OPS.Landform
                 if (siteDrivePairs.Count == 0)
                 {
                     pipeline.LogWarn("at least one movable site drive required");
+                    StopStopwatch();
                     return 0;
                 }
 
