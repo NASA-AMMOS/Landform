@@ -677,7 +677,7 @@ namespace OPS.Pipeline
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
-            //htps://places-roastt.dev.m20.jpl.nasa.gov
+            //https://places-roastt.dev.m20.jpl.nasa.gov
 
             return
                 "{ " +

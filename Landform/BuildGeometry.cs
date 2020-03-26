@@ -86,9 +86,6 @@ namespace OPS.Landform
         [Option(HelpText = "Poisson cell size (meters), mutually exclusive with PoissonTreeDepth, 0 to disable", Default = 0.0)]
         public double PoissonCellSize { get; set; }
 
-        [Option(HelpText = "Deform oribital to fit surface", Default = false)]
-        public bool AdjustOrbital { get; set; }
-
         [Option(HelpText = "Poisson octtree depth, mutually exclusive with PoissonCellSize, 0 to disable", Default = 10)]
         public int PoissonTreeDepth { get; set; }
 
