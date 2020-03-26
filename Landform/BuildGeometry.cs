@@ -44,13 +44,13 @@ namespace OPS.Landform
         [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 8.0)]
         public double TrimmerLevel { get; set; }
 
-        [Option(HelpText = "Fill holes in largest island created from surface trimmer. Cull other islands", Default = false)]
+        [Option(HelpText = "Fill holes in largest island created from surface trimmer, cull other islands (hole filling requires --reconstructionmethod=Poission)", Default = false)]
         public bool NoFillHoles { get; set; }
 
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
-        [Option(HelpText = "Don't use orbital to fill in outer edges of mesh", Default = false)]
+        [Option(HelpText = "Don't use orbital to fill in outer edges of mesh (orbital requires --reconstructionmethod=Poission)", Default = false)]
         public bool NoOrbital { get; set; }
 
         [Option(HelpText = "Orbital resolution, interpolates for higher density", Default = 20)]
@@ -158,7 +158,7 @@ namespace OPS.Landform
                 if (!options.NoOrbital)
                 {
                     RunPhase("reconstruct orbital to mask", ReconstructOrbitalToMask);
-                    RunPhase("merge orbital to surface", MergeOrbitalToSurface);
+                    RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                 }
                 else if (options.NoFillHoles)
                 {
@@ -196,18 +196,29 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
-            {
-                return false; //help
-            }
-
-            onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
-
             if (options.ReconstructionMethod != MeshReconstructionMethod.FSSR &&
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
                 throw new Exception("unsupported mesh reconstruction method: " + options.ReconstructionMethod);
             }
+
+            if ((!options.NoOrbital || !options.NoFillHoles) &&
+                options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
+            {
+                throw new Exception("orbital geometry and hole filling require poisson surface trimmer");
+            }
+
+            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+            {
+                return false; //help
+            }
+
+            if (!options.NoOrbital && !SiteDrive.IsSiteDriveString(meshFrame))
+            {
+                throw new Exception(string.Format("mesh frame {0} is not a site drive, cannot use orbital", meshFrame));
+            }
+
+            onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
 
             poissonOpts = new PoissonReconstruction.Options
             {
@@ -443,7 +454,17 @@ namespace OPS.Landform
             }
 
             mesh.RemoveFloaters();
-            mesh.RemoveUnreferencedVertices();
+
+            //both FSSR and Poisson require normals on their input mesh and write normals to their output mesh
+            //however we have seen issues with these normals
+            //and also they may be confidence scaled still
+            //one option would be to just clear the normals and not include normals with the output scene mesh
+            //but some kinds of later processing (like building parent tile meshes) will want them
+            //so let's just regenerate them from the faces and write them to the scene mesh
+            //because we're dealing with natural terrain it is pretty reasonable to compute vertex normals from faces
+            //i.e. no sharp crease angles expected
+            mesh.Clean(); //removes degenerate faces
+            mesh.GenerateVertexNormals();
         }
 
         private void ClipSurfaceMesh()
@@ -457,20 +478,6 @@ namespace OPS.Landform
 
         private void LoadOrbital()
         {
-            if (options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
-            {
-                pipeline.LogWarn("orbital geometry requires poisson surface trimmer");
-                options.NoOrbital = true;
-                return;
-            }
-
-            if (!SiteDrive.IsSiteDriveString(meshFrame))
-            {
-                pipeline.LogWarn("mesh frame {0} is not a site drive, cannot use orbital", meshFrame);
-                options.NoOrbital = true;
-                return;
-            }
-
             try
             {
                 orbitalDEM = mission.LoadOrbital(new SiteDrive(meshFrame), options.OrbitalDEM,
@@ -561,9 +568,6 @@ namespace OPS.Landform
 
         private void ReconstructSurfaceToMask()
         {
-            /*poissonOpts.TrimmerIslandPct = 0.0; //trim handled by mask
-            poissonOpts.TrimmerLevel = 0.0;*/
-
             //TODO: Have Poisson return both clipped and non-clipped to avoid remeshing
             poissonOpts.TrimmerLevel = Math.Max(0, poissonOpts.TrimmerLevel - 2);
             mesh = PoissonReconstruction.Reconstruct(pointCloud, poissonOpts);
@@ -583,7 +587,8 @@ namespace OPS.Landform
             }).ToList();
 
             mesh.RemoveFloaters();
-            mesh.RemoveUnreferencedVertices();
+            mesh.Clean(); //removes degenerate faces
+            mesh.GenerateVertexNormals(); //important, see comments in ReconstructMesh()
 
             if (options.WriteDebug)
             {
@@ -629,7 +634,7 @@ namespace OPS.Landform
                 }
             }
 
-            orbitalMesh = OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: false);
+            orbitalMesh = OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
 
             if (options.WriteDebug)
             {
@@ -637,7 +642,7 @@ namespace OPS.Landform
             }
         }
 
-        private void MergeOrbitalToSurface()
+        private void BlendOrbitalToSurface()
         {
             var meshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: true, buildUVFaceTree: false);
 
@@ -721,7 +726,8 @@ namespace OPS.Landform
                 }
             });
 
-            blendedOrbitalMesh.Clean();
+            blendedOrbitalMesh.Clean(); //removes degnerate faces
+            blendedOrbitalMesh.GenerateVertexNormals(); //we moved stuff, recompute vertex normals from faces
 
             if (options.WriteDebug)
             {
@@ -766,9 +772,8 @@ namespace OPS.Landform
             }
 
             mesh.RemoveFloaters();
-            mesh.RemoveUnreferencedVertices();
-
-            mesh.Clean(); // normalizes the normals
+            mesh.Clean(); //removes degenerate faces
+            mesh.GenerateVertexNormals();
 
             if (mesh.Faces.Count == 0)
             {
@@ -815,7 +820,6 @@ namespace OPS.Landform
             }
             mesh = filtered;
 
-            pipeline.LogInfo("cleaning mesh");
             mesh.Clean();
 
             if (mesh.Faces.Count == 0)

@@ -118,6 +118,11 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Generates vertex normals for all vertices based on the sum of the connected face normals
+        ///
+        /// Ignores degnerate faces.
+        /// If all faces incident to a vertex are degenerate, that vertex will have a zero-length normal.
+        ///
+        /// Call RemoveInvalidFaces() first to avoid that.
         /// </summary>
         public void GenerateVertexNormals()
         {
@@ -130,18 +135,17 @@ namespace OPS.Geometry
             // Calculate each face's normal and add that normal to each point face's points
             foreach (Face face in Faces)
             {
-                // Find the three vertices used in the face
                 Vertex v0 = Vertices[face.P0];
                 Vertex v1 = Vertices[face.P1];
                 Vertex v2 = Vertices[face.P2];
 
-                // Calculate the face's normal
-                Vector3 faceNormal = new Triangle(v0, v1, v2).Normal;
-
-                // Add the face's normal to the three vertices
-                v0.Normal += faceNormal;
-                v1.Normal += faceNormal;
-                v2.Normal += faceNormal;
+                if (Triangle.ComputeNormal(v0.Position, v1.Position, v2.Position, out Vector3 faceNormal))
+                {
+                    v0.Normal += faceNormal;
+                    v1.Normal += faceNormal;
+                    v2.Normal += faceNormal;
+                }
+                //otherwise ignore degenerate face
             }
 
             // Normalize each vertex normal
@@ -152,7 +156,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Normalize all normals
+        /// Normalize all (non-zero) normals.
         /// </summary>
         public void NormalizeNormals()
         {
@@ -238,14 +242,15 @@ namespace OPS.Geometry
             }
             // Are any of the faces vertices at the same location
             if ((Vertices[f.P0].Position == Vertices[f.P1].Position) ||
-               (Vertices[f.P1].Position == Vertices[f.P2].Position) ||
-               (Vertices[f.P2].Position == Vertices[f.P0].Position))
+                (Vertices[f.P1].Position == Vertices[f.P2].Position) ||
+                (Vertices[f.P2].Position == Vertices[f.P0].Position))
             {
                 return false;
             }
-            // Is the face zero-length? 
-            Vector3 n;
-            if (!Triangle.ComputeNormal(Vertices[f.P0].Position, Vertices[f.P1].Position, Vertices[f.P2].Position, out n))
+            // Is the face degenerate? 
+            // Note this check includes an epsilon tolerance, so may be false even if no two verts are exactly the same.
+            if (!Triangle.ComputeNormal(Vertices[f.P0].Position, Vertices[f.P1].Position, Vertices[f.P2].Position,
+                                        out Vector3 n))
             {
                 return false;
             }
@@ -843,10 +848,9 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Removes duplicate and degenerate faces
-        /// Removes duplicate vertices
-        /// If any faces are defined this will also remove any vertices that are not referenced
-        /// by a face
+        /// Removes duplicate vertices and faces.
+        /// If mesh has faces this will also remove degenerate faces and any vertices not referenced by a face.
+        /// Normalizes normals.
         /// </summary>
         public void Clean(bool normalize=true, bool removeDuplicateVerts=true)
         {

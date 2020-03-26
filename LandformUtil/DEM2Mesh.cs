@@ -86,7 +86,7 @@ namespace OPS.LandformUtil
 
                 var mesh = options.Error == 0 ?
                     dem.OrganizedMesh(options.Radius, withUV: true) :
-                    dem.DecimatedMesh(options.Error, options.Radius, withUV: true);
+                    dem.AdaptiveMesh(options.Error, options.Radius, withUV: true);
 
                 mesh.Save(outputMesh, outputImage);
 

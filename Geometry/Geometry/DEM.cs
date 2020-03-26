@@ -462,8 +462,8 @@ namespace OPS.Geometry
             return mesh;
         }
 
-        public Mesh DecimatedMesh(double maxError, double maxRadiusMeters = -1, Vector3? centerPoint = null,
-                                  bool withUV = false, bool reverseWinding = false)
+        public Mesh AdaptiveMesh(double maxError, double maxRadiusMeters = -1, Vector3? centerPoint = null,
+                                 bool withUV = false, bool reverseWinding = false)
         {
             if (maxError <= 0)
             {
