@@ -6,7 +6,7 @@ using log4net;
 using OPS.Geometry;
 using OPS.Imaging;
 
-namespace OPS.LandformUtil
+namespace OPS.Landform
 {
     [Verb("convert-iv", HelpText = "Convert IV meshes to different format")]
     public class ConvertIVOptions

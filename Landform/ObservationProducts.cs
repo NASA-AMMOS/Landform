@@ -5,19 +5,15 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 using CommandLine;
-using log4net;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
-using OPS.Landform;
+using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.LandformUtil
+namespace OPS.Landform
 {
     [Verb("observation-products", HelpText = "create observation mesh and image products")]
     public class ObservationProductsOptions : GeometryCommandOptions

@@ -41,6 +41,12 @@ namespace OPS.Landform
                     { typeof(ProcessTacticalOptions), typeof(ProcessTactical) },
                     { typeof(ProcessContextualOptions), typeof(ProcessContextual) },
                     { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
+                    { typeof(ObservationProductsOptions), typeof(ObservationProducts) },
+                    { typeof(ConvertPDSOptions), typeof(ConvertPDS) },
+                    { typeof(ConvertIVOptions), typeof(ConvertIV) },
+                    { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },
+                    { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },
+                    { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
                 };
 
             return CommandHelper.RunFromCommandline(args, verbs);

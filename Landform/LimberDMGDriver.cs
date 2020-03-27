@@ -1,13 +1,13 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using System.Collections.Generic;
 using CommandLine;
 using OPS.Imaging;
 using OPS.Geometry;
 
-namespace OPS.LandformUtil
+namespace OPS.Landform
 {
     [Verb("limber-dmg", HelpText = "run Limber DMG")]
     public class LimberDMGOptions

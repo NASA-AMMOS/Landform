@@ -10,7 +10,7 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
 
-namespace OPS.LandformUtil
+namespace OPS.Landform
 {
     [Verb("dem2mesh", HelpText = "Convert a DEM and optional image to a mesh")]
     public class DEM2MeshOptions

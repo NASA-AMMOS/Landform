@@ -26,13 +26,6 @@ namespace OPS.LandformUtil
 
             var verbs = new Dictionary<Type, Type>()
                 {
-                    { typeof(ObservationProductsOptions), typeof(ObservationProducts) },
-                    { typeof(ConvertPDSOptions), typeof(ConvertPDS) },
-                    { typeof(ConvertIVOptions), typeof(ConvertIV) },
-                    { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },
-                    { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },
-                    { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
-                    { typeof(ConvertToASTTROOptions), typeof(ConvertToASTTRO) },
                 };
 
             return CommandHelper.RunFromCommandline(args, verbs);

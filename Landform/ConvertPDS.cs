@@ -5,7 +5,7 @@ using CommandLine;
 using log4net;
 using OPS.Imaging;
 
-namespace OPS.LandformUtil
+namespace OPS.Landform
 {
 
     [Verb("convert-pds", HelpText = "Convert PDS images to different format")]
