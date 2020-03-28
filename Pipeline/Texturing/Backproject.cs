@@ -112,6 +112,17 @@ namespace OPS.Pipeline
             return previewImg;
         }
 
+        //<DST, SRC>
+        static IDictionary<Pixel,Pixel> BackprojectOrbital(Mesh mesh, SparsePipelineImage orbitalTexture, List<PixelPoint> pixelsToBackproject)
+        {
+            Dictionary<Pixel, Pixel> orbPixelsByTexel = new Dictionary<Pixel, Pixel>();
+            foreach(var dstPixel in pixelsToBackproject)
+            {
+                Vector3 meshPointInOutput;
+                Vector3 outputSitedriveInOrbital;
+            }
+        }
+
         /// <summary>
         /// high level function that takes backproject results
         /// and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
@@ -280,7 +291,7 @@ namespace OPS.Pipeline
         /// high level api with database helpers
         /// this is for when you want to just call with all the observations you have and see what lands on the mesh
         /// </summary>
-        static public IDictionary<Pixel, ObsPixel> BackprojectObservations(BackprojectOptions opts)
+        static public IDictionary<Pixel, ObsPixel> BackprojectObservations(BackprojectOptions opts, out List<PixelPoint> missingPixels)
         {
             var info = opts.info ?? (msg => { });
             var progress = opts.progress ?? (msg => { });
@@ -291,13 +302,6 @@ namespace OPS.Pipeline
                 .Where(obs => obs is RoverObservation)
                 .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
                 .ToList();
-
-            if (imageObservations.Count() == 0)
-            {
-                error("no image observations found");
-                return new Dictionary<Pixel, ObsPixel>();
-
-            }
 
             info("building input mesh data structures");
             ConvexHull meshHull = new ConvexHull(opts.mesh);
@@ -314,6 +318,14 @@ namespace OPS.Pipeline
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
+
+            if (imageObservations.Count() == 0)
+            {
+                warn("no image observations found");
+                missingPixels = samplePoints;
+                return new Dictionary<Pixel, ObsPixel>();
+
+            }
 
             //generate frustum hulls
             var obsToHull = opts.obsToHull;
@@ -341,12 +353,6 @@ namespace OPS.Pipeline
                     }
                 }
             });
-
-            if (intersectingObservations.Count() == 0)
-            {
-                error("no images intersected mesh");
-                return new Dictionary<Pixel, ObsPixel>();
-            }
 
             info(string.Format("{0}/{1} image observations intersect mesh",
                                intersectingObservations.Count, imageObservations.Count));
@@ -428,6 +434,8 @@ namespace OPS.Pipeline
                 }
                 candidateDepth++;
             }
+
+            missingPixels = remainingIndices.Select(i => samplePoints[i]).ToList();
 
             if (opts.writeDebug)
             {

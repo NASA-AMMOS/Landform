@@ -54,6 +54,9 @@ namespace OPS.Landform
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
 
+        [Option(Default = null, HelpText = "Orbital mesh texture image to fill in areas not covered by backproject observations")]
+        public string InputOrbitalTexture { get; set; }
+
         [Option(HelpText = "Redo blurred observation textures", Default = false)]
         public bool RedoBlurredObservationTextures { get; set; }
 
@@ -81,7 +84,8 @@ namespace OPS.Landform
         protected List<Observation> imageObservations;
         protected Dictionary<int, Observation> indexedImages;
 
-        protected SceneMesh sceneMesh; 
+        protected SceneMesh sceneMesh;
+        protected SparsePipelineImage orbitalTexture;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
@@ -485,11 +489,11 @@ namespace OPS.Landform
                 InitBackprojectStrategy();
             }
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            BackprojectObservations(mesh, backprojectStrategy);
+            BackprojectObservations(mesh, backprojectStrategy, out List<Vector2> missingPixels);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, string debugSubdir = "")
+            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, out List<Vector2> missingPixels, string debugSubdir = "")
         {
             bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
@@ -516,7 +520,7 @@ namespace OPS.Landform
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
-            return Backproject.BackprojectObservations(opts);
+            return Backproject.BackprojectObservations(opts, out missingPixels);
         }
 
         protected void BuildBackprojectIndex()

@@ -101,6 +101,11 @@ namespace OPS.Landform
                     RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
 
+                if (!string.IsNullOrEmpty(options.InputOrbitalTexture))
+                {
+                    RunPhase("load orbital texture", () => { orbitalTexture = new SparsePipelineImage(pipeline, options.InputOrbitalTexture); });
+                }
+
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
                                                                 texGenMode == TextureGenMode.Bake));
 
@@ -732,10 +737,17 @@ namespace OPS.Landform
                                         Path.Combine(backprojectDebugDir, node.Name));
                 }
                 
-                var backprojectResults = BackprojectObservations(mesh, strategy, node.Name);
+                var backprojectResults = BackprojectObservations(mesh, strategy, out List<PixelPoint> missingPixels, node.Name);
+
+                //orbital
+                SiteDrive primarySiteDrive = new SiteDrive(meshFrame); //BUGBUG: if not sitedrive fail
+                var placesDB = new PlacesDB(logger, requireOrbital: true); //BUGBUG: if not placesdb fail
+
+
+                var orbitalResults = Backproject.BackprojectOrbital(mesh, orbitalTexture, missingPixels);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                if (backprojectResults.Count == 0)
+                if (backprojectResults.Count == 0 && orbitalResults == 0)
                 {
                     return null;
                 }
@@ -743,11 +755,14 @@ namespace OPS.Landform
                 if (index != null)
                 {
                     Backproject.FillIndexImage(backprojectResults, index);
+                    Backproject.FillIndexImageOrbital(orbitalResults, index);
                 }
 
                 Image image = new Image(3, resolution, resolution);
+                Backproject.FillOutputTextureOrbital(orbitalResults, orbitalTexture, image);
                 Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
                                               !options.DontInpaint, fallbackToOriginal: true);
+               
                 return image;
             }
             catch (Exception ex)
