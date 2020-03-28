@@ -58,6 +58,9 @@ namespace OPS.Landform
         public bool NoApproxTileSplit { get; set; }
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
+        public string OrbitalImage { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -101,9 +104,9 @@ namespace OPS.Landform
                     RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
 
-                if (!string.IsNullOrEmpty(options.InputOrbitalTexture))
+                if (!options.NoOrbitalTexture)
                 {
-                    RunPhase("load orbital texture", () => { orbitalTexture = new SparsePipelineImage(pipeline, options.InputOrbitalTexture); });
+                    RunPhase("load orbital texture", LoadOrbital); //may overwrite options.NoOrbitalTexture
                 }
 
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
@@ -740,14 +743,10 @@ namespace OPS.Landform
                 var backprojectResults = BackprojectObservations(mesh, strategy, out List<PixelPoint> missingPixels, node.Name);
 
                 //orbital
-                SiteDrive primarySiteDrive = new SiteDrive(meshFrame); //BUGBUG: if not sitedrive fail
-                var placesDB = new PlacesDB(logger, requireOrbital: true); //BUGBUG: if not placesdb fail
-
-
                 var orbitalResults = Backproject.BackprojectOrbital(mesh, orbitalTexture, missingPixels);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                if (backprojectResults.Count == 0 && orbitalResults == 0)
+                if (backprojectResults.Count() == 0 && orbitalResults.Count() == 0)
                 {
                     return null;
                 }
@@ -770,6 +769,35 @@ namespace OPS.Landform
                 pipeline.LogError("error backprojecting tile {0}: {1}", node.Name, ex.Message);
                 return null;
             }
+        }
+
+        private void LoadOrbital()
+        {
+            try
+            {
+                orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), options.OrbitalImage, logger: pipeline);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("failed to load orbital image or PlacesDB, running without orbital: {0}", ex.Message);
+                options.NoOrbitalTexture = true;
+                return;
+            }
+
+            //TODO: support orbital align
+            //FrameTransform ft = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
+            //if (ft == null)
+            //{
+            //    pipeline.LogWarn("failed to retrieve aligned orbital transform");
+            //    options.NoOrbitalTexture = true;
+            //    return;
+            //}
+
+            ////BUGBUG: what does to world mean?
+            //var orbitalToWorld = ft.Transform.Mean;
+            //var meshToWorld = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+            //orbitalToMesh = orbitalToWorld * Matrix.Invert(meshToWorld);
+            //meshToOrbital = Matrix.Invert(orbitalToMesh);
         }
     }
 }

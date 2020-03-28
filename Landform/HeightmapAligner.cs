@@ -361,7 +361,7 @@ namespace OPS.Landform
         {
             try
             {
-                orbitalDEM = mission.LoadOrbital(baseSiteDrive, options.OrbitalDEM,
+                orbitalDEM = mission.LoadOrbitalDEM(baseSiteDrive, options.OrbitalDEM,
                                                  minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
                                                  logger: pipeline);
             }

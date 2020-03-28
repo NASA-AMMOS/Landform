@@ -938,7 +938,7 @@ namespace OPS.Pipeline
         /// * lat/lon for siteDrive outside bounds of DEM
         /// * no vaid elevation at lat/lon for siteDrive in DEM
         /// </summary>
-        public virtual DEM LoadOrbital(SiteDrive siteDrive, string demFile = null,
+        public virtual DEM LoadOrbitalDEM(SiteDrive siteDrive, string demFile = null,
                                        double? metersPerPixel = null, double? elevationScale = null,
                                        double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
                                        ILogger logger = null)
@@ -978,6 +978,39 @@ namespace OPS.Pipeline
             return new DEM(new DEM.SparseDEMImage(demFile), upDir, rightDir, downDir,
                            metersPerPixel.Value, elevationScale.Value,
                            originPixel, originElevation, minFilter, maxFilter);
+        }
+
+        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive, string imgFile = null,
+                                          ILogger logger = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+
+            if (string.IsNullOrEmpty(imgFile))
+            {
+                if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
+                {
+                    imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
+                    return new SparsePipelineImage(pipeline, imgFile);
+                }
+                else
+                {
+                    throw new Exception("orbital image not available");
+                }
+            }
+
+            //var placesDB = new PlacesDB(logger, requireOrbital: true);
+            //var gdalDEM = GDALDEM.Load(imgFile, cfg.OrbitalBodyName);
+            //var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
+
+            //GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir, out Vector3 downDir);
+
+            //double? originElevation = null; //DEM constructor will look this up given originPixel
+
+            //return new DEM(new DEM.SparseDEMImage(imgFile), upDir, rightDir, downDir,
+            //               metersPerPixel.Value, elevationScale.Value,
+            //               originPixel, originElevation, minFilter, maxFilter);
+
+            throw new NotImplementedException("nope");
         }
     }
 }

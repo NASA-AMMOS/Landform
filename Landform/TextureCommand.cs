@@ -54,8 +54,8 @@ namespace OPS.Landform
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
 
-        [Option(Default = null, HelpText = "Orbital mesh texture image to fill in areas not covered by backproject observations")]
-        public string InputOrbitalTexture { get; set; }
+        [Option(HelpText = "Don't use orbital to fill in surface imagery gaps", Default = false)]
+        public bool NoOrbitalTexture { get; set; }
 
         [Option(HelpText = "Redo blurred observation textures", Default = false)]
         public bool RedoBlurredObservationTextures { get; set; }
@@ -489,11 +489,11 @@ namespace OPS.Landform
                 InitBackprojectStrategy();
             }
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            BackprojectObservations(mesh, backprojectStrategy, out List<Vector2> missingPixels);
+            BackprojectObservations(mesh, backprojectStrategy, out List<PixelPoint> missingPixels);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, out List<Vector2> missingPixels, string debugSubdir = "")
+            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, out List<PixelPoint> missingPixels, string debugSubdir = "")
         {
             bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()

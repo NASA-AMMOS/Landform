@@ -113,14 +113,15 @@ namespace OPS.Pipeline
         }
 
         //<DST, SRC>
-        static IDictionary<Pixel,Pixel> BackprojectOrbital(Mesh mesh, SparsePipelineImage orbitalTexture, List<PixelPoint> pixelsToBackproject)
+        static public IDictionary<Pixel,Pixel> BackprojectOrbital(Mesh mesh, SparsePipelineImage orbitalTexture, List<PixelPoint> pixelsToBackproject)
         {
             Dictionary<Pixel, Pixel> orbPixelsByTexel = new Dictionary<Pixel, Pixel>();
-            foreach(var dstPixel in pixelsToBackproject)
-            {
-                Vector3 meshPointInOutput;
-                Vector3 outputSitedriveInOrbital;
-            }
+            //foreach(var dstPixel in pixelsToBackproject)
+            //{
+            //    Vector3 meshPointInOutput;
+            //    Vector3 outputSitedriveInOrbital;
+            //}
+            throw new NotImplementedException("nope");
         }
 
         /// <summary>
@@ -639,5 +640,14 @@ namespace OPS.Pipeline
             return new Pixel((int)subPixel.Y, (int)subPixel.X);
         }
 
+        public static void FillIndexImageOrbital(IDictionary<Pixel, Pixel> orbitalResults, Image index)
+        {
+            throw new NotImplementedException();
+        }
+
+        public static void FillOutputTextureOrbital(IDictionary<Pixel, Pixel> orbitalResults, SparsePipelineImage orbitalTexture, Image image)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

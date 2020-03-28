@@ -167,7 +167,7 @@ namespace OPS.LandformUtil
                     throw new Exception("--mission required for output in site drive frame");
                 }
 
-                dem = mission.LoadOrbital(new SiteDrive(options.OutputFrame), options.InputDEM,
+                dem = mission.LoadOrbitalDEM(new SiteDrive(options.OutputFrame), options.InputDEM,
                                           metersPerPixel, elevationScale,
                                           options.DEMMinFilter, options.DEMMaxFilter, new ThunkLogger(logger));
             }
