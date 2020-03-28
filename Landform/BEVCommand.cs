@@ -133,7 +133,7 @@ namespace OPS.Landform
         private Matrix? dbgMeshTransform;
 
         /// <summary>
-        /// convenicence method to get prior transform from siteDrive to project root frame
+        /// get prior transform from siteDrive to project root frame
         /// </summary>
         protected Matrix PriorTransform(SiteDrive siteDrive)
         {
@@ -141,7 +141,7 @@ namespace OPS.Landform
         }
 
         /// <summary>
-        /// convenicence method to get best available transform from siteDrive to project root frame
+        /// get best available transform from siteDrive to project root frame
         /// if there is an adjusted transform from one of the allowed sources (typically any source but this aligner)
         /// then that is used
         /// otherwise returns the best prior

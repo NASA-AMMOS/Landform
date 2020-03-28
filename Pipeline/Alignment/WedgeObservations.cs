@@ -398,6 +398,8 @@ namespace OPS.Pipeline
             public bool GenerateNormals = true; //organized mesh only
             public double IsolatedPointSize = 0; //organized mesh only
 
+            public int NormalFilter = 4; //mask normals with fewer than this many valid 8-neighbors
+
             public MeshDecimationMethod MeshDecimator = MeshDecimationMethod.EdgeCollapse; //used by LoadMesh()
 
             public bool AlwaysReconstruct = true; //ignore MeshObservation, if any
@@ -509,7 +511,8 @@ namespace OPS.Pipeline
                     : null;
                 try
                 {
-                    NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url))).ConvertNormals(confidence);
+                    NormalsImage = (new PDSImage(pipeline.LoadImage(Normals.Url)))
+                        .ConvertNormals(confidence, opts.NormalFilter);
                 }
                 catch (Exception ex)
                 {

@@ -486,7 +486,7 @@ namespace OPS.Geometry
             }
             else
             {
-                throw new Exception("Normal error, Zero length face");
+                throw new Exception("cannot compute normal, degenerate triangle");
             }
         }
 
@@ -495,15 +495,12 @@ namespace OPS.Geometry
             Vector3 v1v0 = v1 - v0;
             Vector3 v2v0 = v2 - v0;
             norm = Vector3.Cross(v1v0, v2v0);
-            // Normalize
-            if (norm.Length() > 0)
-            {
-                norm.Normalize();
-            }
-            else
+            double eps = 1e-9;
+            if (norm.Length() < eps)
             {
                 return false;
             }
+            norm.Normalize();
             return true;
         }
 

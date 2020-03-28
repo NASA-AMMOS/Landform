@@ -62,6 +62,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable orbital alignment", Default = false, Required = false)]
         public bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Stop after rendering site drive DEMs", Default = false)]
+        public bool OnlyRenderDEMs { get; set; }
     }
 
     public class HeightmapAligner : BEVCommand
@@ -105,14 +108,40 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("load or render site drive DEMs", LoadOrRenderDEMs);
-                RunPhase("sort site drives", SortSiteDrives);
-                RunPhase("align other site drives to base site drive", AlignSurfaceToBaseSiteDrive);
-
                 if (!options.NoOrbital)
                 {
                     RunPhase("load oribital DEM", LoadOrbital); //may overwrite options.NoOrbital
                 }
+
+                if (options.NoOrbital && siteDrives.Length == 1 && !options.OnlyRenderDEMs)
+                {
+                    pipeline.LogWarn("at least two site drives required without orbital");
+                    StopStopwatch();
+                    return 0;
+                }
+
+                RunPhase("load or render site drive DEMs", LoadOrRenderDEMs);
+
+                if (options.OnlyRenderDEMs)
+                {
+                    if (options.WriteDebug)
+                    {
+                        RunPhase("save DEM meshes", SaveDEMMeshes);
+                    }
+                    StopStopwatch();
+                    return 0;
+                }
+
+                RunPhase("sort site drives", SortSiteDrives);
+
+                if (options.NoOrbital && sdDEMs.Keys.Where(sd => sd != baseSiteDrive).Count() == 0)
+                {
+                    pipeline.LogWarn("at least two site drives required without orbital");
+                    StopStopwatch();
+                    return 0;
+                }
+                    
+                RunPhase("align other site drives to base site drive", AlignSurfaceToBaseSiteDrive);
 
                 if (!options.NoOrbital)
                 {
@@ -210,7 +239,12 @@ namespace OPS.Landform
                 baseSiteDrive = sort(siteDrives, options.BaseSiteDrivePriority).First();
                 pipeline.LogInfo("base site drive ({0}): {1}", options.BaseSiteDrivePriority, baseSiteDrive);
             }
-            
+
+            if (!sdDEMs.ContainsKey(baseSiteDrive))
+            {
+                throw new Exception("no DEM for base site drive " + baseSiteDrive);
+            }
+
             siteDrives = new List<SiteDrive> { baseSiteDrive }
                 .Concat(sort(siteDrives.Where(sd => sd != baseSiteDrive), options.RemainingSiteDrivePriority))
                 .ToArray();
@@ -235,6 +269,13 @@ namespace OPS.Landform
                                             BEVMetersPerPixel, elevationScale,
                                             sdOriginPixel[siteDrive], originElevation,
                                             options.DEMMinFilter, options.DEMMaxFilter);
+            }
+            foreach (var sd in siteDrives)
+            {
+                if (!sdDEMs.ContainsKey(sd))
+                {
+                    pipeline.LogWarn("failed to load or render DEM for site drive {0}", sd);
+                }
             }
         }
 
@@ -270,7 +311,13 @@ namespace OPS.Landform
             {
                 var siteDrive = siteDrives[i];
 
-                pipeline.LogInfo("beginning alignment for site drive {0}", siteDrive.ToString());
+                if (!sdDEMs.ContainsKey(siteDrive))
+                {
+                    pipeline.LogWarn("no DEM for site drive {0}", siteDrive);
+                    continue;
+                }
+
+                pipeline.LogInfo("beginning alignment for site drive {0}", siteDrive);
 
                 try
                 {
@@ -367,6 +414,8 @@ namespace OPS.Landform
             {
                 sds = siteDrives.Where(sd => !sdAdjustment.ContainsKey(sd)).ToArray();
             }
+
+            sds = sds.Where(sd => sdDEMs.ContainsKey(sd)).ToArray();
                 
             pipeline.LogInfo("aligning {0} site drives to orbital DEM", sds.Length);
 
@@ -459,7 +508,7 @@ namespace OPS.Landform
         private void WriteSurfaceTransforms()
         {
             var source = TransformSource.LandformHeightmap;
-            foreach (SiteDrive siteDrive in siteDrives)
+            foreach (var siteDrive in siteDrives.Where(sd => sd != baseSiteDrive))
             {
                 var frame = frameCache.GetFrame(siteDrive.ToString());
                 if (sdAdjustment.ContainsKey(siteDrive))

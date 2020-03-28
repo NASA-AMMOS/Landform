@@ -80,14 +80,12 @@ namespace OPS.Geometry
             {
                 throw new MeshException("Empty point cloud passed into PoissonRecon");
             }
-            if (!pointCloud.HasNormals)
-            {
-                throw new MeshException("PoissonRecon requires normals");
-            }
+
             if (pointCloud.HasUVs)
             {
                 throw new MeshException("PoissonRecon meshes cannot have uvs");
             }
+
             if (pointCloud.HasColors && cfg.PoissonExeLegacy)
             {
                 //throw new MeshException("PoissonRecon meshes cannot have colors");
@@ -95,14 +93,18 @@ namespace OPS.Geometry
                 pointCloud = new Mesh(pointCloud);
                 pointCloud.ClearColors();
             }
-            // Confirm all normals are non-zero
-            if (pointCloud.ContainsZeroLengthNormals())
+
+            if (!pointCloud.HasNormals)
             {
-                throw new MeshException("PoissonRecon input mesh had invalid normals");
+                throw new MeshException("PoissonRecon requires normals");
             }
 
-            //unless using normal magnitude for confidence
-            if (options != null && !options.UseNormalsForConfidence)
+            if (pointCloud.ContainsZeroLengthNormals())
+            {
+                throw new MeshException("PoissonRecon input mesh had zero length normals");
+            }
+
+            if (options == null || !options.UseNormalsForConfidence)
             {
                 int notNormalCount = 0;
                 foreach (var vert in pointCloud.Vertices)
@@ -115,7 +117,8 @@ namespace OPS.Geometry
                 }
                 if (notNormalCount > 0)
                 {
-                    logger.Warn("Found " + notNormalCount + " vertices with non unit length normals");
+                    logger.WarnFormat("PoissonRecon input has {0} non-unit normals, " +
+                                      "but not using normals for confidence", notNormalCount);
                 }
             }
 
