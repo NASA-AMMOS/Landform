@@ -104,6 +104,12 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't fetch")]
         public bool NoFetch { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Persistent download dir, defaults to \"fetched\" subdir of local Landform storage dir")]
+        public string FetchDir { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Max fetched bytes on disk, integer with optional case-insensitive suffix K,M,G, unlimited if empty or non-positive")]
+        public string MaxFetch { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Don't ingest")]
         public bool NoIngest { get; set; }
 
@@ -133,10 +139,18 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
         public string OrbitalDEM { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM URL")]
+        public string OrbitalDEMURL { get; set; }
+
+        [Option(HelpText = "Disable orbital", Default = false)]
+        public bool NoOrbital { get; set; }
     }
 
     public class ProcessContextual : LandformService
     {
+        public const string FETCH_DIR = "fetched";
+
         protected ProcessContextualOptions options;
 
         private class GenericContextualMeshMessage : QueueMessage
@@ -383,10 +397,17 @@ namespace OPS.Landform
             string venueDir = storageDir + "/" + venue;
             string solDir = StringHelper.ReplaceFixedWidthIntWildcard(rdrDir, FetchData.SOL_WILDCARD, primarySol);
             string ingestDir = solDir;
+            string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
             string tilesetDir = GetTilesetDir(venue, sdStr, project);
             string destDir = GetDestDir(solDir);
 
-            string demStr = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : ""; //empty uses default
+            string demURL = !string.IsNullOrEmpty(options.OrbitalDEMURL) ? options.OrbitalDEMURL
+                : OrbitalConfig.Instance.OrbitalDEMURL;
+            string demFile = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM
+                : fetchDir + "/" + OrbitalConfig.Instance.OrbitalDEMStoragePath;
+            string noOrbital = (options.NoOrbital || string.IsNullOrEmpty(demURL)) ? "--noorbital" : "";
+
+            var allowedFetchFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
@@ -398,21 +419,36 @@ namespace OPS.Landform
 
                 if (!options.NoFetch && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
-                    ingestDir = string.Format("{0}/{1}/{2}", storageDir, venue, RDR_SUBDIR);
-                    string fetchSols = GetSolRanges(sols);
-                    var allowedFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
-                    RunCommand("fetch", allowedFlags, fetchSols, ingestDir, rdrDir, "--mission", missionStr,
+                    ingestDir = fetchDir;
+                    RunCommand("fetch", allowedFetchFlags, GetSolRanges(sols), ingestDir, rdrDir,
                                "--onlyforsitedrives", sdsStr, "--summary",
-                               "--awsprofile", awsProfile, "--awsregion", awsRegion);
+                               "--maxdownload", options.MaxFetch, "--accountexisting", "--deletelru",
+                               "--mission", missionStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
+                }
+
+                if (!options.NoFetch && !options.NoOrbital && !string.IsNullOrEmpty(demURL))
+                {
+                    string dir = Path.GetDirectoryName(demFile);
+                    RunCommand("fetch", allowedFetchFlags, demURL, dir, "--raw", "--nosubdirs",
+                               "--maxdownload", options.MaxFetch, "--accountexisting", "--deletelru",
+                               "--mission", missionStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
+
+                    string srcFile = StringHelper.GetLastUrlPathSegment(demURL);
+                    string destFile = Path.GetFileName(demFile);
+                    string fetchedFile = Path.Combine(dir, srcFile);
+
+                    if (srcFile != destFile && File.Exists(fetchedFile))
+                    {
+                        PathHelper.MoveFileAtomic(fetchedFile, demFile); //overwrites existing
+                    }
                 }
 
                 if (!options.NoIngest)
                 {
                     if (sols.Count > 1 && ingestDir.StartsWith("s3://") && ingestDir == solDir && ingestDir != rdrDir)
                     {
-                        throw new NotImplementedException("s3 reference ingestion from multiple sols not implemented");
+                        throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
-                    
                     RunCommand("ingest", project, "--mission", missionStr, "--onlyforsitedrives", sdsStr,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"));
                 }
@@ -421,9 +457,11 @@ namespace OPS.Landform
                 {
                     RunCommand("bev-align", project, "--fixsitedrives", sdStr);
 
-                    RunCommand("heightmap-align", project, "--basesitedrive", sdStr, "--orbitaldem", demStr);
+                    RunCommand("heightmap-align", project, "--basesitedrive", sdStr,
+                               noOrbital, "--orbitaldem", demFile);
                     
-                    RunCommand("build-geometry", project, "--meshframe", sdStr, "--orbitaldem", demStr);
+                    RunCommand("build-geometry", project, "--meshframe", sdStr,
+                               noOrbital, "--orbitaldem", demFile);
                     
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     

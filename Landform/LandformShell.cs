@@ -345,7 +345,7 @@ namespace OPS.Landform
 
         protected void RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
         {
-            cmd = cmd + " " + string.Join(" ", args);
+            cmd = cmd + " " + string.Join(" ", args.Where(arg => !string.IsNullOrEmpty(arg)));
             var stdFlags = new Dictionary<string, bool>()
                 {
                     { "--nosave", lsopts.NoSave },
