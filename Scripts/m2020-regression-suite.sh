@@ -126,7 +126,9 @@ do_all_the_things() {
     fi
     
     if [ "$contextual" ]; then
-        $scriptdir/processContextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets $all_the_args \
+        IFS=',' read -ra solarray <<< $sols
+        primarysol=${solarray[0]}
+        $scriptdir/processContextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
                                         --orbitaldem out/$run/orbital/$dem
     fi
 }
@@ -137,7 +139,6 @@ if [ "$scarecrow" ]; then
 
 #Scarecrow EECAM
 mission=ScarecrowEECAM
-sol=0000
 sols=0000
 sds=0020536
 ver=m20scarecrow
@@ -158,7 +159,6 @@ if [ "$roastt" ]; then
 
 #ROASTT20 Dec12 MarsYard
 mission=ROASTT20
-sol=0700
 sols=0700
 sds=0010000
 ver=g64
@@ -173,7 +173,6 @@ do_all_the_things
 
 #ROASTT20 Sol 393 Field
 mission=ROASTT20
-sol=0393
 sols=0393
 sds=0180000
 ver=g64
@@ -188,7 +187,6 @@ do_all_the_things
 
 #ROASTT20 Sol 396 Field
 mission=ROASTT20
-sol=0396
 sols=0396
 sd=0190000
 ver=g64
@@ -203,7 +201,6 @@ do_all_the_things
 
 #ROASTT20 Sol 399 Field
 mission=ROASTT20
-sol=0399
 sols=0399
 sds=0200000
 ver=roastt
@@ -218,7 +215,6 @@ do_all_the_things
 
 #ROASTT20 Sol 401 field
 mission=ROASTT20
-sol=0401
 sols=0401
 sds=0200006
 ver=roastt
@@ -233,7 +229,6 @@ do_all_the_things
 
 #ROASTT20 Sol 403 field
 mission=ROASTT20
-sol=0403
 sols=0403
 sds=0200010
 ver=roastt
@@ -254,8 +249,7 @@ if [ "$windjana" ]; then
 
 #Windjana
 mission=MSL
-sol=0630
-sols=0609-0630
+sols=0630,0609-0629
 sds=0311472,0311256,0311444,0311330
 ver=surface
 run=windjana
