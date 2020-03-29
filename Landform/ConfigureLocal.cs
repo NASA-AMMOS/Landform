@@ -7,6 +7,16 @@ using log4net;
 using OPS.Util;
 using OPS.Pipeline;
 
+/// <summary>
+/// Utility to write ~/.landform/landform-local.json
+///
+/// Can be run interactively or in batch mode specifying settings by command line options.
+///
+/// Example command line, batch mode:
+///
+/// Landform.exe configure-local --venue=landform-local --storagedir=c:/Users/$USERNAME/Documents/landform-storage
+///   --maxcores=0 --randomseed=-1
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("configure-local", HelpText = "Configures Landform local")]

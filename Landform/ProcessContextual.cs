@@ -13,6 +13,73 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 
+/// <summary>
+/// Landform contextual mesh tileset workflow service and tool.
+///
+/// Automates the contextual mesh tileset workflow:
+///
+/// 1. fetch
+/// 2. ingest
+/// 3. bev-align
+/// 4. heightmap-align
+/// 5. build-geometry
+/// 6. build-tiling-input
+/// 7. blend-images
+/// 8. build-tileset
+/// 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
+/// 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
+///
+/// As a service, process-contextual is designed to run over a long period of time, receiving messages on an SQS queue,
+/// creating contextual meshes, and uploading them back to S3.
+///
+/// As a command line tool, process-contextual can be used to build individual contextual mesh tilesets.  It can either
+/// operate entirely locally, reading from and writing to disk, or it can read from and write to S3.
+///
+/// Also see Scripts/processContextual.sh, which has overlapping functionality for the batch-mode case.
+/// (processContextual.sh does not implement the service case.)  processContextual.sh is intended for use by developers
+/// only, and has additional options for development and debugging workflows.  process-contextual (ProcessContextual.cs)
+/// can be used by developers but is mainly intended for deployment and production use.
+///
+/// Also see ProcessTactical.cs and processTactical.sh which automate the tactical mesh tileset workflow.
+///
+/// A contextual mesh is generated for a specific primary sol and primary sitedrive.  It combines data from a set of
+/// sols and sitedrives (which must contain the primary sol/sitedrive).  When run as a command line tool these are given
+/// by the --sols and --sitedrives options, where the first listed sol and sitedrive are primary.  When run as a service
+/// they are included in the SQS messages.
+///
+/// RDRs are fetched (or in the case of local files, read from disk) from a specified directory, recursively by default.
+/// If operating on multiple sols the RDR directory can contain a ##### wildcard which will be replaced with each sol
+/// number.
+///
+/// Example RDR directory specifiers:
+/// * "s3://BUCKET/ods/g64/sol/#####/ids/rdr"
+/// * "s3://BUCKET/foo/bar"
+/// * "c:/foo/bar"
+/// * "./foo/bar"
+///
+/// The output tileset is named TTTT_SSSDDDD where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  It is
+/// written to rdrDir/tileset/TTTT_SSSDDDD (*), unless --outputfolder is specified, in which case it is written to a
+/// subdirectory TTTT_SSSDDDD there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is
+/// that prefix but with rdr replaced with rdr/tileset/TTTT_SSSDDDD.
+///
+/// The tileset will contain
+/// * a tilest file TTTT_SSSDDDD/TTTT_SSSDDDD_tileset.json
+/// * a manifest file TTTT_SSSDDDD/TTTT_SSSDDDD_scene.json with relative URLs
+/// * a stats file TTTT_SSSDDDD/TTTT_SSSDDDD_stats.txt.
+///
+/// A combined scene manifest with absolute URLs can also be optionally created or updated as a sibling of the output
+/// tileset directory.  In that case the update-scene-manifest tool will also include any sibling tactical mesh tilesets
+/// in the manifest.
+///
+/// Run as service using mission defaults for AWS configuration and queue names:
+///
+/// Landform.exe process-contextual --service --mission=M2020
+///
+/// Windjana in batch mode using already downloaded RDRs:
+///
+/// Landform.exe process-contextual --mission=M2020 --rdrdir=../rdrs --sols=0609-0630
+///   --sitedrives=0311472,0311256,0311444,0311330 --nocombinedmanifest
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("process-contextual", HelpText = "process contextual meshes")]

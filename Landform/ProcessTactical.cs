@@ -13,6 +13,51 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 
+/// <summary>
+/// Landform tactical mesh tileset workflow service and tool.
+///
+/// Automates the tactical mesh tileset workflow:
+///
+/// 1. build-tiling-input
+/// 2. build-tileset
+/// 3. update-scene-manifest (manifest just for the tactial mesh tileset with relative URLs)
+///
+/// As a service, process-tactical is designed to run over a long period of time, receiving messages on an SQS queue,
+/// creating tactical meshes, and uploading them back to S3.
+///
+/// As a command line tool, process-tactical can be used to build one or more tactical mesh tilesets.  It can either
+/// operate entirely locally, reading from and writing to disk, or it can read from and write to S3.
+///
+/// Also see Scripts/processTactical.sh, which has overlapping functionality for the batch-mode case.
+/// (processTactical.sh does not implement the service case.)  processTactical.sh is intended for use by developers
+/// only, and has additional options for development and debugging workflows.  process-tactical (ProcessTactcial.cs)
+/// can be used by developers but is mainly intended for deployment and production use.
+///
+/// Also see ProcessContextual.cs and processContextual.sh which automate the contextual mesh tileset workflow.
+///
+/// A tactical mesh is generated for a specific wedge mesh RDR, typically in IV or OBJ format.  No coordinate
+/// transformations are applied, it's basically a conversion from mesh to tileset format.  When run as a command line
+/// tool the input meshes are searched, optionally recursively, under a specified directory or s3 folder.  When run as a
+/// service, s3 URLs to individual tactical mesh RDRs are given in SQS messages.
+///
+/// The output tileset is named PRODUCT_ID, where PRODUCT_ID is the basename of the input mesh RDR.  It is written to
+/// rdrDir/tileset/PRODUCT_ID (*), unless --outputfolder is specified, in which case it is written to a subdirectory
+/// PRODUCT_ID there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but
+/// with rdr replaced with rdr/tileset/PRODUCT_ID.
+///
+/// The tileset will contain
+/// * a tilest file PRODUCT_ID/PRODUCT_ID_tileset.json
+/// * a manifest file PRODUCT_ID/PRODUCT_ID_scene.json with relative URLs
+/// * a stats file PRODUCT_ID/PRODUCT_ID_stats.txt.
+///
+/// Run as service using mission defaults for AWS configuration and queue names:
+///
+/// Landform.exe process-tactical --service --mission=M2020
+///
+/// Run on all M2020 wedge mesh RDRs in the local tree ../rdrs, writing results to the current working directory:
+///
+/// Landform.exe process-tactical --mission=M2020 --inputpath=../rdrs --recursivesearch --outputfolder=.
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("process-tactical", HelpText = "process tactical meshes into tilesets")]

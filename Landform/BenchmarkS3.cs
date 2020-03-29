@@ -8,6 +8,9 @@ using CommandLine;
 using OPS.Cloud;
 using OPS.Util;
 
+/// <summary>
+/// Utility to benchmark S3 performance.
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("benchmarks3", HelpText = "Run a benchmark against S3 to test read speed")]

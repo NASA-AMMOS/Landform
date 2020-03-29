@@ -10,6 +10,14 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
 
+/// <summary>
+/// Utility to convert an orbital DEM to a mesh.
+///
+/// Example:
+///
+/// Landform.exe dem2mesh out_deltaradii_smg_1m.tif out_clean_25cm.iGrid.ClipToDEM.tif --mission MSL
+///   --outputframe 0311472
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("dem2mesh", HelpText = "Convert a DEM and optional image to a mesh")]
@@ -33,7 +41,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = "obj", HelpText = "Export format for mesh (examples: obj or ply")]
         public string MeshFormat { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Decimate (roughly) to this error threshold against original points. Error 0 is the special case in which the full grid mesh is built (no sampling/decimation).")]
+        [Option(Required = false, Default = 0, HelpText = "Adaptive mesh to this error threshold.  Set to 0 to build a full organized mesh instead of adaptive meshing.")]
         public double Error { get; set; }
 
         [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "Dem values less than this will be ignored")]
