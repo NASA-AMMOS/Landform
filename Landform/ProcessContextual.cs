@@ -18,16 +18,16 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Automates the contextual mesh tileset workflow:
 ///
-/// 1. fetch
-/// 2. ingest
-/// 3. bev-align
-/// 4. heightmap-align
-/// 5. build-geometry
-/// 6. build-tiling-input
-/// 7. blend-images
-/// 8. build-tileset
-/// 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
-/// 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
+/// 0. fetch
+/// 1. ingest
+/// 2. bev-align
+/// 3. heightmap-align
+/// 4. build-geometry
+/// 5. build-tiling-input
+/// 6. blend-images
+/// 7. build-tileset
+/// 8. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
+/// 9. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
 ///
 /// As a service, process-contextual is designed to run over a long period of time, receiving messages on an SQS queue,
 /// creating contextual meshes, and uploading them back to S3.
@@ -63,6 +63,7 @@ using OPS.Pipeline.AlignmentServer;
 /// that prefix but with rdr replaced with rdr/tileset/TTTT_SSSDDDD.
 ///
 /// The tileset will contain
+/// * one .b3dm file per tile
 /// * a tilest file TTTT_SSSDDDD/TTTT_SSSDDDD_tileset.json
 /// * a manifest file TTTT_SSSDDDD/TTTT_SSSDDDD_scene.json with relative URLs
 /// * a stats file TTTT_SSSDDDD/TTTT_SSSDDDD_stats.txt.

@@ -46,6 +46,7 @@ using OPS.Pipeline.AlignmentServer;
 /// with rdr replaced with rdr/tileset/PRODUCT_ID.
 ///
 /// The tileset will contain
+/// * one .b3dm file per tile
 /// * a tilest file PRODUCT_ID/PRODUCT_ID_tileset.json
 /// * a manifest file PRODUCT_ID/PRODUCT_ID_scene.json with relative URLs
 /// * a stats file PRODUCT_ID/PRODUCT_ID_stats.txt.

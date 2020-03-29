@@ -51,9 +51,6 @@ namespace OPS.Landform
         [Option(HelpText = "Don't save tile backproject index images", Default = false)]
         public bool NoBackprojectIndexImages { get; set; }
 
-        [Option(HelpText = "save tile backproject index images previews", Default = false)]
-        public bool BackprojectIndexImagePreviews { get; set; }
-
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
@@ -585,7 +582,7 @@ namespace OPS.Landform
                 {
                     string indexImageName = name + TileList.INDEX_FILE_SUFFIX;
                     SaveFloatTIFF(index, indexImageName);
-                    if (options.BackprojectIndexImagePreviews)
+                    if (options.WriteBackprojectDebug)
                     {
                         Image preview = Backproject.GenerateIndexPreviewImage(index);
                         SaveImage(preview, indexImageName + "_preview");
@@ -728,7 +725,7 @@ namespace OPS.Landform
                         Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
                                                   options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
                     strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
-                                        options.BackprojectQuality, options.WriteDebug,
+                                        options.BackprojectQuality, options.WriteBackprojectDebug,
                                         Path.Combine(backprojectDebugDir, node.Name));
                 }
                 
