@@ -199,9 +199,17 @@ namespace OPS.Cloud
             }
         }
 
-        public long GetFileSize(AmazonS3Client client, S3Url location)
+        private long GetFileSize(AmazonS3Client client, S3Url location)
         {           
             return GetObjectMetadata(client, location).Headers.ContentLength;
+        }
+
+        public long FileSize(string s3url)
+        {
+            using (var client = GetClient(s3url))
+            {
+                return GetFileSize(client, new S3Url(s3url));
+            }
         }
 
         public bool FileExists(string s3url)

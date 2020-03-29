@@ -35,7 +35,7 @@ namespace OPS.Util
             return HMS(sw.ElapsedMilliseconds);
         }
 
-        public static string KMG(double b, double k = 1e3f)
+        public static string KMG(double b, double k = 1e3)
         {
             if (Math.Abs(b) < k) return b.ToString("f0");
             else if (Math.Abs(b) < k*k) return string.Format("{0:f1}k", b/k);
@@ -43,9 +43,9 @@ namespace OPS.Util
             else return string.Format("{0:f1}G", b/(k*k*k));
         }
 
-        public static string Bytes(double b)
+        public static string DiskBytes(double b)
         {
-            return KMG(b, 1024) + "B";
+            return KMG(b, 1e3);
         }
     }
 }
