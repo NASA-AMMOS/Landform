@@ -938,10 +938,10 @@ namespace OPS.Pipeline
         /// * lat/lon for siteDrive outside bounds of DEM
         /// * no vaid elevation at lat/lon for siteDrive in DEM
         /// </summary>
-        public virtual DEM LoadOrbital(SiteDrive siteDrive, string demFile = null,
-                                       double? metersPerPixel = null, double? elevationScale = null,
-                                       double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
-                                       ILogger logger = null)
+        public virtual DEM LoadOrbitalDEM(SiteDrive siteDrive, string demFile = null,
+                                          double? metersPerPixel = null, double? elevationScale = null,
+                                          double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
+                                          ILogger logger = null)
         {
             var cfg = OrbitalConfig.Instance;
             
