@@ -225,18 +225,7 @@ namespace OPS.Util
                                 //in this case, just delete the old filename because most of the point of this whole
                                 //thing is to try to avoid the filesystem getting littered up with a lot of different
                                 //log files - and zero length log files are of pretty much no use anyway
-                                try
-                                {
-                                    oldFile.Delete();
-                                }
-                                catch (Exception e)
-                                {
-                                    if (!quiet)
-                                    {
-                                        Console.WriteLine(string.Format("error deleting empty log file ({0}): {1}",
-                                                                        e.GetType().FullName, e.Message));
-                                    }
-                                }
+                                PathHelper.DeleteWithRetry(oldFile.FullName);
                             }
                             else
                             {
