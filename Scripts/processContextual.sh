@@ -160,7 +160,7 @@ proj=${sol}_${sd}${suffix}
 venue=local_${mission}_${proj}
 tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 log=processContextual_${proj}_log.txt
-if [ "$dry" ]; then log=; else printf "${cmdline}\r\n" > $log; fi
+if [ "$dry" -o "$only_ingest" -o "$only_cleanup" ]; then log=; else printf "${cmdline}\r\n" > $log; fi
 
 backup_config() { if [ -f $config -a ! -f $config.BAK ]; then ${dry}cp $config $config.BAK; fi }
 
@@ -250,7 +250,7 @@ if [ "$cleanup" ]; then delete_venue; fi
 
 if [ ! "$only_ingest" ]; then restore_config; fi
 
-if [ ! "$dry" ]; then
+if [ ! "$dry" -o "$only_ingest" ]; then
     printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
     if [ -d $proj ]; then
         printf "moved output to ./${proj}\r\n" | tee -a $log

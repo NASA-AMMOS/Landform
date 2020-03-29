@@ -40,6 +40,7 @@ generate=true
 cleanup=true
 only_cleanup=
 upload=
+only_upload=
 s3rdrdir=
 suffix=
 export=
@@ -53,7 +54,7 @@ while (( "$#" )); do
         "--dryrun") dry="echo ";;
         "--nocleanup") cleanup=;;
         "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
-        "--onlyupload") cleanup=; only_cleanup=; generate=;;
+        "--onlyupload") upload=true; only_upload=true; cleanup=; only_cleanup=; generate=;;
         "--quiet") dbg="${dbg} --quiet";;
         "--debug") dbg="${dbg} --debug";;
         "--verbose") dbg="${dbg} --verbose";;
@@ -189,7 +190,7 @@ for f in `find ${dir} -name '*'.${meshext}`; do
             ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj --acl bucket-owner-full-control 
         fi
 
-        if [ ! "$dry" ]; then
+        if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" ]; then
             printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
             if [ -d $proj ]; then
                 printf "moved output to ./${proj}\r\n" | tee -a $log
