@@ -251,7 +251,18 @@ namespace OPS.Pipeline
 
         public override string GetOrbitalConfigDefaults()
         {
+            //TODO switch to newer assets
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1011#issuecomment-269256
+            //s3://m20-ids-g-landform/MSL/orbital/MSL_Gale_DEM_Mosaic_1m_v3.tif
+            //s3://m20-ids-g-landform/MSL/orbital/MSL_Gale_Orthophoto_Mosaic_25cm_v3.tif
+
+            //TODO possibly switch to color orbital
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1017
+            //MSL_Gale_HiRISE-LRGB_16quads.tif
+
             return "{ " +
+                "\"OrbitalDEMURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_deltaradii_smg_1m.tif\", " +
+                "\"OrbitalImageURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\", " +
                 "\"OrbitalDEMStoragePath\": \"MSL/orbital/out_deltaradii_smg_1m.tif\", " +
                 "\"OrbitalImageStoragePath\": \"MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\"" +
                 " }";
@@ -276,7 +287,7 @@ namespace OPS.Pipeline
 
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 MSL data will soon move to
-            //htps://places-msl.dev.m20.jpl.nasa.gov
+            //https://places-msl.dev.m20.jpl.nasa.gov
 
             return
                 "{ " +

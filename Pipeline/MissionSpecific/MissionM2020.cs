@@ -442,11 +442,27 @@ namespace OPS.Pipeline
             return "https://data.m20-dev.jpl.nasa.gov";
         }
 
+        public override string GetOrbitalConfigDefaults()
+        {
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
+            //use assets at
+            //s3://m20-ids-g-landform/M2020/orbital
+            return
+                "{ " +
+                "\"OrbitalDEMURL\": \"\", " +
+                "\"OrbitalImageURL\": \"\", " +
+                "\"OrbitalDEMStoragePath\": \"\", " +
+                "\"OrbitalImageStoragePath\": \"\"" +
+                "}";
+        }
+
         public override string GetPlacesConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
             //per Kevin Grimes on 3/18/20 M20 dev CWS data will soon be available at
-            //htps://places-pipeline.dev.m20.jpl.nasa.gov
+            //https://places-pipeline.dev.m20.jpl.nasa.gov
+
+            //though that'd just be for dev, still TBD what the places instance will be for flight
 
             //return
             //    "{ " +
@@ -514,6 +530,12 @@ namespace OPS.Pipeline
             }
             yield return new int[] { SEQUENCE_FIELD, SEQUENCE_FIELD_LENGTH };
             yield break;
+        }
+
+        public override string GetOrbitalConfigDefaults()
+        {
+            //don't have orbital for TT4
+            return null;
         }
 
         public override string GetPlacesConfigDefaults()
@@ -610,12 +632,22 @@ namespace OPS.Pipeline
         public override string GetOrbitalConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
+            //use assets at
+            //s3://m20-ids-g-landform/MarsYard_Aerial06062019
             return
                 "{ " +
+                "\"OrbitalDEMURL\": \"\", " +
+                "\"OrbitalImageURL\": \"\", " +
                 "\"OrbitalDEMStoragePath\": \"\", " +
                 "\"OrbitalImageStoragePath\": \"\", " +
                 "\"OrbitalBodyName\": \"Earth\"" +
                 "}";
+        }
+
+        public override string GetPlacesConfigDefaults()
+        {
+            //don't have places for scarecrow-eecam
+            return null;
         }
     }
 
@@ -665,8 +697,12 @@ namespace OPS.Pipeline
         public override string GetOrbitalConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
+            //use assets at
+            //s3://m20-ids-g-landform/ROASTT20/orbital
             return
                 "{ " +
+                "\"OrbitalDEMURL\": \"\", " +
+                "\"OrbitalImageURL\": \"\", " +
                 "\"OrbitalDEMStoragePath\": \"\", " +
                 "\"OrbitalImageStoragePath\": \"\", " +
                 "\"OrbitalBodyName\": \"Earth\"" +

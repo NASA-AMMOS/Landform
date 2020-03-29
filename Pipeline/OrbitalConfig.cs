@@ -16,6 +16,18 @@ namespace OPS.Pipeline
             return CONFIG_FILENAME;
         }
 
+        //s3 or https URL of orbital DEM
+        //default is null which disables download of orbital DEM
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
+        [ConfigEnvironmentVariable("LANDFORM_ORBITAL_DEM_URL")]
+        public string OrbitalDEMURL { get; set; }
+
+        //s3 or https URL of orbital texture image
+        //default is null which disables download of orbital texture
+        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
+        [ConfigEnvironmentVariable("LANDFORM_ORBITAL_IMAGE_URL")]
+        public string OrbitalImageURL { get; set; }
+
         //path below LocalPipelineConfig.Instance.StorageDir containing the orbital DEM
         //default is null which disables orbital DEM
         //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
