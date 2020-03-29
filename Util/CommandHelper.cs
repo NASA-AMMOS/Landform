@@ -153,7 +153,7 @@ namespace OPS.Util
 
                 foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
                 {
-                    BaseAttribute attr = prop.GetCustomAttribute<BaseAttribute>();
+                    var attr = prop.GetCustomAttribute<BaseAttribute>();
                     if (attr != null)
                     {
                         if (attr.Required && !dict.ContainsKey(prop.Name))
@@ -177,6 +177,12 @@ namespace OPS.Util
             }
             else
             {
+                if (allowUnknown)
+                {
+                    //work around https://github.com/commandlineparser/commandline/issues/525
+                    args = FilterOutUnknownArgs(args, optsTypes);
+                    allowUnknown = false;
+                }
                 var parser = new Parser((ParserSettings settings) => 
                         {
                             settings.HelpWriter = Console.Error;
@@ -198,6 +204,49 @@ namespace OPS.Util
                 }
                 return null; //e.g. --help or --version
             }
+        }
+
+        public static string[] FilterOutUnknownArgs(string[] args, IEnumerable<Type> optsTypes)
+        {
+            if (args == null || args.Length < 2)
+            {
+                return args;
+            }
+
+            string verbName = args[0].ToLower();
+            Type optsType = optsTypes
+                .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
+                .FirstOrDefault();
+            if (optsType == null)
+            {
+                return args;
+            }
+
+            var knownArgs = new HashSet<string>();
+            foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
+            {
+                var attr = prop.GetCustomAttribute<BaseAttribute>();
+                if (attr != null)
+                {
+                    knownArgs.Add(prop.Name.ToLower());
+                }
+            }
+
+            Func<string, bool> isKnown =
+                arg => arg.StartsWith("-") && knownArgs.Contains(arg.TrimStart('-').Split('=')[0].ToLower());
+
+            var filtered = new List<string>();
+            filtered.Add(args[0]);
+            for (int i = 1; i < args.Length; i++)
+            {
+                if (isKnown(args[i]) ||
+                    (i > 1 && !args[i].StartsWith("-") && isKnown(args[i - 1]) && !args[i - 1].Contains("=")))
+                {
+                    filtered.Add(args[i]);
+                }
+            }
+
+            return filtered.ToArray();
         }
 
         public static int RunFromCommandline(string[] args, IDictionary<Type, Type> verbs)
