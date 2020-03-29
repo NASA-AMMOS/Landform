@@ -1,12 +1,18 @@
 #!/bin/sh
 
-lfbucket=m20-ids-g-landform
-
+# change this to use a custom suffix for all generated tilesets
 suffix="--suffix regsuite"
+
+# comment this out to actually do the deed
 dryrun=--dryrun
 
+# uncomment this to include debug products with each tileset
 #writedebug=--writedebug
+
+# uncomment this to include ply/png for every tile
 #export="--exportmeshext ply --exportimgext png"
+
+# use these to pass custom args to any stage
 #cfgargs="--configargs \"--arg val\""
 #ingestargs="--ingestargs \"--arg val\""
 #bevargs="--bevargs \"--arg val\""
@@ -17,10 +23,10 @@ dryrun=--dryrun
 #tilesetargs="--tilesetargs \"--arg val\""
 #manifestargs="--manifestargs \"--arg val\""
 
-all_the_args="$suffix $dryrun $writedebug $export $cfgargs $ingestargs"
-all_the_args="$all_the_args $bevargs $heightmapargs $geometryargs $blendargs $tilingargs $tilesetargs $manifestargs"
+# this is used for orbital and MSL assets
+lfbucket=m20-ids-g-landform
 
-# STAGES
+# ENABLE STAGES
 # comment out the foo=true line to disable
 
 credss=
@@ -38,7 +44,7 @@ tactical=
 contextual=
 contextual=true
 
-# SUITES
+# ENABLE SUITES
 # comment out the foo=true line to disable
 
 scarecrow=
@@ -50,7 +56,7 @@ roastt=
 windjana=
 #windjana=true
 
-#-----------------------------------------------------------------------------------------------------------------------
+# MACHINERY ------------------------------------------------------------------------------------------------------------
 
 if [ "$credss" ]; then
     if [ $# -lt 2 ]; then
@@ -87,6 +93,9 @@ if [ "$dryrun" ]; then dry="echo "; fi
 landform="${dry}${landform}"
 credssexe="${dry}${credssexe}"
 
+all_the_args="$suffix $dryrun $writedebug $export $cfgargs $ingestargs"
+all_the_args="$all_the_args $bevargs $heightmapargs $geometryargs $blendargs $tilingargs $tilesetargs $manifestargs"
+
 do_all_the_things() {
 
     if [ "$credss" ]; then
@@ -122,7 +131,7 @@ do_all_the_things() {
     fi
 }
 
-#-----------------------------------------------------------------------------------------------------------------------
+# SUITES ---------------------------------------------------------------------------------------------------------------
 
 if [ "$scarecrow" ]; then
 
@@ -250,7 +259,7 @@ sols=0609-0630
 sds=0311472,0311256,0311444,0311330
 ver=surface
 run=windjana
-bucket=m20-ids-g-landform/$mission
+bucket=$lfbucket/$mission
 ids=opgs
 fetchargs=
 dem=out_deltaradii_smg_1m.tif
