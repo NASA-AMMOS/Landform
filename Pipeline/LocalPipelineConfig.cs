@@ -30,7 +30,10 @@ namespace OPS.Pipeline
 
         public LocalPipelineConfig()
         {
-            StorageDir = GetDefaultStorageDir();
+            if (string.IsNullOrEmpty(StorageDir)) //could be set by base class constructor
+            {
+                StorageDir = GetDefaultStorageDir();
+            }
         }
 
         public static string GetDefaultStorageDir()

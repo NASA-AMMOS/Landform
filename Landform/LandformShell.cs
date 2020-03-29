@@ -153,7 +153,7 @@ namespace OPS.Landform
             storageDir = StringHelper.NormalizeSlashes(!string.IsNullOrEmpty(lsopts.StorageDir) ? lsopts.StorageDir :
                                                        pipeline is LocalPipeline ?
                                                        StringHelper.StripProtocol(pipeline.StorageUrl, "file://") :
-                                                       LocalPipelineConfig.GetDefaultStorageDir());
+                                                       LocalPipelineConfig.Instance.StorageDir);
             pipeline.LogInfo("storage dir: {0}", storageDir);
 
             if (!string.IsNullOrEmpty(lsopts.OutputFolder))
