@@ -1,0 +1,261 @@
+#!/bin/sh
+
+lfbucket=m20-ids-g-landform
+
+suffix="--suffix regsuite"
+dryrun=--dryrun
+
+#writedebug=--writedebug
+#export="--exportmeshext ply --exportimgext png"
+#cfgargs="--configargs \"--arg val\""
+#ingestargs="--ingestargs \"--arg val\""
+#bevargs="--bevargs \"--arg val\""
+#heightmapargs="--heightmapargs \"--arg val\""
+#geometryargs="--geometryargs \"--arg val\""
+#blendargs="--blendargs \"--arg val\""
+#tilingargs="--tilingargs \"--arg val\""
+#tilesetargs="--tilesetargs \"--arg val\""
+#manifestargs="--manifestargs \"--arg val\""
+
+all_the_args="$suffix $dryrun $writedebug $export $cfgargs $ingestargs"
+all_the_args="$all_the_args $bevargs $heightmapargs $geometryargs $blendargs $tilingargs $tilesetargs $manifestargs"
+
+# STAGES
+# comment out the foo=true line to disable
+
+credss=
+credss=true
+
+fetch=
+#fetch=true
+
+fetch_orbital=
+#fetch_orbital=true
+
+tactical=
+#tactical=true
+
+contextual=
+contextual=true
+
+# SUITES
+# comment out the foo=true line to disable
+
+scarecrow=
+scarecrow=true
+
+roastt=
+#roastt=true
+
+windjana=
+#windjana=true
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+if [ "$credss" ]; then
+    if [ $# -lt 2 ]; then
+        echo "must specify credss.exe username and password as command line options"
+        exit 1
+    fi
+    credss_user=$1
+    credss_pass=$2
+fi
+
+# exit script on ctrl-c
+ctrlc() { exit 1; }
+trap "ctrlc" INT
+
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+for d in . .. ../Landform/bin/Release ../Landform/bin/Debug; do
+    landform=$scriptdir/$d/Landform.exe
+    if [ -f $landform ]; then break; fi
+done
+if [ "$fetch" -a ! -f "$landform" ]; then
+    echo "could not find Landform.exe"
+    exit 1
+fi
+
+credssexe=$scriptdir/../Utils/credss.exe
+if [ "$credss" -a ! -f "$credssexe" ]; then
+    echo "could not find credss.exe"
+    exit 1
+fi
+
+dry=
+if [ "$dryrun" ]; then dry="echo "; fi
+
+landform="${dry}${landform}"
+credssexe="${dry}${credssexe}"
+
+do_all_the_things() {
+
+    if [ "$credss" ]; then
+        $credssexe --venue dev -s credss-default -u $credss_user -p $credss_pass
+    fi
+    
+    if [ "$fetch" ]; then
+        
+        rdr_bucket=s3://$bucket/ods/$ver/sol/#####/$ids/rdr 
+        
+        $landform fetch $sols out/$run/rdrs $rdr_bucket --mission $mission --summary $fetchargs
+        
+        if [ "$fetch_orbital"]; then
+            
+            orbital_bucket=s3://$lfbucket/$mission/orbital
+            
+            if [ "$dem" ]; then
+                $landform fetch $orbital_bucket/$dem out/$run/orbital --mission $mission --raw --nosubdirs
+            fi 
+            if [ "$ortho" ]; then
+                $landform fetch $orbital_bucket/$ortho out/$run/orbital --mission $mission --raw --nosubdirs
+            fi
+        fi
+    fi
+        
+    if [ "$tactical" ]; then
+        $scriptdir/processTactical.sh out/$run/rdrs $mission out/$run/tilesets $all_the_args
+    fi
+    
+    if [ "$contextual" ]; then
+        $scriptdir/processContextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets $all_the_args \
+                                        --orbitaldem out/$run/orbital/$dem
+    fi
+}
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+if [ "$scarecrow" ]; then
+
+#Scarecrow EECAM
+mission=ScarecrowEECAM
+sol=0000
+sols=0000
+sds=0020536
+ver=m20scarecrow
+run=scarecrow-eecam
+bucket=m20-ids-g-data-scarecrow-tilefix2
+ids=ids
+fetchargs=
+dem=
+ortho=
+
+do_all_the_things
+
+fi
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+if [ "$roastt" ]; then
+
+#ROASTT20 Dec12 MarsYard
+mission=ROASTT20
+sol=0700
+sols=0700
+sds=0010000
+ver=g64
+run=roastt20-dec12-e
+bucket=roastt-marsyard-12-12-e
+ids=ids
+fetchargs="--onlyforcameras=Navcam,Mastcam"
+dem=
+ortho=
+
+do_all_the_things
+
+#ROASTT20 Sol 393 Field
+mission=ROASTT20
+sol=0393
+sols=0393
+sds=0180000
+ver=g64
+run=roastt20-393-g
+bucket=roastt-dev-0205
+ids=ids
+fetchargs="--onlyforcameras=Navcam,Mastcam --excludepattern=*393112341*,*393112436*"
+dem=
+ortho=
+
+do_all_the_things
+
+#ROASTT20 Sol 396 Field
+mission=ROASTT20
+sol=0396
+sols=0396
+sd=0190000
+ver=g64
+run=roastt20-396-g
+bucket=roastt-dev-0205
+ids=ids
+fetchargs="--onlyforcameras=Navcam,Mastcam"
+dem=
+ortho=
+
+do_all_the_things
+
+#ROASTT20 Sol 399 Field
+mission=ROASTT20
+sol=0399
+sols=0399
+sds=0200000
+ver=roastt
+run=roastt20-399-b
+bucket=roastt-dev-0205
+ids=ids
+fetchargs="--onlyforcameras=Navcam,Mastcam"
+dem=
+ortho=
+
+do_all_the_things
+
+#ROASTT20 Sol 401 field
+mission=ROASTT20
+sol=0401
+sols=0401
+sds=0200006
+ver=roastt
+run=roastt20-401-a
+bucket=roastt-dev-0205
+ids=ids
+fetchargs="--onlyforcameras=Navcam,Mastcam"
+dem=
+ortho=
+
+do_all_the_things
+
+#ROASTT20 Sol 403 field
+mission=ROASTT20
+sol=0403
+sols=0403
+sds=0200010
+ver=roastt
+run=roastt20-403-a
+bucket=roastt-dev-0205
+ids=ids
+fetchargs="--onlyforcameras=Navcam,Mastcam"
+dem=
+ortho=
+
+do_all_the_things
+
+fi
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+if [ "$windjana" ]; then
+
+#Windjana
+mission=MSL
+sol=0630
+sols=0609-0630
+sds=0311472,0311256,0311444,0311330
+ver=surface
+run=windjana
+bucket=m20-ids-g-landform/$mission
+ids=opgs
+fetchargs=
+dem=out_deltaradii_smg_1m.tif
+ortho=out_clean_25cm.iGrid.ClipToDEM.tif
+
+do_all_the_things
+
+fi
