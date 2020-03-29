@@ -8,6 +8,9 @@ packages/
 out*/
 tmp/
 log/
+cfg/
+storage/
+release/
 TestResults/
 *.user
 Landform-*/
