@@ -18,6 +18,57 @@ using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
 
+/// <summary>
+/// Creates blended observation images, implementing the blend-images stage in the Landform contextual mesh workflow.
+///
+/// Uses LimberDMG to reduce the visibility of seams in a tileset textured by backprojecting multiple observation
+/// images. Also see LimberDMGDriver.cs.
+///
+/// Background:
+///
+/// https://github.jpl.nasa.gov/OnSight/Landform/wiki/Composite-Image-Stitching-aka-DMG
+/// https://github.jpl.nasa.gov/OnSight/Landform/wiki/DMG---a-brief-history
+///
+/// The blend-images stage is typically run after build-tiling-input, but it can also be run after build-geometry
+/// (i.e. before build-tiling-input).  The latter corresponds more directly to the legacy approach in TerrainTools for
+/// MSL OnSight.  It is also acceptable to skip the blend-images stage to build a tileset without seam-blended textures.
+///
+/// When run after build-tiling-input, the leaf tile meshes are loaded, textured with the per-leaf backproject index
+/// images, and rasterized in a birds eye view generating a scene backproject index image typically with 4k
+/// resolution. Each pixel in the index image refers to a pixel in one of the source observation images, i.e. its 3
+/// components are (observation index, observation pixel row, observation pixel column).
+///
+/// When run after build-geometry, the scene mesh is loaded and shrinkwrapped, and the shrinkwrapped mesh is
+/// backprojected to generate the scene backproject index image, also typically with 4k resolution.
+///
+/// However the full-scene backproject index is made, a corresponding full-scene texture is then built from it but using
+/// a blurred version of the observation images to remove high frequency comonents so that LimberDMG does not attempt to
+/// blend small variations along image seams.
+///
+/// LimberDMG is then run on the blurred full-scene image and index.  The index tells LimberDMG where the seams between
+/// source images are, and the image gives the pixel values to be blended.
+///
+/// LimberDMG returns a blended version of the full-scene image.  The pixels in this full-scene image correspond to a
+/// sampling of pixels from orginal observation images, with sparsity and coverage that depends on how backproject
+/// selected images and also on the resolution of the full-scene image.  When compared to the original values at the
+/// same locations in the blurred observation images, these samples indicate how to adjust that region of the original
+/// observation image.
+///
+/// We then interpolate these adjustments across the original observation images, and save those new images as a
+/// "Blended" variant of the observation images.  Several strategies to perform this interopolation are implemented
+/// using various combinations of inpaint, barycentric interpolation, and blurring.  A default strategy is
+/// automatically selected depending on whether blend-images is run before or after build-tiling-input.
+///
+/// If run before build-tiling-input, that stage will detect that Blended variants of (at least some) observation images
+/// are available, and use them to build the leaf tile textures.
+///
+/// If run after build-tiling-input the existing leaf tile textures are directly replaced with blended versions.
+///
+/// Example:
+///
+/// Landform.exe blend-images windjana --meshframe 0311472
+///
+/// </summary>
 namespace OPS.Landform
 {
     public enum BlendStrategy { None, Auto, Barycentric, Inpaint };

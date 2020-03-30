@@ -21,7 +21,7 @@ using OPS.Geometry;
 ///
 /// Example:
 ///
-/// LandformUtil.exe limber-dmg mesh_region_shrink_tex_orbital_adjust.tif mesh_region_shrink_tex_image_numbers.tif
+/// Landform.exe limber-dmg mesh_region_shrink_tex_orbital_adjust.tif mesh_region_shrink_tex_image_numbers.tif
 ///   --flagsimage mesh_region_shrink_tex_orbital_adjust_limberflags.tif --legacyinvalidindices --outputformat=png
 ///   --mesh mesh_region_shrink.obj
 /// </summary>
