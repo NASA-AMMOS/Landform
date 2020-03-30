@@ -338,12 +338,23 @@ namespace OPS.Landform
             }
         }
 
-        protected void RunCommand(string cmd, params string[] args)
+        protected int RunCommand(string cmd, params string[] args)
         {
-            RunCommand(cmd, null, args);
+            return RunCommand(cmd, null, args);
         }
 
-        protected void RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
+        protected int RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
+        {
+            return RunCommand(cmd, allowedFlags, true, true, args);
+        }
+
+        protected int RunCommand(string cmd, bool throwOnError, params string[] args)
+        {
+            return RunCommand(cmd, null, throwOnError, true, args);
+        }
+
+        protected int RunCommand(string cmd, HashSet<string> allowedFlags, bool throwOnError, bool throwOnKill,
+                                 params string[] args)
         {
             cmd = cmd + " " + string.Join(" ", args.Where(arg => !string.IsNullOrEmpty(arg)));
             var stdFlags = new Dictionary<string, bool>()
@@ -385,13 +396,35 @@ namespace OPS.Landform
                 var runner = new ProgramRunner(landformExe, cmd, captureOutput: quiet);
                 int code = runner.Run(process => { currentProcess = process; } ); //blocks until process exits or dies
                 currentProcess = null;
-                if (code != 0) //code = -1 if killed
+                if (code == -1) //killed
+                {
+                    var msg = string.Format("command \"{0}\" killed", cmd);
+                    if (throwOnKill)
+                    {
+                        throw new Exception(msg);
+                    }
+                    else
+                    {
+                        pipeline.LogWarn(msg);
+                    }
+                }
+                else if (code != 0)
                 {
                     string err = (runner.ErrorText ?? "").TrimEnd('\r', '\n');
-                    throw new Exception(string.Format("command \"{0}\" failed with code {1}{2}", cmd, code,
-                                                      err != "" ? (Environment.NewLine + err) : ""));
+                    string msg = string.Format("command \"{0}\" failed with code {1}{2}", cmd, code,
+                                               err != "" ? (Environment.NewLine + err) : "");
+                    if (throwOnError)
+                    {
+                        throw new Exception(msg);
+                    }
+                    else
+                    {
+                        pipeline.LogWarn(msg);
+                    }
                 }
+                return code;
             }
+            return 0;
         }
 
         protected void KillCurrentCommand()

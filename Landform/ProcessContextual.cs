@@ -107,8 +107,11 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Persistent download dir, defaults to \"fetched\" subdir of local Landform storage dir")]
         public string FetchDir { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Max fetched bytes on disk, integer with optional case-insensitive suffix K,M,G, unlimited if empty or non-positive")]
+        [Option(Required = false, Default = null, HelpText = "Max fetched RDR bytes on disk, not including orbital, integer with optional case-insensitive suffix K,M,G, unlimited if empty or non-positive")]
         public string MaxFetch { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Max fetched orbital bytes on disk, integer with optional case-insensitive suffix K,M,G, unlimited if empty or non-positive")]
+        public string MaxOrbital { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't ingest")]
         public bool NoIngest { get; set; }
@@ -145,6 +148,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable orbital", Default = false)]
         public bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Abort contextual mesh workflow on unexpected error in an alignment stage", Default = false)]
+        public bool AbortOnAlignmentError { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -404,7 +410,7 @@ namespace OPS.Landform
             string demURL = !string.IsNullOrEmpty(options.OrbitalDEMURL) ? options.OrbitalDEMURL
                 : OrbitalConfig.Instance.OrbitalDEMURL;
             string demFile = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM
-                : fetchDir + "/" + OrbitalConfig.Instance.OrbitalDEMStoragePath;
+                : fetchDir + "/orbital/" + OrbitalConfig.Instance.OrbitalDEMStoragePath;
             string noOrbital = (options.NoOrbital || string.IsNullOrEmpty(demURL)) ? "--noorbital" : "";
 
             var allowedFetchFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
@@ -419,7 +425,7 @@ namespace OPS.Landform
 
                 if (!options.NoFetch && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
-                    ingestDir = fetchDir;
+                    ingestDir = fetchDir + "/rdrs";
                     RunCommand("fetch", allowedFetchFlags, GetSolRanges(sols), ingestDir, rdrDir,
                                "--onlyforsitedrives", sdsStr, "--summary",
                                "--maxdownload", options.MaxFetch, "--accountexisting", "--deletelru",
@@ -430,7 +436,7 @@ namespace OPS.Landform
                 {
                     string dir = Path.GetDirectoryName(demFile);
                     RunCommand("fetch", allowedFetchFlags, demURL, dir, "--raw", "--nosubdirs",
-                               "--maxdownload", options.MaxFetch, "--accountexisting", "--deletelru",
+                               "--maxdownload", options.MaxOrbital, "--accountexisting", "--deletelru",
                                "--mission", missionStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
 
                     string srcFile = StringHelper.GetLastUrlPathSegment(demURL);
@@ -455,9 +461,9 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("bev-align", project, "--fixsitedrives", sdStr);
+                    RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr);
 
-                    RunCommand("heightmap-align", project, "--basesitedrive", sdStr,
+                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr,
                                noOrbital, "--orbitaldem", demFile);
                     
                     RunCommand("build-geometry", project, "--meshframe", sdStr,
