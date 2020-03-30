@@ -100,6 +100,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Poisson reconstruction BSpline degree", Default = 2)]
         public int PoissonBSplineDegree { get; set; }
+
+        [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
+        public bool NoSurfaceObs { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -140,9 +143,12 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("build observation point clouds", BuildObservationPointClouds);
-                RunPhase("merge point clouds", MergePointClouds);
-                RunPhase("reconstruct mesh", ReconstructMesh);
+                if (!options.NoSurfaceObs)
+                {
+                    RunPhase("build observation point clouds", BuildObservationPointClouds);
+                    RunPhase("merge point clouds", MergePointClouds);
+                    RunPhase("reconstruct mesh", ReconstructMesh);
+                }
 
                 if (!options.NoOrbital)
                 {
@@ -154,7 +160,12 @@ namespace OPS.Landform
                     dbgMeshPrefix += "-noOrbital";
                 }
 
-                if (!options.NoFillHoles || !options.NoOrbital)
+                if (options.NoSurfaceObs)
+                {
+                    dbgMeshPrefix += "-noSurface";
+                }
+
+                if (!options.NoSurfaceObs && (!options.NoFillHoles || !options.NoOrbital))
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
@@ -168,7 +179,11 @@ namespace OPS.Landform
                 if (!options.NoOrbital)
                 {
                     RunPhase("build orbital mesh", BuildOrbitalMesh);
-                    RunPhase("blend orbital to surface", BlendOrbitalToSurface);
+
+                    if (!options.NoSurfaceObs)
+                    {
+                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
+                    }
                 }
                 else if (options.NoFillHoles)
                 {

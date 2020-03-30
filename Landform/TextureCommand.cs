@@ -86,6 +86,8 @@ namespace OPS.Landform
 
         protected SceneMesh sceneMesh;
         protected SparsePipelineImage orbitalTexture;
+        protected GDALTransform orbitalImageTransform;
+        protected Matrix sitedriveToOrbitalBody;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods

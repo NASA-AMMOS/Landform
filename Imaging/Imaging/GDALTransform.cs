@@ -110,15 +110,26 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// X = longitude, Y = latitude
+        /// </summary>
+        public Vector2 LatLonToXYZ(Vector2 latlon, double lat0 = 0, double lon0 = 0)
+        {
+            double r = Body.GetRadius();
+            return new Vector2(
+                r * Math.Sin((latlon.Y - lat0) * Math.PI / 180.0),
+                r * Math.Cos((latlon.Y - lat0) * Math.PI / 180.0) * Math.Sin((latlon.X - lon0) * Math.PI / 180.0));
+            );
+        }
+        /// <summary>
         /// X = longitude, Y = latitude, Z = elevation relative to sphere
         /// </summary>
-        public Vector3 LatLonToXYZ(Vector3 bodyPos, double lat0 = 0, double lon0 = 0)
+        public Vector3 LatLonToXYZ(Vector3 latlon, double lat0 = 0, double lon0 = 0)
         {
-            double r = Body.GetRadius() + bodyPos.Z;
+            double r = Body.GetRadius() + latlon.Z;
             return new Vector3(
-                r * Math.Sin((bodyPos.Y - lat0) * Math.PI / 180.0),
-                r * Math.Cos((bodyPos.Y - lat0) * Math.PI / 180.0) * Math.Sin((bodyPos.X - lon0) * Math.PI / 180.0),
-                r * Math.Cos((bodyPos.Y - lat0) * Math.PI / 180.0) * Math.Cos((bodyPos.X - lon0) * Math.PI / 180.0)
+                r * Math.Sin((latlon.Y - lat0) * Math.PI / 180.0),
+                r * Math.Cos((latlon.Y - lat0) * Math.PI / 180.0) * Math.Sin((latlon.X - lon0) * Math.PI / 180.0),
+                r * Math.Cos((latlon.Y - lat0) * Math.PI / 180.0) * Math.Cos((latlon.X - lon0) * Math.PI / 180.0)
             );
         }
 

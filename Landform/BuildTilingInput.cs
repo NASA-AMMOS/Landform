@@ -743,7 +743,8 @@ namespace OPS.Landform
                 var backprojectResults = BackprojectObservations(mesh, strategy, out List<PixelPoint> missingPixels, node.Name);
 
                 //orbital
-                var orbitalResults = Backproject.BackprojectOrbital(mesh, orbitalTexture, missingPixels);
+                var orbitalResults = Backproject.BackprojectOrbital(orbitalTexture, sitedriveToOrbitalBody,
+                    orbitalImageTransform, missingPixels);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 if (backprojectResults.Count() == 0 && orbitalResults.Count() == 0)
@@ -775,7 +776,8 @@ namespace OPS.Landform
         {
             try
             {
-                orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), options.OrbitalImage, logger: pipeline);
+                orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), 
+                    out orbitalImageTransform, options.OrbitalImage, logger: pipeline);
             }
             catch (Exception ex)
             {
@@ -783,6 +785,22 @@ namespace OPS.Landform
                 options.NoOrbitalTexture = true;
                 return;
             }
+
+            var placesDB = new PlacesDB(pipeline, requireOrbital: true);
+
+            //TODO: move to mission specific? cross check w marty's basis func
+            //TODO: check math w unit test
+            Vector2 meshFrameLatLon = placesDB.GetEstimatedLatLon(new SiteDrive(meshFrame));
+            Vector3 bodyXYZ = orbitalImageTransform.LatLonToXYZ(new Vector3(meshFrameLatLon.Y, meshFrameLatLon.X,0)); //function wants lonlat
+            Vector3 siteDriveDownInBody = -Vector3.Normalize(bodyXYZ);
+            Vector3 siteDriveEastInBody = Vector3.Normalize(Vector3.Cross(siteDriveDownInBody, new Vector3(1,0,0)));
+            Vector3 siteDriveNorthInBody = Vector3.Normalize(Vector3.Cross(siteDriveEastInBody, siteDriveDownInBody));
+            sitedriveToOrbitalBody = new Matrix(siteDriveNorthInBody.X, siteDriveEastInBody.X, siteDriveDownInBody.X, 0,
+                                                siteDriveNorthInBody.Y, siteDriveEastInBody.Y, siteDriveDownInBody.Y, 0,
+                                                siteDriveNorthInBody.Z, siteDriveEastInBody.Z, siteDriveDownInBody.Z, 0,
+                                                bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
+
+
 
             //TODO: support orbital align
             //FrameTransform ft = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);

@@ -906,14 +906,18 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
-        /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
+        /// Orbital DEM images typically have north latitude increasing with row and longitude increasing with col. //BUGBUG: in places metadata
+        ///  Image X => East 
+        ///  Image Y => South
+        ///  Image Z => Zenith
+
         /// </summary>
         public virtual void GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir,
                                                                out Vector3 downDir)
         {
-            upDir = new Vector3(0, 0, -1);
+            upDir = new Vector3(0, 0, -1); 
             rightDir = new Vector3(0, 1, 0);
-            downDir = new Vector3(-1, 0, 0);
+            downDir = new Vector3(-1, 0, 0); // BUBUG: name back?
         }
 
         /// <summary>
@@ -980,7 +984,7 @@ namespace OPS.Pipeline
                            originPixel, originElevation, minFilter, maxFilter);
         }
 
-        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive, string imgFile = null,
+        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive, out GDALTransform gdalTransform, string imgFile = null, 
                                           ILogger logger = null)
         {
             var cfg = OrbitalConfig.Instance;
@@ -990,6 +994,7 @@ namespace OPS.Pipeline
                 if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
                 {
                     imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
+                    gdalTransform = new GDALTransform(imgFile, GDALDEM.CreateBody(cfg.OrbitalBodyName));
                     return new SparsePipelineImage(pipeline, imgFile);
                 }
                 else
@@ -998,6 +1003,7 @@ namespace OPS.Pipeline
                 }
             }
 
+            //TOOD: outputmesh to orbital xyz link
             //var placesDB = new PlacesDB(logger, requireOrbital: true);
             //var gdalDEM = GDALDEM.Load(imgFile, cfg.OrbitalBodyName);
             //var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));

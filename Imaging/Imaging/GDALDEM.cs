@@ -64,15 +64,22 @@ namespace OPS.Imaging
             projectedToLatLon = new CoordinateTransformation(projectedFrame, bodyFrame);
         }
 
-        public static GDALDEM Load(string file, string body)
+        public static DEMBody CreateBody(string body)
         {
-            switch(body.ToLower())
+            switch (body.ToLower())
             {
-                case "mars": return new GDALDEM(file, new MarsBody());
-                case "earth": return new GDALDEM(file, new EarthBody());
+                case "mars": return new MarsBody();
+                case "earth": return new EarthBody();
                 default: throw new Exception("orbital DEM for planetary body not supported: " + body);
             }
         }
+
+        public static GDALDEM Load(string file, string body)
+        {
+           return new GDALDEM(file, CreateBody(body));
+        }
+
+        //TODO: share with transform?
 
         /// <summary>
         /// input: X = pixel column, Y = pixel row
@@ -109,13 +116,13 @@ namespace OPS.Imaging
         /// <summary>
         /// X = longitude, Y = latitude
         /// </summary>
-        public Vector3 LatLonToXYZ(Vector3 bodyPos, double lat0 = 0, double lon0 = 0)
+        public Vector3 LatLonToXYZ(Vector3 lonLatRelAltitude, double lat0 = 0, double lon0 = 0)
         {
-            double r = Body.GetRadius() + bodyPos.Z;
+            double r = Body.GetRadius() + lonLatRelAltitude.Z;
             return new Vector3(
-                r * Math.Sin((bodyPos.Y - lat0) * Math.PI / 180.0),
-                r * Math.Cos((bodyPos.Y - lat0) * Math.PI / 180.0) * Math.Sin((bodyPos.X - lon0) * Math.PI / 180.0),
-                r * Math.Cos((bodyPos.Y - lat0) * Math.PI / 180.0) * Math.Cos((bodyPos.X - lon0) * Math.PI / 180.0)
+                r * Math.Sin((lonLatRelAltitude.Y - lat0) * Math.PI / 180.0),   
+                r * Math.Cos((lonLatRelAltitude.Y - lat0) * Math.PI / 180.0) * Math.Sin((lonLatRelAltitude.X - lon0) * Math.PI / 180.0), 
+                r * Math.Cos((lonLatRelAltitude.Y - lat0) * Math.PI / 180.0) * Math.Cos((lonLatRelAltitude.X - lon0) * Math.PI / 180.0)
             );
         }
 

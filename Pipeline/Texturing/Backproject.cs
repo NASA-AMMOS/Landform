@@ -113,15 +113,19 @@ namespace OPS.Pipeline
         }
 
         //<DST, SRC>
-        static public IDictionary<Pixel,Pixel> BackprojectOrbital(Mesh mesh, SparsePipelineImage orbitalTexture, List<PixelPoint> pixelsToBackproject)
+        static public IDictionary<Pixel,Vector2> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, GDALTransform bodyToImage, List<PixelPoint> pixelsToBackproject)
         {
-            Dictionary<Pixel, Pixel> orbPixelsByTexel = new Dictionary<Pixel, Pixel>();
-            //foreach(var dstPixel in pixelsToBackproject)
-            //{
-            //    Vector3 meshPointInOutput;
-            //    Vector3 outputSitedriveInOrbital;
-            //}
-            throw new NotImplementedException("nope");
+            Dictionary<Pixel, Vector2> orbPixelsByTexel = new Dictionary<Pixel, Vector2>();
+            foreach(var destPixelPt in pixelsToBackproject)
+            {
+                var ptOutputMeshFrame = destPixelPt.Point;
+                var ptBodyXYZ = Vector3.Transform(ptOutputMeshFrame, outputMeshFrameToBodyXYZ);
+                var latlon = bodyToImage.XYZToLatLon(ptBodyXYZ); //TODO: can collapse these calls
+                var pixel = bodyToImage.LatLonToImage(latlon);
+                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new Vector2(pixel.Y, pixel.X); //BUGBUG: if the subpixel dst is not centers, its wrong //TODO: detect and handle collisions here and in normal backproj
+            }
+
+            return orbPixelsByTexel;
         }
 
         /// <summary>
@@ -640,12 +644,43 @@ namespace OPS.Pipeline
             return new Pixel((int)subPixel.Y, (int)subPixel.X);
         }
 
-        public static void FillIndexImageOrbital(IDictionary<Pixel, Pixel> orbitalResults, Image index)
+        /// <summary>
+        /// high level function that takes orbital backproject results
+        /// and adds indices and source pixel locations as the pixel colors
+        /// output band 0: observation index
+        /// output band 1: observation pixel row
+        /// output band 2: observation column
+        /// </summary>
+        static static public void FillIndexImageOrbital(IDictionary<Pixel, Vector2> orbitalResults, Image outputImage)
         {
-            throw new NotImplementedException();
+            const int ORBITALINDEX = Observation.MAX_INDEX - 1;
+
+            if (outputImage.Bands != 3)
+                throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
+
+            foreach (var entry in backprojectResults)
+            {
+                var outputPixel = entry.Key;
+                var sourceImageIndex = entry.Value.Obs.Index;
+                var sourcePixel = entry.Value.Pixel;
+
+                if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
+                    outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
+                {
+                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
+                }
+
+                if (sourceImageIndex < Observation.MIN_INDEX)
+                {
+                    throw new InvalidDataException("invalid image index in backproject results");
+                }
+
+                outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
+                                          new float[] { sourceImageIndex, (float)sourcePixel.Y, (float)sourcePixel.X });
+            }
         }
 
-        public static void FillOutputTextureOrbital(IDictionary<Pixel, Pixel> orbitalResults, SparsePipelineImage orbitalTexture, Image image)
+        public static void FillOutputTextureOrbital(IDictionary<Pixel, Vector2> orbitalResults, SparsePipelineImage orbitalTexture, Image image)
         {
             throw new NotImplementedException();
         }
