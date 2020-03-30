@@ -45,6 +45,9 @@ using OPS.Pipeline.AlignmentServer;
 /// PRODUCT_ID there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is that prefix but
 /// with rdr replaced with rdr/tileset/PRODUCT_ID.
 ///
+/// When run as a service the input RDR directory is also given as part of each SQS message.  Thus, the service will
+/// write tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory.
+///
 /// The tileset will contain
 /// * one .b3dm file per tile
 /// * a tilest file PRODUCT_ID/PRODUCT_ID_tileset.json

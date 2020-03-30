@@ -62,6 +62,9 @@ using OPS.Pipeline.AlignmentServer;
 /// subdirectory TTTT_SSSDDDD there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is
 /// that prefix but with rdr replaced with rdr/tileset/TTTT_SSSDDDD.
 ///
+/// When run as a service the RDR directory is also given as part of each SQS message.  Thus, the service will write the
+/// tilesets back to the same RDR tree as the source RDRs, but under the rdr/tileset subdirectory.
+///
 /// The tileset will contain
 /// * one .b3dm file per tile
 /// * a tilest file TTTT_SSSDDDD/TTTT_SSSDDDD_tileset.json
@@ -92,10 +95,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Input directory or S3 folder with sol replaced with #####, optional with --service")]
         public string RDRDir { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Sol(s) and range(s) with primary one first, e.g. 8,6-10")]
+        [Option(Required = false, Default = null, HelpText = "Sol(s) and range(s) with primary one first, e.g. 8,6-10, mutually exclusive with --service")]
         public string Sols { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Sitedrives with primary one first")]
+        [Option(Required = false, Default = null, HelpText = "Sitedrives with primary one first, mutually exclusive with --service")]
         public string SiteDrives { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't fetch")]

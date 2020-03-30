@@ -277,7 +277,7 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/921
             //currently we default to best_tactical but legacy TerrainTools used localized_interp
 
-            //note https://github.jpl.nasa.gov/OnSight/Landform/wiki/Credss-workaround-for-MSL-PLACES
+            //note https://github.jpl.nasa.gov/OnSight/Landform/wiki/ZZZ-OLD-Credss-workaround-for-MSL-PLACES
             //for a while we had to use this old PLACES instance to get MSL data for M2020 dev
             //Url: https://places-dev.m20-dev.jpl.nasa.gov
             //AuthCookieFile: ~/.cssotoken/dev-old/ssosession
