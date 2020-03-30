@@ -37,9 +37,9 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Sparse external areas of the BEV images are clipped using a block-based heruistic algorithm.  Features are detected
 /// typically with a FAST feature detector.  Features are matched across sitedrives by a combination of spatial
-/// filtering, image descriptor distance, and outlier rejection.  These 2D feature pairs are transformed in to 3D pairs
+/// filtering, image descriptor distance, and RANSAC.  These 2D feature pairs are transformed in to 3D pairs
 /// by combining each BEV with a DEM that is rendered from the same viewpoint, but coloring the mesh by vertex elevation
-/// instead of tilt angle.
+/// instead of tilt angle.  Outlier pairs are rejected with a mean absolute deviation filter.
 ///
 /// A graph of sitedrives is formed with edges connecting sitedrives with sufficient numbers of feature matches.  Pose
 /// optimization is performed on the graph.  The current implementation computes a spanning tree (or forest) and aligns
