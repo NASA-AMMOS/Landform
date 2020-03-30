@@ -69,15 +69,6 @@ namespace OPS.Landform
 
             StartStopwatch();
 
-            if (!string.IsNullOrEmpty(lcopts.ConfigDir))
-            {
-                Config.ConfigDir = lcopts.ConfigDir;
-            }
-            if (!string.IsNullOrEmpty(lcopts.ConfigFolder)) 
-            {
-                Config.ConfigFolder = lcopts.ConfigFolder;
-            }
-
             if (lcopts.Cloud)
             {
                 pipeline = new CloudPipeline(lcopts, initQueues: false);
@@ -90,11 +81,6 @@ namespace OPS.Landform
             RunPhase("scan for user image masks", () => pipeline.InitUserMasks());
 
             PDSSerializer.DataPath = pipeline.PDSDataPath;
-
-            if (!pipeline.Quiet)
-            {
-                CommandHelper.DumpConfig(pipeline.Logger, pipeline.Config);
-            }
         }
 
         protected void StartStopwatch()

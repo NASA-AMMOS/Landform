@@ -215,7 +215,7 @@ namespace OPS.Util
                             {
                                 if (oldFile.Length > 0 && !quiet)
                                 {
-                                    Console.WriteLine(string.Format("deleting log file {0} " +
+                                    Console.WriteLine(string.Format("WARN: deleting log file {0} " +
                                                                     "with only {1} bytes before changing filename",
                                                                     oldFile, oldFile.Length));
                                 }
@@ -227,21 +227,14 @@ namespace OPS.Util
                                 //log files - and zero length log files are of pretty much no use anyway
                                 PathHelper.DeleteWithRetry(oldFile.FullName);
                             }
-                            else
+                            else if (!quiet)
                             {
                                 //the log filename has changed, but logs have already been written to the
                                 //old filename - so leave it there
-                                if (!quiet)
-                                {
-                                    Console.WriteLine(string.Format("changing log file to {0}, " +
-                                                                    "old log file {1} not empty", fa.File, oldFile));
-                                }
+                                Console.WriteLine(string.Format("WARN: changing log file to {0}, " +
+                                                                "old log file {1} not empty", fa.File, oldFile));
                             }
                         }
-                    }
-                    if (!quiet)
-                    {
-                        Console.WriteLine(string.Format("logging to {0}", fa.File));
                     }
                 }
                 else if (a is ConsoleAppender)

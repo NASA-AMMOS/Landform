@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CommandLine;
 using OPS.Util;
+using OPS.Pipeline;
 
 namespace OPS.Landform
 {
@@ -9,7 +10,10 @@ namespace OPS.Landform
     {
         static int Main(string[] args)
         {
-            if (!CommandHelper.Configure(args, "Landform"))
+            if (!CommandHelper.Configure(args, typeof(Landform), typeof(PipelineCore),
+                                         () => CommandHelper.HasFlag(args, "cloud") ?
+                                         CloudPipelineConfig.Instance.ConfigFilePath() :
+                                         LocalPipelineConfig.Instance.ConfigFilePath()))
             {
                 return 1;
             }

@@ -41,13 +41,29 @@ namespace OPS.Util
             public bool Debug { get; set; }
         }
 
+        public static bool HasFlag(string[] args, string flag)
+        {
+            return args.Any(arg => arg.StartsWith("-") && arg.ToLower().TrimStart('-') == flag);
+        }
+
         /// <summary>
         /// Early parse of standard command line arguments to set up Config and Logging.
         /// </summary>
-        public static bool Configure(string[] args, string baseCommand)
+        public static bool Configure(string[] args, Type appType = null, Type pipelineType = null,
+                                     Func<string> appConfigFile = null)
         {
             Config.CommandLineArgs = args;
-            Config.BaseCommand = baseCommand;
+
+            if (appType != null)
+            {
+                Config.BaseCommand = appType.Name;
+                Config.AppVersion = appType.Assembly.GetName().Version.ToString();
+            }
+
+            if (pipelineType != null)
+            {
+                Config.PipelineVersion = pipelineType.Assembly.GetName().Version.ToString();
+            }
 
             var opts = new BaseOptions();
             if (args.Length > 0)
@@ -85,21 +101,28 @@ namespace OPS.Util
 
             Logging.ConfigureLogging(Config.FullCommand, opts.Quiet, opts.Debug, opts.LogFile, opts.LogDir);
 
+            if (!opts.Quiet)
+            {
+                var logger = !string.IsNullOrEmpty(Config.SubCommand) ? LogManager.GetLogger(Config.SubCommand)
+                    : appType != null ? LogManager.GetLogger(appType)
+                    : pipelineType != null ? LogManager.GetLogger(pipelineType)
+                    : LogManager.GetLogger("Landform");
+                logger.InfoFormat("command: {0} {1}", PathHelper.GetExe(), string.Join(" ", args));
+                logger.InfoFormat("{0} {1}, Pipeline {2}", Config.BaseCommand ?? "Landform",
+                                  Config.AppVersion ?? "(unknown)", Config.PipelineVersion ?? "(unknown)");
+                logger.InfoFormat("temp dir: {0}", TemporaryFile.TemporaryDirectory);
+                logger.InfoFormat("log file: {0}", Logging.GetLogFile());
+
+                //get the app config instance to ask its file path now
+                //after Config.ConfigDir and Config.ConfigFolder are initialized
+                string cfgFile = appConfigFile != null ? appConfigFile() : null;
+                if (cfgFile != null)
+                {
+                    logger.InfoFormat("config file: {0}", cfgFile);
+                }
+            }
+
             return true;
-        }
-
-        public static void DumpConfig(ILog logger, Config config = null)
-        {
-            string exe = PathHelper.GetExe(); 
-            string[] args = Config.CommandLineArgs;
-            logger.InfoFormat("command: {0}{1}", exe, args != null ? (" " + string.Join(" ", args)) : "");
-
-            string configFile = config != null ? config.ConfigFilePath() : null;
-            logger.InfoFormat("config file: {0}",  configFile ?? "(none)");
-
-            logger.InfoFormat("temp dir: {0}", TemporaryFile.TemporaryDirectory);
-
-            logger.InfoFormat("log file: {0}", Logging.GetLogFile());
         }
 
         public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes, bool allowUnknown = false)

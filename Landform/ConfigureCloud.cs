@@ -71,11 +71,13 @@ namespace OPS.Landform
         public string WorkerExecutable { get; set; }
     }
 
-    public class ConfigureCloud : ConfigureBase
+    public class ConfigureCloud
     {
         private ConfigureCloudOptions options;
 
-        public ConfigureCloud(ConfigureCloudOptions options) : base(options)
+        private ILog logger = LogManager.GetLogger(typeof(ConfigureCloud));
+
+        public ConfigureCloud(ConfigureCloudOptions options)
         {
             this.options = options;
         }

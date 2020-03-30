@@ -28,11 +28,13 @@ namespace OPS.Landform
         public string StorageDir { get; set; }
     }
 
-    public class ConfigureLocal : ConfigureBase
+    public class ConfigureLocal
     {
         private ConfigureLocalOptions options;
 
-        public ConfigureLocal(ConfigureLocalOptions options) : base(options)
+        private ILog logger = LogManager.GetLogger(typeof(ConfigureLocal));
+
+        public ConfigureLocal(ConfigureLocalOptions options)
         {
             this.options = options;
         }
