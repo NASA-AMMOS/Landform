@@ -30,8 +30,8 @@ using OPS.Pipeline.AlignmentServer;
 /// least the base sitedrive).  See OrbitalConfig.cs for details of the orbital DEM metadata.  PlacesDB is also required
 /// to relate the lat/lon of the base sitedrive to a pixel in the orbital DEM.
 ///
-///  All sitedrives that failed to align in the first stage (or optionally all sitedrives except the base sitedrive),
-///  are then aligned to the orbital DEM.
+/// All sitedrives that failed to align in the first stage (or optionally all sitedrives except the base sitedrive)
+/// are then aligned to the orbital DEM.
 ///
 /// If an orbital DEM is available then its alignment is saved as a Frame with the name given by
 /// OrbitalConfig.OrbitalFrameName in the alignment project database.
