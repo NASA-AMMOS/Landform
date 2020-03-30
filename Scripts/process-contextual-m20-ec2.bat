@@ -1,6 +1,11 @@
 @echo off
 
-rem see https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
+rem Runs process-contextual as a service on an EC2 instance.
+rem
+rem See process-contextual-m20-dev.sh for developer use.
+rem
+rem Environment variables can be set from the EC2 user data script, see
+rem https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
 
 set service=contextual
 
@@ -50,9 +55,24 @@ if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXT
 set venue=%service%-service
 if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
 
+set maxfetch=50G
+if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
+
+set maxorbital=20G
+if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
+
+set nocombinedmanifest=
+if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest==--nocombinedmanifest
+
+set noorbital=
+if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set noorbital==--noorbital
+
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
+set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
+
+set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
@@ -62,6 +82,8 @@ move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 
 @echo on
 
+rem note %quiet% must always be last, it's a redirect not an option
+
 %landform% configure-local %cfgopts% %quiet%
 
-%landform% process-%service% %svcopts% %quiet% --awsprofile=%awsprofile% --awsregion=%awsregion% 
+%landform% process-%service% %svcopts% %contextualopts% %quiet% 

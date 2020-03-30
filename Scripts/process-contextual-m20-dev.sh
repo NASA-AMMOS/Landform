@@ -1,8 +1,19 @@
 #!/bin/sh
 
+# Runs process-contextual as a service in an isolated environment.
+#
+# Log dir, temp dir, config dir, and storage dir will all be in "contextual" subdirectories of the current working dir.
+#
+# This script is intended for dev use only.
+#
+# See process-contextual-m20-ec2.bat which is more comprehensive and intended for production use where most things can
+# be configured from environment variables (which can be set from the EC2 user data script).
+#
+# Command line options will be pased on to process-contextual.
+#
+# Common options: --queuename=foo --failqueuename=bar --maxfetch=50G --maxorbital=20G --nocombinedmanifest [--noorbital]
+
 mission=${LANDFORM_MISSION:-M2020}
-queue=${LANDFORM_CONTEXTUAL_QUEUE:-mission}
-failqueue=${LANDFORM_CONTEXTUAL_FAIL_QUEUE:-mission}
 
 service=contextual
 bindir=./Landform/bin/Release
@@ -16,10 +27,10 @@ venue=${service}-service
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir"
 cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
-svcopts="$stdopts --stacktraces --service --mission=$mission --queuename=$queue --failqueuename=$failqueue"
+svcopts="$stdopts --stacktraces --service --mission=$mission"
 
 set -x # echo commands
 
 $landform configure-local $cfgopts
 
-$landform process-${service} $svcopts
+$landform process-${service} $svcopts "$@"
