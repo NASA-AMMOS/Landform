@@ -12,6 +12,66 @@ using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using System.IO;
 
+/// <summary>
+/// Reconstructs scene geometry from observation point clouds in a Landform contextual mesh workflow.
+///
+/// Runs after all alignment stages (e.g. bev-align, heightmap-align), but before build-tiling-input.
+///
+/// The observation pointclouds are typically combined with CleverCombine which attempts to reject outlier points using
+/// a grid-based approach.
+///
+/// The mesh is then reconstructed on the full scene point cloud, typically with Poisson reconstruction.  Mission normal
+/// map RDRs (UVW products) give each point a normal, which is usually required.  Points with bad or suspected bad
+/// normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the confidence
+/// of each point, though at this time ingestion of mission RNE products is still TODO
+/// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
+/// distance from the camera as a proxy.
+///
+/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 32m square around the origin
+/// if the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
+/// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
+///
+/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh
+/// and finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for
+/// further operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time
+/// with less agressive trimming options for Poisson reconstruction (hole filling is only implemented for Poisson
+/// reconstruction).  The resulting mesh is clipped to the surface mask created from the original construction.  In this
+/// way the potential undesirable effects of less agressive Poisson surface trimming around the outer boundary of the
+/// mesh are avoided, but the benefits of allowing more internal hole filling are gained.
+///
+/// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
+/// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  For example, if the surface
+/// mesh bounds are 32m then the orbital mesh bounds may be 64m.  Or the orbital mesh bounds could be the same as the
+/// surface mesh bounds.  A reasonable level of interpolation (typically 20samples/meter) is used so that the individal
+/// triangles in the organized mesh are not too large.  Trianges with vertices inside the surface mask are not included
+/// (the surface mask is computed if either hole filling or orbital meshing is to be performed), so that the orbital
+/// mesh is approximately periperhal to the surface mesh.  Because the organized mesh triangles in the orbital mesh are
+/// limited in size the matching at the boundary between the surface and orbital meshes is typically not too far off at
+/// this point, but there will still be a gap.  The orbital mesh is then sewn and blended to the surface mesh: vertices
+/// of the orbital mesh close to a vertex of the surface mesh (typically 0.2m) are snapped to the nearest vertex of the
+/// surface mesh.  Other vertices of the orbital mesh, typically within 5m of the surface mesh, are adjusted in height
+/// with a blend based on the average of the nearest surface vertex heights and the distance to the surface mesh.
+///
+/// The resulting mesh is always saved as a PlyGZDataProduct to project storage with metadata in a SceneMesh object in
+/// linked from the alignment project in the project database.
+///
+/// The scene mesh will always have normals but never have texture coordinates.  Because its topology can be complex it
+/// would be non-trivial to atlas it.  In the typical contextual mesh workflow this is handled by only atlasing the
+/// leaf and parent tile meshes, which are typically much smaller.
+///
+/// If a tileset is not required, the full scene mesh can also be directly saved with the --outputscenemesh option.
+/// When running locally this can be either a relative or absolute disk path with an accepted mesh file extension, or
+/// just the extension, in which case a default filename will be used in the current working directory.  When running
+/// with --cloud the output mesh must either be a URL within the project venue storage area, or a relative path which
+/// will be prepended with the project storage venue URL and "meshing/GeometryProducts", or just a known mesh format
+/// extension.  The scene mesh will not be texured and will not have UVs.  However, see BuildTexture.cs wich can attempt
+/// to compute a full-scene texture (not guaranteed to work due to the atlasing issue described above).
+///
+/// Example:
+///
+/// Landform.exe build-geometry windjana --meshframe 0311472 --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif
+///
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
@@ -100,6 +160,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Poisson reconstruction BSpline degree", Default = 2)]
         public int PoissonBSplineDegree { get; set; }
+
+        [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save final mesh", Default = null)]
+        public string OutputSceneMesh { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -261,6 +324,32 @@ namespace OPS.Landform
 
             var obsNames = onlyForObs.Select(o => o.Name).ToArray();
             dbgMeshPrefix = SceneMesh.MakeName(meshFrame, MeshVariant.Default, siteDrives, obsNames);
+
+            if (!string.IsNullOrEmpty(options.OutputSceneMesh))
+            {
+                var url = StringHelper.NormalizeUrl(options.OutputSceneMesh);
+                var ext = StringHelper.GetUrlExtension(url);
+                if (MeshSerializers.Instance.CheckFormat(ext) == null)
+                {
+                    throw new Exception("unsupported output mesh format " + ext);
+                }
+                if (url.StartsWith("."))
+                {
+                    url = dbgMeshPrefix + url;
+                }
+                if (pipeline is CloudPipeline)
+                {
+                    if (!url.Contains("://"))
+                    {
+                        url = pipeline.GetStorageUrl(OUT_DIR, project.Name, url);
+                    }
+                    else if (!url.StartsWith(pipeline.StorageUrlWithVenue))
+                    {
+                        throw new Exception(string.Format("output scene mesh URL {0} outside cloud storage area", url));
+                    }
+                }
+                options.OutputSceneMesh = url;
+            }
 
             return true;
         }
@@ -891,6 +980,15 @@ namespace OPS.Landform
             if (options.WriteDebug)
             {
                 SaveMesh(mesh, dbgMeshPrefix);
+            }
+
+            if (!string.IsNullOrEmpty(options.OutputSceneMesh))
+            {
+                TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(options.OutputSceneMesh), tmpFile =>
+                {
+                    mesh.Save(tmpFile);
+                    pipeline.SaveFile(tmpFile, options.OutputSceneMesh, constrainToStorage: false);
+                });
             }
 
             var bounds = mesh.Bounds().Size();
