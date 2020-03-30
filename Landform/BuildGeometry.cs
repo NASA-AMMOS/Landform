@@ -55,17 +55,19 @@ using System.IO;
 /// The resulting mesh is always saved as a PlyGZDataProduct to project storage with metadata in a SceneMesh object in
 /// linked from the alignment project in the project database.
 ///
-/// The scene mesh will always have normals but never have texture coordinates.  Because its topology can be complex it
-/// would be non-trivial to atlas it.  In the typical contextual mesh workflow this is handled by only atlasing the
-/// leaf and parent tile meshes, which are typically much smaller.
+/// The scene mesh will always have normals but will typically not have texture coordinates.  Because its topology can
+/// be complex it can be non-trivial to atlas it.  In the typical contextual mesh workflow this is handled by only
+/// atlasing the leaf and parent tile meshes, which are typically much smaller.
 ///
-/// If a tileset is not required, the full scene mesh can also be directly saved with the --outputscenemesh option.
+/// Atlasing of the full scene mesh can be attempted by specifying --generateuvs.
+///
+/// If a tileset is not required, the full scene mesh can also be directly saved with the --outputmesh option.
 /// When running locally this can be either a relative or absolute disk path with an accepted mesh file extension, or
 /// just the extension, in which case a default filename will be used in the current working directory.  When running
 /// with --cloud the output mesh must either be a URL within the project venue storage area, or a relative path which
 /// will be prepended with the project storage venue URL and "meshing/GeometryProducts", or just a known mesh format
-/// extension.  The scene mesh will not be texured and will not have UVs.  However, see BuildTexture.cs wich can attempt
-/// to compute a full-scene texture (not guaranteed to work due to the atlasing issue described above).
+/// extension.  The output scene mesh will not be textured.  However, if atlasing was successful, then a textured mesh
+/// can be generated with build-texture.
 ///
 /// Example:
 ///
@@ -161,8 +163,14 @@ namespace OPS.Landform
         [Option(HelpText = "Poisson reconstruction BSpline degree", Default = 2)]
         public int PoissonBSplineDegree { get; set; }
 
-        [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save final mesh", Default = null)]
-        public string OutputSceneMesh { get; set; }
+        [Option(HelpText = "Generate full-mesh UVs with UVAtlas", Default = false)]
+        public bool GenerateUVs { get; set; }
+
+        [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
+        public int TextureResolution { get; set; }
+
+        [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]
+        public string OutputMesh { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -249,6 +257,11 @@ namespace OPS.Landform
                     RunPhase("filter mesh", FilterMesh);
                 }
 
+                if (options.GenerateUVs)
+                {
+                    RunPhase("atlas mesh", () => AtlasMesh(options.TextureResolution));
+                }
+
                 RunPhase("save mesh", SaveMesh);
             }
             catch (Exception ex)
@@ -325,30 +338,10 @@ namespace OPS.Landform
             var obsNames = onlyForObs.Select(o => o.Name).ToArray();
             dbgMeshPrefix = SceneMesh.MakeName(meshFrame, MeshVariant.Default, siteDrives, obsNames);
 
-            if (!string.IsNullOrEmpty(options.OutputSceneMesh))
+            if (!string.IsNullOrEmpty(options.OutputMesh))
             {
-                var url = StringHelper.NormalizeUrl(options.OutputSceneMesh);
-                var ext = StringHelper.GetUrlExtension(url);
-                if (MeshSerializers.Instance.CheckFormat(ext) == null)
-                {
-                    throw new Exception("unsupported output mesh format " + ext);
-                }
-                if (url.StartsWith("."))
-                {
-                    url = dbgMeshPrefix + url;
-                }
-                if (pipeline is CloudPipeline)
-                {
-                    if (!url.Contains("://"))
-                    {
-                        url = pipeline.GetStorageUrl(OUT_DIR, project.Name, url);
-                    }
-                    else if (!url.StartsWith(pipeline.StorageUrlWithVenue))
-                    {
-                        throw new Exception(string.Format("output scene mesh URL {0} outside cloud storage area", url));
-                    }
-                }
-                options.OutputSceneMesh = url;
+                options.OutputMesh =
+                    CheckOutputURL(options.OutputMesh, dbgMeshPrefix, OUT_DIR, MeshSerializers.Instance);
             }
 
             return true;
@@ -954,6 +947,22 @@ namespace OPS.Landform
             pipeline.LogInfo("kept {0} faces visible in specified observations", mesh.Faces.Count);
         }
 
+        private void AtlasMesh(int textureResolution)
+        {
+            pipeline.LogInfo("atlasing {0} triangles with UVAtlas, texture resolution {1}",
+                             Fmt.KMG(mesh.Faces.Count), textureResolution);
+
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
+            pipeline.LogWarn("UVAtlas may not work well on large meshes");
+
+            mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution);
+
+            if (mesh == null)
+            {
+                throw new Exception("unknown error atlasing mesh");
+            }
+        }
+
         private void SaveMesh()
         {
             if (!options.NoSave)
@@ -982,12 +991,12 @@ namespace OPS.Landform
                 SaveMesh(mesh, dbgMeshPrefix);
             }
 
-            if (!string.IsNullOrEmpty(options.OutputSceneMesh))
+            if (!string.IsNullOrEmpty(options.OutputMesh))
             {
-                TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(options.OutputSceneMesh), tmpFile =>
+                TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(options.OutputMesh), tmpFile =>
                 {
                     mesh.Save(tmpFile);
-                    pipeline.SaveFile(tmpFile, options.OutputSceneMesh, constrainToStorage: false);
+                    pipeline.SaveFile(tmpFile, options.OutputMesh, constrainToStorage: false);
                 });
             }
 
