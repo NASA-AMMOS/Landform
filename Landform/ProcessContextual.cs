@@ -1,10 +1,13 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using CommandLine;
 using OPS.Util;
 using OPS.Cloud;
@@ -125,10 +128,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Persistent download dir, defaults to \"fetched\" subdir of local Landform storage dir")]
         public string FetchDir { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Max fetched RDR bytes on disk, not including orbital, integer with optional case-insensitive suffix K,M,G, unlimited if empty or non-positive")]
+        [Option(Required = false, Default = null, HelpText = "Max fetched RDR bytes on disk, not including orbital, integer with optional case-insensitive suffix K,M,G, no limit if omitted or non-positive")]
         public string MaxFetch { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Max fetched orbital bytes on disk, integer with optional case-insensitive suffix K,M,G, unlimited if empty or non-positive")]
+        [Option(Required = false, Default = null, HelpText = "Max fetched orbital bytes on disk, integer with optional case-insensitive suffix K,M,G, no limit if empty or non-positive")]
         public string MaxOrbital { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't ingest")]
@@ -179,29 +182,32 @@ namespace OPS.Landform
         [Option(Required = false, Default = "xyz_", HelpText = "Master service list filename prefix")]
         public string ListPrefix { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Master to worker message queue name, reuquired with --master")]
+        [Option(Required = false, Default = null, HelpText = "Master to worker message queue name, required with --master")]
         public string MasterToWorkerQueueName { get; set; }
+
+        [Option(Required = false, Default = ProcessContextual.DEF_DEBOUNCE_SEC, HelpText = "Master waits at least this long after any list file changed for a given RDR directory before firing a new contextual mesh message, default if negative")]
+        public int MasterDebounceSec { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Master to worker message queue is Landform owned")]
         public bool LandformOwnedMasterToWorkerQueue { get; set; }
 
-        [Option(Required = false, Default = 4, HelpText = "Minimum number of wedges for a base site drive in a contextual mesh")]
-        public int MinBaseSiteDriveWedges { get; set; }
+        [Option(Required = false, Default = 4, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
+        public int MinPrimarySiteDriveWedges { get; set; }
 
-        [Option(Required = false, Default = 1, HelpText = "Minimum number of wedges for a site drive to be included in a contextual mesh")]
+        [Option(Required = false, Default = 1, HelpText = "Minimum number of wedges for a site drive to be included in a contextual mesh, non-positive for no limit")]
         public int MinSiteDriveWedges { get; set; }
 
-        [Option(Required = false, Default = 100, HelpText = "Maximum number of wedges for which to build a contextual mesh")]
+        [Option(Required = false, Default = 100, HelpText = "Maximum number of wedges for which to build a contextual mesh, non-positive for no limit")]
         public int MaxContextualMeshWedges { get; set; }
 
-        [Option(Required = false, Default = 10, HelpText = "Max number of site drives to include in contextual mesh")]
+        [Option(Required = false, Default = 10, HelpText = "Max number of site drives to include in contextual mesh, non-positive for no limit")]
         public int MaxSiteDrives{ get; set; }
 
-        [Option(Required = false, Default = 32, HelpText = "Max distance in meters from origin of base site drive to origin of a site drive to include in contextual mesh")]
+        [Option(Required = false, Default = 32, HelpText = "Max distance in meters from origin of a site drive to origin of primary site drive to include in contextual mesh, non-positive for no limit")]
         public double MaxSiteDriveDistance { get; set; }
 
-        [Option(Required = false, Default = 30, HelpText = "Max difference between sols in base site drive and site drive to include in contextual mesh")]
-        public int MaxSolDistance { get; set; }
+        [Option(Required = false, Default = ProcessContextual.DEF_MAX_SOL_RANGE, HelpText = "Max difference between sol and primary sol to include in contextual mesh, negative to use default")]
+        public int MaxSolRange { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -214,12 +220,23 @@ namespace OPS.Landform
         public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
         public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour
 
+        public const int MASTER_LOOP_PERIOD_SEC = 10;
+
+        public const int DEF_DEBOUNCE_SEC = 60;
+
+        public const int DEF_MAX_SOL_RANGE = 30;
+
         protected ProcessContextualOptions options;
 
         private string listExt;
 
-        private class GenericContextualMeshMessage : QueueMessage
+        private MessageQueue masterToWorkerQueue;
+
+        //message sent from master to worker
+        //defines the job of building one contextual mesh
+        private class ContextualMeshMessage : QueueMessage
         {
+            //designed for serialization to JSON so using camelCase not StudlyCaps
 #pragma warning disable 0649
             public string rdrDir; //e.g. s3://BUCKET/ods/g64/sol/#####/ids/rdr; if null or empty then use options.RDRDir
             public int primarySol;
@@ -229,12 +246,34 @@ namespace OPS.Landform
 #pragma warning restore 0649
         }
 
+        //defines the job of building one contextual mesh
+        //can be built from a ContextualMeshMessage (worker service mode) or command line arguments (batch mode)
+        private class ContextualMeshParameters
+        {
+            public string RDRDir;
+            public int PrimarySol;
+            public HashSet<int> Sols = new HashSet<int>();
+            public SiteDrive PrimarySiteDrive;
+            public HashSet<SiteDrive> SiteDrives = new HashSet<SiteDrive>();
+            public string TilesetName { get { return string.Format("{0:D4}_{1}", PrimarySol, PrimarySiteDrive); } }
+        }
+
+        //for testing master instead of SNS wrapped S3 ObjectCreated messages
         private class GenericContextualMasterMessage : QueueMessage
         {
 #pragma warning disable 0649
             public string listUrl;
 #pragma warning restore 0649
         }
+
+        //in-memory list file database for master mode: list file directory -> list file URL -> list file
+        //written by ProcessListFile(), read by MasterLoop()
+        private ConcurrentDictionary<string, Stamped<ConcurrentDictionary<string, Stamped<ListFile>>>> listDirs =
+            new ConcurrentDictionary<string, Stamped<ConcurrentDictionary<string, Stamped<ListFile>>>>();
+
+        //rdrDir -> timestamp (ms since UTC) when master last made pass over it 
+        //confined to the master loop thread
+        private Dictionary<string, long> lastMasterPass = new Dictionary<string, long>();
 
         public ProcessContextual(ProcessContextualOptions options) : base(options)
         {
@@ -305,7 +344,7 @@ namespace OPS.Landform
             else
             {
                 //non-master mode implies generic message type
-                return messageQueue.DequeueOne<GenericContextualMeshMessage>();
+                return messageQueue.DequeueOne<ContextualMeshMessage>();
             }
         }
 
@@ -325,7 +364,7 @@ namespace OPS.Landform
             else
             {
                 //non-master mode implies generic message type
-                return JsonHelper.FromJson<GenericContextualMeshMessage>(json, autoTypes: false);
+                return JsonHelper.FromJson<ContextualMeshMessage>(json, autoTypes: false);
             }
         }
 
@@ -349,7 +388,7 @@ namespace OPS.Landform
                     }
                     if (ListFile.ParseSiteDriveListFilename(url, options.ListPrefix) == null)
                     {
-                        reason = "unhandled listfile name: " + url;
+                        reason = "unhandled list file name: " + url;
                         return false;
                     }
                     return true;
@@ -384,7 +423,7 @@ namespace OPS.Landform
                     pipeline.LogWarn("list file {0} not found", url);
                     return true; //drop message, maybe file was deleted or renamed
                 }
-                ProcesssListFile(url); //throws exception on error
+                ProcessListFile(url); //throws exception on error
             }
             else
             {
@@ -434,6 +473,12 @@ namespace OPS.Landform
                     throw new Exception("empty list format");
                 }
                 listExt = "." + listExt.ToLower().TrimStart('.');
+
+                if (string.IsNullOrEmpty(options.MasterToWorkerQueueName))
+                {
+                    throw new Exception("--mastertoworkerqueuename required with --master");
+                }
+                masterToWorkerQueue = GetMasterToWorkerMessageQueue();
             }
 
             return true;
@@ -459,6 +504,15 @@ namespace OPS.Landform
             return "contextual";
         }
 
+        protected override void RunService()
+        {
+            if (options.Master)
+            {
+                Task.Run(() => MasterLoop());
+            }
+            base.RunService();
+        }
+
         private string GetUrlFromMessage(QueueMessage msg)
         {
             if (options.UseGenericMessageType)
@@ -475,11 +529,17 @@ namespace OPS.Landform
             }
         }
             
-        private string GetSolRanges(HashSet<int> sols)
+        private string MakeSolRanges(HashSet<int> sols, int primarySol)
         {
             var ranges = new List<int[]>();
+            var skipped = new List<int>();
             foreach (var sol in sols.OrderBy(sol => sol))
             {
+                if (options.MaxSolRange >= 0 && Math.Abs(sol - primarySol) > options.MaxSolRange)
+                {
+                    skipped.Add(sol);
+                    continue;
+                }
                 if (ranges.Count == 0 || ranges[ranges.Count - 1][1] != sol - 1)
                 {
                     ranges.Add(new int[] { sol, sol });
@@ -489,16 +549,21 @@ namespace OPS.Landform
                     ranges[ranges.Count - 1][1] = sol;
                 }
             }
+            if (skipped.Count > 0)
+            {
+                pipeline.LogWarn("not including {0} sols out of range {1} from primary sol {2}: {3}",
+                                 skipped.Count, options.MaxSolRange, primarySol, string.Join(", ", skipped));
+            }
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
         }
 
         private ContextualMeshParameters MakeParameters(QueueMessage msg)
         {
             //non-master mode implies generic message type
-            return MakeParameters((GenericContextualMeshMessage)msg, options.RDRDir);
+            return MakeParameters((ContextualMeshMessage)msg, options.RDRDir);
         }
 
-        private ContextualMeshParameters MakeParameters(GenericContextualMeshMessage msg, string defaultRDRDir)
+        private ContextualMeshParameters MakeParameters(ContextualMeshMessage msg, string defaultRDRDir)
         {
             var ret = new ContextualMeshParameters();
 
@@ -666,9 +731,367 @@ namespace OPS.Landform
             }
         }
 
-        private void ProcesssListFile(string url)
+        /// <summary>
+        /// Download and parse a list file.
+        /// Returns null if the file doesn't exist or the filename is not recognized.
+        /// Only keeps product IDs for observations used for meshing by the mission.
+        /// </summary>
+        private Stamped<ListFile> LoadListFile(string url)
+        {
+            if (!FileExists(url))
+            {
+                pipeline.LogWarn("list file {0} not found", url);
+                return null;
+            }
+            var baseUrl = StringHelper.StripLastUrlPathSegment(StringHelper.StripLastUrlPathSegment(url));
+            var sd = ListFile.ParseSiteDriveListFilename(url, options.ListPrefix);
+            if (!sd.HasValue)
+            {
+                pipeline.LogWarn("unhandled list file name {0}", url);
+                return null;
+            }
+            return new Stamped<ListFile>((new ListFile()).Load(GetFile(url), baseUrl, sd.Value, mission,
+                                                               accept: (id, sol) => mission.UseForMeshing(id),
+                                                               warn: msg => pipeline.LogWarn(msg),
+                                                               error: msg => pipeline.LogError(msg)));
+        }
+
+        /// <summary>
+        /// Updates in-memory list file database for a list file that was added or updated on s3.
+        /// If this is the first list file in its directory then all recognized list files in the directory are loaded.
+        /// </summary>
+        private void ProcessListFile(string url)
+        {
+            url = StringHelper.NormalizeUrl(url);
+
+            pipeline.LogInfo("processing list file {0}", url);
+                 
+            var list = LoadListFile(url);
+
+            if (list == null)
+            {
+                throw new Exception("failed to load list file " + url);
+            }
+
+            var listDir = StringHelper.StripLastUrlPathSegment(url);
+            bool newDir = !listDirs.ContainsKey(listDir);
+            var listsInDir = listDirs.GetOrAdd(listDir,
+                                               _ => new Stamped<ConcurrentDictionary<string, Stamped<ListFile>>>());
+
+            listsInDir.Value.AddOrUpdate(url, _ => list, (_, __) => list);
+
+            if (newDir)
+            {
+                pipeline.LogInfo("loading siblings of list file {0}", url);
+                int numOthers = 0;
+                foreach (var other in SearchFiles(listDir.TrimEnd('/') + "/", //see PipelineCore.SearchFiles()
+                                                  "*/" + options.ListPrefix + "*" + listExt,
+                                                  recursive: false))
+                {
+                    string otherUrl = StringHelper.NormalizeUrl(other);
+                    if (!url.Equals(otherUrl, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var otherList = LoadListFile(otherUrl);
+                        if (otherList != null)
+                        {
+                            listsInDir.Value.AddOrUpdate(otherUrl, _ => otherList, (_, __) => otherList);
+                            numOthers++;
+                        }
+                        else
+                        {
+                            pipeline.LogWarn("failed to load sibling {0} of list file {1}", otherUrl, url);
+                        }
+                    }
+                }
+                pipeline.LogInfo("loaded {0} siblings of list file {1}", numOthers, url);
+            }
+
+            listsInDir.Touch();
+
+            pipeline.DeleteDownloadCache();
+        }
+
+        /// <summary>
+        /// Applys heruistics to possibly make a ContextualMesh for the sitedrive of primaryList.
+        /// Returns null if it decided not to make one, or if there was a problem.
+        /// If placesDB is null only the primary sitedrive is included (unless options.MaxSiteDriveDistance <= 0).
+        /// Otherwise considers additional sitedrives from listFiles, which should all have same RDRDir as primaryList.
+        /// </summary>
+        private ContextualMeshMessage SiteDriveChanged(ListFile primaryList, List<ListFile> listFiles,
+                                                       PlacesDB placesDB)
+        {
+            string rdrDir = primaryList.RDRDir;
+            int primarySol = primaryList.MaxSol;
+            SiteDrive primarySD = primaryList.SiteDrive;
+
+            string name = string.Format("{0:D4}_{1}", primarySol, primarySD.ToString());
+
+            int solRange = options.MaxSolRange >= 0 ? options.MaxSolRange : DEF_MAX_SOL_RANGE;
+            int maxWedges = options.MaxContextualMeshWedges > 0 ? options.MaxContextualMeshWedges : int.MaxValue;
+            int maxSDs = options.MaxSiteDrives > 0 ? options.MaxSiteDrives : int.MaxValue;
+            double maxDistance = options.MaxSiteDriveDistance;
+
+            int minSol = primarySol - solRange;
+            int maxSol = primarySol + solRange;
+            primaryList = solRange >= 0 ? primaryList.FilterToSolRange(minSol, maxSol) : primaryList;
+
+            //primary site drive must have at least this many wedges
+            int minWedges = Math.Max(options.MinSiteDriveWedges, options.MinPrimarySiteDriveWedges);
+            if (primaryList.NumWedges < minWedges)
+            {
+                pipeline.LogInfo("not producing contextual mesh {0} in {1}, {2} < {3} wedges",
+                                 name, rdrDir, primaryList.NumWedges, minWedges);
+                return null;
+            }
+
+            //remaining sitedrives must have at least this many wedges
+            minWedges = options.MinSiteDriveWedges;
+
+            if (primaryList.NumWedges > maxWedges)
+            {
+                pipeline.LogInfo("not producing contextual mesh {0} in {1}, {2} > {3} wedges",
+                                 name, rdrDir, primaryList.NumWedges, maxWedges);
+                return null;
+            }
+
+            var keepers = new Dictionary<SiteDrive, ListFile>();
+            keepers[primarySD] = primaryList;
+
+            var distance = new Dictionary<SiteDrive, double>();
+
+            if (placesDB != null || maxDistance <= 0)
+            {
+                foreach (var list in listFiles)
+                {
+                    if (!keepers.ContainsKey(list.SiteDrive))
+                    {
+                        var filtered = solRange >= 0 ? list.FilterToSolRange(minSol, maxSol) : list;
+                        if (filtered != null && filtered.NumWedges >= minWedges)
+                        {
+                            if (maxDistance <= 0)
+                            {
+                                keepers[list.SiteDrive] = filtered;
+                            }
+                            else
+                            {
+                                try
+                                {
+                                    double dist = placesDB.GetEstimatedOffset(primarySD, list.SiteDrive).Length();
+                                    if (dist <= maxDistance)
+                                    {
+                                        keepers[list.SiteDrive] = filtered;
+                                        distance[list.SiteDrive] = dist;
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogException(ex, string.Format("error getting distance from sitedrive " +
+                                                                            "{0} to {1} from PlacesDB",
+                                                                            primarySD, list.SiteDrive));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            int totalSDs = keepers.Count;
+            int totalWedges = keepers.Values.Sum(list => list.NumWedges);
+            if (maxSDs < int.MaxValue || maxWedges < int.MaxValue)
+            {
+                //default to deleting smaller sitedrives first
+                var prioritized = keepers.Values
+                    .Where(l => l.SiteDrive != primarySD)
+                    .OrderBy(l => l.NumWedges)
+                    .Select(l => l.SiteDrive)
+                    .ToList();
+
+                //if we have distances then delete further sitedrives first
+                if (placesDB != null && maxDistance > 0)
+                {
+                    prioritized = prioritized.OrderByDescending(sd => distance[sd]).ToList();
+                }
+
+                var queue = new Queue<SiteDrive>(prioritized);
+                while (queue.Count > 0 && (totalSDs > maxSDs || totalWedges > maxWedges))
+                {
+                    var dead = queue.Dequeue();
+                    totalSDs--;
+                    totalWedges -= keepers[dead].NumWedges;
+                    keepers.Remove(dead);
+                }
+            }
+
+            totalSDs = keepers.Count;
+            totalWedges = keepers.Values.Sum(list => list.NumWedges);
+
+            if (totalSDs == 0 || totalSDs > maxSDs) //should be redundant
+            {
+                pipeline.LogError("not producing contextual mesh {0} in {1}: {2} sitedrives (max {3})",
+                                  name, rdrDir, totalSDs, maxSDs);
+                return null;
+            }
+
+            if (totalWedges == 0 || totalWedges > maxWedges) //should be redundant
+            {
+                pipeline.LogError("not producing contextual mesh {0} in {1}: {2} wedges (max {3})",
+                                  name, rdrDir, totalWedges, maxWedges);
+                return null;
+            }
+
+            var sols = new HashSet<int>();
+            sols.UnionWith(keepers.Values.SelectMany(l => l.Sols));
+
+            return new ContextualMeshMessage()
+            {
+                rdrDir = rdrDir,
+                primarySol = primarySol,
+                primarySiteDrive = primarySD.ToString(),
+                sols = MakeSolRanges(sols, primarySol),
+                siteDrives = string.Join(",", keepers.Keys.OrderBy(sd => sd))
+            };
+        }
+
+        private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> msgs)
         {
             //TODO
+            return msgs;
+        }
+
+        private MessageQueue GetMasterToWorkerMessageQueue()
+        {
+            return GetMessageQueue(options.MasterToWorkerQueueName, GetDefaultMessageTimeoutSec(),
+                                   options.LandformOwnedMasterToWorkerQueue, "master-to-worker");
+        }
+
+        private void MasterLoop()
+        {
+            double lastStartSec = -1;
+            int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
+            int debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
+
+            pipeline.LogInfo("master-to-worker queue: {0}", masterToWorkerQueue.Name);
+            pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
+
+            while (true)
+            {
+                if (lastStartSec >= 0)
+                {
+                    double actualPeriodSec = UTCTime.Now() - lastStartSec;
+                    SleepSec(targetPeriodSec - actualPeriodSec); //negative ignored
+                }
+                lastStartSec = UTCTime.Now();
+
+                try
+                {
+                    long now = (long)UTCTime.NowMS();
+                    
+                    //group list files by their RDR dir
+                    //usually this results in only one group per list dir
+                    //but in some odd cases, e.g. IDS pipeline version changed (cough, ROASTT20...), there are more
+                    var stampedListsForRDRDir = new Dictionary<string, List<Stamped<ListFile>>>();
+                    
+                    foreach (var listDir in listDirs.Keys)
+                    {
+                        foreach (var stampedList in listDirs[listDir].Value.Values)
+                        {
+                            var rdrDir = stampedList.Value.RDRDir;
+                            if (!stampedListsForRDRDir.ContainsKey(rdrDir))
+                            {
+                                stampedListsForRDRDir[rdrDir] = new List<Stamped<ListFile>>();
+                            }
+                            stampedListsForRDRDir[rdrDir].Add(stampedList);
+                        }
+                    }
+                    
+                    var msgs = new List<ContextualMeshMessage>();
+                    PlacesDB placesDB = null;
+                    var placesCfg = PlacesConfig.Instance;
+                    bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
+                    
+                    foreach (var rdrDir in stampedListsForRDRDir.Keys)
+                    {
+                        var stampedLists = stampedListsForRDRDir[rdrDir];
+                        if (!lastMasterPass.ContainsKey(rdrDir) ||
+                            stampedLists.Any(sl => sl.Timestamp > lastMasterPass[rdrDir]) &&
+                            (debounceMS == 0 || stampedLists.Max(sl => sl.Timestamp) < now - debounceMS))
+                        {
+                            //at least one list file for rdrDir has been updated since we last made a pass over them
+                            //but the most recently updated one changed at least debounceMS ago
+                            var listFiles = stampedLists.Select(sl => sl.Value).ToList();
+                            if (placesDB == null && usePlaces)
+                            {
+                                try
+                                {
+                                    placesDB = new PlacesDB(pipeline);
+                                }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
+                                    usePlaces = false;
+                                }
+                            }
+                            foreach (var stampedList in stampedLists)
+                            {
+                                if (!lastMasterPass.ContainsKey(rdrDir) ||
+                                    stampedList.Timestamp > lastMasterPass[rdrDir])
+                                {
+                                    try
+                                    {
+                                        var msg = SiteDriveChanged(stampedList.Value, listFiles, placesDB);
+                                        if (msg != null)
+                                        {
+                                            msgs.Add(msg);
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        pipeline.LogException(ex, "error processing sitedrive " +
+                                                              stampedList.Value.SiteDrive);
+                                    }
+                                }
+                            }
+                            lastMasterPass[rdrDir] = now;
+                        }
+                    }
+                    
+                    if (msgs.Count > 0)
+                    {
+                        pipeline.LogInfo("enqueueing up to {0} new contextual mesh messages to {1}",
+                                         msgs.Count, masterToWorkerQueue.Name);
+                        int countWas = msgs.Count;
+                        try
+                        {
+                            msgs = CoalesceMessages(msgs);
+                            if (msgs.Count != countWas)
+                            {
+                                pipeline.LogInfo("enqueueing {0} messages after coalescing", msgs.Count);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            pipeline.LogException(ex, "error coalescing messages, proceeding with un-coaleseced");
+                        }
+                        foreach (var msg in msgs)
+                        {
+                            try
+                            {
+                                masterToWorkerQueue.Enqueue(msg);
+                            }
+                            catch (Exception ex)
+                            {
+                                pipeline.LogException(ex, "adding message to master-to-worker queue");
+                            }
+                        }
+                    }
+                }
+                catch (Exception masterException)
+                {
+                    pipeline.LogException(masterException, string.Format("error in master loop, retrying in {0}",
+                                                                         Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
+                    SleepSec(SERVICE_LOOP_RETRY_SEC);
+                }
+            }
         }
     }
 }

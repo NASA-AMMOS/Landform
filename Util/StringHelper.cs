@@ -150,6 +150,9 @@ namespace OPS.Util
             return url.Substring(lastSlash + 1);
         }
 
+        /// <summary>
+        /// strips last path segment including slash
+        /// </summary>
         public static string StripLastUrlPathSegment(string url)
         {
             if (string.IsNullOrEmpty(url))

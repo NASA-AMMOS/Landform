@@ -404,7 +404,7 @@ namespace OPS.Landform
             deleteQueue(failMessageQueue, "fail");
         }
 
-        private void RunService()
+        protected virtual void RunService()
         {
             Task.Run(() => HeartbeatLoop());
             ServiceLoop();

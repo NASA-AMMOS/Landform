@@ -24,10 +24,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder")]
         public override string OutputFolder { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Recursively search for meshes under input folders")]
+        [Option(Required = false, Default = false, HelpText = "Recursively search under input folders")]
         public virtual bool RecursiveSearch { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Case sensitive search for meshes and images")]
+        [Option(Required = false, Default = false, HelpText = "Case sensitive search")]
         public virtual bool CaseSensitiveSearch { get; set; }
 
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
@@ -205,10 +205,12 @@ namespace OPS.Landform
             return FileExists(pipeline, () => storageHelper, url);
         }
 
-        protected IEnumerable<string> SearchFiles(string url, string globPattern)
+        protected IEnumerable<string> SearchFiles(string url, string globPattern,
+                                                  bool? recursive = null, bool? ignoreCase = null)
         {
             return SearchFiles(pipeline, () => storageHelper, url, globPattern,
-                               lsopts.RecursiveSearch, !lsopts.CaseSensitiveSearch);
+                               recursive.HasValue ? recursive.Value : lsopts.RecursiveSearch,
+                               ignoreCase.HasValue ? ignoreCase.Value : !lsopts.CaseSensitiveSearch);
         }
 
         protected string GetFile(string url, bool filenameUnique = true)

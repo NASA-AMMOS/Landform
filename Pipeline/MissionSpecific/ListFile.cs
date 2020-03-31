@@ -12,6 +12,9 @@ namespace OPS.Pipeline
     {
         public readonly Dictionary<RoverProductId, string> IDToURL = new Dictionary<RoverProductId, string>();
 
+        public readonly Dictionary<int, HashSet<RoverProductId>> SolToIDs =
+            new Dictionary<int, HashSet<RoverProductId>>();
+
         //sitedrive shared across all entries
         //initialized from the first non-filtered entry
         //if any other entry does not match it is ignored with a warning
@@ -29,8 +32,6 @@ namespace OPS.Pipeline
         public int MinSol { get; private set; }
         public int MaxSol { get; private set; }
 
-        private ListFile() {}
-
         public static SiteDrive? ParseSiteDriveListFilename(string filename, string expectedPrefix = "xyz_")
         {
             filename = StringHelper.GetLastUrlPathSegment(filename, stripExtension: true);
@@ -46,15 +47,22 @@ namespace OPS.Pipeline
             return sd;
         }
 
-        public static ListFile Load(string path, string baseUrl, SiteDrive? expectedSiteDrive = null,
-                                    MissionSpecific mission = null,
-                                    Func<RoverProductId, int, bool> accept = null, //(id, sol) => accept
-                                    Action<string> warn = null, Action<string> error = null)
+        public ListFile() {}
+
+        public ListFile(SiteDrive sd, string rdrDir)
+        {
+            this.SiteDrive = sd;
+            this.RDRDir = rdrDir;
+        }
+
+        public ListFile Load(string path, string baseUrl, SiteDrive? expectedSiteDrive = null,
+                             MissionSpecific mission = null,
+                             Func<RoverProductId, int, bool> accept = null, //(id, sol) => accept
+                             Action<string> warn = null, Action<string> error = null)
         {
             baseUrl = StringHelper.NormalizeUrl(baseUrl, preserveTrailingSlash: false);
             warn = warn ?? (msg => {});
             error = error ?? (msg => {});
-            var ret = new ListFile();
             using (FileStream fs = File.OpenRead(path))
             {
                 using (StreamReader sr = new StreamReader(fs))
@@ -103,43 +111,83 @@ namespace OPS.Pipeline
                             error(string.Format("failed to parse RDR directory on line {0}: {1}", lineNumber, line));
                             continue;
                         }
-                        if (ret.NumWedges > 0)
+                        if (NumWedges > 0)
                         {
-                            if (ret.SiteDrive != sd)
+                            if (SiteDrive != sd)
                             {
                                 warn(string.Format("unexpected sitedrive {0} != {1} on line {2}: {3}",
-                                                   sd, ret.SiteDrive, lineNumber, line));
+                                                   sd, SiteDrive, lineNumber, line));
                                 continue;
                             }
-                            if (ret.RDRDir != rdrDir)
+                            if (RDRDir != rdrDir)
                             {
                                 warn(string.Format("unexpected RDR directory {0} != {1} on line {2}: {3}",
-                                                   rdrDir, ret.RDRDir, lineNumber, line));
+                                                   rdrDir, RDRDir, lineNumber, line));
                                 continue;
                             }
                         }
                         else
                         {
-                            ret.SiteDrive = sd;
-                            ret.RDRDir = rdrDir;
+                            SiteDrive = sd;
+                            RDRDir = rdrDir;
                         }
-                        if (ret.IDToURL.ContainsKey(id))
+                        if (IDToURL.ContainsKey(id))
                         {
                             warn(string.Format("duplicate product ID {0} on line {1}: {2}", idStr, lineNumber, line));
                         }
-                        ret.IDToURL[id] = url;
-                        ret.Sols.Add(sol);
+                        Add(sol, id, url);
                     }
                 }
             }
-            ret.MinSol = -1;
-            ret.MaxSol = -1;
-            if (ret.Sols.Count > 0)
+            UpdateSolRange();
+            return this;
+        }
+
+        public ListFile FilterToSolRange(int min, int max)
+        {
+            if (MinSol > max || MaxSol < min)
             {
-                ret.MinSol = ret.Sols.Min();
-                ret.MaxSol = ret.Sols.Max();
+                return null;
             }
+            if (MinSol >= min && MaxSol <= max)
+            {
+                return this;
+            }
+            var ret = new ListFile(SiteDrive, RDRDir);
+            foreach (var sol in SolToIDs.Keys)
+            {
+                if (sol >= min && sol <= max)
+                {
+                    foreach (var id in SolToIDs[sol])
+                    {
+                        ret.Add(sol, id, IDToURL[id]);
+                    }
+                }
+            }
+            ret.UpdateSolRange();
             return ret;
+        }
+
+        private void Add(int sol, RoverProductId id, string url)
+        {
+            IDToURL[id] = url;
+            Sols.Add(sol);
+            if (!SolToIDs.ContainsKey(sol))
+            {
+                SolToIDs[sol] = new HashSet<RoverProductId>();
+            }
+            SolToIDs[sol].Add(id);
+        }
+
+        private void UpdateSolRange()
+        {
+            MinSol = -1;
+            MaxSol = -1;
+            if (Sols.Count > 0)
+            {
+                MinSol = Sols.Min();
+                MaxSol = Sols.Max();
+            }
         }
 
         private static bool GetSolSpan(string url, out int start, out int len)
