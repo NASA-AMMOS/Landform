@@ -24,12 +24,6 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder")]
         public override string OutputFolder { get; set; }
 
-        [Option(Required = false, Default = "iv,obj", HelpText = "Comma separated priority list of mesh file extensions")]
-        public override string MeshFormat { get; set; }
-
-        [Option(Required = false, Default = "img,png", HelpText = "Comma separated priority list of image file extensions")]
-        public override string ImageFormat { get; set; }
-
         [Option(Required = false, Default = false, HelpText = "Recursively search for meshes under input folders")]
         public virtual bool RecursiveSearch { get; set; }
 
@@ -89,9 +83,6 @@ namespace OPS.Landform
         protected string configFolder;
         protected string configFile;
 
-        protected List<string> meshExts;
-        protected List<string> imageExts;
-
         private volatile Process currentProcess;
 
         private StorageHelper _storageHelper;
@@ -140,12 +131,6 @@ namespace OPS.Landform
 
             mission = GetMission();
             pipeline.LogInfo("mission: {0}", mission.GetMission());
-
-            meshExts = GetMeshExts();
-            pipeline.LogInfo("mesh extensions: {0}", string.Join(", ", meshExts));
-
-            imageExts = GetImageExts();
-            pipeline.LogInfo("image extensions: {0}", string.Join(", ", imageExts));
 
             pipeline.LogInfo("recursive search: {0}", lsopts.RecursiveSearch);
             pipeline.LogInfo("case sensitive search: {0}", lsopts.CaseSensitiveSearch);
@@ -211,16 +196,6 @@ namespace OPS.Landform
         protected abstract string GetConfigSuffix();
         
         protected abstract string GetCacheDir();
-
-        protected virtual List<string> GetMeshExts()
-        {
-            return StringHelper.ParseExts(lsopts.MeshFormat, bothCases: !lsopts.CaseSensitiveSearch);
-        }
-
-        protected virtual List<string> GetImageExts()
-        {
-            return StringHelper.ParseExts(lsopts.ImageFormat, bothCases: !lsopts.CaseSensitiveSearch);
-        }
 
         protected bool FileExists(string url)
         {

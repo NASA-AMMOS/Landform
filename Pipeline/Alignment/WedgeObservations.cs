@@ -208,12 +208,7 @@ namespace OPS.Pipeline
                 {
                     Comparator =  mission.GetRoverObservationComparator();
                     LinearPreference = mission.GetLinearPreference();
-                    MeshExts = mission.GetTacticalMeshExts()
-                        .Split(',')
-                        .Select(ext => ext.ToLower().TrimStart('.'))
-                        .Where(ext => !string.IsNullOrEmpty(ext))
-                        .Distinct()
-                        .ToArray();
+                    MeshExts = new string[] { mission.GetTacticalMeshExt().ToLower().TrimStart('.') };
                 }
             }
         }

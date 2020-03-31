@@ -24,10 +24,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "run as service")]
         public bool Service { get; set; }
 
-        [Option(Required = false, Default = "mission", HelpText = "Override message queue name, or \"mission\" to use mission-specific default")]
+        [Option(Required = false, Default = null, HelpText = "Message queue name, required with --service")]
         public string QueueName { get; set; }
 
-        [Option(Required = false, Default = "mission", HelpText = "Override fail message queue name, or \"mission\" to use mission-specific default")]
+        [Option(Required = false, Default = null, HelpText = "Fail queue name, null or empty for none")]
         public string FailQueueName { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Message queue is Landform owned")]
@@ -64,9 +64,9 @@ namespace OPS.Landform
     public abstract class LandformService : LandformShell
     {
         public const double DEF_HEARTBEAT_REL_PERIOD = 0.333;
-        public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
-        public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
+
         public const int DEF_DEQUEUE_THROTTLE_MS = 1;
+
         public const int SERVICE_LOOP_RETRY_SEC = 60;
 
         protected LandformServiceOptions lvopts;
@@ -152,10 +152,21 @@ namespace OPS.Landform
                 {
                     throw new Exception("project name must be omitted with " + utils);
                 }
+                if (string.IsNullOrEmpty(lvopts.QueueName))
+                {
+                    throw new Exception("--queuename must be specified for service");
+                }
                 messageQueue = GetMessageQueue(); //creates queue if necessary with --landformowned
                 if (lvopts.Service || lvopts.DeleteQueues || lvopts.RetryMessages > 0 || lvopts.AbortMessages > 0)
                 {
-                    failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
+                    if (!string.IsNullOrEmpty(lvopts.FailQueueName))
+                    {
+                        failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
+                    }
+                    else if (lvopts.RetryMessages > 0 || lvopts.AbortMessages > 0)
+                    {
+                        throw new Exception("--failqueuename required for --retrymessages or --abortmessages");
+                    }
                 }
             }
 
@@ -168,10 +179,6 @@ namespace OPS.Landform
         }
 
         protected abstract void RunBatch();
-
-        protected abstract string GetDefaultQueueName();
-
-        protected abstract string GetDefaultFailQueueName();
 
         protected abstract QueueMessage DequeueOneMessage(MessageQueue queue);
 
@@ -193,24 +200,12 @@ namespace OPS.Landform
         /// <summary>
         /// Should not throw.  
         /// </summary>
-        protected abstract bool AcceptMessage(QueueMessage msg);
+        protected abstract bool AcceptMessage(QueueMessage msg, out string reason);
 
         /// <summary>
         /// Can throw.  
         /// </summary>
         protected abstract bool HandleMessage(QueueMessage msg);
-
-        protected virtual string GetQueueName()
-        {
-            return string.IsNullOrEmpty(lvopts.QueueName) || lvopts.QueueName.ToLower() == "mission" ?
-                GetDefaultQueueName() : lvopts.QueueName;
-        }
-
-        protected virtual string GetFailQueueName()
-        {
-            return string.IsNullOrEmpty(lvopts.FailQueueName) || lvopts.FailQueueName.ToLower() == "mission" ?
-                GetDefaultFailQueueName() : lvopts.FailQueueName;
-        }
 
         /// <summary>
         /// When we dequeue a message SQS will prevent it from also being received by another worker for this long.
@@ -231,10 +226,7 @@ namespace OPS.Landform
         /// <summary>
         /// Message handlers that run longer than this will be killed.  
         /// </summary>
-        protected virtual int GetMaxHandlerSec()
-        {
-            return lvopts.MaxHandlerSec > 0 ? lvopts.MaxHandlerSec : DEF_MAX_HANDLER_SEC;
-        }
+        protected abstract int GetMaxHandlerSec();
 
         /// <summary>
         /// Messages that keep being received longer than this many seconds
@@ -242,10 +234,7 @@ namespace OPS.Landform
         /// (e.g. because they keep failing to be processed)
         /// will be culled from the queue.
         /// </summary>
-        protected virtual int GetMaxMessageAgeSec()
-        {
-            return  lvopts.MaxMessageAgeSec > 0 ? lvopts.MaxMessageAgeSec : DEF_MAX_MESSAGE_AGE_SEC;
-        }
+        protected abstract int GetMaxMessageAgeSec();
 
         protected virtual int GetDequeueThrottleMS()
         {
@@ -257,24 +246,15 @@ namespace OPS.Landform
             return DEF_HEARTBEAT_REL_PERIOD;
         }
 
-        protected virtual bool IsQueueLandformOwned()
-        {
-            return lvopts.LandformOwnedQueue;
-        }
-
-        protected virtual bool IsFailQueueLandformOwned()
-        {
-            return lvopts.LandformOwnedFailQueue;
-        }
-
         protected virtual MessageQueue GetMessageQueue()
         {
-            return GetMessageQueue(GetQueueName(), GetDefaultMessageTimeoutSec(), IsQueueLandformOwned(), "message");
+            return GetMessageQueue(lvopts.QueueName, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedQueue,
+                                   "message");
         }
 
         protected virtual MessageQueue GetFailMessageQueue()
         {
-            return GetMessageQueue(GetFailQueueName(), GetDefaultMessageTimeoutSec(), IsFailQueueLandformOwned(),
+            return GetMessageQueue(lvopts.FailQueueName, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedFailQueue,
                                    "fail message");
         }
 
@@ -410,7 +390,7 @@ namespace OPS.Landform
                         string desc = DescribeMessage(msg);
                         int ageSec = (int)(0.001 * (msg.ApproxReceiveMS - msg.ApproxFirstReceiveMS));
                         bool tooOld = ageSec > maxAgeSec;
-                        bool accepted = AcceptMessage(msg);
+                        bool accepted = AcceptMessage(msg, out string rejectionReason);
                         bool handled = false;
 
                         if (accepted && !tooOld)
@@ -441,6 +421,11 @@ namespace OPS.Landform
                             pipeline.LogError("{0} too old ({1} > {2}), removing from queue, {3} fail queue",
                                               desc, Fmt.HMS(1000 * ageSec), Fmt.HMS(1000 * maxAgeSec),
                                               failMessageQueue != null ? "adding to" : "no");
+                        }
+
+                        if (!accepted && !string.IsNullOrEmpty(rejectionReason))
+                        {
+                            pipeline.LogInfo("rejected message: {0}", rejectionReason);
                         }
 
                         if (!accepted || handled || tooOld)

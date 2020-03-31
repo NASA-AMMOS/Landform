@@ -54,9 +54,10 @@ using OPS.Pipeline.AlignmentServer;
 /// * a manifest file PRODUCT_ID/PRODUCT_ID_scene.json with relative URLs
 /// * a stats file PRODUCT_ID/PRODUCT_ID_stats.txt.
 ///
-/// Run as service using mission defaults for AWS configuration and queue names:
+/// Run as service:
 ///
-/// Landform.exe process-tactical --service --mission=M2020
+/// Landform.exe process-tactical --service --mission=M2020 \
+///     --queuename=landform-tactical --failqueuename=landform-tactical-fail
 ///
 /// Run on all M2020 wedge mesh RDRs in the local tree ../rdrs, writing results to the current working directory:
 ///
@@ -70,10 +71,10 @@ namespace OPS.Landform
         [Value(0, Required = false, HelpText = "project name, empty to infer, must omit if processing more than one mesh", Default = null)]
         public override string ProjectName { get; set; }
 
-        [Option(Required = false, Default = "mission", HelpText = "Comma separated priority list of mesh file extensions, or \"mission\" for default mission formats")]
+        [Option(Required = false, Default = "mission", HelpText = "Tactical mesh filename extension, or \"mission\"")]
         public override string MeshFormat { get; set; }
 
-        [Option(Required = false, Default = "mission", HelpText = "Comma separated priority list of image file extensions, or \"mission\" for default mission formats")]
+        [Option(Required = false, Default = "img", HelpText = "Tactical mesh texture filename extension")]
         public override string ImageFormat { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder, if unset use same folder as input")]
@@ -92,6 +93,9 @@ namespace OPS.Landform
     public class ProcessTactical : LandformService
     {
         public const string MESH_FRAME = "passthrough";
+
+        public const int DEF_MAX_HANDLER_SEC = 10 * 60; //10 minutes
+        public const int DEF_MAX_MESSAGE_AGE_SEC = 60 * 60; //1 hour
 
         protected ProcessTacticalOptions options;
 
@@ -130,33 +134,14 @@ namespace OPS.Landform
             }
         }
 
-        protected override string GetDefaultQueueName()
-        {
-            return mission.GetTacticalMeshQueueName();
-        }
-
-        protected override string GetDefaultFailQueueName()
-        {
-            return mission.GetTacticalMeshFailQueueName();
-        }
-
-        private string GetUrl(QueueMessage msg, bool filter = true, bool verbose = true)
-        {
-            return options.UseGenericMessageType ?
-                ((GenericTacticalMeshMessage)msg).meshUrl :
-                mission.GetUrlFromTacticalMeshQueueMessage(msg, filter, verbose ? pipeline : null);
-        }
-            
         protected override int GetMaxHandlerSec()
         {
-            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec :
-                mission.GetTacticalMeshQueueMaxHandlerSec();
+            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec : DEF_MAX_HANDLER_SEC;
         }
 
         protected override int GetMaxMessageAgeSec()
         {
-            return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec :
-                mission.GetTacticalMeshQueueMessageMaxAgeSec();
+            return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec : DEF_MAX_MESSAGE_AGE_SEC;
         }
 
         protected override string DescribeMessage(QueueMessage msg)
@@ -164,7 +149,7 @@ namespace OPS.Landform
             string url = null;
             try
             {
-                url = GetUrl(msg, filter: false, verbose: false);
+                url = GetUrlFromMessage(msg);
             }
             catch {} //ignore
             return "tactical mesh " + (url ?? "(unknown)");
@@ -172,73 +157,89 @@ namespace OPS.Landform
 
         protected override QueueMessage DequeueOneMessage(MessageQueue queue)
         {
-            return options.UseGenericMessageType ?
-                queue.DequeueOne<GenericTacticalMeshMessage>() :
-                mission.DequeueTacticalMeshMessage(queue);
+            if (options.UseGenericMessageType)
+            {
+                return queue.DequeueOne<GenericTacticalMeshMessage>();
+            }
+            else
+            {
+                return queue.DequeueOne<SNSMessageWrapper>();
+            }
         }
 
         protected override QueueMessage ParseMessage(string json)
         {
-            return options.UseGenericMessageType ?
-                JsonHelper.FromJson<GenericTacticalMeshMessage>(json, autoTypes: false) :
-                mission.ParseTacticalMeshQueueMessage(json);
+            if (options.UseGenericMessageType)
+            {
+                return JsonHelper.FromJson<GenericTacticalMeshMessage>(json, autoTypes: false);
+            }
+            else
+            {
+                return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+            }
         }
 
-        protected override bool AcceptMessage(QueueMessage msg)
+        protected override bool AcceptMessage(QueueMessage msg, out string reason)
         {
+            reason = null;
             try
             {
-                return !string.IsNullOrEmpty(GetUrl(msg)); 
+                string url = GetUrlFromMessage(msg); 
+                if (string.IsNullOrEmpty(url))
+                {
+                    reason = "no URL in message";
+                    return false;
+                }
+                if (StringHelper.GetUrlExtension(url).ToLower() != meshExt)
+                {
+                    reason = "unhandled file type: " + url;
+                    return false;
+                }
+                var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
+                var id = RoverProductId.Parse(idStr, mission, throwOnFail: false);
+                if (!(id is OPGSProductId))
+                {
+                    reason = "unrecognized product ID format: " + url;
+                    return false;
+                }
+                if ((id as OPGSProductId).Size == RoverProductSize.Thumbnail)
+                {
+                    reason = "thumbnail product: " + url;
+                    return false;
+                }
+                return true;
             }
             catch (Exception ex)
             {
-                pipeline.LogWarn(ex.Message);
+                reason = ex.Message;
                 return false;
             }
         }
 
         protected override bool HandleMessage(QueueMessage msg)
         {
-            string url = GetUrl(msg, verbose: false); 
-
-            //mission may filter messages to those representing the last created RDRs for that mission
-            //e.g if OBJ are always generated after IV for a mission
-            //and we get messages both when OBJ and IV are generated
-            //then url may be null/empty here for the IV message and non-empty for the OBJ
-
-            if (string.IsNullOrEmpty(url))
+            string url = GetUrlFromMessage(msg); 
+            if (string.IsNullOrEmpty(url) || StringHelper.GetUrlExtension(url).ToLower() != meshExt)
             {
-                return true; //mission decided to ignore this message, remove it from the queue
+                return true; //shouldn't happen because AcceptMessage() = true, but just drop message
             }
 
-            //however, we still want to look and see what mesh formats are actually available right now on S3
-            //and take the format that we prefer the most (which might be e.g. IV rather than OBJ)
-
-            string baseUrl = StringHelper.StripUrlExtension(url);
-
-            foreach (var ext in meshExts) //look for best mesh format in priority order
+            if (!FileExists(url))
             {
-                string meshUrl = baseUrl + ext;
-                if (FileExists(meshUrl))
-                {
-                    var pair = new MeshImagePair { mesh = meshUrl };
-                    AddImage(pair); //throws exception if image cannot be found
-                    BuildTacticalTileset(pair); //throws exception on error or if killed
-                    return true; //successfully processed, remove message from queue
-                }
+                pipeline.LogWarn("tactical mesh {0} not found", url);
+                return true; //drop message, maybe file was deleted or renamed
             }
 
-            //get here iff mission did not filter the message but we still didn't find any mesh in an accepted format
-            //it may be that we just need to wait a bit longer for the meshes to show up in S3
-            //or it may be that they're never going to show up
-            pipeline.LogError("no mesh in any of the accepted formats ({0}) for tactial mesh {1}, returning to queue",
-                              string.Join(", ", meshExts), url);
+            var pair = new MeshImagePair { mesh = url };
 
-            //ServiceLoop() will eventually cull the message from the queue
-            //(and move it to the fail queue, if any)
-            //if it gets too old without successfully being handled
+            if (!AddImage(pair))
+            {
+                return false; //leave message in queue for now, maybe image is still pending
+            }
 
-            return false; //leave message in queue for now
+            BuildTacticalTileset(pair); //throws exception on error or if killed
+
+            return true; //message handled, remove from queue
         }
 
         protected override bool ParseArguments()
@@ -270,6 +271,24 @@ namespace OPS.Landform
                 throw new Exception("cannot combine --inputpath with --service");
             }
 
+            meshExt = options.MeshFormat;
+            if (string.IsNullOrEmpty(meshExt) || meshExt.ToLower() == "mission")
+            {
+                meshExt = mission.GetTacticalMeshExt();
+            }
+            if (string.IsNullOrEmpty(meshExt) || (MeshSerializers.Instance.CheckFormat(meshExt) == null))
+            {
+                throw new Exception("empty or unsupported tactical mesh format: " + meshExt ?? "(empty)");
+            }
+            meshExt = "." + meshExt.ToLower().TrimStart('.');
+
+            imageExt = options.ImageFormat;
+            if (string.IsNullOrEmpty(imageExt) || (ImageSerializers.Instance.CheckFormat(imageExt) == null))
+            {
+                throw new Exception("empty or unsupported tactical mesh texture format: " + imageExt ?? "(empty)");
+            }
+            imageExt = "." + imageExt.ToLower().TrimStart('.');
+
             return true;
         }
 
@@ -295,18 +314,22 @@ namespace OPS.Landform
             return "tactical";
         }
 
-        protected override List<string> GetMeshExts()
+        private string GetUrlFromMessage(QueueMessage msg)
         {
-            var exts = options.MeshFormat.ToLower() == "mission" ? mission.GetTacticalMeshExts() : options.MeshFormat;
-            return StringHelper.ParseExts(exts, bothCases: false); //cases handled by option in search
+            if (options.UseGenericMessageType)
+            {
+                return (msg as GenericTacticalMeshMessage).meshUrl;
+            }
+            else
+            {
+                if (!(msg is SNSMessageWrapper))
+                {
+                    throw new Exception("tactical mesh queue message does not have SNS wrapper");
+                }
+                return S3EventMessage.GetUrl(msg as SNSMessageWrapper, "ObjectCreated");
+            }
         }
-
-        protected override List<string> GetImageExts()
-        {
-            var exts = options.ImageFormat.ToLower() == "mission" ? mission.GetTacticalImageExts() : options.ImageFormat;
-            return StringHelper.ParseExts(exts, bothCases: !options.CaseSensitiveSearch);
-        }
-
+            
         private void IndexMeshes()
         {
             foreach (var path in inputPaths)
@@ -315,32 +338,30 @@ namespace OPS.Landform
                 {
                     foreach (var pattern in searchPatterns)
                     {
-                        foreach (var pat in !string.IsNullOrEmpty(StringHelper.GetUrlExtension(pattern)) ?
-                                 new string[] { pattern } : meshExts.Select(ext => pattern + ext).ToArray())
+                        var pat = pattern; //can't modify foreach iteration value
+                        if (string.IsNullOrEmpty(StringHelper.GetUrlExtension(pat)))
                         {
-                            int nm = 0, na = 0;
-                            foreach (var file in SearchFiles(path, pat))
-                            {
-                                nm++;
-                                if (AddMesh(file))
-                                {
-                                    na++;
-                                }
-                            }
-                            pipeline.LogInfo("indexed {0} meshes ({1} added) at {2}{3}", nm, na, path, pat);
+                            pat = pat + meshExt;
                         }
+                        int nm = 0, na = 0;
+                        foreach (var file in SearchFiles(path, pat))
+                        {
+                            nm++;
+                            if (AddMesh(file))
+                            {
+                                na++;
+                            }
+                        }
+                        pipeline.LogInfo("indexed {0} meshes ({1} added) at {2}{3}", nm, na, path, pat);
                     }
                 }
                 else
                 {
-                    if (FileExists(path))
+                    if (!FileExists(path))
                     {
-                        AddMesh(path);
+                        throw new Exception(string.Format("input mesh {0} not found", path));
                     }
-                    else
-                    {
-                        throw new Exception(string.Format("input mesh \"{0}\" not found", path));
-                    }
+                    AddMesh(path);
                 }
             }
 
@@ -359,32 +380,25 @@ namespace OPS.Landform
             if (!meshes.ContainsKey(id))
             {
                 var mesh = new MeshImagePair { mesh = meshUrl };
-                AddImage(mesh);
-                meshes[id] = mesh;
-                return true;
+                if (AddImage(mesh))
+                {
+                    meshes[id] = mesh;
+                    return true;
+                }
             }
             return false;
         }
 
-        private void AddImage(MeshImagePair pair)
+        private bool AddImage(MeshImagePair pair)
         {
-            string bn = StringHelper.StripUrlExtension(pair.mesh);
-            bool ok = false;
-            foreach (var ext in imageExts)
+            string imageUrl = StringHelper.StripUrlExtension(pair.mesh) + imageExt;
+            if (!FileExists(imageUrl))
             {
-                string imageUrl = bn + ext;
-                if (FileExists(imageUrl))
-                {
-                    pair.image = imageUrl;
-                    ok = true;
-                    break;
-                }
+                pipeline.LogWarn("could not find {0} image for mesh {1}", imageExt, pair.mesh);
+                return false;
             }
-            if (!ok)
-            {
-                throw new Exception(string.Format("no image for mesh \"{0}\", checked extensions: {1}",
-                                                  pair.mesh, string.Join(", ", imageExts)));
-            } 
+            pair.image = imageUrl;
+            return true;
         }
             
         private void BuildTacticalTileset(MeshImagePair pair)
