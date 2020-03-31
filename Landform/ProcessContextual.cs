@@ -589,7 +589,6 @@ namespace OPS.Landform
                 : fetchDir + "/orbital/" + OrbitalConfig.Instance.OrbitalDEMStoragePath;
             string noOrbital = (options.NoOrbital || string.IsNullOrEmpty(demURL)) ? "--noorbital" : "";
 
-            var allowedFetchFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
@@ -602,23 +601,17 @@ namespace OPS.Landform
                 if (!options.NoFetch && rdrDir.StartsWith("s3://") && !(pipeline is CloudPipeline))
                 {
                     ingestDir = fetchDir + "/rdrs";
-                    RunCommand("fetch", allowedFetchFlags, GetSolRanges(sols), ingestDir, rdrDir,
-                               "--onlyforsitedrives", sdsStr, "--summary",
-                               "--maxdownload", options.MaxFetch, "--accountexisting", "--deletelru",
-                               "--mission", missionStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
+                    Fetch(options.MaxFetch, MakeSolRanges(sols, primarySol), ingestDir, rdrDir,
+                          "--onlyforsitedrives", sdsStr, "--summary");
                 }
 
                 if (!options.NoFetch && !options.NoOrbital && !string.IsNullOrEmpty(demURL))
                 {
                     string dir = Path.GetDirectoryName(demFile);
-                    RunCommand("fetch", allowedFetchFlags, demURL, dir, "--raw", "--nosubdirs",
-                               "--maxdownload", options.MaxOrbital, "--accountexisting", "--deletelru",
-                               "--mission", missionStr, "--awsprofile", awsProfile, "--awsregion", awsRegion);
-
+                    Fetch(options.MaxOrbital, demURL, dir, "--raw", "--nosubdirs");
                     string srcFile = StringHelper.GetLastUrlPathSegment(demURL);
                     string destFile = Path.GetFileName(demFile);
                     string fetchedFile = Path.Combine(dir, srcFile);
-
                     if (srcFile != destFile && File.Exists(fetchedFile))
                     {
                         PathHelper.MoveFileAtomic(fetchedFile, demFile); //overwrites existing

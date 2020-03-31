@@ -62,6 +62,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
         public string ExportImageFormat { get; set; }
+
+        [Option(HelpText = "Extra fetch arguments", Default = null)]
+        public string FetchArgs { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -530,6 +533,42 @@ namespace OPS.Landform
                     }
                 }
             }
+        }
+
+        protected void Fetch(string maxDownload, string input, string output, params string[] extraArgs)
+        {
+            var args = new List<string>() { input, output };
+
+            args.AddRange(extraArgs);
+
+            if (mission != null)
+            {
+                args.AddRange(new string[] { "--mission", mission.GetMission().ToString() });
+            }
+
+            if (!string.IsNullOrEmpty(awsProfile))
+            {
+                args.AddRange(new string[] { "--awsprofile", awsProfile });
+            }
+
+            if (!string.IsNullOrEmpty(awsRegion))
+            {
+                args.AddRange(new string[] { "--awsregion", awsRegion });
+            }
+                
+            if (!string.IsNullOrEmpty(maxDownload))
+            {
+                args.AddRange(new string[] { "--maxdownload", maxDownload, "--accountexisting", "--deletelru" });
+            }
+
+            if (!string.IsNullOrEmpty(lsopts.FetchArgs))
+            {
+                args.AddRange(lsopts.FetchArgs.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+
+            var allowedFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
+
+            RunCommand("fetch", allowedFlags, args.ToArray());
         }
     }
 }

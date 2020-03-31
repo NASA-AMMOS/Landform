@@ -146,7 +146,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Max fetched bytes, integer with optional case-insensitive suffix K,M,G, unlimited if empty or non-positive")]
+        [Option(Required = false, Default = null, HelpText = "Max fetched bytes, integer with optional case-insensitive suffix K,M,G, unlimited if omitted or non-positive")]
         public string MaxDownload { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Make --maxdownload apply to total disk usage recursively under output directory, not just current downloads")]
