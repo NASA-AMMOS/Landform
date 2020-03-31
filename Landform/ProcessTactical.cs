@@ -219,10 +219,6 @@ namespace OPS.Landform
         protected override bool HandleMessage(QueueMessage msg)
         {
             string url = GetUrlFromMessage(msg); 
-            if (string.IsNullOrEmpty(url) || StringHelper.GetUrlExtension(url).ToLower() != meshExt)
-            {
-                return true; //shouldn't happen because AcceptMessage() = true, but just drop message
-            }
 
             if (!FileExists(url))
             {

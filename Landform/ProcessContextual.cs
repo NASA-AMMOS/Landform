@@ -176,6 +176,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = "lis", HelpText = "Master service list filename extension")]
         public string ListFormat { get; set; }
 
+        [Option(Required = false, Default = "xyz_", HelpText = "Master service list filename prefix")]
+        public string ListPrefix { get; set; }
+
         [Option(Required = false, Default = null, HelpText = "Master to worker message queue name, reuquired with --master")]
         public string MasterToWorkerQueueName { get; set; }
 
@@ -338,6 +341,11 @@ namespace OPS.Landform
                         reason = "unhandled file type: " + url;
                         return false;
                     }
+                    if (ListFile.ParseSiteDriveListFilename(url, options.ListPrefix) == null)
+                    {
+                        reason = "unhandled listfile name: " + url;
+                        return false;
+                    }
                     return true;
                 }
                 catch (Exception ex)
@@ -365,10 +373,6 @@ namespace OPS.Landform
             if (options.Master)
             {
                 string url = GetUrlFromMessage(msg); 
-                if (string.IsNullOrEmpty(url) || StringHelper.GetUrlExtension(url).ToLower() != listExt)
-                {
-                    return true; //shouldn't happen because AcceptMessage() = true, but just drop message
-                }
                 if (!FileExists(url))
                 {
                     pipeline.LogWarn("list file {0} not found", url);
