@@ -75,14 +75,32 @@ using OPS.Pipeline.AlignmentServer;
 /// tileset directory.  In that case the update-scene-manifest tool will also include any sibling tactical mesh tilesets
 /// in the manifest.
 ///
-/// Run as service using mission defaults for AWS configuration and queue names:
+/// Can also run in master service mode by specifying --master.  In that mode the service listens for messages
+/// indicating XYZ list files have been created or updated.  There is expected to be one list file per sitedrive,
+/// listing the XZY RDRs available for it.  The master the scans for other sitedrive list files and uses them to
+/// determine one or more contextual mesh messages based on various parameters which limit the minimum size of a
+/// sitedrive for which a contextual mesh is built, the maximum range of sols for which to include adjacent sitedrives,
+/// the maximum distance for adjacent sitedrives, and the maximum number of XYZ observations to include in a contextual
+/// mesh.  Uses PlacesDB to get the distance between sitedrive origins; if PlacesDB is not available then contextual
+/// meshes will only be built for single sitedrives. (Note PlacesDB is also required to include orbital in contextual
+/// meshes.)
 ///
-/// Landform.exe process-contextual --service --mission=M2020
+/// Run as service:
+///
+/// Landform.exe process-contextual --service --mission=M2020 \
+///    --queuename=landform-contextual --failqueuename=landform-contextual-fail
+///
+/// Run as master service:
+///
+/// Landform.exe process-contextual --master --mission=M2020 \
+///    --queuename=landform-contextual-master --failqueuename=landform-contextual-master-fail \
+///    --mastertoworkerqueuename=landform-contextual
 ///
 /// Windjana in batch mode using already downloaded RDRs:
 ///
 /// Landform.exe process-contextual --mission=M2020 --rdrdir=../rdrs --sols=0609-0630
 ///   --sitedrives=0311472,0311256,0311444,0311330 --nocombinedmanifest
+///
 /// </summary>
 namespace OPS.Landform
 {
@@ -151,13 +169,51 @@ namespace OPS.Landform
 
         [Option(HelpText = "Abort contextual mesh workflow on unexpected error in an alignment stage", Default = false)]
         public bool AbortOnAlignmentError { get; set; }
+
+        [Option(HelpText = "Run as contextual mesh master service", Default = false)]
+        public bool Master { get; set; }
+
+        [Option(Required = false, Default = "lis", HelpText = "Master service list filename extension")]
+        public string ListFormat { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Master to worker message queue name, reuquired with --master")]
+        public string MasterToWorkerQueueName { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Master to worker message queue is Landform owned")]
+        public bool LandformOwnedMasterToWorkerQueue { get; set; }
+
+        [Option(Required = false, Default = 4, HelpText = "Minimum number of wedges for a base site drive in a contextual mesh")]
+        public int MinBaseSiteDriveWedges { get; set; }
+
+        [Option(Required = false, Default = 1, HelpText = "Minimum number of wedges for a site drive to be included in a contextual mesh")]
+        public int MinSiteDriveWedges { get; set; }
+
+        [Option(Required = false, Default = 100, HelpText = "Maximum number of wedges for which to build a contextual mesh")]
+        public int MaxContextualMeshWedges { get; set; }
+
+        [Option(Required = false, Default = 10, HelpText = "Max number of site drives to include in contextual mesh")]
+        public int MaxSiteDrives{ get; set; }
+
+        [Option(Required = false, Default = 32, HelpText = "Max distance in meters from origin of base site drive to origin of a site drive to include in contextual mesh")]
+        public double MaxSiteDriveDistance { get; set; }
+
+        [Option(Required = false, Default = 30, HelpText = "Max difference between sols in base site drive and site drive to include in contextual mesh")]
+        public int MaxSolDistance { get; set; }
     }
 
     public class ProcessContextual : LandformService
     {
         public const string FETCH_DIR = "fetched";
 
+        public const int DEF_MAX_HANDLER_SEC = 2 * 60 * 60; //2 hours
+        public const int DEF_MAX_MESSAGE_AGE_SEC = 6 * 60 * 60; //6 hours
+
+        public const int DEF_MASTER_MAX_HANDLER_SEC = 10 * 60; //10 minutes
+        public const int DEF_MASTER_MAX_MESSAGE_AGE_SEC = 1 * 60 * 60; //1 hour
+
         protected ProcessContextualOptions options;
+
+        private string listExt;
 
         private class GenericContextualMeshMessage : QueueMessage
         {
@@ -167,6 +223,13 @@ namespace OPS.Landform
             public string sols; //e.g. 2,3,4-9,14; if null or empty then use primarySol
             public string primarySiteDrive;
             public string siteDrives; //e.g. 0230001,0230002,0240001; if null or empty then use primarySiteDrive
+#pragma warning restore 0649
+        }
+
+        private class GenericContextualMasterMessage : QueueMessage
+        {
+#pragma warning disable 0649
+            public string listUrl;
 #pragma warning restore 0649
         }
 
@@ -181,87 +244,158 @@ namespace OPS.Landform
                      () => BuildContextualTileset(MakeParameters(options.RDRDir, options.Sols, options.SiteDrives)));
         }
 
-        protected override string GetDefaultQueueName()
-        {
-            return mission.GetContextualMeshQueueName();
-        }
-
-        protected override string GetDefaultFailQueueName()
-        {
-            return mission.GetContextualMeshFailQueueName();
-        }
-
         protected override int GetMaxHandlerSec()
         {
-            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec : mission.GetContextualMeshQueueMaxHandlerSec();
+            return options.MaxHandlerSec > 0 ? options.MaxHandlerSec
+                : options.Master ? DEF_MASTER_MAX_HANDLER_SEC : DEF_MAX_HANDLER_SEC;
         }
 
         protected override int GetMaxMessageAgeSec()
         {
-            return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec :
-                mission.GetContextualMeshQueueMessageMaxAgeSec();
-        }
-
-        private ContextualMeshParameters GetParameters(QueueMessage msg)
-        {
-            return options.UseGenericMessageType ? MakeParameters((GenericContextualMeshMessage)msg, options.RDRDir) :
-                mission.GetParametersFromContextualMeshQueueMessage(msg);
+            return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec
+                : options.Master ? DEF_MASTER_MAX_MESSAGE_AGE_SEC : DEF_MAX_MESSAGE_AGE_SEC;
         }
 
         protected override string DescribeMessage(QueueMessage msg)
         {
-            ContextualMeshParameters parameters = null;
-            try
+            if (options.Master)
             {
-                parameters = GetParameters(msg);
+                string url = null;
+                try
+                {
+                    url = GetUrlFromMessage(msg);
+                }
+                catch {} //ignore
+                return "xyz list file " + (url ?? "(unknown)");
             }
-            catch {} //ignore
-            return "contextual mesh " + (parameters != null ? parameters.TilesetName : "(unknown)");
+            else
+            {
+                ContextualMeshParameters parameters = null;
+                try
+                {
+                    parameters = MakeParameters(msg);
+                }
+                catch {} //ignore
+                return "contextual mesh " + (parameters != null ? parameters.TilesetName : "(unknown)");
+            }
         }
 
         protected override QueueMessage DequeueOneMessage(MessageQueue queue)
         {
-            return options.UseGenericMessageType ?
-                messageQueue.DequeueOne<GenericContextualMeshMessage>() :
-                mission.DequeueContextualMeshMessage(queue);
+            if (options.Master)
+            {
+                if (options.UseGenericMessageType)
+                {
+                    return messageQueue.DequeueOne<GenericContextualMasterMessage>();
+                }
+                else
+                {
+                    return queue.DequeueOne<SNSMessageWrapper>();
+                }
+            }
+            else
+            {
+                //non-master mode implies generic message type
+                return messageQueue.DequeueOne<GenericContextualMeshMessage>();
+            }
         }
 
         protected override QueueMessage ParseMessage(string json)
         {
-            return options.UseGenericMessageType ?
-                JsonHelper.FromJson<GenericContextualMeshMessage>(json, autoTypes: false) :
-                mission.ParseContextualMeshQueueMessage(json);
+            if (options.Master)
+            {
+                if (options.UseGenericMessageType)
+                {
+                    return JsonHelper.FromJson<GenericContextualMasterMessage>(json, autoTypes: false);
+                }
+                else
+                {
+                    return JsonHelper.FromJson<SNSMessageWrapper>(json, autoTypes: false);
+                }
+            }
+            else
+            {
+                //non-master mode implies generic message type
+                return JsonHelper.FromJson<GenericContextualMeshMessage>(json, autoTypes: false);
+            }
         }
 
-        protected override bool AcceptMessage(QueueMessage msg)
+        protected override bool AcceptMessage(QueueMessage msg, out string reason)
         {
-            try
+            reason = null;
+            if (options.Master)
             {
-                return GetParameters(msg) != null; 
+                try
+                {
+                    string url = GetUrlFromMessage(msg); 
+                    if (string.IsNullOrEmpty(url))
+                    {
+                        reason = "no URL in message";
+                        return false;
+                    }
+                    if (StringHelper.GetUrlExtension(url).ToLower() != listExt)
+                    {
+                        reason = "unhandled file type: " + url;
+                        return false;
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    reason = ex.Message;
+                    return false;
+                }
             }
-            catch (Exception ex)
+            else
             {
-                pipeline.LogWarn(ex.Message);
-                return false;
+                try
+                {
+                    return MakeParameters(msg) != null; 
+                }
+                catch (Exception ex)
+                {
+                    reason = ex.Message;
+                    return false;
+                }
             }
         }
 
         protected override bool HandleMessage(QueueMessage msg)
         {
-            var parameters = GetParameters(msg);
-
-            if (parameters == null)
+            if (options.Master)
             {
-                return true; //mission decided to ignore this message, remove it from the queue
+                string url = GetUrlFromMessage(msg); 
+                if (string.IsNullOrEmpty(url) || StringHelper.GetUrlExtension(url).ToLower() != listExt)
+                {
+                    return true; //shouldn't happen because AcceptMessage() = true, but just drop message
+                }
+                if (!FileExists(url))
+                {
+                    pipeline.LogWarn("list file {0} not found", url);
+                    return true; //drop message, maybe file was deleted or renamed
+                }
+                ProcesssListFile(url); //throws exception on error
             }
-
-            BuildContextualTileset(parameters); //throws exception on error or if killed
-
+            else
+            {
+                var parameters = MakeParameters(msg);
+                if (parameters == null)
+                {
+                    return true; //mission decided to ignore this message, remove it from the queue
+                }
+                BuildContextualTileset(parameters); //throws exception on error or if killed
+            }
             return true; //successfully processed, remove message from queue
         }
 
         protected override bool ParseArguments()
         {
+            if (options.Service && !options.Master)
+            {
+                options.UseGenericMessageType = true;
+            }
+            options.Service |= options.Master;
+
             options.RecursiveSearch = !options.NoRecursiveSearch;
 
             if (!base.ParseArguments())
@@ -274,12 +408,22 @@ namespace OPS.Landform
                 if (string.IsNullOrEmpty(options.RDRDir) ||
                     string.IsNullOrEmpty(options.Sols) || string.IsNullOrEmpty(options.SiteDrives))
                 {
-                    throw new Exception("--rdrdir, --sols, and --sitedrives required without --service");
+                    throw new Exception("--rdrdir, --sols, and --sitedrives required without --service or --master");
                 }
             }
             else if (!string.IsNullOrEmpty(options.Sols) || !string.IsNullOrEmpty(options.SiteDrives))
             {
-                throw new Exception("cannot combine --sols or --sitedrives with --service");
+                throw new Exception("cannot combine --sols or --sitedrives with --service or --master");
+            }
+
+            if (options.Master)
+            {
+                listExt = options.ListFormat;
+                if (string.IsNullOrEmpty(listExt))
+                {
+                    throw new Exception("empty list format");
+                }
+                listExt = "." + listExt.ToLower().TrimStart('.');
             }
 
             return true;
@@ -305,6 +449,22 @@ namespace OPS.Landform
             return "contextual";
         }
 
+        private string GetUrlFromMessage(QueueMessage msg)
+        {
+            if (options.UseGenericMessageType)
+            {
+                return (msg as GenericContextualMasterMessage).listUrl;
+            }
+            else
+            {
+                if (!(msg is SNSMessageWrapper))
+                {
+                    throw new Exception("contextual master queue message does not have SNS wrapper");
+                }
+                return S3EventMessage.GetUrl(msg as SNSMessageWrapper, "ObjectCreated");
+            }
+        }
+            
         private string GetSolRanges(HashSet<int> sols)
         {
             var ranges = new List<int[]>();
@@ -320,6 +480,12 @@ namespace OPS.Landform
                 }
             }
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
+        }
+
+        private ContextualMeshParameters MakeParameters(QueueMessage msg)
+        {
+            //non-master mode implies generic message type
+            return MakeParameters((GenericContextualMeshMessage)msg, options.RDRDir);
         }
 
         private ContextualMeshParameters MakeParameters(GenericContextualMeshMessage msg, string defaultRDRDir)
@@ -495,6 +661,11 @@ namespace OPS.Landform
                 Cleanup(venueDir);
                 throw;
             }
+        }
+
+        private void ProcesssListFile(string url)
+        {
+            //TODO
         }
     }
 }

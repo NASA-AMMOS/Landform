@@ -412,27 +412,54 @@ namespace OPS.Pipeline
             return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/756
         }
 
-        public virtual bool UseForAlignment(PDSParser parser)
+        public bool UseForAlignment(PDSParser parser)
         {
-            var cam = GetCamera(parser);
+            return UseForAlignment(GetCamera(parser));
+        }
+
+        public bool UseForAlignment(RoverProductId id)
+        {
+            return UseForAlignment(id.Camera);
+        }
+
+        public virtual bool UseForAlignment(RoverProductCamera cam)
+        {
             return (IsHazcam(cam) && UseHazcamForAlignment()) ||
                 (IsNavcam(cam) && UseNavcamForAlignment()) ||
                 (IsMastcam(cam) && UseMastcamForAlignment()) ||
                 (IsArmcam(cam) && UseArmcamForAlignment());
         }
 
-        public virtual bool UseForMeshing(PDSParser parser)
+        public bool UseForMeshing(PDSParser parser)
         {
-            var cam = GetCamera(parser);
+            return UseForMeshing(GetCamera(parser));
+        }
+
+        public bool UseForMeshing(RoverProductId id)
+        {
+            return UseForMeshing(id.Camera);
+        }
+
+        public virtual bool UseForMeshing(RoverProductCamera cam)
+        {
             return (IsHazcam(cam) && UseHazcamForMeshing()) ||
                 (IsNavcam(cam) && UseNavcamForMeshing()) ||
                 (IsMastcam(cam) && UseMastcamForMeshing()) ||
                 (IsArmcam(cam) && UseArmcamForMeshing());
         }
 
-        public virtual bool UseForTexturing(PDSParser parser)
+        public bool UseForTexturing(PDSParser parser)
         {
-            var cam = GetCamera(parser);
+            return UseForTexturing(GetCamera(parser));
+        }
+
+        public bool UseForTexturing(RoverProductId id)
+        {
+            return UseForTexturing(id.Camera);
+        }
+
+        public virtual bool UseForTexturing(RoverProductCamera cam)
+        {
             return (IsHazcam(cam) && UseHazcamForTexturing()) ||
                 (IsNavcam(cam) && UseNavcamForTexturing()) ||
                 (IsMastcam(cam) && UseMastcamForTexturing()) ||
@@ -745,68 +772,6 @@ namespace OPS.Pipeline
         public virtual string GetSceneManifestImageRDRExts()
         {
             return "img,png,jpg";
-        }
-
-        /// <summary>
-        /// Get mission specific contextual mesh SQS queue name.  
-        /// Does not get called if --queuename is specified.
-        /// </summary>
-        public virtual string GetContextualMeshQueueName()
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Get mission specific contextual mesh SQS fail queue name.  
-        /// Does not get called if --failqueuename is specified.
-        /// Return null or empty to disable contextual mesh fail queue.
-        /// </summary>
-        public virtual string GetContextualMeshFailQueueName()
-        {
-            return null;
-        }
-
-        /// <summary>
-        /// Pull a contextual mesh tiling message off the queue.
-        /// The message type can be a mission specific subclass of QueueMessage.
-        /// Does not get called if --usegenericmessagetype is specified. 
-        /// </summary>
-        public virtual QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Returns null unless msg is a valid and recognized contextual mesh queue message.
-        /// </summary>
-        public virtual ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// This is only used for injecting a message into the queue for testing.
-        /// Does not get called if --usegenericmessagetype is specified. 
-        /// </summary>
-        public virtual QueueMessage ParseContextualMeshQueueMessage(string json)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Kill contextual mesh tileset processes after this amount of time.
-        /// </summary>
-        public virtual int GetContextualMeshQueueMaxHandlerSec()
-        {
-            return 2 * 60 * 60; //2 hours
-        }
-
-        /// <summary>
-        /// Give up processing a contextual mesh this long after first attempt to process it.
-        /// </summary>
-        public virtual int GetContextualMeshQueueMessageMaxAgeSec()
-        {
-            return 6 * 60 * 60; //6 hours
         }
 
         /// <summary>
