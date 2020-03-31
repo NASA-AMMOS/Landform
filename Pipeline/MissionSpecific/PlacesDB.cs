@@ -388,5 +388,33 @@ namespace OPS.Pipeline
         {
             return cachedOffsetFromStart.GetOrAdd(sd, _ => GetEstimatedOffsetToSite(sd, 1));
         }
+
+        /// <summary>
+        /// Returns the Local_level frame offset between the "from" sitedrive to the "to" sitedrive
+        /// </summary>
+        public Vector3 GetEstimatedOffset(SiteDrive fromSD, SiteDrive toSD)
+        {
+            string query = null;
+            if (fromSD.Drive > 0 && toSD.Drive > 0)
+            {
+                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=rover({3},{4})",
+                                      view, fromSD.Site, fromSD.Drive, toSD.Site, toSD.Drive);
+            }
+            else if (fromSD.Drive > 0)
+            {
+                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})",
+                                      view, fromSD.Site, fromSD.Drive, toSD.Site);
+            }
+            else if (toSD.Drive > 0)
+            {
+                query = string.Format("query/primary/{0}?from=site({1})&to=rover({2},{3})",
+                                      view, fromSD.Site, toSD.Site, toSD.Drive);
+            }
+            else
+            {
+                query = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSD.Site);
+            }
+            return GetOffset(query);
+        }
     }
 }
