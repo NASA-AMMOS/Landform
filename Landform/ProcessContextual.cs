@@ -259,7 +259,7 @@ namespace OPS.Landform
                 : options.Master ? DEF_MASTER_MAX_MESSAGE_AGE_SEC : DEF_MAX_MESSAGE_AGE_SEC;
         }
 
-        protected override string DescribeMessage(QueueMessage msg)
+        protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
         {
             if (options.Master)
             {
@@ -279,7 +279,13 @@ namespace OPS.Landform
                     parameters = MakeParameters(msg);
                 }
                 catch {} //ignore
-                return "contextual mesh " + (parameters != null ? parameters.TilesetName : "(unknown)");
+                var desc = "contextual mesh " + (parameters != null ? parameters.TilesetName : "(unknown)");
+                if (verbose && parameters != null)
+                {
+                    desc += string.Format(" for {0}; sols {1}; sitedrives {2}",
+                                          parameters.RDRDir, parameters.Sols, parameters.SiteDrives);
+                }
+                return desc;
             }
         }
 

@@ -144,7 +144,7 @@ namespace OPS.Landform
             return options.MaxMessageAgeSec > 0 ? options.MaxMessageAgeSec : DEF_MAX_MESSAGE_AGE_SEC;
         }
 
-        protected override string DescribeMessage(QueueMessage msg)
+        protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
         {
             string url = null;
             try
