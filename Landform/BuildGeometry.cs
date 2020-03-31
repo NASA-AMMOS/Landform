@@ -184,6 +184,10 @@ namespace OPS.Landform
                     {
                         RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                     }
+                    else
+                    {
+                        mesh = orbitalMesh;
+                    }
                 }
                 else if (options.NoFillHoles)
                 {
@@ -646,7 +650,7 @@ namespace OPS.Landform
         private void BuildOrbitalMesh()
         {
             var maskOp = maskUVMeshOp;
-            if (maskOp == null) //CreateSurfaceMaskMesh() failed
+            if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed
             {
                 var tmp = new Mesh(mesh);
                 tmp.XYToUV();
@@ -674,7 +678,7 @@ namespace OPS.Landform
                     if (pt.HasValue)
                     {
                         pt = Vector3.Transform(pt.Value, orbitalToMesh);
-                        if (maskOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
+                        if (maskOp == null || maskOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
                         {
                             points[0, rr, cc] = (float)pt.Value.X;
                             points[1, rr, cc] = (float)pt.Value.Y;

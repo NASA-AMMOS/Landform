@@ -651,33 +651,35 @@ namespace OPS.Pipeline
         /// output band 1: observation pixel row
         /// output band 2: observation column
         /// </summary>
-        static static public void FillIndexImageOrbital(IDictionary<Pixel, Vector2> orbitalResults, Image outputImage)
+        static public void FillIndexImageOrbital(IDictionary<Pixel, Vector2> orbitalResults, Image outputImage)
         {
-            const int ORBITALINDEX = Observation.MAX_INDEX - 1;
+            //const int ORBITALINDEX = Observation.MAX_INDEX - 1;
 
-            if (outputImage.Bands != 3)
-                throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
+            //if (outputImage.Bands != 3)
+            //    throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
 
-            foreach (var entry in backprojectResults)
-            {
-                var outputPixel = entry.Key;
-                var sourceImageIndex = entry.Value.Obs.Index;
-                var sourcePixel = entry.Value.Pixel;
+            //foreach (var entry in backprojectResults)
+            //{
+            //    var outputPixel = entry.Key;
+            //    var sourceImageIndex = entry.Value.Obs.Index;
+            //    var sourcePixel = entry.Value.Pixel;
 
-                if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
-                    outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
-                {
-                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
-                }
+            //    if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
+            //        outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
+            //    {
+            //        throw new InvalidDataException("Backproject output pixel is located outside of output image");
+            //    }
 
-                if (sourceImageIndex < Observation.MIN_INDEX)
-                {
-                    throw new InvalidDataException("invalid image index in backproject results");
-                }
+            //    if (sourceImageIndex < Observation.MIN_INDEX)
+            //    {
+            //        throw new InvalidDataException("invalid image index in backproject results");
+            //    }
 
-                outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
-                                          new float[] { sourceImageIndex, (float)sourcePixel.Y, (float)sourcePixel.X });
-            }
+            //    outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
+            //                              new float[] { sourceImageIndex, (float)sourcePixel.Y, (float)sourcePixel.X });
+            //}
+
+            throw new NotImplementedException();
         }
 
         public static void FillOutputTextureOrbital(IDictionary<Pixel, Vector2> orbitalResults, SparsePipelineImage orbitalTexture, Image image)

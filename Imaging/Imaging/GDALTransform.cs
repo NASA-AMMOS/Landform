@@ -117,7 +117,7 @@ namespace OPS.Imaging
             double r = Body.GetRadius();
             return new Vector2(
                 r * Math.Sin((latlon.Y - lat0) * Math.PI / 180.0),
-                r * Math.Cos((latlon.Y - lat0) * Math.PI / 180.0) * Math.Sin((latlon.X - lon0) * Math.PI / 180.0));
+                r * Math.Cos((latlon.Y - lat0) * Math.PI / 180.0) * Math.Sin((latlon.X - lon0) * Math.PI / 180.0)
             );
         }
         /// <summary>
