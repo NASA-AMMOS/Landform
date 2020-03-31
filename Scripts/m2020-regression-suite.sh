@@ -50,6 +50,9 @@ contextual=true
 scarecrow=
 scarecrow=true
 
+tt4=
+#tt4=true
+
 roastt=
 #roastt=true
 
@@ -104,7 +107,7 @@ do_all_the_things() {
     
     if [ "$fetch" ]; then
         
-        rdr_bucket=s3://$bucket/ods/$ver/sol/#####/$ids/rdr 
+        rdr_bucket=s3://$bucket/$ods/$ver/sol/#####/$ids/rdr 
         
         $landform fetch $sols out/$run/rdrs $rdr_bucket --mission $mission --summary $fetchargs
         
@@ -121,11 +124,11 @@ do_all_the_things() {
         fi
     fi
         
-    if [ "$tactical" ]; then
+    if [ "$tactical" -a "$enable_tactical" ]; then
         $scriptdir/processTactical.sh out/$run/rdrs $mission out/$run/tilesets $all_the_args
     fi
     
-    if [ "$contextual" ]; then
+    if [ "$contextual" -a "$enable_contextual" ]; then
         IFS=',' read -ra solarray <<< $sols
         primarysol=${solarray[0]}
         $scriptdir/processContextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
@@ -144,10 +147,35 @@ sds=0020536
 ver=m20scarecrow
 run=scarecrow-eecam
 bucket=m20-ids-g-data-scarecrow-tilefix2
+ods=ods
 ids=ids
 fetchargs=
 dem=
 ortho=
+enable_tactical=
+enable_contextual=true
+
+do_all_the_things
+
+fi
+
+#-----------------------------------------------------------------------------------------------------------------------
+
+if [ "$tt4" ]; then
+
+mission=TT4
+sols=0000
+sds=0010000,0010024,0010372
+ver=test
+run=tt4
+bucket=m20-ids-g-data-tyler2
+ods=ocs
+ids=ids
+fetchargs=
+dem=
+ortho=
+enable_tactical=
+enable_contextual=true
 
 do_all_the_things
 
@@ -164,10 +192,13 @@ sds=0010000
 ver=g64
 run=roastt20-dec12-e
 bucket=roastt-marsyard-12-12-e
+ods=ods
 ids=ids
 fetchargs="--onlyforcameras=Navcam,Mastcam"
 dem=
 ortho=
+enable_tactical=true
+enable_contextual=true
 
 do_all_the_things
 
@@ -178,10 +209,13 @@ sds=0180000
 ver=g64
 run=roastt20-393-g
 bucket=roastt-dev-0205
+ods=ods
 ids=ids
 fetchargs="--onlyforcameras=Navcam,Mastcam --excludepattern=*393112341*,*393112436*"
 dem=
 ortho=
+enable_tactical=true
+enable_contextual=true
 
 do_all_the_things
 
@@ -192,10 +226,13 @@ sd=0190000
 ver=g64
 run=roastt20-396-g
 bucket=roastt-dev-0205
+ods=ods
 ids=ids
 fetchargs="--onlyforcameras=Navcam,Mastcam"
 dem=
 ortho=
+enable_tactical=true
+enable_contextual=true
 
 do_all_the_things
 
@@ -206,10 +243,13 @@ sds=0200000
 ver=roastt
 run=roastt20-399-b
 bucket=roastt-dev-0205
+ods=ods
 ids=ids
 fetchargs="--onlyforcameras=Navcam,Mastcam"
 dem=
 ortho=
+enable_tactical=true
+enable_contextual=true
 
 do_all_the_things
 
@@ -220,10 +260,13 @@ sds=0200006
 ver=roastt
 run=roastt20-401-a
 bucket=roastt-dev-0205
+ods=ods
 ids=ids
 fetchargs="--onlyforcameras=Navcam,Mastcam"
 dem=
 ortho=
+enable_tactical=true
+enable_contextual=true
 
 do_all_the_things
 
@@ -234,10 +277,13 @@ sds=0200010
 ver=roastt
 run=roastt20-403-a
 bucket=roastt-dev-0205
+ods=ods
 ids=ids
 fetchargs="--onlyforcameras=Navcam,Mastcam"
 dem=
 ortho=
+enable_tactical=true
+enable_contextual=true
 
 do_all_the_things
 
@@ -254,10 +300,13 @@ sds=0311472,0311256,0311444,0311330
 ver=surface
 run=windjana
 bucket=$lfbucket/$mission
+ods=ods
 ids=opgs
 fetchargs=
 dem=out_deltaradii_smg_1m.tif
 ortho=out_clean_25cm.iGrid.ClipToDEM.tif
+enable_tactical=
+enable_contextual=true
 
 do_all_the_things
 
