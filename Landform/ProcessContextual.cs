@@ -234,6 +234,7 @@ namespace OPS.Landform
 
         //message sent from master to worker
         //defines the job of building one contextual mesh
+        //equality is based only on rdrDir, primarySol, primarySiteDrive
         private class ContextualMeshMessage : QueueMessage
         {
             //designed for serialization to JSON so using camelCase not StudlyCaps
@@ -243,7 +244,24 @@ namespace OPS.Landform
             public string sols; //e.g. 2,3,4-9,14; if null or empty then use primarySol
             public string primarySiteDrive;
             public string siteDrives; //e.g. 0230001,0230002,0240001; if null or empty then use primarySiteDrive
+            public int numWedges = -1; //used only for information and sorting, negative if unknown
 #pragma warning restore 0649
+
+            public override int GetHashCode()
+            {
+                return HashCombiner.Combine(rdrDir.GetHashCode(),
+                                            HashCombiner.Combine(primarySol, primarySiteDrive.GetHashCode()));
+            }
+
+            public override bool Equals(object obj)
+            {
+                if (!(obj is ContextualMeshMessage))
+                {
+                    return false;
+                }
+                var msg = obj as ContextualMeshMessage;
+                return msg.rdrDir == rdrDir && msg.primarySol == primarySol && msg.primarySiteDrive == primarySiteDrive;
+            }
         }
 
         //defines the job of building one contextual mesh
@@ -321,8 +339,10 @@ namespace OPS.Landform
                 var desc = "contextual mesh " + (parameters != null ? parameters.TilesetName : "(unknown)");
                 if (verbose && parameters != null)
                 {
-                    desc += string.Format(" for {0}; sols {1}; sitedrives {2}",
-                                          parameters.RDRDir, parameters.Sols, parameters.SiteDrives);
+                    int numWedges = (msg as ContextualMeshMessage).numWedges;
+                    desc += string.Format(" for {0}; sols {1}; sitedrives {2} ({3} wedges)",
+                                          parameters.RDRDir, parameters.Sols, parameters.SiteDrives,
+                                          numWedges >= 0 ? numWedges.ToString() : "(unknown)");
                 }
                 return desc;
             }
@@ -948,14 +968,82 @@ namespace OPS.Landform
                 primarySol = primarySol,
                 primarySiteDrive = primarySD.ToString(),
                 sols = MakeSolRanges(sols, primarySol),
-                siteDrives = string.Join(",", keepers.Keys.OrderBy(sd => sd))
+                siteDrives = string.Join(",", keepers.Keys.OrderBy(sd => sd)),
+                numWedges = totalWedges
             };
         }
 
-        private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> msgs)
+        /// <summary>
+        /// Combines a batch of new contextual mesh messages with existing ones in the master-to-worker queue.
+        /// The messages must all have the same RDR dir.
+        /// De-dupes, preferring newer-created messages to older.
+        /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
+        /// </summary>
+        private List<ContextualMeshMessage> CoalesceMessages(List<ContextualMeshMessage> newMsgsOldestToNewest)
         {
-            //TODO
-            return msgs;
+            if (newMsgsOldestToNewest.Count == 0)
+            {
+                return newMsgsOldestToNewest;
+            }
+
+            string rdrDir = newMsgsOldestToNewest[0].rdrDir;
+            if (newMsgsOldestToNewest.Any(msg => msg.rdrDir != rdrDir))
+            {
+                throw new ArgumentException("all new messages must have same RDR dir");
+            }
+                 
+            pipeline.LogInfo("coalescing {0} new messages with existing", newMsgsOldestToNewest.Count);
+
+            //keep at most one message per (primarySol, primarySiteDrive) pair
+            //ContextualMeshMessage defines its GetHashCode() and Equals() by (primarySol, primarySiteDrive)
+            var keepers = new HashSet<ContextualMeshMessage>();
+
+            void keepNewest(List<ContextualMeshMessage> msgs)
+            {
+                for (int i = msgs.Count - 1; i >= 0; i--) //iterate newest -> oldest
+                {
+                    if (!keepers.Contains(msgs[i]))
+                    {
+                        keepers.Add(msgs[i]);
+                    }
+                }
+            }
+
+            //it is possible, but unlikely, that there are dupes even in new messages
+            keepNewest(newMsgsOldestToNewest);
+
+            //now reap all the existing messages in the master-to-worker queue for the same rdrDir
+            //and keep any that aren't dupes of new messages
+            //really there should be no dupes among the old messages
+            //but just in case, keep them in order
+            var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
+            while (true)
+            {
+                var msg = DequeueOneMessage(masterToWorkerQueue) as ContextualMeshMessage;
+                if (msg == null)
+                {
+                    break;
+                }
+                if (msg.rdrDir == rdrDir)
+                {
+                    masterToWorkerQueue.DeleteMessage(msg);
+                    oldMsgsOldestToNewest.Add(msg);
+                }
+            }
+            pipeline.LogInfo("dequeued {0} existing messages", oldMsgsOldestToNewest.Count);
+
+            keepNewest(oldMsgsOldestToNewest);
+
+            pipeline.LogInfo("kept {0} coalesced messages from {1} old and {2} new",
+                             keepers.Count, oldMsgsOldestToNewest.Count, newMsgsOldestToNewest.Count);
+
+            //yes, OrderByDescending() is stable
+            //https://stackoverflow.com/questions/1209935/orderby-and-orderbydescending-are-stable
+            return keepers
+                .OrderByDescending(msg => msg.numWedges) //lowest priority
+                .OrderByDescending(msg => msg.primarySiteDrive) //medium priority
+                .OrderByDescending(msg => msg.primarySol) //highest priority
+                .ToList();
         }
 
         private MessageQueue GetMasterToWorkerMessageQueue()
@@ -1003,22 +1091,55 @@ namespace OPS.Landform
                             stampedListsForRDRDir[rdrDir].Add(stampedList);
                         }
                     }
-                    
-                    var msgs = new List<ContextualMeshMessage>();
+
+                    //try to connect to PlacesDB just for this pass
+                    //we do that for a couple of reasons rather than having a single long-lived PlacesDB connection
+                    //for one thing our PlacesDB interface caches results
+                    //so if the underlying answers were to be updated refine, it could be stale over time
+                    //also, particularly in certain dev scenarios, PlacesDB availability may be iffy
+                    //better to try on each pass rather than once ever
                     PlacesDB placesDB = null;
                     var placesCfg = PlacesConfig.Instance;
                     bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
                     
+
                     foreach (var rdrDir in stampedListsForRDRDir.Keys)
                     {
+                        var msgs = new List<Stamped<ContextualMeshMessage>>();
+
                         var stampedLists = stampedListsForRDRDir[rdrDir];
-                        if (!lastMasterPass.ContainsKey(rdrDir) ||
-                            stampedLists.Any(sl => sl.Timestamp > lastMasterPass[rdrDir]) &&
-                            (debounceMS == 0 || stampedLists.Max(sl => sl.Timestamp) < now - debounceMS))
+                        var listFiles = stampedLists.Select(sl => sl.Value).ToList();
+
+                        bool firstPass = !lastMasterPass.ContainsKey(rdrDir);
+
+                        var changedLists = firstPass ? stampedLists :
+                            stampedLists.Where(sl => sl.Timestamp > lastMasterPass[rdrDir]).ToList();
+
+                        long lastChange = changedLists.Max(sl => sl.Timestamp);
+                        long firstChange = changedLists.Min(sl => sl.Timestamp);
+
+                        long debounceThreshold = debounceMS <= 0 ? now : now - debounceMS;
+
+                        if (changedLists.Count > 0 && (debounceThreshold == now || lastChange < debounceThreshold))
                         {
                             //at least one list file for rdrDir has been updated since we last made a pass over them
                             //but the most recently updated one changed at least debounceMS ago
-                            var listFiles = stampedLists.Select(sl => sl.Value).ToList();
+
+                            pipeline.LogInfo("making pass on RDR dir {0} at {1} ({2}s debounce threshold {3})",
+                                             rdrDir, UTCTime.MSSinceEpochToDate(now),
+                                             debounceMS / 1000, UTCTime.MSSinceEpochToDate(now - debounceMS));
+
+                            pipeline.LogInfo("{0} list files, {1} changed since last pass at {2}, " +
+                                             "first changed time {3}, last changed time {4}",
+                                             listFiles.Count, changedLists.Count, firstPass ? "(never)" :
+                                             UTCTime.MSSinceEpochToDate(lastMasterPass[rdrDir]).ToString(),
+                                             UTCTime.MSSinceEpochToDate(firstChange),
+                                             UTCTime.MSSinceEpochToDate(lastChange));
+
+                            pipeline.LogInfo("{0} sitedrives, min sol {1}, max sol {2}",
+                                             listFiles.Select(l => l.SiteDrive).Distinct().Count(),
+                                             listFiles.Min(l => l.MinSol), listFiles.Max(l => l.MaxSol));
+
                             if (placesDB == null && usePlaces)
                             {
                                 try
@@ -1031,56 +1152,56 @@ namespace OPS.Landform
                                     usePlaces = false;
                                 }
                             }
-                            foreach (var stampedList in stampedLists)
+                            pipeline.LogInfo("{0}using PlacesDB{1}",
+                                             usePlaces ? "" : "not ", usePlaces ? placesCfg.Url : "");
+
+                            foreach (var stampedList in changedLists)
                             {
-                                if (!lastMasterPass.ContainsKey(rdrDir) ||
-                                    stampedList.Timestamp > lastMasterPass[rdrDir])
+                                try
                                 {
-                                    try
+                                    var msg = SiteDriveChanged(stampedList.Value, listFiles, placesDB);
+                                    if (msg != null)
                                     {
-                                        var msg = SiteDriveChanged(stampedList.Value, listFiles, placesDB);
-                                        if (msg != null)
-                                        {
-                                            msgs.Add(msg);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        pipeline.LogException(ex, "error processing sitedrive " +
-                                                              stampedList.Value.SiteDrive);
+                                        msgs.Add(new Stamped<ContextualMeshMessage>(msg, stampedList.Timestamp));
                                     }
                                 }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogException(ex, "error processing sitedrive " +
+                                                          stampedList.Value.SiteDrive);
+                                }
                             }
+
                             lastMasterPass[rdrDir] = now;
                         }
-                    }
-                    
-                    if (msgs.Count > 0)
-                    {
-                        pipeline.LogInfo("enqueueing up to {0} new contextual mesh messages to {1}",
-                                         msgs.Count, masterToWorkerQueue.Name);
-                        int countWas = msgs.Count;
-                        try
-                        {
-                            msgs = CoalesceMessages(msgs);
-                            if (msgs.Count != countWas)
-                            {
-                                pipeline.LogInfo("enqueueing {0} messages after coalescing", msgs.Count);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            pipeline.LogException(ex, "error coalescing messages, proceeding with un-coaleseced");
-                        }
-                        foreach (var msg in msgs)
+
+                        //order messages according to when the corersponding list file changed (oldest to newest)
+                        var rawMsgs = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
+
+                        if (msgs.Count > 0)
                         {
                             try
                             {
-                                masterToWorkerQueue.Enqueue(msg);
+                                rawMsgs = CoalesceMessages(rawMsgs);
                             }
                             catch (Exception ex)
                             {
-                                pipeline.LogException(ex, "adding message to master-to-worker queue");
+                                pipeline.LogException(ex, "error coalescing messages, proceeding with un-coaleseced");
+                            }
+                            
+                            pipeline.LogInfo("enqueueing {0} contextual mesh messages to {1} for {2}",
+                                             rawMsgs.Count, masterToWorkerQueue.Name, rdrDir);
+                            
+                            foreach (var msg in rawMsgs) //in order starting with highest sol, largest number of wedges
+                            {
+                                try
+                                {
+                                    masterToWorkerQueue.Enqueue(msg);
+                            }
+                                catch (Exception ex)
+                                {
+                                    pipeline.LogException(ex, "adding message to master-to-worker queue");
+                                }
                             }
                         }
                     }

@@ -7,9 +7,26 @@ namespace OPS.Util
 {
     public class UTCTime
     {
+        public readonly static DateTime EPOCH = new DateTime(1970, 1, 1);
+
         public static TimeSpan SinceEpoch()
         {
-            return DateTime.UtcNow - new DateTime(1970, 1, 1);
+            return DateTime.UtcNow - EPOCH;
+        }
+
+        public static DateTime SecondsSinceEpochToDate(double sec)
+        {
+            return MSSinceEpochToDate(sec * 1e3);
+        }
+
+        public static DateTime MSSinceEpochToDate(double ms)
+        {
+            return MSSinceEpochToDate((long)ms);
+        }
+            
+        public static DateTime MSSinceEpochToDate(long ms)
+        {
+            return DateTimeOffset.FromUnixTimeMilliseconds(ms).DateTime;
         }
 
         public static double Now()
