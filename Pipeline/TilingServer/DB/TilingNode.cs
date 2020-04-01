@@ -228,7 +228,7 @@ namespace OPS.Pipeline.TilingServer
         //  3. optionally the mesh and/or image are also uploaded to www in the export formats
         /// </summary>
         public void SaveMesh(MeshImagePair pair, PipelineCore pipeline, TilingProject project,
-                             bool enableInternal = true, bool computeStats = true, IndexImage index = null)
+                             bool enableInternal = true, bool computeStats = true)
         {
             if (pair.Mesh == null)
             {
@@ -277,7 +277,7 @@ namespace OPS.Pipeline.TilingServer
                 exImageFile = Id + exImageExt;
                 exImageUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exImageFile);
 
-                if (!string.IsNullOrEmpty(project.ExportIndexFormat) && index != null)
+                if (!string.IsNullOrEmpty(project.ExportIndexFormat) && pair.Index != null)
                 {
                     exIndexExt = TilingProject.ToExt(project.ExportIndexFormat);
                     exIndexFile = Id + TileList.INDEX_FILE_SUFFIX + exIndexExt;
@@ -343,14 +343,14 @@ namespace OPS.Pipeline.TilingServer
                             }
                         });
                     }
-                    if(index != null)
+                    if(pair.Index != null)
                     {
                         IndexUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, indexFile);
                         lock (indexReadWriteLock)
                         {
                             TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
                             {
-                                saveFloatTiff(tmpIndex, index.Index);
+                                saveFloatTiff(tmpIndex, pair.Index);
                                 upload(tmpIndex, IndexUrl);
                                 if(exIndexUrl != null && exIndexExt == indexExt)
                                 {
@@ -431,9 +431,9 @@ namespace OPS.Pipeline.TilingServer
                                 tmpImage = null;
                             }
 
-                            if (index != null)
+                            if (pair.Index != null)
                             {
-                                index.Index.Save<byte>(tmpIndex);
+                                pair.Index.Save<byte>(tmpIndex);
                                 if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
                                 {
                                     upload(tmpIndex, exIndexUrl);
@@ -497,11 +497,11 @@ namespace OPS.Pipeline.TilingServer
             }
 
             //save export image to S3 iff we haven't already
-            if (index != null && exIndexUrl != null && exIndexExt != null && !uploadedExIndex)
+            if (pair.Index != null && exIndexUrl != null && exIndexExt != null && !uploadedExIndex)
             {
                 TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
                 {
-                    saveFloatTiff(tmpIndex, index.Index);
+                    saveFloatTiff(tmpIndex, pair.Index);
                     upload(tmpIndex, exImageUrl);
                     uploadedExIndex = true;
                 });
@@ -528,9 +528,9 @@ namespace OPS.Pipeline.TilingServer
             {
                 imageCache[ImageUrl] = pair.Image;
             }
-            if (index != null && !string.IsNullOrEmpty(IndexUrl) && indexCache != null)
+            if (pair.Index != null && !string.IsNullOrEmpty(IndexUrl) && indexCache != null)
             {
-                indexCache[IndexUrl] = index.Index;
+                indexCache[IndexUrl] = pair.Index;
             }
 
             if (computeStats)
@@ -612,42 +612,6 @@ namespace OPS.Pipeline.TilingServer
         private Object imageReadWriteLock = new Object();
         private Object indexReadWriteLock = new Object();
 
-        public IndexImage LoadIndexImage(PipelineCore pipeline)
-        {
-            Image index = null;
-            if (IndexUrl != null)
-            {
-                if (indexCache != null)
-                {
-                    index = indexCache[IndexUrl];
-                }
-                if (index == null)
-                {
-                    lock (indexReadWriteLock)
-                    {
-                        if (indexCache != null)
-                        {
-                            index = indexCache[IndexUrl];
-                        }
-                        if (index == null)
-                        {
-                            index = pipeline.LoadImage(IndexUrl);
-                            if (indexCache != null)
-                            {
-                                indexCache[IndexUrl] = index;
-                            }
-                        }
-                    }
-                }
-            }
-            if(index == null)
-            {
-                ;
-            }
-            return index != null ? new IndexImage(index) : null;
-        }
-
-
         public MeshImagePair LoadMeshImagePair(PipelineCore pipeline, bool loadImage = true, bool cleanMesh = false)
         {
             if (MeshUrl == null)
@@ -723,8 +687,35 @@ namespace OPS.Pipeline.TilingServer
                     }
                 }
             }
-            
-            return new MeshImagePair(mesh, img);
+
+            Image index = null;
+            if (IndexUrl != null)
+            {
+                if (indexCache != null)
+                {
+                    index = indexCache[IndexUrl];
+                }
+                if (index == null)
+                {
+                    lock (indexReadWriteLock)
+                    {
+                        if (indexCache != null)
+                        {
+                            index = indexCache[IndexUrl];
+                        }
+                        if (index == null)
+                        {
+                            index = pipeline.LoadImage(IndexUrl);
+                            if (indexCache != null)
+                            {
+                                indexCache[IndexUrl] = index;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new MeshImagePair(mesh, img, index);
         }
 
         public SceneNode MakeSceneNode()

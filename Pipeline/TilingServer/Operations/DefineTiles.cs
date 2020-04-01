@@ -180,11 +180,6 @@ namespace OPS.Pipeline.TilingServer
 
                     //don't add pair to sceneNode, would be a memory leak
                     var pair = tilingNode.LoadMeshImagePair(pipeline, cleanMesh: true);
-                    IndexImage index = null;
-                    if (WriteIndexFiles)
-                    {
-                        index = tilingNode.LoadIndexImage(pipeline);
-                    }
                     if (pair != null)
                     {
                         sceneNode.GetComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
@@ -194,12 +189,12 @@ namespace OPS.Pipeline.TilingServer
                             tilingNode.SaveMesh(pair, pipeline, project, saveInternal);
                         } else
                         {
-                            if(index == null)
+                            if(pair.Index == null)
                             {
                                 pipeline.LogWarn(String.Format("no index image for tiling node {0}",
                                     tilingNode.Id));
                             }
-                            tilingNode.SaveMesh(pair, pipeline, project, saveInternal, index:index);
+                            tilingNode.SaveMesh(pair, pipeline, project, saveInternal);
                         }
                     }
                     else

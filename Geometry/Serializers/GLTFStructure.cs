@@ -33,16 +33,13 @@ namespace OPS.Geometry.GLTF
         [Newtonsoft.Json.JsonIgnore]
         public byte[] Data { get; set; }
 
-        public GLTFFile(Mesh m, string imageFilename, bool embedData = true) :
-            this(m, imageFilename, null, embedData) { }
-
         /// <summary>
         /// Create a GLTF file.  
         /// </summary>
         /// <param name="m"></param>
         /// <param name="imageFilename"></param>
         /// <param name="embedData">If true mesh and image data will be base64 encoded and included in the json segment.  Otherwise they will be stored as a byte array in this.Data.  Set to false when writing binary gltf files (glb)</param>
-        public GLTFFile(Mesh m, string imageFilename, string indexFilename, bool embedData = true)
+        public GLTFFile(Mesh m, string imageFilename, string indexFilename = null, bool embedData = true)
         {
             extensionsUsed.Add("KHR_materials_unlit");
 

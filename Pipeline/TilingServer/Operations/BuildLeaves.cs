@@ -143,8 +143,7 @@ namespace OPS.Pipeline.TilingServer
                 if (pair.Mesh != null)
                 {
                     LogInfo("saving leaf tile mesh");
-                    leaf.SaveMesh(pair, pipeline, project,
-                            index: index == null ? null : new IndexImage(index));
+                    leaf.SaveMesh(pair, pipeline, project);
                     leaf.Save(pipeline);
                 }
                 else

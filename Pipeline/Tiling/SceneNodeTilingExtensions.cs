@@ -152,11 +152,7 @@ namespace OPS.Pipeline
             BoundingBox searchBounds;
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
             var filtered = childNodes.Where(n => n.HasComponent<MeshImagePair>());
-            filtered = writeIndexImages ? 
-                       filtered.Where(n => n.HasComponent<IndexImage>()) : filtered;
             var pairs = filtered.Select(n => n.GetComponent<MeshImagePair>());
-            var indexes = writeIndexImages ?
-                          childNodes.Select(n => n.GetComponent<IndexImage>()).ToArray() : null;
             var childMeshes = pairs.Where(p => p.Mesh != null).Select(p => p.Mesh);
             
             Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean:true, normalize:true);
@@ -236,7 +232,7 @@ namespace OPS.Pipeline
                 }
 
                 info("baking parent tile texture");
-                TextureBaker tb = new TextureBaker(pairs.ToArray(), indexes);
+                TextureBaker tb = new TextureBaker(pairs.ToArray());
                 img = tb.Bake(combinedDecimated, size, size, out index); //Writes index iff indexes not null
 
                 // Estimate the size of a pixel for this texture
@@ -258,11 +254,7 @@ namespace OPS.Pipeline
             node.GetComponent<NodeBounds>().Bounds = bounds;
 
             // Add new mesh and image to parent
-            node.AddComponent(new MeshImagePair(combinedDecimated, img));
-            if(index != null)
-            {
-                node.AddComponent(new IndexImage(index));
-            }
+            node.AddComponent(new MeshImagePair(combinedDecimated, img, index));
 
             // Ensure geo error is at least as large as children
             foreach (var child in node.Children)

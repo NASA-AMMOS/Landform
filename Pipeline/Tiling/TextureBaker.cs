@@ -98,9 +98,8 @@ namespace OPS.Pipeline
 
         Octree triOctTree;
         int destBands;
-        private bool bakeIndexes;
 
-        public TextureBaker(MeshImagePair[] source, IndexImage[] indexImgs, int maxNodeSize = 10, int maxDepth = 14)
+        public TextureBaker(MeshImagePair[] source, int maxNodeSize = 10, int maxDepth = 14)
         {
             if (source.Count() == 0)
             {
@@ -110,11 +109,6 @@ namespace OPS.Pipeline
             if(source.Any(s => s.Image.Bands != destBands))
             {
                 throw new Exception("Texture Baker requires all source images have identical number of bands");
-            }
-            bakeIndexes = indexImgs != null;
-            if (bakeIndexes && source.Length != indexImgs.Length)
-            {
-                throw new Exception("Number of index images must match number of source pairs if non-zero");
             }
             // Get union bounding box of source meshes
             List<BoundingBox> boxes = new List<BoundingBox>();
@@ -130,12 +124,7 @@ namespace OPS.Pipeline
                 List<OctreeNodeContents> insertList = new List<OctreeNodeContents>();
                 foreach (Triangle tri in source[i].Mesh.Triangles())
                 {
-                    var idxImg = bakeIndexes ? indexImgs[i].Index : null;
-                    if(indexImgs[i].Index == null)
-                    {
-                        ;
-                    }
-                    insertList.Add(new TexturedTriangle(tri, source[i].Image, idxImg));
+                    insertList.Add(new TexturedTriangle(tri, source[i].Image, source[i].Index));
                 }
                 triOctTree.InsertList(insertList);
             }
@@ -147,11 +136,9 @@ namespace OPS.Pipeline
             var destOperator = new MeshOperator(dest, buildFaceTree: false, buildVertexTree: false);
             // the new texture
             var destImage = new Image(destBands, destWidth, destHeight);
-            destIndex = bakeIndexes ? new Image(3, destWidth, destHeight) : null;
-            if(bakeIndexes)
-            {
-                destIndex.CreateMask(true);
-            }
+
+            destIndex = null; //Lazily allocate
+            bool indexFailed = false; //Only write out index if all sources have indexes
 
             OctreeNode start = this.triOctTree.Root;
             OctreeNode end;
@@ -179,25 +166,24 @@ namespace OPS.Pipeline
                     {
                         Image image = txtTri.texture;
                         Image index = txtTri.index;
+                        indexFailed = indexFailed || index == null;
                         Vector2 pixel = image.UVToPixel(closest.UV);
 
                         float row = (float)pixel.Y;
                         float col = (float)pixel.X;
                         var bands = new float[image.Bands];
-                        var idxBands = bakeIndexes ? new float[index.Bands] : null;
+                        var idxBands = new float[index.Bands];
                         for (int b = 0; b < bands.Count(); b++)
                         {
-                            if (bakeIndexes)
-                            {
-                                bands[b] = image.ReadClampedToBounds(b, col, row);
-                            }
-                            else
-                            {
-                                bands[b] = image.BicubicSample(b, row, col);
-                            }
+                            bands[b] = image.BicubicSample(b, row, col);
                         }
-                        if (bakeIndexes)
+                        if (!indexFailed)
                         {
+                            if(destIndex == null)
+                            {
+                                destIndex = new Image(3, destWidth, destHeight);
+                                destIndex.CreateMask(true);
+                            }
                             for (int b = 0; b < idxBands.Count(); ++b)
                             {
                                 idxBands[b] = index.ReadClampedToBounds(b, col, row);
@@ -205,7 +191,7 @@ namespace OPS.Pipeline
                         }
                         destImage.SetBandValues(r, c, bands);
                         destImage.SetMaskValue(r, c, false);
-                        if(bakeIndexes)
+                        if(!indexFailed)
                         {
                             destIndex.SetBandValues(r, c, idxBands);
                             destIndex.SetMaskValue(r, c, false);
@@ -215,14 +201,19 @@ namespace OPS.Pipeline
             }
             // in paint
             destImage.Inpaint(padWidth);
-            //TODO: what to do about index image for inpaint?
-            //Can't average...
+            if (!indexFailed)
+            {
+                destIndex.Inpaint(padWidth, useAnyNeighbor: true);
+            } else
+            {
+                destIndex = null;
+            }
             return destImage;
         }
 
         public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1, int maxNodeSize = 10, int maxDepth=14)
         {
-            return new TextureBaker(source, null, maxNodeSize, maxDepth).Bake(dest, destWidth, destHeight, out Image throwaway, padWidth);
+            return new TextureBaker(source, maxNodeSize, maxDepth).Bake(dest, destWidth, destHeight, out Image throwaway, padWidth);
         } 
     }
 }

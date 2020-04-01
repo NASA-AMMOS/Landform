@@ -65,23 +65,16 @@ namespace OPS.Pipeline
         /// Initialize the texture baker
         /// This method shold be called after all inputs have been added but before any calls to BakeTexture are made
         /// </summary>
-        public void InitTextureBaker(bool bakeIndexImages = false)
+        public void InitTextureBaker()
         {            
             if (!textureBakerInitialized)
             {
                 textureBakerInitialized = true;
                 var filtered = this.Inputs.Where(d => d.Image != null);
-                if(bakeIndexImages)
-                {
-                    filtered = filtered.Where(d => d.Index != null);
-                }
-                var datasets = filtered.Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
+                var datasets = filtered.Select(d => new MeshImagePair(d.Mesh, d.Image, d.Index)).ToArray();
                 if (datasets.Length > 0)
                 {
-                    var indexImgs = bakeIndexImages ?
-                                    filtered.Select(d => new IndexImage(d.Index)).ToArray() :
-                                    null;
-                    TextureBaker = new TextureBaker(datasets, indexImgs);
+                    TextureBaker = new TextureBaker(datasets);
                 }
             }
             else

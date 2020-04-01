@@ -52,14 +52,9 @@ namespace OPS.Pipeline.TilingServer
                 {
                     var sceneNode = tilingNode.MakeSceneNode();
                     var pair = tilingNode.LoadMeshImagePair(pipeline);
-                    var idx = project.WriteIndexImages ? tilingNode.LoadIndexImage(pipeline) : null;
                     if (pair != null)
                     {
                         sceneNode.AddComponent(pair);
-                        if (project.WriteIndexImages)
-                        {
-                            sceneNode.AddComponent(idx);
-                        }
                         idToNode.TryAdd(tilingNode.Id, sceneNode);
                     }
                 }
@@ -94,9 +89,8 @@ namespace OPS.Pipeline.TilingServer
                     throw new Exception("failed to build parent from children");
                 }
                 var pair = parentSceneNode.GetComponent<MeshImagePair>();
-                var idx = project.WriteIndexImages ? parentSceneNode.GetComponent<IndexImage>() : null;
                 parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
-                parent.SaveMesh(pair, pipeline, project, index:idx);
+                parent.SaveMesh(pair, pipeline, project);
                 parent.Save(pipeline);
             }
             else

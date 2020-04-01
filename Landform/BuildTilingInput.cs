@@ -470,13 +470,9 @@ namespace OPS.Landform
             MultiMeshClipper bakeClipper = null;
             if (texGenMode == TextureGenMode.Bake)
             {
-                if(!options.NoIndexImages)
-                {
-                    throw new NotImplementedException("Must backproject leaves to generate index images");
-                }
                 bakeClipper = new MultiMeshClipper();
                 bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
-                bakeClipper.InitTextureBaker(!options.NoIndexImages);
+                bakeClipper.InitTextureBaker();
             }
 
             var texMsg = string.Format("{0}x{0} {1} textures{2}",

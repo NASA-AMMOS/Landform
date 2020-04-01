@@ -15,35 +15,17 @@ namespace OPS.Pipeline
     {
         public Mesh Mesh;
         public Image Image;
+        public Image Index;
 
         public MeshImagePair()
         {
 
         }
 
-        public MeshImagePair(Mesh mesh = null, Image image = null)
+        public MeshImagePair(Mesh mesh = null, Image image = null, Image index = null)
         {
             this.Mesh = mesh;
             this.Image = image;
-        }
-    }
-
-    /// <summary>
-    /// Container for adding an index image to a scene node
-    /// </summary>
-    public class IndexImage : NodeComponent
-    {
-        public Image Index;
-        public IndexImage()
-        {
-
-        }
-        public IndexImage(Image index)
-        {
-            if(index == null)
-            {
-                throw new Exception("Index image cannot be null");
-            }
             this.Index = index;
         }
     }
