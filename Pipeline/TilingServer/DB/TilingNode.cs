@@ -264,13 +264,25 @@ namespace OPS.Pipeline.TilingServer
             string exImageFile = null;
             string exImageUrl = null;
 
+            string exIndexExt = null;
+            string exIndexFile = null;
+            string exIndexUrl = null;
+
             bool uploadedExImage = false;
+            bool uploadedExIndex = false;
             if (!string.IsNullOrEmpty(project.ExportDir) && !string.IsNullOrEmpty(project.ExportImageFormat) &&
                 pair.Image != null)
             {
                 exImageExt = TilingProject.ToExt(project.ExportImageFormat);
                 exImageFile = Id + exImageExt;
                 exImageUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exImageFile);
+
+                if (!string.IsNullOrEmpty(project.ExportIndexFormat) && index != null)
+                {
+                    exIndexExt = TilingProject.ToExt(project.ExportIndexFormat);
+                    exIndexFile = Id + TileList.INDEX_FILE_SUFFIX + exIndexExt;
+                    exIndexUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exIndexFile);
+                }
             }
 
             var alreadyUploaded = new HashSet<string>();
@@ -298,6 +310,13 @@ namespace OPS.Pipeline.TilingServer
                 }
             };
 
+            Action<string, Image> saveFloatTiff = (path, img) =>
+            {
+                var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                var serializer = new GDALSerializer(opts);
+                serializer.Write<float>(path, img);
+            };
+
             if (enableInternal)
             {
                 //save node image to S3 for our internal use
@@ -306,8 +325,9 @@ namespace OPS.Pipeline.TilingServer
                 //also saves export image to S3 iff it is the same format as our internal format
                 string imageExt = TilingProject.ToExt(project.InternalImageFormat);
                 string imageFile = Id + imageExt;
-                if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null
-                    && (!project.WriteIndexImages || index != null))
+                string indexExt = TilingProject.ToExt(project.InternalIndexFormat);
+                string indexFile = Id + TileList.INDEX_FILE_SUFFIX + indexExt;
+                if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
                 {
                     ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
                     lock (imageReadWriteLock)
@@ -322,6 +342,23 @@ namespace OPS.Pipeline.TilingServer
                                 uploadedExImage = true;
                             }
                         });
+                    }
+                    if(index != null)
+                    {
+                        IndexUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, indexFile);
+                        lock (indexReadWriteLock)
+                        {
+                            TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
+                            {
+                                saveFloatTiff(tmpIndex, index.Index);
+                                upload(tmpIndex, IndexUrl);
+                                if(exIndexUrl != null && exIndexExt == indexExt)
+                                {
+                                    upload(tmpIndex, exIndexUrl);
+                                    uploadedExIndex = true;
+                                }
+                            });
+                        }
                     }
                 }
                 else
@@ -397,11 +434,11 @@ namespace OPS.Pipeline.TilingServer
                             if (index != null)
                             {
                                 index.Index.Save<byte>(tmpIndex);
-                                //if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
-                                //{
-                                //    upload(tmpIndex, exIndexUrl);
-                                //    uploadedExIndex = true;
-                                //}
+                                if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
+                                {
+                                    upload(tmpIndex, exIndexUrl);
+                                    uploadedExIndex = true;
+                                }
                             }
                             else
                             {
@@ -459,6 +496,17 @@ namespace OPS.Pipeline.TilingServer
                 });
             }
 
+            //save export image to S3 iff we haven't already
+            if (index != null && exIndexUrl != null && exIndexExt != null && !uploadedExIndex)
+            {
+                TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
+                {
+                    saveFloatTiff(tmpIndex, index.Index);
+                    upload(tmpIndex, exImageUrl);
+                    uploadedExIndex = true;
+                });
+            }
+
             //save export mesh to S3 iff we haven't already
             if (pair.Mesh != null && exMeshUrl != null && exMeshExt != null && !uploadedExMesh)
             {
@@ -479,6 +527,10 @@ namespace OPS.Pipeline.TilingServer
             if (pair.Image != null && !string.IsNullOrEmpty(ImageUrl) && imageCache != null)
             {
                 imageCache[ImageUrl] = pair.Image;
+            }
+            if (index != null && !string.IsNullOrEmpty(IndexUrl) && indexCache != null)
+            {
+                indexCache[IndexUrl] = index.Index;
             }
 
             if (computeStats)

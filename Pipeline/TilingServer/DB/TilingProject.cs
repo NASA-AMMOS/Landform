@@ -50,11 +50,15 @@ namespace OPS.Pipeline.TilingServer
 
         public string ExportImageFormat = null; //disable exporting images if null or empty
 
+        public string ExportIndexFormat = null; //disable exporting indexes if null or empty
+
         public string InternalTileDir = "tiles"; //disable saving internal tile meshes and images if null or empty
 
         public string InternalMeshFormat = "ply";
 
         public string InternalImageFormat = "png";
+
+        public string InternalIndexFormat = "tif";
 
         public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
 
