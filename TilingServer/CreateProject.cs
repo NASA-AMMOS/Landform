@@ -42,6 +42,9 @@ namespace OPS.TilingServer
         [Option(Default = null, HelpText = "write additional image format, or \"help\" to list")]
         public string ExportImageFormat { get; set; }
 
+        [Option(Default = false, HelpText = "optionally produce index images associated with textures")]
+        public bool WriteIndexImages { get; set; }
+
         [Option(Default = 32, HelpText = "maximum number of leaves to process as a group")]
         public int MaxLeafGroupSize { get; set; }
 
@@ -138,6 +141,7 @@ namespace OPS.TilingServer
                                          ProjectType = options.ProjectType.ToString(),
                                          ExportMeshFormat = exMeshFmt,
                                          ExportImageFormat = exImageFmt,
+                                         WriteIndexImages = options.WriteIndexImages,
                                          MaxLeafGroupSize = options.MaxLeafGroupSize
                                      });
 

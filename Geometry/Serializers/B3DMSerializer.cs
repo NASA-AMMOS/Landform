@@ -29,10 +29,16 @@ namespace OPS.Geometry
 
         public override void Save(Mesh m, string filename, string imageFilename)
         {
+            Save(m, filename, imageFilename, null);
+        }
+
+        //Allow multiple texture images, needed for writing indexes
+        public void Save(Mesh m, string filename, string imageFilename, string indexFilename)
+        {
             byte[] glbData = null;
             using (MemoryStream ms = new MemoryStream())
             {
-                GLBSerializer.WriteToStream(ms, m, imageFilename);
+                GLBSerializer.WriteToStream(ms, m, imageFilename, indexFilename);
                 glbData = ms.ToArray();
             }
 

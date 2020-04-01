@@ -134,15 +134,17 @@ namespace OPS.Pipeline.TilingServer
                 var m = bakeClipper.Clip(leaf.GetBoundsChecked());
 
                 var pair = new MeshImagePair(m, null);
+                Image index = null;
                 if (hasImages)
                 {
-                    pair = bakeClipper.BakeTexture(m, project.TileResolution, msg => LogInfo(msg));
+                    pair = bakeClipper.BakeTexture(m, project.TileResolution, out index, msg => LogInfo(msg));
                 }
 
                 if (pair.Mesh != null)
                 {
                     LogInfo("saving leaf tile mesh");
-                    leaf.SaveMesh(pair, pipeline, project);
+                    leaf.SaveMesh(pair, pipeline, project,
+                            index: index == null ? null : new IndexImage(index));
                     leaf.Save(pipeline);
                 }
                 else

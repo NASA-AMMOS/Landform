@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
@@ -64,15 +65,23 @@ namespace OPS.Pipeline
         /// Initiliaze the texture baker
         /// This method shold be called after all inputs have been added but before any calls to BakeTexture are made
         /// </summary>
-        public void InitTextureBaker()
+        public void InitTextureBaker(bool bakeIndexImages = false)
         {            
             if (!textureBakerInitialized)
             {
                 textureBakerInitialized = true;
-                var datasets = this.Inputs.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
+                var filtered = this.Inputs.Where(d => d.Image != null);
+                if(bakeIndexImages)
+                {
+                    filtered = filtered.Where(d => d.Index != null);
+                }
+                var datasets = filtered.Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
                 if (datasets.Length > 0)
                 {
-                    TextureBaker = new TextureBaker(datasets);
+                    var indexImgs = bakeIndexImages ?
+                                    filtered.Select(d => new IndexImage(d.Index)).ToArray() :
+                                    null;
+                    TextureBaker = new TextureBaker(datasets, indexImgs);
                 }
             }
             else
@@ -163,7 +172,7 @@ namespace OPS.Pipeline
         /// <param name="mesh"></param>
         /// <param name="textureSize"></param>
         /// <returns></returns>
-        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, Action<string> info = null)
+        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, out Image destIndex, Action<string> info = null)
         {
             info = info ?? (msg => {});
             if(!textureBakerInitialized)
@@ -177,11 +186,12 @@ namespace OPS.Pipeline
             if(mesh == null)
             {
                 info("failed to atlas mesh for texture bake");
+                destIndex = null;
                 return null;
             }
 
             info("baking texture");
-            var img = TextureBaker.Bake(mesh, textureSize, textureSize);
+            var img = TextureBaker.Bake(mesh, textureSize, textureSize, out destIndex);
 
             return new MeshImagePair(mesh, img);
         }

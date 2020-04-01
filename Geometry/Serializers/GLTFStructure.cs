@@ -33,13 +33,16 @@ namespace OPS.Geometry.GLTF
         [Newtonsoft.Json.JsonIgnore]
         public byte[] Data { get; set; }
 
+        public GLTFFile(Mesh m, string imageFilename, bool embedData = true) :
+            this(m, imageFilename, null, embedData) { }
+
         /// <summary>
         /// Create a GLTF file.  
         /// </summary>
         /// <param name="m"></param>
-        /// <param name="imageFilename"></param>
+        /// <param name="imageFilenames"></param>
         /// <param name="embedData">If true mesh and image data will be base64 encoded and included in the json segment.  Otherwise they will be stored as a byte array in this.Data.  Set to false when writing binary gltf files (glb)</param>
-        public GLTFFile(Mesh m, string imageFilename, bool embedData = true)
+        public GLTFFile(Mesh m, string imageFilename, string indexFilename, bool embedData = true)
         {
             extensionsUsed.Add("KHR_materials_unlit");
 
@@ -233,62 +236,69 @@ namespace OPS.Geometry.GLTF
             gm.primitives.Add(primitive);
             meshes.Add(gm);
 
-
             if (imageFilename != null)
             {
-                byte[] imageData = File.ReadAllBytes(imageFilename); ;
+                var imgs = new List<string>(){ imageFilename };
+                if(indexFilename != null)
+                {
+                    imgs.Add(indexFilename);
+                }
+                foreach (string fn in imgs)
+                {
+                    byte[] imageData = File.ReadAllBytes(fn);
 
-                GLTFImage img = new GLTFImage();
-                string ext = Path.GetExtension(imageFilename).ToLower();
-                if (embedData)
-                {
-                    StringBuilder sb = new StringBuilder();   
-                    if (ext == ".jpg")
+                    GLTFImage img = new GLTFImage();
+                    string ext = Path.GetExtension(fn).ToLower();
+                    if (embedData)
                     {
-                        sb.Append(GLTFImage.JPG_HEADER);
-                    }
-                    else if (ext == ".png")
-                    {
-                        sb.Append(GLTFImage.PNG_HEADER);
-                    }
-                    else
-                    {
-                        throw new MeshSerializerException("Unsupported image format for gltf export");
-                    }
-                    sb.Append(System.Convert.ToBase64String(imageData));
-                    img.uri = sb.ToString();
-                }
-                else
-                {
-                    var prevView = bufferViews[bufferViews.Count - 1];
-                    var imgView = new GLTFBufferView()
-                    {
-                        buffer = 0,
-                        byteLength = imageData.Length,
-                        byteOffset = bufferViews.Last().byteOffset + bufferViews.Last().byteLength + paddingAdded
-                    };
-                    bytes.AddRange(imageData);
-                    bufferViews.Add(imgView);
-                    img.bufferView = bufferViews.Count - 1;
-                    if (ext == ".jpg")
-                    {
-                        img.mimeType = GLTFImage.JPG_MIME;
-                    }
-                    else if (ext == ".png")
-                    {
-                        img.mimeType = GLTFImage.PNG_MIME;
+                        StringBuilder sb = new StringBuilder();
+                        if (ext == ".jpg")
+                        {
+                            sb.Append(GLTFImage.JPG_HEADER);
+                        }
+                        else if (ext == ".png")
+                        {
+                            sb.Append(GLTFImage.PNG_HEADER);
+                        }
+                        else
+                        {
+                            throw new MeshSerializerException("Unsupported image format for gltf export");
+                        }
+                        sb.Append(System.Convert.ToBase64String(imageData));
+                        img.uri = sb.ToString();
                     }
                     else
                     {
-                        throw new MeshSerializerException("Unsupported image format for gltf export");
+                        var prevView = bufferViews[bufferViews.Count - 1];
+                        var imgView = new GLTFBufferView()
+                        {
+                            buffer = 0,
+                            byteLength = imageData.Length,
+                            byteOffset = bufferViews.Last().byteOffset + bufferViews.Last().byteLength + paddingAdded
+                        };
+                        bytes.AddRange(imageData);
+                        bufferViews.Add(imgView);
+                        img.bufferView = bufferViews.Count - 1;
+                        if (ext == ".jpg")
+                        {
+                            img.mimeType = GLTFImage.JPG_MIME;
+                        }
+                        else if (ext == ".png")
+                        {
+                            img.mimeType = GLTFImage.PNG_MIME;
+                        }
+                        else
+                        {
+                            throw new MeshSerializerException("Unsupported image format for gltf export");
+                        }
                     }
+                    // Add padding to ensure 4 byte alignment
+                    while (bytes.Count % 4 != 0)
+                    {
+                        bytes.Add((byte)0);
+                    }
+                    images.Add(img);
                 }
-                // Add padding to ensure 4 byte alignment
-                while (bytes.Count % 4 != 0)
-                {
-                    bytes.Add((byte)0);
-                }
-                images.Add(img);
                 samplers.Add(new GLTFSampler());
                 GLTFTexture texture = new GLTFTexture()
                 {
@@ -296,6 +306,16 @@ namespace OPS.Geometry.GLTF
                     source = 0
                 };
                 textures.Add(texture);
+
+                if (indexFilename != null)
+                {
+                    GLTFTexture indexTexture = new GLTFTexture()
+                    {
+                        sampler = 0,
+                        source = 1
+                    };
+                    textures.Add(indexTexture);
+                }
 
                 GLTFMaterial material = new GLTFMaterial();
                 material.extensions = new Dictionary<string, object>();
@@ -456,13 +476,18 @@ namespace OPS.Geometry.GLTF
     public class GLTFPBRMetallicRoughness
     {
         public float[] baseColorFactor = new float[] { 1, 1, 1, 1 };
-        public GLTFTextureIndex baseColorTexture = new GLTFTextureIndex();
+        public GLTFTextureIndex baseColorTexture = new GLTFTextureIndex(0);
+        public GLTFTextureIndex indexTexture = new GLTFTextureIndex(1);
         public float metallicFactor = 0;
         public float roughnessFactor = 1;
     }
 
     public class GLTFTextureIndex
-    {
-        public int index = 0;
+    {      
+        public int index;
+        public GLTFTextureIndex(int index)
+        {
+            this.index = index;
+        }
     }
 }

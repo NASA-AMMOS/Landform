@@ -20,6 +20,7 @@ namespace OPS.Pipeline.TilingServer
     public class DefineTiles : PipelineOperation
     {
         private readonly DefineTilesMessage message;
+        public bool WriteIndexFiles = false;
 
         //TODO it may be possible to re-use this code in ProjectCache
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/428
@@ -175,14 +176,31 @@ namespace OPS.Pipeline.TilingServer
 
                     tilingNode.MeshUrl = input.MeshUrl;
                     tilingNode.ImageUrl = input.ImageUrl;
+                    tilingNode.IndexUrl = input.IndexUrl;
 
                     //don't add pair to sceneNode, would be a memory leak
                     var pair = tilingNode.LoadMeshImagePair(pipeline, cleanMesh: true);
+                    IndexImage index = null;
+                    if (WriteIndexFiles)
+                    {
+                        index = tilingNode.LoadIndexImage(pipeline);
+                    }
                     if (pair != null)
                     {
                         sceneNode.GetComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
                         bool saveInternal = !skipSavingInternalTileMeshesForUserDefinedNodes;
-                        tilingNode.SaveMesh(pair, pipeline, project, saveInternal);
+                        if (!this.WriteIndexFiles)
+                        {
+                            tilingNode.SaveMesh(pair, pipeline, project, saveInternal);
+                        } else
+                        {
+                            if(index == null)
+                            {
+                                pipeline.LogWarn(String.Format("no index image for tiling node {0}",
+                                    tilingNode.Id));
+                            }
+                            tilingNode.SaveMesh(pair, pipeline, project, saveInternal, index:index);
+                        }
                     }
                     else
                     {

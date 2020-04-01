@@ -469,6 +469,10 @@ namespace OPS.Landform
             MultiMeshClipper bakeClipper = null;
             if (texGenMode == TextureGenMode.Bake)
             {
+                if(!options.NoIndexImages)
+                {
+                    throw new NotImplementedException("Must backproject leaves to generate index images");
+                }
                 bakeClipper = new MultiMeshClipper();
                 bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
                 bakeClipper.InitTextureBaker();
@@ -506,7 +510,7 @@ namespace OPS.Landform
                 Image index = !options.NoIndexImages ? new Image(3, resolution, resolution) : null;
                 if (texGenMode == TextureGenMode.Bake)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogVerbose(msg));
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, out index, msg => pipeline.LogVerbose(msg));
                     if (newMP != null)
                     {
                         mp.Mesh = newMP.Mesh;
@@ -570,20 +574,30 @@ namespace OPS.Landform
             }
         }
 
+        private string IndexName(string tileName)
+        {
+            return tileName + TileList.INDEX_FILE_SUFFIX;
+        }
+
         private void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
         {
             string imgName = image != null ? name + imageExt : null;
+
+            bool savedImage = false;
+            bool savedIndex = false;
 
             if (local)
             {
                 if (image != null)
                 {
                     SaveImage(image, name);
+                    savedImage = true;
                 }
                 if (index != null)
                 {
-                    string indexImageName = name + TileList.INDEX_FILE_SUFFIX;
+                    string indexImageName = IndexName(name);
                     SaveFloatTIFF(index, indexImageName);
+                    savedIndex = true;
                     if (options.BackprojectIndexImagePreviews)
                     {
                         Image preview = Backproject.GenerateIndexPreviewImage(index);
@@ -591,6 +605,11 @@ namespace OPS.Landform
                     }
                 }
                 SaveMesh(mesh, name, imgName);
+            }
+
+            if(savedImage != savedIndex)
+            {
+                ;
             }
 
             if (cloud)

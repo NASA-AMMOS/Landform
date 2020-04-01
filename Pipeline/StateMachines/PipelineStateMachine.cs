@@ -216,7 +216,7 @@ namespace OPS.Pipeline
                 LogInfo("creating project");
                 TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconstructionMethod,
                                      m.FacesPerTile, m.TileResolution, m.ProjectType,
-                                     m.ExportMeshFormat, m.ExportImageFormat, m.MaxLeafGroupSize);
+                                     m.ExportMeshFormat, m.ExportImageFormat, m.WriteIndexImages, m.MaxLeafGroupSize);
             }
             else
             {
@@ -638,6 +638,7 @@ namespace OPS.Pipeline
         public string ProjectType;
         public string ExportMeshFormat;
         public string ExportImageFormat;
+        public bool WriteIndexImages;
         public int MaxLeafGroupSize;
         public CreateProjectMessage() { }
         public CreateProjectMessage(string projectName) : base(projectName) { }

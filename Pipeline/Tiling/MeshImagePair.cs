@@ -27,4 +27,24 @@ namespace OPS.Pipeline
             this.Image = image;
         }
     }
+
+    /// <summary>
+    /// Container for adding an index image to a scene node
+    /// </summary>
+    public class IndexImage : NodeComponent
+    {
+        public Image Index;
+        public IndexImage()
+        {
+
+        }
+        public IndexImage(Image index)
+        {
+            if(index == null)
+            {
+                throw new Exception("Index image cannot be null");
+            }
+            this.Index = index;
+        }
+    }
 }

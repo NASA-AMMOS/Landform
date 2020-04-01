@@ -20,10 +20,11 @@ namespace OPS.Pipeline
     /// </summary>
     public class TexturedTriangle : OctreeNodeContents
     {
-        public TexturedTriangle(Triangle tri, Image texture)
+        public TexturedTriangle(Triangle tri, Image texture, Image index)
         {
             this.tri = tri;
             this.texture = texture;
+            this.index = index;
         }
 
         public BoundingBox Bounds()
@@ -43,6 +44,7 @@ namespace OPS.Pipeline
 
         public Triangle tri;
         public Image texture;
+        public Image index;
     }
 
     public class TextureBaker
@@ -96,8 +98,9 @@ namespace OPS.Pipeline
 
         Octree triOctTree;
         int destBands;
+        private bool bakeIndexes;
 
-        public TextureBaker(MeshImagePair[] source, int maxNodeSize = 10, int maxDepth = 14)
+        public TextureBaker(MeshImagePair[] source, IndexImage[] indexImgs, int maxNodeSize = 10, int maxDepth = 14)
         {
             if (source.Count() == 0)
             {
@@ -107,6 +110,11 @@ namespace OPS.Pipeline
             if(source.Any(s => s.Image.Bands != destBands))
             {
                 throw new Exception("Texture Baker requires all source images have identical number of bands");
+            }
+            bakeIndexes = indexImgs != null;
+            if (bakeIndexes && source.Length != indexImgs.Length)
+            {
+                throw new Exception("Number of index images must match number of source pairs if non-zero");
             }
             // Get union bounding box of source meshes
             List<BoundingBox> boxes = new List<BoundingBox>();
@@ -122,19 +130,29 @@ namespace OPS.Pipeline
                 List<OctreeNodeContents> insertList = new List<OctreeNodeContents>();
                 foreach (Triangle tri in source[i].Mesh.Triangles())
                 {
-                    insertList.Add(new TexturedTriangle(tri, source[i].Image));
+                    var idxImg = bakeIndexes ? indexImgs[i].Index : null;
+                    if(indexImgs[i].Index == null)
+                    {
+                        ;
+                    }
+                    insertList.Add(new TexturedTriangle(tri, source[i].Image, idxImg));
                 }
                 triOctTree.InsertList(insertList);
             }
         }
 
-        public Image Bake(Mesh dest, int destWidth, int destHeight, int padWidth = -1)
+        public Image Bake(Mesh dest, int destWidth, int destHeight, out Image destIndex, int padWidth = -1)
         {
             // r tree for efficient uv to xyz conversion
             var destOperator = new MeshOperator(dest, buildFaceTree: false, buildVertexTree: false);
             // the new texture
             var destImage = new Image(destBands, destWidth, destHeight);
-            
+            destIndex = bakeIndexes ? new Image(3, destWidth, destHeight) : null;
+            if(bakeIndexes)
+            {
+                destIndex.CreateMask(true);
+            }
+
             OctreeNode start = this.triOctTree.Root;
             OctreeNode end;
             destImage.CreateMask(true);
@@ -160,29 +178,51 @@ namespace OPS.Pipeline
                     if (closest != null)
                     {
                         Image image = txtTri.texture;
+                        Image index = txtTri.index;
                         Vector2 pixel = image.UVToPixel(closest.UV);
 
                         float row = (float)pixel.Y;
                         float col = (float)pixel.X;
                         var bands = new float[image.Bands];
+                        var idxBands = bakeIndexes ? new float[index.Bands] : null;
                         for (int b = 0; b < bands.Count(); b++)
                         {
-                            bands[b] = image.BicubicSample(b, row, col);
+                            if (bakeIndexes)
+                            {
+                                bands[b] = image.ReadClampedToBounds(b, col, row);
+                            }
+                            else
+                            {
+                                bands[b] = image.BicubicSample(b, row, col);
+                            }
+                        }
+                        if (bakeIndexes)
+                        {
+                            for (int b = 0; b < idxBands.Count(); ++b)
+                            {
+                                idxBands[b] = index.ReadClampedToBounds(b, col, row);
+                            }
                         }
                         destImage.SetBandValues(r, c, bands);
                         destImage.SetMaskValue(r, c, false);
+                        if(bakeIndexes)
+                        {
+                            destIndex.SetBandValues(r, c, idxBands);
+                            destIndex.SetMaskValue(r, c, false);
+                        }
                     }
                 }
             }
             // in paint
             destImage.Inpaint(padWidth);
+            //TODO: what to do about index image for inpaint?
+            //Can't average...
             return destImage;
         }
 
-
         public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1, int maxNodeSize = 10, int maxDepth=14)
         {
-            return new TextureBaker(source, maxNodeSize, maxDepth).Bake(dest, destWidth, destHeight, padWidth);
+            return new TextureBaker(source, null, maxNodeSize, maxDepth).Bake(dest, destWidth, destHeight, out Image throwaway, padWidth);
         } 
     }
 }

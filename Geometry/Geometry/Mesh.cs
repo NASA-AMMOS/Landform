@@ -1549,7 +1549,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="filename"></param>
         /// <param name="textureFilename"></param>
-        public void Save(string filename, string textureFilename = null)
+        public void Save(string filename, string textureFilename = null, string indexFilename = null)
         {
             string ext = Path.GetExtension(filename).ToLower();
             var serializers = MeshSerializers.Instance;
@@ -1560,7 +1560,24 @@ namespace OPS.Geometry
                                                                 "supported formats: {1}", ext,
                                                                 string.Join(", ", serializers.SupportedFormats())));
             }
-            s.Save(this, filename, textureFilename);
+
+            bool isB3dm = s.GetType() == typeof(B3DMSerializer);
+            bool hasIndex = !String.IsNullOrEmpty(indexFilename);
+
+            if (hasIndex)
+            {
+                if (isB3dm)
+                {
+                    ((B3DMSerializer)s).Save(this, filename, textureFilename, indexFilename);
+                }else
+                {
+                    throw new MeshSerializerException("Index image only supported for b3dm serializer");
+                }
+            }            
+            else
+            {
+                s.Save(this, filename, textureFilename);
+            }
         }
 
         /// <summary>
