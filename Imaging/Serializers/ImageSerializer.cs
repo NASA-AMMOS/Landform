@@ -25,8 +25,9 @@ namespace OPS.Imaging
         /// <param name="filename"></param>
         /// <param name="converter"></param>
         /// <param name="fillValue">A list of per band values.  Length must equal the number of bands in the image</param>
+        /// <param name="useFillValueFromFile">if the file contains information about invalid pixels use that to generate the mask</param>
         /// <returns></returns>
-        public abstract Image Read(string filename, IImageConverter converter, float[] fillValue = null);
+        public abstract Image Read(string filename, IImageConverter converter, float[] fillValue = null, bool useFillValueFromFile = false);
 
         /// <summary>
         /// Reads an image with the default read converter

@@ -31,8 +31,13 @@ namespace OPS.Imaging
         /// done before pixel values are converted.
         /// </param>
         /// <returns></returns>
-        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null, bool useFillValueFromFile = false)
         {
+            if (useFillValueFromFile == true)
+            {
+                throw new NotImplementedException("add support for detecting file based invalid pixels");
+            }
+
             PDSMetadata metadata = new PDSMetadata(filename);
             Image img = new Image(metadata.Bands, metadata.Width, metadata.Height);
             img.Metadata = metadata;
