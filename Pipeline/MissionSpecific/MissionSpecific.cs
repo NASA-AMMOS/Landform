@@ -906,10 +906,14 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
-        /// Orbital DEM images typically have north latitude increasing with row and longitude increasing with col. //BUGBUG: in places metadata
+        /// Orbital DEM images typically have north latitude increasing with row and longitude increasing with col.
+        /// 
         ///  Image X => East 
         ///  Image Y => South
         ///  Image Z => Zenith
+        ///  
+        /// But places metadata should be checked for image to image variations
+        /// BUGBUG: in places metadata
 
         /// </summary>
         public virtual void GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir,
@@ -984,8 +988,9 @@ namespace OPS.Pipeline
                            originPixel, originElevation, minFilter, maxFilter);
         }
 
-        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive, out GDALTransform gdalTransform, string imgFile = null, 
-                                          ILogger logger = null)
+        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive,
+            out GDALTransform gdalTransform, out Matrix sitedriveToOrbitalBody, string imgFile = null, 
+            ILogger logger = null)
         {
             var cfg = OrbitalConfig.Instance;
 
@@ -994,29 +999,43 @@ namespace OPS.Pipeline
                 if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
                 {
                     imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
-                    gdalTransform = new GDALTransform(imgFile, GDALDEM.CreateBody(cfg.OrbitalBodyName));
-                    return new SparsePipelineImage(pipeline, imgFile);
                 }
                 else
                 {
-                    throw new Exception("orbital image not available");
+                    throw new Exception("no orbital image file provided");
                 }
             }
 
-            //TOOD: outputmesh to orbital xyz link
-            //var placesDB = new PlacesDB(logger, requireOrbital: true);
-            //var gdalDEM = GDALDEM.Load(imgFile, cfg.OrbitalBodyName);
-            //var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
+            gdalTransform = new GDALTransform(imgFile, GDALDEM.CreateBody(cfg.OrbitalBodyName));
+           
+            var placesDB = new PlacesDB(pipeline, requireOrbital: true);
+            //TODO: check math w unit test
+            Vector2 meshFrameLatLon = placesDB.GetEstimatedLatLon(siteDrive);
+            Vector3 bodyXYZ = gdalTransform.LatLonToXYZ(new Vector3(meshFrameLatLon.X, meshFrameLatLon.Y, 0)); //function wants lonlat
+            //Vector3 testBodyLatLon = gdalTransform.XYZToLatLon(bodyXYZ);
 
-            //GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir, out Vector3 downDir);
+            Vector3 siteDriveDownInBody = -Vector3.Normalize(bodyXYZ);
+            Vector3 siteDriveEastInBody = Vector3.Normalize(Vector3.Cross(siteDriveDownInBody, new Vector3(1, 0, 0))); 
+            Vector3 siteDriveNorthInBody = Vector3.Normalize(Vector3.Cross(siteDriveEastInBody, siteDriveDownInBody));
+            sitedriveToOrbitalBody = new Matrix(siteDriveNorthInBody.X, siteDriveNorthInBody.Y, siteDriveNorthInBody.Z, 0,
+                                               siteDriveEastInBody.X, siteDriveEastInBody.Y, siteDriveEastInBody.Z, 0,
+                                               siteDriveDownInBody.X, siteDriveDownInBody.Y, siteDriveDownInBody.Z, 0,
+                                               bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
 
-            //double? originElevation = null; //DEM constructor will look this up given originPixel
+            //Vector3 testNorthSitedrive = new Vector3(100, 0, 0);
+            //Vector3 testEastSitedrive = new Vector3(0, 100, 0);
+            //Vector3 testDownSitedrive = new Vector3(0, 0, 100);
+            //Vector3 bodyNorth = Vector3.Transform(testNorthSitedrive, sitedriveToOrbitalBody);
+            //Vector3 bodyEast = Vector3.Transform(testEastSitedrive, sitedriveToOrbitalBody);
+            //Vector3 bodyDown = Vector3.Transform(testDownSitedrive, sitedriveToOrbitalBody);
+            //Vector3 lonlatNorth = gdalTransform.XYZToLatLon(bodyNorth);
+            //Vector3 lonlatEast = gdalTransform.XYZToLatLon(bodyEast);
+            //Vector3 lonlatDown = gdalTransform.XYZToLatLon(bodyDown);
 
-            //return new DEM(new DEM.SparseDEMImage(imgFile), upDir, rightDir, downDir,
-            //               metersPerPixel.Value, elevationScale.Value,
-            //               originPixel, originElevation, minFilter, maxFilter);
+            //TODO: elevation
+            //TODO: orbital alignment
 
-            throw new NotImplementedException("nope");
+            return new SparsePipelineImage(pipeline, imgFile);
         }
     }
 }

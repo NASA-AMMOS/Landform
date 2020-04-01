@@ -64,6 +64,9 @@ namespace OPS.Pipeline
         /// </summary>
         static public void FillIndexImage(IDictionary<Pixel, ObsPixel> backprojectResults, Image outputImage)
         {
+            if (backprojectResults == null)
+                return;
+            
             if (outputImage.Bands != 3)
                 throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
 
@@ -144,6 +147,11 @@ namespace OPS.Pipeline
             if (!outputImage.HasMask)
             {
                 outputImage.CreateMask(true);
+            }
+
+            if(backprojectResults == null)
+            {
+                return;
             }
 
             Project project = null; //only needed if textureVariant != TextureVariant.Original
@@ -237,12 +245,12 @@ namespace OPS.Pipeline
                 }
             }
 
-            if (inpaint)
-            {
-                //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
-                // full inpaint needed for building parent tiles
-                outputImage.Inpaint(-1, preserveMask: false);
-            }
+            //if (inpaint)
+            //{
+            //    //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+            //    // full inpaint needed for building parent tiles
+            //    outputImage.Inpaint(-1, preserveMask: false);
+            //}
         }
 
         public static IDictionary<Pixel, Backproject.ObsPixel>
@@ -653,38 +661,81 @@ namespace OPS.Pipeline
         /// </summary>
         static public void FillIndexImageOrbital(IDictionary<Pixel, Vector2> orbitalResults, Image outputImage)
         {
-            //const int ORBITALINDEX = Observation.MAX_INDEX - 1;
+            if (orbitalResults == null)
+                return;
 
-            //if (outputImage.Bands != 3)
-            //    throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
+            const int ORBITALINDEX = Observation.MAX_INDEX - 1;
 
-            //foreach (var entry in backprojectResults)
-            //{
-            //    var outputPixel = entry.Key;
-            //    var sourceImageIndex = entry.Value.Obs.Index;
-            //    var sourcePixel = entry.Value.Pixel;
+            if (outputImage.Bands != 3)
+                throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
 
-            //    if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
-            //        outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
-            //    {
-            //        throw new InvalidDataException("Backproject output pixel is located outside of output image");
-            //    }
+            foreach (var entry in orbitalResults)
+            {
+                var outputPixel = entry.Key;
+                var sourcePixel = entry.Value;
 
-            //    if (sourceImageIndex < Observation.MIN_INDEX)
-            //    {
-            //        throw new InvalidDataException("invalid image index in backproject results");
-            //    }
+                if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
+                    outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
+                {
+                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
+                }
 
-            //    outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
-            //                              new float[] { sourceImageIndex, (float)sourcePixel.Y, (float)sourcePixel.X });
-            //}
-
-            throw new NotImplementedException();
+                outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
+                                          new float[] { ORBITALINDEX, (float)sourcePixel.Y, (float)sourcePixel.X });
+            }
         }
 
-        public static void FillOutputTextureOrbital(IDictionary<Pixel, Vector2> orbitalResults, SparsePipelineImage orbitalTexture, Image image)
+        public static void FillOutputTextureOrbital(IDictionary<Pixel, Vector2> orbitalResults, SparsePipelineImage sourceImage, Image outputImage)
         {
-            throw new NotImplementedException();
+            if (outputImage.Bands != 3)
+            {
+                throw new NotImplementedException("Expecting a 3 band output image currently");
+            }
+
+            if (!outputImage.HasMask)
+            {
+                outputImage.CreateMask(true);
+            }
+
+            foreach(var pair in orbitalResults)
+            {
+                var outputPixel = pair.Key;
+                var sourcePixel = pair.Value;
+                
+                //TODO: support blended textures
+                if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
+                    outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
+                {
+                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
+                }
+
+                if (sourcePixel.X < 0 || sourcePixel.X >= sourceImage.Width ||
+                    sourcePixel.Y < 0 || sourcePixel.Y >= sourceImage.Height)
+                {
+                    throw new InvalidDataException("Backproject source pixel is located outside of source image");
+                }
+
+                //copy src image data to dst image data
+                float[] samples = sourceImage.SampleAsColor(sourcePixel);
+
+                //TODO: test missing data pixel from gdal
+                outputImage.SetAsColor(samples, (int)outputPixel.Row, (int)outputPixel.Col);
+
+                //mark mask as valid
+                outputImage.SetMaskValue((int)outputPixel.Row, (int)outputPixel.Col, false);
+            
+            }
+
+            //TODO: move inpaint out
+
+            //if (inpaint)
+            //{
+            //    //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+            //    // full inpaint needed for building parent tiles
+            //    outputImage.Inpaint(-1, preserveMask: false);
+            //}
+            
+
         }
     }
 }

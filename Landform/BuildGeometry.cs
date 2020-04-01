@@ -180,13 +180,14 @@ namespace OPS.Landform
                 {
                     RunPhase("build orbital mesh", BuildOrbitalMesh);
 
-                    if (!options.NoSurfaceObs)
+                    if (options.NoSurfaceObs)
                     {
-                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
+                        // in the case where there is no surface data orbital is the scene mesh
+                        mesh = orbitalMesh;
                     }
                     else
                     {
-                        mesh = orbitalMesh;
+                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                     }
                 }
                 else if (options.NoFillHoles)

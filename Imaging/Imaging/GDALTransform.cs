@@ -123,13 +123,13 @@ namespace OPS.Imaging
         /// <summary>
         /// X = longitude, Y = latitude, Z = elevation relative to sphere
         /// </summary>
-        public Vector3 LatLonToXYZ(Vector3 latlon, double lat0 = 0, double lon0 = 0)
+        public Vector3 LatLonToXYZ(Vector3 lonlat, double lat0 = 0, double lon0 = 0)
         {
-            double r = Body.GetRadius() + latlon.Z;
+            double r = Body.GetRadius() + lonlat.Z;
             return new Vector3(
-                r * Math.Sin((latlon.Y - lat0) * Math.PI / 180.0),
-                r * Math.Cos((latlon.Y - lat0) * Math.PI / 180.0) * Math.Sin((latlon.X - lon0) * Math.PI / 180.0),
-                r * Math.Cos((latlon.Y - lat0) * Math.PI / 180.0) * Math.Cos((latlon.X - lon0) * Math.PI / 180.0)
+                r * Math.Sin((lonlat.Y - lat0) * Math.PI / 180.0),
+                r * Math.Cos((lonlat.Y - lat0) * Math.PI / 180.0) * Math.Sin((lonlat.X - lon0) * Math.PI / 180.0),
+                r * Math.Cos((lonlat.Y - lat0) * Math.PI / 180.0) * Math.Cos((lonlat.X - lon0) * Math.PI / 180.0)
             );
         }
 

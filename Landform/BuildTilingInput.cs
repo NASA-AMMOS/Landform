@@ -56,11 +56,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
+
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
         public string OrbitalImage { get; set; }
+
+        [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
+        public bool NoSurfaceObs { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -112,7 +116,7 @@ namespace OPS.Landform
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
                                                                 texGenMode == TextureGenMode.Bake));
 
-                if (texGenMode == TextureGenMode.Backproject)
+                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject)
                 {
                     RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
@@ -131,7 +135,7 @@ namespace OPS.Landform
                     RunPhase("build leaf meshes", BuildLeafMeshes);
                 }
 
-                if (withTextures && texGenMode == TextureGenMode.Backproject &&
+                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject &&
                     options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
                 {
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
@@ -322,7 +326,7 @@ namespace OPS.Landform
                         camInst.cameraToMesh = xform.Mean;
                         camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
                         camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-                        camInst.hullInMesh = obsToHull[obs.Name];
+                        camInst.hullInMesh = obsToHull?[obs.Name];
                         camInst.widthPixels = obs.Width;
                         camInst.heightPixels = obs.Height;
                         return camInst;
@@ -722,32 +726,43 @@ namespace OPS.Landform
         {
             try
             {
-                var strategy = backprojectStrategy;
-                if (strategy == null)
+                List<PixelPoint> missingPixels = null;
+                if (options.NoSurfaceObs)
                 {
-                    //no global selection strategy, create one local to this tile
-                    strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                    var tileHull = new ConvexHull(mesh);
-                    var tileOp = new MeshOperator(mesh);
-                    var tileObs = imageObservations
-                        .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
-                        .ToList();
-                    var contexts =
-                        Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
-                                                  options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
-                    strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
-                                        options.BackprojectQuality, options.WriteDebug,
-                                        Path.Combine(backprojectDebugDir, node.Name));
+                    //if no surface imagery is used, all pixels will be textured by orbital
+                    MeshOperator tileMeshOp = new MeshOperator(mesh);
+                    missingPixels = tileMeshOp.SampleUVSpace(options.TextureResolution,  options.TextureResolution);
                 }
-                
-                var backprojectResults = BackprojectObservations(mesh, strategy, out List<PixelPoint> missingPixels, node.Name);
+                else
+                {
+                    var strategy = backprojectStrategy;
+                    if (strategy == null)
+                    {
+                        //no global selection strategy, create one local to this tile
+                        strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
+                        var tileHull = new ConvexHull(mesh);
+                        var tileOp = new MeshOperator(mesh);
+                        var tileObs = imageObservations
+                            .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
+                            .ToList();
+                        var contexts =
+                            Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
+                                                      options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
+                        strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
+                                            options.BackprojectQuality, options.WriteDebug,
+                                            Path.Combine(backprojectDebugDir, node.Name));
+                    }
+
+                    var backprojectResults = BackprojectObservations(mesh, strategy, out missingPixels, node.Name);
+                }
 
                 //orbital
                 var orbitalResults = Backproject.BackprojectOrbital(orbitalTexture, sitedriveToOrbitalBody,
                     orbitalImageTransform, missingPixels);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                if (backprojectResults.Count() == 0 && orbitalResults.Count() == 0)
+                if ((backprojectResults == null || backprojectResults.Count() == 0) &&
+                    (orbitalResults == null || orbitalResults?.Count() == 0))
                 {
                     return null;
                 }
@@ -777,7 +792,7 @@ namespace OPS.Landform
             try
             {
                 orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), 
-                    out orbitalImageTransform, options.OrbitalImage, logger: pipeline);
+                    out orbitalImageTransform, out sitedriveToOrbitalBody, options.OrbitalImage, logger: pipeline);
             }
             catch (Exception ex)
             {
@@ -785,22 +800,6 @@ namespace OPS.Landform
                 options.NoOrbitalTexture = true;
                 return;
             }
-
-            var placesDB = new PlacesDB(pipeline, requireOrbital: true);
-
-            //TODO: move to mission specific? cross check w marty's basis func
-            //TODO: check math w unit test
-            Vector2 meshFrameLatLon = placesDB.GetEstimatedLatLon(new SiteDrive(meshFrame));
-            Vector3 bodyXYZ = orbitalImageTransform.LatLonToXYZ(new Vector3(meshFrameLatLon.Y, meshFrameLatLon.X,0)); //function wants lonlat
-            Vector3 siteDriveDownInBody = -Vector3.Normalize(bodyXYZ);
-            Vector3 siteDriveEastInBody = Vector3.Normalize(Vector3.Cross(siteDriveDownInBody, new Vector3(1,0,0)));
-            Vector3 siteDriveNorthInBody = Vector3.Normalize(Vector3.Cross(siteDriveEastInBody, siteDriveDownInBody));
-            sitedriveToOrbitalBody = new Matrix(siteDriveNorthInBody.X, siteDriveEastInBody.X, siteDriveDownInBody.X, 0,
-                                                siteDriveNorthInBody.Y, siteDriveEastInBody.Y, siteDriveDownInBody.Y, 0,
-                                                siteDriveNorthInBody.Z, siteDriveEastInBody.Z, siteDriveDownInBody.Z, 0,
-                                                bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
-
-
 
             //TODO: support orbital align
             //FrameTransform ft = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
