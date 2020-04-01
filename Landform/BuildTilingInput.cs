@@ -56,6 +56,7 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
+
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
     }
@@ -475,7 +476,7 @@ namespace OPS.Landform
                 }
                 bakeClipper = new MultiMeshClipper();
                 bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
-                bakeClipper.InitTextureBaker();
+                bakeClipper.InitTextureBaker(!options.NoIndexImages);
             }
 
             var texMsg = string.Format("{0}x{0} {1} textures{2}",
@@ -583,21 +584,16 @@ namespace OPS.Landform
         {
             string imgName = image != null ? name + imageExt : null;
 
-            bool savedImage = false;
-            bool savedIndex = false;
-
             if (local)
             {
                 if (image != null)
                 {
                     SaveImage(image, name);
-                    savedImage = true;
                 }
                 if (index != null)
                 {
                     string indexImageName = IndexName(name);
                     SaveFloatTIFF(index, indexImageName);
-                    savedIndex = true;
                     if (options.BackprojectIndexImagePreviews)
                     {
                         Image preview = Backproject.GenerateIndexPreviewImage(index);
@@ -605,11 +601,6 @@ namespace OPS.Landform
                     }
                 }
                 SaveMesh(mesh, name, imgName);
-            }
-
-            if(savedImage != savedIndex)
-            {
-                ;
             }
 
             if (cloud)

@@ -1569,7 +1569,8 @@ namespace OPS.Geometry
                 if (isB3dm)
                 {
                     ((B3DMSerializer)s).Save(this, filename, textureFilename, indexFilename);
-                }else
+                }
+                else
                 {
                     throw new MeshSerializerException("Index image only supported for b3dm serializer");
                 }

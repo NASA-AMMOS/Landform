@@ -62,7 +62,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Initiliaze the texture baker
+        /// Initialize the texture baker
         /// This method shold be called after all inputs have been added but before any calls to BakeTexture are made
         /// </summary>
         public void InitTextureBaker(bool bakeIndexImages = false)
