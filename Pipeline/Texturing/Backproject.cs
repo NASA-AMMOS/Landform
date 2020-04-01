@@ -245,12 +245,12 @@ namespace OPS.Pipeline
                 }
             }
 
-            //if (inpaint)
-            //{
-            //    //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
-            //    // full inpaint needed for building parent tiles
-            //    outputImage.Inpaint(-1, preserveMask: false);
-            //}
+            if (inpaint)
+            {
+                //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+                // full inpaint needed for building parent tiles
+                outputImage.Inpaint(-1, preserveMask: false);
+            }
         }
 
         public static IDictionary<Pixel, Backproject.ObsPixel>
@@ -685,7 +685,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public static void FillOutputTextureOrbital(IDictionary<Pixel, Vector2> orbitalResults, SparsePipelineImage sourceImage, Image outputImage)
+        public static void FillOutputTextureOrbital(IDictionary<Pixel, Vector2> orbitalResults, SparsePipelineImage sourceImage, Image outputImage, bool inpaint=true)
         {
             if (outputImage.Bands != 3)
             {
@@ -726,16 +726,12 @@ namespace OPS.Pipeline
             
             }
 
-            //TODO: move inpaint out
-
-            //if (inpaint)
-            //{
-            //    //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
-            //    // full inpaint needed for building parent tiles
-            //    outputImage.Inpaint(-1, preserveMask: false);
-            //}
-            
-
+            if (inpaint)
+            {
+                //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
+                // full inpaint needed for building parent tiles
+                outputImage.Inpaint(-1, preserveMask: false);
+            }
         }
     }
 }

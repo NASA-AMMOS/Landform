@@ -774,7 +774,7 @@ namespace OPS.Landform
                 }
 
                 Image image = new Image(3, resolution, resolution);
-                Backproject.FillOutputTextureOrbital(orbitalResults, orbitalTexture, image);
+                Backproject.FillOutputTextureOrbital(orbitalResults, orbitalTexture, image, !options.DontInpaint && options.NoOrbitalTexture);
                 Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
                                               !options.DontInpaint, fallbackToOriginal: true);
                
