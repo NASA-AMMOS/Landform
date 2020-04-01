@@ -1010,8 +1010,10 @@ namespace OPS.Pipeline
            
             var placesDB = new PlacesDB(pipeline, requireOrbital: true);
             //TODO: check math w unit test
-            Vector2 meshFrameLatLon = placesDB.GetEstimatedLatLon(siteDrive);
-            Vector3 bodyXYZ = gdalTransform.LatLonToXYZ(new Vector3(meshFrameLatLon.X, meshFrameLatLon.Y, 0)); //function wants lonlat
+            Vector2 meshFrameLonLat = placesDB.GetEstimatedLatLon(siteDrive);
+            logger.LogInfo("Places: primary sitedrive {0} at longitude {1} and latitude {2}", siteDrive, meshFrameLonLat.X, meshFrameLonLat.Y);
+
+            Vector3 bodyXYZ = gdalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0)); 
             //Vector3 testBodyLatLon = gdalTransform.XYZToLatLon(bodyXYZ);
 
             Vector3 siteDriveDownInBody = -Vector3.Normalize(bodyXYZ);
@@ -1021,16 +1023,6 @@ namespace OPS.Pipeline
                                                siteDriveEastInBody.X, siteDriveEastInBody.Y, siteDriveEastInBody.Z, 0,
                                                siteDriveDownInBody.X, siteDriveDownInBody.Y, siteDriveDownInBody.Z, 0,
                                                bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
-
-            //Vector3 testNorthSitedrive = new Vector3(100, 0, 0);
-            //Vector3 testEastSitedrive = new Vector3(0, 100, 0);
-            //Vector3 testDownSitedrive = new Vector3(0, 0, 100);
-            //Vector3 bodyNorth = Vector3.Transform(testNorthSitedrive, sitedriveToOrbitalBody);
-            //Vector3 bodyEast = Vector3.Transform(testEastSitedrive, sitedriveToOrbitalBody);
-            //Vector3 bodyDown = Vector3.Transform(testDownSitedrive, sitedriveToOrbitalBody);
-            //Vector3 lonlatNorth = gdalTransform.XYZToLatLon(bodyNorth);
-            //Vector3 lonlatEast = gdalTransform.XYZToLatLon(bodyEast);
-            //Vector3 lonlatDown = gdalTransform.XYZToLatLon(bodyDown);
 
             //TODO: elevation
             //TODO: orbital alignment
