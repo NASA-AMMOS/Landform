@@ -116,6 +116,7 @@ namespace OPS.Pipeline
         }
 
         //<DST, SRC>
+        // SRC: col, row
         static public IDictionary<Pixel,Vector2> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, GDALTransform bodyToImage, List<PixelPoint> pixelsToBackproject)
         {
             Dictionary<Pixel, Vector2> orbPixelsByTexel = new Dictionary<Pixel, Vector2>();
@@ -124,8 +125,8 @@ namespace OPS.Pipeline
                 var ptOutputMeshFrame = destPixelPt.Point;
                 var ptBodyXYZ = Vector3.Transform(ptOutputMeshFrame, outputMeshFrameToBodyXYZ);
                 var latlon = bodyToImage.XYZToLatLon(ptBodyXYZ); //TODO: can collapse these calls
-                var pixel = bodyToImage.LatLonToImage(latlon);
-                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new Vector2(pixel.Y, pixel.X); //BUGBUG: if the subpixel dst is not centers, its wrong //TODO: detect and handle collisions here and in normal backproj
+                var pixel = bodyToImage.LatLonToImage(latlon); //returns col, row
+                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new Vector2(pixel.X, pixel.Y); //BUGBUG: if the subpixel dst is not centers, its wrong //TODO: detect and handle collisions here and in normal backproj
             }
 
             return orbPixelsByTexel;
@@ -672,7 +673,7 @@ namespace OPS.Pipeline
             foreach (var entry in orbitalResults)
             {
                 var outputPixel = entry.Key;
-                var sourcePixel = entry.Value;
+                var sourcePixel = entry.Value; //col, row
 
                 if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
                     outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
@@ -700,7 +701,7 @@ namespace OPS.Pipeline
             foreach(var pair in orbitalResults)
             {
                 var outputPixel = pair.Key;
-                var sourcePixel = pair.Value;
+                var sourcePixel = pair.Value; //col, row
                 
                 //TODO: support blended textures
                 if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||

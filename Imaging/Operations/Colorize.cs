@@ -87,6 +87,7 @@ namespace OPS.Imaging
 
         /// <summary>
         /// bilinearly sample the image and return a 3 channel color
+        /// srcpixel: col, row
         /// </summary>
         public static float[] SampleAsColor(this Image img, Vector2 srcPixel)
         {
