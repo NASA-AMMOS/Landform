@@ -73,8 +73,9 @@ namespace OPS.Landform
         private IngestAlignmentInputs ingester;
         private List<string> baseUrls;
 
+        private PlacesDB places;
+
         private MSLLocations locations;
-        private MSLPlaces places;
         private MSLLegacyManifest manifest;
 
         public Ingest(IngestOptions options) : base(options)
@@ -268,11 +269,11 @@ namespace OPS.Landform
             return locations;
         }
 
-        private MSLPlaces GetPlacesDB()
+        private PlacesDB GetPlacesDB()
         {
             try
             {
-                return new MSLPlaces(pipeline);
+                return new PlacesDB(pipeline);
             }
             catch (Exception ex)
             {
@@ -283,7 +284,7 @@ namespace OPS.Landform
 
         private void IngestInputs()
         {
-            ingester.Ingest(locations, places, manifest);
+            ingester.Ingest(places, locations, manifest);
         }
     }
 }

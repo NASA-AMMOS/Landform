@@ -249,35 +249,42 @@ namespace OPS.Pipeline
             return true;
         }
 
-        public override float GetDemMetersPerPixel()
+        public override string GetOrbitalConfigDefaults()
         {
-            return 1;
+            return "{ " +
+                "\"OrbitalDEMStoragePath\": \"MSL/orbital/out_deltaradii_smg_1m.tif\", " +
+                "\"OrbitalImageStoragePath\": \"MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\"" +
+                " }";
         }
 
-        private GDALDEM gdalDem = null;
-
-        public override bool GetSiteDriveOriginPixelInDem(SiteDrive siteDrive, out Vector2 pixel, string demFilePath = null)
+        public override string GetPlacesConfigDefaults()
         {
-            MSLPlaces places;
-            try
-            {
-                places = new MSLPlaces();
-            }
-            catch
-            {
-                pixel = new Vector2(0, 0);
-                return false;
-            }
-            Vector2 latlon = places.GetEstimatedLatLon(siteDrive);  
-            if (gdalDem == null)
-            {
-                demFilePath = !string.IsNullOrEmpty(demFilePath) ? demFilePath :
-                    OrbitalConfig.Instance.GetDEMFullPath(GetMission().ToString());
-                gdalDem = GDALDEM.MarsDEM(demFilePath);
-            }
-            Vector3 colRowOffset = gdalDem.LatLonToImage(new Vector3(latlon.Y, latlon.X, 0));
-            pixel = new Vector2(colRowOffset.X, colRowOffset.Y);
-            return true;
+            //MSL mission server - don't use for dev (and requires separate credentials)
+            //https://mslplaces.jpl.nasa.gov:9443/msl-ops/places
+
+            //MSL views: best_tactical, localized_pos, localized_interp 
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/921
+            //currently we default to best_tactical but legacy TerrainTools used localized_interp
+
+            //note https://github.jpl.nasa.gov/OnSight/Landform/wiki/Credss-workaround-for-MSL-PLACES
+            //for a while we had to use this old PLACES instance to get MSL data for M2020 dev
+            //Url: https://places-dev.m20-dev.jpl.nasa.gov
+            //AuthCookieFile: ~/.cssotoken/dev-old/ssosession
+
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-265961
+            //per Kevin Grimes on 3/11/20 https://places.dev.m20.jpl.nasa.gov has MSL data in it
+
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
+            //per Kevin Grimes on 3/18/20 MSL data will soon move to
+            //htps://places-msl.dev.m20.jpl.nasa.gov
+
+            return
+                "{ " +
+                "\"Url\": \"https://places.dev.m20.jpl.nasa.gov\", " +
+                "\"View\": \"best_tactical\", " +
+                "\"AuthCookieName\": \"ssosession\", " +
+                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+                "}";
         }
     }
 }

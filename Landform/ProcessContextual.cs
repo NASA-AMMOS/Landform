@@ -59,6 +59,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = null, HelpText = "option disabled for this command")]
         public override string ImageFormat { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
+        public string OrbitalDEM { get; set; }
     }
 
     public class ProcessContextual : LandformService
@@ -312,6 +315,8 @@ namespace OPS.Landform
             string tilesetDir = GetTilesetDir(venue, sdStr, project);
             string destDir = GetDestDir(solDir);
 
+            string demStr = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM : ""; //empty uses default
+
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
             try
@@ -344,8 +349,10 @@ namespace OPS.Landform
                 if (!options.NoTileset)
                 {
                     RunCommand("bev-align", project, "--fixsitedrives", sdStr);
+
+                    RunCommand("heightmap-align", project, "--basesitedrive", sdStr, "--orbitaldem", demStr);
                     
-                    RunCommand("build-geometry", project, "--meshframe", sdStr);
+                    RunCommand("build-geometry", project, "--meshframe", sdStr, "--orbitaldem", demStr);
                     
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     

@@ -22,6 +22,19 @@ namespace OPS.Util
         }
     }
 
+    public interface ConfigDefaultsProvider
+    {
+        /// <summary>
+        /// Get JSON defaults for given config file.
+        /// Returned JSON overrides default literals in code and may be partial.
+        /// These defaults are in turn overridden by any actual json config file, which may also be partial.
+        /// And those values are in turn overridden by any corresponding environment variables.
+        /// Returns null if no defaults available for the given config filename.
+        /// Ignores extension of configFilename, if any.
+        /// </summary>
+        string GetConfigDefaults(string configFilename);
+    }
+
     /// <summary>
     /// Class for specifying application configuration 
     /// Extend this class with public properties.  Properties can be read from files json in a folder
@@ -34,7 +47,8 @@ namespace OPS.Util
 
         public static string BaseCommand;
         public static string SubCommand;
-        public static string FullCommand {
+        public static string FullCommand
+        {
             get
             {
                 return !string.IsNullOrEmpty(BaseCommand) ?
@@ -44,8 +58,11 @@ namespace OPS.Util
 
         public static string[] CommandLineArgs;
 
+        public static ConfigDefaultsProvider DefaultsProvider;
+
         public Config()
         {
+            LoadDefaults();
             Load(onlyIfAssociatedWithFile: true);
             LoadEnvironmentalVariables();
         }
@@ -120,6 +137,15 @@ namespace OPS.Util
             if (File.Exists(file))
             {
                 JsonConvert.PopulateObject(File.ReadAllText(file), this);
+            }
+        }
+
+        public void LoadDefaults()
+        {
+            string json = DefaultsProvider != null ? DefaultsProvider.GetConfigDefaults(ConfigFileName()) : null;
+            if (!string.IsNullOrEmpty(json))
+            {
+                JsonConvert.PopulateObject(json, this);
             }
         }
 

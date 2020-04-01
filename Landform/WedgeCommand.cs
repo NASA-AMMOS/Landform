@@ -154,33 +154,5 @@ namespace OPS.Landform
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
         }
-
-        protected List<WedgeObservations> CollectWedgeObservations(WedgeObservations.CollectOptions opts,
-                                                                   string stereoEyeStr)
-        {
-            var wedgeObservations = WedgeObservations.Collect(frameCache, observationCache, opts)
-                .Where(obs => !obs.Empty)
-                .OrderBy(obs => obs.FrameName)
-                .OrderBy(obs => obs.Day)
-                .OrderBy(obs => obs.StereoFrameName)
-                .ToList();
-            
-            var stereoEye = RoverStereoPair.ParseEyeForGeometry(stereoEyeStr, mission);
-            if (stereoEye != RoverStereoEye.Any)
-            {
-                var geometryObservations = wedgeObservations
-                    .Where(obs => obs.Points != null || obs.Range != null)
-                    .GroupBy(obs => obs.StereoFrameName)
-                    .Select(group => WedgeObservations.FilterForEye(group, stereoEye, obs => obs))
-                    .Where(obs => obs != null)
-                    .ToList();
-                wedgeObservations = wedgeObservations
-                    .Where(obs => obs.Points == null && obs.Range == null)
-                    .ToList();
-                wedgeObservations.AddRange(geometryObservations);
-            }
-
-            return wedgeObservations;
-        }
     }
 }

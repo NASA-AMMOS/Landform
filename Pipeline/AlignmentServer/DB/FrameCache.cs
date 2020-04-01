@@ -195,6 +195,10 @@ namespace OPS.Pipeline.AlignmentServer
         {
             if (!transforms.ContainsKey(name))
             {
+                if (!frames.ContainsKey(name))
+                {
+                    return new List<FrameTransform>();
+                }
                 foreach (var transform in FrameTransform.Find(pipeline, GetFrame(name))) Add(transform);
             }
             return transforms[name].Values;
@@ -715,7 +719,7 @@ namespace OPS.Pipeline.AlignmentServer
             var sdsWithMixedPriors = new HashSet<string>(); //PlacesDB site offset but PDS local_level offset
             var sdsWithRootPriors = new HashSet<string>();
             int firstSite = -1;
-            string orbitalFrameName = OrbitalConfig.Instance.GetOrbitalFrameName();
+            string orbitalFrameName = OrbitalConfig.Instance.OrbitalFrameName;
             foreach (var frame in GetAllFrames())
             {
                 if (frame.Name == orbitalFrameName)

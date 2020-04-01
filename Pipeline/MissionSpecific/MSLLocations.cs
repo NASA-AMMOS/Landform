@@ -130,7 +130,7 @@ namespace OPS.Pipeline
 
         public void LoadBasemapDEM(string file)
         {
-            basemapDEM = GDALDEM.MarsDEM(file);
+            basemapDEM = GDALDEM.Load(file, "Mars");
         }
 
         public double GetZFromBasemap(double lat, double lon)

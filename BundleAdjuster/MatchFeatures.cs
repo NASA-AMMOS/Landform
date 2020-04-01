@@ -290,7 +290,7 @@ namespace OPS.Landform
             var d2m = product.Correspondence.DataToModel;
             var modelFile = StringHelper.GetLastUrlPathSegment(modelObs.Url);
             var dataFile = StringHelper.GetLastUrlPathSegment(dataObs.Url);
-            var ret = ImageMatching.DrawMatches(modelImg, dataImg, modelFeat, dataFeat, d2m, modelFile, dataFile);
+            var ret = AlignmentUtils.DrawMatches(modelImg, dataImg, modelFeat, dataFeat, d2m, modelFile, dataFile);
             PathHelper.EnsureExists(localOutputPath);
             ret.Save<byte>(string.Format("{0}{1}_{2}_Matches{3}", localOutputPath, modelObs.Name, dataObs.Name, imageExt));
         }
@@ -307,7 +307,7 @@ namespace OPS.Landform
             var d2m = product.Correspondence.DataToModel;
             var modelToRoot = modelNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
             var dataToRoot = dataNode.GetComponent<NodeUncertainTransform>().To(scene.Root).Mean;
-            var ret = ImageMatching.MakeMatchMesh(modelCam, dataCam, modelFeat, dataFeat, modelToRoot, dataToRoot, d2m);
+            var ret = AlignmentUtils.MakeMatchMesh(modelCam, dataCam, modelFeat, dataFeat, modelToRoot, dataToRoot, d2m);
             if (ret.HasFaces)
             {
                 var dir = localOutputPath + "meshes/";

@@ -13,9 +13,9 @@ namespace OPS.Imaging
     /// </summary>
     public class Mask
     {
-        bool useHash = true;
-        Image image;
-        HashSet<Tuple<int, int>> hash;
+        private bool useHash = true;
+        private BinaryImage image;
+        private HashSet<Tuple<int, int>> hash;
 
         public Mask(int width, int height, bool useHash)
         {
@@ -26,18 +26,11 @@ namespace OPS.Imaging
             }
             else
             {
-                image = new Image(1, width, height);
-                for (int r = 0; r < height; r++)
-                {
-                    for (int c = 0; c < width; c++)
-                    {
-                        image[0, r, c] = 1;
-                    }
-                }
+                image = new BinaryImage(width, height);
             }
         }
 
-        public bool isValid(int r, int c)
+        public bool IsValid(int r, int c)
         {
             if (useHash)
             {
@@ -45,26 +38,23 @@ namespace OPS.Imaging
             }
             else
             {
-                return image[0, r, c] != 0;
+                return !image[r, c];
             }
         }
 
-        public void setValid(int r, int c)
+        public void SetValid(int r, int c)
         {
             if (useHash)
             {
-                if (hash.Contains(new Tuple<int, int>(r, c)))
-                {
-                    hash.Remove(new Tuple<int, int>(r, c));
-                }
+                hash.Remove(new Tuple<int, int>(r, c));
             }
             else
             {
-                image[0, r, c] = 1;
+                image[r, c] = false;
             }
         }
 
-        public void setInvalid(int r, int c)
+        public void SetInvalid(int r, int c)
         {
             if (useHash)
             {
@@ -72,7 +62,7 @@ namespace OPS.Imaging
             }
             else
             {
-                image[0, r, c] = 0;
+                image[r, c] = true;
             }
         }
     }

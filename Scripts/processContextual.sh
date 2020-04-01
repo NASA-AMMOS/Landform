@@ -15,7 +15,7 @@ if [ ! -f "$landform" ]; then
     exit 1
 fi
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ]"
+help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ] [--orbitaldem path/to/dem.tif]"
 
 if [ $# -lt 4 ]; then
     echo $help
@@ -56,6 +56,7 @@ copy_combined_manifest=
 only_ingest=
 s3_proxy=
 cameras=
+orbital_dem=
 
 manifest=true
 dry=
@@ -73,7 +74,7 @@ dbg=""
 while (( "$#" )); do
     case $1 in
         "--help") echo $help; exit 0;;
-        "--dryrun") dry="echo DRY ";;
+        "--dryrun") dry="echo ";;
         "--nocleanup") cleanup=;;
         "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
         "--onlyupload") cleanup=; only_cleanup=; generate=;;
@@ -143,6 +144,14 @@ while (( "$#" )); do
             fi
             cameras="--onlyforcameras $1"
             ;;
+        "--orbitaldem")
+            shift
+            if [ $# -lt 1 ]; then
+                echo "missing orbital DEM path"
+                exit 1
+            fi
+            orbital_dem="--orbitaldem $1"
+            ;;
     esac
     shift
 done
@@ -151,7 +160,7 @@ proj=${sol}_${sd}${suffix}
 venue=local_${mission}_${proj}
 tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
 log=processContextual_${proj}_log.txt
-if [ "$dry" ]; then log=; else echo "$cmdline" > $log; fi
+if [ "$dry" ]; then log=; else printf "${cmdline}\r\n" > $log; fi
 
 backup_config() { if [ -f $config -a ! -f $config.BAK ]; then ${dry}cp $config $config.BAK; fi }
 
@@ -188,7 +197,8 @@ if [ "$generate" ]; then
 
     if [ ! "$only_ingest" ]; then
         ${dry}$landform bev-align $proj $dbg --fixsitedrives $sd | tee -a $log
-        ${dry}$landform build-geometry $proj $dbg --meshframe $sd | tee -a $log
+        ${dry}$landform heightmap-align $proj $dbg --basesitedrive $sd $orbital_dem | tee -a $log
+        ${dry}$landform build-geometry $proj $dbg --meshframe $sd $orbital_dem | tee -a $log
         ${dry}$landform build-tiling-input $proj $dbg --meshframe $sd | tee -a $log
         ${dry}$landform blend-images $proj $dbg --meshframe $sd | tee -a $log
         ${dry}$landform build-tileset $proj $dbg $export --meshframe $sd | tee -a $log
@@ -210,10 +220,6 @@ if [ "$generate" ]; then
                 ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd | tee -a $log
             fi
         fi
-
-        ${dry}mv $log $proj
-
-        if [ -z "$dry" ]; then echo "moved output to ./$proj"; fi
     fi
 fi
 
@@ -243,3 +249,12 @@ fi
 if [ "$cleanup" ]; then delete_venue; fi
 
 if [ ! "$only_ingest" ]; then restore_config; fi
+
+if [ ! "$dry" ]; then
+    printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
+    if [ -d $proj ]; then
+        printf "moved output to ./${proj}\r\n" | tee -a $log
+        mv $log $proj
+    fi
+fi
+

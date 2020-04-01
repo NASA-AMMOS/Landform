@@ -17,7 +17,7 @@ namespace OPS.Geometry
     /// </summary>
     public enum SkirtMode { X, Y, Z, Normal, None }
 
-    public enum MeshColor { None, Texture, Normals, Elevation, Curvature };
+    public enum MeshColor { None, Texture, Normals, NormalMagnitude, Elevation, Curvature };
     
     /// <summary>
     /// A class representing a 3D mesh
@@ -118,6 +118,11 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Generates vertex normals for all vertices based on the sum of the connected face normals
+        ///
+        /// Ignores degnerate faces.
+        /// If all faces incident to a vertex are degenerate, that vertex will have a zero-length normal.
+        ///
+        /// Call RemoveInvalidFaces() first to avoid that.
         /// </summary>
         public void GenerateVertexNormals()
         {
@@ -130,18 +135,17 @@ namespace OPS.Geometry
             // Calculate each face's normal and add that normal to each point face's points
             foreach (Face face in Faces)
             {
-                // Find the three vertices used in the face
                 Vertex v0 = Vertices[face.P0];
                 Vertex v1 = Vertices[face.P1];
                 Vertex v2 = Vertices[face.P2];
 
-                // Calculate the face's normal
-                Vector3 faceNormal = new Triangle(v0, v1, v2).Normal;
-
-                // Add the face's normal to the three vertices
-                v0.Normal += faceNormal;
-                v1.Normal += faceNormal;
-                v2.Normal += faceNormal;
+                if (Triangle.ComputeNormal(v0.Position, v1.Position, v2.Position, out Vector3 faceNormal))
+                {
+                    v0.Normal += faceNormal;
+                    v1.Normal += faceNormal;
+                    v2.Normal += faceNormal;
+                }
+                //otherwise ignore degenerate face
             }
 
             // Normalize each vertex normal
@@ -152,7 +156,7 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Normalize all normals
+        /// Normalize all (non-zero) normals.
         /// </summary>
         public void NormalizeNormals()
         {
@@ -238,14 +242,15 @@ namespace OPS.Geometry
             }
             // Are any of the faces vertices at the same location
             if ((Vertices[f.P0].Position == Vertices[f.P1].Position) ||
-               (Vertices[f.P1].Position == Vertices[f.P2].Position) ||
-               (Vertices[f.P2].Position == Vertices[f.P0].Position))
+                (Vertices[f.P1].Position == Vertices[f.P2].Position) ||
+                (Vertices[f.P2].Position == Vertices[f.P0].Position))
             {
                 return false;
             }
-            // Is the face zero-length? 
-            Vector3 n;
-            if (!Triangle.ComputeNormal(Vertices[f.P0].Position, Vertices[f.P1].Position, Vertices[f.P2].Position, out n))
+            // Is the face degenerate? 
+            // Note this check includes an epsilon tolerance, so may be false even if no two verts are exactly the same.
+            if (!Triangle.ComputeNormal(Vertices[f.P0].Position, Vertices[f.P1].Position, Vertices[f.P2].Position,
+                                        out Vector3 n))
             {
                 return false;
             }
@@ -843,10 +848,9 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Removes duplicate and degenerate faces
-        /// Removes duplicate vertices
-        /// If any faces are defined this will also remove any vertices that are not referenced
-        /// by a face
+        /// Removes duplicate vertices and faces.
+        /// If mesh has faces this will also remove degenerate faces and any vertices not referenced by a face.
+        /// Normalizes normals.
         /// </summary>
         public void Clean(bool normalize=true, bool removeDuplicateVerts=true)
         {
@@ -1166,7 +1170,7 @@ namespace OPS.Geometry
                 }
             }
 
-            var merged = Merge(meshes, clean: false);
+            var merged = MergeWithCommonAttributes(meshes, clean: false);
 
             Image atlas = null;
             if (textures.Length > 0)
@@ -1639,7 +1643,7 @@ namespace OPS.Geometry
         /// <summary>
         /// set vertex color components as absolute values of normal components
         /// if tiltMode is set then a greyscale color is set instead, see OrganizedPointCloud.NormalToTilt()
-        /// up defaults to (0, 0, -1)
+        /// up defaults to (0, 0, -1) which corresponds to standard mission frames (e.g. SITE, LOCAL_LEVEL)
         /// </summary>
         public void ColorByNormals(out double minTilt, out double maxTilt, TiltMode? tiltMode = null,
                                    Vector3? up = null) 
@@ -1682,13 +1686,62 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// set vertex color components from length of vertex normal
+        /// if zeroColor and maxColor are given they define a linear color ramp
+        /// otherwise zeroColor = (0, 0, 0) and maxColor = (1, 1, 1)
+        /// </summary>
+        public void ColorByNormalMagnitude(out double min, out double max,
+                                           Vector3? zeroColor = null, Vector3? maxColor = null)
+        {
+            if (!HasNormals)
+            {
+                throw new ArgumentException("cannot color mesh without normals by normal magnitude");
+            }
+            min = double.PositiveInfinity;
+            max = double.NegativeInfinity;
+            foreach (var v in Vertices)
+            {
+                double m = v.Normal.Length();
+                min = Math.Min(m, min);
+                max = Math.Max(m, max);
+            }
+            double range = max - min;
+            if (zeroColor.HasValue && maxColor.HasValue)
+            {
+                foreach (var v in Vertices)
+                {
+                    double m = v.Normal.Length();
+                    double t = (m - min) / range;
+                    v.Color.X = t * maxColor.Value.X + (1 - t) * zeroColor.Value.X;
+                    v.Color.Y = t * maxColor.Value.Y + (1 - t) * zeroColor.Value.Y;
+                    v.Color.Z = t * maxColor.Value.Z + (1 - t) * zeroColor.Value.Z;
+                }
+            }
+            else
+            {
+                foreach (var v in Vertices)
+                {
+                    double m = v.Normal.Length();
+                    v.Color.X = v.Color.Y = v.Color.Z = (m - min) / range;
+                }
+            }
+            HasColors = true;
+        }
+
+        public void ColorByNormalMagnitude(Vector3? zeroColor = null, Vector3? maxColor = null)
+        {
+            ColorByNormalMagnitude(out double min, out double max, zeroColor, maxColor);
+        }
+            
+        /// <summary>
         /// compute elevation at each vertex and set it as greyscale vertex color
+        /// up defaults to (0, 0, -1) which corresponds to standard mission frames (e.g. SITE, LOCAL_LEVEL)
         /// </summary>
         public void ColorByElevation(out double min, out double max, bool absolute = false, Vector3? up = null) 
         {
             if (up == null)
             {
-                up = new Vector3(0, 0, 1);
+                up = new Vector3(0, 0, -1);
             }
 
             var ctr = absolute ? new Vector3(0, 0, 0) : Bounds().Center();
@@ -1776,6 +1829,12 @@ namespace OPS.Geometry
             {
                 case MeshColor.None: break;
                 case MeshColor.Texture: break;
+                case MeshColor.NormalMagnitude:
+                {
+                    ColorByNormalMagnitude(out min, out max);
+                    adjustColors = greyscale = true;
+                    break;
+                }
                 case MeshColor.Normals:
                 {
                     ColorByNormals(out min, out max, tiltMode);
@@ -1810,6 +1869,15 @@ namespace OPS.Geometry
                     }
                 }
             }
+        }
+
+        public void XYToUV()
+        {
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = new Vector2(v.Position.X, v.Position.Y);
+            }
+            HasUVs = true;
         }
 
         /// <summary>
