@@ -247,7 +247,7 @@ namespace OPS.Pipeline.TilingServer
         private List<string> LoadStringArray(string url, PipelineCore pipeline)
         {
             List<string> ret = new List<string>();
-            if (!string.IsNullOrEmpty(url))
+            if (!string.IsNullOrEmpty(url) && pipeline.FileExists(url))
             {
                 pipeline.GetFile(url, f =>
                 {
