@@ -1009,12 +1009,10 @@ namespace OPS.Pipeline
             gdalTransform = new GDALTransform(imgFile, GDALDEM.CreateBody(cfg.OrbitalBodyName));
            
             var placesDB = new PlacesDB(pipeline, requireOrbital: true);
-            //TODO: check math w unit test
             Vector2 meshFrameLonLat = placesDB.GetEstimatedLatLon(siteDrive);
             logger.LogInfo("Places: primary sitedrive {0} at longitude {1} and latitude {2}", siteDrive, meshFrameLonLat.X, meshFrameLonLat.Y);
 
             Vector3 bodyXYZ = gdalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0)); 
-            //Vector3 testBodyLatLon = gdalTransform.XYZToLatLon(bodyXYZ);
 
             Vector3 siteDriveDownInBody = -Vector3.Normalize(bodyXYZ);
             Vector3 siteDriveEastInBody = Vector3.Normalize(Vector3.Cross(siteDriveDownInBody, new Vector3(1, 0, 0))); 
