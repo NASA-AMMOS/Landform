@@ -504,6 +504,9 @@ namespace OPS.Landform
             RunCommand("build-tileset", args.Concat(extraArgs).ToArray());
         }
 
+        //if the tileset already exists this will overwrite it
+        //however, it will orphan existing files that will not end up getting overwritten
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
         protected void SaveTileset(string tilesetDir, string project, string destDir)
         {
             destDir = string.Format("{0}/{1}", destDir, project);

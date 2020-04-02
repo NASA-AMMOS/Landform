@@ -1,21 +1,28 @@
 #!/bin/sh
 
-# Runs process-tactical as a service in an isolated environment.
+# Runs process-contextual as a service in an isolated environment.
 #
-# Log dir, temp dir, config dir, and storage dir will all be in "tactical" subdirectories of the current working dir.
+# Log dir, temp dir, config dir, and storage dir will all be in "contextual" subdirectories of the current working dir.
 #
 # This script is intended for dev use only.
 #
-# See process-tactical-m20-ec2.bat which is more comprehensive and intended for production use where most things can
+# See contextual-service-ec2.bat which is more comprehensive and intended for production use where most things can
 # be configured from environment variables (which can be set from the EC2 user data script).
 #
-# Command line options will be pased on to process-tactical.
+# Command line options will be pased on to process-contextual.
 #
-# Common options: --queuename=foo --failqueuename=bar --meshformat=IV
+# Common options: --queuename=foo --failqueuename=bar --maxfetch=50G --maxorbital=20G --nocombinedmanifest [--noorbital]
 
-mission=${LANDFORM_MISSION:-M2020}
+if [ $# -lt 1 ]; then
+    echo "USAGE: contextual-service.sh MISSION ..."
+    exit 1
+fi
 
-service=tactical
+mission=$1
+shift
+
+service=contextual
+
 bindir=./Landform/bin/Release
 landform=$bindir/Landform.exe
 storagedir=`pwd`/storage/$service
@@ -32,6 +39,4 @@ svcopts="$stdopts --stacktraces --service --mission=$mission"
 set -x # echo commands
 
 $landform configure-local $cfgopts
-
 $landform process-${service} $svcopts "$@"
-

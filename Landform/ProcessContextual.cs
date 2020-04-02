@@ -38,10 +38,10 @@ using OPS.Pipeline.AlignmentServer;
 /// As a command line tool, process-contextual can be used to build individual contextual mesh tilesets.  It can either
 /// operate entirely locally, reading from and writing to disk, or it can read from and write to S3.
 ///
-/// Also see Scripts/processContextual.sh, which has overlapping functionality for the batch-mode case.
-/// (processContextual.sh does not implement the service case.)  processContextual.sh is intended for use by developers
-/// only, and has additional options for development and debugging workflows.  process-contextual (ProcessContextual.cs)
-/// can be used by developers but is mainly intended for deployment and production use.
+/// Also see Scripts/process-contextual.sh, which has overlapping functionality for the batch-mode case.
+/// (process-contextual.sh does not implement the service case.)  process-contextual.sh is intended for use by
+/// developers only, and has additional options for development and debugging workflows.  process-contextual
+/// (ProcessContextual.cs) can be used by developers but is mainly intended for deployment and production use.
 ///
 /// Also see ProcessTactical.cs and processTactical.sh which automate the tactical mesh tileset workflow.
 ///
@@ -182,14 +182,14 @@ namespace OPS.Landform
         [Option(Required = false, Default = "xyz_", HelpText = "Master service list filename prefix")]
         public string ListPrefix { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Master to worker message queue name, required with --master")]
-        public string MasterToWorkerQueueName { get; set; }
+        [Option(Required = false, Default = null, HelpText = "Worker message queue name, required with --master")]
+        public string WorkerQueueName { get; set; }
 
         [Option(Required = false, Default = ProcessContextual.DEF_DEBOUNCE_SEC, HelpText = "Master waits at least this long after any list file changed for a given RDR directory before firing a new contextual mesh message, default if negative")]
         public int MasterDebounceSec { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Master to worker message queue is Landform owned")]
-        public bool LandformOwnedMasterToWorkerQueue { get; set; }
+        [Option(Required = false, Default = false, HelpText = "Worker message queue is Landform owned")]
+        public bool LandformOwnedWorkerQueue { get; set; }
 
         [Option(Required = false, Default = 4, HelpText = "Minimum number of wedges for primary site drive in a contextual mesh, non-positive for no limit")]
         public int MinPrimarySiteDriveWedges { get; set; }
@@ -230,7 +230,7 @@ namespace OPS.Landform
 
         private string listExt;
 
-        private MessageQueue masterToWorkerQueue;
+        private MessageQueue workerQueue;
 
         //message sent from master to worker
         //defines the job of building one contextual mesh
@@ -328,12 +328,12 @@ namespace OPS.Landform
                 catch {} //ignore
                 return "xyz list file " + (url ?? "(unknown)");
             }
-            else
+            else if (msg is ContextualMeshMessage)
             {
                 ContextualMeshParameters parameters = null;
                 try
                 {
-                    parameters = MakeParameters(msg);
+                    parameters = MakeParameters(msg as ContextualMeshMessage);
                 }
                 catch {} //ignore
                 var desc = "contextual mesh " + (parameters != null ? parameters.TilesetName : "(unknown)");
@@ -346,6 +346,10 @@ namespace OPS.Landform
                 }
                 return desc;
             }
+
+            //get here if we're not running in master mode and msg is not a ContextualMeshMessage
+            //should not happen, but if it does, our contract is not to throw
+            return "unknown message type";
         }
 
         protected override QueueMessage DequeueOneMessage(MessageQueue queue)
@@ -363,7 +367,6 @@ namespace OPS.Landform
             }
             else
             {
-                //non-master mode implies generic message type
                 return messageQueue.DequeueOne<ContextualMeshMessage>();
             }
         }
@@ -383,7 +386,6 @@ namespace OPS.Landform
             }
             else
             {
-                //non-master mode implies generic message type
                 return JsonHelper.FromJson<ContextualMeshMessage>(json, autoTypes: false);
             }
         }
@@ -419,17 +421,22 @@ namespace OPS.Landform
                     return false;
                 }
             }
-            else
+            else if (msg is ContextualMeshMessage)
             {
                 try
                 {
-                    return MakeParameters(msg) != null; 
+                    return MakeParameters(msg as ContextualMeshMessage) != null; 
                 }
                 catch (Exception ex)
                 {
                     reason = ex.Message;
                     return false;
                 }
+            }
+            else
+            {
+                reason = "unknown message type";
+                return false;
             }
         }
 
@@ -444,17 +451,23 @@ namespace OPS.Landform
                     return true; //drop message, maybe file was deleted or renamed
                 }
                 ProcessListFile(url); //throws exception on error
+                return true; //successfully processed, remove message from queue
             }
-            else
+            else if (msg is ContextualMeshMessage)
             {
-                var parameters = MakeParameters(msg);
+                var parameters = MakeParameters(msg as ContextualMeshMessage);
                 if (parameters == null)
                 {
                     return true; //mission decided to ignore this message, remove it from the queue
                 }
                 BuildContextualTileset(parameters); //throws exception on error or if killed
+                return true; //successfully processed, remove message from queue
             }
-            return true; //successfully processed, remove message from queue
+            else
+            {
+                pipeline.LogWarn("unknown message type, dropping message");
+                return true;
+            }
         }
 
         protected override bool ParseArguments()
@@ -494,11 +507,11 @@ namespace OPS.Landform
                 }
                 listExt = "." + listExt.ToLower().TrimStart('.');
 
-                if (string.IsNullOrEmpty(options.MasterToWorkerQueueName))
+                if (string.IsNullOrEmpty(options.WorkerQueueName))
                 {
                     throw new Exception("--mastertoworkerqueuename required with --master");
                 }
-                masterToWorkerQueue = GetMasterToWorkerMessageQueue();
+                workerQueue = GetWorkerMessageQueue();
             }
 
             return true;
@@ -577,17 +590,11 @@ namespace OPS.Landform
             return String.Join(",", ranges.Select(range => range[0] + (range[0] != range[1] ? ("-" + range[1]) : "")));
         }
 
-        private ContextualMeshParameters MakeParameters(QueueMessage msg)
-        {
-            //non-master mode implies generic message type
-            return MakeParameters((ContextualMeshMessage)msg, options.RDRDir);
-        }
-
-        private ContextualMeshParameters MakeParameters(ContextualMeshMessage msg, string defaultRDRDir)
+        private ContextualMeshParameters MakeParameters(ContextualMeshMessage msg)
         {
             var ret = new ContextualMeshParameters();
 
-            ret.RDRDir = msg.rdrDir ?? defaultRDRDir;
+            ret.RDRDir = !string.IsNullOrEmpty(msg.rdrDir) ? msg.rdrDir : options.RDRDir;
             
             ret.PrimarySol = msg.primarySol;
             ret.Sols.Add(ret.PrimarySol);
@@ -974,7 +981,7 @@ namespace OPS.Landform
         }
 
         /// <summary>
-        /// Combines a batch of new contextual mesh messages with existing ones in the master-to-worker queue.
+        /// Combines a batch of new contextual mesh messages with existing ones in the worker queue.
         /// The messages must all have the same RDR dir.
         /// De-dupes, preferring newer-created messages to older.
         /// Returns messages sorted first by decreasing sol, then by decreasing number of wedges.
@@ -1012,21 +1019,21 @@ namespace OPS.Landform
             //it is possible, but unlikely, that there are dupes even in new messages
             keepNewest(newMsgsOldestToNewest);
 
-            //now reap all the existing messages in the master-to-worker queue for the same rdrDir
+            //now reap all the existing messages in the worker queue for the same rdrDir
             //and keep any that aren't dupes of new messages
             //really there should be no dupes among the old messages
             //but just in case, keep them in order
             var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
             while (true)
             {
-                var msg = DequeueOneMessage(masterToWorkerQueue) as ContextualMeshMessage;
+                var msg = DequeueOneMessage(workerQueue) as ContextualMeshMessage;
                 if (msg == null)
                 {
                     break;
                 }
                 if (msg.rdrDir == rdrDir)
                 {
-                    masterToWorkerQueue.DeleteMessage(msg);
+                    workerQueue.DeleteMessage(msg);
                     oldMsgsOldestToNewest.Add(msg);
                 }
             }
@@ -1046,10 +1053,10 @@ namespace OPS.Landform
                 .ToList();
         }
 
-        private MessageQueue GetMasterToWorkerMessageQueue()
+        private MessageQueue GetWorkerMessageQueue()
         {
-            return GetMessageQueue(options.MasterToWorkerQueueName, GetDefaultMessageTimeoutSec(),
-                                   options.LandformOwnedMasterToWorkerQueue, "master-to-worker");
+            return GetMessageQueue(options.WorkerQueueName, GetDefaultMessageTimeoutSec(),
+                                   options.LandformOwnedWorkerQueue, "worker");
         }
 
         private void MasterLoop()
@@ -1058,7 +1065,7 @@ namespace OPS.Landform
             int targetPeriodSec = MASTER_LOOP_PERIOD_SEC;
             int debounceMS = 1000 * (options.MasterDebounceSec >= 0 ? options.MasterDebounceSec : DEF_DEBOUNCE_SEC);
 
-            pipeline.LogInfo("master-to-worker queue: {0}", masterToWorkerQueue.Name);
+            pipeline.LogInfo("worker queue: {0}", workerQueue.Name);
             pipeline.LogInfo("running master loop, period {0}s, debounce {1}s", targetPeriodSec, debounceMS / 1000);
 
             while (true)
@@ -1188,19 +1195,24 @@ namespace OPS.Landform
                             {
                                 pipeline.LogException(ex, "error coalescing messages, proceeding with un-coaleseced");
                             }
-                            
+
+                            //TODO right about here we should try to determine if any workers
+                            //are processing contextual meshes for which there are new messages
+                            //and if so, ask them to abort
+                            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
+
                             pipeline.LogInfo("enqueueing {0} contextual mesh messages to {1} for {2}",
-                                             rawMsgs.Count, masterToWorkerQueue.Name, rdrDir);
+                                             rawMsgs.Count, workerQueue.Name, rdrDir);
                             
                             foreach (var msg in rawMsgs) //in order starting with highest sol, largest number of wedges
                             {
                                 try
                                 {
-                                    masterToWorkerQueue.Enqueue(msg);
+                                    workerQueue.Enqueue(msg);
                             }
                                 catch (Exception ex)
                                 {
-                                    pipeline.LogException(ex, "adding message to master-to-worker queue");
+                                    pipeline.LogException(ex, "adding message to worker queue");
                                 }
                             }
                         }

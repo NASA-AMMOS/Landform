@@ -2,24 +2,24 @@
 
 rem Runs process-contextual as a service on an EC2 instance.
 rem
-rem See process-contextual-m20-dev.sh for developer use.
+rem See contextual-service.sh for developer use.
 rem
 rem Environment variables can be set from the EC2 user data script, see
 rem https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
 
 set service=contextual
 
-set lfver=newest
-if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
-
 set mission=M2020
 if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
-set queue=mission
-if not "%LANDFORM_CONTEXTUAL_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_QUEUE%
+set lfver=newest
+if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
-set failqueue=mission
-if not "%LANDFORM_CONTEXTUAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_FAIL_QUEUE%
+set queue=m20-ids-g-landform-contextual-worker
+if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
+
+set failqueue=m20-ids-g-landform-contextual-worker-fail
+if not "%LANDFORM_CONTEXTUAL_WORKER_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_WORKER_FAIL_QUEUE%
 
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
@@ -85,5 +85,4 @@ move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 rem note %quiet% must always be last, it's a redirect not an option
 
 %landform% configure-local %cfgopts% %quiet%
-
 %landform% process-%service% %svcopts% %contextualopts% %quiet% 

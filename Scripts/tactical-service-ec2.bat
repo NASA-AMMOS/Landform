@@ -2,12 +2,15 @@
 
 rem Runs process-tactical as a service on an EC2 instance.
 rem
-rem See process-tactical-m20-dev.sh for developer use.
+rem See tactical-service.sh for developer use.
 rem
 rem Environment variables can be set from the EC2 user data script, see
 rem https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
 
 set service=tactical
+
+set mission=M2020
+if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
 set meshformat=mission
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
@@ -15,13 +18,10 @@ if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_M
 set lfver=newest
 if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
-set mission=M2020
-if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
-
-set queue=mission
+set queue=m20-ids-g-landform-tactical
 if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
 
-set failqueue=mission
+set failqueue=m20-ids-g-landform-tactical-fail
 if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
 
 set awsprofile=none
@@ -76,5 +76,4 @@ move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 rem note %quiet% must always be last, it's a redirect not an option
 
 %landform% configure-local %cfgopts% %quiet%
-
 %landform% process-%service% %svcopts% %tacticalopts% %quiet% 

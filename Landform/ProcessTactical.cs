@@ -28,8 +28,8 @@ using OPS.Pipeline.AlignmentServer;
 /// As a command line tool, process-tactical can be used to build one or more tactical mesh tilesets.  It can either
 /// operate entirely locally, reading from and writing to disk, or it can read from and write to S3.
 ///
-/// Also see Scripts/processTactical.sh, which has overlapping functionality for the batch-mode case.
-/// (processTactical.sh does not implement the service case.)  processTactical.sh is intended for use by developers
+/// Also see Scripts/process-tactical.sh, which has overlapping functionality for the batch-mode case.
+/// (process-tactical.sh does not implement the service case.)  process-tactical.sh is intended for use by developers
 /// only, and has additional options for development and debugging workflows.  process-tactical (ProcessTactcial.cs)
 /// can be used by developers but is mainly intended for deployment and production use.
 ///

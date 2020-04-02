@@ -125,14 +125,14 @@ do_all_the_things() {
     fi
         
     if [ "$tactical" -a "$enable_tactical" ]; then
-        $scriptdir/processTactical.sh out/$run/rdrs $mission out/$run/tilesets $all_the_args
+        $scriptdir/process-tactical.sh out/$run/rdrs $mission out/$run/tilesets $all_the_args
     fi
     
     if [ "$contextual" -a "$enable_contextual" ]; then
         IFS=',' read -ra solarray <<< $sols
         primarysol=${solarray[0]}
-        $scriptdir/processContextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
-                                        --orbitaldem out/$run/orbital/$dem
+        $scriptdir/process-contextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
+                                         --orbitaldem out/$run/orbital/$dem
     fi
 }
 
