@@ -412,8 +412,13 @@ namespace OPS.Pipeline
 
             int candidateDepth = 0;
             var remainingIndices = Enumerable.Range(0, samplePoints.Count());
+            missingPixels = new List<PixelPoint>();
+
             while (remainingIndices.Any() && candidateDepth < maxCandidateDepth)
             {
+                // save all pixels that failed all candidate contexts
+                missingPixels.AddRange(remainingIndices.Where(idx => sortedContextBySample[idx].Count() <= candidateDepth).Select(i => samplePoints[i]).ToList());
+
                 // remove pixels who had all candidate contexts fail
                 remainingIndices = remainingIndices.Where(idx => sortedContextBySample[idx].Count() > candidateDepth);
 
@@ -449,7 +454,8 @@ namespace OPS.Pipeline
                 candidateDepth++;
             }
 
-            missingPixels = remainingIndices.Select(i => samplePoints[i]).ToList();
+            // add remaining pixels that are not filled
+            missingPixels.AddRange(remainingIndices.Select(i => samplePoints[i]).ToList());
 
             if (opts.writeDebug)
             {
