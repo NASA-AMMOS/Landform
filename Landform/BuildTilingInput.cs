@@ -762,23 +762,26 @@ namespace OPS.Landform
                     orbitalImageTransform, missingPixels);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
+                Image image = new Image(3, resolution, resolution);
                 if ((backprojectResults == null || backprojectResults.Count() == 0) &&
                     (orbitalResults == null || orbitalResults?.Count() == 0))
                 {
-                    return null;
+                    //red is our missing texture
+                    image.ApplyInPlace(0, x => { return 1; }, true);
                 }
-
-                if (index != null)
+                else
                 {
-                    Backproject.FillIndexImage(backprojectResults, index);
-                    Backproject.FillIndexImageOrbital(orbitalResults, index);
-                }
+                    if (index != null)
+                    {
+                        Backproject.FillIndexImage(backprojectResults, index);
+                        Backproject.FillIndexImageOrbital(orbitalResults, index);
+                    }
 
-                Image image = new Image(3, resolution, resolution);
-                Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
-                                              !options.DontInpaint && options.NoOrbitalTexture, fallbackToOriginal: true);
-                Backproject.FillOutputTextureOrbital(orbitalResults, orbitalTexture, image, !options.DontInpaint && !options.NoOrbitalTexture);
-                
+                    
+                    Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
+                                                  !options.DontInpaint && options.NoOrbitalTexture, fallbackToOriginal: true);
+                    Backproject.FillOutputTextureOrbital(orbitalResults, orbitalTexture, image, !options.DontInpaint && !options.NoOrbitalTexture);
+                }
                
                 return image;
             }
