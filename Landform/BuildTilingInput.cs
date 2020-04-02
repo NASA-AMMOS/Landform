@@ -802,20 +802,18 @@ namespace OPS.Landform
                 return;
             }
 
-            //TODO: support orbital align
-            //FrameTransform ft = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
-            //if (ft == null)
-            //{
-            //    pipeline.LogWarn("failed to retrieve aligned orbital transform");
-            //    options.NoOrbitalTexture = true;
-            //    return;
-            //}
-
-            ////BUGBUG: what does to world mean?
-            //var orbitalToWorld = ft.Transform.Mean;
-            //var meshToWorld = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-            //orbitalToMesh = orbitalToWorld * Matrix.Invert(meshToWorld);
-            //meshToOrbital = Matrix.Invert(orbitalToMesh);
+            // heightmap align transforms orbital to align to scene. it is sitedriveToRoot * rootAdjustment
+            // LoadOrbitalImage returns sitedriveToOrbitalBody. to texture we want to recover the unadjusted position
+            // by peeling off the adjustment. Adj = inv(sitedrivetoroot) * sitedrivetoroot * adj
+            FrameTransform siteDriveToAdjustedRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
+            if (siteDriveToAdjustedRoot != null)
+            {
+                Matrix sitedriveToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+                Matrix rootToSitedrive = Matrix.Invert(sitedriveToRoot);
+                Matrix adj = rootToSitedrive * siteDriveToAdjustedRoot.Transform.Mean;
+                Matrix invAdj = Matrix.Invert(adj);
+                sitedriveToOrbitalBody = invAdj * sitedriveToOrbitalBody;
+            }
         }
     }
 }
