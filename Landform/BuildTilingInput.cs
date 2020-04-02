@@ -727,6 +727,7 @@ namespace OPS.Landform
             try
             {
                 List<PixelPoint> missingPixels = null;
+                IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = null;
                 if (options.NoSurfaceObs)
                 {
                     //if no surface imagery is used, all pixels will be textured by orbital
@@ -753,7 +754,7 @@ namespace OPS.Landform
                                             Path.Combine(backprojectDebugDir, node.Name));
                     }
 
-                    var backprojectResults = BackprojectObservations(mesh, strategy, out missingPixels, node.Name);
+                    backprojectResults = BackprojectObservations(mesh, strategy, out missingPixels, node.Name);
                 }
 
                 //orbital
