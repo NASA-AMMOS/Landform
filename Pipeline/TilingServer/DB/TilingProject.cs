@@ -66,7 +66,6 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
 
-        public bool WriteIndexImages = false;
         public string TilesetIndexFormat = "png"; //lossless, embedded in b3dm
 
         public static string ToExt(string fmt)
@@ -87,7 +86,7 @@ namespace OPS.Pipeline.TilingServer
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
                                 MeshReconstructionMethod reconMethod, int faces, int resolution, string projectType,
-                                string exportMeshFormat, string exportImageFormat, bool writeIndexImages,
+                                string exportMeshFormat, string exportImageFormat,
                                 int maxLeafGroupSize)
             : this()
         {
@@ -101,7 +100,6 @@ namespace OPS.Pipeline.TilingServer
             TilesDefined = false;
             ExportMeshFormat = exportMeshFormat;
             ExportImageFormat = exportImageFormat;
-            WriteIndexImages = writeIndexImages;
             MaxLeafGroupSize = maxLeafGroupSize;
             IsValid();
         }
@@ -109,10 +107,10 @@ namespace OPS.Pipeline.TilingServer
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconstructionMethod reconMethod, int faces,
                                            int resolution, string projectType, string exportMeshFormat,
-                                           string exportImageFormat, bool writeIndexImages, int maxLeafGroupSize)
+                                           string exportImageFormat, int maxLeafGroupSize)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
-                                                      projectType, exportMeshFormat, exportImageFormat, writeIndexImages,
+                                                      projectType, exportMeshFormat, exportImageFormat,
                                                       maxLeafGroupSize);
             project.Save(pipeline);
             return project;
@@ -255,7 +253,7 @@ namespace OPS.Pipeline.TilingServer
         private List<string> LoadStringArray(string url, PipelineCore pipeline)
         {
             List<string> ret = new List<string>();
-            if (!string.IsNullOrEmpty(url))
+            if (!string.IsNullOrEmpty(url) && pipeline.FileExists(url))
             {
                 pipeline.GetFile(url, f =>
                 {

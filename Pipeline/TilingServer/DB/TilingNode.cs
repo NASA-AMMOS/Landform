@@ -137,6 +137,11 @@ namespace OPS.Pipeline.TilingServer
                 {
                     pipeline.DeleteFile(ImageUrl, ignoreErrors);
                 }
+
+                if (!string.IsNullOrEmpty(IndexUrl))
+                {
+                    pipeline.DeleteFile(IndexUrl, ignoreErrors);
+                }
             }
 
             pipeline.DeleteDatabaseItem(this, ignoreErrors);

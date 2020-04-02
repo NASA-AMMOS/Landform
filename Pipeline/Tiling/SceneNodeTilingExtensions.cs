@@ -141,7 +141,7 @@ namespace OPS.Pipeline
                                                      MeshReconstructionMethod reconstructionMethod,
                                                      int maxFaceCountTarget, int maxTextureSize, SkirtMode? skirtAxis,
                                                      double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
-                                                     bool writeIndexImages = false,
+                                                     bool Images = false,
                                                      Action<string> info = null, Action<string> error = null)
         {
             info = info ?? (msg => {});

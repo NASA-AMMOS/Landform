@@ -82,7 +82,6 @@ namespace OPS.Pipeline.TilingServer
                 if(!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
                                                           project.FacesPerTile, project.TileResolution,
                                                           project.GetSkirtMode(), 
-                                                          writeIndexImages : project.WriteIndexImages,
                                                           info: msg => LogInfo(msg),
                                                           error: msg => { throw new Exception(msg); }))
                 {

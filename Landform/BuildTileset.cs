@@ -180,7 +180,6 @@ namespace OPS.Landform
                                                      options.SkirtMode, options.ReconstructionMethod,
                                                      options.FacesPerTile, resolution, projectType.ToString(),
                                                      options.ExportMeshFormat, options.ExportImageFormat,
-                                                     options.WithIndexImages,
                                                      maxTileGroupSize);
 
                 tilingProject.ExportDir = null;
@@ -257,7 +256,6 @@ namespace OPS.Landform
         {
             TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE, TILING_NODE_LRU_INDEX_CACHE_SIZE);
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
-            dt.WriteIndexFiles = true;
             dt.DownloadInputsAndBuildTree(tilingProject, !options.NoProgress,
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
         }

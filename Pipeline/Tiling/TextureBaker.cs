@@ -172,14 +172,15 @@ namespace OPS.Pipeline
                         float row = (float)pixel.Y;
                         float col = (float)pixel.X;
                         var bands = new float[image.Bands];
-                        var idxBands = new float[index.Bands];
+                        float[] idxBands = null;
                         for (int b = 0; b < bands.Count(); b++)
                         {
                             bands[b] = image.BicubicSample(b, row, col);
                         }
                         if (!indexFailed)
                         {
-                            if(destIndex == null)
+                            idxBands = new float[index.Bands];
+                            if (destIndex == null)
                             {
                                 destIndex = new Image(3, destWidth, destHeight);
                                 destIndex.CreateMask(true);
