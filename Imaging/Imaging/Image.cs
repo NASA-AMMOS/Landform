@@ -309,6 +309,11 @@ namespace OPS.Imaging
             return result;
         }
 
+        public Image Crop(Subrect subrect)
+        {
+            return Crop(subrect.MinY, subrect.MinX, subrect.Width, subrect.Height);
+        }
+
         /// <summary>
         /// Crop this image to the smallest subframe that contains all valid pixels.
         /// Returns a new image of the cropped area.
@@ -441,6 +446,11 @@ namespace OPS.Imaging
             return this;
         }
 
+        public Image Blit(Image srcImg,  int dstCol, int dstRow, Subrect srcSubrect)
+        {
+            return Blit(srcImg, dstCol, dstRow, srcSubrect.MinX, srcSubrect.MinY, srcSubrect.Width, srcSubrect.Height);
+        }
+
         public void DilateMask(int pixels = 1)
         {
             if (this.HasMask)
@@ -474,11 +484,17 @@ namespace OPS.Imaging
             public int Area { get { return Width * Height; } }
         }
 
+        /// <summary>
+        /// If radius is non-positive then subrect covers whole image.
+        /// </summary>
         public Subrect GetSubrect(Vector2 center, double radiusPixels)
         {
             return GetSubrect(center, new Vector2(radiusPixels, radiusPixels));
         }
 
+        /// <summary>
+        /// If either is non-positive then subrect covers whole image in that direction.
+        /// </summary>
         public Subrect GetSubrect(Vector2 center, Vector2 halfExtentPixels)
         {
             var ret = new Subrect();

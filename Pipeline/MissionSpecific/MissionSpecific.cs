@@ -908,10 +908,10 @@ namespace OPS.Pipeline
         /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
         /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
         /// </summary>
-        public virtual void GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir,
+        public virtual void GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 elevationDir, out Vector3 rightDir,
                                                                out Vector3 downDir)
         {
-            upDir = new Vector3(0, 0, -1);
+            elevationDir = new Vector3(0, 0, -1);
             rightDir = new Vector3(0, 1, 0);
             downDir = new Vector3(-1, 0, 0);
         }
@@ -971,11 +971,11 @@ namespace OPS.Pipeline
             var gdalDEM = GDALDEM.Load(demFile, cfg.OrbitalBodyName);
             var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
             
-            GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 upDir, out Vector3 rightDir, out Vector3 downDir);
+            GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 elevationDir, out Vector3 rightDir, out Vector3 downDir);
 
             double? originElevation = null; //DEM constructor will look this up given originPixel
 
-            return new DEM(new DEM.SparseDEMImage(demFile), upDir, rightDir, downDir,
+            return new DEM(new DEM.SparseDEM(demFile), elevationDir, rightDir, downDir,
                            metersPerPixel.Value, elevationScale.Value,
                            originPixel, originElevation, minFilter, maxFilter);
         }

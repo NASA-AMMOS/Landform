@@ -29,8 +29,11 @@ namespace OPS.Landform
         [Value(1, Required = false, HelpText = "Optional image to texture the mesh.  The image must be the same aspect and physical extent as the DEM, but can have a different resolution.")]
         public string InputImage { get; set; }
 
-        [Option(Required = false, Default = "auto", HelpText = "Size of a pixel in the DEM in meters, or \"auto\" to use mission default, or 1 if no mission.")]
-        public string MetersPerPixel { get; set; }
+        [Option(Required = false, Default = "auto", HelpText = "Size of a pixel in the input DEM in meters, or \"auto\" to use mission default, or 1 if no mission.")]
+        public string DEMMetersPerPixel { get; set; }
+
+        [Option(Required = false, Default = "auto", HelpText = "Size of a pixel in the input image in meters, or \"auto\" to use mission default, or 1 if no mission.")]
+        public string ImageMetersPerPixel { get; set; }
 
         [Option(Required = false, Default = "auto", HelpText = "Scale DEM values to vertical meters, or \"auto\" to use mission default, or 1 if no mission")]
         public string VerticalScale { get; set; }
@@ -42,7 +45,7 @@ namespace OPS.Landform
         public string MeshFormat { get; set; }
 
         [Option(Required = false, Default = 0, HelpText = "Adaptive mesh to this error threshold.  Set to 0 to build a full organized mesh instead of adaptive meshing.")]
-        public double Error { get; set; }
+        public double MaxError { get; set; }
 
         [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "Dem values less than this will be ignored")]
         public double DEMMinFilter { get; set; }
@@ -56,18 +59,22 @@ namespace OPS.Landform
         [Option(Required = false, Default = 200, HelpText = "Radius in meters around origin to build mesh, negative for unlimited")]
         public float Radius { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "If greater than one then decimate the input DEM by this blocksize")]
+        [Option(Required = false, Default = 0, HelpText = "If greater than one then decimate the input DEM and image by this blocksize")]
         public int DecimateBlocksize { get; set; }
+
+        [Option(Required = false, Default = 4096, HelpText = "Maximum output texture resolution, 0 disables output texture, negative for unlimited")]
+        public int MaxTextureResolution { get; set; }
 
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
 
-        // TODO: Skirt option?
+        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        public bool NoSave { get; set; }
     }
 
     public class DEM2Mesh
     {
-        private static readonly ILog logger = LogManager.GetLogger(typeof(DEM2Mesh));
+        private static readonly ILog logger = LogManager.GetLogger("dem2mesh");
 
         private DEM2MeshOptions options;
 
@@ -77,6 +84,9 @@ namespace OPS.Landform
         private string outputMesh, outputImage;
 
         private DEM dem;
+        private Image image;
+
+        private double demMetersPerPixel, imageMetersPerPixel, elevationScale;
 
         public DEM2Mesh(DEM2MeshOptions options)
         {
@@ -87,26 +97,17 @@ namespace OPS.Landform
         {
             try
             {
-                if (!ParseArgumentsAndLoadDEM())
+                if (!ParseArgumentsAndLoadInputs())
                 {
                     return 0; //help
                 }
 
-                var mesh = options.Error == 0 ?
-                    dem.OrganizedMesh(options.Radius, withUV: true) :
-                    dem.AdaptiveMesh(options.Error, options.Radius, withUV: true);
-
-                mesh.Save(outputMesh, outputImage);
-
-                if (outputImage != null)
+                if (image != null)
                 {
-                    if (options.Radius >= 0)
-                    {
-                        //TODO: Properly clip ortho when radius option is set
-                        logger.Warn("clipping image to radius not implemented, using full texture image");
-                    }
-                    Image.Load(options.InputImage).Save<byte>(outputImage);
+                    BuildAndSaveTexture();
                 }
+
+                BuildAndSaveMesh();
             }
             catch (Exception ex)
             {
@@ -117,7 +118,7 @@ namespace OPS.Landform
             return 0;
         }
 
-        private bool ParseArgumentsAndLoadDEM()
+        private bool ParseArgumentsAndLoadInputs()
         {
             meshExt = MeshSerializers.Instance.CheckFormat(options.MeshFormat, logger);
             if (meshExt == null)
@@ -136,25 +137,27 @@ namespace OPS.Landform
                 throw new Exception("input DEM not found: " + options.InputDEM);
             }
 
+            outputMesh = Path.ChangeExtension(options.InputDEM, meshExt);
+
             //even if we don't directly use the mission instance
             //this has the important side effect of setting defaults for PlacesConfig and OrbitalConfig
             mission = MissionSpecific.GetInstance(options.Mission);
 
-            double metersPerPixel = 1;
-            if (string.IsNullOrEmpty(options.MetersPerPixel) || options.MetersPerPixel.ToLower() == "auto")
+            demMetersPerPixel = 1;
+            if (string.IsNullOrEmpty(options.DEMMetersPerPixel) || options.DEMMetersPerPixel.ToLower() == "auto")
             {
-                metersPerPixel = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
+                demMetersPerPixel = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
                 if (mission == null)
                 {
-                    logger.WarnFormat("no mission, using default orbital DEM meters per pixel: {0}", metersPerPixel);
+                    logger.WarnFormat("no mission, using default orbital DEM meters per pixel: {0}", demMetersPerPixel);
                 }
             }
             else
             {
-                metersPerPixel = double.Parse(options.MetersPerPixel);
+                demMetersPerPixel = double.Parse(options.DEMMetersPerPixel);
             }
 
-            double elevationScale = 1;
+            elevationScale = 1;
             if (string.IsNullOrEmpty(options.VerticalScale) || options.VerticalScale.ToLower() == "auto")
             {
                 elevationScale = OrbitalConfig.Instance.OrbitalDEMElevationScale;
@@ -176,30 +179,130 @@ namespace OPS.Landform
                 }
 
                 dem = mission.LoadOrbitalDEM(new SiteDrive(options.OutputFrame), options.InputDEM,
-                                             metersPerPixel, elevationScale,
+                                             demMetersPerPixel, elevationScale,
                                              options.DEMMinFilter, options.DEMMaxFilter, new ThunkLogger(logger));
             }
             else
             {
                 Vector2? originPixel = null; //DEM constructor will compute this as center of dem
                 double? originElevation = null; //DEM constructor will look this up given originPixel
-                dem = new DEM(new DEM.SparseDEMImage(options.InputDEM), metersPerPixel, elevationScale,
+                dem = new DEM(new DEM.SparseDEM(options.InputDEM), demMetersPerPixel, elevationScale,
                               originPixel, originElevation, options.DEMMinFilter, options.DEMMaxFilter); 
+            }
+
+            if (!string.IsNullOrEmpty(options.InputImage) && options.MaxTextureResolution != 0)
+            {
+                imageMetersPerPixel = 1;
+                if (string.IsNullOrEmpty(options.ImageMetersPerPixel) ||
+                    options.ImageMetersPerPixel.ToLower() == "auto")
+                {
+                    imageMetersPerPixel = OrbitalConfig.Instance.OrbitalImageMetersPerPixel;
+                    if (mission == null)
+                    {
+                        logger.WarnFormat("no mission, using default orbital image meters per pixel: {0}",
+                                          imageMetersPerPixel);
+                    }
+                }
+                else
+                {
+                    imageMetersPerPixel = double.Parse(options.ImageMetersPerPixel);
+                }
+
+                image = new DEM.SparseDEMImage(options.InputImage);
+                outputImage = Path.Combine(Path.GetDirectoryName(outputMesh),
+                                           Path.GetFileNameWithoutExtension(outputMesh) + "_texture" + imageExt);
             }
 
             if (options.DecimateBlocksize > 1)
             {
                 dem = dem.Decimated(options.DecimateBlocksize);
-            }
-
-            outputMesh = Path.ChangeExtension(options.InputDEM, options.MeshFormat);
-
-            if (!string.IsNullOrEmpty(options.InputImage))
-            {
-                outputImage = Path.ChangeExtension(outputMesh, options.ImageFormat);
+                if (image != null)
+                {
+                    image = image.Decimated(options.DecimateBlocksize);
+                }
             }
 
             return true;
+        }
+
+        private void BuildAndSaveTexture()
+        {
+            var texture = image;
+            int maxRes = options.MaxTextureResolution;
+            if (options.Radius < 0)
+            {
+                double maxDim = Math.Max(texture.Width, texture.Height);
+                if (maxRes > 0 && maxDim > maxRes)
+                {
+                    double s = maxRes / maxDim;
+                    int w = (int)Math.Floor(texture.Width * s);
+                    int h = (int)Math.Floor(texture.Height * s);
+                    logger.InfoFormat("resizing {0}x{1} texture to {2}x{3}", texture.Width, texture.Height, w, h);
+                    texture = texture.Resize(w, h);
+                }
+            }
+            else
+            {
+                double imagePixelsPerDemPixel = demMetersPerPixel / imageMetersPerPixel;
+                Vector2 originPixel = dem.OriginPixel * imagePixelsPerDemPixel;
+
+                double imageMPP = imageMetersPerPixel * (options.DecimateBlocksize > 1 ? options.DecimateBlocksize : 1);
+
+                var subrect = texture.GetSubrect(originPixel, options.Radius / imageMPP);
+
+                double maxDim = Math.Max(subrect.Width, subrect.Height);
+                if (maxRes > 0 && maxDim > maxRes)
+                {
+                    double s = maxRes / maxDim;
+                    int w = (int)Math.Floor(subrect.Width * s);
+                    int h = (int)Math.Floor(subrect.Height * s);
+                    logger.InfoFormat("resampling {0}x{1} texture subrect to {2}x{3}",
+                                      subrect.Width, subrect.Height, w, h);
+                    texture = new Image(texture.Bands, w, h);
+                    for (int b = 0; b < texture.Bands; b++)
+                    {
+                        for (int r = 0; r < h; r++)
+                        {
+                            float srcRow = subrect.MinY + subrect.Height * (((float)r) / h);
+                            for (int c = 0; c < w; c++)
+                            {
+                                float srcCol = subrect.MinX + subrect.Width * (((float)c) / w);
+                                texture[b, r, c] = image.BilinearSample(b, srcRow, srcCol);
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    logger.InfoFormat("cropping {0}x{1} subrect from {2}x{3} texture",
+                                      subrect.Width, subrect.Height, texture.Width, texture.Height);
+                    texture = texture.Crop(subrect);
+                }
+            }
+
+            logger.InfoFormat("{0}saving {1}x{2} texture {3}",
+                              options.NoSave ? "not " : "", texture.Width, texture.Height, outputImage);
+            if (!options.NoSave)
+            {
+                texture.Save<byte>(outputImage);
+            }
+        }
+
+        private void BuildAndSaveMesh()
+        {
+            logger.InfoFormat("{0} meshing DEM, radius {1}",
+                              options.MaxError == 0 ? "organized" : "adaptive", options.Radius);
+            
+            var mesh = options.MaxError == 0 ?
+                dem.OrganizedMesh(options.Radius, withUV: true) :
+                dem.AdaptiveMesh(options.MaxError, options.Radius, withUV: true);
+            
+            logger.InfoFormat("{0}saving {1} triangle mesh {2}",
+                              options.NoSave ? "not " : "", Fmt.KMG(mesh.Faces.Count), outputMesh);
+            if (!options.NoSave)
+            {
+                mesh.Save(outputMesh, image != null ? Path.GetFileName(outputImage) : null);
+            }
         }
     }
 }

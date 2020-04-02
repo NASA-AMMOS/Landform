@@ -264,7 +264,9 @@ namespace OPS.Pipeline
                 "\"OrbitalDEMURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_deltaradii_smg_1m.tif\", " +
                 "\"OrbitalImageURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\", " +
                 "\"OrbitalDEMStoragePath\": \"MSL/orbital/out_deltaradii_smg_1m.tif\", " +
-                "\"OrbitalImageStoragePath\": \"MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\"" +
+                "\"OrbitalImageStoragePath\": \"MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\"," +
+                "\"OrbitalDEMMetersPerPixel\": 1," +
+                "\"OrbitalImageMetersPerPixel\": 0.25" +
                 " }";
         }
 
