@@ -479,9 +479,31 @@ namespace OPS.Imaging
         public class Subrect
         {
             public int MinX, MinY, MaxX, MaxY;
+
             public int Width { get { return MaxX - MinX + 1; } }
             public int Height { get { return MaxY - MinY + 1; } }
+
             public int Area { get { return Width * Height; } }
+
+            public bool Contains(Vector2 pixel)
+            {
+                return Contains(pixel.Y, pixel.X);
+            }
+
+            public bool Contains(double row, double col)
+            {
+                return col >= MinX && col <= MaxX && row >= MinY && row <= MaxY;
+            }
+
+            public bool ContainsProper(Vector2 pixel)
+            {
+                return ContainsProper(pixel.Y, pixel.X);
+            }
+
+            public bool ContainsProper(double row, double col)
+            {
+                return col > MinX && col < MaxX && row > MinY && row < MaxY;
+            }
         }
 
         /// <summary>
@@ -501,7 +523,7 @@ namespace OPS.Imaging
 
             if (halfExtentPixels.X > 0)
             {
-                ret.MinX = (int)Math.Max(0, Math.Ceiling(center.X - halfExtentPixels.X));
+                ret.MinX = (int)Math.Max(0, Math.Floor(center.X - halfExtentPixels.X));
                 ret.MaxX = (int)Math.Min(Width - 1, Math.Ceiling(center.X + halfExtentPixels.X));
             }
             else
@@ -512,7 +534,7 @@ namespace OPS.Imaging
 
             if (halfExtentPixels.Y > 0)
             {
-                ret.MinY = (int)Math.Max(0, Math.Ceiling(center.Y - halfExtentPixels.Y));
+                ret.MinY = (int)Math.Max(0, Math.Floor(center.Y - halfExtentPixels.Y));
                 ret.MaxY = (int)Math.Min(Height - 1, Math.Ceiling(center.Y + halfExtentPixels.Y));
             }
             else
