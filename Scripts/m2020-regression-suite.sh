@@ -62,12 +62,12 @@ windjana=
 # MACHINERY ------------------------------------------------------------------------------------------------------------
 
 if [ "$credss" ]; then
-    if [ $# -lt 2 ]; then
-        echo "must specify credss.exe username and password as command line options"
+    if [ $# -lt 1 ]; then
+        echo "must specify credss.exe password as command line option"
         exit 1
     fi
-    credss_user=$1
-    credss_pass=$2
+    credss_user=$USERNAME
+    credss_pass=$1
 fi
 
 # exit script on ctrl-c
