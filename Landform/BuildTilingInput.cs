@@ -545,7 +545,7 @@ namespace OPS.Landform
             //it used to be the case that it was a perf win to build the tiles serially at least when backprojecting
             //but probably not anymore
             //now that PipelineCore implements locking to prevent multiple threads from trying to load the same image
-            CoreLimitedParallel.ForEach(tilesToTexture, buildTile);
+            Serial.ForEach(tilesToTexture, buildTile);
 
             if (withTextures && numFailed > 0)
             {
@@ -590,6 +590,7 @@ namespace OPS.Landform
                 {
                     string indexImageName = IndexName(name);
                     SaveFloatTIFF(index, indexImageName);
+
                     if (options.BackprojectIndexImagePreviews)
                     {
                         Image preview = Backproject.GenerateIndexPreviewImage(index);

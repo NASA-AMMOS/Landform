@@ -107,6 +107,7 @@
     <Compile Include="Operations\Resize.cs" />
     <Compile Include="Operations\Sample.cs" />
     <Compile Include="Operations\Stretch.cs" />
+    <Compile Include="Serializers\PPMSerializer.cs" />
     <Compile Include="SpatialTranslators\ISpatialTranslator.cs" />
     <Compile Include="SpatialTranslators\MarsSpatialTranslator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

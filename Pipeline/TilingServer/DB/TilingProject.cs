@@ -66,7 +66,7 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
 
-        public string TilesetIndexFormat = "png"; //lossless, embedded in b3dm
+        public string TilesetIndexFormat = "ppm"; //TODO: add lossless compression
 
         public static string ToExt(string fmt)
         {

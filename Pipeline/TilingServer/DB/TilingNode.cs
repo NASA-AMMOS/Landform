@@ -478,8 +478,13 @@ namespace OPS.Pipeline.TilingServer
 
                                 //for b3dm this reads the image data if any and embeds it into the mesh file
                                 //for pnts the image data is ignored
-                                tilesetMesh.Save(tmpMesh, tmpImage, tmpIndex);
+                                tilesetMesh.Save(tmpMesh, tmpImage);
                                 upload(tmpMesh, tileUrl);
+                                if(tmpIndex != null)
+                                {
+                                    string indexUrl = Path.ChangeExtension(tileUrl, ".ppm");
+                                    upload(tmpIndex, indexUrl);
+                                }
                                 if (tileMeshExt == exMeshExt)
                                 {
                                     uploadedExMesh = true;
