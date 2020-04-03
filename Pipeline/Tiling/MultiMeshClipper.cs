@@ -165,7 +165,7 @@ namespace OPS.Pipeline
         /// <param name="mesh"></param>
         /// <param name="textureSize"></param>
         /// <returns></returns>
-        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, out Image destIndex, Action<string> info = null)
+        public MeshImagePair BakeTexture(Mesh mesh, int textureSize, Action<string> info = null)
         {
             info = info ?? (msg => {});
             if(!textureBakerInitialized)
@@ -179,14 +179,13 @@ namespace OPS.Pipeline
             if(mesh == null)
             {
                 info("failed to atlas mesh for texture bake");
-                destIndex = null;
                 return null;
             }
 
             info("baking texture");
-            var img = TextureBaker.Bake(mesh, textureSize, textureSize, out destIndex);
+            var img = TextureBaker.Bake(mesh, textureSize, textureSize, out Image destIndex);
 
-            return new MeshImagePair(mesh, img);
+            return new MeshImagePair(mesh, img, destIndex);
         }
     }
 }

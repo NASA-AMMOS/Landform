@@ -507,7 +507,7 @@ namespace OPS.Landform
                 Image index = !options.NoIndexImages ? new Image(3, resolution, resolution) : null;
                 if (texGenMode == TextureGenMode.Bake)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, out index, msg => pipeline.LogVerbose(msg));
+                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogVerbose(msg));
                     if (newMP != null)
                     {
                         mp.Mesh = newMP.Mesh;
