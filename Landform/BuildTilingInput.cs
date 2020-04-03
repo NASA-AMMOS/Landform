@@ -545,7 +545,7 @@ namespace OPS.Landform
             //it used to be the case that it was a perf win to build the tiles serially at least when backprojecting
             //but probably not anymore
             //now that PipelineCore implements locking to prevent multiple threads from trying to load the same image
-            Serial.ForEach(tilesToTexture, buildTile);
+            CoreLimitedParallel.ForEach(tilesToTexture, buildTile);
 
             if (withTextures && numFailed > 0)
             {

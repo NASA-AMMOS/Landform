@@ -102,21 +102,9 @@ namespace OPS.TilingServer
                                  options.ProjectName);
             }
 
-            string indexUrl = null;
-            if(options.IndexFilepath != null)
-            {
-                indexUrl = pipeline.GetStorageUrl("index", options.ProjectName,
-                                                    Path.GetFileName(options.IndexFilepath));
-                pipeline.LogDebug("uploading input index image \"{0}\" for project \"{1}\"", options.IndexFilepath,
-                                options.ProjectName);
-                pipeline.SaveFile(options.IndexFilepath, indexUrl);
-                pipeline.LogDebug("uploading input index image \"{0}\" for project \"{1}\" complete", options.IndexFilepath,
-                                options.ProjectName);
-            }
-
             pipeline.EnqueueToMaster(new AddInputMessage(options.ProjectName)
                                      { Name = name, MeshUrl = meshUrl, ImageUrl = imageUrl,
-                                       IndexUrl = indexUrl, TileId = options.TileId });
+                                       TileId = options.TileId });
             
             if (!options.NoWait)
             {
