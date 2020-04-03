@@ -55,7 +55,7 @@ namespace OPS.Pipeline
             //TODO: orbital split
 
             // coarse frustum test against the bounding box
-            List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh.Intersects(areaOfInterest)).ToList();
+            List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh != null && ci.hullInMesh.Intersects(areaOfInterest)).ToList();
 
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)
