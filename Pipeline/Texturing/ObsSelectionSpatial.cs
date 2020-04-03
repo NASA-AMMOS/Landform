@@ -22,11 +22,14 @@ namespace OPS.Pipeline.Texturing
     {
         Dictionary<string, Backproject.Context> ObsToContext;
         Dictionary<string, List<ObsSelectionStrategy.ScoredPoint>> ScoredRefPtsByObs;
-
+        double OrbitalMetersPerPixel;
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
-                               bool writeDebug, string localOutputPath)
+                               List<Backproject.Context> allContexts, int outputTextureResolution, double orbitalMetersPerPixel, 
+                               double quality, bool writeDebug, string localOutputPath)
         {
+            // any sorts that would be better served by orbital will have their contexts filtered
+            OrbitalMetersPerPixel = orbitalMetersPerPixel;
+
             // collect points on the surface of the mesh
             double samplesPerMeter = quality * 100.0;
             Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
@@ -81,7 +84,8 @@ namespace OPS.Pipeline.Texturing
 
                 //exhaustively sort for each sample point
                 ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
-                refSelect.Initialize(mesh, meshOp, occlusionScene, allContexts, outputTextureResolution, quality, writeDebug, ptDebugPath);
+                refSelect.Initialize(mesh, meshOp, occlusionScene, allContexts, outputTextureResolution, orbitalMetersPerPixel,
+                    quality, writeDebug, ptDebugPath);
                 Dictionary<string, double> ptScoresByObs = new Dictionary<string, double>();
 
                 List<Backproject.Context> sortedContexts = new List<Backproject.Context>(allContexts.Count());
