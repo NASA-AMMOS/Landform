@@ -748,20 +748,18 @@ namespace OPS.Landform
 
             Mesh makeMesh(int subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
             {
-                int w = outerBounds.Width * subsample + 1;
-                int h = outerBounds.Height * subsample + 1;
+                int w = (outerBounds.Width - 1) * subsample + 1;
+                int h = (outerBounds.Height - 1) * subsample + 1;
+                double eps = 0.1;
                 var points = new Image(3, w, h);
                 points.CreateMask();
-                double step = 1.0 / subsample;
-                var half = -0.5 * Vector2.One; //What's up with this?  Go ahead, try without.  Have a nice day.
                 for (int r = 0; r < h; r++)
                 {
                     for (int c = 0; c < w; c++)
                     {
-                        Vector2 px = new Vector2(outerBounds.MinX + outerBounds.Width * (((double)c) / (w - 1)),
-                                                 outerBounds.MinY + outerBounds.Height * (((double)r) / (h - 1)));
+                        Vector2 px = outerBounds.Interp(((double)c) / (w - 1), ((double)r) / (h - 1));
                         bool mask = true;
-                        if (innerBounds == null || !innerBounds.Contains(px + half))
+                        if (innerBounds == null || !innerBounds.ContainsProper(px, eps))
                         {
                             var pt = orbitalDEM.GetInterpolatedXYZ(px);
                             if (pt.HasValue)
@@ -819,10 +817,20 @@ namespace OPS.Landform
 
             if (blendBounds != null)
             {
+                if (options.WriteDebug)
+                {
+                    SaveMesh(orbitalMesh, dbgMeshPrefix + "-outerOrbital");
+                }
+
                 pipeline.LogInfo("making {0}x{0} orbital blend mesh at {1} samples/meter",
                                  2 * blendExtentPixels * demMPP, blendSamplesPerPixel / demMPP);
 
                 var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(blendMesh, dbgMeshPrefix + "-preblendOrbital");
+                }
 
                 pipeline.LogInfo("made orbital blend mesh with {0} triangles, merging with orbital",
                                  Fmt.KMG(blendMesh.Faces.Count));

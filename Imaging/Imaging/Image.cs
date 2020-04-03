@@ -485,24 +485,39 @@ namespace OPS.Imaging
 
             public int Area { get { return Width * Height; } }
 
-            public bool Contains(Vector2 pixel)
+            public bool Contains(Vector2 pixel, double eps = 0)
             {
-                return Contains(pixel.Y, pixel.X);
+                return Contains(pixel.X, pixel.Y, eps);
             }
 
-            public bool Contains(double row, double col)
+            public bool Contains(double x, double y, double eps = 0)
             {
-                return col >= MinX && col <= MaxX && row >= MinY && row <= MaxY;
+                return x >= (MinX - eps) && x <= (MaxX + eps) && y >= (MinY - eps) && y <= (MaxY + eps);
             }
 
-            public bool ContainsProper(Vector2 pixel)
+            public bool ContainsProper(Vector2 pixel, double eps = 0)
             {
-                return ContainsProper(pixel.Y, pixel.X);
+                return ContainsProper(pixel.X, pixel.Y, eps);
             }
 
-            public bool ContainsProper(double row, double col)
+            public bool ContainsProper(double x, double y, double eps = 0)
             {
-                return col > MinX && col < MaxX && row > MinY && row < MaxY;
+                return x > (MinX + eps) && x < (MaxX - eps) && y > (MinY + eps) && y < (MaxY - eps);
+            }
+
+            public Vector2 Interp(Vector2 at)
+            {
+                return Interp(at.X, at.Y);
+            }
+
+            public Vector2 Interp(double atX, double atY)
+            {
+                return new Vector2(MinX * (1 - atX) + MaxX * atX, MinY * (1 - atY) + MaxY * atY);
+            }
+
+            public string ToString()
+            {
+                return string.Format("MinX={0}, MaxX={1}, MinY={2}, MaxY={3}", MinX, MaxX, MinY, MaxY);
             }
         }
 
