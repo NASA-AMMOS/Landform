@@ -813,20 +813,11 @@ namespace OPS.Landform
             FrameTransform siteDriveToAdjustedRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
             if (siteDriveToAdjustedRoot != null)
             {
-                Matrix sitedriveToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean; //BUGBUG: ask for prior
-                Matrix rootToSitedrive = Matrix.Invert(sitedriveToRoot);
-                Matrix adj = rootToSitedrive * siteDriveToAdjustedRoot.Transform.Mean;
-                Matrix invAdj = Matrix.Invert(adj);
-                Matrix comparesitedriveToOrbitalBody = invAdj * sitedriveToOrbitalBody;
-
-                //Matrix suggestedOrbitalToRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName).Transform.Mean;
-                //Matrix suggestedsdToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-                //Matrix suggestedsdToOrbital = martysdToRoot * Matrix.Invert(martyOrbitalToRoot);
-                //Matrix suggestedsdToBody = martysdToOrbital * sitedriveToOrbitalBody;
+                Matrix orbitalToRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName).Transform.Mean;
+                Matrix sdToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+                Matrix sdToOrbital = sdToRoot * Matrix.Invert(orbitalToRoot);
+                sitedriveToOrbitalBody = sdToOrbital * sitedriveToOrbitalBody;
             }
-
-            
-
         }
     }
 }
