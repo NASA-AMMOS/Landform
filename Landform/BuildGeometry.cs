@@ -236,23 +236,26 @@ namespace OPS.Landform
                     }
                 }
 
-                if (!options.NoOrbital)
+                if (options.NoOrbital)
                 {
-                    RunPhase("build orbital mesh", BuildOrbitalMesh);
-                    if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
-                    {
-                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
-                    }
-                }
-                else if (options.NoFillHoles)
-                {
-                    //no orbital or hole filling, just clip surface mesh
+                    //just clip surface mesh
                     double extent = options.ClipExtent;
                     if (extent <= 0 || (options.ClipSurfaceExtent > 0 && options.ClipSurfaceExtent < extent))
                     {
                         extent = options.ClipSurfaceExtent;
                     }
                     RunPhase("clip mesh", () => ClipMesh(extent));
+                }
+                else
+                {
+                    //surface mesh has already been clipped
+                    //and we've already verified that 0 < ClipSurfaceExtent < ClipExtent
+                    //now build orbital to ClipExtent
+                    RunPhase("build orbital mesh", BuildOrbitalMesh);
+                    if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
+                    {
+                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
+                    }
                 }
 
                 if (options.TargetSceneMeshFaces > 0)
@@ -368,8 +371,8 @@ namespace OPS.Landform
                 blendRadius = sewRadius;
             }
 
-            if (!options.NoOrbital && options.ClipSurfaceExtent <= 0 || options.ClipExtent <= 0 ||
-                options.ClipSurfaceExtent > options.ClipExtent)
+            if (!options.NoOrbital && (options.ClipSurfaceExtent <= 0 || options.ClipExtent <= 0 ||
+                                       options.ClipSurfaceExtent > options.ClipExtent))
             {
                 throw new Exception(string.Format("surface clip {0} must be greater than 0 and less than outer clip {1}"
                                                   + " to use orbital", options.ClipSurfaceExtent, options.ClipExtent));
