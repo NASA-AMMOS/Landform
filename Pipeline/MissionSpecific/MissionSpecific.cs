@@ -1012,18 +1012,16 @@ namespace OPS.Pipeline
             Vector2 meshFrameLonLat = placesDB.GetEstimatedLatLon(siteDrive);
             logger.LogInfo("Places: primary sitedrive {0} at longitude {1} and latitude {2}", siteDrive, meshFrameLonLat.X, meshFrameLonLat.Y);
 
-            Vector3 bodyXYZ = gdalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0)); 
+            Vector3 bodyXYZ = gdalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0));
+         
+            Vector3 siteDriveZInBody = Vector3.Normalize(bodyXYZ); // sd: nadir, should be - but need to convert from right handed site to lefthanded body
+            Vector3 siteDriveYInBody = Vector3.Normalize(Vector3.Cross(siteDriveZInBody, new Vector3(1, 0, 0))); // sd: east,  //BUGBUG: avoid bug at poles
+            Vector3 siteDriveXInBody = Vector3.Normalize(Vector3.Cross(siteDriveYInBody, siteDriveZInBody)); // sd: north, 
 
-            Vector3 siteDriveDownInBody = -Vector3.Normalize(bodyXYZ);
-            Vector3 siteDriveEastInBody = Vector3.Normalize(Vector3.Cross(siteDriveDownInBody, new Vector3(1, 0, 0))); 
-            Vector3 siteDriveNorthInBody = Vector3.Normalize(Vector3.Cross(siteDriveEastInBody, siteDriveDownInBody));
-            sitedriveToOrbitalBody = new Matrix(siteDriveNorthInBody.X, siteDriveNorthInBody.Y, siteDriveNorthInBody.Z, 0,
-                                               siteDriveEastInBody.X, siteDriveEastInBody.Y, siteDriveEastInBody.Z, 0,
-                                               siteDriveDownInBody.X, siteDriveDownInBody.Y, siteDriveDownInBody.Z, 0,
+            sitedriveToOrbitalBody = new Matrix(siteDriveXInBody.X, siteDriveXInBody.Y, siteDriveXInBody.Z, 0,
+                                               siteDriveYInBody.X, siteDriveYInBody.Y, siteDriveYInBody.Z, 0,
+                                               siteDriveZInBody.X, siteDriveZInBody.Y, siteDriveZInBody.Z, 0,
                                                bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
-
-            //TODO: elevation
-            //TODO: orbital alignment
 
             return new SparsePipelineImage(pipeline, imgFile);
         }
