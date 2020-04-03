@@ -74,6 +74,12 @@ namespace OPS.Landform
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Compare planar approximation to spherical for mesh region")]
+        public bool CheckPlanarity { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Only compare planar approximation to spherical for mesh region")]
+        public bool OnlyCheckPlanarity { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Dry run")]
         public bool NoSave { get; set; }
     }
@@ -89,6 +95,8 @@ namespace OPS.Landform
         private string meshExt, imageExt;
         private string outputMesh, outputImage;
 
+        private string demBody;
+        private GDALDEM gdalDEM, gdalImage;
         private DEM dem;
         private Image image;
 
@@ -108,12 +116,20 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (image != null)
+                if (options.CheckPlanarity || options.OnlyCheckPlanarity)
                 {
-                    BuildAndSaveTexture();
+                    CheckPlanarity();
                 }
 
-                BuildAndSaveMesh();
+                if (!options.OnlyCheckPlanarity)
+                {
+                    if (image != null)
+                    {
+                        BuildAndSaveTexture();
+                    }
+                    
+                    BuildAndSaveMesh();
+                }
             }
             catch (Exception ex)
             {
@@ -177,7 +193,7 @@ namespace OPS.Landform
                 elevationScale = double.Parse(options.VerticalScale);
             }
 
-            string demBody = "mars";
+            demBody = "mars";
             if (string.IsNullOrEmpty(options.DEMBody) || options.DEMBody.ToLower() == "auto")
             {
                 demBody = OrbitalConfig.Instance.OrbitalBodyName;
@@ -190,6 +206,8 @@ namespace OPS.Landform
             {
                 demBody = options.DEMBody;
             }
+
+            gdalDEM = GDALDEM.Load(options.InputDEM, demBody);
 
             if (SiteDrive.IsSiteDriveString(options.OutputFrame))
             {
@@ -233,7 +251,7 @@ namespace OPS.Landform
 
                     if (sfx == "deg")
                     {
-                        originPixel = GDALDEM.Load(options.InputDEM, demBody).LatLonToImage(opv);
+                        originPixel = gdalDEM.LatLonToImage(opv);
                     }
                     else
                     {
@@ -251,10 +269,9 @@ namespace OPS.Landform
                               dem.Width, dem.Height, dem.Width * demMetersPerPixel, dem.Height * demMetersPerPixel,
                               demMetersPerPixel, options.InputDEM);
 
-            var gdalDEM = GDALDEM.Load(options.InputDEM, demBody);
             var demOriginLonLat = gdalDEM.ImageToLatLon(dem.OriginPixel);
 
-            logger.InfoFormat("origin pixel {0}, {1} ({2:f3}m, {3:f3}m), (lon, lat) ({4:f3}, {5:f3})",
+            logger.InfoFormat("origin pixel ({0}, {1}) ({2:f3}m, {3:f3}m), (lon, lat) ({4:f3}, {5:f3})",
                               dem.OriginPixel.X, dem.OriginPixel.Y,
                               dem.OriginPixel.X * demMetersPerPixel, dem.OriginPixel.Y * demMetersPerPixel,
                               demOriginLonLat.X, demOriginLonLat.Y);
@@ -296,7 +313,7 @@ namespace OPS.Landform
                                   image.Width * imageMetersPerPixel, image.Height * imageMetersPerPixel,
                                   imageMetersPerPixel, options.InputImage);
 
-                var gdalImage = GDALDEM.Load(options.InputImage, demBody);
+                gdalImage = GDALDEM.Load(options.InputImage, demBody);
                 var imgMinLonLat = gdalImage.ImageToLatLon(Vector2.Zero);
                 var imgMaxPixel = new Vector2(gdalImage.Width - 1, gdalImage.Height - 1);
                 var imgMaxLonLat = gdalImage.ImageToLatLon(imgMaxPixel);
@@ -315,10 +332,15 @@ namespace OPS.Landform
 
             if (options.DecimateBlocksize > 1)
             {
+                logger.InfoFormat("decimating DEM, blocksize {0}", options.DecimateBlocksize);
                 dem = dem.Decimated(options.DecimateBlocksize);
+                demMetersPerPixel *= options.DecimateBlocksize;
+
                 if (image != null)
                 {
+                    logger.InfoFormat("decimating image, blocksize {0}", options.DecimateBlocksize);
                     image = image.Decimated(options.DecimateBlocksize);
+                    imageMetersPerPixel *= options.DecimateBlocksize;
                 }
             }
 
@@ -346,9 +368,7 @@ namespace OPS.Landform
                 double imagePixelsPerDemPixel = demMetersPerPixel / imageMetersPerPixel;
                 Vector2 originPixel = dem.OriginPixel * imagePixelsPerDemPixel;
 
-                double imageMPP = imageMetersPerPixel * (options.DecimateBlocksize > 1 ? options.DecimateBlocksize : 1);
-
-                var subrect = texture.GetSubrect(originPixel, options.RadiusMeters / imageMPP);
+                var subrect = texture.GetSubrect(originPixel, options.RadiusMeters / imageMetersPerPixel);
 
                 double maxDim = Math.Max(subrect.Width, subrect.Height);
                 if (maxRes > 0 && maxDim > maxRes)
@@ -403,6 +423,55 @@ namespace OPS.Landform
             {
                 mesh.Save(outputMesh, image != null ? Path.GetFileName(outputImage) : null);
             }
+        }
+
+        private void CheckPlanarity()
+        {
+            var demOriginLonLat = gdalDEM.ImageToLatLon(dem.OriginPixel);
+
+            logger.InfoFormat("checking planarity around origin pixel ({0}, {1}) ({2:f3}m, {3:f3}m), " +
+                              "(lon, lat) ({4:f3}, {5:f3})",
+                              dem.OriginPixel.X, dem.OriginPixel.Y,
+                              dem.OriginPixel.X * demMetersPerPixel, dem.OriginPixel.Y * demMetersPerPixel,
+                              demOriginLonLat.X, demOriginLonLat.Y);
+
+            logger.InfoFormat("DEM body {0}, radius {1}", demBody, gdalDEM.Body.GetRadius());
+                
+            var subrect = dem.GetSubrectMeters(options.RadiusMeters);
+
+            var demMinLonLat = gdalDEM.ImageToLatLon(subrect.Min);
+            var demMaxLonLat = gdalDEM.ImageToLatLon(subrect.Max);
+
+            logger.InfoFormat("subrect min pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                              subrect.MinX, subrect.MinY, demMinLonLat.X, demMinLonLat.Y);
+            logger.InfoFormat("subrect max pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                              subrect.MaxX, subrect.MaxY, demMaxLonLat.X, demMaxLonLat.Y);
+
+            logger.InfoFormat("checking {0} pixels in {1}x{2} ({3:f3}mx{4:f3}m)subrect",
+                              Fmt.KMG(subrect.Area), subrect.Width, subrect.Height,
+                              subrect.Width * demMetersPerPixel, subrect.Height * demMetersPerPixel);
+
+            var bodyXYZAtOrigin = gdalDEM.ImageToXYZ(new Vector3(subrect.Center.X, subrect.Center.Y, 0));
+            var zenith = Vector3.Normalize(bodyXYZAtOrigin);
+
+            double distancePointToPlane(Vector3 testPoint, Vector3 ptOnPlane, Vector3 planeUnitNormal)
+            {
+                return Vector3.Dot(testPoint - ptOnPlane, planeUnitNormal);
+            }
+
+            double maxDeviation = 0;
+            for (int r = subrect.MinY; r <= subrect.MaxY; r++)
+            {
+                for (int c = subrect.MinX; c <= subrect.MaxX; c++)
+                {
+                    var bodyXYZ = gdalDEM.ImageToXYZ(new Vector3(c, r, 0));
+                    double sphericalElevationRelativeToOrigin = distancePointToPlane(bodyXYZ, bodyXYZAtOrigin, zenith);
+                    maxDeviation = Math.Max(maxDeviation, Math.Abs(sphericalElevationRelativeToOrigin));
+                }
+            }
+
+            logger.InfoFormat("max abs deviation of spherical elevation vs tangent plane about origin: {0}m",
+                              maxDeviation);
         }
     }
 }

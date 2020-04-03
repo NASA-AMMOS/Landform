@@ -485,6 +485,11 @@ namespace OPS.Imaging
 
             public int Area { get { return Width * Height; } }
 
+            public Vector2 Min { get { return new Vector2(MinX, MinY); } }
+            public Vector2 Max { get { return new Vector2(MaxX, MaxY); } }
+
+            public Vector2 Center { get { return 0.5 * (Min + Max); } }
+
             public bool Contains(Vector2 pixel, double eps = 0)
             {
                 return Contains(pixel.X, pixel.Y, eps);
@@ -515,7 +520,7 @@ namespace OPS.Imaging
                 return new Vector2(MinX * (1 - atX) + MaxX * atX, MinY * (1 - atY) + MaxY * atY);
             }
 
-            public string ToString()
+            public override string ToString()
             {
                 return string.Format("MinX={0}, MaxX={1}, MinY={2}, MaxY={3}", MinX, MaxX, MinY, MaxY);
             }
