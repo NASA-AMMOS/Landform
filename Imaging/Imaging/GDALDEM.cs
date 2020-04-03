@@ -129,6 +129,12 @@ namespace OPS.Imaging
             return new Vector3(res[0], res[1], res[2]);
         }
 
+        public Vector2 ImageToLatLon(Vector2 imgPos)
+        {
+            var tmp = ImageToLatLon(new Vector3(imgPos.X, imgPos.Y, 0));
+            return new Vector2(tmp.X, tmp.Y);
+        }
+
         /// <summary>
         /// X = longitude, Y = latitude, Z = altitude => X = col, Y = row, Z = altitude
         /// </summary>

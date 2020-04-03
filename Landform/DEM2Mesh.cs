@@ -38,6 +38,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = "auto", HelpText = "Scale DEM values to vertical meters, or \"auto\" to use mission default, or 1 if no mission")]
         public string VerticalScale { get; set; }
 
+        [Option(Required = false, Default = "auto", HelpText = "DEM body, \"mars\", \"earth\", or \"auto\" to use mission default, or mars if no mission.")]
+        public string DEMBody { get; set; }
+
         [Option(Required = false, Default = "png", HelpText = "Export format for texture (examples: jpg or png")]
         public string ImageFormat { get; set; }
 
@@ -53,11 +56,14 @@ namespace OPS.Landform
         [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "Dem values larger than this will be ignored")]
         public double DEMMaxFilter { get; set; }
 
-        [Option(Required = false, Default = "", HelpText = "Output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission, default puts origin at DEM center")]
+        [Option(Required = false, Default = "", HelpText = "Origin at and output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission")]
         public string OutputFrame { get; set; }
 
-        [Option(Required = false, Default = 200, HelpText = "Radius in meters around origin to build mesh, negative for unlimited")]
-        public float Radius { get; set; }
+        [Option(Required = false, Default = 200, HelpText = "Radius in meters around origin pixel to build mesh, negative for unlimited")]
+        public float RadiusMeters { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Origin pixel in format \"(X,Y)[m]\" or \"(LON,LAT)deg\", exclusive with --outputframe, defaults to center of DEM")]
+        public string OriginPixel { get; set; }
 
         [Option(Required = false, Default = 0, HelpText = "If greater than one then decimate the input DEM and image by this blocksize")]
         public int DecimateBlocksize { get; set; }
@@ -171,11 +177,30 @@ namespace OPS.Landform
                 elevationScale = double.Parse(options.VerticalScale);
             }
 
+            string demBody = "mars";
+            if (string.IsNullOrEmpty(options.DEMBody) || options.DEMBody.ToLower() == "auto")
+            {
+                demBody = OrbitalConfig.Instance.OrbitalBodyName;
+                if (mission == null)
+                {
+                    logger.WarnFormat("no mission, using default orbital DEM body scale: {0}", demBody);
+                }
+            }
+            else
+            {
+                demBody = options.DEMBody;
+            }
+
             if (SiteDrive.IsSiteDriveString(options.OutputFrame))
             {
                 if (mission == null)
                 {
                     throw new Exception("--mission required for output in site drive frame");
+                }
+
+                if (!string.IsNullOrEmpty(options.OriginPixel))
+                {
+                    throw new Exception("--originpixel exclussive with --outputframe");
                 }
 
                 dem = mission.LoadOrbitalDEM(new SiteDrive(options.OutputFrame), options.InputDEM,
@@ -184,11 +209,67 @@ namespace OPS.Landform
             }
             else
             {
-                Vector2? originPixel = null; //DEM constructor will compute this as center of dem
+                Vector2? originPixel = null; //DEM constructor will compute as center of DEM
+                if (!string.IsNullOrEmpty(options.OriginPixel))
+                {
+                    var op = options.OriginPixel.Trim();
+                    string sfx = "";
+                    if (op.EndsWith("deg"))
+                    {
+                        sfx = "deg";
+                    }
+                    if (op.EndsWith("m"))
+                    {
+                        sfx = "m";
+                    }
+                    op = op.Substring(0, op.Length - sfx.Length);
+                    
+                    var opc = op.TrimStart('(').TrimEnd(')').Split(',');
+                    if (opc.Length != 2)
+                    {
+                        throw new Exception("expected --originpixel=(X,Y)[m] or X,Y[m] or (LON,LAT)deg or LON,LATdeg");
+                    }
+                    var opv = new Vector2(double.Parse(opc[0].Trim()), double.Parse(opc[1].Trim()));
+
+                    if (sfx == "deg")
+                    {
+                        originPixel = GDALDEM.Load(options.InputDEM, demBody).LatLonToImage(opv);
+                    }
+                    else
+                    {
+                        double toPixels = sfx == "m" ? (1 / demMetersPerPixel) : 1;
+                        originPixel = opv * toPixels;
+                    }
+                }
+
                 double? originElevation = null; //DEM constructor will look this up given originPixel
                 dem = new DEM(new DEM.SparseDEM(options.InputDEM), demMetersPerPixel, elevationScale,
                               originPixel, originElevation, options.DEMMinFilter, options.DEMMaxFilter); 
             }
+
+            logger.InfoFormat("loaded {0}x{1} ({2:f3}x{3:f3}m at {4:f3} m/pixel) dem {5}",
+                              dem.Width, dem.Height, dem.Width * demMetersPerPixel, dem.Height * demMetersPerPixel,
+                              demMetersPerPixel, options.InputDEM);
+
+            var gdalDEM = GDALDEM.Load(options.InputDEM, demBody);
+            var demOriginLonLat = gdalDEM.ImageToLatLon(dem.OriginPixel);
+
+            logger.InfoFormat("origin pixel {0}, {1} ({2:f3}m, {3:f3}m), (lon, lat) ({4:f3}, {5:f3})",
+                              dem.OriginPixel.X, dem.OriginPixel.Y,
+                              dem.OriginPixel.X * demMetersPerPixel, dem.OriginPixel.Y * demMetersPerPixel,
+                              demOriginLonLat.X, demOriginLonLat.Y);
+                
+            var demMinLonLat = gdalDEM.ImageToLatLon(Vector2.Zero);
+            var demMaxPixel = new Vector2(gdalDEM.Width - 1, gdalDEM.Height - 1);
+            var demMaxLonLat = gdalDEM.ImageToLatLon(demMaxPixel);
+            var demCtrPixel = 0.5 * demMaxPixel;
+            var demCtrLonLat = gdalDEM.ImageToLatLon(demCtrPixel);
+            logger.InfoFormat("dem min pixel (0, 0) is (lon, lat) ({0:f3}, {1:f3})",
+                              demMinLonLat.X, demMinLonLat.Y);
+            logger.InfoFormat("dem center pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                              demCtrPixel.X, demCtrPixel.Y, demCtrLonLat.X, demCtrLonLat.Y);
+            logger.InfoFormat("dem max pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                              demMaxPixel.X, demMaxPixel.Y, demMaxLonLat.X, demMaxLonLat.Y);
 
             if (!string.IsNullOrEmpty(options.InputImage) && options.MaxTextureResolution != 0)
             {
@@ -209,6 +290,25 @@ namespace OPS.Landform
                 }
 
                 image = new DEM.SparseDEMImage(options.InputImage);
+
+                logger.InfoFormat("loaded {0}x{1} ({2:f3}x{3:f3}m at {4:f3} m/pixel) image {5}",
+                                  image.Width, image.Height,
+                                  image.Width * imageMetersPerPixel, image.Height * imageMetersPerPixel,
+                                  imageMetersPerPixel, options.InputImage);
+
+                var gdalImage = GDALDEM.Load(options.InputImage, demBody);
+                var imgMinLonLat = gdalImage.ImageToLatLon(Vector2.Zero);
+                var imgMaxPixel = new Vector2(gdalImage.Width - 1, gdalImage.Height - 1);
+                var imgMaxLonLat = gdalImage.ImageToLatLon(imgMaxPixel);
+                var imgCtrPixel = 0.5 * imgMaxPixel;
+                var imgCtrLonLat = gdalImage.ImageToLatLon(imgCtrPixel);
+                logger.InfoFormat("image min pixel (0, 0) is (lon, lat) ({0:f3}, {1:f3})",
+                                  imgMinLonLat.X, imgMinLonLat.Y);
+                logger.InfoFormat("image center pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                                  imgCtrPixel.X, imgCtrPixel.Y, imgCtrLonLat.X, imgCtrLonLat.Y);
+                logger.InfoFormat("image max pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                                  imgMaxPixel.X, imgMaxPixel.Y, imgMaxLonLat.X, imgMaxLonLat.Y);
+
                 outputImage = Path.Combine(Path.GetDirectoryName(outputMesh),
                                            Path.GetFileNameWithoutExtension(outputMesh) + "_texture" + imageExt);
             }
@@ -229,7 +329,7 @@ namespace OPS.Landform
         {
             var texture = image;
             int maxRes = options.MaxTextureResolution;
-            if (options.Radius < 0)
+            if (options.RadiusMeters < 0)
             {
                 double maxDim = Math.Max(texture.Width, texture.Height);
                 if (maxRes > 0 && maxDim > maxRes)
@@ -248,7 +348,7 @@ namespace OPS.Landform
 
                 double imageMPP = imageMetersPerPixel * (options.DecimateBlocksize > 1 ? options.DecimateBlocksize : 1);
 
-                var subrect = texture.GetSubrect(originPixel, options.Radius / imageMPP);
+                var subrect = texture.GetSubrect(originPixel, options.RadiusMeters / imageMPP);
 
                 double maxDim = Math.Max(subrect.Width, subrect.Height);
                 if (maxRes > 0 && maxDim > maxRes)
@@ -291,11 +391,11 @@ namespace OPS.Landform
         private void BuildAndSaveMesh()
         {
             logger.InfoFormat("{0} meshing DEM, radius {1}",
-                              options.MaxError == 0 ? "organized" : "adaptive", options.Radius);
+                              options.MaxError == 0 ? "organized" : "adaptive", options.RadiusMeters);
             
             var mesh = options.MaxError == 0 ?
-                dem.OrganizedMesh(options.Radius, withUV: true) :
-                dem.AdaptiveMesh(options.MaxError, options.Radius, withUV: true);
+                dem.OrganizedMesh(options.RadiusMeters, withUV: true) :
+                dem.AdaptiveMesh(options.MaxError, options.RadiusMeters, withUV: true);
             
             logger.InfoFormat("{0}saving {1} triangle mesh {2}",
                               options.NoSave ? "not " : "", Fmt.KMG(mesh.Faces.Count), outputMesh);
