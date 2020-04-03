@@ -22,21 +22,4 @@ namespace OPS.Landform
         [Option(Default = null, HelpText = "negative to use a time-dependent random seed")]
         public string RandomSeed { get; set; }
     }
-
-    public class ConfigureBase
-    {
-        private ConfigureBaseOptions cbopts;
-            
-        protected ILog logger = LogManager.GetLogger(typeof(ConfigureBase));
-
-        public ConfigureBase(ConfigureBaseOptions cbopts)
-        {
-            this.cbopts = cbopts;
-
-            if (!cbopts.Quiet)
-            {
-                CommandHelper.DumpConfig(logger);
-            }
-        }
-    }
 }

@@ -10,6 +10,58 @@ using OPS.Util;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
+/// <summary>
+/// Ingests observation RDRs and creates a Landform alignment project.
+///
+/// This is the first stage of the Landform contextual mesh workflow.
+///
+/// The input RDRs are usually found by recursive search, but can also be specified directly on the command line or in a
+/// json or text file.
+///
+/// Typically in local workflows ingest is run after fetch (FetchData.cs), which has already applied various types of
+/// filtering to narrow down the set of available RDRs.
+///
+/// In cloud workflows ingest can directly search S3 for existing RDRs, however, this functionality is no longer
+/// well-tested.
+///
+/// In either case, ingest applies further filtering with RoverObservationComparator.KeepBestRoverObservations().
+///
+/// Ingest also initializes the alignment project database and attempts to determine prior transforms for all
+/// observations.  It defines the Landform frame transform heirarchy, where each observation frame is parented to a
+/// sitedrive frame, and each sitedrive frame is parented to the project root frame.  Priors are loaded potentially from
+/// multiple sources including
+/// * PlacesDB (preferred) - also see PlacesConfig in PlacesDB.cs
+/// * MSL Locations DB from MSLICE (deprecated)
+/// * a legacy OnSite XML manifest (deprecated)
+/// * PDS headers in the observation RDRs.
+///
+/// If PlacesDB (or one of the deprecated sources) is available, the project root frame corresponds to the mission root
+/// frame, i.e. sitedrive (1, 0).
+///
+/// If PlacesDB is not available (and the other deprecated sources are not in use) then the fallback is typically to
+/// construct priors from PDS headers.  In that case we attempt to chain the priors together so that all observations
+/// are related back to the earliest sitedrive in the project.  However, this is only possible if the ingested
+/// observations contain a contiguous sequence of sites.  See FrameCache.ChainPriors() for more details.
+///
+/// If priors are loaded from multiple sources for a given frame their selection will generally be prioritized according
+/// to the order defined by the OPS.Pipeline.AlignmentServer.TransformSource enum in FrameTransform.cs.
+///
+/// There is typically one observation frame per combination of instrument and RMC.  Multiple observations may share the
+/// same frame because we consider different RDR product types (e.g. RAS, XYZ, UVW, etc) to be different "observations".
+///
+/// It is possible to re-ingest RDRs for an existing alignment project.  However, that functionality is not well tested,
+/// and doing so will generally require later stages to be run with explicit --redo flags.
+///
+/// Ingest never copies the source RDRs, but rather just creates a database of metadata about them, including (absolute)
+/// URLs to their original locations.  Thus, the source RDRs must not be deleted, modified, or moved for as long as the
+/// alignment project is to be used.  Also, because absolute file:// URLs are use in local workflows, this means that
+/// Landform alignment project databases are not generally portable across different installations.
+///
+/// Example:
+///
+/// Landform.exe ingest windjana --inputpath=out/windjana/rdrs/** --mission=MSL
+///
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("ingest", HelpText = "ingest mission data")]
@@ -42,11 +94,14 @@ namespace OPS.Landform
         [Option(HelpText = "Path to locations.xml, or omit to check input path(s)", Default = null)]
         public string LocationsXML { get; set; }
 
-        [Option(HelpText = "Path to basemap DEM, or omit to check input path(s)", Default = null)]
+        [Option(HelpText = "Path to basemap DEM to use with locations.xml, or omit to check input path(s)", Default = null)]
         public string BasemapDEM { get; set; }
 
         [Option(HelpText = "Don't load basemap DEM", Default = false)]
         public bool NoBasemapDEM { get; set; }
+
+        [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
+        public string LegacyManifestURL { get; set; }
 
         [Option(HelpText = "Recreate project if it already exists", Default = false)]
         public bool RedoProject { get; set; }
@@ -56,9 +111,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
         public bool RedoPriors { get; set; }
-
-        [Option(HelpText = "URL to legacy manifest, used to build priors from onsight manifest", Default = null)]
-        public string LegacyManifestURL { get; set; }
 
         [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
         public Mission Mission { get; set; }

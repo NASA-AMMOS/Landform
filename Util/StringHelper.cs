@@ -203,6 +203,11 @@ namespace OPS.Util
             }
         }
 
+        public static string ChangeUrlExtension(string url, string ext)
+        {
+            return StripUrlExtension(url) + "." + ext.TrimStart('.');
+        }
+
         public static string StripNonPrintable(string str)
         {
             //https://stackoverflow.com/a/40568888

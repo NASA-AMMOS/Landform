@@ -52,7 +52,10 @@ namespace OPS.Pipeline
 
         public CloudPipelineConfig()
         {
-            Venue = GetDefaultVenue();
+            if (string.IsNullOrEmpty(Venue)) //could be set by base class constructor
+            {
+                Venue = GetDefaultVenue();
+            }
         }
 
         public static string GetDefaultVenue()

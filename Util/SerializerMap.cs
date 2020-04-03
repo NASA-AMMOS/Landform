@@ -84,6 +84,10 @@ namespace OPS.Util
 
         public string CheckFormat(string fmt, LogCallback logInfo, LogCallback logError)
         {
+            if (string.IsNullOrEmpty(fmt))
+            {
+                return null;
+            }
             if (fmt.ToLower() == "help")
             {
                 logInfo("{0} formats: {1}", Kind(), string.Join(", ", SupportedFormats()));
@@ -114,6 +118,11 @@ namespace OPS.Util
             return CheckFormat(fmt,
                                (msg, args) => logger.InfoFormat(msg, args),
                                (msg, args) => logger.ErrorFormat(msg, args));
+        }
+
+        public string CheckFormat(string fmt)
+        {
+            return CheckFormat(fmt, (msg, args) => {}, (msg, args) => {});
         }
     }
 }

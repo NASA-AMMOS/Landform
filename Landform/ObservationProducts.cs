@@ -5,19 +5,55 @@ using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
-using System.Threading.Tasks;
-using System.Text.RegularExpressions;
 using CommandLine;
-using log4net;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
-using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
-using OPS.Landform;
+using OPS.Pipeline.AlignmentServer;
 
-namespace OPS.LandformUtil
+///<summary>
+/// Utility to create debug products for observation meshes and images.
+///
+/// The functionality of observation-products somewhat overlaps with convert-pds and convert-iv.  One major difference
+/// is that observation-products operates on a Landform alignment project, whereas convert-pds and convert-iv operate
+/// directly on RDR files and do not require a Landform alignment project. Thus, observation-products will show you more
+/// specifically what has been ingested as observations in an alignment project.
+///
+/// If you just want to convert a bunch of RDRs, and you have IV meshes, then convert-pds and convert-iv may be more
+/// expedient.
+///
+/// If you don't necessarily have IV meshes, observation-products will rebuild wedge meshes from XYZ/RNG/UVW point cloud
+/// RDRs.
+///
+/// observation-products can create
+/// * per-wedge texture images
+/// * per-wedge point clouds
+/// * per-wedge textured meshes
+/// * per-wedge mask, normal, tilt, curvature, elevation, or delta-range images
+/// * merged textured sitedrive meshes
+/// * statistics about the observations in an alignment project.
+///
+/// Generate per-wedge mask images, all in one directory:
+///
+/// Landform.exe observation-products windjana --nowedgemeshes --nowedgeimages --maskimages --usepriors
+///   --suppresssitedrivedirectories
+///
+/// Generate merged unaligned sitedrive meshes:
+///
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+///   --usepriors
+///
+/// Generate merged aligned sitedrive meshes:
+///
+/// Landform.exe observation-products windjana --onlymergedsitedrivemeshes --onlyforphases=meshing --meshframe 0311472
+///
+/// Just spew stats:
+///
+/// Landform.exe observation-products windjana --statsonly
+///</summary>
+namespace OPS.Landform
 {
     [Verb("observation-products", HelpText = "create observation mesh and image products")]
     public class ObservationProductsOptions : GeometryCommandOptions

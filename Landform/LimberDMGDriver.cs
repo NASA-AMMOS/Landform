@@ -1,13 +1,31 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using System.Collections.Generic;
 using CommandLine;
 using OPS.Imaging;
 using OPS.Geometry;
 
-namespace OPS.LandformUtil
+/// <summary>
+/// Utility to run LimberDMG on an image.
+///
+/// LimberDMG is an implementation of composite image stitching to reduce the visibility of seams in an image that is
+/// composed of multiple sub-images.  It is used in the Landform blend-images stage (BlendImages.cs) for the contextual
+/// mesh workflow.
+///
+/// Background:
+///
+/// https://github.jpl.nasa.gov/OnSight/Landform/wiki/Composite-Image-Stitching-aka-DMG
+/// https://github.jpl.nasa.gov/OnSight/Landform/wiki/DMG---a-brief-history
+///
+/// Example:
+///
+/// Landform.exe limber-dmg mesh_region_shrink_tex_orbital_adjust.tif mesh_region_shrink_tex_image_numbers.tif
+///   --flagsimage mesh_region_shrink_tex_orbital_adjust_limberflags.tif --legacyinvalidindices --outputformat=png
+///   --mesh mesh_region_shrink.obj
+/// </summary>
+namespace OPS.Landform
 {
     [Verb("limber-dmg", HelpText = "run Limber DMG")]
     public class LimberDMGOptions

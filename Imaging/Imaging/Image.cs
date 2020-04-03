@@ -309,6 +309,11 @@ namespace OPS.Imaging
             return result;
         }
 
+        public Image Crop(Subrect subrect)
+        {
+            return Crop(subrect.MinY, subrect.MinX, subrect.Width, subrect.Height);
+        }
+
         /// <summary>
         /// Crop this image to the smallest subframe that contains all valid pixels.
         /// Returns a new image of the cropped area.
@@ -441,6 +446,11 @@ namespace OPS.Imaging
             return this;
         }
 
+        public Image Blit(Image srcImg,  int dstCol, int dstRow, Subrect srcSubrect)
+        {
+            return Blit(srcImg, dstCol, dstRow, srcSubrect.MinX, srcSubrect.MinY, srcSubrect.Width, srcSubrect.Height);
+        }
+
         public void DilateMask(int pixels = 1)
         {
             if (this.HasMask)
@@ -469,23 +479,71 @@ namespace OPS.Imaging
         public class Subrect
         {
             public int MinX, MinY, MaxX, MaxY;
+
             public int Width { get { return MaxX - MinX + 1; } }
             public int Height { get { return MaxY - MinY + 1; } }
+
             public int Area { get { return Width * Height; } }
+
+            public Vector2 Min { get { return new Vector2(MinX, MinY); } }
+            public Vector2 Max { get { return new Vector2(MaxX, MaxY); } }
+
+            public Vector2 Center { get { return 0.5 * (Min + Max); } }
+
+            public bool Contains(Vector2 pixel, double eps = 0)
+            {
+                return Contains(pixel.X, pixel.Y, eps);
+            }
+
+            public bool Contains(double x, double y, double eps = 0)
+            {
+                return x >= (MinX - eps) && x <= (MaxX + eps) && y >= (MinY - eps) && y <= (MaxY + eps);
+            }
+
+            public bool ContainsProper(Vector2 pixel, double eps = 0)
+            {
+                return ContainsProper(pixel.X, pixel.Y, eps);
+            }
+
+            public bool ContainsProper(double x, double y, double eps = 0)
+            {
+                return x > (MinX + eps) && x < (MaxX - eps) && y > (MinY + eps) && y < (MaxY - eps);
+            }
+
+            public Vector2 Interp(Vector2 at)
+            {
+                return Interp(at.X, at.Y);
+            }
+
+            public Vector2 Interp(double atX, double atY)
+            {
+                return new Vector2(MinX * (1 - atX) + MaxX * atX, MinY * (1 - atY) + MaxY * atY);
+            }
+
+            public override string ToString()
+            {
+                return string.Format("MinX={0}, MaxX={1}, MinY={2}, MaxY={3}", MinX, MaxX, MinY, MaxY);
+            }
         }
 
+        /// <summary>
+        /// If radius is non-positive then subrect covers whole image.
+        /// </summary>
         public Subrect GetSubrect(Vector2 center, double radiusPixels)
         {
             return GetSubrect(center, new Vector2(radiusPixels, radiusPixels));
         }
 
+        /// <summary>
+        /// If either is non-positive then subrect covers whole image in that direction.
+        /// </summary>
         public Subrect GetSubrect(Vector2 center, Vector2 halfExtentPixels)
         {
             var ret = new Subrect();
 
             if (halfExtentPixels.X > 0)
             {
-                ret.MinX = (int)Math.Max(0, Math.Ceiling(center.X - halfExtentPixels.X));
+                ret.MinX = (int)Math.Max(0, Math.Floor(center.X - halfExtentPixels.X));
                 ret.MaxX = (int)Math.Min(Width - 1, Math.Ceiling(center.X + halfExtentPixels.X));
             }
             else
@@ -496,7 +554,7 @@ namespace OPS.Imaging
 
             if (halfExtentPixels.Y > 0)
             {
-                ret.MinY = (int)Math.Max(0, Math.Ceiling(center.Y - halfExtentPixels.Y));
+                ret.MinY = (int)Math.Max(0, Math.Floor(center.Y - halfExtentPixels.Y));
                 ret.MaxY = (int)Math.Min(Height - 1, Math.Ceiling(center.Y + halfExtentPixels.Y));
             }
             else

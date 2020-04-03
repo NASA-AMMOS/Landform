@@ -5,7 +5,19 @@ using CommandLine;
 using log4net;
 using OPS.Imaging;
 
-namespace OPS.LandformUtil
+/// <summary>
+/// Utility to convert PDS images to other formats.
+///
+/// Can operate on a single image or a directory containing multiple images.
+///
+/// Also see ConvertIV.  If you have a directory of pairs *RASL*.iv / *RASL*.IMG you can run convert-pds first to
+/// convert the IMG files to png, and then convert-iv will use those to texture the converted meshes.
+///
+/// Example:
+///
+///  LandformUtil.exe convert-pds out/windjana/meshes
+/// </summary>
+namespace OPS.Landform
 {
 
     [Verb("convert-pds", HelpText = "Convert PDS images to different format")]

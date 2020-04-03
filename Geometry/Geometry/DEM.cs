@@ -42,6 +42,8 @@ namespace OPS.Geometry
 
         public OrthographicCameraModel CameraModel { get; private set; }
 
+        public Vector2 OriginPixel { get { return CameraModel.Project(Vector3.Zero); } }
+
         public Vector2 MetersPerPixel { get { return CameraModel.MetersPerPixel; } }
 
         /// <summary>
@@ -70,14 +72,23 @@ namespace OPS.Geometry
         private Image dem; //may have mask
 
         /// <summary>
-        /// Sparse DEM image backed by an image file.
+        /// Sparse DEM texture image backed by an image file.
         /// File format must support partial reads, currently only GDALSerializer does.
-        /// The chunks are loaded lazily.  Call Populate() to load them all.
+        /// The chunks are loaded lazily from disk.  Call Populate() to load them all.
         /// </summary>
         public class SparseDEMImage : SparseImage
         {
             public const int CHUNK_SIZE = 512;
             public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
+            public SparseDEMImage(string path) : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE) { }
+        }
+
+        /// <summary>
+        /// Sparse DEM elevation map backed by an image file.
+        /// </summary>
+        public class SparseDEM : SparseDEMImage
+        {
+            public SparseDEM(string path) : base(path) { }
 
             protected override IImageConverter GetReadConverter()
             {
@@ -88,16 +99,12 @@ namespace OPS.Geometry
             {
                 return ImageConverters.PassThrough;
             }
-
-            public SparseDEMImage(string path)
-                : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE) //loads chunks from disk as needed
-            { }
         }
 
         public DEM(Image dem, OrthographicCameraModel cameraModel)
         {
             this.dem = dem;
-            CameraModel = cameraModel;
+            this.CameraModel = cameraModel;
         }
 
         public DEM(Image dem, double metersPerPixel = 1, double elevationScale = 1,
@@ -115,13 +122,13 @@ namespace OPS.Geometry
         ///
         /// if originPixel is omitted it defaults to the center of dem
         ///
-        /// the orientation of the orthographic camera in the enclosing frame is defined by upDir, rightDir, downDir
-        /// which should be unit vectors
+        /// the orientation of the orthographic camera in the enclosing frame is defined by elevationDir,
+        /// rightDir, downDir which should be unit vectors
         /// 
         /// the location of the orthographic camera in the enclosing frame corresponds to the center pixel of the dem
         /// at zero elevation
         /// </summary>
-        public DEM(Image dem, Vector3 upDir, Vector3 rightDir, Vector3 downDir,
+        public DEM(Image dem, Vector3 elevationDir, Vector3 rightDir, Vector3 downDir,
                    double metersPerPixel = 1, double elevationScale = 1,
                    Vector2? originPixel = null, double? originElevation = null,
                    double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
@@ -157,9 +164,9 @@ namespace OPS.Geometry
             Vector3 right = rightDir * metersPerPixel;
             Vector3 down = downDir * metersPerPixel;
 
-            Vector3 camCtr = originToCenter.X * right + originToCenter.Y * down - originElevation.Value * upDir;
+            Vector3 camCtr = originToCenter.X * right + originToCenter.Y * down - originElevation.Value * elevationDir;
             
-            CameraModel = new OrthographicCameraModel(camCtr, upDir, right, down, Width, Height);
+            this.CameraModel = new OrthographicCameraModel(camCtr, elevationDir, right, down, Width, Height);
         }
 
         public DEM Decimated(int blocksize)
@@ -404,6 +411,7 @@ namespace OPS.Geometry
         {
             var bounds = GetSubrectMeters(maxRadiusMeters, centerPoint);
             var pc = new Mesh();
+            double w = bounds.Width, h = bounds.Height;
             for (int r = bounds.MinY; r <= bounds.MaxY; r++)
             {
                 for (int c = bounds.MinX; c <= bounds.MaxX; c++)
@@ -415,7 +423,7 @@ namespace OPS.Geometry
                         v.Position = pt.Value;
                         if (withUV)
                         {
-                            v.UV = dem.PixelToUV(new Vector2(c, r));
+                            v.UV = new Vector2((c - bounds.MinX) / w, 1 - ((r - bounds.MinY) / h));
                         }
                         pc.Vertices.Add(v);
                     }
@@ -449,17 +457,8 @@ namespace OPS.Geometry
                     }
                 }
             }
-            var mesh = OrganizedPointCloud.BuildOrganizedMesh(pc, generateUV: false, generateNormals: false,
-                                                              reverseWinding: reverseWinding);
-            if (withUV)
-            {
-                foreach (var v in mesh.Vertices)
-                {
-                    v.UV = dem.PixelToUV(dem.CameraModel.Project(v.Position));
-                }
-                mesh.HasUVs = true;
-            }
-            return mesh;
+            return OrganizedPointCloud.BuildOrganizedMesh(pc, generateUV: withUV, generateNormals: false,
+                                                          reverseWinding: reverseWinding);
         }
 
         public Mesh AdaptiveMesh(double maxError, double maxRadiusMeters = -1, Vector3? centerPoint = null,
@@ -484,6 +483,7 @@ namespace OPS.Geometry
             var pixels = FindCorners(b.MinX, b.MinY, b.Width, b.Height);
             pixels.AddRange(Split(pixels, b.MinX, b.MinY, b.Width, b.Height, maxError * maxError, mask, rand));
 
+            double w = b.Width, h = b.Height;
             var verts = new List<Vertex>();
             foreach (var px in pixels)
             {
@@ -493,7 +493,7 @@ namespace OPS.Geometry
                     var vert = new Vertex(pt);
                     if (withUV)
                     {
-                        vert.UV = dem.PixelToUV(px);
+                        vert.UV = new Vector2((px.X - b.MinX) / w, 1 - ((px.Y - b.MinY) / h));
                     }
                     verts.Add(vert);
                 }

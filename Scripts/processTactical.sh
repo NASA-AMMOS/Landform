@@ -1,8 +1,82 @@
 #!/bin/bash
 
-home=c:/Users/$USERNAME
-storage=$home/Documents/landform-storage
-config=$home/.landform/landform-local.json
+# Developer script to process tactical mesh tilesets.
+#
+# Automates the tactical mesh tileset workflow:
+#
+# 1. build-tiling-input
+# 2. build-tileset
+# 3. update-scene-manifest (manifest just for the tactial mesh tileset with relative URLs)
+#
+# Also see Landform/ProcessTactical.cs, which is intended for production.  This script intended for use by developers
+# only, and has additional options for development and debugging workflows.
+#
+# The --help option shows the available command line arguments.  The --dryrun option can be added to any command line
+# and will show the commands that will be run without running them.
+#
+# The required positional arguments are IN_DIR and MISSION.  A third positional argument OUT_DIR is optional and
+# defaults to . (current directory).  Remaining arguments must be in the form --flag or --name value. Unknown arguments
+# are ignored.
+#
+# Currently only M2020 and derived missions are supported due to a hack that works around
+# https://github.jpl.nasa.gov/OnSight/Landform/issues/951.
+#
+# Mesh RDRs in the format indicated by --meshext (default iv) are searched for recursively under IN_DIR.  For each
+# one, a corresponding image is searched in the format indicated by --imgext (default IMG).  If both the mesh and the
+# image are found, a tactical tileset is created in OUT_DIR.
+#
+# The tileset name is the basename of the mesh file, PRODUCT_ID, with an optional suffix if specified with the
+# --suffix option.  Suffixes are useful for segregating the output of multiple runs with different custom options.
+# Custom options can include --nolods, which disables use of precomputed LODs (build-tiling-input option --loadlods).
+# Additional custom options can also be specified for each stage with the --STAGEargs options.
+#
+# Each tileset will contain
+# * one .b3dm per tile
+# * one image per tile, if --exportimgext is specified
+# * one mesh per tile, if --exportmeshext is specified
+# * a tilest file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_tileset.json
+# * a manifest file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_scene.json with relative URLs
+# * a stats file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_stats.txt
+# * a combined log file PRODUCT_ID[_SUFFIX]/tactical_PRODUCT_ID[_SUFFIX]_log.txt.
+# 
+# The combined log file, stats file, and per-tile exported meshes and images should be useful for analysis.  The
+# full script command line will be at the beginning of the log file and the total runtime will be at the end.  The
+# --verbose and --debug options can be used to get more spew.
+#
+# The script will create a clean config, storage area, and temp dir for each tileset.  These will be in subdirectories
+# of the working directory, and will be deleted when the tileset is complete.  Thus it is acceptable to run multiple
+# script invocations simultaneously as long as they are not processing the same data in the same directories.
+#
+# If you want to inspect the landform storage areas then add the --nocleanup option.  You can later delete them by
+# running the same command line with the --onlycleanup option instead.
+#
+# The script can optionally (not by default) upload the tilesets using aws s3 sync.
+#
+# EXAMPLE: (cut and paste in git bash)
+#
+# mission=ROASTT20
+# sols=0393
+# sds=0180000
+# ver=g64
+# run=roastt20-393-g
+# bucket=roastt-dev-0205
+# fetchargs="--onlyforcameras=Navcam --excludepattern=*393112341*,*393112436*"
+#
+# winpty ./Utils/credss.exe --venue dev -s credss-default
+#
+# ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs s3://$bucket/ods/$ver/sol/#####/ids/rdr \
+#     --mission $mission --summary $fetchargs
+#
+# ./Scripts/processTactical.sh out/$run/rdrs $mission out/$run/tilesets --exportmeshext ply --exportimgext png
+
+# exit script on ctrl-c
+ctrlc() { exit 1; }
+trap "ctrlc" INT
+
+storagedir=`pwd`/storage
+logdir=`pwd`/log
+tmpdir=`pwd`/tmp
+cfgdir=`pwd`/cfg
 
 # https://stackoverflow.com/a/246128
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -15,20 +89,43 @@ if [ ! -f "$landform" ]; then
     exit 1
 fi
 
-help="USAGE: processTactical.sh DIR MISSION [--meshext iv] [--imgext IMG] [--nomanifest] [--nolods] [--suffix foo] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]"
+#                                                                         80char|
+help="\
+USAGE: processTactical.sh IN_DIR MISSION [OUT_DIR]
+[--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
+[--debug] [--verbose] [--singlethreaded]
+[--nolods] [--meshext iv] [--imgext IMG]
+[--exportmeshext ply] [--exportimgext png]
+[--configargs \"--arg val\"]
+[--tilingargs \"--arg val\"] [--tilesetargs \"--arg val\"]
+[--manifestargs \"--arg val\"] [--nomanifest]
+[--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]
+[--syncargs \"--arg val\"]"
 
 if [ $# -lt 2 ]; then
-    echo $help
+    echo "$help"
     exit 1
 fi
 
 cmdline="$0 $@"
 
-dir=$1
+indir=$1
 shift
 
 mission=$1
 shift
+
+if [[ $mission == "MSL" ]]; then
+    echo "currently only M2020 missions are supported"
+    echo "TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951"
+    exit 1
+fi
+
+outdir=.
+if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
+    outdir=$1
+    shift
+fi
 
 meshext=iv
 imgext=IMG
@@ -40,104 +137,67 @@ generate=true
 cleanup=true
 only_cleanup=
 upload=
+only_upload=
 s3rdrdir=
 suffix=
 export=
 
+cfgargs=
+tilingargs=
+tilesetargs=
+manifestargs=
+syncargs=
+
 # this only works for subcommands that use PipelineCoreOptions (so not configure-local)
-dbg=""
+dbg="--stacktraces"
+
+expect() { if [ $1 -lt 1 ]; then echo "missing $2"; exit 1; fi }
 
 while (( "$#" )); do
     case $1 in
-        "--help") echo $help; exit 0;;
         "--dryrun") dry="echo ";;
+        "--help") echo "$help"; exit 0;;
         "--nocleanup") cleanup=;;
         "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
-        "--onlyupload") cleanup=; only_cleanup=; generate=;;
+        "--onlyupload") upload=true; only_upload=true; cleanup=; only_cleanup=; generate=;;
         "--quiet") dbg="${dbg} --quiet";;
         "--debug") dbg="${dbg} --debug";;
         "--verbose") dbg="${dbg} --verbose";;
-        "--stacktraces") dbg="${dbg} --stacktraces";;
         "--singlethreaded") dbg="${dbg} --singlethreaded";;
-        "--upload")
-            upload=true
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing upload URL"
-                exit 1
-            fi
-            s3rdrdir=$1
-            ;;
-        "--suffix")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing suffix"
-                exit 1
-            fi
-            suffix="_$1"
-            ;;
-        "--exportmeshext")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing extension"
-                exit 1
-            fi
-            export="$export --exportmeshformat $1"
-            ;;
-        "--exportimgext")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing extension"
-                exit 1
-            fi
-            export="$export --exportimageformat $1"
-            ;;
-        "--meshext")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing extension"
-                exit 1
-            fi
-            meshext=$1
-            ;;
-        "--imgext")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing extension"
-                exit 1
-            fi
-            imgext=$1
-            ;;
+        "--upload") shift; expect $# "upload URL"; upload=true; s3rdrdir=$1;;
+        "--suffix") shift; expect $# "suffix"; suffix="_$1";;
+        "--exportmeshext") shift; expect $# "export mesh extension"; export="$export --exportmeshformat $1";;
+        "--exportimgext") shift; expect $# "export imge extension"; export="$export --exportimageformat $1";;
+        "--meshext") shift; expect $# "mesh extension"; meshext=$1;;
+        "--imgext") shift; expect $# "image extension"; imgext=$1;;
         "--nomanifest") manifest=;;
         "--nolods") lods=;;
+        "--configargs") shift; expect $# "config args"; cfgargs="$1";;
+        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
+        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$1";;
+        "--manifestargs") shift; expect $# "manifest args"; manifestargs="$1";;
+        "--syncargs") shift; expect $# "sync args"; syncargs="$1";;
     esac
     shift
 done
 
-backup_config() { if [ -f $config ]; then ${dry}cp $config $config.BAK; fi }
+echo "processing ${mission} ${meshext}/${imgext} tactical meshes from $indir to $outdir"
 
-restore_config() { if [ -f $config.BAK ]; then ${dry}mv $config.BAK $config; fi }
-
-echo "processing ${mission} ${meshext}/${imgext} tactical meshes from ${dir}"
-
-backup_config
-
-# exit script on ctrl-c
-ctrlc() {
-    restore_config
-    exit 1
-}
-trap "ctrlc" INT
-
-for f in `find ${dir} -name '*'.${meshext}`; do
+for f in `find ${indir} -name '*'.${meshext}`; do
 
     bn=${f%.${meshext}}
     mesh=$bn.${meshext}
     img=$bn.${imgext}
     proj=${bn##*/}${suffix}
-    venue=local_${mission}_${proj}
-    tileset_dir=$storage/$venue/tiling/TileSet/passthroughFrame/best/$proj
-    log=processTactical_${proj}_log.txt
+    venue=tactical_${mission}_${proj}
+    tilesetdir=$storagedir/$venue/tiling/TileSet/passthroughFrame/best/$proj
+    log=$logdir/tactical_${proj}_log.txt
+    outproj=$outdir/$proj
+    cfgfolder=$venue
+
+    stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
+    cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+    stdopts="$stdopts $dbg"
 
     # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
     # apparently it is possible that foo.iv might refer to bar.rgb as its texture
@@ -164,39 +224,42 @@ for f in `find ${dir} -name '*'.${meshext}`; do
 
     if [ -f $mesh -a -f $img ]; then
 
-        if [ "$dry" ]; then log=; else printf "${cmdline}\r\n" > $log; fi
+        if [ "$dry" ]; then log=; else mkdir -p $logdir; printf "${cmdline}\r\n" > $log; fi
 
-        if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
+        printf "processing tactical tileset for ${mesh}, ${img}\r\n" | tee -a $log
+
+        if [ "$cleanup" ]; then ${dry}rm -rf $storagedir/$venue; fi
 
         if [ "$generate" ]; then
-            ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-            ${dry}$landform build-tiling-input $proj $dbg $lods --mission $mission --inputmesh $mesh --inputtexture $img | tee -a $log
-            ${dry}$landform build-tileset $proj $dbg $export | tee -a $log
+            ${dry}$landform configure-local $cfgopts $cfgargs
+            ${dry}$landform build-tiling-input $proj $stdopts $lods --mission $mission --inputmesh $mesh \
+                  --inputtexture $img $tilingargs | tee -a $log
+            ${dry}$landform build-tileset $proj $stdopts $export $tilesetargs | tee -a $log
 
-            ${dry}rm -rf $proj
-            ${dry}cp -R $tileset_dir .
-            ${dry}mv $proj/tileset.json $proj/${proj}_tileset.json
-            if [ -f $proj/stats.txt ]; then ${dry}mv $proj/stats.txt $proj/${proj}_stats.txt; fi
+            ${dry}rm -rf $outproj
+            ${dry}cp -R $tilesetdir $outdir
+            ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
+            if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
 
             if [ "$manifest" ]; then
-                ${dry}$landform update-scene-manifest $dbg --mission $mission --manifestfile $proj/${proj}_scene.json --nocontextual --nourls --tacticalpdsfile $img | tee -a $log
+                ${dry}$landform update-scene-manifest $stdopts --mission $mission --nocontextual --nourls \
+                      --manifestfile $outproj/${proj}_scene.json --tacticalpdsfile $img $manifestargs | tee -a $log
             fi
         fi
         
-        if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
+        if [ "$cleanup" ]; then ${dry}rm -rf $storagedir/$venue; fi
 
         if [ "$upload" ]; then
-            ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj --acl bucket-owner-full-control 
+            ${dry}aws --profile=credss-default s3 sync $outproj $s3rdrdir/tileset/$proj \
+                  --acl bucket-owner-full-control  $syncargs | tee -a $log
         fi
 
-        if [ ! "$dry" ]; then
+        if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" ]; then
             printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
-            if [ -d $proj ]; then
-                printf "moved output to ./${proj}\r\n" | tee -a $log
-                mv $log $proj
+            if [ -d $outproj ]; then
+                printf "moved output to ${outproj}\r\n" | tee -a $log
+                mv $log $outproj
             fi
         fi
     fi
 done
-
-restore_config
