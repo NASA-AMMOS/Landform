@@ -119,13 +119,14 @@ namespace OPS.Pipeline
         // SRC: col, row
         static public IDictionary<Pixel,Vector2> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, GDALTransform bodyToImage, List<PixelPoint> pixelsToBackproject)
         {
+            //BUGBUG: the correcting for adjustment is only needed on verts that came from the dem!
             Dictionary<Pixel, Vector2> orbPixelsByTexel = new Dictionary<Pixel, Vector2>();
             foreach(var destPixelPt in pixelsToBackproject)
             {
                 var ptOutputMeshFrame = destPixelPt.Point;
                 var ptBodyXYZ = Vector3.Transform(ptOutputMeshFrame, outputMeshFrameToBodyXYZ);
-                var latlon = bodyToImage.XYZToLatLon(ptBodyXYZ); //TODO: can collapse these calls
-                var pixel = bodyToImage.LatLonToImage(latlon); //returns col, row
+                var lonlat = bodyToImage.XYZToLatLon(ptBodyXYZ); //TODO: can collapse these calls
+                var pixel = bodyToImage.LatLonToImage(lonlat); //returns col, row
                 orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new Vector2(pixel.X, pixel.Y); //BUGBUG: if the subpixel dst is not centers, its wrong //TODO: detect and handle collisions here and in normal backproj
             }
 
@@ -338,7 +339,6 @@ namespace OPS.Pipeline
                 warn("no image observations found");
                 missingPixels = samplePoints;
                 return new Dictionary<Pixel, ObsPixel>();
-
             }
 
             //generate frustum hulls
@@ -370,6 +370,14 @@ namespace OPS.Pipeline
 
             info(string.Format("{0}/{1} image observations intersect mesh",
                                intersectingObservations.Count, imageObservations.Count));
+
+            if (intersectingObservations.Count() == 0)
+            {
+                warn("no intersecting observations found");
+                missingPixels = samplePoints;
+                return new Dictionary<Pixel, ObsPixel>();
+            }
+
             List<Context> intersectingContexts = BuildContexts(obsToHull, intersectingObservations,
                                                                             opts.mission, opts.frameCache, opts.observationCache,
                                                                             opts.meshFrame, opts.usePriors, opts.onlyAligned,
@@ -392,14 +400,22 @@ namespace OPS.Pipeline
             info("getting per pixel sortings of contexts");
             Dictionary<int, List<Context>> sortedContextBySample = new Dictionary<int, List<Context>>(samplePoints.Count);
             int maxCandidateDepth = 0;
+            var remainingIndices = Enumerable.Range(0, samplePoints.Count());
+            missingPixels = new List<PixelPoint>();
             for (int idx = 0; idx < samplePoints.Count; idx++)
             {               
                 //find the strategy specific ranking of contexts for this pixel
                 List<Context> sortedContexts = new List<Context>(intersectingContexts.Count());
                 opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts, sortedContexts, null);
-                sortedContextBySample.Add(idx, sortedContexts);
 
                 int numSortedContexts = sortedContexts.Count();
+                if(numSortedContexts == 0)
+                {
+                    missingPixels.Add(samplePoints[idx]);
+                }
+
+                sortedContextBySample.Add(idx, sortedContexts);
+
                 if (numSortedContexts > maxCandidateDepth)
                 {
                     maxCandidateDepth = numSortedContexts;
@@ -411,20 +427,14 @@ namespace OPS.Pipeline
             Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
 
             int candidateDepth = 0;
-            var remainingIndices = Enumerable.Range(0, samplePoints.Count());
-            missingPixels = new List<PixelPoint>();
-
             while (remainingIndices.Any() && candidateDepth < maxCandidateDepth)
             {
-                // save all pixels that failed all candidate contexts
-                missingPixels.AddRange(remainingIndices.Where(idx => sortedContextBySample[idx].Count() <= candidateDepth).Select(i => samplePoints[i]).ToList());
-
                 // remove pixels who had all candidate contexts fail
                 remainingIndices = remainingIndices.Where(idx => sortedContextBySample[idx].Count() > candidateDepth);
 
                 //group all remaining points by their current best candidate
                 var remainingByCurrentWinningObs = remainingIndices.GroupBy(idx => sortedContextBySample[idx].ElementAt(candidateDepth).Obs.Index);
-                
+
                 foreach (var group in remainingByCurrentWinningObs)
                 {
                     //get the list of points with this texture as the winner
@@ -437,20 +447,21 @@ namespace OPS.Pipeline
                     Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
                     var succeeded = Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask, pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height, opts.sceneOcclusion);
 
-                    //save winners
-                    foreach (var res in succeeded)
+                    if (succeeded.Any())
                     {
-                        results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
+                        //save winners
+                        foreach (var res in succeeded)
+                        {
+                            results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
+                        }
+
+                        //remove winners from list to do
+                        remainingIndices = remainingIndices.Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel));
                     }
-
-                    //remove winners from list to do
-                    remainingIndices = remainingIndices.Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel));
                 }
 
-                if (remainingIndices.Any())
-                {
-                    maxCandidateDepth = remainingIndices.Select(idx => sortedContextBySample[idx].Count()).Max();
-                }
+                // save all pixels that failed all candidate contexts
+                missingPixels.AddRange(remainingIndices.Where(idx => sortedContextBySample[idx].Count() <= candidateDepth + 1).Select(i => samplePoints[i]).ToList());
                 candidateDepth++;
             }
 
