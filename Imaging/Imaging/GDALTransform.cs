@@ -73,7 +73,7 @@ namespace OPS.Imaging
                 projectedToLatLon = new CoordinateTransformation(projectedFrame, bodyFrame);
 
                 Width = Dataset.RasterXSize;
-                Height = Dataset.RasterXSize;
+                Height = Dataset.RasterYSize;
             }
         }
 
@@ -111,7 +111,8 @@ namespace OPS.Imaging
 
         /// <summary>
         /// X = longitude, Y = latitude
-        /// </summary>
+        /// XYZ is a sphere in a left-handed axis convention with x to north pole; y though lon 90, lat 0 (equator); z through 0 lon, 0 lat (equator);
+        /// /// </summary>
         public Vector2 LatLonToXYZ(Vector2 latlon, double lat0 = 0, double lon0 = 0)
         {
             double r = Body.GetRadius();
@@ -122,6 +123,7 @@ namespace OPS.Imaging
         }
         /// <summary>
         /// X = longitude, Y = latitude, Z = elevation relative to sphere
+        /// XYZ is sphere in a left-handed axis convention  with x to north pole; y though lon 90, lat 0 (equator); z through 0 lon, 0 lat (equator);
         /// </summary>
         public Vector3 LatLonToXYZ(Vector3 lonlat, double lat0 = 0, double lon0 = 0)
         {
@@ -133,9 +135,9 @@ namespace OPS.Imaging
             );
         }
 
-        //xyz: position on sphere not mission frame
         /// <summary>
-        /// X = longitude, Y = latitude
+        /// XYZ is sphere in a left-handed axis convention with x to north pole; y though lon 90, lat 0 (equator); z through 0 lon, 0 lat (equator);
+        /// return X = longitude, Y = latitude
         /// </summary>
         public Vector3 XYZToLatLon(Vector3 worldPos, double lat0 = 0, double lon0 = 0)
         {
@@ -145,13 +147,17 @@ namespace OPS.Imaging
             return new Vector3(lon * 180 / Math.PI + lon0, lat * 180 / Math.PI + lat0, r - Body.GetRadius());
         }
 
-        //xyz: position on sphere
+        /// <summary>
+        /// XYZ is sphere in a left-handed axis convention with x to north pole; y though lon 90, lat 0 (equator); z through 0 lon, 0 lat (equator);
+        /// </summary>
         public Vector3 XYZToImage(Vector3 worldPos, double lat0 = 0, double lon0 = 0)
         {
             return LatLonToImage(XYZToLatLon(worldPos, lat0: lat0, lon0: lon0));
         }
 
-        //xyz: position on sphere
+        /// <summary>
+        /// XYZ is sphere in a left-handed axis convention with x to north pole; y though lon 90, lat 0 (equator); z through 0 lon, 0 lat (equator);
+        /// </summary>
         public Vector3 ImageToXYZ(Vector3 imagePos, double lat0 = 0, double lon0 = 0)
         {
             return LatLonToXYZ(ImageToLatLon(imagePos), lat0: lat0, lon0: lon0);
