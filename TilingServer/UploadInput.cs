@@ -22,9 +22,6 @@ namespace OPS.TilingServer
         [Value(2, Required = false, HelpText = "Texture input file")]
         public string ImageFilepath { get; set; }
 
-        [Value(3, Required = false, HelpText = "Index image input file")]
-        public string IndexFilepath { get; set; }
-
         [Option(Default = null, HelpText = "Leaf tile ID if this input dataset represents a pretiled input.  This is only valid for projects using a user defined tiling scheme")]
         public string TileId { get; set; }
 
