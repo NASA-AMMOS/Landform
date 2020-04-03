@@ -799,7 +799,7 @@ namespace OPS.Landform
                 {
                     for (int c = 0; c < w; c++)
                     {
-                        Vector2 px = outerBounds.Interp(((double)c) / (w - 1), ((double)r) / (h - 1));
+                        Vector2 px = outerBounds.Linterp(((double)c) / (w - 1), ((double)r) / (h - 1));
                         bool mask = true;
                         if (innerBounds == null || !innerBounds.ContainsProper(px, eps))
                         {

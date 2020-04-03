@@ -46,12 +46,9 @@ namespace OPS.Geometry
 
         public Vector2 MetersPerPixel { get { return CameraModel.MetersPerPixel; } }
 
-        /// <summary>
-        /// Technically this class should work for DEMs with non-square pixels.
-        /// If you really have such a beast
-        /// (a) tell me because I wanna see it
-        /// (b) use MetersPerPixel instead of AvgMetersPerPixel
-        /// </summary>
+        //ratio of pixel with to height
+        public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
+
         public double AvgMetersPerPixel
         {
             get
@@ -107,11 +104,11 @@ namespace OPS.Geometry
             this.CameraModel = cameraModel;
         }
 
-        public DEM(Image dem, double metersPerPixel = 1, double elevationScale = 1,
+        public DEM(Image dem, double metersPerPixel = 1, double pixelAspect = 1, double elevationScale = 1,
                    Vector2? originPixel = null, double? originElevation = null,
                    double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
             : this(dem, DEF_UP_DIR, DEF_RIGHT_DIR, DEF_DOWN_DIR,
-                   metersPerPixel, elevationScale, originPixel, originElevation, minFilter, maxFilter)
+                   metersPerPixel, pixelAspect, elevationScale, originPixel, originElevation, minFilter, maxFilter)
         { }
 
         /// <summary>
@@ -129,7 +126,7 @@ namespace OPS.Geometry
         /// at zero elevation
         /// </summary>
         public DEM(Image dem, Vector3 elevationDir, Vector3 rightDir, Vector3 downDir,
-                   double metersPerPixel = 1, double elevationScale = 1,
+                   double metersPerPixel = 1, double pixelAspect = 1, double elevationScale = 1,
                    Vector2? originPixel = null, double? originElevation = null,
                    double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
         {
@@ -161,7 +158,7 @@ namespace OPS.Geometry
 
             Vector2 originToCenter = centerPixel - originPixel.Value;
 
-            Vector3 right = rightDir * metersPerPixel;
+            Vector3 right = rightDir * metersPerPixel * pixelAspect;
             Vector3 down = downDir * metersPerPixel;
 
             Vector3 camCtr = originToCenter.X * right + originToCenter.Y * down - originElevation.Value * elevationDir;

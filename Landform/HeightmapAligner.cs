@@ -284,13 +284,14 @@ namespace OPS.Landform
             var downDir = new Vector3(0, 1, 0);
 
             double elevationScale = 1; //sitedrive DEM elevations are always in meters
+            double pixelAspect = 1; //sitedrive DEMs are always square pixels
             double originElevation = 0; //sitredrive DEM elevations are always relative to sitedrive origin
 
             foreach (var siteDrive in dems.Keys)
             {
                 var img = dems[siteDrive];
                 sdDEMs[siteDrive] = new DEM(dems[siteDrive], upDir, rightDir, downDir,
-                                            BEVMetersPerPixel, elevationScale,
+                                            BEVMetersPerPixel, pixelAspect, elevationScale,
                                             sdOriginPixel[siteDrive], originElevation,
                                             options.DEMMinFilter, options.DEMMaxFilter);
             }

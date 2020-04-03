@@ -876,8 +876,10 @@ namespace OPS.Pipeline
 
             double? originElevation = null; //DEM constructor will look this up given originPixel
 
+            double pixelAspect = gdalDEM.CheckBasisAndGetAspect(originPixel, logger, throwOnError: true);
+
             return new DEM(new DEM.SparseDEM(demFile), elevationDir, rightDir, downDir,
-                           metersPerPixel.Value, elevationScale.Value,
+                           metersPerPixel.Value, pixelAspect, elevationScale.Value,
                            originPixel, originElevation, minFilter, maxFilter);
         }
 

@@ -55,7 +55,7 @@ namespace OPS.Imaging
         /// The length of the down vector defines the vertical scale of the camera (i.e. the height of a pixel)
         /// The length of the forward vector defines the range scale of the camera.
         /// </summary>
-        /// <param name="center">3D point corresponding pixel location (c, r) = (width, height) * 0.5</param>
+        /// <param name="center">3D point corresponding pixel location (c, r) = (width - 1, height - 1) * 0.5</param>
         /// <param name="forward">3D vector pointing outward from the camera</param>
         /// <param name="right">3D vector pointing rightwards in the image plane</param>
         /// <param name="down">3D vector pointing downwards in the image plane</param>
@@ -90,7 +90,7 @@ namespace OPS.Imaging
         private void Init()
         {
             normal = Vector3.Normalize(Vector3.Cross(Right, Down)); //yes this is a right handed cross product
-            CenterPixel = new Vector2(Width, Height) * 0.5;
+            CenterPixel = new Vector2(Width - 1, Height - 1) * 0.5;
             ff = Vector3.Dot(Forward, Forward);
             rr = Vector3.Dot(Right, Right);
             dd = Vector3.Dot(Down, Down);

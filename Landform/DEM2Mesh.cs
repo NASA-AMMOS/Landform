@@ -200,7 +200,7 @@ namespace OPS.Landform
                 demBody = OrbitalConfig.Instance.OrbitalBodyName;
                 if (mission == null)
                 {
-                    logger.WarnFormat("no mission, using default orbital DEM body scale: {0}", demBody);
+                    logger.WarnFormat("no mission, using default orbital DEM body: {0}", demBody);
                 }
             }
             else
@@ -231,7 +231,7 @@ namespace OPS.Landform
             }
             else
             {
-                Vector2? originPixel = null; //DEM constructor will compute as center of DEM
+                Vector2 originPixel = new Vector2(gdalDEM.Width, gdalDEM.Height) * 0.5;
                 if (!string.IsNullOrEmpty(options.OriginPixel))
                 {
                     var op = options.OriginPixel.Trim();
@@ -265,7 +265,8 @@ namespace OPS.Landform
                 }
 
                 double? originElevation = null; //DEM constructor will look this up given originPixel
-                dem = new DEM(new DEM.SparseDEM(options.InputDEM), demMetersPerPixel, elevationScale,
+                double pixelAspect = gdalDEM.CheckBasisAndGetAspect(originPixel, new ThunkLogger(logger));
+                dem = new DEM(new DEM.SparseDEM(options.InputDEM), demMetersPerPixel, pixelAspect, elevationScale,
                               originPixel, originElevation, options.DEMMinFilter, options.DEMMaxFilter); 
             }
 
@@ -455,27 +456,77 @@ namespace OPS.Landform
                               Fmt.KMG(subrect.Area), subrect.Width, subrect.Height,
                               subrect.Width * demMetersPerPixel, subrect.Height * demMetersPerPixel);
 
-            var bodyXYZAtOrigin = gdalDEM.ImageToXYZ(new Vector3(subrect.Center.X, subrect.Center.Y, 0));
-            var zenith = Vector3.Normalize(bodyXYZAtOrigin);
-
-            double distancePointToPlane(Vector3 testPoint, Vector3 ptOnPlane, Vector3 planeUnitNormal)
+            double distancePointToPlane(Vector3 point, Vector3 ptOnPlane, Vector3 planeUnitNormal)
             {
-                return Vector3.Dot(testPoint - ptOnPlane, planeUnitNormal);
+                return Vector3.Dot(point - ptOnPlane, planeUnitNormal);
             }
 
-            double maxDeviation = 0;
+            Vector3 projectPointOntoPlane(Vector3 point, Vector3 pointOnPlane, Vector3 planeUnitNormal)
+            {
+                var rel = point - pointOnPlane;
+
+                var relPerpendicular = planeUnitNormal * Vector3.Dot(rel, planeUnitNormal);
+
+                //rel = relInPlane + relPerpendicular -> relInPlane = rel - relPerpendicular
+                var relInPlane = rel - relPerpendicular;
+
+                return pointOnPlane + relInPlane;
+            }
+
+            gdalDEM.DumpGDALTransform(new ThunkLogger(logger));
+
+            var originPixel = subrect.Center;
+
+            gdalDEM.GetLocalBasisInBodyFrame(originPixel,
+                                             out Vector3 gdalElevation, out Vector3 gdalRight, out Vector3 gdalDown);
+
+            double gdalPixelAspect = gdalDEM.CheckBasisAndGetAspect(originPixel, new ThunkLogger(logger));
+
+            var gdalOriginXYZ = gdalDEM.ImageToXYZ(originPixel);
+
+            var zenith = Vector3.Normalize(gdalOriginXYZ); //gravity-aligned vector pointing away from center of body
+
+            var orthographicCamera =
+                new OrthographicCameraModel(gdalOriginXYZ, //center
+                                            Vector3.Normalize(gdalElevation) * elevationScale,
+                                            Vector3.Normalize(gdalRight) * demMetersPerPixel * gdalPixelAspect,
+                                            Vector3.Normalize(gdalDown) * demMetersPerPixel,
+                                            subrect.Width, subrect.Height);
+
+            double maxElevationDeviation = 0;
+            double maxDeviationFromOrtho = 0;
+            double maxInPlaneDeviationFromOrtho = 0;
+
             for (int r = subrect.MinY; r <= subrect.MaxY; r++)
             {
                 for (int c = subrect.MinX; c <= subrect.MaxX; c++)
                 {
-                    var bodyXYZ = gdalDEM.ImageToXYZ(new Vector3(c, r, 0));
-                    double sphericalElevationRelativeToOrigin = distancePointToPlane(bodyXYZ, bodyXYZAtOrigin, zenith);
-                    maxDeviation = Math.Max(maxDeviation, Math.Abs(sphericalElevationRelativeToOrigin));
+                    var pixelInDEM = new Vector3(c, r, 0);
+
+                    var gdalXYZ = gdalDEM.ImageToXYZ(pixelInDEM);
+
+                    double relSphericalElevation = distancePointToPlane(gdalXYZ, gdalOriginXYZ, zenith);
+                    maxElevationDeviation = Math.Max(maxElevationDeviation, Math.Abs(relSphericalElevation));
+
+                    var pixelInOrthoCamera = new Vector2(c - subrect.MinX, r - subrect.MinY);
+
+                    var orthoXYZ = orthographicCamera.Unproject(pixelInOrthoCamera, 0);
+
+                    double deviationFromOrtho = Vector3.Distance(orthoXYZ, gdalXYZ);
+                    maxDeviationFromOrtho = Math.Max(maxDeviationFromOrtho, deviationFromOrtho);
+
+                    var gdalXYZProjected = projectPointOntoPlane(gdalXYZ, gdalOriginXYZ, zenith);
+
+                    double inPlaneDeviationFromOrtho = Vector3.Distance(orthoXYZ, gdalXYZProjected);
+                    maxInPlaneDeviationFromOrtho = Math.Max(maxInPlaneDeviationFromOrtho, inPlaneDeviationFromOrtho);
                 }
             }
 
             logger.InfoFormat("max abs deviation of spherical elevation vs tangent plane about origin: {0}m",
-                              maxDeviation);
+                              maxElevationDeviation);
+
+            logger.InfoFormat("max deviation orthographic vs gdal: {0}m", maxDeviationFromOrtho);
+            logger.InfoFormat("max in-plane deviation orthographic vs gdal: {0}m", maxInPlaneDeviationFromOrtho);
         }
     }
 }

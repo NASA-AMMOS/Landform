@@ -115,12 +115,13 @@ namespace OPS.Imaging
             Width = gdalDataset.RasterXSize;
             Height = gdalDataset.RasterYSize;
 
-            //GDAL datasets have two ways of describing the relationship between raster positions (in pixel/line coordinates) 
-            // and georeferenced coordinates. The first, and most commonly used is the affine transform (the other is GCPs).
+            //GDAL datasets have two ways of describing the relationship between
+            //raster positions (in pixel/line coordinates) and georeferenced coordinates.
+            //The first, and most commonly used is the affine transform (the other is GCPs).
             //https://gdal.org/user/raster_data_model.html
-            // Note: we use affine below
+            //Note: we use affine below
 
-            //Fetches the coefficients for transforming between pixel / line(P, L) raster space, 
+            //Fetches the coefficients for transforming between pixel/line (C, R) raster space, 
             //and projection coordinates(Xp, Yp) space
             //The default transform is (0, 1, 0, 0, 0, 1) and should be returned even when a CE_Failure error 
             //is returned, such as for formats that don’t support transformation to projection coordinates.
@@ -132,8 +133,8 @@ namespace OPS.Imaging
             //Xp = raw[0] + C*raw[1] + R*raw[2];
             //Yp = raw[3] + C*raw[4] + R*raw[5];
 
-            // In the particular, but common, case of a “north up” image without any rotation or shearing, 
-            // the georeferencing transform takes the following form :
+            //In the particular, but common, case of a “north up” image without any rotation or shearing, 
+            //the georeferencing transform takes the following form :
             //raw[0] /* top left x */
             //raw[1] /* w-e pixel resolution */
             //raw[2] /* 0 */
@@ -421,7 +422,7 @@ namespace OPS.Imaging
 
         /// <summary>
         /// input: (X, Y, Z) in body frame
-        /// outupt: X = longitude, Y = latitude
+        /// outupt: X = longitude degrees, Y = latitude degrees
         /// </summary>
         public Vector2 XYZToLatLon2D(Vector3 worldPos, double lat0 = 0, double lon0 = 0)
         {
@@ -457,12 +458,12 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        ///  Convenience function for measuring the size of an image pixel at the current location
-        ///  assumes each of the corners can have a different sampling rate (arbitrary quadrilateral)
-        ///  returns the shortest length, the best, finest, smallest number of meters per pixel
+        /// Convenience function for measuring the size of an image pixel at the current location
+        /// assumes each of the corners can have a different sampling rate (arbitrary quadrilateral)
+        /// returns the shortest length, the best, finest, smallest number of meters per pixel
+        /// input: (X, Y, Z) in body frame
+        /// output: the minimum meters per pixel in the neighborhood of the pixel corresponding to bodyPos
         /// </summary>
-        /// <param name="bodyPos"></param>
-        /// <returns></returns>
         public double GetFinestEstimatedMetersPerPixelAtXYZ(Vector3 bodyPos)
         {
             Vector3 pixelColRow = XYZToImage(bodyPos);
@@ -483,6 +484,7 @@ namespace OPS.Imaging
 
             return minDistanceMeters;
         }
+
         public void Dispose()
         {
             Dispose(true);
@@ -563,48 +565,49 @@ namespace OPS.Imaging
         /// </summary>
         public double InterpolateElevationAtLatLon(double lat, double lon, int radius = 2)
         {
-            return interpCache.GetOrAdd(new Tuple<Vector2, int>(new Vector2(lon, lat), radius), _ => {
-
-                    Vector3 px = LatLonToImage(new Vector3(lon, lat, 0.0));
-                    
-                    if (px.X < 0 || px.X >= Width || px.Y < 0 || px.Y >= Height)
+            return interpCache.GetOrAdd(new Tuple<Vector2, int>(new Vector2(lon, lat), radius), _ =>
+            {
+                
+                Vector3 px = LatLonToImage(new Vector3(lon, lat, 0.0));
+                
+                if (px.X < 0 || px.X >= Width || px.Y < 0 || px.Y >= Height)
+                {
+                    throw new ArgumentException(string.Format("lat={0} lon={1} out of DEM bounds", lat, lon));
+                }
+                
+                int xl = (int)Math.Max(Math.Round(px.X - radius), 0);
+                int yl = (int)Math.Max(Math.Round(px.Y - radius), 0);
+                int xu = (int)Math.Min(Math.Round(px.X + radius), Width - 1);
+                int yu = (int)Math.Min(Math.Round(px.Y + radius), Height - 1);
+                int w = xu - xl + 1;
+                int h = yu - yl + 1;
+                
+                float[] window = new float[w * h];
+                double maskValue = 0;
+                int hasMaskValue = 0;
+                
+                //though GDAL seems to claim to be MT safe, this does seem necessary
+                //another strategy may be to read the whole entire raster into a big managed array at construction
+                lock (this)
+                {
+                    var band = gdalDataset.GetRasterBand(1);
+                    band.ReadRaster(xl, yl, w, h, window, w, h, 0, 0);
+                    band.GetNoDataValue(out maskValue, out hasMaskValue);
+                }
+                
+                double sum = 0;
+                int n = 0;
+                for (int i = 0; i < window.Length; i++)
+                {
+                    if (hasMaskValue == 0 || window[i] != maskValue)
                     {
-                        throw new ArgumentException(string.Format("lat={0} lon={1} out of DEM bounds", lat, lon));
+                        sum += window[i];
+                        n++;
                     }
-                    
-                    int xl = (int)Math.Max(Math.Round(px.X - radius), 0);
-                    int yl = (int)Math.Max(Math.Round(px.Y - radius), 0);
-                    int xu = (int)Math.Min(Math.Round(px.X + radius), Width - 1);
-                    int yu = (int)Math.Min(Math.Round(px.Y + radius), Height - 1);
-                    int w = xu - xl + 1;
-                    int h = yu - yl + 1;
-                    
-                    float[] window = new float[w * h];
-                    double maskValue = 0;
-                    int hasMaskValue = 0;
-
-                    //though GDAL seems to claim to be MT safe, this does seem necessary
-                    //another strategy may be to read the whole entire raster into a big managed array at construction
-                    lock (this)
-                    {
-                        var band = gdalDataset.GetRasterBand(1);
-                        band.ReadRaster(xl, yl, w, h, window, w, h, 0, 0);
-                        band.GetNoDataValue(out maskValue, out hasMaskValue);
-                    }
-                    
-                    double sum = 0;
-                    int n = 0;
-                    for (int i = 0; i < window.Length; i++)
-                    {
-                        if (hasMaskValue == 0 || window[i] != maskValue)
-                        {
-                            sum += window[i];
-                            n++;
-                        }
-                    }
-                    
-                    return sum / n;
-                });
+                }
+                
+                return sum / n;
+            });
         }
     }
 }
