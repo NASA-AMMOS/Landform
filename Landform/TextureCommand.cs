@@ -94,6 +94,8 @@ namespace OPS.Landform
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
+        const double ORBITAL_RESOLUTION = 0.25; // TODO: pull from file
+
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
             this.tcopts = tcopts;
@@ -480,7 +482,7 @@ namespace OPS.Landform
             var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,ORBITAL_RESOLUTION,
                                            tcopts.BackprojectQuality, tcopts.WriteDebug, backprojectDebugDir);
         }
 

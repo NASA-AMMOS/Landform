@@ -82,6 +82,7 @@ namespace OPS.Landform
 
         private Image sceneTexture;
         private SceneNode tileTree;
+        const double ORBITAL_RESOLUTION = 0.25; // TODO: pull from file
 
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -749,7 +750,7 @@ namespace OPS.Landform
                         var contexts =
                             Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
                                                       options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
-                        strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
+                        strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution, ORBITAL_RESOLUTION,
                                             options.BackprojectQuality, options.WriteDebug,
                                             Path.Combine(backprojectDebugDir, node.Name));
                     }
