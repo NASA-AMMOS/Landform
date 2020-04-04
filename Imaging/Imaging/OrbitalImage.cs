@@ -115,11 +115,32 @@ namespace OPS.Imaging
             Width = gdalDataset.RasterXSize;
             Height = gdalDataset.RasterYSize;
 
+            //GDAL datasets have two ways of describing the relationship between raster positions (in pixel/line coordinates) 
+            // and georeferenced coordinates. The first, and most commonly used is the affine transform (the other is GCPs).
+            //https://gdal.org/user/raster_data_model.html
+            // Note: we use affine below
+
+            //Fetches the coefficients for transforming between pixel / line(P, L) raster space, 
+            //and projection coordinates(Xp, Yp) space
+            //The default transform is (0, 1, 0, 0, 0, 1) and should be returned even when a CE_Failure error 
+            //is returned, such as for formats that don’t support transformation to projection coordinates.
+            //from: https://gdal.org/api/gdaldataset_cpp.html
+
             var raw = rawGeoTransform = new double[6];
             gdalDataset.GetGeoTransform(raw);
 
             //Xp = raw[0] + C*raw[1] + R*raw[2];
             //Yp = raw[3] + C*raw[4] + R*raw[5];
+
+            // In the particular, but common, case of a “north up” image without any rotation or shearing, 
+            // the georeferencing transform takes the following form :
+            //raw[0] /* top left x */
+            //raw[1] /* w-e pixel resolution */
+            //raw[2] /* 0 */
+            //raw[3] /* top left y */
+            //raw[4] /* 0 */
+            //raw[5] /* n-s pixel resolution (negative value) */
+            //https://gdal.org/tutorials/raster_api_tut.html
 
             //Xna matrix is row major
             geoTransform = new Matrix(raw[1], raw[4], 0, 0,
