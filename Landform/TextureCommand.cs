@@ -92,7 +92,7 @@ namespace OPS.Landform
 
         protected SceneMesh sceneMesh;
         protected SparsePipelineImage orbitalTexture;
-        protected GDALTransform orbitalImageTransform;
+        protected OrbitalImage orbitalImageTransform;
         protected Matrix sitedriveToOrbitalBody;
         protected OrbitalObservation orbitalObs;
 

@@ -85,7 +85,7 @@ namespace OPS.Landform
 
     }
 
-        public class BuildTilingInput : TilingCommand
+    public class BuildTilingInput : TilingCommand
     {
         private BuildTilingInputOptions options;
 
@@ -805,32 +805,5 @@ namespace OPS.Landform
                 return null;
             }
         }
-
-        //private void LoadOrbital(string overrideOrbitialImage)
-        //{
-        //    try
-        //    {
-        //        orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), 
-        //            out orbitalImageTransform, out sitedriveToOrbitalBody, overrideOrbitialImage, logger: pipeline);
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        pipeline.LogWarn("failed to load orbital image or PlacesDB, running without orbital: {0}", ex.Message);
-        //        options.NoOrbitalTexture = true;
-        //        return;
-        //    }
-
-        //    // heightmap align transforms orbital to align to scene. it is sitedriveToRoot * rootAdjustment
-        //    // LoadOrbitalImage returns sitedriveToOrbitalBody. to texture we want to recover the unadjusted position
-        //    // by peeling off the adjustment. Adj = inv(sitedrivetoroot) * sitedrivetoroot * adj
-        //    FrameTransform siteDriveToAdjustedRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
-        //    if (siteDriveToAdjustedRoot != null)
-        //    {
-        //        Matrix orbitalToRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName).Transform.Mean;
-        //        Matrix sdToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-        //        Matrix sdToOrbital = sdToRoot * Matrix.Invert(orbitalToRoot);
-        //        sitedriveToOrbitalBody = sdToOrbital * sitedriveToOrbitalBody;
-        //    }
-        //}
     }
 }

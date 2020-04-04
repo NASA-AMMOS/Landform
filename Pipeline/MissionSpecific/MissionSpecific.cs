@@ -989,16 +989,16 @@ namespace OPS.Pipeline
         }
 
         public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive,string OrbitalBodyName,
-            out GDALTransform gdalTransform, out Matrix sitedriveToOrbitalBody, string imgFile = null, 
+            out OrbitalImage orbitalTransform, out Matrix sitedriveToOrbitalBody, string imgFile = null, 
             ILogger logger = null)
         {
-            gdalTransform = new GDALTransform(imgFile, GDALDEM.CreateBody(OrbitalBodyName));
+            orbitalTransform = new OrbitalImage(imgFile, PlanetaryBody.GetByName(OrbitalBodyName));
            
             var placesDB = new PlacesDB(pipeline, requireOrbital: true);
             Vector2 meshFrameLonLat = placesDB.GetEstimatedLatLon(siteDrive);
             logger.LogInfo("Places: primary sitedrive {0} at longitude {1} and latitude {2}", siteDrive, meshFrameLonLat.X, meshFrameLonLat.Y);
 
-            Vector3 bodyXYZ = gdalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0));
+            Vector3 bodyXYZ = orbitalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0));
          
             Vector3 siteDriveZInBody = Vector3.Normalize(bodyXYZ); // sd: nadir, should be - but need to convert from right handed site to lefthanded body
             Vector3 siteDriveYInBody = Vector3.Normalize(Vector3.Cross(siteDriveZInBody, new Vector3(1, 0, 0))); // sd: east,  //BUGBUG: avoid bug at poles

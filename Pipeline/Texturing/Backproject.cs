@@ -118,7 +118,7 @@ namespace OPS.Pipeline
         //<DST, SRC>
         // SRC: col, row
         static public IDictionary<Pixel,ObsPixel> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, 
-            GDALTransform bodyToImage, List<PixelPoint> pixelsToBackproject, OrbitalObservation orbitalObs)
+            OrbitalImage bodyToImage, List<PixelPoint> pixelsToBackproject, OrbitalObservation orbitalObs)
         {
             //BUGBUG: the correcting for adjustment is only needed on verts that came from the dem!
             Dictionary<Pixel, ObsPixel> orbPixelsByTexel = new Dictionary<Pixel, ObsPixel>();

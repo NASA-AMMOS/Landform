@@ -86,9 +86,6 @@
     <Compile Include="CameraModels\CameraModel.cs" />
     <Compile Include="CameraModels\OrthographicCameraModel.cs" />
     <Compile Include="Imaging\FITSMetadata.cs" />
-    <Compile Include="Imaging\GDALBody.cs" />
-    <Compile Include="Imaging\GDALDEM.cs" />
-    <Compile Include="Imaging\GDALTransform.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\IImageLoader.cs" />
     <Compile Include="Imaging\Image.cs" />
@@ -98,6 +95,7 @@
     <Compile Include="Imaging\ImageStatistics.cs" />
     <Compile Include="Imaging\LimberDMG.cs" />
     <Compile Include="Imaging\Mask.cs" />
+    <Compile Include="Imaging\OrbitalImage.cs" />
     <Compile Include="Operations\Blur.cs" />
     <Compile Include="Operations\Colorize.cs" />
     <Compile Include="Operations\Colorspace.cs" />

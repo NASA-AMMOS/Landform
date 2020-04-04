@@ -14,7 +14,7 @@ namespace OPS.Imaging
         readonly public int Width;
         readonly public int Height;
 
-        protected DEMBody Body { get; private set; }
+        protected PlanetaryBody Body { get; private set; }
 
         private SpatialReference bodyFrame, projectedFrame;
         private CoordinateTransformation latLonToProjected, projectedToLatLon;
@@ -29,7 +29,7 @@ namespace OPS.Imaging
         {
             using (Dataset Dataset = Gdal.Open(file, Access.GA_ReadOnly))
             {
-                this.Body = GDALDEM.CreateBody(demBodyType);
+                this.Body = PlanetaryBody.GetByName(demBodyType);
 
                 //GDAL datasets have two ways of describing the relationship between raster positions (in pixel/line coordinates) 
                 // and georeferenced coordinates. The first, and most commonly used is the affine transform (the other is GCPs).
