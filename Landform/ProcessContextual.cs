@@ -352,22 +352,23 @@ namespace OPS.Landform
             return "unknown message type";
         }
 
-        protected override QueueMessage DequeueOneMessage(MessageQueue queue)
+        protected override QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1)
         {
+            int ovt = overrideVisibilityTimeout;
             if (options.Master)
             {
                 if (options.UseGenericMessageType)
                 {
-                    return messageQueue.DequeueOne<GenericContextualMasterMessage>();
+                    return messageQueue .DequeueOne<GenericContextualMasterMessage>(overrideVisibilityTimeout: ovt);
                 }
                 else
                 {
-                    return queue.DequeueOne<SNSMessageWrapper>();
+                    return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt);
                 }
             }
             else
             {
-                return messageQueue.DequeueOne<ContextualMeshMessage>();
+                return messageQueue.DequeueOne<ContextualMeshMessage>(overrideVisibilityTimeout: ovt);
             }
         }
 

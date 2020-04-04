@@ -155,15 +155,16 @@ namespace OPS.Landform
             return "tactical mesh " + (url ?? "(unknown)");
         }
 
-        protected override QueueMessage DequeueOneMessage(MessageQueue queue)
+        protected override QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1)
         {
+            int ovt = overrideVisibilityTimeout;
             if (options.UseGenericMessageType)
             {
-                return queue.DequeueOne<GenericTacticalMeshMessage>();
+                return queue.DequeueOne<GenericTacticalMeshMessage>(overrideVisibilityTimeout: ovt);
             }
             else
             {
-                return queue.DequeueOne<SNSMessageWrapper>();
+                return queue.DequeueOne<SNSMessageWrapper>(overrideVisibilityTimeout: ovt);
             }
         }
 

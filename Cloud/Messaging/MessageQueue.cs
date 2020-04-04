@@ -152,18 +152,18 @@ namespace OPS.Cloud
             client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
         }
 
-        public T DequeueOne<T>(int waitSec = 0) where T : class
+        public QueueMessage DequeueOne(int waitSec = 0, int overrideVisibilityTimeout = -1)
         {
-            var msgs = Dequeue<T>(1, waitSec);
+            return DequeueOne<QueueMessage>(waitSec, overrideVisibilityTimeout);
+        }
+
+        public T DequeueOne<T>(int waitSec = 0, int overrideVisibilityTimeout = -1) where T : class
+        {
+            var msgs = Dequeue<T>(1, waitSec, overrideVisibilityTimeout);
             return msgs.Length > 0 ? msgs[0] : null;
         }
 
-        public QueueMessage DequeueOne(int waitSec = 0)
-        {
-            return DequeueOne<QueueMessage>(waitSec);
-        }
-
-        public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0) where T : class
+        public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0, int overrideVisibilityTimeout = -1) where T : class
         {
             var req = new ReceiveMessageRequest
             {
@@ -173,6 +173,10 @@ namespace OPS.Cloud
                 MaxNumberOfMessages = maxMessages,
                 WaitTimeSeconds = waitSec
             };
+            if (overrideVisibilityTimeout >= 0)
+            {
+                req.VisibilityTimeout = overrideVisibilityTimeout;
+            }
             //try to track information about receive times
             //among other things if a message is multiply received this can help track the latest receivehandle
             //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()

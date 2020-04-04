@@ -42,6 +42,12 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "JSON file of message to send")]
         public string SendMessage { get; set; }
 
+        [Option(Required = false, Default = 0, HelpText = "Peek messages in message queue")]
+        public int PeekMessages { get; set; }
+
+        [Option(Required = false, Default = 0, HelpText = "Peek messages in fail queue")]
+        public int PeekFailedMessages { get; set; }
+
         [Option(Required = false, Default = 0, HelpText = "Move messages from fail queue to message queue")]
         public int RetryMessages { get; set; }
 
@@ -101,6 +107,14 @@ namespace OPS.Landform
                 {
                     RunPhase("delete queues", DeleteQueues);
                 }
+                else if (lvopts.PeekMessages > 0)
+                {
+                    RunPhase("peek messages", PeekMessages);
+                }
+                else if (lvopts.PeekFailedMessages > 0)
+                {
+                    RunPhase("peek failed messages", PeekFailedMessages);
+                }
                 else if (!string.IsNullOrEmpty(lvopts.SendMessage))
                 {
                     RunPhase("send message", SendMessage);
@@ -152,14 +166,16 @@ namespace OPS.Landform
             }
 
             bool sendMessage = !string.IsNullOrEmpty(lvopts.SendMessage);
+            bool peekMessages = lvopts.PeekMessages > 0;
+            bool peekFailedMessages = lvopts.PeekFailedMessages > 0;
             bool retryMessages = lvopts.RetryMessages > 0;
             bool failMessages = lvopts.FailMessages > 0;
             bool dropMessages = lvopts.DropMessages > 0;
             bool dropFailedMessages = lvopts.DropFailedMessages > 0;
-            string utils = "--deletequeues, --sendmessage, --retrymessages, --failmessages, " +
-                "--dropmessages, --dropfailedmessages";
-            var svcOpts = new bool[] { lvopts.DeleteQueues, sendMessage, retryMessages, failMessages,
-                                       dropMessages, dropFailedMessages, lvopts.Service };
+            string utils = "--peekmessages, --peekfailedmessages, --deletequeues, --sendmessage, --retrymessages, " +
+                "--failmessages, --dropmessages, --dropfailedmessages";
+            var svcOpts = new bool[] { lvopts.DeleteQueues, peekMessages, peekFailedMessages, sendMessage,
+                                       retryMessages, failMessages, dropMessages, dropFailedMessages, lvopts.Service };
             if (svcOpts.Where(o => o).Count() > 1)
             {
                 throw new Exception(utils + ", and --service are mutually exclusive");
@@ -181,7 +197,7 @@ namespace OPS.Landform
                     {
                         failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
                     }
-                    else if (retryMessages || failMessages || dropFailedMessages)
+                    else if (peekFailedMessages || retryMessages || failMessages || dropFailedMessages)
                     {
                         throw new Exception("--failqueuename required for " +
                                             "--retrymessages, --failmessages, --dropfailedmessages");
@@ -199,7 +215,7 @@ namespace OPS.Landform
 
         protected abstract void RunBatch();
 
-        protected abstract QueueMessage DequeueOneMessage(MessageQueue queue);
+        protected abstract QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1);
 
         protected QueueMessage DequeueOneMessage()
         {
@@ -314,6 +330,37 @@ namespace OPS.Landform
             {
                 messageQueue.Enqueue(ParseMessage(File.ReadAllText(lvopts.SendMessage)));
             }
+        }
+
+        private void PeekMessagesImpl(MessageQueue queue, int max)
+        {
+            pipeline.LogInfo("peeking up to {0} messages from {1}", max, queue.Name);
+            int num = 0;
+            for (int i = 0; i < max; i++)
+            {
+                try
+                {
+                    QueueMessage msg = DequeueOneMessage(queue, overrideVisibilityTimeout: 1);
+                    if (msg == null) break;
+                    num++;
+                    pipeline.LogInfo("message {0}: {1}", num, DescribeMessage(msg, verbose: true));
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex);
+                    break;
+                }
+            }
+        }
+
+        private void PeekMessages()
+        {
+            PeekMessagesImpl(messageQueue, max: lvopts.PeekMessages);
+        }
+
+        private void PeekFailedMessages()
+        {
+            PeekMessagesImpl(failMessageQueue, max: lvopts.PeekFailedMessages);
         }
 
         private void MoveOrDropMessages(MessageQueue fromQueue, MessageQueue toQueue, int max)
