@@ -869,14 +869,14 @@ namespace OPS.Pipeline
             }
 
             var placesDB = new PlacesDB(logger, requireOrbital: true);
-            var gdalDEM = new OrbitalImage(demFile, cfg.OrbitalBodyName);
-            var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
+            var orbitalImage = new OrbitalImage(demFile, cfg.OrbitalBodyName);
+            var originPixel = orbitalImage.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
             
             GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 elevationDir, out Vector3 rightDir, out Vector3 downDir);
 
             double? originElevation = null; //DEM constructor will look this up given originPixel
 
-            double pixelAspect = gdalDEM.CheckBasisAndGetAspect(originPixel, logger, throwOnError: true);
+            double pixelAspect = orbitalImage.CheckBasisAndGetAspect(originPixel, logger, throwOnError: true);
 
             return new DEM(new DEM.SparseDEM(demFile), elevationDir, rightDir, downDir,
                            metersPerPixel.Value, pixelAspect, elevationScale.Value,

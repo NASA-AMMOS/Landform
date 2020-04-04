@@ -360,7 +360,7 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Finds the estimated mars lat and lon for a given site drive
-        /// returned X = longitude, Y = latitude
+        /// returned X = longitude degrees, Y = latitude degrees
         /// </summary>
         public Vector2 GetEstimatedLatLon(SiteDrive sd, int orbitalIndex = 0, string orbitalFileName=null)
         {
@@ -371,7 +371,10 @@ namespace OPS.Pipeline
             string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital({3})",
                                          view, sd.Site, sd.Drive, orbitalIndex);
             Vector3 v = GetOffset(query);
-            // x is northing, y is easting for orbital image 0 MSL
+            // x is northing (distance along surface on prime meridian above equator)
+            // y is easting (distance along surfae on equator east of prime meridian)
+            // circumference is 2 * PI * radius
+            // so divide by radius to get radians
             double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
             double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
             return new Vector2(lon, lat);

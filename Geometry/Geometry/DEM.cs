@@ -10,8 +10,11 @@ using OPS.Util;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Wraps a scalar Image as a Digital Elevation Map with an OrthographicCameraModel.
-    /// Wraps instead of derives from Image is so that the data can be either a regular Image or a SparseImage.
+    /// Wraps any scalar Image as a Digital Elevation Map with an OrthographicCameraModel.
+    /// The underlying image can be a SparseImage.
+    /// Helper classes SparseDEMImage and SparseDEM are included with default SparseImage chunk cache settings.
+    /// Provides API surfaces for interpolating points, estimating normals, and creating meshes.
+    /// Also see OPS.Imaging.OrbitalDEM which is limited to working with GDAL geographic images.
     /// </summary>
     public class DEM
     {
@@ -70,6 +73,7 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Sparse DEM texture image backed by an image file.
+        /// Applies the standard read/write converters that normalize the band values to [0, 1].
         /// File format must support partial reads, currently only GDALSerializer does.
         /// The chunks are loaded lazily from disk.  Call Populate() to load them all.
         /// </summary>
@@ -82,6 +86,7 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Sparse DEM elevation map backed by an image file.
+        /// Disables the standard read/write converters that normalize the band values to [0, 1].
         /// </summary>
         public class SparseDEM : SparseDEMImage
         {
