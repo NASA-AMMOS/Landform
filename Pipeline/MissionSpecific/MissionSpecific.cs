@@ -988,25 +988,11 @@ namespace OPS.Pipeline
                            originPixel, originElevation, minFilter, maxFilter);
         }
 
-        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive,
+        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive,string OrbitalBodyName,
             out GDALTransform gdalTransform, out Matrix sitedriveToOrbitalBody, string imgFile = null, 
             ILogger logger = null)
         {
-            var cfg = OrbitalConfig.Instance;
-
-            if (string.IsNullOrEmpty(imgFile))
-            {
-                if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
-                {
-                    imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
-                }
-                else
-                {
-                    throw new Exception("no orbital image file provided");
-                }
-            }
-
-            gdalTransform = new GDALTransform(imgFile, GDALDEM.CreateBody(cfg.OrbitalBodyName));
+            gdalTransform = new GDALTransform(imgFile, GDALDEM.CreateBody(OrbitalBodyName));
            
             var placesDB = new PlacesDB(pipeline, requireOrbital: true);
             Vector2 meshFrameLonLat = placesDB.GetEstimatedLatLon(siteDrive);

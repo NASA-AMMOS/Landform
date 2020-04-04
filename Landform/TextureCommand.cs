@@ -54,14 +54,17 @@ namespace OPS.Landform
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
         public int ObservationBlurRadius { get; set; }
 
-        [Option(HelpText = "Don't use orbital to fill in surface imagery gaps", Default = false)]
-        public bool NoOrbitalTexture { get; set; }
-
         [Option(HelpText = "Redo blurred observation textures", Default = false)]
         public bool RedoBlurredObservationTextures { get; set; }
 
         [Option(HelpText = "Redo observation image masks", Default = false)]
         public bool RedoObservationMasks { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
+        public string OrbitalImage { get; set; }
+
+        [Option(HelpText = "Don't load orbital data for texturing", Default = false)]
+        public bool NoOrbitalTexture { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -88,6 +91,7 @@ namespace OPS.Landform
         protected SparsePipelineImage orbitalTexture;
         protected GDALTransform orbitalImageTransform;
         protected Matrix sitedriveToOrbitalBody;
+        protected OrbitalObservation orbitalObs;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
@@ -151,14 +155,77 @@ namespace OPS.Landform
                     .ToList();
                 
                 pipeline.LogInfo("{0} image observations", imageObservations.Count);
-                
+
                 indexedImages = new Dictionary<int, Observation>();
                 foreach (var obs in imageObservations)
                 {
                     indexedImages[obs.Index] = obs;
                 }
+
+                if (orbitalObs == null && !tcopts.NoOrbitalTexture)
+                {
+                    tcopts.NoOrbitalTexture = !LoadOrbital(tcopts.OrbitalImage);
+                    if (!tcopts.NoOrbitalTexture)
+                    {
+                        indexedImages[Observation.ORBITAL_INDEX] = orbitalObs;
+                    }
+                }
             }
 
+            return true;
+        }
+
+        public bool LoadOrbital(string orbitalPath = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+
+            if (string.IsNullOrEmpty(orbitalPath))
+            {
+                if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
+                {
+                    orbitalPath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
+                }
+                else
+                {
+                    throw new Exception("no orbital image file provided");
+                }
+            }
+
+            try
+            {
+                orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), cfg.OrbitalBodyName,
+                    out orbitalImageTransform, out sitedriveToOrbitalBody, orbitalPath, logger: pipeline);
+
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("failed to load orbital image or PlacesDB, running without orbital: {0}", ex.Message);
+                //TODO options.NoOrbitalTexture = true;
+                return false;
+            }
+
+            // heightmap align transforms orbital to align to scene. it is sitedriveToRoot * rootAdjustment
+            // LoadOrbitalImage returns sitedriveToOrbitalBody. to texture we want to recover the unadjusted position
+            // by peeling off the adjustment. Adj = inv(sitedrivetoroot) * sitedrivetoroot * adj
+            FrameTransform siteDriveToAdjustedRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
+            if (siteDriveToAdjustedRoot != null)
+            {
+                Matrix orbitalToRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName).Transform.Mean;
+                Matrix sdToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+                Matrix sdToOrbital = sdToRoot * Matrix.Invert(orbitalToRoot);
+                sitedriveToOrbitalBody = sdToOrbital * sitedriveToOrbitalBody;
+            }
+
+            var parent = frameCache.GetFrame(meshFrame);
+            string frameName = "OrbitalImage";
+            Frame orbFrame = Frame.Create(pipeline, project.Name, frameName, parent, save:false);
+            //var frame = frameCache.GetFrame(frameName);
+            //var ut = new UncertainRigidTransform(Matrix.Invert(sitedriveToOrbitalBody));
+            //var ft = FrameTransform.Create(pipeline, frame, source, ut);
+            //ft.Transform = ut;
+            //frameCache.Add(orbFrame);
+            GISCameraModel orbCam = new GISCameraModel(orbitalPath, cfg.OrbitalBodyName, sitedriveToOrbitalBody); //TODO: matrix can be added to Frame parented to sitedrive
+            orbitalObs = OrbitalObservation.Create(orbFrame, frameName, orbitalPath, orbCam, false, false, true);
             return true;
         }
 
@@ -249,14 +316,28 @@ namespace OPS.Landform
                                          "completed {2}/{3}", obs.Name, np, nc, no);
                     }
 
-                    Image orig = pipeline.LoadImage(obs.Url);
+                    Image orig = null;
+                    Image blurredImage = null;
+                    if (obs.Index == Observation.ORBITAL_INDEX)
+                    {
+                        //no blur needed on orbital it is already low frequency
+                        // relative to terrain
+                        orig = orbitalTexture;
+                        blurredImage = orig;
+                    
+                    }
+                    else
+                    {
+                        orig = pipeline.LoadImage(obs.Url);
 
-                    //notes from TerrainTools PDSImageRoutines.cs
-                    //"Used to do a guass blur 4 with photoshop"
-                    //the current code is: img.SmoothBlur(13, 13)
-                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
+                        //notes from TerrainTools PDSImageRoutines.cs
+                        //"Used to do a guass blur 4 with photoshop"
+                        //the current code is: img.SmoothBlur(13, 13)
+                        blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
+                    }
 
-                    if (tcopts.WriteDebug)
+
+                if (tcopts.WriteDebug)
                     {
                         SaveDebugWedgeImage(blurredImage, obs, "_blurred");
                     }
@@ -519,6 +600,7 @@ namespace OPS.Landform
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
                 obsSelectionStrategy = strategy,
                 obsToHull = obsToHull,
+                orbitalObs = orbitalObs,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
                 warn = msg => pipeline.LogWarn(msg),
@@ -558,8 +640,7 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("creating backproject texture");
             Image texture = new Image(3, resolution, resolution);
-            Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant,
-                                          fallbackToOriginal: false);
+            Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant, orbitalTexture:orbitalTexture);
 
             if (!tcopts.NoSave)
             {

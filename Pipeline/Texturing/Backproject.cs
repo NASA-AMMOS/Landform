@@ -117,17 +117,18 @@ namespace OPS.Pipeline
 
         //<DST, SRC>
         // SRC: col, row
-        static public IDictionary<Pixel,Vector2> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, GDALTransform bodyToImage, List<PixelPoint> pixelsToBackproject)
+        static public IDictionary<Pixel,ObsPixel> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, 
+            GDALTransform bodyToImage, List<PixelPoint> pixelsToBackproject, OrbitalObservation orbitalObs)
         {
             //BUGBUG: the correcting for adjustment is only needed on verts that came from the dem!
-            Dictionary<Pixel, Vector2> orbPixelsByTexel = new Dictionary<Pixel, Vector2>();
+            Dictionary<Pixel, ObsPixel> orbPixelsByTexel = new Dictionary<Pixel, ObsPixel>();
             foreach(var destPixelPt in pixelsToBackproject)
             {
                 var ptOutputMeshFrame = destPixelPt.Point;
                 var ptBodyXYZ = Vector3.Transform(ptOutputMeshFrame, outputMeshFrameToBodyXYZ);
                 var lonlat = bodyToImage.XYZToLatLon(ptBodyXYZ); //TODO: can collapse these calls
                 var pixel = bodyToImage.LatLonToImage(lonlat); //returns col, row
-                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new Vector2(pixel.X, pixel.Y); //BUGBUG: if the subpixel dst is not centers, its wrong //TODO: detect and handle collisions here and in normal backproj
+                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs,new Vector2(pixel.X, pixel.Y)); //BUGBUG: if the subpixel dst is not centers, its wrong //TODO: detect and handle collisions here and in normal backproj
             }
 
             return orbPixelsByTexel;
@@ -139,7 +140,7 @@ namespace OPS.Pipeline
         /// </summary>
         static public void FillOutputTexture(PipelineCore pipeline, IDictionary<Pixel, ObsPixel> backprojectResults,
                                              Image outputImage, TextureVariant textureVariant = TextureVariant.Original,
-                                             bool inpaint = true, bool fallbackToOriginal = true)
+                                             bool inpaint = true, bool fallbackToOriginal = true, Image orbitalTexture = null)
         {
             if (outputImage.Bands != 3)
             {
@@ -164,6 +165,7 @@ namespace OPS.Pipeline
             {
                 var sourceObs = group.First().Value.Obs;
                 var sourceImageIndex = sourceObs.Index;
+
                 if (sourceImageIndex < Observation.MIN_INDEX)
                 {
                     throw new InvalidDataException("invalid image index in backproject results");
@@ -193,32 +195,39 @@ namespace OPS.Pipeline
                 }
 
                 Image sourceImage = null;
-                switch (tex)
+                if (sourceObs.Index == Observation.ORBITAL_INDEX)
                 {
-                    case TextureVariant.Original:
-                        {
-                            sourceImage = pipeline.LoadImage(sourceObs.Url);
-                            break;
-                        }
-                    case TextureVariant.Blurred:
-                        {
-                            if (sourceObs.BlurredGuid == Guid.Empty)
+                    sourceImage = orbitalTexture;
+                }
+                else
+                {
+                    switch (tex)
+                    {
+                        case TextureVariant.Original:
                             {
-                                throw new Exception("blurred texture not available for observation " + sourceObs.Name);
+                                sourceImage = pipeline.LoadImage(sourceObs.Url);
+                                break;
                             }
-                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
-                            break;
-                        }
-                    case TextureVariant.Blended:
-                        {
-                            if (sourceObs.BlendedGuid == Guid.Empty)
+                        case TextureVariant.Blurred:
                             {
-                                throw new Exception("blended texture not available for observation " + sourceObs.Name);
+                                if (sourceObs.BlurredGuid == Guid.Empty)
+                                {
+                                    throw new Exception("blurred texture not available for observation " + sourceObs.Name);
+                                }
+                                sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
+                                break;
                             }
-                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlendedGuid).Image;
-                            break;
-                        }
-                    default: throw new Exception("unknown texture variant " + tex);
+                        case TextureVariant.Blended:
+                            {
+                                if (sourceObs.BlendedGuid == Guid.Empty)
+                                {
+                                    throw new Exception("blended texture not available for observation " + sourceObs.Name);
+                                }
+                                sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlendedGuid).Image;
+                                break;
+                            }
+                        default: throw new Exception("unknown texture variant " + tex);
+                    }
                 }
 
                 foreach (var pair in group)
@@ -296,6 +305,7 @@ namespace OPS.Pipeline
             public double quality; //0 < quality <= 1 (best, slowest)
             public ObsSelectionStrategy obsSelectionStrategy;  //the approach used to pick the best source data
             public IDictionary<string, ConvexHull> obsToHull = null; //observation name -> hull, computed if null
+            public Observation orbitalObs;
             public Action<string> info = null;
             public Action<string> progress = null;
             public Action<string> warn = null;
@@ -668,88 +678,6 @@ namespace OPS.Pipeline
         static protected Pixel SubpixelToPixel(Vector2 subPixel)
         {
             return new Pixel((int)subPixel.Y, (int)subPixel.X);
-        }
-
-        /// <summary>
-        /// high level function that takes orbital backproject results
-        /// and adds indices and source pixel locations as the pixel colors
-        /// output band 0: observation index
-        /// output band 1: observation pixel row
-        /// output band 2: observation column
-        /// </summary>
-        static public void FillIndexImageOrbital(IDictionary<Pixel, Vector2> orbitalResults, Image outputImage)
-        {
-            if (orbitalResults == null)
-                return;
-
-            const int ORBITALINDEX = Observation.MAX_INDEX - 1;
-
-            if (outputImage.Bands != 3)
-                throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
-
-            foreach (var entry in orbitalResults)
-            {
-                var outputPixel = entry.Key;
-                var sourcePixel = entry.Value; //col, row
-
-                if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
-                    outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
-                {
-                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
-                }
-
-                outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
-                                          new float[] { ORBITALINDEX, (float)sourcePixel.Y, (float)sourcePixel.X });
-            }
-        }
-
-        public static void FillOutputTextureOrbital(IDictionary<Pixel, Vector2> orbitalResults, SparsePipelineImage sourceImage, Image outputImage, bool inpaint=true)
-        {
-            if (outputImage.Bands != 3)
-            {
-                throw new NotImplementedException("Expecting a 3 band output image currently");
-            }
-
-            if (!outputImage.HasMask)
-            {
-                outputImage.CreateMask(true);
-            }
-
-            foreach(var pair in orbitalResults)
-            {
-                var outputPixel = pair.Key;
-                var sourcePixel = pair.Value; //col, row
-                
-                //TODO: support blended textures
-                if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
-                    outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
-                {
-                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
-                }
-
-                if (sourcePixel.X < 0 || sourcePixel.X >= sourceImage.Width ||
-                    sourcePixel.Y < 0 || sourcePixel.Y >= sourceImage.Height)
-                {
-                    throw new InvalidDataException("Backproject source pixel is located outside of source image");
-                }
-
-                //copy src image data to dst image data
-                float[] samples = sourceImage.SampleAsColor(sourcePixel);
-
-                //TODO: test missing data pixel from gdal
-                outputImage.SetAsColor(samples, (int)outputPixel.Row, (int)outputPixel.Col);
-
-                //mark mask as valid
-                outputImage.SetMaskValue((int)outputPixel.Row, (int)outputPixel.Col, false);
-            
-            }
-
-            if (inpaint)
-            {
-                //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
-                // full inpaint needed for building parent tiles
-                outputImage.Inpaint(-1, preserveMask: false);
-            }
         }
     }
 }

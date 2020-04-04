@@ -31,6 +31,10 @@ namespace OPS.Pipeline.AlignmentServer
         //and we want to do that when creating backproject index images
         public const int MAX_INDEX = 16777216;
 
+        //orbital images are not observations, but need to be represented in the system with a unique index
+        // this constant reserves a value for orbital images
+        public const int ORBITAL_INDEX = MAX_INDEX - 1; 
+
         [DynamoDBRangeKey]
         public string ProjectName;
 

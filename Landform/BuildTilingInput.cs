@@ -60,14 +60,12 @@ namespace OPS.Landform
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
-        public string OrbitalImage { get; set; }
-
         [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
         public bool NoSurfaceObs { get; set; }
+
     }
 
-    public class BuildTilingInput : TilingCommand
+        public class BuildTilingInput : TilingCommand
     {
         private BuildTilingInputOptions options;
 
@@ -109,10 +107,6 @@ namespace OPS.Landform
                     RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
 
-                if (!options.NoOrbitalTexture)
-                {
-                    RunPhase("load orbital texture", LoadOrbital); //may overwrite options.NoOrbitalTexture
-                }
 
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
                                                                 texGenMode == TextureGenMode.Bake));
@@ -760,7 +754,7 @@ namespace OPS.Landform
 
                 //orbital
                 var orbitalResults = Backproject.BackprojectOrbital(orbitalTexture, sitedriveToOrbitalBody,
-                    orbitalImageTransform, missingPixels);
+                    orbitalImageTransform, missingPixels, orbitalObs);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 Image image = new Image(3, resolution, resolution);
@@ -775,13 +769,12 @@ namespace OPS.Landform
                     if (index != null)
                     {
                         Backproject.FillIndexImage(backprojectResults, index);
-                        Backproject.FillIndexImageOrbital(orbitalResults, index);
+                        Backproject.FillIndexImage(orbitalResults, index);
                     }
 
                     
                     Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
-                                                  !options.DontInpaint && options.NoOrbitalTexture, fallbackToOriginal: true);
-                    Backproject.FillOutputTextureOrbital(orbitalResults, orbitalTexture, image, !options.DontInpaint && !options.NoOrbitalTexture);
+                                                  !options.DontInpaint, fallbackToOriginal: true, orbitalTexture: orbitalTexture);
                 }
                
                 return image;
@@ -793,31 +786,31 @@ namespace OPS.Landform
             }
         }
 
-        private void LoadOrbital()
-        {
-            try
-            {
-                orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), 
-                    out orbitalImageTransform, out sitedriveToOrbitalBody, options.OrbitalImage, logger: pipeline);
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogWarn("failed to load orbital image or PlacesDB, running without orbital: {0}", ex.Message);
-                options.NoOrbitalTexture = true;
-                return;
-            }
+        //private void LoadOrbital(string overrideOrbitialImage)
+        //{
+        //    try
+        //    {
+        //        orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), 
+        //            out orbitalImageTransform, out sitedriveToOrbitalBody, overrideOrbitialImage, logger: pipeline);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        pipeline.LogWarn("failed to load orbital image or PlacesDB, running without orbital: {0}", ex.Message);
+        //        options.NoOrbitalTexture = true;
+        //        return;
+        //    }
 
-            // heightmap align transforms orbital to align to scene. it is sitedriveToRoot * rootAdjustment
-            // LoadOrbitalImage returns sitedriveToOrbitalBody. to texture we want to recover the unadjusted position
-            // by peeling off the adjustment. Adj = inv(sitedrivetoroot) * sitedrivetoroot * adj
-            FrameTransform siteDriveToAdjustedRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
-            if (siteDriveToAdjustedRoot != null)
-            {
-                Matrix orbitalToRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName).Transform.Mean;
-                Matrix sdToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-                Matrix sdToOrbital = sdToRoot * Matrix.Invert(orbitalToRoot);
-                sitedriveToOrbitalBody = sdToOrbital * sitedriveToOrbitalBody;
-            }
-        }
+        //    // heightmap align transforms orbital to align to scene. it is sitedriveToRoot * rootAdjustment
+        //    // LoadOrbitalImage returns sitedriveToOrbitalBody. to texture we want to recover the unadjusted position
+        //    // by peeling off the adjustment. Adj = inv(sitedrivetoroot) * sitedrivetoroot * adj
+        //    FrameTransform siteDriveToAdjustedRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
+        //    if (siteDriveToAdjustedRoot != null)
+        //    {
+        //        Matrix orbitalToRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName).Transform.Mean;
+        //        Matrix sdToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+        //        Matrix sdToOrbital = sdToRoot * Matrix.Invert(orbitalToRoot);
+        //        sitedriveToOrbitalBody = sdToOrbital * sitedriveToOrbitalBody;
+        //    }
+        //}
     }
 }

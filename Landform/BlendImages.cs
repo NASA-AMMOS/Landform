@@ -394,7 +394,7 @@ namespace OPS.Landform
 
                     bool hasGray = obs != null;
                     bool hasColor = obs != null && obs.Bands == 3;
-                    bool orbital = false; //TODO
+                    bool orbital = obsIndex == Observation.ORBITAL_INDEX;
 
                     byte lumaFlag = (byte)(hasGray ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
                     byte chromaFlag = (byte)(hasColor ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
@@ -518,6 +518,12 @@ namespace OPS.Landform
             CoreLimitedParallel.ForEach(indexedImages, entry => {
 
                     int obsIndex = entry.Key;
+
+                    if(obsIndex == Observation.ORBITAL_INDEX)
+                    {
+                    return;
+                    }
+
                     Observation obs = entry.Value;
 
                     if (!winners.ContainsKey(obsIndex))
@@ -553,7 +559,7 @@ namespace OPS.Landform
                         pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
                                          "completed {2}/{3}", obs.Name, np, nc, no);
                     }
-                    
+
                     Image img = pipeline.LoadImage(obs.Url);
                     writeDebug(img, obs, "");
                     
@@ -790,7 +796,8 @@ namespace OPS.Landform
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages);
                 var texture = new Image(3, index.Width, index.Height);
                 Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
-                                              fallbackToOriginal: true);
+                                              fallbackToOriginal: true, orbitalTexture: orbitalTexture);
+
                 TemporaryFile.GetAndDelete(tileList.ImageExt, tmpFile => {
                         texture.Save<byte>(tmpFile);
                         string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.ImageExt);
