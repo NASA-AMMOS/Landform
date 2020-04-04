@@ -20,6 +20,40 @@ using OPS.Alignment;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
+/// <summary>
+/// Align sitedrives to each other using features detected in birds-eye-view renders.
+///
+/// Typically performed before heightmap-align in a contextual mesh workflow, but can be omitted or run after
+/// heightmap-align.
+///
+/// Does nothing if there is only one sitedrive.
+///
+/// Typically reconstructs the sitedrive meshes using organized meshing from the observation point clouds, which results
+/// in more detailed meshes than are typically loaded from some types of mission mesh RDRs.
+///
+/// The sitedrive meshes are rendered in a birds-eye orthographic view (BEV).  BEV rasterization is performed at a fixed
+/// meters per pixel resolution, conveying scale invariance to the BEV images.  They are typically colored by the tilt
+/// angle of the vertex normals relative to vertical, conveying lighting invariance.
+///
+/// Sparse external areas of the BEV images are clipped using a block-based heruistic algorithm.  Features are detected
+/// typically with a FAST feature detector.  Features are matched across sitedrives by a combination of spatial
+/// filtering, image descriptor distance, and RANSAC.  These 2D feature pairs are transformed in to 3D pairs
+/// by combining each BEV with a DEM that is rendered from the same viewpoint, but coloring the mesh by vertex elevation
+/// instead of tilt angle.  Outlier pairs are rejected with a mean absolute deviation filter.
+///
+/// A graph of sitedrives is formed with edges connecting sitedrives with sufficient numbers of feature matches.  Pose
+/// optimization is performed on the graph.  The current implementation computes a spanning tree (or forest) and aligns
+/// adjacent sitedrives pairwise with orgthogonal Procrustes.  Simultaneous alignment of the full graph using Levenberg
+/// Marquardt is TODO (https://github.jpl.nasa.gov/OnSight/Landform/issues/469).
+///
+/// Debug meshes can be optionally saved with the aligned and unaligned sitedrive meshes and the sample point pair
+/// matches.
+///
+/// Example:
+///
+/// Landform.exe heightmap-align windjana --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif --basesitedrive 0311472
+///
+/// </summary>
 namespace OPS.Landform
 {
     public enum SiteDrivePriority { NewestFirst, OldestFirst, BiggestFirst, SmallestFirst };

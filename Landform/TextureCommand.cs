@@ -48,6 +48,9 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
+        [Option(HelpText = "Write extended backproject debug info", Default = false)]
+        public bool WriteBackprojectDebug { get; set; }
+
         [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Greedy, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
         public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
@@ -564,7 +567,7 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
             backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,ORBITAL_RESOLUTION,
-                                           tcopts.BackprojectQuality, tcopts.WriteDebug, backprojectDebugDir);
+                                           tcopts.BackprojectQuality, tcopts.WriteBackprojectDebug, backprojectDebugDir);
         }
 
         protected void BackprojectObservations()
@@ -596,7 +599,7 @@ namespace OPS.Landform
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
                 quality = tcopts.BackprojectQuality,
-                writeDebug = tcopts.WriteDebug,
+                writeDebug = tcopts.WriteBackprojectDebug,
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
                 obsSelectionStrategy = strategy,
                 obsToHull = obsToHull,

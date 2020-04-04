@@ -15,7 +15,10 @@ namespace OPS.TilingServer
     {
         static int Main(string[] args)
         {
-            if (!CommandHelper.Configure(args, "TilingServer"))
+            if (!CommandHelper.Configure(args, typeof(TilingServer), typeof(PipelineCore),
+                                         () => CommandHelper.HasFlag(args, "local") ?
+                                         LocalPipelineConfig.Instance.ConfigFilePath() :
+                                         CloudPipelineConfig.Instance.ConfigFilePath()))
             {
                 return 1;
             }

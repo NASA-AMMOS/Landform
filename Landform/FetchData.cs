@@ -18,9 +18,46 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
 
+///<summary>
+/// Download data (or arbitrary) data from S3 or http(s).
+///
+/// This tool is designed to be used as a first step in Landform workflows, before a Landform alignment or tiling
+/// project has been created.  The next step would typically be ingest.
+///
+/// It can optionally use mission-specific defaults by specifying a mission with the --mission command line option.
+/// Mission specific defaults include AWS region, AWS profile, PDS file extensions, and product ID filtering.
+///
+/// When downloading RDRs various filtering is applied to attempt to download only the correct set of RDRs for use in a
+/// Landform tactical or contextual mesh workflow.  MissionSpecific.CheckProductID() is consulted to only accept
+/// products used by the mission.  RoverObservationComparator.FilterProductIdGroups() is called to resolve the best
+/// version/variant products to use.  And if unified meshes are found they are used to filter products to only those in
+/// the unified mesh.
+///
+/// The --trace, --traceexts, --summary, and --dryrun options can be helpful to understand what products will be
+/// downloaded, and why certian products are rejected.
+///
+/// When downloading RDRs the source location URL may contain a wildcard consisting of 5 hashes (#####), enabling
+/// download for multiple sols (NOTE: sol directory in S3 is typically 5 chars but sol string in product IDs is 4
+/// chars).
+///
+/// Fetching RDRs for windjana contextual mesh:
+///
+/// Landform.exe fetch 609-630 out/windjana/rdrs s3://m20-ids-g-landform/MSL/ods/surface/sol/#####/opgs/rdr
+///   --mission=MSL --summary
+///
+/// Fetching RDRs for ROASTT20 Dec12 (both tactical meshes and contextual mesh):
+///
+/// Landform.exe fetch 0700 out/roastt20-dec12-d/rdrs s3://roastt-marsyard-12-12-d/ods/g64/sol/#####/ids/rdr
+///   --mission=ROASTT20 --summary
+///
+/// Fetching a single specific file (the --mission M2020 flag defines the AWS region and profile to use):
+///
+/// Landform.exe fetch s3://m20-ids-g-landform/Unity3DTilesWeb.zip . --raw --nosubdirs --mission M2020
+///
+/// "Stop Trying to Make Fetch Happen" - Regina George (Mean Girls)
+///<Summary>
 namespace OPS.Landform
 {
-    /// "Stop Trying to Make Fetch Happen" - Regina George (Mean Girls)
     [Verb("fetch", HelpText = "Download data products from S3")]
     public class FetchDataOptions
     {
@@ -33,7 +70,7 @@ namespace OPS.Landform
         [Value(2, Required = false, HelpText = "RDR search locations (only if not using --raw), comma separated, with sol replaced with ##### (e.g. s3://landform/MSL/ods/surface/sol/#####/opgs/rdr). See https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes")]
         public string SearchLocations { get; set; } = null;
 
-        [Option(Required = false, Default = false, HelpText = "Treat input as raw S3 URLs, not sol numbers")]
+        [Option(Required = false, Default = false, HelpText = "Treat input as raw URLs, not sol numbers")]
         public bool Raw { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Suppress subdirs in output")]

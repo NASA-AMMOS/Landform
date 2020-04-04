@@ -41,13 +41,29 @@ namespace OPS.Util
             public bool Debug { get; set; }
         }
 
+        public static bool HasFlag(string[] args, string flag)
+        {
+            return args.Any(arg => arg.StartsWith("-") && arg.ToLower().TrimStart('-') == flag);
+        }
+
         /// <summary>
         /// Early parse of standard command line arguments to set up Config and Logging.
         /// </summary>
-        public static bool Configure(string[] args, string baseCommand)
+        public static bool Configure(string[] args, Type appType = null, Type pipelineType = null,
+                                     Func<string> appConfigFile = null)
         {
             Config.CommandLineArgs = args;
-            Config.BaseCommand = baseCommand;
+
+            if (appType != null)
+            {
+                Config.BaseCommand = appType.Name;
+                Config.AppVersion = appType.Assembly.GetName().Version.ToString();
+            }
+
+            if (pipelineType != null)
+            {
+                Config.PipelineVersion = pipelineType.Assembly.GetName().Version.ToString();
+            }
 
             var opts = new BaseOptions();
             if (args.Length > 0)
@@ -85,21 +101,28 @@ namespace OPS.Util
 
             Logging.ConfigureLogging(Config.FullCommand, opts.Quiet, opts.Debug, opts.LogFile, opts.LogDir);
 
+            if (!opts.Quiet)
+            {
+                var logger = !string.IsNullOrEmpty(Config.SubCommand) ? LogManager.GetLogger(Config.SubCommand)
+                    : appType != null ? LogManager.GetLogger(appType)
+                    : pipelineType != null ? LogManager.GetLogger(pipelineType)
+                    : LogManager.GetLogger("Landform");
+                logger.InfoFormat("command: {0} {1}", PathHelper.GetExe(), string.Join(" ", args));
+                logger.InfoFormat("{0} {1}, Pipeline {2}", Config.BaseCommand ?? "Landform",
+                                  Config.AppVersion ?? "(unknown)", Config.PipelineVersion ?? "(unknown)");
+                logger.InfoFormat("temp dir: {0}", TemporaryFile.TemporaryDirectory);
+                logger.InfoFormat("log file: {0}", Logging.GetLogFile());
+
+                //get the app config instance to ask its file path now
+                //after Config.ConfigDir and Config.ConfigFolder are initialized
+                string cfgFile = appConfigFile != null ? appConfigFile() : null;
+                if (cfgFile != null)
+                {
+                    logger.InfoFormat("config file: {0}", cfgFile);
+                }
+            }
+
             return true;
-        }
-
-        public static void DumpConfig(ILog logger, Config config = null)
-        {
-            string exe = PathHelper.GetExe(); 
-            string[] args = Config.CommandLineArgs;
-            logger.InfoFormat("command: {0}{1}", exe, args != null ? (" " + string.Join(" ", args)) : "");
-
-            string configFile = config != null ? config.ConfigFilePath() : null;
-            logger.InfoFormat("config file: {0}",  configFile ?? "(none)");
-
-            logger.InfoFormat("temp dir: {0}", TemporaryFile.TemporaryDirectory);
-
-            logger.InfoFormat("log file: {0}", Logging.GetLogFile());
         }
 
         public static object ParseCommandLineOpts(string[] args, IEnumerable<Type> optsTypes, bool allowUnknown = false)
@@ -153,7 +176,7 @@ namespace OPS.Util
 
                 foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
                 {
-                    BaseAttribute attr = prop.GetCustomAttribute<BaseAttribute>();
+                    var attr = prop.GetCustomAttribute<BaseAttribute>();
                     if (attr != null)
                     {
                         if (attr.Required && !dict.ContainsKey(prop.Name))
@@ -177,6 +200,12 @@ namespace OPS.Util
             }
             else
             {
+                if (allowUnknown)
+                {
+                    //work around https://github.com/commandlineparser/commandline/issues/525
+                    args = FilterOutUnknownArgs(args, optsTypes);
+                    allowUnknown = false;
+                }
                 var parser = new Parser((ParserSettings settings) => 
                         {
                             settings.HelpWriter = Console.Error;
@@ -198,6 +227,49 @@ namespace OPS.Util
                 }
                 return null; //e.g. --help or --version
             }
+        }
+
+        public static string[] FilterOutUnknownArgs(string[] args, IEnumerable<Type> optsTypes)
+        {
+            if (args == null || args.Length < 2)
+            {
+                return args;
+            }
+
+            string verbName = args[0].ToLower();
+            Type optsType = optsTypes
+                .Where(t => t.GetCustomAttribute<VerbAttribute>().Name.ToLower() == verbName)
+                .FirstOrDefault();
+            if (optsType == null)
+            {
+                return args;
+            }
+
+            var knownArgs = new HashSet<string>();
+            foreach (var prop in optsType.GetProperties().Where(p => p.CanWrite))
+            {
+                var attr = prop.GetCustomAttribute<BaseAttribute>();
+                if (attr != null)
+                {
+                    knownArgs.Add(prop.Name.ToLower());
+                }
+            }
+
+            Func<string, bool> isKnown =
+                arg => arg.StartsWith("-") && knownArgs.Contains(arg.TrimStart('-').Split('=')[0].ToLower());
+
+            var filtered = new List<string>();
+            filtered.Add(args[0]);
+            for (int i = 1; i < args.Length; i++)
+            {
+                if (isKnown(args[i]) ||
+                    (i > 1 && !args[i].StartsWith("-") && isKnown(args[i - 1]) && !args[i - 1].Contains("=")))
+                {
+                    filtered.Add(args[i]);
+                }
+            }
+
+            return filtered.ToArray();
         }
 
         public static int RunFromCommandline(string[] args, IDictionary<Type, Type> verbs)

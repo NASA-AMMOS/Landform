@@ -45,7 +45,7 @@ namespace OPS.Util
     { 
         public const string DEF_CONFIG_FOLDER = ".landform";
 
-        public static string BaseCommand;
+        public static string BaseCommand; //may be null
         public static string SubCommand;
         public static string FullCommand
         {
@@ -55,6 +55,9 @@ namespace OPS.Util
                     BaseCommand + (!string.IsNullOrEmpty(SubCommand) ? ("-" + SubCommand) : "") : null;
             }
         }
+
+        public static string AppVersion; //may be null
+        public static string PipelineVersion; //may be null
 
         public static string[] CommandLineArgs;
 

@@ -1,16 +1,17 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using CommandLine;
 using OPS.Cloud;
 using OPS.Util;
 
-namespace OPS.LandformUtil
+/// <summary>
+/// Utility to benchmark S3 performance.
+/// </summary>
+namespace OPS.Landform
 {
     [Verb("benchmarks3", HelpText = "Run a benchmark against S3 to test read speed")]
     public class BenchmarkS3Options

@@ -5,13 +5,23 @@ queue=${LANDFORM_TACTICAL_QUEUE:-mission}
 failqueue=${LANDFORM_TACTICAL_FAIL_QUEUE:-mission}
 meshformat=${LANDFORM_TACTICAL_MESH_FORMAT:-mission}
 
+service=tactical
 bindir=./Landform/bin/Release
-storagedir=c:/Users/$USERNAME/Documents/landform-storage
-logdir=`pwd`/log
-tmpdir=`pwd`/tmp
+landform=$bindir/Landform.exe
+storagedir=`pwd`/storage/$service
+logdir=`pwd`/log/$service
+tmpdir=`pwd`/tmp/$service
+cfgdir=`pwd`/cfg
+cfgfolder=$service
+venue=${service}-service
+
+stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir"
+cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+svcopts="$stdopts --stacktraces --service --mission=$mission --queuename=$queue --failqueuename=$failqueue"
 
 set -x # echo commands
 
-$bindir/Landform.exe configure-local --venue=local --storagedir=$storagedir --maxcores=0 --randomseed=-1
+$landform configure-local $cfgopts
 
-$bindir/Landform.exe process-tactical --service --mission=$mission --queuename=$queue --failqueuename=$failqueue --meshformat=$meshformat --logdir=$logdir --tempdir=$tmpdir --stacktraces
+$landform process-${service} $svcopts --meshformat=$meshformat 
+

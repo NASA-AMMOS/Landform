@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using CommandLine;
 using OPS.Util;
+using OPS.Pipeline;
 
 namespace OPS.Landform
 {
@@ -9,7 +10,10 @@ namespace OPS.Landform
     {
         static int Main(string[] args)
         {
-            if (!CommandHelper.Configure(args, "Landform"))
+            if (!CommandHelper.Configure(args, typeof(Landform), typeof(PipelineCore),
+                                         () => CommandHelper.HasFlag(args, "cloud") ?
+                                         CloudPipelineConfig.Instance.ConfigFilePath() :
+                                         LocalPipelineConfig.Instance.ConfigFilePath()))
             {
                 return 1;
             }
@@ -28,19 +32,34 @@ namespace OPS.Landform
                 {
                     { typeof(ConfigureCloudOptions), typeof(ConfigureCloud) },
                     { typeof(ConfigureLocalOptions), typeof(ConfigureLocal) },
+
                     { typeof(FetchDataOptions), typeof(FetchData) },
+
                     { typeof(IngestOptions), typeof(Ingest) },
+
                     { typeof(BEVAlignerOptions), typeof(BEVAligner) },
                     { typeof(HeightmapAlignerOptions), typeof(HeightmapAligner) },
                     { typeof(AgisoftAlignerOptions), typeof(AgisoftAligner) },
+
                     { typeof(BuildGeometryOptions), typeof(BuildGeometry) },
-                    { typeof(BuildTilesetOptions), typeof(BuildTileset) },
                     { typeof(BuildTextureOptions), typeof(BuildTexture) },
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
+                    { typeof(BuildTilesetOptions), typeof(BuildTileset) },
+
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
+                    { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
+
                     { typeof(ProcessTacticalOptions), typeof(ProcessTactical) },
                     { typeof(ProcessContextualOptions), typeof(ProcessContextual) },
+
                     { typeof(UpdateSceneManifestOptions), typeof(UpdateSceneManifest) },
+                    { typeof(ObservationProductsOptions), typeof(ObservationProducts) },
+
+                    { typeof(ConvertPDSOptions), typeof(ConvertPDS) },
+                    { typeof(ConvertIVOptions), typeof(ConvertIV) },
+                    { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },
+
+                    { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },
                 };
 
             return CommandHelper.RunFromCommandline(args, verbs);

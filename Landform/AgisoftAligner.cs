@@ -16,6 +16,16 @@ using OPS.Alignment;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
+/// <summary>
+/// Runs Agisoft Metashape to align individual observation images in a Landform alignment project.
+///
+/// This differs from bev-align and heightmap-align in that it adjusts individual images, not whole sitedrives.
+///
+/// Not currently run as part of the nominal contextual mesh workflow, but in theory could be run before the other
+/// aligners.
+///
+/// TODO more documentation and examples(s).
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("agisoft-align", HelpText = "run Agisoft aligner on ingested images")]

@@ -1,8 +1,93 @@
 #!/bin/bash
 
-home=c:/Users/$USERNAME
-storage=$home/Documents/landform-storage
-config=$home/.landform/landform-local.json
+# Developer script to process contextual mesh tilesets.
+#
+# Automates the contextual mesh tileset workflow, not including fetch:
+#
+# 1. ingest
+# 2. bev-align
+# 3. heightmap-align
+# 4. build-geometry
+# 5. build-tiling-input
+# 6. blend-images
+# 7. build-tileset
+# 8. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
+# 9. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
+#
+# Also see Landform/ProcessContextual.cs, which is intended for production.  This script intended for use by developers
+# only, and has additional options for development and debugging workflows.
+#
+# The --help option shows the available command line arguments.  The --dryrun option can be added to any command line
+# and will show the commands that will be run without running them.
+#
+# The required positional arguments are IN_DIR, MISSION, the primary sol TTTT, and the primary sitedrive SSSDDDD.
+# Additional sitedrives can be appended with commas (no spaces) after the primary one.  A final positional argument
+# OUT_DIR is optional and defaults to . (current directory).  Remaining arguments must be in the form --flag or
+# --name value. Unknown arguments are ignored.
+#
+# The tileset name is TTTT_SSSDDDD, with an optional suffix if specified with the --suffix option.  Suffixes are useful
+# for segregating the output of multiple runs with different custom options. Custom options can include
+# --onlyforcameras, which selects which instrument types are ingested (eponymous ingest input option). Additional
+# custom options can also be specified for each stage with the --STAGEargs options.
+#
+# The tileset will contain
+# * one .b3dm per tile
+# * one image per tile, if --exportimgext is specified
+# * one mesh per tile, if --exportmeshext is specified
+# * a tilest file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_tileset.json
+# * a manifest file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_scene.json with relative URLs
+# * a stats file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_stats.txt
+# * a combined log file PRODUCT_ID[_SUFFIX]/tactical_PRODUCT_ID[_SUFFIX]_log.txt
+# * debug products in PRODUCT_ID[_SUFFIX]/{bev,heightmap,geometry,blend}-products if --writedebug is specified.
+# 
+# The combined log file, stats file, and per-tile exported meshes and images should be useful for analysis.  The
+# full script command line will be at the beginning of the log file and the total runtime will be at the end.  The
+# --verbose and --debug options can be used to get more spew.
+#
+# The script will create a clean config, storage area, and temp dir.  These will be in subdirectories of the working
+# directory, and will be deleted when the tileset is complete.  Thus it is acceptable to run multiple script
+# invocations simultaneously as long as they are not processing the same data in the same directories.
+#
+# If you want to inspect the landform storage area then add the --nocleanup option.  You can later delete it by running
+# the same command line with the --onlycleanup option instead.
+#
+# The script can optionally (not by default) upload the tileset using aws s3 sync.  If the tileset is uploaded then a
+# combined scene manifest in the same directory on s3 is also updated.
+#
+# If any zips of user-defined observation image mask files IN_DIR/*masks.zip are present, they are unzipped to the
+# storage area before ingestion.
+#
+# EXAMPLE: (cut and paste in git bash)
+#
+# mission=MSL
+# sol=0630
+# sols=0609-0630
+# sds=0311472,0311256,0311444,0311330
+# run=windjana
+# bucket=m20-ids-g-landform
+# dem=out_deltaradii_smg_1m.tif
+# ortho=out_clean_25cm.iGrid.ClipToDEM.tif
+# fetchargs=
+# 
+# winpty ./Utils/credss.exe --venue dev -s credss-default
+# 
+# ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs \
+#     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --summary $fetchargs
+#
+# ./Landform/bin/Release/Landform.exe fetch \
+#     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$run/orbital --mission $mission \
+#     --raw --nosubdirs
+# 
+# ./Scripts/processContextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets --orbitaldem out/$run/orbital/$dem
+
+# exit script on ctrl-c
+ctrlc() { exit 1; }
+trap "ctrlc" INT
+
+storagedir=`pwd`/storage
+logdir=`pwd`/log
+tmpdir=`pwd`/tmp
+cfgdir=`pwd`/cfg
 
 # https://stackoverflow.com/a/246128
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -15,16 +100,31 @@ if [ ! -f "$landform" ]; then
     exit 1
 fi
 
-help="USAGE: processContextual.sh DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [--onlyforcameras Mastcam,Navcam] [--nomanifest] [--nocombinedmanifest] [--onlyingest] [--suffix nohaz] [--exportmeshext ply] [--exportimgext png] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload] [--copycombinedmanifest s3://FOO/bar%T5%%S5%%D5%.json] [ --s3proxy https://foo.bar.gov ] [--orbitaldem path/to/dem.tif]"
+#                                                                         80char|
+help="\
+USAGE: processContextual.sh IN_DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [OUT_DIR]
+[--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
+[--writedebug] [--debug] [--verbose] [---singlethreaded]
+[--onlyingest] [--onlyforcameras Mastcam,Navcam] [--orbitaldem path/to/dem.tif]
+[--exportmeshext ply] [--exportimgext png]
+[--configargs \"--arg val\"] [--ingestargs \"--arg val\"]
+[--bevargs \"--arg val\"] [--heightmapargs \"--arg val\"]
+[--geometryargs \"--arg val\"] [--blendargs \"--arg val\"]
+[--tilingargs \"--arg val\"] [--tilesetargs \"--arg val\"]
+[--manifestargs \"--arg val\"] [--nomanifest]
+[--combinedmanifestargs \"--arg val\"] [--nocombinedmanifest]
+[--upload s3://BUCKET/ods/VENUE/sol/SOL/ids/rdr] [--onlyupload]
+[--syncargs \"--arg val\"]
+[--s3proxy https://foo.bar.gov]"
 
 if [ $# -lt 4 ]; then
-    echo $help
+    echo "$help"
     exit 1
 fi
 
 cmdline="$0 $@"
 
-dir=$1
+indir=$1
 shift
 
 mission=$1
@@ -51,6 +151,12 @@ if ! [[ $sd =~ ^[0-9]{7}$ ]]; then
     exit 1
 fi
 
+outdir=.
+if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
+    outdir=$1
+    shift
+fi
+
 combined_manifest=true
 copy_combined_manifest=
 only_ingest=
@@ -64,197 +170,169 @@ generate=true
 cleanup=true
 only_cleanup=
 upload=
+only_upload=
 s3rdrdir=
 suffix=
 export=
 
+cfgargs=
+bevargs=
+heightmapargs=
+geometryargs=
+tilingargs=
+blendargs=
+tilesetargs=
+manifestargs=
+combinedmanifestargs=
+syncargs=
+
 # this only works for subcommands that use PipelineCoreOptions (so not configure-local)
-dbg=""
+dbg="--stacktraces"
+
+expect() { if [ $1 -lt 1 ]; then echo "missing $2"; exit 1; fi }
 
 while (( "$#" )); do
     case $1 in
-        "--help") echo $help; exit 0;;
         "--dryrun") dry="echo ";;
+        "--help") echo "$help"; exit 0;;
         "--nocleanup") cleanup=;;
         "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
-        "--onlyupload") cleanup=; only_cleanup=; generate=;;
+        "--onlyupload") upload=true; only_upload=true; cleanup=; only_cleanup=; generate=;;
         "--quiet") dbg="${dbg} --quiet";;
+        "--writedebug") dbg="$dbg --writedebug";;
         "--debug") dbg="${dbg} --debug";;
         "--verbose") dbg="${dbg} --verbose";;
-        "--stacktraces") dbg="${dbg} --stacktraces";;
         "--singlethreaded") dbg="${dbg} --singlethreaded";;
-        "--upload")
-            upload=true
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing upload URL"
-                exit 1
-            fi
-            s3rdrdir=$1
-            ;;
-        "--suffix")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing suffix"
-                exit 1
-            fi
-            suffix="_$1"
-            ;;
-        "--exportmeshext")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing extension"
-                exit 1
-            fi
-            export="$export --exportmeshformat $1"
-            ;;
-        "--exportimgext")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing extension"
-                exit 1
-            fi
-            export="$export --exportimageformat $1"
-            ;;
-        "--copycombinedmanifest")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing copy combined manifest URL"
-                exit 1
-            fi
-            copy_combined_manifest=$1
-            ;;
-        "--s3proxy")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing S3 proxy URL"
-                exit 1
-            fi
-            s3_proxy="--s3proxy $1"
-            ;;
+        "--upload") shift; expect $# "upload URL"; upload=true; s3rdrdir=$1;;
+        "--suffix") shift; expect $# "suffix" suffix="_$1";;
+        "--exportmeshext") shift; expect $# "mesh extension"; export="$export --exportmeshformat $1";;
+        "--exportimgext") shift; expect $# "image extension"; export="$export --exportimageformat $1";;
+        "--s3proxy") shift; expect $# "proxy URL"; s3_proxy="--s3proxy $1";;
         "--nomanifest") manifest=; combined_manifest=;;
-        "--onlycopycombinedmanifest") cleanup=; only_cleanup=; generate=; upload=;;
         "--nocombinedmanifest") combined_manifest=;;
         "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
-        "--onlyforcameras")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing cameras list"
-                exit 1
-            fi
-            cameras="--onlyforcameras $1"
-            ;;
-        "--orbitaldem")
-            shift
-            if [ $# -lt 1 ]; then
-                echo "missing orbital DEM path"
-                exit 1
-            fi
-            orbital_dem="--orbitaldem $1"
-            ;;
+        "--onlyforcameras") shift; expect $# "camera list"; cameras="--onlyforcameras $1";;
+        "--orbitaldem") shift; expect $# "DEM path"; orbital_dem="--orbitaldem $1";;
+        "--configargs") shift; expect $# "config args"; cfgargs="$1";;
+        "--ingestargs") shift; expect $# "ingest args"; ingestargs="$1";;
+        "--bevargs") shift; expect $# "BEV args"; bevargs="$1";;
+        "--heightmapargs") shift; expect $# "heightmap args"; heightmapargs="$1";;
+        "--geometryargs") shift; expect $# "geometry args"; geometryargs="$1";;
+        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
+        "--blendargs") shift; expect $# "blend args"; blendargs="$1";;
+        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$1";;
+        "--manifestargs") shift; expect $# "manifest args"; manifestargs="$1";;
+        "--combinedmanifestargs") shift; expect $# "combined manifest args"; combinedmanifestargs="$1";;
+        "--syncargs") shift; expect $# "sync args"; syncargs="$1";;
     esac
     shift
 done
 
 proj=${sol}_${sd}${suffix}
-venue=local_${mission}_${proj}
-tileset_dir=$storage/$venue/tiling/TileSet/${sd}Frame/best/$proj 
-log=processContextual_${proj}_log.txt
-if [ "$dry" ]; then log=; else printf "${cmdline}\r\n" > $log; fi
+venue=contextual_${mission}_${proj}
+tilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best/$proj 
+log=$logdir/contextual_${proj}_log.txt
+outproj=$outdir/$proj
+cfgfolder=$venue
 
-backup_config() { if [ -f $config -a ! -f $config.BAK ]; then ${dry}cp $config $config.BAK; fi }
+bevdir=$storagedir/$venue/alignment/BEVProducts/*/$proj
+heightmapdir=$storagedir/$venue/alignment/HeightmapProducts/*/$proj
+geometrydir=$storagedir/$venue/meshing/GeometryProducts/*/best/$proj
+blenddir=$storagedir/$venue/texturing/BlendProducts/*/best/$proj
 
-restore_config() { if [ -f $config.BAK ]; then ${dry}mv $config.BAK $config; fi }
+stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
+cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+stdopts="$stdopts $dbg"
 
-delete_venue() { ${dry}rm -rf $storage/$venue; }
+if [ "$dry" -o "$only_ingest" -o "$only_cleanup" ]; then log=; else mkdir -p $logdir; printf "${cmdline}\r\n" > $log; fi
 
-echo "processing ${mission} contextual mesh for sitedrive ${sd} from ${num_sd} sitedrives in sol ${sol} from ${dir}"
+echo "processing ${mission} contextual mesh ${sol}_${sd} (${num_sd} sitedrives) from ${indir} to ${outdir}"
 
-if [ "$cleanup" ]; then delete_venue; fi
+if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
 
 if [ "$only_cleanup" ]; then exit 0; fi 
 
-backup_config
-
-# exit script on ctrl-c
-ctrlc() {
-    restore_config
-    exit 1
-}
-trap "ctrlc" INT
-
 if [ "$generate" ]; then
     
-    for f in $dir/*masks.zip; do
+    for f in $indir/*masks.zip; do
         if [ -f $f ]; then
           ${dry}mkdir -p $storage/$venue/masks
           ${dry}unzip $f -d $storage/$venue/masks
         fi
     done
     
-    ${dry}$landform configure-local --venue=$venue --storagedir=$storage --maxcores=0 --randomseed=-1
-    ${dry}$landform ingest $proj $dbg --inputpath=$dir/** --mission=$mission --onlyforsitedrives=$sds $cameras | tee -a $log
+    ${dry}$landform configure-local $cfgopts $cfgargs
+
+    # using --inputpath=$indir/** with equal sign, not --inputpath $dir/**, to avoid shell glob expansion
+    ${dry}$landform ingest $proj $stdopts --inputpath=$indir/** --mission $mission --onlyforsitedrives $sds $cameras \
+          $ingestargs | tee -a $log
 
     if [ ! "$only_ingest" ]; then
-        ${dry}$landform bev-align $proj $dbg --fixsitedrives $sd | tee -a $log
-        ${dry}$landform heightmap-align $proj $dbg --basesitedrive $sd $orbital_dem | tee -a $log
-        ${dry}$landform build-geometry $proj $dbg --meshframe $sd $orbital_dem | tee -a $log
-        ${dry}$landform build-tiling-input $proj $dbg --meshframe $sd | tee -a $log
-        ${dry}$landform blend-images $proj $dbg --meshframe $sd | tee -a $log
-        ${dry}$landform build-tileset $proj $dbg $export --meshframe $sd | tee -a $log
+        ${dry}$landform bev-align $proj $stdopts --fixsitedrives $sd $bevargs | tee -a $log
+        ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $orbital_dem $heightmapargs | tee -a $log
+        ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $orbital_dem $geometryargs | tee -a $log
+        ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
+        ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
+        ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
         
-        ${dry}rm -rf $proj
-        ${dry}cp -R $tileset_dir .
-        ${dry}mv $proj/tileset.json $proj/${proj}_tileset.json
-        if [ -f $proj/stats.txt ]; then ${dry}mv $proj/stats.txt $proj/${proj}_stats.txt; fi
+        ${dry}rm -rf $outproj
+        ${dry}cp -R $tilesetdir $outdir
+        ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
+        if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
+
+        if [ -d $bevdir ]; then
+            ${dry}mkdir $outproj/bev-products
+            ${dry}cp -R $bevdir $outproj/bev-products
+        fi
         
+        if [ -d $heightmapdir ]; then
+            ${dry}mkdir $outproj/heightmap-products
+            ${dry}cp -R $heightmapdir $outproj/heightmap-products
+        fi
+
+        if [ -d $geometrydir ]; then
+            ${dry}mkdir $outproj/geometry-products
+            ${dry}cp -R $geometrydir $outproj/geometry-products
+        fi
+
+        if [ -d $blenddir ]; then
+            ${dry}mkdir $outproj/blend-products
+            ${dry}cp -R $blenddir $outproj/blend-products
+        fi
+
         if [ "$manifest" ]; then
             # create/update scene manifests here where we have access to the contextual mesh alignment project database
             # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
-            ${dry}$landform update-scene-manifest $proj $dbg --manifestfile $proj/${proj}_scene.json --notactical --nourls --sol=$sol --sitedrive=$sd | tee -a $log
+            ${dry}$landform update-scene-manifest $proj $stdopts --manifestfile $outproj/${proj}_scene.json \
+                  --notactical --nourls --sol=$sol --sitedrive=$sd $manifestargs | tee -a $log
             
             if [ "$combined_manifest" ]; then
                 # this scene manifest contains both the contextual mesh tileset
                 # as well as any sibling tactical mesh tilesets that already exist
                 # and it has local file:// URLs
-                ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=. --rdrdir=$dir --sol=$sol --sitedrive=$sd | tee -a $log
+                ${dry}$landform update-scene-manifest $proj $stdopts --tilesetdir=$outdir --rdrdir=$indir \
+                      --sol=$sol --sitedrive=$sd $combinedmanifestargs | tee -a $log
             fi
         fi
     fi
 fi
 
 if [ "$upload" ]; then
-    ${dry}aws --profile=credss-default s3 sync $proj $s3rdrdir/tileset/$proj --acl bucket-owner-full-control 
+    ${dry}aws --profile=credss-default s3 sync $outproj $s3rdrdir/tileset/$proj \
+          --acl bucket-owner-full-control $syncargs | tee -a $log
     if [ "$combined_manifest" ]; then
-        ${dry}$landform update-scene-manifest $proj $dbg --tilesetdir=$s3rdrdir/tileset --rdrdir=$s3rdrdir --sol=$sol --sitedrive=$sd $s3_proxy
+        ${dry}$landform update-scene-manifest $proj $stdopts --tilesetdir=$s3rdrdir/tileset --rdrdir=$s3rdrdir \
+              --sol=$sol --sitedrive=$sd $s3_proxy $combinedmanifestargs | tee -a $log
     fi
 fi
 
-if [ "$copy_combined_manifest" ]; then
-    site=${sd:0:3}
-    drive=${sd:3:4}
-    site5=`printf "%05d" $((10#$site))`
-    drive5=`printf "%05d" $((10#$drive))`
-    sol5=`printf "%05d" $((10#$sol))`
-    dest="$copy_combined_manifest"
-    dest=${dest//%S5%/$site5}
-    dest=${dest//%D5%/$drive5}
-    dest=${dest//%T5%/$sol5}
-    dest=${dest//%S3%/$site}
-    dest=${dest//%D4%/$drive}
-    dest=${dest//%T4%/$sol}
-    ${dry}aws --profile=credss-default s3 cp $s3rdrdir/tileset/${proj}_scene.json $dest --acl bucket-owner-full-control
-fi
+if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
 
-if [ "$cleanup" ]; then delete_venue; fi
-
-if [ ! "$only_ingest" ]; then restore_config; fi
-
-if [ ! "$dry" ]; then
+if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" -o "$only_ingest" ]; then
     printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
-    if [ -d $proj ]; then
-        printf "moved output to ./${proj}\r\n" | tee -a $log
-        mv $log $proj
+    if [ -d $outproj ]; then
+        printf "moved output to ${outproj}\r\n" | tee -a $log
+        mv $log $outproj
     fi
 fi
 
