@@ -123,14 +123,14 @@ namespace OPS.Pipeline
             return null;
         }
 
-        private GDALDEM basemapDEM = null;
+        private OrbitalImage basemapDEM = null;
         private double? basemapDEMZ0 = null;
 
         public bool HasBasemapDEM { get { return basemapDEM != null; } }
 
         public void LoadBasemapDEM(string file)
         {
-            basemapDEM = GDALDEM.Load(file, "Mars");
+            basemapDEM = new OrbitalImage(file, "Mars");
         }
 
         public double GetZFromBasemap(double lat, double lon)

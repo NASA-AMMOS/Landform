@@ -976,7 +976,7 @@ namespace OPS.Pipeline
             }
 
             var placesDB = new PlacesDB(logger, requireOrbital: true);
-            var gdalDEM = GDALDEM.Load(demFile, cfg.OrbitalBodyName);
+            var gdalDEM = new OrbitalImage(demFile, cfg.OrbitalBodyName);
             var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
             
             GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 elevationDir, out Vector3 rightDir, out Vector3 downDir);
