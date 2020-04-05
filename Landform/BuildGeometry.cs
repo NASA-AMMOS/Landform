@@ -231,16 +231,6 @@ namespace OPS.Landform
                     RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
                 }
 
-                if (options.NoOrbital)
-                {
-                    dbgMeshPrefix += "-noOrbital";
-                }
-
-                if (options.NoSurfaceObs)
-                {
-                    dbgMeshPrefix += "-noSurface";
-                }
-
                 if (!options.NoSurfaceObs && (!options.NoFillHoles || !options.NoOrbital))
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
