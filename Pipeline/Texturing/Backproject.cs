@@ -120,15 +120,13 @@ namespace OPS.Pipeline
         static public IDictionary<Pixel,ObsPixel> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, 
             OrbitalImage bodyToImage, List<PixelPoint> pixelsToBackproject, OrbitalObservation orbitalObs)
         {
-            //BUGBUG: the correcting for adjustment is only needed on verts that came from the dem!
             Dictionary<Pixel, ObsPixel> orbPixelsByTexel = new Dictionary<Pixel, ObsPixel>();
             foreach(var destPixelPt in pixelsToBackproject)
             {
                 var ptOutputMeshFrame = destPixelPt.Point;
                 var ptBodyXYZ = Vector3.Transform(ptOutputMeshFrame, outputMeshFrameToBodyXYZ);
-                var lonlat = bodyToImage.XYZToLatLon(ptBodyXYZ); //TODO: can collapse these calls
-                var pixel = bodyToImage.LatLonToImage(lonlat); //returns col, row
-                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs,new Vector2(pixel.X, pixel.Y)); //BUGBUG: if the subpixel dst is not centers, its wrong //TODO: detect and handle collisions here and in normal backproj
+                var pixel = bodyToImage.XYZToImage(ptBodyXYZ); //returns col, row
+                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs,new Vector2(pixel.X, pixel.Y));
             }
 
             return orbPixelsByTexel;
