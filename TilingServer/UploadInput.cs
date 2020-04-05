@@ -100,8 +100,7 @@ namespace OPS.TilingServer
             }
 
             pipeline.EnqueueToMaster(new AddInputMessage(options.ProjectName)
-                                     { Name = name, MeshUrl = meshUrl, ImageUrl = imageUrl,
-                                       TileId = options.TileId });
+                                     { Name = name, MeshUrl = meshUrl, ImageUrl = imageUrl, TileId = options.TileId });
             
             if (!options.NoWait)
             {

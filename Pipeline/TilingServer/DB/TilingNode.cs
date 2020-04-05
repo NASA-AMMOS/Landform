@@ -438,8 +438,8 @@ namespace OPS.Pipeline.TilingServer
 
                             if (pair.Index != null)
                             {
-                                pair.Index.Save<byte>(tmpIndex);
-                                if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
+                                pair.Index.Save<float>(tmpIndex);
+                                if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
                                 {
                                     upload(tmpIndex, exIndexUrl);
                                     uploadedExIndex = true;
@@ -476,19 +476,25 @@ namespace OPS.Pipeline.TilingServer
                                     BoundsWithSkirt = "";
                                 }
 
+                                if (!project.EmbedIndexes) {
+                                    if (tmpIndex != null)
+                                    {
+                                        string indexUrl = Path.ChangeExtension(tileUrl, tileIndexExt);
+                                        upload(tmpIndex, indexUrl);
+                                    }
+                                    if (tileMeshExt == exMeshExt)
+                                    {
+                                        uploadedExMesh = true;
+                                    }
+                                    tmpIndex = null; //Don't also add to b3dm
+                                }
+
                                 //for b3dm this reads the image data if any and embeds it into the mesh file
                                 //for pnts the image data is ignored
-                                tilesetMesh.Save(tmpMesh, tmpImage);
+                                tilesetMesh.Save(tmpMesh, tmpImage, tmpIndex);
                                 upload(tmpMesh, tileUrl);
-                                if(tmpIndex != null)
-                                {
-                                    string indexUrl = Path.ChangeExtension(tileUrl, ".ppm");
-                                    upload(tmpIndex, indexUrl);
-                                }
-                                if (tileMeshExt == exMeshExt)
-                                {
-                                    uploadedExMesh = true;
-                                }
+
+                                
                             }
                         });
                     });

@@ -35,6 +35,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Publish index images with tileset", Default = false)]
         public bool WithIndexImages { get; set; }
+
+        [Option(HelpText = "Write out index images as seperate files", Default = false)]
+        public bool NoEmbedIndexes { get; set; }
     }
 
     public class BuildTileset : TilingCommand
@@ -121,6 +124,11 @@ namespace OPS.Landform
 
             LoadTileList();
 
+            if (options.WithIndexImages && !tileList.HasIndexImages)
+            {
+                throw new Exception("Tileset does not have index images. Consider disabling --withindeximages.");
+            }
+
             withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
 
             tilesetFolder = DecorateOutDir(TILESET_DIR);
@@ -204,6 +212,8 @@ namespace OPS.Landform
 
                 tilingProject.Save(pipeline);
             }
+
+            tilingProject.EmbedIndexes = !options.NoEmbedIndexes;
 
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
             pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",

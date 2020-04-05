@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -24,20 +25,47 @@ namespace OPS.Imaging
 
         public override string[] GetExtensions()
         {
-            return new string[] { ".ppm" };
+            return new string[] { ".ppm", ".ppmz" };
+        }
+
+        private bool ShouldCompress(string fn)
+        {
+            return Path.GetExtension(fn) == ".ppmz";
+        }
+
+        private Stream OpenWriteStream(string fn)
+        {
+            Stream s = new FileStream(fn, FileMode.CreateNew);
+            if (ShouldCompress(fn))
+            {
+                s = new GZipStream(s, CompressionMode.Compress);
+            }
+            return s;
+        }
+
+        private Stream OpenReadStream(string fn)
+        {
+            Stream s = new FileStream(fn, FileMode.Open, FileAccess.Read, FileShare.Read);
+            if (ShouldCompress(fn))
+            {
+                s = new GZipStream(s, CompressionMode.Decompress);
+            }
+            return s;
         }
 
         public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
         {
             Image img;
-            var sr = new StreamReader(filename);
+            var sr = new StreamReader(OpenReadStream(filename));
             int processedHeaderLines = 0;
             int expectedHeaderLines = 3;
+            int headerSize = 0;
             string[] header = new string[3];
 
             while (processedHeaderLines < expectedHeaderLines)
             {
                 var line = sr.ReadLine();
+                headerSize += line.Length + 1; //2 byte new line
                 if(line.Length == 0 || line[0] == '#') //skip empty lines/comments
                 {
                     continue;
@@ -78,12 +106,8 @@ namespace OPS.Imaging
 
             int bands = 3;
             int bytesPerVal = maxVal < 256 ? 1 : 2;
-            FileInfo fi = new FileInfo(filename);
-            long size = fi.Length;
-            long dataSize = width * height * bands * bytesPerVal;
-            int headerSize = (int)(size - dataSize);
 
-            using (BinaryReader br = new BinaryReader(File.Open(filename, FileMode.Open)))
+            using (BinaryReader br = new BinaryReader(OpenReadStream(filename)))
             {
                 br.ReadBytes(headerSize);
                 img = new Image(bands, width, height);
@@ -119,13 +143,14 @@ namespace OPS.Imaging
             }
 
             //Header
-            var sw = new StreamWriter(new FileStream(filename, FileMode.CreateNew));
-            sw.WriteLine("P6");
-            sw.WriteLine($"{image.Width} {image.Height}");
-            sw.WriteLine("65535");
-            sw.Close();
+            var bw = new BinaryWriter(OpenWriteStream(filename));
+            string header = $"P6\n{image.Width} {image.Height}\n65535\n";
+            foreach (char c in header)
+            {
+                bw.Write(c);
+            }
+
             //Data
-            var bw = new BinaryWriter(new FileStream(filename, FileMode.Append));
             for (int r = 0; r < image.Height; r++)
             {
                 for (int c = 0; c < image.Width; c++)

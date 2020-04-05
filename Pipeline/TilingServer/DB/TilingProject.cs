@@ -66,7 +66,9 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
 
-        public string TilesetIndexFormat = "ppm"; //TODO: add lossless compression
+        public string TilesetIndexFormat = "ppmz"; //gzipped ppm, will be embedded in b3dm
+
+        public bool EmbedIndexes = true; //Allow writing index images as seperate files
 
         public static string ToExt(string fmt)
         {

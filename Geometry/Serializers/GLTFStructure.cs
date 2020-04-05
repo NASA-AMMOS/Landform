@@ -257,6 +257,10 @@ namespace OPS.Geometry.GLTF
                         {
                             sb.Append(GLTFImage.PNG_HEADER);
                         }
+                        else if (ext == ".ppmz")
+                        {
+                            sb.Append(GLTFImage.PPMZ_HEADER);
+                        }
                         else
                         {
                             throw new MeshSerializerException("Unsupported image format for gltf export");
@@ -283,6 +287,10 @@ namespace OPS.Geometry.GLTF
                         else if (ext == ".png")
                         {
                             img.mimeType = GLTFImage.PNG_MIME;
+                        }
+                        else if (ext == ".ppmz")
+                        {
+                            img.mimeType = GLTFImage.PPMZ_MIME;
                         }
                         else
                         {
@@ -438,8 +446,11 @@ namespace OPS.Geometry.GLTF
     {
         public const string JPG_HEADER = "data:image/jpeg;base64,";
         public const string PNG_HEADER = "data:image/png;base64,";
+        public const string PPMZ_HEADER = "data:image/x-portable-pixmap+gzip;base64";
         public const string JPG_MIME = "image/jpeg";
         public const string PNG_MIME = "image/png";
+        public const string PPMZ_MIME = "image/x-portable-pixmap+gzip";
+
         public string uri;
         public string mimeType;
         public int? bufferView;
