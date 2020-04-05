@@ -196,6 +196,7 @@
     <Compile Include="CloudPipelineConfig.cs" />
     <Compile Include="DataProducts\TileList.cs" />
     <Compile Include="DataProducts\PlyGZDataProduct.cs" />
+    <Compile Include="MissionSpecific\ListFile.cs" />
     <Compile Include="OrbitalConfig.cs" />
     <Compile Include="MissionSpecific\MissionM2020.cs" />
     <Compile Include="MissionSpecific\MissionMSL.cs" />
@@ -248,7 +249,6 @@
     <Compile Include="MissionSpecific\CuriosityRoverModel.cs" />
     <Compile Include="MissionSpecific\RoverReachability.cs" />
     <Compile Include="MissionSpecific\SolDateTime.cs" />
-    <Compile Include="Tiling\ContextualMeshParameters.cs" />
     <Compile Include="Tiling\MeshImagePairStats.cs" />
     <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />

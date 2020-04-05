@@ -22,21 +22,15 @@ namespace OPS.Pipeline
             return sd != null && ((new Regex("\\d{10}")).IsMatch(sd) || (new Regex("\\d{7}")).IsMatch(sd));
         }
 
-        public SiteDrive(int site, int drive)
+        public static bool TryParse(string name, out SiteDrive sd)
         {
-            this.Site = site;
-            this.Drive = drive;
-        }
+            sd = new SiteDrive(0, 0);
 
-        /// <summary>
-        /// Parse a site drive from a 7 character string of the form "SSSDDDD"
-        /// or alternately a 10 character string of the form "SSSSSDDDDD"
-        ///
-        /// Allows wildcard sites and drives in the (case-insensitive) forms "xxxxx", "#####", "?????".
-        /// </summary>
-        /// <param name="name"></param>
-        public SiteDrive(string name)
-        {
+            if (!IsSiteDriveString(name))
+            {
+                return false;
+            }
+
             string site = null;
             string drive = null;
             switch (name.Length)
@@ -53,7 +47,7 @@ namespace OPS.Pipeline
                     drive = name.Substring(3, 4);
                     break;
                 }
-                default: throw new ArgumentException("Unexpected sitedrive string length");
+                default: return false;
             }
 
             bool isWildcard(string s)
@@ -62,10 +56,33 @@ namespace OPS.Pipeline
                 return a.All(c => c == 'x') || a.All(c => c == '#') || a.All(c => c == '?');
             }
 
-            this.Site = isWildcard(site) ? -1 : int.Parse(site);
-            this.Drive = isWildcard(drive) ? -1 : int.Parse(drive);
+            sd = new SiteDrive(isWildcard(site) ? -1 : int.Parse(site), isWildcard(drive) ? -1 : int.Parse(drive));
+            return true;
         }
         
+        public SiteDrive(int site, int drive)
+        {
+            this.Site = site;
+            this.Drive = drive;
+        }
+
+        /// <summary>
+        /// Parse a site drive from a 7 character string of the form "SSSDDDD"
+        /// or alternately a 10 character string of the form "SSSSSDDDDD"
+        ///
+        /// Allows wildcard sites and drives in the (case-insensitive) forms "xxxxx", "#####", "?????".
+        /// </summary>
+        /// <param name="name"></param>
+        public SiteDrive(string name)
+        {
+            if (!TryParse(name, out SiteDrive sd))
+            {
+                throw new ArgumentException("Unexpected sitedrive string length");
+            }
+            this.Site = sd.Site;
+            this.Drive = sd.Drive;
+        }
+
         /// <summary>
         /// Return a 7 digit string representing this site drive (as in MSL & M2020 product ID)
         /// First 3 digits are 0 left padded site number

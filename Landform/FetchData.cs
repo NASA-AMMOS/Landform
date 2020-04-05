@@ -146,6 +146,14 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Max fetched bytes, integer with optional case-insensitive suffix K,M,G, unlimited if omitted or non-positive")]
+        public string MaxDownload { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Make --maxdownload apply to total disk usage recursively under output directory, not just current downloads")]
+        public bool AccountExisting { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Delete least recently used files recursively under output directory to enforce --maxdownload, requires --accountexisting")]
+        public bool DeleteLRU { get; set; }
        
         [Option(Required = false, Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
@@ -221,6 +229,12 @@ namespace OPS.Landform
                 return _storageHelper;
             }
         }
+
+        private long downloadedBytes, maxBytes, diskBytes, deletedBytes;
+
+        private int downloadedFiles, deletedFiles, deletedDirectories;
+
+        private Queue<FileInfo> lruDownloads = new Queue<FileInfo>();
 
         public FetchData(FetchDataOptions opts)
         {
@@ -706,60 +720,274 @@ namespace OPS.Landform
                     }
                 }
             });
-            return File.Exists(localPath) ? new FileInfo(localPath).Length : 0;
-        }
-
-        private bool ShouldDownload(string url)
-        {
-            if (options.Overwrite == true || !url.ToLower().StartsWith("s3://"))
+            if (File.Exists(localPath))
             {
-                return true;
+                downloadedFiles++;
+                return new FileInfo(localPath).Length;
             }
-            var localPath = LocalPath(url);
-            return !storageHelper.FileSizeMatches(url, localPath);
+            return -1;
         }
 
-        private long DownloadFiles(List<string> files)
+        private bool ShouldDownload(string url, ref long batchBytes)
         {
-            var po = new ParallelOptions() { MaxDegreeOfParallelism = options.ConcurrentDownloads };
-
-            var totalFilesToDownload = files;
-            var remainingFilesToDownload = totalFilesToDownload;
-            if (!options.Overwrite)
+            long remoteBytes = url.ToLower().StartsWith("s3://") ? storageHelper.FileSize(url) : -1;
+            if (maxBytes > 0 && remoteBytes > maxBytes)
             {
-                ConcurrentBag<string> toDownload = new ConcurrentBag<string>();
-                CoreLimitedParallel.ForEach(totalFilesToDownload, po, f =>
+                if (ShouldTrace(url))
                 {
-                    if (ShouldDownload(f))
+                    logger.InfoFormat("rejected {0}: {1} bytes > max download {2}",
+                                      url, Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
+                }
+                return false;
+            }
+            if (maxBytes > 0 && remoteBytes > 0 && !options.AccountExisting &&
+                (downloadedBytes + batchBytes + remoteBytes) > maxBytes)
+            {
+                if (ShouldTrace(url))
+                {
+                    logger.InfoFormat("rejected {0}: {1} + {2} bytes > max download {3}",
+                                      url, Fmt.DiskBytes(downloadedBytes + batchBytes), Fmt.DiskBytes(remoteBytes),
+                                      Fmt.DiskBytes(maxBytes));
+                }
+                return false;
+            }
+            if (maxBytes > 0 && remoteBytes > 0 && options.AccountExisting && !options.DeleteLRU &&
+                (diskBytes + batchBytes + remoteBytes) > maxBytes)
+            {
+                if (ShouldTrace(url))
+                {
+                    logger.InfoFormat("rejected {0}: {1} + {2} bytes > max disk usage {3}",
+                                      url, Fmt.DiskBytes(diskBytes + batchBytes), Fmt.DiskBytes(remoteBytes),
+                                      Fmt.DiskBytes(maxBytes));
+                }
+                return false;
+            }
+            string localPath = LocalPath(url);
+            long localBytes = File.Exists(localPath) ? new FileInfo(localPath).Length : -1;
+            if (localBytes >= 0)
+            {
+                if (!options.Overwrite)
+                {
+                    if (ShouldTrace(url))
                     {
-                        toDownload.Add(f);
+                        logger.InfoFormat("rejected {0}: cannot overwrite local file {1}", url, localPath);
+                    }
+                    return false;
+                }
+                if (maxBytes > 0 && remoteBytes > 0 && options.AccountExisting && !options.DeleteLRU &&
+                    (diskBytes + batchBytes - localBytes + remoteBytes) > maxBytes)
+                {
+                    if (ShouldTrace(url))
+                    {
+                        logger.InfoFormat("rejected {0}: {1} + {2} bytes > max disk usage {3}", url,
+                                          Fmt.DiskBytes(diskBytes + batchBytes - localBytes),
+                                          Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
+                    }
+                    return false; //replacing existing file would exceed allowed disk space
+                }
+                if (remoteBytes >= 0 && localBytes == remoteBytes)
+                {
+                    if (ShouldTrace(url))
+                    {
+                        logger.InfoFormat("rejected {0}: local file {1} already downloaded ({2} = {2} bytes)",
+                                          url, localPath, Fmt.DiskBytes(localBytes));
+                    }
+                    return false; //already downloaded
+                }
+            }
+            if (remoteBytes >= 0)
+            {
+                batchBytes += localBytes >= 0 ? remoteBytes - localBytes : remoteBytes;
+            }
+            return true;
+        }
+
+        private void DownloadFiles(List<string> urls)
+        {
+            var maxBatch = options.ConcurrentDownloads;
+            if (maxBatch <= 0)
+            {
+                maxBatch = Math.Max(CoreLimitedParallel.GetMaxCores(), 1);
+            }
+
+            var remaining = new Queue<string>();
+            var unique = new HashSet<string>();
+            foreach (var url in urls) //keep urls in order but only keep unique ones (Linq Distinct() is unordered)
+            {
+                if (!unique.Contains(url))
+                {
+                    unique.Add(url);
+                    remaining.Enqueue(url);
+                }
+            }
+
+            //download in parallel groups of up to maxBatch files or maxBatchBytes, whichever is reached first
+            long maxBatchBytes = (long)1e9;
+            var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
+            int total = remaining.Count, done = 0, rejected = 0, failed = 0;
+            var batch = new List<string>();
+            long batchBytes = 0;
+            while (remaining.Count > 0)
+            {
+                batch.Clear();
+                while (remaining.Count > 0 && batch.Count < maxBatch && batchBytes < maxBatchBytes)
+                {
+                    var url = remaining.Dequeue();
+                    if (!ShouldDownload(url, ref batchBytes))
+                    {
+                        rejected++;
+                        continue;
+                    }
+                    batch.Add(url);
+                }
+
+                logger.InfoFormat("{0F3}%: {1} downloaded, {2} rejected, {3} failed, {4} to go, " +
+                                  "downloading batch of {5} files ({6} bytes) in parallel",
+                                  (done + rejected + failed) * 100.0 / total, done, rejected, failed, remaining.Count,
+                                  batch.Count, Fmt.DiskBytes(batchBytes));
+
+                //batchBytes can actually be greater than maxBatchBytes here because we download whole files
+                //also, if there are any https (vs s3) URLs, batchBytes will be an underestimate
+                //because we currently only implmement such accounting for s3
+
+                if (options.DeleteLRU && maxBytes > 0 && batchBytes > 0 && diskBytes + batchBytes > maxBytes)
+                {
+                    DeleteLRUDownloads(batchBytes); //free up at least batchBytes
+                }
+
+                batchBytes = 0; //now we'll re-account the actual downloaded bytes
+                var batchFiles = new ConcurrentBag<FileInfo>(); //ConcurrentBag has no Clear()
+                CoreLimitedParallel.ForEach(batch, po, url =>
+                {
+                    long bytes = DownloadFile(url);
+                    if (bytes >= 0)
+                    {
+                        Interlocked.Add(ref batchBytes, bytes);
+                        Interlocked.Increment(ref done);
+                        batchFiles.Add(new FileInfo(LocalPath(url)));
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref failed);
+                    }
+                    if (!options.DryRun)
+                    {
+                        string msg = string.Format("{0F3%}: {1} {2}", (done + rejected + failed) * 100.0 / total,
+                                                   bytes >= 0 ? "downloaded" : "failed to download",
+                                                   StringHelper.GetLastUrlPathSegment(url));
+                        if (bytes >= 0)
+                        {
+                            logger.Info(msg);
+                        }
+                        else
+                        {
+                            logger.Warn(msg);
+                        }
                     }
                 });
-                remainingFilesToDownload = toDownload.Distinct().ToList();
-            }
-            int total = totalFilesToDownload.Count();
-            int remaining = remainingFilesToDownload.Count();
-            int downloaded = 0;
-            logger.InfoFormat("{0} files, {1} already downloaded, {2} to go", total, total - remaining, remaining);
-            long totalBytes = 0;
-            CoreLimitedParallel.ForEach(remainingFilesToDownload, po, f =>
-            {
-                long bytes = DownloadFile(f);
-                Interlocked.Add(ref totalBytes, bytes);
-                Interlocked.Increment(ref downloaded);
-                if (!options.DryRun)
+
+                downloadedBytes += batchBytes;
+
+                if (options.AccountExisting && batchFiles.Count > 0)
                 {
-                    logger.InfoFormat("downloaded \"{0}\" {1}/{2} {3}%", Path.GetFileName(f),
-                                      downloaded, remaining, (downloaded * 100) / remaining);
+                    IndexExistingDownloads(batchFiles); //will update diskBytes, accounting for replaces
+                    if (options.DeleteLRU && maxBytes > 0 && diskBytes > maxBytes)
+                    {
+                        DeleteLRUDownloads();
+                    }
                 }
-            });
-            return totalBytes;
+            }
+        }
+
+        private void IndexExistingDownloads(IEnumerable<FileInfo> files)
+        {
+            var existing = new Dictionary<string, FileInfo>();
+            diskBytes = 0;
+            foreach (var file in lruDownloads)
+            {
+                existing[file.FullName] = file;
+                diskBytes += file.Length;
+            }
+            foreach (var file in files)
+            {
+                if (existing.ContainsKey(file.FullName))
+                {
+                    diskBytes -= existing[file.FullName].Length;
+                }
+                existing[file.FullName] = file;
+                diskBytes += file.Length;
+            }
+            lruDownloads = new Queue<FileInfo>(existing.Values.OrderBy(file => file.LastAccessTime));
+        }
+
+        private void DeleteLRUDownloads(long minFreeBytes = 0)
+        {
+            while (maxBytes > 0 && lruDownloads.Count > 0 && diskBytes > (maxBytes - minFreeBytes))
+            {
+                var file = lruDownloads.Dequeue();
+                try
+                {
+                    long bytes = file.Length;
+                    logger.InfoFormat("deleting least-recently used file {0} ({1} bytes, last access {2}), " +
+                                      "{3}/{4} bytes currently free, target min free bytes {5}",
+                                      file.FullName, Fmt.DiskBytes(bytes), file.LastAccessTime,
+                                      Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
+                                      Fmt.DiskBytes(maxBytes), Fmt.DiskBytes(minFreeBytes));
+                    file.Delete();
+                    diskBytes -= bytes;
+                    deletedBytes += bytes;
+                    deletedFiles++;
+                    if (!file.Directory.EnumerateFileSystemInfos().Any())
+                    {
+                        file.Directory.Delete();
+                        deletedDirectories++;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger.ErrorFormat("error deleting LRU download {0}: {1}", file.FullName, ex.Message);
+                }
+            }
         }
 
         public int Run()
         {
             var stopwatch = Stopwatch.StartNew();
-            long bytes = 0;
+
+            if (!string.IsNullOrEmpty(options.MaxDownload))
+            {
+                var str = options.MaxDownload.ToLower();
+                double mult = str.EndsWith("k") ? 1e3 : str.EndsWith("m") ? 1e6 : str.EndsWith("g") ? 1e9 : 1;
+                if (mult > 1)
+                {
+                    str = str.Substring(0, str.Length - 1);
+                }
+                if (str.Length > 0 && !long.TryParse(str, out maxBytes))
+                {
+                    logger.ErrorFormat("error parsing --maxdownload \"{0}\"", options.MaxDownload);
+                    return 1;
+                }
+                maxBytes *= (long)mult;
+            }
+
+            if (maxBytes > 0 && options.DeleteLRU && !options.AccountExisting)
+            {
+                logger.ErrorFormat("--deletelru requires --accountexisting");
+                return 1;
+            }
+
+            if (maxBytes > 0 && options.AccountExisting && Directory.Exists(options.OutputDir))
+            {
+                logger.InfoFormat("indexing existing downloads, disk usage limit {0} bytes", Fmt.DiskBytes(maxBytes));
+                IndexExistingDownloads(PathHelper.ListFiles(options.OutputDir, recursive: true));
+                logger.InfoFormat("found {0} existing downloads, total {1} bytes",
+                                  Fmt.KMG(lruDownloads.Count), Fmt.DiskBytes(diskBytes));
+            }
+            else if (maxBytes > 0)
+            {
+                logger.InfoFormat("download limit {0} bytes", Fmt.DiskBytes(maxBytes));
+            }
+
             if (options.Raw)
             {
                 if (!string.IsNullOrEmpty(options.SearchLocations))
@@ -773,7 +1001,7 @@ namespace OPS.Landform
                     logger.InfoFormat("--- fetching {0} files ---", files.Count);
                     files.ForEach(file => logger.Info(file));
                 }
-                bytes += DownloadFiles(files);
+                DownloadFiles(files);
             }
             else
             {
@@ -818,7 +1046,7 @@ namespace OPS.Landform
                         urls = UnifiedMesh.CollectLatest(solToProducts.SelectMany(s => s.Value).ToList(), mission);
                     }
                     logger.InfoFormat("downloading {0} unified meshes", urls.Count);
-                    bytes += DownloadFiles(urls);
+                    DownloadFiles(urls);
                     var files = urls
                         .Select(url => LocalPath(url))
                         .Where(path => !options.DryRun || File.Exists(path))
@@ -850,9 +1078,21 @@ namespace OPS.Landform
                     }
                 }
                 
-                bytes += DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
+                DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
             }
-            logger.InfoFormat("downloaded {0}, total time: {1}", Fmt.Bytes(bytes), Fmt.HMS(stopwatch));
+            logger.InfoFormat("downloaded {0} files ({1} bytes), total time: {2}",
+                              Fmt.DiskBytes(downloadedFiles), Fmt.DiskBytes(downloadedBytes), Fmt.HMS(stopwatch));
+            if (deletedFiles > 0)
+            {
+                logger.InfoFormat("deleted {0} LRU files, {1} bytes, {2}/{3} bytes free",
+                                  Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
+                                  Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
+                                  Fmt.DiskBytes(maxBytes));
+            }
+            if (deletedDirectories > 0)
+            {
+                logger.InfoFormat("deleted {0} empty directories", Fmt.KMG(deletedDirectories));
+            }
             return 0;
         }
     }

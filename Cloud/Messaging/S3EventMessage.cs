@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using OPS.Util;
 
 namespace OPS.Cloud
 {
@@ -53,5 +54,42 @@ namespace OPS.Cloud
     public class S3EventMessage
     {
         public List<S3EventRecord> Records;
+
+        public static string GetUrl(S3EventMessage msg, string eventType = "ObjectCreated")
+        {
+            if (msg.Records.Count != 1)
+            {
+                throw new Exception(string.Format("S3 event message has {0} records, expected 1", msg.Records.Count));
+            }
+
+            var record = msg.Records[0];
+            if (!record.eventName.StartsWith(eventType))
+            {
+                throw new Exception(string.Format("S3 event message {0} is not {1}", record.eventName, eventType));
+            }
+
+            var eventData = record.s3;
+            if (eventData == null)
+            {
+                throw new Exception("S3 event message has no event data");
+            }
+
+            if (eventData.bucket == null)
+            {
+                throw new Exception("S3 event message has no bucket");
+            }
+
+            if (eventData.obj == null)
+            {
+                throw new Exception("S3 event message has no S3 object");
+            }
+
+            return string.Format("s3://{0}/{1}", eventData.bucket.name, eventData.obj.key); //already url encoded
+        }
+
+        public static string GetUrl(SNSMessageWrapper msg, string eventType = "ObjectCreated")
+        {
+            return GetUrl(JsonHelper.FromJson<S3EventMessage>(msg.Message), eventType);
+        }
     }
 }

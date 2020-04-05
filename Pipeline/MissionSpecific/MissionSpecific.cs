@@ -412,27 +412,54 @@ namespace OPS.Pipeline
             return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/756
         }
 
-        public virtual bool UseForAlignment(PDSParser parser)
+        public bool UseForAlignment(PDSParser parser)
         {
-            var cam = GetCamera(parser);
+            return UseForAlignment(GetCamera(parser));
+        }
+
+        public bool UseForAlignment(RoverProductId id)
+        {
+            return UseForAlignment(id.Camera);
+        }
+
+        public virtual bool UseForAlignment(RoverProductCamera cam)
+        {
             return (IsHazcam(cam) && UseHazcamForAlignment()) ||
                 (IsNavcam(cam) && UseNavcamForAlignment()) ||
                 (IsMastcam(cam) && UseMastcamForAlignment()) ||
                 (IsArmcam(cam) && UseArmcamForAlignment());
         }
 
-        public virtual bool UseForMeshing(PDSParser parser)
+        public bool UseForMeshing(PDSParser parser)
         {
-            var cam = GetCamera(parser);
+            return UseForMeshing(GetCamera(parser));
+        }
+
+        public bool UseForMeshing(RoverProductId id)
+        {
+            return UseForMeshing(id.Camera);
+        }
+
+        public virtual bool UseForMeshing(RoverProductCamera cam)
+        {
             return (IsHazcam(cam) && UseHazcamForMeshing()) ||
                 (IsNavcam(cam) && UseNavcamForMeshing()) ||
                 (IsMastcam(cam) && UseMastcamForMeshing()) ||
                 (IsArmcam(cam) && UseArmcamForMeshing());
         }
 
-        public virtual bool UseForTexturing(PDSParser parser)
+        public bool UseForTexturing(PDSParser parser)
         {
-            var cam = GetCamera(parser);
+            return UseForTexturing(GetCamera(parser));
+        }
+
+        public bool UseForTexturing(RoverProductId id)
+        {
+            return UseForTexturing(id.Camera);
+        }
+
+        public virtual bool UseForTexturing(RoverProductCamera cam)
+        {
             return (IsHazcam(cam) && UseHazcamForTexturing()) ||
                 (IsNavcam(cam) && UseNavcamForTexturing()) ||
                 (IsMastcam(cam) && UseMastcamForTexturing()) ||
@@ -702,81 +729,14 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Get mission specific tactical mesh SQS queue name.  
-        /// Does not get called if --queuename is specified.
+        /// Get tactical mesh file extension.
+        /// Not case sensitive, leading dot will be added automatically.
         /// </summary>
-        public virtual string GetTacticalMeshQueueName()
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Get mission specific tactical mesh SQS fail queue name.  
-        /// Does not get called if --failqueuename is specified.
-        /// Return null or empty to disable tactical mesh fail queue.
-        /// </summary>
-        public virtual string GetTacticalMeshFailQueueName()
-        {
-            return null;
-        }
-
-        /// <summary>
-        /// Pull a tactical mesh tiling message off the queue.
-        /// The message type can be a mission specific subclass of QueueMessage.
-        /// Does not get called if --usegenericmessagetype is specified. 
-        /// </summary>
-        public virtual QueueMessage DequeueTacticalMeshMessage(MessageQueue queue)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Returns null unless msg is a valid and recognized tactical mesh queue message.
-        /// Each tactical mesh queue message must contain at most one valid URL.
-        /// If a mission produces tactical meshes in more than one format (e.g. IV and OBJ)
-        /// then when filter = true return non-null only for one of those, ideally the one written last.
-        /// </summary>
-        public virtual string GetUrlFromTacticalMeshQueueMessage(QueueMessage msg, bool filter = true,
-                                                                 ILogger logger = null)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// This is only used for injecting a message into the queue for testing.
-        /// Does not get called if --usegenericmessagetype is specified. 
-        /// </summary>
-        public virtual QueueMessage ParseTacticalMeshQueueMessage(string json)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Kill tactical mesh tileset processes after this amount of time.
-        /// </summary>
-        public virtual int GetTacticalMeshQueueMaxHandlerSec()
-        {
-            return 10 * 60; //10 minutes
-        }
-
-        /// <summary>
-        /// Give up processing a tactical mesh this long after first attempt to process it.
-        /// </summary>
-        public virtual int GetTacticalMeshQueueMessageMaxAgeSec()
-        {
-            return 60 * 60; //1 hour
-        }
-
-        /// <summary>
-        /// Get comma separated list of tactical mesh file extensions.
-        /// Not case sensitive, leading dots will be added automatically.
-        /// In priority order so if a mesh is available in multiple formats the first one found will be used.
-        /// </summary>
-        public virtual string GetTacticalMeshExts()
+        public virtual string GetTacticalMeshExt()
         {
             //prefer IV until we implement per-LOD OBJs
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/749
-            return "iv,obj";
+            return "iv";
         }
 
         /// <summary>
@@ -786,16 +746,6 @@ namespace OPS.Pipeline
         public virtual string GetTacticalMeshFrame()
         {
             return "site";
-        }
-
-        /// <summary>
-        /// Get comma separated list of tactical image file extensions.
-        /// Not case sensitive, no leading dots.
-        /// In priority order so if a file is available in multiple formats the first one found will be used.
-        /// </summary>
-        public virtual string GetTacticalImageExts()
-        {
-            return "img,png";
         }
 
         /// <summary>
@@ -822,68 +772,6 @@ namespace OPS.Pipeline
         public virtual string GetSceneManifestImageRDRExts()
         {
             return "img,png,jpg";
-        }
-
-        /// <summary>
-        /// Get mission specific contextual mesh SQS queue name.  
-        /// Does not get called if --queuename is specified.
-        /// </summary>
-        public virtual string GetContextualMeshQueueName()
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Get mission specific contextual mesh SQS fail queue name.  
-        /// Does not get called if --failqueuename is specified.
-        /// Return null or empty to disable contextual mesh fail queue.
-        /// </summary>
-        public virtual string GetContextualMeshFailQueueName()
-        {
-            return null;
-        }
-
-        /// <summary>
-        /// Pull a contextual mesh tiling message off the queue.
-        /// The message type can be a mission specific subclass of QueueMessage.
-        /// Does not get called if --usegenericmessagetype is specified. 
-        /// </summary>
-        public virtual QueueMessage DequeueContextualMeshMessage(MessageQueue queue)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Returns null unless msg is a valid and recognized contextual mesh queue message.
-        /// </summary>
-        public virtual ContextualMeshParameters GetParametersFromContextualMeshQueueMessage(QueueMessage msg)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// This is only used for injecting a message into the queue for testing.
-        /// Does not get called if --usegenericmessagetype is specified. 
-        /// </summary>
-        public virtual QueueMessage ParseContextualMeshQueueMessage(string json)
-        {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Kill contextual mesh tileset processes after this amount of time.
-        /// </summary>
-        public virtual int GetContextualMeshQueueMaxHandlerSec()
-        {
-            return 2 * 60 * 60; //2 hours
-        }
-
-        /// <summary>
-        /// Give up processing a contextual mesh this long after first attempt to process it.
-        /// </summary>
-        public virtual int GetContextualMeshQueueMessageMaxAgeSec()
-        {
-            return 6 * 60 * 60; //6 hours
         }
 
         /// <summary>

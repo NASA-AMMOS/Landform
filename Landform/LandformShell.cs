@@ -24,16 +24,10 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder")]
         public override string OutputFolder { get; set; }
 
-        [Option(Required = false, Default = "iv,obj", HelpText = "Comma separated priority list of mesh file extensions")]
-        public override string MeshFormat { get; set; }
-
-        [Option(Required = false, Default = "img,png", HelpText = "Comma separated priority list of image file extensions")]
-        public override string ImageFormat { get; set; }
-
-        [Option(Required = false, Default = false, HelpText = "Recursively search for meshes under input folders")]
+        [Option(Required = false, Default = false, HelpText = "Recursively search under input folders")]
         public virtual bool RecursiveSearch { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Case sensitive search for meshes and images")]
+        [Option(Required = false, Default = false, HelpText = "Case sensitive search")]
         public virtual bool CaseSensitiveSearch { get; set; }
 
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
@@ -68,6 +62,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
         public string ExportImageFormat { get; set; }
+
+        [Option(HelpText = "Extra fetch arguments", Default = null)]
+        public string FetchArgs { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -88,9 +85,6 @@ namespace OPS.Landform
         protected string logFile;
         protected string configFolder;
         protected string configFile;
-
-        protected List<string> meshExts;
-        protected List<string> imageExts;
 
         private volatile Process currentProcess;
 
@@ -140,12 +134,6 @@ namespace OPS.Landform
 
             mission = GetMission();
             pipeline.LogInfo("mission: {0}", mission.GetMission());
-
-            meshExts = GetMeshExts();
-            pipeline.LogInfo("mesh extensions: {0}", string.Join(", ", meshExts));
-
-            imageExts = GetImageExts();
-            pipeline.LogInfo("image extensions: {0}", string.Join(", ", imageExts));
 
             pipeline.LogInfo("recursive search: {0}", lsopts.RecursiveSearch);
             pipeline.LogInfo("case sensitive search: {0}", lsopts.CaseSensitiveSearch);
@@ -212,25 +200,17 @@ namespace OPS.Landform
         
         protected abstract string GetCacheDir();
 
-        protected virtual List<string> GetMeshExts()
-        {
-            return StringHelper.ParseExts(lsopts.MeshFormat, bothCases: !lsopts.CaseSensitiveSearch);
-        }
-
-        protected virtual List<string> GetImageExts()
-        {
-            return StringHelper.ParseExts(lsopts.ImageFormat, bothCases: !lsopts.CaseSensitiveSearch);
-        }
-
         protected bool FileExists(string url)
         {
             return FileExists(pipeline, () => storageHelper, url);
         }
 
-        protected IEnumerable<string> SearchFiles(string url, string globPattern)
+        protected IEnumerable<string> SearchFiles(string url, string globPattern,
+                                                  bool? recursive = null, bool? ignoreCase = null)
         {
             return SearchFiles(pipeline, () => storageHelper, url, globPattern,
-                               lsopts.RecursiveSearch, !lsopts.CaseSensitiveSearch);
+                               recursive.HasValue ? recursive.Value : lsopts.RecursiveSearch,
+                               ignoreCase.HasValue ? ignoreCase.Value : !lsopts.CaseSensitiveSearch);
         }
 
         protected string GetFile(string url, bool filenameUnique = true)
@@ -338,14 +318,25 @@ namespace OPS.Landform
             }
         }
 
-        protected void RunCommand(string cmd, params string[] args)
+        protected int RunCommand(string cmd, params string[] args)
         {
-            RunCommand(cmd, null, args);
+            return RunCommand(cmd, null, args);
         }
 
-        protected void RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
+        protected int RunCommand(string cmd, HashSet<string> allowedFlags, params string[] args)
         {
-            cmd = cmd + " " + string.Join(" ", args);
+            return RunCommand(cmd, allowedFlags, true, true, args);
+        }
+
+        protected int RunCommand(string cmd, bool throwOnError, params string[] args)
+        {
+            return RunCommand(cmd, null, throwOnError, true, args);
+        }
+
+        protected int RunCommand(string cmd, HashSet<string> allowedFlags, bool throwOnError, bool throwOnKill,
+                                 params string[] args)
+        {
+            cmd = cmd + " " + string.Join(" ", args.Where(arg => !string.IsNullOrEmpty(arg)));
             var stdFlags = new Dictionary<string, bool>()
                 {
                     { "--nosave", lsopts.NoSave },
@@ -385,13 +376,35 @@ namespace OPS.Landform
                 var runner = new ProgramRunner(landformExe, cmd, captureOutput: quiet);
                 int code = runner.Run(process => { currentProcess = process; } ); //blocks until process exits or dies
                 currentProcess = null;
-                if (code != 0) //code = -1 if killed
+                if (code == -1) //killed
+                {
+                    var msg = string.Format("command \"{0}\" killed", cmd);
+                    if (throwOnKill)
+                    {
+                        throw new Exception(msg);
+                    }
+                    else
+                    {
+                        pipeline.LogWarn(msg);
+                    }
+                }
+                else if (code != 0)
                 {
                     string err = (runner.ErrorText ?? "").TrimEnd('\r', '\n');
-                    throw new Exception(string.Format("command \"{0}\" failed with code {1}{2}", cmd, code,
-                                                      err != "" ? (Environment.NewLine + err) : ""));
+                    string msg = string.Format("command \"{0}\" failed with code {1}{2}", cmd, code,
+                                               err != "" ? (Environment.NewLine + err) : "");
+                    if (throwOnError)
+                    {
+                        throw new Exception(msg);
+                    }
+                    else
+                    {
+                        pipeline.LogWarn(msg);
+                    }
                 }
+                return code;
             }
+            return 0;
         }
 
         protected void KillCurrentCommand()
@@ -491,6 +504,9 @@ namespace OPS.Landform
             RunCommand("build-tileset", args.Concat(extraArgs).ToArray());
         }
 
+        //if the tileset already exists this will overwrite it
+        //however, it will orphan existing files that will not end up getting overwritten
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
         protected void SaveTileset(string tilesetDir, string project, string destDir)
         {
             destDir = string.Format("{0}/{1}", destDir, project);
@@ -522,6 +538,42 @@ namespace OPS.Landform
                     }
                 }
             }
+        }
+
+        protected void Fetch(string maxDownload, string input, string output, params string[] extraArgs)
+        {
+            var args = new List<string>() { input, output };
+
+            args.AddRange(extraArgs);
+
+            if (mission != null)
+            {
+                args.AddRange(new string[] { "--mission", mission.GetMission().ToString() });
+            }
+
+            if (!string.IsNullOrEmpty(awsProfile))
+            {
+                args.AddRange(new string[] { "--awsprofile", awsProfile });
+            }
+
+            if (!string.IsNullOrEmpty(awsRegion))
+            {
+                args.AddRange(new string[] { "--awsregion", awsRegion });
+            }
+                
+            if (!string.IsNullOrEmpty(maxDownload))
+            {
+                args.AddRange(new string[] { "--maxdownload", maxDownload, "--accountexisting", "--deletelru" });
+            }
+
+            if (!string.IsNullOrEmpty(lsopts.FetchArgs))
+            {
+                args.AddRange(lsopts.FetchArgs.Split(new char[] { ' ' }, StringSplitOptions.RemoveEmptyEntries));
+            }
+
+            var allowedFlags = new HashSet<string>() { "--quiet", "--verbose", "--debug", "--nosave" };
+
+            RunCommand("fetch", allowedFlags, args.ToArray());
         }
     }
 }

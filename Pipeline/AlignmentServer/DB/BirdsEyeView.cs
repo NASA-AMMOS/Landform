@@ -53,8 +53,6 @@ namespace OPS.Pipeline.AlignmentServer
             get { return new SiteDrive(Name.Substring(0, SiteDrive.StringLength)); }
         }
 
-        public long CreationTime; //UTC ms since epoch when this BEV was created
-
         public string CreationOptions; //BirdsEyeView.BEVOptions JSON
 
         public double MetersPerPixel; //effective meters per pixel (BEVOptions.MetersPerPixel * BEVOptions.Decimate)
@@ -129,7 +127,6 @@ namespace OPS.Pipeline.AlignmentServer
         {
             ProjectName = projectName;
             Name = MakeName(siteDrive, opts);
-            CreationTime = (long)UTCTime.NowMS();
             CreationOptions = opts.Serialize();
             MetersPerPixel = opts.MetersPerPixel * opts.Decimate;
             RootOriginXPixels = rootOriginPixels.X;

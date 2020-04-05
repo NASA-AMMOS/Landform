@@ -2,7 +2,7 @@
 
 defmodules="Alignment Cloud Geometry GeometryThirdParty Imaging ImagingEmgu MathExtensions Pipeline RayTrace Util Xna"
 
-#runTests.sh [parallel] [module1 [module2 ...]]
+#run-tests.sh [parallel] [module1 [module2 ...]]
 
 # hack to fetch environment variable value where the variable name contains a paren
 pf86=`env | grep "^ProgramFiles(x86)=" | cut -f2 -d=`

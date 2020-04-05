@@ -48,7 +48,7 @@ namespace OPS.Cloud
 
         public MessageQueue(string name, string awsProfileName = null, string awsRegionName = null,
                             int timeoutSec = DEF_TIMEOUT_SEC, ILogger logger = null, bool quiet = false,
-                            bool landformOwned = true, bool autoTypes = true)
+                            bool landformOwned = true, bool autoTypes = true, bool autoCreateIfLandformOwned = true)
         {
             this.logger = logger;
 
@@ -61,7 +61,7 @@ namespace OPS.Cloud
 
             this.LandformOwned = landformOwned;
 
-            if (landformOwned && !name.ToLower().StartsWith("landform-"))
+            if (landformOwned && !name.ToLower().Contains("landform"))
             {
                 name = "landform-" + name;
             }
@@ -70,11 +70,11 @@ namespace OPS.Cloud
 
             TimeoutSec = timeoutSec;
 
-            client = GetClient(awsProfileName, awsRegionName);
+            client = GetClient(awsProfileName, awsRegionName, logger);
 
             try
             {
-                url = client.GetQueueUrl(Name).QueueUrl;
+                url = client.GetQueueUrl(name).QueueUrl;
                 var req = new GetQueueAttributesRequest()
                     {
                         QueueUrl = url,
@@ -89,12 +89,12 @@ namespace OPS.Cloud
                 if (!quiet)
                 {
                     logger.LogInfo("queue \"{0}\" exists, approx {1} messages ({2} in flight)",
-                                   Name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
+                                   name, res.ApproximateNumberOfMessages, res.ApproximateNumberOfMessagesNotVisible);
                 }
                 if (res.VisibilityTimeout != timeoutSec)
                 {
                     logger.LogWarn("visibility timeout for queue \"{0}\" is {1}s, expected {2}s",
-                                   Name, res.VisibilityTimeout, timeoutSec);
+                                   name, res.VisibilityTimeout, timeoutSec);
                     if (landformOwned)
                     {
                         var attrs = new Dictionary<string, string>();
@@ -109,10 +109,10 @@ namespace OPS.Cloud
             }
             catch (QueueDoesNotExistException)
             {
-                if (landformOwned)
+                if (landformOwned && autoCreateIfLandformOwned)
                 {
-                    logger.LogInfo("creating queue \"{0}\"", Name);
-                    var req = new CreateQueueRequest() { QueueName = Name };
+                    logger.LogInfo("creating queue \"{0}\"", name);
+                    var req = new CreateQueueRequest() { QueueName = name };
                     req.Attributes["VisibilityTimeout"] = timeoutSec.ToString(); 
                     url = client.CreateQueue(req).QueueUrl;
                 }
@@ -120,6 +120,11 @@ namespace OPS.Cloud
                 {
                     throw;
                 }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError("error creating queue \"{0}\": {1}", name, ex.Message);
+                throw;
             }
         }
 
@@ -152,18 +157,18 @@ namespace OPS.Cloud
             client.ChangeMessageVisibility(new ChangeMessageVisibilityRequest(url, messageHandle, timeoutSec));
         }
 
-        public T DequeueOne<T>(int waitSec = 0) where T : class
+        public QueueMessage DequeueOne(int waitSec = 0, int overrideVisibilityTimeout = -1)
         {
-            var msgs = Dequeue<T>(1, waitSec);
+            return DequeueOne<QueueMessage>(waitSec, overrideVisibilityTimeout);
+        }
+
+        public T DequeueOne<T>(int waitSec = 0, int overrideVisibilityTimeout = -1) where T : class
+        {
+            var msgs = Dequeue<T>(1, waitSec, overrideVisibilityTimeout);
             return msgs.Length > 0 ? msgs[0] : null;
         }
 
-        public QueueMessage DequeueOne(int waitSec = 0)
-        {
-            return DequeueOne<QueueMessage>(waitSec);
-        }
-
-        public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0) where T : class
+        public T[] Dequeue<T>(int maxMessages = 1, int waitSec = 0, int overrideVisibilityTimeout = -1) where T : class
         {
             var req = new ReceiveMessageRequest
             {
@@ -173,6 +178,10 @@ namespace OPS.Cloud
                 MaxNumberOfMessages = maxMessages,
                 WaitTimeSeconds = waitSec
             };
+            if (overrideVisibilityTimeout >= 0)
+            {
+                req.VisibilityTimeout = overrideVisibilityTimeout;
+            }
             //try to track information about receive times
             //among other things if a message is multiply received this can help track the latest receivehandle
             //which is apparently needed for SQS apis like ChangeMessageVisibility() and DeleteMessage()
@@ -240,7 +249,8 @@ namespace OPS.Cloud
             client.DeleteMessage(new DeleteMessageRequest { QueueUrl = url, ReceiptHandle = receiptHandle });
         }
 
-        public static AmazonSQSClient GetClient(string awsProfileName = null, string awsRegionName = null)
+        public static AmazonSQSClient GetClient(string awsProfileName = null, string awsRegionName = null,
+                                                ILogger logger = null)
         {
             string[] nulls = { "", "null", "none", "auto" };
             Func<string, string> convertNull = s => s == null || nulls.Any(n => n == s.ToLower()) ? null : s;
@@ -252,14 +262,27 @@ namespace OPS.Cloud
 
             if (awsCredentials != null && awsRegion != null)
             {
+                if (logger != null)
+                {
+                    logger.LogInfo("creating AWS SQS client for profile \"{0}\" in region \"{1}\"",
+                                   awsProfileName, awsRegionName);
+                }
                 return new AmazonSQSClient(awsCredentials, awsRegion);
             }
             else if (awsCredentials != null)
             {
+                if (logger != null)
+                {
+                    logger.LogInfo("creating AWS SQS client for profile \"{0}\" in default region", awsProfileName);
+                }
                 return new AmazonSQSClient(awsCredentials);
             }
             else if (awsRegion != null)
             {
+                if (logger != null)
+                {
+                    logger.LogInfo("creating AWS SQS client for default profile and region");
+                }
                 return new AmazonSQSClient(awsRegion);
             }
             return new AmazonSQSClient();

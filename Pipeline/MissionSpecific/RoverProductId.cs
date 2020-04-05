@@ -286,6 +286,11 @@ namespace OPS.Pipeline
             return StringHelper.RemoveMultiple(FullId, spans);
         }
 
+        public virtual bool HasSol()
+        {
+            return false;
+        }
+
         public virtual int GetSol()
         {
             throw new NotImplementedException();
@@ -724,6 +729,11 @@ namespace OPS.Pipeline
             return true;
         }
 
+        public override bool HasSol()
+        {
+            return true;
+        }
+
         public override int GetSol()
         {
             return Sol;
@@ -875,6 +885,11 @@ namespace OPS.Pipeline
         {
             start = 4;
             length = 2;
+            return true;
+        }
+
+        public override bool HasSol()
+        {
             return true;
         }
 
@@ -1072,6 +1087,11 @@ namespace OPS.Pipeline
         {
             start = 27;
             length = 1;
+            return true;
+        }
+
+        public override bool HasSol()
+        {
             return true;
         }
 

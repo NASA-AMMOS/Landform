@@ -150,6 +150,9 @@ namespace OPS.Util
             return url.Substring(lastSlash + 1);
         }
 
+        /// <summary>
+        /// strips last path segment including slash
+        /// </summary>
         public static string StripLastUrlPathSegment(string url)
         {
             if (string.IsNullOrEmpty(url))
@@ -165,6 +168,10 @@ namespace OPS.Util
             return url.Substring(0, lastSlash);
         }
 
+        /// <summary>
+        /// returns extension including the leading dot
+        /// unless there is no extension, in which case the return is the empty string (not null)
+        /// </summary>
         public static string GetUrlExtension(string url)
         {
             if (string.IsNullOrEmpty(url))
