@@ -74,15 +74,6 @@ namespace OPS.Pipeline.Texturing
                                                                            ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, MeshOp.Bounds,
                                                                            1.0, WriteDebug, LocalOutputPath);
 
-                    //if (dist == double.MaxValue) //TODO: keep?
-                    //{
-                    //    //if no valid samples, use distance from observation to mesh to have a sortable quality rating
-                    //    //  (that's much bigger than per valid inter-pixel distances), otherwise contexts are not really sorted
-                    //    Vector3 cameraInOutput = Vector3.Transform(ctx.CameraModel.Unproject(forSrcPixelPt.Pixel).Position, ctx.ObsToMesh);
-                    //    Vector3 meshCenter = MeshOp.Bounds.Center();
-                    //    dist = Vector3.Distance(meshCenter, cameraInOutput);
-                    //}
-
                     if (dist > OrbitalPixelsPerMeter)
                     {
                         dist = double.MaxValue;
