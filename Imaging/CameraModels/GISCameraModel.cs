@@ -106,6 +106,7 @@ namespace OPS.Imaging
             range = 0; //NOT SUPPORTED 
 
             var ptBodyXYZ = Vector3.Transform(pos, MeshToOrbitalBody);
+
             var lonlat = XYZToLatLon(ptBodyXYZ); 
             var pixel = LatLonToImage(lonlat); 
             return new Vector2(pixel.X, pixel.Y); 
@@ -155,7 +156,7 @@ namespace OPS.Imaging
         {
             get
             {
-                return new Vector3(0, 0, 1); //BUGBUG: not really
+                return new Vector3(0, 0, 1); //ISSUE #1039: figure out the best way to handle this approximation
             }
         }
     }
