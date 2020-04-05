@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
@@ -61,7 +62,7 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Initiliaze the texture baker
+        /// Initialize the texture baker
         /// This method shold be called after all inputs have been added but before any calls to BakeTexture are made
         /// </summary>
         public void InitTextureBaker()
@@ -69,7 +70,8 @@ namespace OPS.Pipeline
             if (!textureBakerInitialized)
             {
                 textureBakerInitialized = true;
-                var datasets = this.Inputs.Where(d => d.Image != null).Select(d => new MeshImagePair(d.Mesh, d.Image)).ToArray();
+                var filtered = this.Inputs.Where(d => d.Image != null);
+                var datasets = filtered.Select(d => new MeshImagePair(d.Mesh, d.Image, d.Index)).ToArray();
                 if (datasets.Length > 0)
                 {
                     TextureBaker = new TextureBaker(datasets);
@@ -181,9 +183,9 @@ namespace OPS.Pipeline
             }
 
             info("baking texture");
-            var img = TextureBaker.Bake(mesh, textureSize, textureSize);
+            var img = TextureBaker.Bake(mesh, textureSize, textureSize, out Image destIndex);
 
-            return new MeshImagePair(mesh, img);
+            return new MeshImagePair(mesh, img, destIndex);
         }
     }
 }

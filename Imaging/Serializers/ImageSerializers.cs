@@ -25,6 +25,7 @@ namespace OPS.Imaging
             new GDALSerializer().Register(this);
             new FITSSerializer().Register(this);
             new RGBSerializer().Register(this);
+            new PPMSerializer().Register(this);
         }
 
         public override string Kind()

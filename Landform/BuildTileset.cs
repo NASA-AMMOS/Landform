@@ -73,6 +73,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
         public string ExportImageFormat { get; set; }
+
+        [Option(HelpText = "Publish index images with tileset", Default = false)]
+        public bool WithIndexImages { get; set; }
+
+        [Option(HelpText = "Write out index images as seperate files", Default = false)]
+        public bool NoEmbedIndexes { get; set; }
     }
 
     public class BuildTileset : TilingCommand
@@ -81,6 +87,7 @@ namespace OPS.Landform
 
         private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
+        private const int TILING_NODE_LRU_INDEX_CACHE_SIZE = 500;
         private const int MAX_LEAF_GROUP_SIZE = 32;
         private const int SLEEP_MS = 500;
 
@@ -157,6 +164,11 @@ namespace OPS.Landform
             }
 
             LoadTileList();
+
+            if (options.WithIndexImages && !tileList.HasIndexImages)
+            {
+                throw new Exception("Tileset does not have index images. Consider disabling --withindeximages.");
+            }
 
             withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
 
@@ -242,6 +254,8 @@ namespace OPS.Landform
                 tilingProject.Save(pipeline);
             }
 
+            tilingProject.EmbedIndexes = !options.NoEmbedIndexes;
+
             var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
             pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",
                              tilingProject.TilesetMeshFormat, tilingProject.TilesetImageFormat, tilesetUrl);
@@ -276,7 +290,12 @@ namespace OPS.Landform
                 var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
                 var imgUrl =
                     withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt) : null;
-                var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, tile);
+                string indexUrl = options.WithIndexImages ?
+                                  indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
+                                  tile + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT)
+                                  : null;
+                
+                var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, indexUrl, tile);
                 inputs.Add(input.Name);
             }
 
@@ -286,7 +305,7 @@ namespace OPS.Landform
 
         private void BuildTilesAndDefineParents()
         {
-            TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE);
+            TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE, TILING_NODE_LRU_INDEX_CACHE_SIZE);
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
             dt.DownloadInputsAndBuildTree(tilingProject, !options.NoProgress,
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);

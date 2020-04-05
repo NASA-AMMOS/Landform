@@ -26,15 +26,15 @@ namespace OPS.Geometry
         {
             using (FileStream fs = new FileStream(filename, FileMode.Create))
             {
-                WriteToStream(fs, m, imageFilename);
+                WriteToStream(fs, m, imageFilename, null);
             }
         }
 
-        public static void WriteToStream(Stream s, Mesh m, string imageFilename)
+        public static void WriteToStream(Stream s, Mesh m, string imageFilename, string indexFilename)
         {
             using (BinaryWriter bw = new BinaryWriter(s))
             {
-                GLTFFile f = new GLTFFile(m, imageFilename, false);
+                GLTFFile f = new GLTFFile(m, imageFilename, indexFilename, false);
                 JsonSerializerSettings settings = new JsonSerializerSettings()
                 {
                     NullValueHandling = NullValueHandling.Ignore

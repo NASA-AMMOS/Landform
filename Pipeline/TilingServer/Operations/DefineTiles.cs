@@ -175,6 +175,7 @@ namespace OPS.Pipeline.TilingServer
 
                     tilingNode.MeshUrl = input.MeshUrl;
                     tilingNode.ImageUrl = input.ImageUrl;
+                    tilingNode.IndexUrl = input.IndexUrl;
 
                     //don't add pair to sceneNode, would be a memory leak
                     var pair = tilingNode.LoadMeshImagePair(pipeline, cleanMesh: true);

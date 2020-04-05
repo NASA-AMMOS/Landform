@@ -258,7 +258,7 @@ namespace OPS.Pipeline
                 {
                     //it's not an error to upload an input with the same name again - the last upload wins
                     LogLess("adding/updating input {0}", m.Name);
-                    var input = TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.TileId);
+                    var input = TilingInput.Create(pipeline, m.Name, project, m.MeshUrl, m.ImageUrl, m.IndexUrl, m.TileId);
                     var inputs = project.LoadInputNames(pipeline);
                     if (!inputs.Contains(input.Name))
                     {
@@ -654,6 +654,7 @@ namespace OPS.Pipeline
         public string Name;
         public string MeshUrl;
         public string ImageUrl;
+        public string IndexUrl;
         public string TileId;
         public AddInputMessage() { }
         public AddInputMessage(string projectName) : base(projectName) { }

@@ -107,6 +107,7 @@
     <Compile Include="Operations\Resize.cs" />
     <Compile Include="Operations\Sample.cs" />
     <Compile Include="Operations\Stretch.cs" />
+    <Compile Include="Serializers\PPMSerializer.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializers\DDSSerializer.cs" />
     <Compile Include="Serializers\FITSSerializer.cs" />

@@ -15,16 +15,18 @@ namespace OPS.Pipeline
     {
         public Mesh Mesh;
         public Image Image;
+        public Image Index;
 
         public MeshImagePair()
         {
 
         }
 
-        public MeshImagePair(Mesh mesh = null, Image image = null)
+        public MeshImagePair(Mesh mesh = null, Image image = null, Image index = null)
         {
             this.Mesh = mesh;
             this.Image = image;
+            this.Index = index;
         }
     }
 }

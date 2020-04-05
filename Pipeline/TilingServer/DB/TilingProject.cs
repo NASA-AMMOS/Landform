@@ -50,17 +50,25 @@ namespace OPS.Pipeline.TilingServer
 
         public string ExportImageFormat = null; //disable exporting images if null or empty
 
+        public string ExportIndexFormat = null; //disable exporting indexes if null or empty
+
         public string InternalTileDir = "tiles"; //disable saving internal tile meshes and images if null or empty
 
         public string InternalMeshFormat = "ply";
 
         public string InternalImageFormat = "png";
 
+        public string InternalIndexFormat = "tif";
+
         public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
 
         public string TilesetMeshFormat = "b3dm"; //but pointclouds will be saved as pnts
 
         public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
+
+        public string TilesetIndexFormat = "ppmz"; //gzipped ppm, will be embedded in b3dm
+
+        public bool EmbedIndexes = true; //Disabling will write index images as seperate files, embedded in b3dm by default
 
         public static string ToExt(string fmt)
         {
@@ -80,7 +88,8 @@ namespace OPS.Pipeline.TilingServer
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
                                 MeshReconstructionMethod reconMethod, int faces, int resolution, string projectType,
-                                string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
+                                string exportMeshFormat, string exportImageFormat,
+                                int maxLeafGroupSize)
             : this()
         {
             Name = name;
@@ -96,7 +105,6 @@ namespace OPS.Pipeline.TilingServer
             MaxLeafGroupSize = maxLeafGroupSize;
             IsValid();
         }
-
 
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconstructionMethod reconMethod, int faces,
@@ -247,7 +255,7 @@ namespace OPS.Pipeline.TilingServer
         private List<string> LoadStringArray(string url, PipelineCore pipeline)
         {
             List<string> ret = new List<string>();
-            if (!string.IsNullOrEmpty(url))
+            if (!string.IsNullOrEmpty(url) && pipeline.FileExists(url))
             {
                 pipeline.GetFile(url, f =>
                 {

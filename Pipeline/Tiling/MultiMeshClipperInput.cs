@@ -15,6 +15,7 @@ namespace OPS.Pipeline
     {
         public Mesh Mesh;
         public Image Image;
+        public Image Index;
         public MeshOperator MeshOperator;
 
         public MultiMeshClipperInput(string meshFilename, string imageFilename)
