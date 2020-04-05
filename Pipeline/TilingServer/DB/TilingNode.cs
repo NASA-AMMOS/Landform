@@ -315,11 +315,23 @@ namespace OPS.Pipeline.TilingServer
                 }
             };
 
-            Action<string, Image> saveFloatTiff = (path, img) =>
+            Action<string, Image> saveIndex = (path, img) =>
             {
-                var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
-                var serializer = new GDALSerializer(opts);
-                serializer.Write<float>(path, img);
+                string ext = Path.GetExtension(path).ToLower();
+                if (ext == ".tif" || ext == ".tiff")
+                {
+                    var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                    var serializer = new GDALSerializer(opts);
+                    serializer.Write<float>(path, img);
+                }
+                else if (ext == ".ppm" || ext == ".ppmz")
+                {
+                    img.Save<ushort>(path);
+                }
+                else
+                {
+                    img.Save<byte>(path);
+                }
             };
 
             if (enableInternal)
@@ -355,7 +367,7 @@ namespace OPS.Pipeline.TilingServer
                         {
                             TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
                             {
-                                saveFloatTiff(tmpIndex, pair.Index);
+                                saveIndex(tmpIndex, pair.Index);
                                 upload(tmpIndex, IndexUrl);
                                 if(exIndexUrl != null && exIndexExt == indexExt)
                                 {
@@ -364,6 +376,10 @@ namespace OPS.Pipeline.TilingServer
                                 }
                             });
                         }
+                    }
+                    else
+                    {
+                        IndexUrl = indexFile = null;
                     }
                 }
                 else
@@ -438,7 +454,7 @@ namespace OPS.Pipeline.TilingServer
 
                             if (pair.Index != null)
                             {
-                                pair.Index.Save<float>(tmpIndex);
+                                saveIndex(tmpIndex, pair.Index);
                                 if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
                                 {
                                     upload(tmpIndex, exIndexUrl);
@@ -476,17 +492,14 @@ namespace OPS.Pipeline.TilingServer
                                     BoundsWithSkirt = "";
                                 }
 
-                                if (!project.EmbedIndexes) {
-                                    if (tmpIndex != null)
-                                    {
-                                        string indexUrl = Path.ChangeExtension(tileUrl, tileIndexExt);
-                                        upload(tmpIndex, indexUrl);
-                                    }
-                                    if (tileMeshExt == exMeshExt)
-                                    {
-                                        uploadedExMesh = true;
-                                    }
+                                if (!project.EmbedIndexes && tmpIndex != null) {
+                                    IndexUrl = StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
+                                    upload(tmpIndex, IndexUrl);
                                     tmpIndex = null; //Don't also add to b3dm
+                                }
+                                else
+                                {
+                                    IndexUrl = null;
                                 }
 
                                 //for b3dm this reads the image data if any and embeds it into the mesh file
@@ -494,7 +507,10 @@ namespace OPS.Pipeline.TilingServer
                                 tilesetMesh.Save(tmpMesh, tmpImage, tmpIndex);
                                 upload(tmpMesh, tileUrl);
 
-                                
+                                if (tileMeshExt == exMeshExt)
+                                {
+                                    uploadedExMesh = true;
+                                }
                             }
                         });
                     });
@@ -517,7 +533,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
                 {
-                    saveFloatTiff(tmpIndex, pair.Index);
+                    saveIndex(tmpIndex, pair.Index);
                     upload(tmpIndex, exImageUrl);
                     uploadedExIndex = true;
                 });

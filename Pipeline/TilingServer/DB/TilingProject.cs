@@ -68,7 +68,7 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetIndexFormat = "ppmz"; //gzipped ppm, will be embedded in b3dm
 
-        public bool EmbedIndexes = true; //Allow writing index images as seperate files
+        public bool EmbedIndexes = true; //Disabling will write index images as seperate files, embedded in b3dm by default
 
         public static string ToExt(string fmt)
         {

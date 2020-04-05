@@ -155,7 +155,7 @@ namespace OPS.Pipeline.TilingServer
 
                 int n = 0;
                 LogInfo("converting {0} user defined tiles", numUserTiles);
-                Serial.ForEach(inputs, input =>
+                CoreLimitedParallel.ForEach(inputs, input =>
                 {
                     var id = input.TileId;
                     var sceneNode = idToSceneNode[id];

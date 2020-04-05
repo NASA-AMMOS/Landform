@@ -30,7 +30,7 @@ namespace OPS.Imaging
 
         private bool ShouldCompress(string fn)
         {
-            return Path.GetExtension(fn) == ".ppmz";
+            return Path.GetExtension(fn).ToLower() == ".ppmz";
         }
 
         private Stream OpenWriteStream(string fn)
@@ -127,6 +127,11 @@ namespace OPS.Imaging
 
         public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
+            if(typeof(T) != typeof(UInt16))
+            {
+                throw new NotImplementedException();
+            }
+
             if (fillValue != null)
             {
                 throw new NotImplementedException();
@@ -141,32 +146,33 @@ namespace OPS.Imaging
             {
                 File.Delete(filename);
             }
-
-            //Header
-            var bw = new BinaryWriter(OpenWriteStream(filename));
-            string header = $"P6\n{image.Width} {image.Height}\n65535\n";
-            foreach (char c in header)
+            
+            using (var bw = new BinaryWriter(OpenWriteStream(filename)))
             {
-                bw.Write(c);
-            }
-
-            //Data
-            for (int r = 0; r < image.Height; r++)
-            {
-                for (int c = 0; c < image.Width; c++)
+                //Header
+                string header = $"P6\n{image.Width} {image.Height}\n65535\n";
+                foreach (char c in header)
                 {
-                    for (int b = 0; b < image.Bands; ++b)
+                    bw.Write(c);
+                }
+
+                //Data
+                for (int r = 0; r < image.Height; r++)
+                {
+                    for (int c = 0; c < image.Width; c++)
                     {
-                        float val = image[b, r, c];
-                        if (val < 0 || val > 65535)
+                        for (int b = 0; b < image.Bands; ++b)
                         {
-                            throw new NotImplementedException(".ppm serializer only supports values 0-65535");
+                            float val = image[b, r, c];
+                            if (val < 0 || val > 65535)
+                            {
+                                throw new NotImplementedException(".ppm serializer only supports values 0-65535");
+                            }
+                            bw.Write((UInt16)val);
                         }
-                        bw.Write((UInt16)val);
                     }
                 }
             }
-            bw.Close();
         }
     }
 }
