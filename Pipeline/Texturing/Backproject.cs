@@ -163,7 +163,6 @@ namespace OPS.Pipeline
             {
                 var sourceObs = group.First().Value.Obs;
                 var sourceImageIndex = sourceObs.Index;
-
                 if (sourceImageIndex < Observation.MIN_INDEX)
                 {
                     throw new InvalidDataException("invalid image index in backproject results");
