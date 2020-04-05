@@ -8,7 +8,7 @@ using OPS.Imaging;
 namespace OPS.Pipeline.AlignmentServer
 {
     /// <summary>
-    /// An observation with extra metadata specific to Mars rovers
+    /// An observation with extra metadata specific to satellite observations
     /// </summary>
     [DynamoDBTable("Observations")]
     [DynamoDBReadCapacity(50, 100)]
@@ -48,6 +48,7 @@ namespace OPS.Pipeline.AlignmentServer
         public override void Save(PipelineCore pipeline)
         {
             IsValid();
+            //ISSUE #1037: consider saving orbital ovservations to the database
             //pipeline.SaveDatabaseItem(this);
         }
 
@@ -57,6 +58,7 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         public override void Delete(PipelineCore pipeline, bool ignoreErrors = true)
         {
+            //ISSUE #1037: consider saving orbital ovservations to the database
             //pipeline.DeleteDatabaseItem(this, ignoreErrors);
         }
 
@@ -66,14 +68,13 @@ namespace OPS.Pipeline.AlignmentServer
         /// </summary>
         new public static OrbitalObservation Find(PipelineCore pipeline, string projectName, string name)
         {
+            //ISSUE #1037: consider saving orbital ovservations to the database
             return null;
         }
 
         public override string ToString(bool brief)
         {
-            //return string.Format("{0}, Site={1}, Drive={2}, ObservationType={3}, Camera={4}, Producer={5}, Color={6}",
-            //                     base.ToString(brief), Site, Drive, ObservationType, Camera, Producer, Color);
-
+            //ISSUE #1017: if supporting multiple orbital texture images this needs to be extended
             return "Orbital";
         }
 
