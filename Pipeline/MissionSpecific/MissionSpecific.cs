@@ -921,7 +921,7 @@ namespace OPS.Pipeline
         {
             elevationDir = new Vector3(0, 0, -1);
             rightDir = new Vector3(0, 1, 0);
-            downDir = new Vector3(-1, 0, 0); // BUBUG: name back?
+            downDir = new Vector3(-1, 0, 0);
         }
 
         /// <summary>
