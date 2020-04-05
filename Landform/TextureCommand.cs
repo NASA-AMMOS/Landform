@@ -222,7 +222,7 @@ namespace OPS.Landform
             string frameName = "OrbitalImage";
             Frame orbFrame = Frame.Create(pipeline, project.Name, frameName, parent, save:false);
             //ISSUE #1036 properly store image frame transform
-            GISCameraModel orbCam = new GISCameraModel(orbitalPath, cfg.OrbitalBodyName, sitedriveToOrbitalBody);
+            GISCameraModel orbCam = new GISCameraModel(orbitalImageTransform, sitedriveToOrbitalBody);
             orbitalObs = OrbitalObservation.Create(orbFrame, frameName, orbitalPath, orbCam, false, false, true);
 
             return true;

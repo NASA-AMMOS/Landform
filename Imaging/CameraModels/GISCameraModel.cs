@@ -11,77 +11,24 @@ namespace OPS.Imaging
 {
     public class GISCameraModel : CameraModel
     {
-        readonly public int Width;
-        readonly public int Height;
+        public int Width { get { return GeoTiffImage.Width; } }
+        public int Height { get { return GeoTiffImage.Height; } }
 
-        protected PlanetaryBody Body { get; private set; }
-
-        private SpatialReference bodyFrame, projectedFrame;
-        private CoordinateTransformation latLonToProjected, projectedToLatLon;
-
-        private Matrix geoTransform;
-        private Matrix invGeoTransform;
-
-        private Matrix MeshToOrbitalBody;
+        protected OrbitalImage GeoTiffImage;
+        private Matrix MeshToOrbitalBody; //#ISSUE 1036: need an entry in the framecache to take us from body to mesh frame
+        
         protected GISCameraModel() { }
 
-        public GISCameraModel(string file, string demBodyType, Matrix meshToOrbitalBody)
+        public GISCameraModel(OrbitalImage orbitalImage, Matrix meshToOrbitalBody)
         {
-            using (Dataset Dataset = Gdal.Open(file, Access.GA_ReadOnly))
-            {
-                this.Body = PlanetaryBody.GetByName(demBodyType);
-
-                //GDAL datasets have two ways of describing the relationship between raster positions (in pixel/line coordinates) 
-                // and georeferenced coordinates. The first, and most commonly used is the affine transform (the other is GCPs).
-                //https://gdal.org/user/raster_data_model.html
-                // Note: we use affine below
-
-                //Fetches the coefficients for transforming between pixel / line(P, L) raster space, 
-                //and projection coordinates(Xp, Yp) space
-                //The default transform is (0, 1, 0, 0, 0, 1) and should be returned even when a CE_Failure error 
-                //is returned, such as for formats that don’t support transformation to projection coordinates.
-                //from: https://gdal.org/api/gdaldataset_cpp.html
-
-                double[] raw = new double[6];
-                Dataset.GetGeoTransform(raw);
-
-                //Xp = raw[0] + C*raw[1] + R*raw[2];
-                //Yp = raw[3] + C*raw[4] + R*raw[5];
-
-                // In the particular, but common, case of a “north up” image without any rotation or shearing, 
-                // the georeferencing transform takes the following form :
-                //raw[0] /* top left x */
-                //raw[1] /* w-e pixel resolution */
-                //raw[2] /* 0 */
-                //raw[3] /* top left y */
-                //raw[4] /* 0 */
-                //raw[5] /* n-s pixel resolution (negative value) */
-                //https://gdal.org/tutorials/raster_api_tut.html
-
-                //Xna matrix is row major
-                geoTransform = new Matrix(raw[1], raw[4], 0, 0,
-                                          raw[2], raw[5], 0, 0,
-                                               0, 0, 1, 0,
-                                          raw[0], raw[3], 0, 1);
-
-                invGeoTransform = Matrix.Invert(geoTransform);
-
-                bodyFrame = Body.MakeSphericalSpatialReference();
-                projectedFrame = new SpatialReference(Dataset.GetProjectionRef());
-
-                latLonToProjected = new CoordinateTransformation(bodyFrame, projectedFrame);
-                projectedToLatLon = new CoordinateTransformation(projectedFrame, bodyFrame);
-
-                Width = Dataset.RasterXSize;
-                Height = Dataset.RasterYSize;
-
-                MeshToOrbitalBody = meshToOrbitalBody;
-            }
+            GeoTiffImage = orbitalImage;
+            MeshToOrbitalBody = meshToOrbitalBody;
         }
 
         public GISCameraModel(GISCameraModel that)
         {
-            throw new NotImplementedException();
+            GeoTiffImage = that.GeoTiffImage;
+            MeshToOrbitalBody = that.MeshToOrbitalBody;
         }
 
         /// <summary>
@@ -107,33 +54,8 @@ namespace OPS.Imaging
             range = 0; //NOT SUPPORTED. #ISSUE 1039: our code doesn't know the camera location for a range calculation.
 
             var ptBodyXYZ = Vector3.Transform(pos, MeshToOrbitalBody);
-
-            var lonlat = XYZToLatLon(ptBodyXYZ); 
-            var pixel = LatLonToImage(lonlat); 
-            return new Vector2(pixel.X, pixel.Y); 
-        }
-
-        /// <summary>
-        /// X = longitude, Y = latitude, Z = altitude => X = col, Y = row, Z = altitude
-        /// </summary>
-        public Vector3 LatLonToImage(Vector3 bodyPos)
-        {
-            double[] res = new double[3];
-            latLonToProjected.TransformPoint(res, bodyPos.X, bodyPos.Y, bodyPos.Z);
-            Vector3 inPixelSpace = Vector3.Transform(new Vector3(res[0], res[1], res[2]), invGeoTransform);
-            return inPixelSpace;
-        }
-
-        /// <summary>
-        /// XYZ is sphere in a left-handed axis convention with x to north pole; y though lon 90, lat 0 (equator); z through 0 lon, 0 lat (equator);
-        /// return X = longitude, Y = latitude
-        /// </summary>
-        protected Vector3 XYZToLatLon(Vector3 worldPos, double lat0 = 0, double lon0 = 0)
-        {
-            double r = worldPos.Length();
-            double lat = Math.Asin(worldPos.X / r);
-            double lon = Math.Atan2(worldPos.Y, worldPos.Z);
-            return new Vector3(lon * 180 / Math.PI + lon0, lat * 180 / Math.PI + lat0, r - Body.Radius);
+            Vector3 pixel = GeoTiffImage.XYZToImage(ptBodyXYZ);
+            return new Vector2 (pixel.X, pixel.Y);
         }
 
         public override object Clone()
