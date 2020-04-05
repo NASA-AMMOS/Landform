@@ -570,9 +570,9 @@ namespace OPS.Landform
 
                     int obsIndex = entry.Key;
 
-                    if(obsIndex == Observation.ORBITAL_INDEX)
+                    if (obsIndex == Observation.ORBITAL_INDEX)
                     {
-                    return;
+                        return;
                     }
 
                     Observation obs = entry.Value;
