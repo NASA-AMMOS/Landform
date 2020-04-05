@@ -780,8 +780,10 @@ namespace OPS.Landform
                 if ((backprojectResults == null || backprojectResults.Count() == 0) &&
                     (orbitalResults == null || orbitalResults?.Count() == 0))
                 {
-                    //red is our missing texture
-                    image.ApplyInPlace(0, x => { return 1; }, true);
+                    //mid gray is our missing texture
+                    image.ApplyInPlace(0, r => { return 0.5f; }, true);
+                    image.ApplyInPlace(1, g => { return 0.5f; }, true);
+                    image.ApplyInPlace(2, b => { return 0.5f; }, true);
                 }
                 else
                 {
