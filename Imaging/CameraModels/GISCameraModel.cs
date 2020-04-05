@@ -93,6 +93,7 @@ namespace OPS.Imaging
         /// <returns></returns>
         public override void Unproject(ref Vector2 pixelPos, out Ray ray)
         {
+            //#ISSUE 1039: our code doesn't know the camera location for a ray origin calculation.
             throw new NotImplementedException();
         }
 
@@ -103,7 +104,7 @@ namespace OPS.Imaging
         /// <returns>col, row</returns>
         public override Vector2 Project(Vector3 pos, out double range)
         {
-            range = 0; //NOT SUPPORTED 
+            range = 0; //NOT SUPPORTED. #ISSUE 1039: our code doesn't know the camera location for a range calculation.
 
             var ptBodyXYZ = Vector3.Transform(pos, MeshToOrbitalBody);
 
