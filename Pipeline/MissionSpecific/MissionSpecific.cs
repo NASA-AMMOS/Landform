@@ -989,7 +989,7 @@ namespace OPS.Pipeline
         }
 
         public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive,string OrbitalBodyName,
-            out OrbitalImage orbitalTransform, out Matrix sitedriveToOrbitalBody, string imgFile = null, 
+            out OrbitalImage orbitalTransform, out Matrix sitedriveToOrbitalBody, out double orbitalMetersPerPixel, string imgFile = null, 
             ILogger logger = null)
         {
             orbitalTransform = new OrbitalImage(imgFile, PlanetaryBody.GetByName(OrbitalBodyName));
@@ -1009,6 +1009,9 @@ namespace OPS.Pipeline
                                                siteDriveZInBody.X, siteDriveZInBody.Y, siteDriveZInBody.Z, 0,
                                                bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
 
+
+            //ideally this would be recalculated at each point in question, but for now we will do at a single site
+            orbitalMetersPerPixel = orbitalTransform.GetFinestEstimatedMetersPerPixelAtXYZ(bodyXYZ);
             return new SparsePipelineImage(pipeline, imgFile);
         }
     }

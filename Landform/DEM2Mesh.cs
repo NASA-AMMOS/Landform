@@ -96,7 +96,8 @@ namespace OPS.Landform
         private string outputMesh, outputImage;
 
         private string demBody;
-        private GDALDEM gdalDEM, gdalImage;
+        private OrbitalImage gdalImage;
+        private OrbitalDEM gdalDEM;
         private DEM dem;
         private Image image;
 
@@ -207,7 +208,7 @@ namespace OPS.Landform
                 demBody = options.DEMBody;
             }
 
-            gdalDEM = GDALDEM.Load(options.InputDEM, demBody);
+            gdalDEM = new OrbitalDEM(options.InputDEM, demBody);
 
             if (SiteDrive.IsSiteDriveString(options.OutputFrame))
             {
@@ -313,7 +314,7 @@ namespace OPS.Landform
                                   image.Width * imageMetersPerPixel, image.Height * imageMetersPerPixel,
                                   imageMetersPerPixel, options.InputImage);
 
-                gdalImage = GDALDEM.Load(options.InputImage, demBody);
+                gdalImage = new OrbitalImage(options.InputImage, demBody);
                 var imgMinLonLat = gdalImage.ImageToLatLon(Vector2.Zero);
                 var imgMaxPixel = new Vector2(gdalImage.Width - 1, gdalImage.Height - 1);
                 var imgMaxLonLat = gdalImage.ImageToLatLon(imgMaxPixel);
@@ -435,7 +436,7 @@ namespace OPS.Landform
                               dem.OriginPixel.X * demMetersPerPixel, dem.OriginPixel.Y * demMetersPerPixel,
                               demOriginLonLat.X, demOriginLonLat.Y);
 
-            logger.InfoFormat("DEM body {0}, radius {1}", demBody, gdalDEM.Body.GetRadius());
+            logger.InfoFormat("DEM body {0}, radius {1}", demBody, gdalDEM.Body.Radius);
                 
             var subrect = dem.GetSubrectMeters(options.RadiusMeters);
 

@@ -456,6 +456,33 @@ namespace OPS.Imaging
             return ImageToXYZ(new Vector3(imagePos.X, imagePos.Y, 0), lat0, lon0);
         }
 
+        /// <summary>
+        ///  Convenience function for measuring the size of an image pixel at the current location
+        ///  assumes each of the corners can have a different sampling rate (arbitrary quadrilateral)
+        ///  returns the shortest length, the best, finest, smallest number of meters per pixel
+        /// </summary>
+        /// <param name="bodyPos"></param>
+        /// <returns></returns>
+        public double GetFinestEstimatedMetersPerPixelAtXYZ(Vector3 bodyPos)
+        {
+            Vector3 pixelColRow = XYZToImage(bodyPos);
+            double left = Math.Floor(pixelColRow.X);
+            double right = Math.Ceiling(pixelColRow.X);
+            double top = Math.Floor(pixelColRow.Y);
+            double bottom = Math.Ceiling(pixelColRow.Y);
+
+            Vector3 upperLeftXYZ = ImageToXYZ(new Vector3(left, top, 0));
+            Vector3 upperRightXYZ = ImageToXYZ(new Vector3(right, top, 0));
+            Vector3 lowerLeftXYZ = ImageToXYZ(new Vector3(left, bottom, 0));
+            Vector3 lowerRightXYZ = ImageToXYZ(new Vector3(right, bottom, 0));
+
+            double minDistanceMeters = Vector3.Distance(upperLeftXYZ, upperRightXYZ);
+            minDistanceMeters = Math.Min(minDistanceMeters, Vector3.Distance(lowerRightXYZ, upperRightXYZ));
+            minDistanceMeters = Math.Min(minDistanceMeters, Vector3.Distance(lowerRightXYZ, lowerLeftXYZ));
+            minDistanceMeters = Math.Min(minDistanceMeters, Vector3.Distance(upperLeftXYZ, lowerLeftXYZ));
+
+            return minDistanceMeters;
+        }
         public void Dispose()
         {
             Dispose(true);

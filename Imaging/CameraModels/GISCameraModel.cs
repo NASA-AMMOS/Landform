@@ -131,7 +131,7 @@ namespace OPS.Imaging
             double r = worldPos.Length();
             double lat = Math.Asin(worldPos.X / r);
             double lon = Math.Atan2(worldPos.Y, worldPos.Z);
-            return new Vector3(lon * 180 / Math.PI + lon0, lat * 180 / Math.PI + lat0, r - Body.GetRadius());
+            return new Vector3(lon * 180 / Math.PI + lon0, lat * 180 / Math.PI + lat0, r - Body.Radius);
         }
 
         public override object Clone()

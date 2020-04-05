@@ -95,13 +95,12 @@ namespace OPS.Landform
         protected OrbitalImage orbitalImageTransform;
         protected Matrix sitedriveToOrbitalBody;
         protected OrbitalObservation orbitalObs;
+        protected double orbitalMetersPerPixel;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
-
-        const double ORBITAL_RESOLUTION = 0.25; // TODO: pull from file
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -197,7 +196,7 @@ namespace OPS.Landform
             try
             {
                 orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), cfg.OrbitalBodyName,
-                    out orbitalImageTransform, out sitedriveToOrbitalBody, orbitalPath, logger: pipeline);
+                    out orbitalImageTransform, out sitedriveToOrbitalBody, out orbitalMetersPerPixel, orbitalPath, logger: pipeline);
 
             }
             catch (Exception ex)
@@ -222,13 +221,10 @@ namespace OPS.Landform
             var parent = frameCache.GetFrame(meshFrame);
             string frameName = "OrbitalImage";
             Frame orbFrame = Frame.Create(pipeline, project.Name, frameName, parent, save:false);
-            //var frame = frameCache.GetFrame(frameName);
-            //var ut = new UncertainRigidTransform(Matrix.Invert(sitedriveToOrbitalBody));
-            //var ft = FrameTransform.Create(pipeline, frame, source, ut);
-            //ft.Transform = ut;
-            //frameCache.Add(orbFrame);
-            GISCameraModel orbCam = new GISCameraModel(orbitalPath, cfg.OrbitalBodyName, sitedriveToOrbitalBody); //TODO: matrix can be added to Frame parented to sitedrive
+            //ISSUE #1036 properly store image frame transform
+            GISCameraModel orbCam = new GISCameraModel(orbitalPath, cfg.OrbitalBodyName, sitedriveToOrbitalBody);
             orbitalObs = OrbitalObservation.Create(orbFrame, frameName, orbitalPath, orbCam, false, false, true);
+
             return true;
         }
 
@@ -566,7 +562,7 @@ namespace OPS.Landform
             var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,ORBITAL_RESOLUTION,
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,orbitalMetersPerPixel,
                                            tcopts.BackprojectQuality, tcopts.WriteBackprojectDebug, backprojectDebugDir);
         }
 
