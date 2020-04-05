@@ -62,7 +62,7 @@
 # bucket=roastt-dev-0205
 # fetchargs="--onlyforcameras=Navcam --excludepattern=*393112341*,*393112436*"
 #
-# winpty ./Utils/credss.exe --venue dev -s credss-default
+# ./Scripts/m20-credss.sh
 #
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs s3://$bucket/ods/$ver/sol/#####/ids/rdr \
 #     --mission $mission --summary $fetchargs

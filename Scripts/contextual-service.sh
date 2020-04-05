@@ -11,7 +11,14 @@
 #
 # Command line options will be pased on to process-contextual.
 #
-# Common options: --queuename=foo --failqueuename=bar --maxfetch=50G --maxorbital=20G --nocombinedmanifest [--noorbital]
+# Example:
+#
+# ./Scripts/m20-credss.sh
+#
+# ./Scripts/contextual-service.sh M2020 --landformownedqueues \
+#     --queuename=m20-ids-g-landform-contextual-$USERNAME \
+#     --failqueuename=m20-ids-g-landform-contextual-fail-$USERNAME \
+#     --maxfetch=50G --maxorbital=20G --nocombinedmanifest [--noorbital]
 
 if [ $# -lt 1 ]; then
     echo "USAGE: contextual-service.sh MISSION ..."

@@ -7,6 +7,7 @@ using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
 using CommandLine;
+using Amazon.SQS.Model;
 using OPS.Util;
 using OPS.Cloud;
 using OPS.Pipeline;
@@ -35,6 +36,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = false, HelpText = "Fail message queue is Landform owned")]
         public bool LandformOwnedFailQueue { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "All queues are Landform owned")]
+        public bool LandformOwnedQueues { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Use generic message type")]
         public bool UseGenericMessageType { get; set; }
@@ -82,6 +86,8 @@ namespace OPS.Landform
         public const int SERVICE_LOOP_RETRY_SEC = 60;
 
         protected LandformServiceOptions lvopts;
+
+        protected bool serviceMode, serviceUtilMode;
 
         protected MessageQueue messageQueue;
         protected MessageQueue failMessageQueue;
@@ -135,7 +141,7 @@ namespace OPS.Landform
                 {
                     RunPhase("dropping failed messages", DropFailedMessages);
                 }
-                else if (lvopts.Service)
+                else if (serviceMode)
                 {
                     RunService();
                 }
@@ -150,7 +156,7 @@ namespace OPS.Landform
                 return 1;
             }
 
-            if (!lvopts.Service)
+            if (!serviceMode)
             {
                 StopStopwatch();
             }
@@ -165,6 +171,9 @@ namespace OPS.Landform
                 return false; //e.g. --help
             }
 
+            lvopts.LandformOwnedQueue |= lvopts.LandformOwnedQueues;
+            lvopts.LandformOwnedFailQueue |= lvopts.LandformOwnedQueues;
+
             bool sendMessage = !string.IsNullOrEmpty(lvopts.SendMessage);
             bool peekMessages = lvopts.PeekMessages > 0;
             bool peekFailedMessages = lvopts.PeekFailedMessages > 0;
@@ -172,32 +181,40 @@ namespace OPS.Landform
             bool failMessages = lvopts.FailMessages > 0;
             bool dropMessages = lvopts.DropMessages > 0;
             bool dropFailedMessages = lvopts.DropFailedMessages > 0;
+
             string utils = "--peekmessages, --peekfailedmessages, --deletequeues, --sendmessage, --retrymessages, " +
                 "--failmessages, --dropmessages, --dropfailedmessages";
-            var svcOpts = new bool[] { lvopts.DeleteQueues, peekMessages, peekFailedMessages, sendMessage,
-                                       retryMessages, failMessages, dropMessages, dropFailedMessages, lvopts.Service };
-            if (svcOpts.Where(o => o).Count() > 1)
+
+            var utilOpts = new bool[] { lvopts.DeleteQueues, sendMessage, peekMessages, peekFailedMessages,
+                                        retryMessages, failMessages, dropMessages, dropFailedMessages };
+            serviceUtilMode = utilOpts.Any(o => o);
+            serviceMode = IsService();
+
+            if (serviceMode && serviceUtilMode)
             {
                 throw new Exception(utils + ", and --service are mutually exclusive");
             }
-            if (svcOpts.Any(o => o))
+            if (serviceMode || serviceUtilMode)
             {
                 if (!string.IsNullOrEmpty(lvopts.ProjectName))
                 {
                     throw new Exception("project name must be omitted with " + utils);
                 }
+
                 if (string.IsNullOrEmpty(lvopts.QueueName))
                 {
                     throw new Exception("--queuename must be specified for service");
                 }
                 messageQueue = GetMessageQueue(); //creates queue if necessary with --landformowned
-                if (lvopts.Service || lvopts.DeleteQueues || retryMessages || failMessages || dropFailedMessages)
+
+                bool requireFailQueue = peekFailedMessages || retryMessages || failMessages || dropFailedMessages;
+                if (serviceMode || lvopts.DeleteQueues || requireFailQueue)
                 {
                     if (!string.IsNullOrEmpty(lvopts.FailQueueName))
                     {
                         failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
                     }
-                    else if (peekFailedMessages || retryMessages || failMessages || dropFailedMessages)
+                    else if (requireFailQueue)
                     {
                         throw new Exception("--failqueuename required for " +
                                             "--retrymessages, --failmessages, --dropfailedmessages");
@@ -213,14 +230,14 @@ namespace OPS.Landform
             return true;
         }
 
+        protected virtual bool IsService()
+        {
+            return lvopts.Service;
+        }
+
         protected abstract void RunBatch();
 
         protected abstract QueueMessage DequeueOneMessage(MessageQueue queue, int overrideVisibilityTimeout = -1);
-
-        protected QueueMessage DequeueOneMessage()
-        {
-            return DequeueOneMessage(messageQueue);
-        }
 
         /// <summary>
         /// Used only by SendMessage().
@@ -302,19 +319,25 @@ namespace OPS.Landform
             }
             pipeline.LogInfo("opening/creating {0} queue: {1} ({2}landform owned)",
                              what, name, landformOwned ? "" : "not ");
+            bool autoCreateIfLandformOwned = !lvopts.DeleteQueues;
             MessageQueue queue = null;
             while (true)
             {
                 try
                 {
+                    bool autoTypes = false;
                     queue = new MessageQueue(name, awsProfile, awsRegion, defTimeoutSec, pipeline, lvopts.Quiet,
-                                             landformOwned, autoTypes: false);
+                                             landformOwned, autoTypes, autoCreateIfLandformOwned);
                     pipeline.LogInfo("{0} queue {1}: default timeout {2}s, actual timeout {3}s",
                                      what, name, defTimeoutSec, queue.TimeoutSec);
                     break;
                 }
                 catch (Exception ex)
                 {
+                    if (landformOwned && !autoCreateIfLandformOwned && (ex is QueueDoesNotExistException))
+                    {
+                        return null;
+                    }
                     pipeline.LogException(ex, string.Format("error opening/creating {0} queue, retrying in {1}",
                                                             what, Fmt.HMS(SERVICE_LOOP_RETRY_SEC * 1000)));
                     SleepSec(SERVICE_LOOP_RETRY_SEC);
@@ -427,28 +450,29 @@ namespace OPS.Landform
             MoveOrDropMessages(fromQueue: failMessageQueue, toQueue: null, max: lvopts.DropFailedMessages);
         }
 
-        private void DeleteQueues()
+        protected void DeleteQueue(MessageQueue queue, string what)
         {
-            void deleteQueue(MessageQueue queue, string what)
+            if (queue != null)
             {
-                if (queue != null)
+                if (queue.LandformOwned)
                 {
-                    if (queue.LandformOwned)
+                    pipeline.LogInfo("{0}deleting {1} queue {2}", lvopts.DryRun ? "dry " : "", what, queue.Name);
+                    if (!lvopts.DryRun)
                     {
-                        pipeline.LogInfo("{0}deleting {1} queue {2}", lvopts.DryRun ? "dry " : "", what, queue.Name);
-                        if (!lvopts.DryRun)
-                        {
-                            queue.Delete();
-                        }
-                    }
-                    else
-                    {
-                        pipeline.LogWarn("cannot delete {0} queue {1}, not owned by Landform", what, queue.Name);
+                        queue.Delete();
                     }
                 }
+                else
+                {
+                    pipeline.LogWarn("cannot delete {0} queue {1}, not owned by Landform", what, queue.Name);
+                }
             }
-            deleteQueue(messageQueue, "message");
-            deleteQueue(failMessageQueue, "fail");
+        }
+
+        protected virtual void DeleteQueues()
+        {
+            DeleteQueue(messageQueue, "message");
+            DeleteQueue(failMessageQueue, "fail");
         }
 
         protected virtual void RunService()
@@ -468,7 +492,8 @@ namespace OPS.Landform
                 try
                 {
                     double startSec = UTCTime.Now();
-                    QueueMessage msg = DequeueOneMessage();
+                    QueueMessage msg = DequeueOneMessage(messageQueue);
+
                     if (msg != null)
                     {
                         string desc = DescribeMessage(msg);

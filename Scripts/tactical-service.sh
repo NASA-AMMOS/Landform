@@ -11,7 +11,14 @@
 #
 # Command line options will be pased on to process-tactical.
 #
-# Common options: --queuename=foo --failqueuename=bar --meshformat=IV
+# Example:
+#
+# ./Scripts/m20-credss.sh
+#
+# ./Scripts/tactical-service.sh M2020 --landformownedqueues \
+#     --queuename=m20-ids-g-landform-tactical-$USERNAME \
+#     --failqueuename=m20-ids-g-landform-tactical-fail-$USERNAME \
+#     --meshformat=IV
 
 if [ $# -lt 1 ]; then
     echo "USAGE: tactical-service.sh MISSION ..."

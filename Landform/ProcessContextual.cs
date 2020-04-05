@@ -97,7 +97,7 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Landform.exe process-contextual --master --mission=M2020 \
 ///    --queuename=landform-contextual-master --failqueuename=landform-contextual-master-fail \
-///    --mastertoworkerqueuename=landform-contextual
+///    --workerqueuename=landform-contextual
 ///
 /// Windjana in batch mode using already downloaded RDRs:
 ///
@@ -318,7 +318,7 @@ namespace OPS.Landform
 
         protected override string DescribeMessage(QueueMessage msg, bool verbose = false)
         {
-            if (options.Master)
+            if ((msg is GenericContextualMasterMessage) || (msg is SNSMessageWrapper))
             {
                 string url = null;
                 try
@@ -341,7 +341,8 @@ namespace OPS.Landform
                 {
                     int numWedges = (msg as ContextualMeshMessage).numWedges;
                     desc += string.Format(" for {0}; sols {1}; sitedrives {2} ({3} wedges)",
-                                          parameters.RDRDir, parameters.Sols, parameters.SiteDrives,
+                                          parameters.RDRDir, MakeSolRanges(parameters.Sols),
+                                          string.Join(",", parameters.SiteDrives),
                                           numWedges >= 0 ? numWedges.ToString() : "(unknown)");
                 }
                 return desc;
@@ -359,7 +360,7 @@ namespace OPS.Landform
             {
                 if (options.UseGenericMessageType)
                 {
-                    return messageQueue .DequeueOne<GenericContextualMasterMessage>(overrideVisibilityTimeout: ovt);
+                    return queue.DequeueOne<GenericContextualMasterMessage>(overrideVisibilityTimeout: ovt);
                 }
                 else
                 {
@@ -368,7 +369,7 @@ namespace OPS.Landform
             }
             else
             {
-                return messageQueue.DequeueOne<ContextualMeshMessage>(overrideVisibilityTimeout: ovt);
+                return queue.DequeueOne<ContextualMeshMessage>(overrideVisibilityTimeout: ovt);
             }
         }
 
@@ -477,7 +478,6 @@ namespace OPS.Landform
             {
                 options.UseGenericMessageType = true;
             }
-            options.Service |= options.Master;
 
             options.RecursiveSearch = !options.NoRecursiveSearch;
 
@@ -486,7 +486,9 @@ namespace OPS.Landform
                 return false; //e.g. --help
             }
 
-            if (messageQueue == null)
+            options.LandformOwnedWorkerQueue |= options.LandformOwnedQueues;
+
+            if (!(serviceMode || serviceUtilMode))
             {
                 if (string.IsNullOrEmpty(options.RDRDir) ||
                     string.IsNullOrEmpty(options.Sols) || string.IsNullOrEmpty(options.SiteDrives))
@@ -508,14 +510,22 @@ namespace OPS.Landform
                 }
                 listExt = "." + listExt.ToLower().TrimStart('.');
 
-                if (string.IsNullOrEmpty(options.WorkerQueueName))
+                if (!serviceUtilMode || options.DeleteQueues)
                 {
-                    throw new Exception("--mastertoworkerqueuename required with --master");
+                    if (string.IsNullOrEmpty(options.WorkerQueueName) && !options.DeleteQueues)
+                    {
+                        throw new Exception("--workerqueuename required with --master");
+                    }
+                    workerQueue = GetWorkerMessageQueue();
                 }
-                workerQueue = GetWorkerMessageQueue();
             }
 
             return true;
+        }
+
+        protected override bool IsService()
+        {
+            return options.Service || (!serviceUtilMode && options.Master);
         }
 
         protected override Project GetProject()
@@ -536,6 +546,12 @@ namespace OPS.Landform
         protected override string GetCacheDir()
         {
             return "contextual";
+        }
+
+        protected override void DeleteQueues()
+        {
+            base.DeleteQueues();
+            DeleteQueue(workerQueue, "worker");
         }
 
         protected override void RunService()
@@ -563,13 +579,13 @@ namespace OPS.Landform
             }
         }
             
-        private string MakeSolRanges(HashSet<int> sols, int primarySol)
+        private string MakeSolRanges(HashSet<int> sols, int primarySol = -1)
         {
             var ranges = new List<int[]>();
             var skipped = new List<int>();
             foreach (var sol in sols.OrderBy(sol => sol))
             {
-                if (options.MaxSolRange >= 0 && Math.Abs(sol - primarySol) > options.MaxSolRange)
+                if (options.MaxSolRange >= 0 && primarySol >= 0 && Math.Abs(sol - primarySol) > options.MaxSolRange)
                 {
                     skipped.Add(sol);
                     continue;
@@ -778,10 +794,16 @@ namespace OPS.Landform
                 pipeline.LogWarn("unhandled list file name {0}", url);
                 return null;
             }
-            return new Stamped<ListFile>((new ListFile()).Load(GetFile(url), baseUrl, sd.Value, mission,
-                                                               accept: (id, sol) => mission.UseForMeshing(id),
-                                                               warn: msg => pipeline.LogWarn(msg),
-                                                               error: msg => pipeline.LogError(msg)));
+            var preferredEye = mission.PreferEyeForGeometry();
+            bool filter(RoverProductId id, int sol)
+            {
+                return mission.UseForMeshing(id) && RoverStereoPair.IsStereoEye(id.Camera, preferredEye);
+            }
+            var listFile = (new ListFile()).Load(GetFile(url), baseUrl, sd.Value, mission, accept: filter,
+                                                 warn: msg => pipeline.LogWarn(msg),
+                                                 error: msg => pipeline.LogError(msg));
+            listFile.FilterProductIDs(mission.FilterProductIdGroups);
+            return new Stamped<ListFile>(listFile);
         }
 
         /// <summary>
@@ -1006,7 +1028,7 @@ namespace OPS.Landform
             //ContextualMeshMessage defines its GetHashCode() and Equals() by (primarySol, primarySiteDrive)
             var keepers = new HashSet<ContextualMeshMessage>();
 
-            void keepNewest(List<ContextualMeshMessage> msgs)
+            void keepNewest(List<ContextualMeshMessage> msgs, string what)
             {
                 for (int i = msgs.Count - 1; i >= 0; i--) //iterate newest -> oldest
                 {
@@ -1014,11 +1036,16 @@ namespace OPS.Landform
                     {
                         keepers.Add(msgs[i]);
                     }
+                    else
+                    {
+                        pipeline.LogInfo("{0} contextual mesh message superceded by a newer one, dropping: {1}",
+                                         what, DescribeMessage(msgs[i], verbose: true));
+                    }
                 }
             }
 
             //it is possible, but unlikely, that there are dupes even in new messages
-            keepNewest(newMsgsOldestToNewest);
+            keepNewest(newMsgsOldestToNewest, "new");
 
             //now reap all the existing messages in the worker queue for the same rdrDir
             //and keep any that aren't dupes of new messages
@@ -1027,7 +1054,7 @@ namespace OPS.Landform
             var oldMsgsOldestToNewest = new List<ContextualMeshMessage>();
             while (true)
             {
-                var msg = DequeueOneMessage(workerQueue) as ContextualMeshMessage;
+                var msg = workerQueue.DequeueOne<ContextualMeshMessage>() as ContextualMeshMessage;
                 if (msg == null)
                 {
                     break;
@@ -1040,7 +1067,7 @@ namespace OPS.Landform
             }
             pipeline.LogInfo("dequeued {0} existing messages", oldMsgsOldestToNewest.Count);
 
-            keepNewest(oldMsgsOldestToNewest);
+            keepNewest(oldMsgsOldestToNewest, "existing");
 
             pipeline.LogInfo("kept {0} coalesced messages from {1} old and {2} new",
                              keepers.Count, oldMsgsOldestToNewest.Count, newMsgsOldestToNewest.Count);
@@ -1058,6 +1085,11 @@ namespace OPS.Landform
         {
             return GetMessageQueue(options.WorkerQueueName, GetDefaultMessageTimeoutSec(),
                                    options.LandformOwnedWorkerQueue, "worker");
+        }
+
+        private DateTime ToLocalTime(long timestamp)
+        {
+            return UTCTime.MSSinceEpochToDate(timestamp).ToLocalTime();
         }
 
         private void MasterLoop()
@@ -1109,7 +1141,6 @@ namespace OPS.Landform
                     PlacesDB placesDB = null;
                     var placesCfg = PlacesConfig.Instance;
                     bool usePlaces = !string.IsNullOrEmpty(placesCfg.Url) && !string.IsNullOrEmpty(placesCfg.View);
-                    
 
                     foreach (var rdrDir in stampedListsForRDRDir.Keys)
                     {
@@ -1123,69 +1154,71 @@ namespace OPS.Landform
                         var changedLists = firstPass ? stampedLists :
                             stampedLists.Where(sl => sl.Timestamp > lastMasterPass[rdrDir]).ToList();
 
-                        long lastChange = changedLists.Max(sl => sl.Timestamp);
-                        long firstChange = changedLists.Min(sl => sl.Timestamp);
-
-                        long debounceThreshold = debounceMS <= 0 ? now : now - debounceMS;
-
-                        if (changedLists.Count > 0 && (debounceThreshold == now || lastChange < debounceThreshold))
+                        if (changedLists.Count > 0)
                         {
-                            //at least one list file for rdrDir has been updated since we last made a pass over them
-                            //but the most recently updated one changed at least debounceMS ago
-
-                            pipeline.LogInfo("making pass on RDR dir {0} at {1} ({2}s debounce threshold {3})",
-                                             rdrDir, UTCTime.MSSinceEpochToDate(now),
-                                             debounceMS / 1000, UTCTime.MSSinceEpochToDate(now - debounceMS));
-
-                            pipeline.LogInfo("{0} list files, {1} changed since last pass at {2}, " +
-                                             "first changed time {3}, last changed time {4}",
-                                             listFiles.Count, changedLists.Count, firstPass ? "(never)" :
-                                             UTCTime.MSSinceEpochToDate(lastMasterPass[rdrDir]).ToString(),
-                                             UTCTime.MSSinceEpochToDate(firstChange),
-                                             UTCTime.MSSinceEpochToDate(lastChange));
-
-                            pipeline.LogInfo("{0} sitedrives, min sol {1}, max sol {2}",
-                                             listFiles.Select(l => l.SiteDrive).Distinct().Count(),
-                                             listFiles.Min(l => l.MinSol), listFiles.Max(l => l.MaxSol));
-
-                            if (placesDB == null && usePlaces)
+                            long lastChange = changedLists.Max(sl => sl.Timestamp);
+                            long firstChange = changedLists.Min(sl => sl.Timestamp);
+                            
+                            long debounceThreshold = debounceMS <= 0 ? now : now - debounceMS;
+                            
+                            if (debounceThreshold == now || lastChange < debounceThreshold)
                             {
-                                try
+                                //at least one list file for rdrDir has been updated since we last made a pass over them
+                                //but the most recently updated one changed at least debounceMS ago
+                                
+                                pipeline.LogInfo("making pass on RDR dir {0} at {1} ({2}s debounce threshold {3})",
+                                                 rdrDir, ToLocalTime(now), debounceMS / 1000,
+                                                 ToLocalTime(now - debounceMS));
+                                
+                                pipeline.LogInfo("{0} list files, {1} changed since last pass at {2}, " +
+                                                 "first changed time {3}, last changed time {4}",
+                                                 listFiles.Count, changedLists.Count, firstPass ? "(never)" :
+                                                 ToLocalTime(lastMasterPass[rdrDir]).ToString(),
+                                                 ToLocalTime(firstChange), ToLocalTime(lastChange));
+                                
+                                pipeline.LogInfo("{0} sitedrives, min sol {1}, max sol {2}",
+                                                 listFiles.Select(l => l.SiteDrive).Distinct().Count(),
+                                                 listFiles.Min(l => l.MinSol), listFiles.Max(l => l.MaxSol));
+                                
+                                if (placesDB == null && usePlaces)
                                 {
-                                    placesDB = new PlacesDB(pipeline);
-                                }
-                                catch (Exception ex)
-                                {
-                                    pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
-                                    usePlaces = false;
-                                }
-                            }
-                            pipeline.LogInfo("{0}using PlacesDB{1}",
-                                             usePlaces ? "" : "not ", usePlaces ? placesCfg.Url : "");
-
-                            foreach (var stampedList in changedLists)
-                            {
-                                try
-                                {
-                                    var msg = SiteDriveChanged(stampedList.Value, listFiles, placesDB);
-                                    if (msg != null)
+                                    try
                                     {
-                                        msgs.Add(new Stamped<ContextualMeshMessage>(msg, stampedList.Timestamp));
+                                        placesDB = new PlacesDB(pipeline);
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
+                                        usePlaces = false;
                                     }
                                 }
-                                catch (Exception ex)
+                                pipeline.LogInfo("{0}using PlacesDB {1}",
+                                                 usePlaces ? "" : "not ", usePlaces ? placesCfg.Url : "");
+                                
+                                foreach (var stampedList in changedLists)
                                 {
-                                    pipeline.LogException(ex, "error processing sitedrive " +
-                                                          stampedList.Value.SiteDrive);
+                                    try
+                                    {
+                                        var msg = SiteDriveChanged(stampedList.Value, listFiles, placesDB);
+                                        if (msg != null)
+                                        {
+                                            msgs.Add(new Stamped<ContextualMeshMessage>(msg, stampedList.Timestamp));
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        pipeline.LogException(ex, "error processing sitedrive " +
+                                                              stampedList.Value.SiteDrive);
+                                    }
                                 }
+                                
+                                lastMasterPass[rdrDir] = now;
                             }
-
-                            lastMasterPass[rdrDir] = now;
                         }
-
+                        
                         //order messages according to when the corersponding list file changed (oldest to newest)
                         var rawMsgs = msgs.OrderBy(sm => sm.Timestamp).Select(sm => sm.Value).ToList();
-
+                        
                         if (msgs.Count > 0)
                         {
                             try
@@ -1196,12 +1229,12 @@ namespace OPS.Landform
                             {
                                 pipeline.LogException(ex, "error coalescing messages, proceeding with un-coaleseced");
                             }
-
+                            
                             //TODO right about here we should try to determine if any workers
                             //are processing contextual meshes for which there are new messages
                             //and if so, ask them to abort
                             //https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
-
+                            
                             pipeline.LogInfo("enqueueing {0} contextual mesh messages to {1} for {2}",
                                              rawMsgs.Count, workerQueue.Name, rdrDir);
                             
@@ -1209,8 +1242,10 @@ namespace OPS.Landform
                             {
                                 try
                                 {
+                                    pipeline.LogInfo("enqueueing contextual mesh message to {0}: {1}",
+                                                     workerQueue.Name, DescribeMessage(msg, verbose: true));
                                     workerQueue.Enqueue(msg);
-                            }
+                                }
                                 catch (Exception ex)
                                 {
                                     pipeline.LogException(ex, "adding message to worker queue");

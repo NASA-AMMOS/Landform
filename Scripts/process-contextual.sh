@@ -69,7 +69,7 @@
 # ortho=out_clean_25cm.iGrid.ClipToDEM.tif
 # fetchargs=
 # 
-# winpty ./Utils/credss.exe --venue dev -s credss-default
+# ./Scripts/m20-credss.sh
 # 
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs \
 #     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --summary $fetchargs

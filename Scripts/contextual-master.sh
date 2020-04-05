@@ -12,7 +12,14 @@
 #
 # Command line options will be pased on to process-contextual.
 #
-# Common options: --queuename=foo --failqueuename=bar --mastertoworkerqueuename=baz
+# Example:
+#
+# ./Scripts/m20-credss.sh
+#
+# ./Scripts/contextual-master.sh M2020 --landformownedqueues \
+#     --queuename=m20-ids-g-landform-contextual-master-$USERNAME \
+#     --failqueuename=m20-ids-g-landform-contextual-master-fail-$USERNAME \
+#     --workerqueuename=m20-ids-g-landform-contextual-$USERNAME
 
 if [ $# -lt 1 ]; then
     echo "USAGE: contextual-master.sh MISSION ..."
@@ -35,9 +42,9 @@ venue=${service}-service
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir"
 cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
-svcopts="$stdopts --stacktraces --service --mission=$mission"
+svcopts="$stdopts --stacktraces --master --mission=$mission"
 
 set -x # echo commands
 
 $landform configure-local $cfgopts
-$landform process-contextual --master $svcopts "$@"
+$landform process-contextual $svcopts "$@"

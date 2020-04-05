@@ -64,7 +64,7 @@ namespace OPS.Pipeline
         //default is null which disables auth cookie file
         //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_AUTH_COOKIE_FILE")]
-        public string AuthCookieFile { get; set; } = "~/.cssotoken/dev-old/ssosession";
+        public string AuthCookieFile { get; set; }
 
         //default may be overridden by MissionSpecific.GetPlacesConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_PLACES_RESPONSE_TYPE")]
@@ -120,9 +120,25 @@ namespace OPS.Pipeline
                 {
                     path = Path.Combine(PathHelper.GetHomeDir(), path.Substring(2));
                 }
-                if (File.Exists(path))
+                if (!File.Exists(path))
                 {
+                    throw new Exception($"cannot read PlacesDB auth cookie from \"{path}\": file not found");
+                }
+                try
+                {
+                    if (logger != null)
+                    {
+                        logger.LogInfo("reading PlacesDB auth cookie from file \"{0}\"", path);
+                    }
                     cookieValue = File.ReadAllText(path);
+                    if (string.IsNullOrEmpty(cookieValue))
+                    {
+                        throw new Exception("empty file");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"error reading PlacesDB auth cookie from \"{path}\": {ex.Message}");
                 }
             }
 
@@ -135,8 +151,8 @@ namespace OPS.Pipeline
             {
                 if (logger != null)
                 {
-                    logger.LogWarn("PlacesDB test query for sitedrive (1, 0) failed, URL {0}, view {1}",
-                                   config.Url, view);
+                    logger.LogWarn("PlacesDB test query for sitedrive (1, 0) failed, URL {0}, view {1}" +
+                                   " (check list at {0}/view/{1}/rmcs)", config.Url, view);
                 }
                 view = FALLBACK_VIEW;
                 logger.LogWarn("trying fallback view {0}", view);
@@ -149,7 +165,7 @@ namespace OPS.Pipeline
                     if (logger != null)
                     {
                         logger.LogError("PlacesDB test query for sitedrive (1, 0) failed, URL {0}, view {1}",
-                                        config.Url, view);
+                                        " (check list at {0}/view/{1}/rmcs)", config.Url, view);
                     }
                     throw;
                 }
@@ -161,12 +177,12 @@ namespace OPS.Pipeline
             }
             catch (Exception ex)
             {
-                if (logger != null)
-                {
-                    logger.LogError("error getting ellipsoid radius from PlacesDB: {0}", ex.Message);
-                }
                 if (requireOrbital)
                 {
+                    if (logger != null)
+                    {
+                        logger.LogError("error getting ellipsoid radius from PlacesDB: {0}", ex.Message);
+                    }
                     throw;
                 }
             }

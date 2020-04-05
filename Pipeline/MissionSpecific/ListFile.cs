@@ -168,6 +168,25 @@ namespace OPS.Pipeline
             return ret;
         }
 
+        public ListFile FilterProductIDs(Func<IEnumerable<RoverProductId>, IEnumerable<RoverProductId>> filter)
+        {
+            var ret = new ListFile(SiteDrive, RDRDir);
+            var keepers = new HashSet<RoverProductId>();
+            keepers.UnionWith(filter(IDToURL.Keys));
+            foreach (var sol in SolToIDs.Keys)
+            {
+                foreach (var id in SolToIDs[sol])
+                {
+                    if (keepers.Contains(id))
+                    {
+                        ret.Add(sol, id, IDToURL[id]);
+                    }
+                }
+            }
+            ret.UpdateSolRange();
+            return ret;
+        }
+
         private void Add(int sol, RoverProductId id, string url)
         {
             IDToURL[id] = url;
