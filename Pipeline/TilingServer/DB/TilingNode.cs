@@ -492,11 +492,14 @@ namespace OPS.Pipeline.TilingServer
                                     BoundsWithSkirt = "";
                                 }
 
-                                if (!project.EmbedIndexes && tmpIndex != null)
+                                if (tmpIndex != null)
                                 {
-                                    IndexUrl = StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
-                                    upload(tmpIndex, IndexUrl);
-                                    tmpIndex = null; //Don't also add to b3dm
+                                    if (!project.EmbedIndexes)
+                                    {
+                                        IndexUrl = StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
+                                        upload(tmpIndex, IndexUrl);
+                                        tmpIndex = null; //Don't also add to b3dm
+                                    }
                                 }
                                 else
                                 {
