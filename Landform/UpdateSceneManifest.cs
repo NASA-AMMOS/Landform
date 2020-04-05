@@ -26,65 +26,73 @@ using OPS.Landform;
 /// The scene manifest is a json file that lists one or more tilesets, images, and coordinate frames.
 /// https://github.jpl.nasa.gov/OnSight/Landform/wiki/Generic-Scene-File-Specification
 ///
-/// This tool will add/update entries for both or either tactical and contextual mesh tilesets.
-/// It expects the tilesets to already exist, but only uses their filenames.
+/// This tool will add/update entries for both or either tactical and contextual mesh tilesets. It expects the tilesets
+/// to already exist, but only uses their filenames.
 ///
-/// If the manifest already exists it will be updated.
-/// Tilesets, images, and frames not involved with the current invocation will pass through.
+/// If the manifest already exists it will be updated. Tilesets, images, and frames not involved with the current
+/// invocation will pass through.
 ///
-/// For tactical mesh tilesets, the filename FOO_tileset.json is parsed to get the product ID FOO.
-/// The corresponding raster image PDS RDR is then found and loaded to get the camera frame and coordinate frame info.
-/// No Landform database or project needs to exist for tactical mesh tilesets.
+/// For tactical mesh tilesets, the filename FOO_tileset.json is parsed to get the product ID FOO.  The corresponding
+/// raster image PDS RDR is then found and loaded to get the camera frame and coordinate frame info.  No Landform
+/// database or project needs to exist for tactical mesh tilesets.
 ///
-/// For contextual mesh tilesets a Landform project must be provided
-/// and is used to determine the set of images and their adjusted poses.
+/// For contextual mesh tilesets a Landform project must be provided and is used to determine the set of images and
+/// their adjusted poses.
 ///
-/// The tilesets (tactical and contextual) must all have the same parent directory --tilesetdir
-/// and may either be local files on disk or on S3 (even without --cloud).
+/// The tilesets (tactical and contextual) must all have the same parent directory --tilesetdir and may either be local
+/// files on disk or on S3 (even without --cloud).
 ///
-/// Unless --nourls is specified the RDRs must be available (for both tactical and contextual) under --rdrdir.
-/// They can also be either local files on disk or on S3 (even without --cloud).
+/// Unless --nourls is specified the RDRs must be available (for both tactical and contextual) under --rdrdir.  They can
+/// also be either local files on disk or on S3 (even without --cloud).
 ///
 /// The manifest file can also be either a local file on disk or on S3 (even without --cloud).
 ///
 /// Examples:
 ///
-/// * add/update tactical tileset for path/to/rdrs/image.IMG without URLs to path/to/tileset/scene.json
-///   (does not access network)
-///   update-scene-manifest --mission M2020 --manifestfile path/to/tileset/scene.json --nocontextual --nourls
-///   --tacticalpdsfile path/to/rdrs/image.IMG
+/// * add/update tactical tileset for path/to/rdrs/image.IMG without URLs to path/to/tileset/scene.json (does not
+///   access network)
 ///
-/// * add/update contextual tileset for project 0700_0010023 without URLs to path/to/tileset/scene.json
-///   (does not access network)
-///   update-scene-manifest 0700_0010023 --manifestfile path/to/tileset/scene.json --notactical --nourls
-///                         --sol=700 --sitedrive=0010023
+///   Landform.exe update-scene-manifest --mission M2020 --manifestfile path/to/tileset/scene.json --nocontextual \
+///       --nourls --tacticalpdsfile path/to/rdrs/image.IMG
 ///
-/// * add/update tactical tileset for wedge ID without URLs
-///   to s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json :
-///   update-scene-manifest --mission M2020 --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json
-///                         --tacticalpdsfile s3://bucket/path/sol/00700/ids/rdr/ncam/ID.IMG
-///                         --nocontextual --nourls
+/// * add/update contextual tileset for project 0700_0010023 without URLs to path/to/tileset/scene.json (does not
+///   access network)
 ///
-/// * add/update contextual tileset for project 0700_0010005 without URLs
-///   to s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005/0700_0010005_scene.json:
-///   update-scene-manifest 00700_0010005 --manifestfile
-///                         s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005/0700_0010005_scene.json
-///                         --notactical -nourls --sol=700 --sitedrive=0010005
+///   Landform.exe update-scene-manifest 0700_0010023 --manifestfile path/to/tileset/scene.json --notactical --nourls \
+///       --sol=700 --sitedrive=0010023
 ///
-/// * add/update all tactical tilesets under s3://bucket/path/sol/00700/ids/rdr/tileset including URLs
-///   to s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
-///   update-scene-manifest --mission M2020 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset --nocontextual
-///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
+/// * add/update tactical tileset for wedge ID without URLs to
+///   s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json:
 ///
-/// * add/update contextual tileset for project 0700_0010005 including URLs
-///   to s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
-///   update-scene-manifest 0700_0010005 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset --notactical
-///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
+///   Landform.exe update-scene-manifest --mission M2020 \
+///       --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/ID/ID_scene.json \
+///       --tacticalpdsfile s3://bucket/path/sol/00700/ids/rdr/ncam/ID.IMG --nocontextual --nourls
+///
+/// * add/update contextual tileset for project 0700_0010005 without URLs to
+///   s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005/0700_0010005_scene.json:
+///
+///   Landform.exe update-scene-manifest 00700_0010005 --manifestfile \
+///       s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005/0700_0010005_scene.json \
+///       --notactical -nourls --sol=700 --sitedrive=0010005
+///
+/// * add/update all tactical tilesets under s3://bucket/path/sol/00700/ids/rdr/tileset including URLs to
+///   s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
+///
+///   Landform.exe update-scene-manifest --mission M2020 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset \
+///       --nocontextual --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
+///
+/// * add/update contextual tileset for project 0700_0010005 including URLs to
+///   s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
+///
+///   Landform.exe update-scene-manifest 0700_0010005 --tilesetdir s3://bucket/path/sol/00700/ids/rdr/tileset \
+///       --notactical --rdrdir s3://bucket/path/sol/#####/ids/rdr --sol=700 --sitedrive=0010005
 ///
 /// * add/update URLs in s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json:
-///   update-scene-manifest --mission M2020 --nocontextual --notactical
-///                         --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json
-///                         --rdrdir s3://bucket/path/sol/#####/ids/rdr
+///
+///   Landform.exe update-scene-manifest --mission M2020 --nocontextual --notactical \
+///       --manifestfile s3://bucket/path/sol/00700/ids/rdr/tileset/0700_0010005_scene.json \
+///       --rdrdir s3://bucket/path/sol/#####/ids/rdr
+///
 /// </summary>
 namespace OPS.Landform
 {

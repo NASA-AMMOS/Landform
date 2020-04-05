@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Xml;
 using System.Diagnostics;
 using CommandLine;
+using OPS.Util;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
@@ -177,6 +178,33 @@ namespace OPS.Landform
 
             pipeline.LogInfo("scene mesh frame: {0}{1}", meshFrame,
                              origMeshFrame != meshFrame ? " (" + origMeshFrame + ")" : "");
+        }
+
+        protected string CheckOutputURL<T>(string url, string defaultFilename, string outDir,
+                                           SerializerMap<T> serializerMap = null)
+        {
+            url = StringHelper.NormalizeUrl(url);
+            var ext = StringHelper.GetUrlExtension(url);
+            if (serializerMap != null && serializerMap.CheckFormat(ext) == null)
+            {
+                throw new Exception("unsupported output format " + ext);
+            }
+            if (url.StartsWith("."))
+            {
+                url = defaultFilename + url;
+            }
+            if (pipeline is CloudPipeline)
+            {
+                if (!url.Contains("://"))
+                {
+                    url = pipeline.GetStorageUrl(outDir, project.Name, url);
+                }
+                else if (!url.StartsWith(pipeline.StorageUrlWithVenue))
+                {
+                    throw new Exception(string.Format("output URL {0} outside cloud storage area", url));
+                }
+            }
+            return url;
         }
     }
 }

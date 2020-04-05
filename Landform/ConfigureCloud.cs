@@ -8,6 +8,24 @@ using OPS.Cloud;
 using OPS.Util;
 using OPS.Pipeline;
 
+/// <summary>
+/// Utility to write ~/.landform/landform-cloud.json
+///
+/// Can be run interactively or in batch mode specifying settings by command line options.
+///
+/// Can also optionally write an EC2 user data script.
+///
+/// As of 3/27/20 this is not used much anymore, except Web/tools/configureBackend.js as part of the AMMOS TilingServer.
+///
+/// Instead see ConfigureLocal.cs
+///
+/// Example command line, batch mode, as used by Web/tools/configureBackend.js:
+///
+/// Landform.exe configure-cloud --venue=landform-dev-test --s3url=s3://landlords-dev/landform-web
+///   --awsregion=us-west-1 --awsprofile=default
+///   --msliceawsprofile=mslice --msliceawsregion=us-west-1 --mslices3url=s3://red-product
+///   --workerexecutable=TilingServer.exe --maxcores=0 --randomseed=-1 --legacycompat=false
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("configure-cloud", HelpText = "Configures Landform cloud")]
@@ -53,11 +71,13 @@ namespace OPS.Landform
         public string WorkerExecutable { get; set; }
     }
 
-    public class ConfigureCloud : ConfigureBase
+    public class ConfigureCloud
     {
         private ConfigureCloudOptions options;
 
-        public ConfigureCloud(ConfigureCloudOptions options) : base(options)
+        private ILog logger = LogManager.GetLogger(typeof(ConfigureCloud));
+
+        public ConfigureCloud(ConfigureCloudOptions options)
         {
             this.options = options;
         }

@@ -6,7 +6,27 @@ using log4net;
 using OPS.Geometry;
 using OPS.Imaging;
 
-namespace OPS.LandformUtil
+/// <summary>
+/// Utility to convert IV meshes to other formats.
+///
+/// Can operate on a single IV or a directory containing multiple IV files.
+///
+/// Can convert only the finest LOD or all LODs.
+///
+/// If converting a single IV and --texturefile names a file, then that is used as the texture of the output mesh.
+///
+/// If converting a directory --texturefile can give a file extension (with or without leading dot).  For each IV if
+/// there is a corresponding file with the same base name but the indicated extension, that is used as the mesh texture.
+///
+/// Also see ConvertPDS.  If you have a directory of pairs *RASL*.iv / *RASL*.IMG you can run convert-pds first to
+/// convert the IMG files to png, and then convert-iv will use those to texture the converted meshes.
+///
+/// Example:
+///
+///  LandformUtil.exe convert-pds out/windjana/meshes
+///  LandformUtil.exe convert-iv out/windjana/meshes --all-lods
+/// </summary>
+namespace OPS.Landform
 {
     [Verb("convert-iv", HelpText = "Convert IV meshes to different format")]
     public class ConvertIVOptions

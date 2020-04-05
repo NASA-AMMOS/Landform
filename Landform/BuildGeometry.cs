@@ -12,6 +12,68 @@ using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using System.IO;
 
+/// <summary>
+/// Reconstructs scene geometry from observation point clouds in a Landform contextual mesh workflow.
+///
+/// Runs after all alignment stages (e.g. bev-align, heightmap-align), but before build-tiling-input.
+///
+/// The observation pointclouds are typically combined with CleverCombine which attempts to reject outlier points using
+/// a grid-based approach.
+///
+/// The mesh is then reconstructed on the full scene point cloud, typically with Poisson reconstruction.  Mission normal
+/// map RDRs (UVW products) give each point a normal, which is usually required.  Points with bad or suspected bad
+/// normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the confidence
+/// of each point, though at this time ingestion of mission RNE products is still TODO
+/// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
+/// distance from the camera as a proxy.
+///
+/// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 32m square around the origin
+/// if the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
+/// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
+///
+/// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh
+/// and finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for
+/// further operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time
+/// with less agressive trimming options for Poisson reconstruction (hole filling is only implemented for Poisson
+/// reconstruction).  The resulting mesh is clipped to the surface mask created from the original construction.  In this
+/// way the potential undesirable effects of less agressive Poisson surface trimming around the outer boundary of the
+/// mesh are avoided, but the benefits of allowing more internal hole filling are gained.
+///
+/// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
+/// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  For example, if the surface
+/// mesh bounds are 32m then the orbital mesh bounds may be 64m.  Or the orbital mesh bounds could be the same as the
+/// surface mesh bounds.  A reasonable level of interpolation (typically 15samples/meter) is used so that the individal
+/// triangles in the organized mesh are not too large.  Trianges with vertices inside the surface mask are not included
+/// (the surface mask is computed if either hole filling or orbital meshing is to be performed), so that the orbital
+/// mesh is approximately periperhal to the surface mesh.  Because the organized mesh triangles in the orbital mesh are
+/// limited in size the matching at the boundary between the surface and orbital meshes is typically not too far off at
+/// this point, but there will still be a gap.  The orbital mesh is then sewn and blended to the surface mesh: vertices
+/// of the orbital mesh close to a vertex of the surface mesh (typically 0.2m) are snapped to the nearest vertex of the
+/// surface mesh.  Other vertices of the orbital mesh, typically within 3m of the surface mesh, are adjusted in height
+/// with a blend based on the average of the nearest surface vertex heights and the distance to the surface mesh.
+///
+/// The resulting mesh is always saved as a PlyGZDataProduct to project storage with metadata in a SceneMesh object in
+/// linked from the alignment project in the project database.
+///
+/// The scene mesh will always have normals but will typically not have texture coordinates.  Because its topology can
+/// be complex it can be non-trivial to atlas it.  In the typical contextual mesh workflow this is handled by only
+/// atlasing the leaf and parent tile meshes, which are typically much smaller.
+///
+/// Atlasing of the full scene mesh can be attempted by specifying --generateuvs.
+///
+/// If a tileset is not required, the full scene mesh can also be directly saved with the --outputmesh option.
+/// When running locally this can be either a relative or absolute disk path with an accepted mesh file extension, or
+/// just the extension, in which case a default filename will be used in the current working directory.  When running
+/// with --cloud the output mesh must either be a URL within the project venue storage area, or a relative path which
+/// will be prepended with the project storage venue URL and "meshing/GeometryProducts", or just a known mesh format
+/// extension.  The output scene mesh will not be textured.  However, if atlasing was successful, then a textured mesh
+/// can be generated with build-texture.
+///
+/// Example:
+///
+/// Landform.exe build-geometry windjana --meshframe 0311472 --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif
+///
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
@@ -53,23 +115,23 @@ namespace OPS.Landform
         [Option(HelpText = "Don't use orbital to fill in outer edges of mesh (orbital requires --reconstructionmethod=Poission)", Default = false)]
         public bool NoOrbital { get; set; }
 
-        [Option(HelpText = "Orbital resolution, interpolates for higher density", Default = 20)]
+        [Option(HelpText = "Orbital sampling rate outside blend radius, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
+
+        [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
+        public double OrbitalBlendPointsPerMeter { get; set; }
 
         [Option(HelpText = "Mask resolution for clipping surface/orbital", Default = 5)]
         public double ShrinkwrapPointsPerMeter {get; set;}
 
-        [Option(HelpText = "Only use orbital beyond this distance from surface in meters", Default = 0.25)]
-        public double FilterRadius { get; set; }
-
-        [Option(HelpText = "Blend orbital within this distance from surface in meters", Default = 5)]
+        [Option(HelpText = "Blend orbital within this distance from surface in meters, 0 disables blend, negative for default", Default = BuildGeometry.DEF_BLEND_RADIUS)]
         public double OrbitalBlendRadius { get; set; }
+
+        [Option(HelpText = "Sew orbital within this distance from surface in meters, 0 disables sew, negative for default", Default = BuildGeometry.DEF_SEW_RADIUS)]
+        public double OrbitalSewRadius { get; set; }
 
         [Option(HelpText = "Orbital blend min blend, 0-1, larger preserves orbital more", Default = 0.1)]
         public double OrbitalBlendMin { get; set; }
-
-        [Option(HelpText = "Sew orbital within this distance from surface in meters", Default = 0.2)]
-        public double OrbitalSewRadius { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
         public string OrbitalDEM { get; set; }
@@ -89,7 +151,7 @@ namespace OPS.Landform
         [Option(HelpText = "Poisson octtree depth, mutually exclusive with PoissonCellSize, 0 to disable", Default = 10)]
         public int PoissonTreeDepth { get; set; }
 
-        [Option(HelpText = "Discard observation point cloud normals with fewer than this man valid 8-neighbors", Default = 8)]
+        [Option(HelpText = "Discard observation point cloud normals with fewer than this many valid 8-neighbors", Default = 8)]
         public int NormalFilter { get; set; }
 
         [Option(HelpText = "Scale observation point cloud normals by confidence", Default = true)]
@@ -100,11 +162,23 @@ namespace OPS.Landform
 
         [Option(HelpText = "Poisson reconstruction BSpline degree", Default = 2)]
         public int PoissonBSplineDegree { get; set; }
+
+        [Option(HelpText = "Generate full-mesh UVs with UVAtlas", Default = false)]
+        public bool GenerateUVs { get; set; }
+
+        [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
+        public int TextureResolution { get; set; }
+
+        [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]
+        public string OutputMesh { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
     {
         private const string OUT_DIR = "meshing/GeometryProducts";
+
+        public const double DEF_BLEND_RADIUS = 3;
+        public const double DEF_SEW_RADIUS = 0.2;
 
         private BuildGeometryOptions options;
 
@@ -125,6 +199,8 @@ namespace OPS.Landform
         private Mesh orbitalMesh;
 
         private string dbgMeshPrefix;
+
+        private double blendRadius, sewRadius;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
@@ -149,11 +225,6 @@ namespace OPS.Landform
                     RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
                 }
 
-                if (options.NoOrbital)
-                {
-                    dbgMeshPrefix += "-noOrbital";
-                }
-
                 if (!options.NoFillHoles || !options.NoOrbital)
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
@@ -165,20 +236,26 @@ namespace OPS.Landform
                     }
                 }
 
-                if (!options.NoOrbital)
+                if (options.NoOrbital)
                 {
-                    RunPhase("build orbital mesh", BuildOrbitalMesh);
-                    RunPhase("blend orbital to surface", BlendOrbitalToSurface);
-                }
-                else if (options.NoFillHoles)
-                {
-                    //no orbital or hole filling, just clip surface mesh
+                    //just clip surface mesh
                     double extent = options.ClipExtent;
                     if (extent <= 0 || (options.ClipSurfaceExtent > 0 && options.ClipSurfaceExtent < extent))
                     {
                         extent = options.ClipSurfaceExtent;
                     }
                     RunPhase("clip mesh", () => ClipMesh(extent));
+                }
+                else
+                {
+                    //surface mesh has already been clipped
+                    //and we've already verified that 0 < ClipSurfaceExtent < ClipExtent
+                    //now build orbital to ClipExtent
+                    RunPhase("build orbital mesh", BuildOrbitalMesh);
+                    if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
+                    {
+                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
+                    }
                 }
 
                 if (options.TargetSceneMeshFaces > 0)
@@ -189,6 +266,11 @@ namespace OPS.Landform
                 if (onlyForObs.Length > 0)
                 {
                     RunPhase("filter mesh", FilterMesh);
+                }
+
+                if (options.GenerateUVs)
+                {
+                    RunPhase("atlas mesh", () => AtlasMesh(options.TextureResolution));
                 }
 
                 RunPhase("save mesh", SaveMesh);
@@ -266,6 +348,35 @@ namespace OPS.Landform
 
             var obsNames = onlyForObs.Select(o => o.Name).ToArray();
             dbgMeshPrefix = SceneMesh.MakeName(meshFrame, MeshVariant.Default, siteDrives, obsNames);
+
+            if (!string.IsNullOrEmpty(options.OutputMesh))
+            {
+                options.OutputMesh =
+                    CheckOutputURL(options.OutputMesh, dbgMeshPrefix, OUT_DIR, MeshSerializers.Instance);
+            }
+
+            sewRadius = options.OrbitalSewRadius;
+            if (sewRadius < 0)
+            {
+                sewRadius = DEF_SEW_RADIUS;
+            }
+
+            blendRadius = options.OrbitalBlendRadius;
+            if (blendRadius < 0)
+            {
+                blendRadius = DEF_BLEND_RADIUS;
+            }
+            if (blendRadius < sewRadius)
+            {
+                blendRadius = sewRadius;
+            }
+
+            if (!options.NoOrbital && (options.ClipSurfaceExtent <= 0 || options.ClipExtent <= 0 ||
+                                       options.ClipSurfaceExtent > options.ClipExtent))
+            {
+                throw new Exception(string.Format("surface clip {0} must be greater than 0 and less than outer clip {1}"
+                                                  + " to use orbital", options.ClipSurfaceExtent, options.ClipExtent));
+            }
 
             return true;
         }
@@ -510,9 +621,9 @@ namespace OPS.Landform
         {
             try
             {
-                orbitalDEM = mission.LoadOrbital(new SiteDrive(meshFrame), options.OrbitalDEM,
-                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                 logger: pipeline);
+                orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), options.OrbitalDEM,
+                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                    logger: pipeline);
             }
             catch (Exception ex)
             {
@@ -638,44 +749,100 @@ namespace OPS.Landform
                 maskOp = new MeshOperator(tmp, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             }
 
-            var cfg = OrbitalConfig.Instance;
-
-            int orbitalRadiusPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / cfg.OrbitalDEMMetersPerPixel);
-
-            var bounds = orbitalDEM.GetSubrectPixels(orbitalRadiusPixels);
-            int samplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * cfg.OrbitalDEMMetersPerPixel);
-            var points = new Image(3, bounds.Width * samplesPerPixel, bounds.Height * samplesPerPixel);
-            points.CreateMask();
-            double step = 1.0 / samplesPerPixel;
-            for (double r = bounds.MinY; r <= bounds.MaxY; r += step)
+            Mesh makeMesh(int subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
             {
-                for (double c = bounds.MinX; c <= bounds.MaxX; c += step)
+                int w = (outerBounds.Width - 1) * subsample + 1;
+                int h = (outerBounds.Height - 1) * subsample + 1;
+                double eps = 0.1;
+                var points = new Image(3, w, h);
+                points.CreateMask();
+                for (int r = 0; r < h; r++)
                 {
-                    int cc = (int)((c - bounds.MinX) / step);
-                    int rr = (int)((r - bounds.MinY) / step);
-                    bool mask = true;
-                    var px = new Vector2(c, r);
-                    var pt = orbitalDEM.GetInterpolatedXYZ(px);
-                    if (pt.HasValue)
+                    for (int c = 0; c < w; c++)
                     {
-                        pt = Vector3.Transform(pt.Value, orbitalToMesh);
-                        if (maskOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
+                        Vector2 px = outerBounds.Interp(((double)c) / (w - 1), ((double)r) / (h - 1));
+                        bool mask = true;
+                        if (innerBounds == null || !innerBounds.ContainsProper(px, eps))
                         {
-                            points[0, rr, cc] = (float)pt.Value.X;
-                            points[1, rr, cc] = (float)pt.Value.Y;
-                            points[2, rr, cc] = (float)pt.Value.Z;
-                            mask = false;
+                            var pt = orbitalDEM.GetInterpolatedXYZ(px);
+                            if (pt.HasValue)
+                            {
+                                pt = Vector3.Transform(pt.Value, orbitalToMesh);
+                                if (maskOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
+                                {
+                                    points[0, r, c] = (float)pt.Value.X;
+                                    points[1, r, c] = (float)pt.Value.Y;
+                                    points[2, r, c] = (float)pt.Value.Z;
+                                    mask = false;
+                                }
+                            }
+                        }
+                        if (mask)
+                        {
+                            points.SetMaskValue(r, c, true);
                         }
                     }
-                    if (mask)
-                    {
-                        points.SetMaskValue(rr, cc, true);
-                    }
                 }
+                return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
             }
 
-            orbitalMesh = OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
+            double demMPP = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
 
+            int samplesPerPixel = 1;
+            if (options.OrbitalPointsPerMeter > 0)
+            {
+                samplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * demMPP);
+            }
+            
+            int blendSamplesPerPixel = 1;
+            if (options.OrbitalBlendPointsPerMeter > 0)
+            {
+                blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * demMPP);
+            }
+
+            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / demMPP);
+
+            double br = blendRadius > 0 ? (blendRadius + 4 * (demMPP / blendSamplesPerPixel)) : 0;
+            int blendExtentPixels = (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / demMPP);
+
+            Image.Subrect blendBounds = null;
+            if (blendSamplesPerPixel != samplesPerPixel)
+            {
+                blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels);
+            }
+
+            pipeline.LogInfo("making {0}x{0} orbital mesh at {1} samples/meter",
+                             2* orbitalExtentPixels * demMPP, samplesPerPixel / demMPP);
+
+            orbitalMesh = makeMesh(samplesPerPixel, orbitalDEM.GetSubrectPixels(orbitalExtentPixels), blendBounds);
+
+            pipeline.LogInfo("made orbital mesh with {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
+
+            if (blendBounds != null)
+            {
+                if (options.WriteDebug)
+                {
+                    SaveMesh(orbitalMesh, dbgMeshPrefix + "-outerOrbital");
+                }
+
+                pipeline.LogInfo("making {0}x{0} orbital blend mesh at {1} samples/meter",
+                                 2 * blendExtentPixels * demMPP, blendSamplesPerPixel / demMPP);
+
+                var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(blendMesh, dbgMeshPrefix + "-preblendOrbital");
+                }
+
+                pipeline.LogInfo("made orbital blend mesh with {0} triangles, merging with orbital",
+                                 Fmt.KMG(blendMesh.Faces.Count));
+
+                orbitalMesh.MergeWith(blendMesh);
+
+                pipeline.LogInfo("total orbital mesh size {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
+            }
+                
             if (options.WriteDebug)
             {
                 SaveMesh(orbitalMesh, dbgMeshPrefix + "-orbital");
@@ -684,11 +851,14 @@ namespace OPS.Landform
 
         private void BlendOrbitalToSurface()
         {
+            if (blendRadius == 0 && sewRadius == 0)
+            {
+                return;
+            }
+
             var meshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: true, buildUVFaceTree: false);
 
             double blendMin = options.OrbitalBlendMin;
-            double blendRadius = options.OrbitalBlendRadius;
-            double sewRadius = options.OrbitalSewRadius;
             double smoothRadius = 0.1 * blendRadius;
 
             double boundsRadius = options.ClipSurfaceExtent > 0 ? options.ClipSurfaceExtent + blendRadius : 0;
@@ -870,6 +1040,22 @@ namespace OPS.Landform
             pipeline.LogInfo("kept {0} faces visible in specified observations", mesh.Faces.Count);
         }
 
+        private void AtlasMesh(int textureResolution)
+        {
+            pipeline.LogInfo("atlasing {0} triangles with UVAtlas, texture resolution {1}",
+                             Fmt.KMG(mesh.Faces.Count), textureResolution);
+
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
+            pipeline.LogWarn("UVAtlas may not work well on large meshes");
+
+            mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution);
+
+            if (mesh == null)
+            {
+                throw new Exception("unknown error atlasing mesh");
+            }
+        }
+
         private void SaveMesh()
         {
             if (!options.NoSave)
@@ -896,6 +1082,15 @@ namespace OPS.Landform
             if (options.WriteDebug)
             {
                 SaveMesh(mesh, dbgMeshPrefix);
+            }
+
+            if (!string.IsNullOrEmpty(options.OutputMesh))
+            {
+                TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(options.OutputMesh), tmpFile =>
+                {
+                    mesh.Save(tmpFile);
+                    pipeline.SaveFile(tmpFile, options.OutputMesh, constrainToStorage: false);
+                });
             }
 
             var bounds = mesh.Bounds().Size();

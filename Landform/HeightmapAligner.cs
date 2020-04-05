@@ -10,6 +10,42 @@ using OPS.Alignment;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
+/// <summary>
+/// Align sitedrive heightmaps to each other and optionally to an orbital DEM.
+///
+/// Typically performed after bev-align in a contextual mesh workflow, but can be omitted or run before bev-align.
+///
+/// Does nothing if there is only one sitedrive and no orbital DEM is available.
+///
+/// Sitedrive heightmaps are computed by birds-eye-view rendering from sitedrive meshes, which are loaded from mission
+/// wedge mesh RDRs if available, falling back to organized meshes built from observation point clouds.  The same
+/// algorithm is used to render these heightmaps as the sitedrive DEMs used by bev-align, though the options typically
+/// differ.
+///
+/// All sitedrives are first aligned one at a time to a base sitedrive.  As each one is aligned it is added to an
+/// aligned "scene" to which later ones are aligned.  It is possible that one or more sitedrives fails to align at this
+/// stage, e.g. to insufficient overlap.
+///
+/// If an orbital DEM is available it is then aligned to the aligned scene of sitedrives (which will always contain at
+/// least the base sitedrive).  See OrbitalConfig.cs for details of the orbital DEM metadata.  PlacesDB is also required
+/// to relate the lat/lon of the base sitedrive to a pixel in the orbital DEM.
+///
+/// All sitedrives that failed to align in the first stage (or optionally all sitedrives except the base sitedrive)
+/// are then aligned to the orbital DEM.
+///
+/// If an orbital DEM is available then its alignment is saved as a Frame with the name given by
+/// OrbitalConfig.OrbitalFrameName in the alignment project database.
+///
+/// Either or both simulated annealing and/or ICP (iterated closest point) stages are used to perform each alignment.
+///
+/// Debug meshes can be optionally saved with the aligned and unaligned heightmaps and the sample point pair matches
+/// used to perform the alignments.  Only the portion of the orbital DEM near the base sitedrive is saved.
+///
+/// Example:
+///
+/// Landform.exe heightmap-align windjana --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif --basesitedrive 0311472
+///
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("heightmap-align", HelpText = "")]
@@ -361,9 +397,9 @@ namespace OPS.Landform
         {
             try
             {
-                orbitalDEM = mission.LoadOrbital(baseSiteDrive, options.OrbitalDEM,
-                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                 logger: pipeline);
+                orbitalDEM = mission.LoadOrbitalDEM(baseSiteDrive, options.OrbitalDEM,
+                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                    logger: pipeline);
             }
             catch (Exception ex)
             {

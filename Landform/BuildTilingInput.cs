@@ -13,6 +13,29 @@ using OPS.Pipeline.Texturing;
 using OPS.Pipeline.TilingServer;
 using OPS.Util;
 
+/// <summary>
+/// Creates leaf, and sometimes also parent, tile meshes and textures for a Landform alignment project.
+///
+/// This stage typically runs before build-tileset in a Landform contextual or tactical tileset workflow, possibly with
+/// blend-images intervening.
+///
+/// Leaf tile meshes are always created by applying a tiling scheme to subdivide the (finest LOD) scene mesh.  Leaf tile
+/// textures are backprojected from observation images in contextual mesh workflows, and (typically) clipped from the
+/// source image in tactical tiling workflows.
+///
+/// For tactical tiling workflows where the input mesh RDR has existing LODs, build-tiling-input will also typically
+/// define all parent tile meshes from the coarser LODs of the input mesh.
+///
+/// The tile meshes and textures are saved to project storage, along with a TileList data product which indexes them
+/// and contains some related metadata.  The TileList is referred to by the SceneMesh in the alignment project database
+///
+/// See build-tileset for more details.
+///
+/// Example:
+///
+/// Landform.exe build-tiling-input windjana --meshframe 0311472
+///
+/// </summary>
 namespace OPS.Landform
 {
     [Verb("build-tiling-input", HelpText = "builds textured tiles from a full scene mesh")]
@@ -50,9 +73,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't save tile backproject index images", Default = false)]
         public bool NoIndexImages { get; set; }
-
-        [Option(HelpText = "save tile backproject index images previews", Default = false)]
-        public bool BackprojectIndexImagePreviews { get; set; }
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
@@ -590,8 +610,7 @@ namespace OPS.Landform
                 {
                     string indexImageName = IndexName(name);
                     SaveFloatTIFF(index, indexImageName);
-
-                    if (options.BackprojectIndexImagePreviews)
+                    if (options.WriteBackprojectDebug)
                     {
                         Image preview = Backproject.GenerateIndexPreviewImage(index);
                         SaveImage(preview, indexImageName + "_preview");
@@ -733,7 +752,7 @@ namespace OPS.Landform
                         Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
                                                   options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
                     strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
-                                        options.BackprojectQuality, options.WriteDebug,
+                                        options.BackprojectQuality, options.WriteBackprojectDebug,
                                         Path.Combine(backprojectDebugDir, node.Name));
                 }
                 

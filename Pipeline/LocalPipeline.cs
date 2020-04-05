@@ -60,6 +60,9 @@ namespace OPS.Pipeline
                    initQueues, initAlignmentTables, initTilingTables, maxCores)
         {}
 
+        /// <summary>
+        /// prepends file:// if it's missing
+        /// </summary>
         private string CheckUrl(string url, bool constrainToStorage = true, bool preserveTrailingSlash = false)
         {
             url = StringHelper.NormalizeUrl(url, "file://", preserveTrailingSlash);
@@ -70,16 +73,25 @@ namespace OPS.Pipeline
             return url;
         }
 
+        /// <summary>
+        /// removes file://
+        /// </summary>
         private string UrlToFile(string url)
         {
             return url.Substring(7);
         }
 
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override void GetFile(string url, Action<string> func, bool constrainToStorage = false)
         {
             func(UrlToFile(CheckUrl(url, constrainToStorage)));
         }
 
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override string GetFileCached(string url, string cacheFolder = null, string filename = null,
                                              bool constrainToStorage = false)
         {
@@ -87,6 +99,10 @@ namespace OPS.Pipeline
         }
 
         private static object saveLock = new object();
+
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override void SaveFile(string file, string url, bool constrainToStorage = true)
         {
             string dest = UrlToFile(CheckUrl(url, constrainToStorage));
@@ -95,6 +111,9 @@ namespace OPS.Pipeline
             TemporaryFile.GetAndMove(dest, tmp => File.Copy(file, tmp), replaceExisting: true, moveLock: saveLock);
         }
 
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override void DeleteFile(string url, bool ignoreErrors = true)
         {
             string file = UrlToFile(CheckUrl(url));
@@ -115,6 +134,9 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override void DeleteFiles(string url, string globPattern = "*", bool recursive = true,
                                          bool ignoreErrors = true)
         {
@@ -154,11 +176,17 @@ namespace OPS.Pipeline
             }
         }
 
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override bool FileExists(string url, bool constrainToStorage = false)
         {
             return File.Exists(UrlToFile(CheckUrl(url, constrainToStorage)));
         }
 
+        /// <summary>
+        /// url can be either a file:// URL or a disk path
+        /// </summary>
         public override IEnumerable<string> SearchFiles(string url, string globPattern = "*", bool recursive = true,
                                                         bool ignoreCase = false, bool constrainToStorage = false)
         {
