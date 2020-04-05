@@ -12,6 +12,8 @@ namespace OPS.Geometry
     /// </summary>
     public abstract class MeshSerializer
     {
+        public static ILogger Logger;
+
         public abstract string GetExtension();
 
         /// <summary>

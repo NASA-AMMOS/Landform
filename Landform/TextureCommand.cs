@@ -358,6 +358,11 @@ namespace OPS.Landform
                 meshLOD = new List<Mesh>() { mesh };
             }
 
+            foreach (var lodMesh in meshLOD)
+            {
+                lodMesh.Clean(verbose: msg => pipeline.LogVerbose(msg), warn: msg => pipeline.LogWarn(msg));
+            }
+
             var keepers = new List<Mesh>();
             for (int i = 0; i < meshLOD.Count; i++)
             {
