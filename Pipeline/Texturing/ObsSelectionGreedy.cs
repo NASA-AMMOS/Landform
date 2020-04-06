@@ -26,8 +26,8 @@ namespace OPS.Pipeline.Texturing
         // each tile. can be faster than alternatives depending on percentage of pixels
         // to test (quality).
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
-                               bool writeDebug, string localOutputPath)
+                               List<Backproject.Context> allContexts, int outputTextureResolution, double orbitalMetersPerPixel,
+                               double quality, bool writeDebug, string localOutputPath)
         {
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(outputTextureResolution, outputTextureResolution);
 

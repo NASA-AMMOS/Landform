@@ -166,6 +166,7 @@
     <Compile Include="AlignmentServer\DB\FrameTransform.cs" />
     <Compile Include="AlignmentServer\DB\Observation.cs" />
     <Compile Include="AlignmentServer\DB\ObservationCache.cs" />
+    <Compile Include="AlignmentServer\DB\OrbitalObservation.cs" />
     <Compile Include="AlignmentServer\DB\Overlap.cs" />
     <Compile Include="AlignmentServer\DB\OverlapCache.cs" />
     <Compile Include="AlignmentServer\DB\Project.cs" />

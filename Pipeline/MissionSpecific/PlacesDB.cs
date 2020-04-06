@@ -362,16 +362,16 @@ namespace OPS.Pipeline
         /// Finds the estimated mars lat and lon for a given site drive
         /// returned X = longitude, Y = latitude
         /// </summary>
-        public Vector2 GetEstimatedLatLon(SiteDrive sd)
+        public Vector2 GetEstimatedLatLon(SiteDrive sd, int orbitalIndex = 0, string orbitalFileName=null)
         {
             if (!ellipsoidRadius.HasValue)
             {
                 throw new Exception("PlacesDB: ellipsoid radius not available");
             }
-            string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital(0)",
-                                         view, sd.Site, sd.Drive);
+            string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital({3})",
+                                         view, sd.Site, sd.Drive, orbitalIndex);
             Vector3 v = GetOffset(query);
-            // x is northing, y is easting
+            // x is northing, y is easting for orbital image 0 MSL
             double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
             double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
             return new Vector2(lon, lat);

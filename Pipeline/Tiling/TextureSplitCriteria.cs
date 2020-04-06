@@ -51,9 +51,11 @@ namespace OPS.Pipeline
         }
 
         public bool ShouldSplit(MeshOperator meshOperator, BoundingBox areaOfInterest)
-        {
+        { 
+            //#ISSUE 1038:  add the resolution of orbital to this decision
+
             // coarse frustum test against the bounding box
-            List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh.Intersects(areaOfInterest)).ToList();
+            List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh != null && ci.hullInMesh.Intersects(areaOfInterest)).ToList();
 
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)

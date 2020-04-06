@@ -16,8 +16,13 @@ namespace OPS.Imaging
     {
         private static readonly ILog logger = LogManager.GetLogger(typeof(FITSSerializer));
 
-        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null, bool useFillValueFromFile = false)
         {
+            if (useFillValueFromFile == true)
+            {
+                throw new NotImplementedException("add support for detecting file based invalid pixels");
+            }
+
             FITSMetadata metadata = new FITSMetadata(filename);
             var f = new nom.tam.fits.Fits(filename, System.IO.FileAccess.Read);
 

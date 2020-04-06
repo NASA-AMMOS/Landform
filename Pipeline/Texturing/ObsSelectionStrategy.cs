@@ -55,8 +55,8 @@ namespace OPS.Pipeline.Texturing
         }
 
         public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double quality,
-                               bool writeDebug, string localOutputPath);
+                               List<Backproject.Context> allContexts, int outputTextureResolution, double orbitalMetersPerPixel,
+                               double quality, bool writeDebug, string localOutputPath);
 
         //sorts observations from best to worst
         public abstract void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs);

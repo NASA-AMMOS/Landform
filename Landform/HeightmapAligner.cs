@@ -398,8 +398,8 @@ namespace OPS.Landform
             try
             {
                 orbitalDEM = mission.LoadOrbitalDEM(baseSiteDrive, options.OrbitalDEM,
-                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                    logger: pipeline);
+                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                 logger: pipeline);
             }
             catch (Exception ex)
             {

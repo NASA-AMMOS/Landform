@@ -79,6 +79,10 @@ namespace OPS.Landform
 
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
+
+        [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
+        public bool NoSurfaceObs { get; set; }
+
     }
 
     public class BuildTilingInput : TilingCommand
@@ -96,7 +100,7 @@ namespace OPS.Landform
 
         private Image sceneTexture;
         private SceneNode tileTree;
-
+      
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
             this.options = options;
@@ -122,10 +126,11 @@ namespace OPS.Landform
                     RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
 
+
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
                                                                 texGenMode == TextureGenMode.Bake));
 
-                if (texGenMode == TextureGenMode.Backproject)
+                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject)
                 {
                     RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
@@ -144,7 +149,7 @@ namespace OPS.Landform
                     RunPhase("build leaf meshes", BuildLeafMeshes);
                 }
 
-                if (withTextures && texGenMode == TextureGenMode.Backproject &&
+                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject &&
                     options.ObsSelectionStrategy != ObsSelectionStrategyName.Greedy)
                 {
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
@@ -335,7 +340,7 @@ namespace OPS.Landform
                         camInst.cameraToMesh = xform.Mean;
                         camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
                         camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
-                        camInst.hullInMesh = obsToHull[obs.Name];
+                        camInst.hullInMesh = obsToHull?[obs.Name];
                         camInst.widthPixels = obs.Width;
                         camInst.heightPixels = obs.Height;
                         return camInst;
@@ -738,40 +743,64 @@ namespace OPS.Landform
         {
             try
             {
-                var strategy = backprojectStrategy;
-                if (strategy == null)
+                List<PixelPoint> missingPixels = null;
+                IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = null;
+                if (options.NoSurfaceObs)
                 {
-                    //no global selection strategy, create one local to this tile
-                    strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                    var tileHull = new ConvexHull(mesh);
-                    var tileOp = new MeshOperator(mesh);
-                    var tileObs = imageObservations
-                        .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
-                        .ToList();
-                    var contexts =
-                        Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
-                                                  options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
-                    strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
-                                        options.BackprojectQuality, options.WriteBackprojectDebug,
-                                        Path.Combine(backprojectDebugDir, node.Name));
+                    //if no surface imagery is used, all pixels will be textured by orbital
+                    MeshOperator tileMeshOp = new MeshOperator(mesh);
+                    missingPixels = tileMeshOp.SampleUVSpace(options.TextureResolution,  options.TextureResolution);
                 }
-                
-                var backprojectResults = BackprojectObservations(mesh, strategy, node.Name);
+                else
+                {
+                    var strategy = backprojectStrategy;
+                    if (strategy == null)
+                    {
+                        //no global selection strategy, create one local to this tile
+                        strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
+                        var tileHull = new ConvexHull(mesh);
+                        var tileOp = new MeshOperator(mesh);
+                        var tileObs = imageObservations
+                            .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
+                            .ToList();
+                        var contexts =
+                            Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
+                                                      options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
+                        strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution, orbitalMetersPerPixel,
+                                            options.BackprojectQuality, options.WriteDebug,
+                                            Path.Combine(backprojectDebugDir, node.Name));
+                    }
+
+                    backprojectResults = BackprojectObservations(mesh, strategy, out missingPixels, node.Name);
+                }
+
+                //orbital
+                var orbitalResults = Backproject.BackprojectOrbital(orbitalTexture, sitedriveToOrbitalBody,
+                    orbitalImageTransform, missingPixels, orbitalObs);
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
-                if (backprojectResults.Count == 0)
-                {
-                    return null;
-                }
-
-                if (index != null)
-                {
-                    Backproject.FillIndexImage(backprojectResults, index);
-                }
-
                 Image image = new Image(3, resolution, resolution);
-                Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
-                                              !options.DontInpaint, fallbackToOriginal: true);
+                if ((backprojectResults == null || backprojectResults.Count() == 0) &&
+                    (orbitalResults == null || orbitalResults?.Count() == 0))
+                {
+                    //mid gray is our missing texture
+                    image.ApplyInPlace(0, r => { return 0.5f; }, true);
+                    image.ApplyInPlace(1, g => { return 0.5f; }, true);
+                    image.ApplyInPlace(2, b => { return 0.5f; }, true);
+                }
+                else
+                {
+                    if (index != null)
+                    {
+                        Backproject.FillIndexImage(backprojectResults, index);
+                        Backproject.FillIndexImage(orbitalResults, index);
+                    }
+
+                    
+                    Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
+                                                  !options.DontInpaint, fallbackToOriginal: true, orbitalTexture: orbitalTexture);
+                }
+               
                 return image;
             }
             catch (Exception ex)

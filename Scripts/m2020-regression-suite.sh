@@ -122,7 +122,7 @@ do_all_the_things() {
         IFS=',' read -ra solarray <<< $sols
         primarysol=${solarray[0]}
         $scriptdir/process-contextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
-                                         --orbitaldem out/$run/orbital/$dem
+                                         --orbitaldem out/$run/orbital/$dem --orbitalimage out/$run/orbital/$ortho
     fi
 }
 

@@ -84,7 +84,7 @@ namespace OPS.Imaging
         /// represent the pre-converted values as they are stored in the image.
         /// </param>
         /// <returns></returns>
-        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null, bool useFillValueFromFile = false)
         {            
 #if !ENABLE_GDAL_READ_MT
             lock (gdalLockObj)
@@ -93,17 +93,33 @@ namespace OPS.Imaging
                 using (Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly))
                 {
                     Image img = new Image(dataset.RasterCount, dataset.RasterXSize, dataset.RasterYSize);
-                                          
+                    if(useFillValueFromFile)
+                    {
+                        img.CreateMask(false);
+                    }
+
                     for (int b = 0; b < img.Bands; b++)
                     {
                         float[] bandData = img.GetBandData(b);
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
+                            int hasMissingVal = 0;
+                            float missingDataVal = 0;
+                            if (useFillValueFromFile)
+                            {
+                                band.GetNoDataValue(out double noDataVal, out hasMissingVal);
+                                if (hasMissingVal == 1)
+                                {
+                                    missingDataVal = Convert.ToSingle(noDataVal);
+                                }
+                            }
+
                             if (band.DataType == DataType.GDT_Byte)
                             {
                                 byte[] buffer = new byte[img.Width * img.Height];
                                 band.ReadRaster(0, 0, img.Width, img.Height, buffer, img.Width, img.Height, 0, 0);
-                                for(int i = 0; i < buffer.Length; i++)
+
+                                for (int i = 0; i < buffer.Length; i++)
                                 {
                                     bandData[i] = buffer[i];
                                 }
@@ -132,7 +148,7 @@ namespace OPS.Imaging
                             }
                             else if (band.DataType == DataType.GDT_Int32 || band.DataType == DataType.GDT_UInt16 || band.DataType == DataType.GDT_UInt32)
                             {
-                                int[] buffer = new int[img.Width * img.Height]; ;
+                                int[] buffer = new int[img.Width * img.Height]; 
                                 band.ReadRaster(0, 0, img.Width, img.Height, buffer, img.Width, img.Height, 0, 0);
                                 for (int i = 0; i < buffer.Length; i++)
                                 {
@@ -143,16 +159,30 @@ namespace OPS.Imaging
                             {
                                 throw new ImageSerializationException("Unsupported type in image file");
                             }
+
+                            if (1 == hasMissingVal)
+                            {
+                                for (int i = 0; i < img.Width * img.Height; i++)
+                                {
+                                    if (bandData[i] == missingDataVal)
+                                    {
+                                        img.SetMaskValue(i, true);
+                                    }
+                                }
+                            }
                         }
                     }
+
                     if(fillValue != null)
                     {
                         if(fillValue.Length != img.Bands)
                         {
                             throw new ImageSerializationException("Fill value length must match image bounds");
                         }
-                        img.CreateMask(fillValue);
+
+                        img.UnionMask(img, fillValue);
                     }
+                   
                     using (Band band = dataset.GetRasterBand(1))
                     {
                         if (band.DataType == DataType.GDT_Byte)
@@ -220,7 +250,7 @@ namespace OPS.Imaging
         /// </param>
         /// <returns></returns>
         public Image PartialRead(string filename, int xOffset, int yOffset, int xSize, int ySize,
-                                 IImageConverter converter = null, float[] fillValue = null)
+                                 IImageConverter converter = null, float[] fillValue = null, bool useFillValueFromFile = false)
         {
 #if !ENABLE_GDAL_READ_MT
             lock (gdalLockObj)
@@ -234,12 +264,27 @@ namespace OPS.Imaging
                 using (Dataset dataset = Gdal.Open(filename, Access.GA_ReadOnly))
                 {
                     Image img = new Image(dataset.RasterCount, xSize, ySize);
+                    if (useFillValueFromFile)
+                    {
+                        img.CreateMask(false);
+                    }
 
                     for (int b = 0; b < img.Bands; b++)
                     {
                         float[] bandData = img.GetBandData(b);
                         using (Band band = dataset.GetRasterBand(b + 1))
                         {
+                            int hasMissingVal = 0;
+                            float missingDataVal = 0;
+                            if (useFillValueFromFile)
+                            {
+                                band.GetNoDataValue(out double noDataVal, out hasMissingVal);
+                                if (hasMissingVal == 1)
+                                {
+                                    missingDataVal = Convert.ToSingle(noDataVal);
+                                }
+                            }
+
                             if (band.DataType == DataType.GDT_Byte)
                             {
                                 byte[] buffer = new byte[xSize * ySize];
@@ -284,16 +329,30 @@ namespace OPS.Imaging
                             {
                                 throw new ImageSerializationException("Unsupported type in image file");
                             }
+
+                            if (1 == hasMissingVal)
+                            {
+                                for (int i = 0; i < img.Width * img.Height; i++)
+                                {
+                                    if (bandData[i] == missingDataVal)
+                                    {
+                                        img.SetMaskValue(i, true);
+                                    }
+                                }
+                            }
                         }
                     }
+
                     if (fillValue != null)
                     {
                         if (fillValue.Length != img.Bands)
                         {
                             throw new ImageSerializationException("Fill value length must match image bounds");
                         }
-                        img.CreateMask(fillValue);
+
+                        img.UnionMask(img, fillValue);
                     }
+
                     using (Band band = dataset.GetRasterBand(1))
                     {
                         if (band.DataType == DataType.GDT_Byte)

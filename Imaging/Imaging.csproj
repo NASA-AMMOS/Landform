@@ -77,6 +77,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CameraModels\GISCameraModel.cs" />
     <Compile Include="Imaging\BrewerColors.cs" />
     <Compile Include="GdalConfiguration.cs" />
     <Compile Include="CameraModels\CAHV.cs" />
@@ -85,7 +86,6 @@
     <Compile Include="CameraModels\CameraModel.cs" />
     <Compile Include="CameraModels\OrthographicCameraModel.cs" />
     <Compile Include="Imaging\FITSMetadata.cs" />
-    <Compile Include="Imaging\GDALDEM.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
     <Compile Include="Imaging\IImageLoader.cs" />
     <Compile Include="Imaging\Image.cs" />
@@ -95,6 +95,7 @@
     <Compile Include="Imaging\ImageStatistics.cs" />
     <Compile Include="Imaging\LimberDMG.cs" />
     <Compile Include="Imaging\Mask.cs" />
+    <Compile Include="Imaging\OrbitalImage.cs" />
     <Compile Include="Operations\Blur.cs" />
     <Compile Include="Operations\Colorize.cs" />
     <Compile Include="Operations\Colorspace.cs" />

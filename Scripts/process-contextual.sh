@@ -213,6 +213,7 @@ while (( "$#" )); do
         "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
         "--onlyforcameras") shift; expect $# "camera list"; cameras="--onlyforcameras $1";;
         "--orbitaldem") shift; expect $# "DEM path"; orbital_dem="--orbitaldem $1";;
+		"--orbitalimage") shift; expect $# "orbital image path"; orbital_image="--orbitalimage $1";;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
         "--ingestargs") shift; expect $# "ingest args"; ingestargs="$1";;
         "--bevargs") shift; expect $# "BEV args"; bevargs="$1";;
@@ -271,7 +272,7 @@ if [ "$generate" ]; then
         ${dry}$landform bev-align $proj $stdopts --fixsitedrives $sd $bevargs | tee -a $log
         ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $orbital_dem $heightmapargs | tee -a $log
         ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $orbital_dem $geometryargs | tee -a $log
-        ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
+        ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $orbital_image $tilingargs | tee -a $log
         ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
         ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
         

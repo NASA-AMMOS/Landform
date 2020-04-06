@@ -32,6 +32,9 @@ namespace OPS.Pipeline.AlignmentServer
         public const int MAX_INDEX = 65535; //Max supported by PPMSerializer (16 bit per channel)
         //public const int MAX_INDEX = 16777216; //Max if we remove 16 bit constraint
 
+        // this constant reserves a value for orbital images
+        public const int ORBITAL_INDEX = MAX_INDEX - 1; 
+
         [DynamoDBRangeKey]
         public string ProjectName;
 

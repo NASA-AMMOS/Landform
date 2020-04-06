@@ -62,6 +62,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Redo observation image masks", Default = false)]
         public bool RedoObservationMasks { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
+        public string OrbitalImage { get; set; }
+
+        [Option(HelpText = "Don't load orbital data for texturing", Default = false)]
+        public bool NoOrbitalTexture { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -84,7 +90,12 @@ namespace OPS.Landform
         protected List<Observation> imageObservations;
         protected Dictionary<int, Observation> indexedImages;
 
-        protected SceneMesh sceneMesh; 
+        protected SceneMesh sceneMesh;
+        protected SparsePipelineImage orbitalTexture;
+        protected OrbitalImage orbitalImageTransform;
+        protected Matrix sitedriveToOrbitalBody;
+        protected OrbitalObservation orbitalObs;
+        protected double orbitalMetersPerPixel;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
@@ -146,13 +157,73 @@ namespace OPS.Landform
                     .ToList();
                 
                 pipeline.LogInfo("{0} image observations", imageObservations.Count);
-                
+
                 indexedImages = new Dictionary<int, Observation>();
                 foreach (var obs in imageObservations)
                 {
                     indexedImages[obs.Index] = obs;
                 }
+
+                if (orbitalObs == null && !tcopts.NoOrbitalTexture)
+                {
+                    tcopts.NoOrbitalTexture = !LoadOrbital(tcopts.OrbitalImage);
+                    if (!tcopts.NoOrbitalTexture)
+                    {
+                        indexedImages[Observation.ORBITAL_INDEX] = orbitalObs;
+                    }
+                }
             }
+
+            return true;
+        }
+
+        public bool LoadOrbital(string orbitalPath = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+
+            if (string.IsNullOrEmpty(orbitalPath))
+            {
+                if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
+                {
+                    orbitalPath = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
+                }
+                else
+                {
+                    throw new Exception("no orbital image file provided");
+                }
+            }
+
+            try
+            {
+                orbitalTexture = mission.LoadOrbitalImage(pipeline, new SiteDrive(meshFrame), cfg.OrbitalBodyName,
+                    out orbitalImageTransform, out sitedriveToOrbitalBody, out orbitalMetersPerPixel, orbitalPath, logger: pipeline);
+
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("failed to load orbital image or PlacesDB, running without orbital: {0}", ex.Message);
+                //TODO options.NoOrbitalTexture = true;
+                return false;
+            }
+
+            // heightmap align transforms orbital to align to scene. it is sitedriveToRoot * rootAdjustment
+            // LoadOrbitalImage returns sitedriveToOrbitalBody. to texture we want to recover the unadjusted position
+            // by peeling off the adjustment. Adj = inv(sitedrivetoroot) * sitedrivetoroot * adj
+            FrameTransform siteDriveToAdjustedRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
+            if (siteDriveToAdjustedRoot != null)
+            {
+                Matrix orbitalToRoot = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName).Transform.Mean;
+                Matrix sdToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+                Matrix sdToOrbital = sdToRoot * Matrix.Invert(orbitalToRoot);
+                sitedriveToOrbitalBody = sdToOrbital * sitedriveToOrbitalBody;
+            }
+
+            var parent = frameCache.GetFrame(meshFrame);
+            string frameName = "OrbitalImage";
+            Frame orbFrame = Frame.Create(pipeline, project.Name, frameName, parent, save:false);
+            //ISSUE #1036 properly store image frame transform
+            GISCameraModel orbCam = new GISCameraModel(orbitalImageTransform, sitedriveToOrbitalBody);
+            orbitalObs = OrbitalObservation.Create(orbFrame, frameName, orbitalPath, orbCam, false, false, true);
 
             return true;
         }
@@ -244,14 +315,28 @@ namespace OPS.Landform
                                          "completed {2}/{3}", obs.Name, np, nc, no);
                     }
 
-                    Image orig = pipeline.LoadImage(obs.Url);
+                    Image orig = null;
+                    Image blurredImage = null;
+                    if (obs.Index == Observation.ORBITAL_INDEX)
+                    {
+                        //no blur needed on orbital it is already low frequency
+                        // relative to terrain
+                        orig = orbitalTexture;
+                        blurredImage = orig;
+                    
+                    }
+                    else
+                    {
+                        orig = pipeline.LoadImage(obs.Url);
 
-                    //notes from TerrainTools PDSImageRoutines.cs
-                    //"Used to do a guass blur 4 with photoshop"
-                    //the current code is: img.SmoothBlur(13, 13)
-                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
+                        //notes from TerrainTools PDSImageRoutines.cs
+                        //"Used to do a guass blur 4 with photoshop"
+                        //the current code is: img.SmoothBlur(13, 13)
+                        blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
+                    }
 
-                    if (tcopts.WriteDebug)
+
+                if (tcopts.WriteDebug)
                     {
                         SaveDebugWedgeImage(blurredImage, obs, "_blurred");
                     }
@@ -482,9 +567,8 @@ namespace OPS.Landform
             var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,
-                                           tcopts.BackprojectQuality, tcopts.WriteBackprojectDebug,
-                                           backprojectDebugDir);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,orbitalMetersPerPixel,
+                                           tcopts.BackprojectQuality, tcopts.WriteBackprojectDebug, backprojectDebugDir);
         }
 
         protected void BackprojectObservations()
@@ -494,11 +578,11 @@ namespace OPS.Landform
                 InitBackprojectStrategy();
             }
             pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            BackprojectObservations(mesh, backprojectStrategy);
+            BackprojectObservations(mesh, backprojectStrategy, out List<PixelPoint> missingPixels);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, string debugSubdir = "")
+            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, out List<PixelPoint> missingPixels, string debugSubdir = "")
         {
             bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
@@ -520,12 +604,13 @@ namespace OPS.Landform
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
                 obsSelectionStrategy = strategy,
                 obsToHull = obsToHull,
+                orbitalObs = orbitalObs,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
-            return Backproject.BackprojectObservations(opts);
+            return Backproject.BackprojectObservations(opts, out missingPixels);
         }
 
         protected void BuildBackprojectIndex()
@@ -559,8 +644,7 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("creating backproject texture");
             Image texture = new Image(3, resolution, resolution);
-            Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant,
-                                          fallbackToOriginal: false);
+            Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant, orbitalTexture:orbitalTexture);
 
             if (!tcopts.NoSave)
             {

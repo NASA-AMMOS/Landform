@@ -64,6 +64,9 @@ namespace OPS.Pipeline
         /// </summary>
         static public void FillIndexImage(IDictionary<Pixel, ObsPixel> backprojectResults, Image outputImage)
         {
+            if (backprojectResults == null)
+                return;
+            
             if (outputImage.Bands != 3)
                 throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
 
@@ -112,13 +115,30 @@ namespace OPS.Pipeline
             return previewImg;
         }
 
+        //<DST, SRC>
+        // SRC: col, row
+        static public IDictionary<Pixel,ObsPixel> BackprojectOrbital(SparsePipelineImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, 
+            OrbitalImage bodyToImage, List<PixelPoint> pixelsToBackproject, OrbitalObservation orbitalObs)
+        {
+            Dictionary<Pixel, ObsPixel> orbPixelsByTexel = new Dictionary<Pixel, ObsPixel>();
+            foreach(var destPixelPt in pixelsToBackproject)
+            {
+                var ptOutputMeshFrame = destPixelPt.Point;
+                var ptBodyXYZ = Vector3.Transform(ptOutputMeshFrame, outputMeshFrameToBodyXYZ);
+                var pixel = bodyToImage.XYZToImage(ptBodyXYZ); //returns col, row
+                orbPixelsByTexel[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs,new Vector2(pixel.X, pixel.Y));
+            }
+
+            return orbPixelsByTexel;
+        }
+
         /// <summary>
         /// high level function that takes backproject results
         /// and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
         /// </summary>
         static public void FillOutputTexture(PipelineCore pipeline, IDictionary<Pixel, ObsPixel> backprojectResults,
                                              Image outputImage, TextureVariant textureVariant = TextureVariant.Original,
-                                             bool inpaint = true, bool fallbackToOriginal = true)
+                                             bool inpaint = true, bool fallbackToOriginal = true, Image orbitalTexture = null)
         {
             if (outputImage.Bands != 3)
             {
@@ -128,6 +148,11 @@ namespace OPS.Pipeline
             if (!outputImage.HasMask)
             {
                 outputImage.CreateMask(true);
+            }
+
+            if(backprojectResults == null)
+            {
+                return;
             }
 
             Project project = null; //only needed if textureVariant != TextureVariant.Original
@@ -167,32 +192,39 @@ namespace OPS.Pipeline
                 }
 
                 Image sourceImage = null;
-                switch (tex)
+                if (sourceObs.Index == Observation.ORBITAL_INDEX)
                 {
-                    case TextureVariant.Original:
-                        {
-                            sourceImage = pipeline.LoadImage(sourceObs.Url);
-                            break;
-                        }
-                    case TextureVariant.Blurred:
-                        {
-                            if (sourceObs.BlurredGuid == Guid.Empty)
+                    sourceImage = orbitalTexture;
+                }
+                else
+                {
+                    switch (tex)
+                    {
+                        case TextureVariant.Original:
                             {
-                                throw new Exception("blurred texture not available for observation " + sourceObs.Name);
+                                sourceImage = pipeline.LoadImage(sourceObs.Url);
+                                break;
                             }
-                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
-                            break;
-                        }
-                    case TextureVariant.Blended:
-                        {
-                            if (sourceObs.BlendedGuid == Guid.Empty)
+                        case TextureVariant.Blurred:
                             {
-                                throw new Exception("blended texture not available for observation " + sourceObs.Name);
+                                if (sourceObs.BlurredGuid == Guid.Empty)
+                                {
+                                    throw new Exception("blurred texture not available for observation " + sourceObs.Name);
+                                }
+                                sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
+                                break;
                             }
-                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlendedGuid).Image;
-                            break;
-                        }
-                    default: throw new Exception("unknown texture variant " + tex);
+                        case TextureVariant.Blended:
+                            {
+                                if (sourceObs.BlendedGuid == Guid.Empty)
+                                {
+                                    throw new Exception("blended texture not available for observation " + sourceObs.Name);
+                                }
+                                sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlendedGuid).Image;
+                                break;
+                            }
+                        default: throw new Exception("unknown texture variant " + tex);
+                    }
                 }
 
                 foreach (var pair in group)
@@ -270,6 +302,7 @@ namespace OPS.Pipeline
             public double quality; //0 < quality <= 1 (best, slowest)
             public ObsSelectionStrategy obsSelectionStrategy;  //the approach used to pick the best source data
             public IDictionary<string, ConvexHull> obsToHull = null; //observation name -> hull, computed if null
+            public Observation orbitalObs;
             public Action<string> info = null;
             public Action<string> progress = null;
             public Action<string> warn = null;
@@ -280,7 +313,7 @@ namespace OPS.Pipeline
         /// high level api with database helpers
         /// this is for when you want to just call with all the observations you have and see what lands on the mesh
         /// </summary>
-        static public IDictionary<Pixel, ObsPixel> BackprojectObservations(BackprojectOptions opts)
+        static public IDictionary<Pixel, ObsPixel> BackprojectObservations(BackprojectOptions opts, out List<PixelPoint> missingPixels)
         {
             var info = opts.info ?? (msg => { });
             var progress = opts.progress ?? (msg => { });
@@ -291,13 +324,6 @@ namespace OPS.Pipeline
                 .Where(obs => obs is RoverObservation)
                 .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
                 .ToList();
-
-            if (imageObservations.Count() == 0)
-            {
-                error("no image observations found");
-                return new Dictionary<Pixel, ObsPixel>();
-
-            }
 
             info("building input mesh data structures");
             ConvexHull meshHull = new ConvexHull(opts.mesh);
@@ -314,6 +340,13 @@ namespace OPS.Pipeline
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
+
+            if (imageObservations.Count() == 0)
+            {
+                warn("no image observations found");
+                missingPixels = samplePoints;
+                return new Dictionary<Pixel, ObsPixel>();
+            }
 
             //generate frustum hulls
             var obsToHull = opts.obsToHull;
@@ -342,14 +375,16 @@ namespace OPS.Pipeline
                 }
             });
 
+            info(string.Format("{0}/{1} image observations intersect mesh",
+                               intersectingObservations.Count, imageObservations.Count));
+
             if (intersectingObservations.Count() == 0)
             {
-                error("no images intersected mesh");
+                warn("no intersecting observations found");
+                missingPixels = samplePoints;
                 return new Dictionary<Pixel, ObsPixel>();
             }
 
-            info(string.Format("{0}/{1} image observations intersect mesh",
-                               intersectingObservations.Count, imageObservations.Count));
             List<Context> intersectingContexts = BuildContexts(obsToHull, intersectingObservations,
                                                                             opts.mission, opts.frameCache, opts.observationCache,
                                                                             opts.meshFrame, opts.usePriors, opts.onlyAligned,
@@ -372,14 +407,22 @@ namespace OPS.Pipeline
             info("getting per pixel sortings of contexts");
             Dictionary<int, List<Context>> sortedContextBySample = new Dictionary<int, List<Context>>(samplePoints.Count);
             int maxCandidateDepth = 0;
+            var remainingIndices = Enumerable.Range(0, samplePoints.Count());
+            missingPixels = new List<PixelPoint>();
             for (int idx = 0; idx < samplePoints.Count; idx++)
             {               
                 //find the strategy specific ranking of contexts for this pixel
                 List<Context> sortedContexts = new List<Context>(intersectingContexts.Count());
                 opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts, sortedContexts, null);
-                sortedContextBySample.Add(idx, sortedContexts);
 
                 int numSortedContexts = sortedContexts.Count();
+                if(numSortedContexts == 0)
+                {
+                    missingPixels.Add(samplePoints[idx]);
+                }
+
+                sortedContextBySample.Add(idx, sortedContexts);
+
                 if (numSortedContexts > maxCandidateDepth)
                 {
                     maxCandidateDepth = numSortedContexts;
@@ -391,7 +434,6 @@ namespace OPS.Pipeline
             Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
 
             int candidateDepth = 0;
-            var remainingIndices = Enumerable.Range(0, samplePoints.Count());
             while (remainingIndices.Any() && candidateDepth < maxCandidateDepth)
             {
                 // remove pixels who had all candidate contexts fail
@@ -399,7 +441,7 @@ namespace OPS.Pipeline
 
                 //group all remaining points by their current best candidate
                 var remainingByCurrentWinningObs = remainingIndices.GroupBy(idx => sortedContextBySample[idx].ElementAt(candidateDepth).Obs.Index);
-                
+
                 foreach (var group in remainingByCurrentWinningObs)
                 {
                     //get the list of points with this texture as the winner
@@ -412,22 +454,26 @@ namespace OPS.Pipeline
                     Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
                     var succeeded = Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask, pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height, opts.sceneOcclusion);
 
-                    //save winners
-                    foreach (var res in succeeded)
+                    if (succeeded.Any())
                     {
-                        results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
+                        //save winners
+                        foreach (var res in succeeded)
+                        {
+                            results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
+                        }
+
+                        //remove winners from list to do
+                        remainingIndices = remainingIndices.Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel));
                     }
-
-                    //remove winners from list to do
-                    remainingIndices = remainingIndices.Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel));
                 }
 
-                if (remainingIndices.Any())
-                {
-                    maxCandidateDepth = remainingIndices.Select(idx => sortedContextBySample[idx].Count()).Max();
-                }
+                // save all pixels that failed all candidate contexts
+                missingPixels.AddRange(remainingIndices.Where(idx => sortedContextBySample[idx].Count() <= candidateDepth + 1).Select(i => samplePoints[i]).ToList());
                 candidateDepth++;
             }
+
+            // add remaining pixels that are not filled
+            missingPixels.AddRange(remainingIndices.Select(i => samplePoints[i]).ToList());
 
             if (opts.writeDebug)
             {
@@ -630,6 +676,5 @@ namespace OPS.Pipeline
         {
             return new Pixel((int)subPixel.Y, (int)subPixel.X);
         }
-
     }
 }

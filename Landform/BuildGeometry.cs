@@ -182,6 +182,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]
         public string OutputMesh { get; set; }
+
+        [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
+        public bool NoSurfaceObs { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -231,16 +234,19 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("build observation point clouds", BuildObservationPointClouds);
-                RunPhase("merge point clouds", MergePointClouds);
-                RunPhase("reconstruct mesh", ReconstructMesh);
+                if (!options.NoSurfaceObs)
+                {
+                    RunPhase("build observation point clouds", BuildObservationPointClouds);
+                    RunPhase("merge point clouds", MergePointClouds);
+                    RunPhase("reconstruct mesh", ReconstructMesh);
+                }
 
                 if (!options.NoOrbital)
                 {
                     RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
                 }
 
-                if (!options.NoFillHoles || !options.NoOrbital)
+                if (!options.NoSurfaceObs && (!options.NoFillHoles || !options.NoOrbital))
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
@@ -251,7 +257,21 @@ namespace OPS.Landform
                     }
                 }
 
-                if (options.NoOrbital)
+                if (!options.NoOrbital)
+                {
+                    RunPhase("build orbital mesh", BuildOrbitalMesh);
+
+                    if (options.NoSurfaceObs)
+                    {
+                        // in the case where there is no surface data orbital is the scene mesh
+                        mesh = orbitalMesh;
+                    }
+                    else
+                    {
+                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
+                    }
+                }
+                else if (options.NoOrbital || options.NoFillHoles)
                 {
                     //just clip surface mesh
                     double extent = options.ClipExtent;
@@ -651,8 +671,8 @@ namespace OPS.Landform
             try
             {
                 orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), options.OrbitalDEM,
-                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                    logger: pipeline);
+                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                 logger: pipeline);
             }
             catch (Exception ex)
             {
@@ -771,7 +791,7 @@ namespace OPS.Landform
         private void BuildOrbitalMesh()
         {
             var maskOp = maskUVMeshOp;
-            if (maskOp == null) //CreateSurfaceMaskMesh() failed
+            if (maskOp == null && mesh != null) //CreateSurfaceMaskMesh() failed
             {
                 var tmp = new Mesh(mesh);
                 tmp.XYToUV();

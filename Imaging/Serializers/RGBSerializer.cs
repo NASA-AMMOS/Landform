@@ -27,8 +27,13 @@ namespace OPS.Imaging
             return new string[] { ".rgb" };
         }
 
-        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null, bool useFillValueFromFile = false)
         {
+            if (useFillValueFromFile == true)
+            {
+                throw new NotImplementedException("add support for detecting file based invalid pixels");
+            }
+
             Image img;
             using (BinaryReader br = new BinaryReader(File.Open(filename, FileMode.Open)))
             {
