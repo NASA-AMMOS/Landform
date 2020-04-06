@@ -82,6 +82,11 @@ namespace OPS.Landform
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
                 RunPhase("backproject observations", BackprojectObservations);
 
+                if (!options.NoOrbital)
+                {
+                    RunPhase("backproject orbital", BackprojectOrbital);
+                }
+
                 if (!options.NoIndex)
                 {
                     RunPhase("generate backproject index", BuildBackprojectIndex);

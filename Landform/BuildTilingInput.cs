@@ -79,10 +79,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
-
-        [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
-        public bool NoSurfaceObs { get; set; }
-
     }
 
     public class BuildTilingInput : TilingCommand
@@ -100,6 +96,8 @@ namespace OPS.Landform
 
         private Image sceneTexture;
         private SceneNode tileTree;
+
+        private int numBackprojectedSurfacePixels, numBackprojectedOrbitalPixels;
       
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -522,8 +520,8 @@ namespace OPS.Landform
                 if (!options.NoProgress)
                 {
                     pipeline.LogInfo("{0}saving tile {1}/{2} ({3:F2}%){4}: {5}",
-                                     withTextures ? "texturing and " : "", curTileNum, tileCount,
-                                     100 * curTileNum / (float)tileCount,
+                                     withTextures ? "texturing and " : "", 
+                                     curTileNum, tileCount, 100 * curTileNum / (float)tileCount,
                                      np > 1 ? ", processing " + np + " in parallel" : "", tile.Name);
                 }
 
@@ -578,6 +576,12 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("{0} tiles built successfully", numSucceded);
+
+            if (texGenMode == TextureGenMode.Backproject)
+            {
+                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} pixels from orbital",
+                                 Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectedOrbitalPixels));
+            }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
 
@@ -770,46 +774,35 @@ namespace OPS.Landform
                                             options.BackprojectQuality, options.WriteDebug,
                                             Path.Combine(backprojectDebugDir, node.Name));
                     }
-
-                    backprojectResults = BackprojectObservations(mesh, strategy, out missingPixels, node.Name);
+                    missingPixels = new List<PixelPoint>();
+                    backprojectResults = BackprojectObservations(mesh, strategy, missingPixels, node.Name);
                 }
 
-                //orbital
-                IDictionary<Pixel, Backproject.ObsPixel> orbitalResults = null;
-                if (!options.NoOrbitalTexture)
+                if (!options.NoOrbital && missingPixels != null && missingPixels.Count > 0)
                 {
-                    orbitalResults = Backproject.BackprojectOrbital(orbitalTexture, sitedriveToOrbitalBody,
-                    orbitalImageTransform, missingPixels, orbitalObs);
+                    BackprojectOrbital(missingPixels, backprojectResults);
                 }
 
-                // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 Image image = new Image(3, resolution, resolution);
-                if ((backprojectResults == null || backprojectResults.Count() == 0) &&
-                    (orbitalResults == null || orbitalResults?.Count() == 0))
-                {
-                    //mid gray is our missing texture
-                    image.ApplyInPlace(0, r => { return 0.5f; }, true);
-                    image.ApplyInPlace(1, g => { return 0.5f; }, true);
-                    image.ApplyInPlace(2, b => { return 0.5f; }, true);
-                }
-                else
-                {
-                    if (index != null)
-                    {
-                        Backproject.FillIndexImage(backprojectResults, index);
-                        Backproject.FillIndexImage(orbitalResults, index);
-                    }
+                image.Fill(MISSING_COLOR);
 
-                    
-                    Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
-                                                  !options.DontInpaint, fallbackToOriginal: true, orbitalTexture: orbitalTexture);
+                if (index != null)
+                {
+                    Backproject.FillIndexImage(backprojectResults, index);
                 }
-               
+                
+                var stats = Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
+                                                          options.BackprojectInpaintPixels, fallbackToOriginal: true,
+                                                          orbitalTexture: orbitalTexture);
+
+                Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
+                Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
+
                 return image;
             }
             catch (Exception ex)
             {
-                pipeline.LogError("error backprojecting tile {0}: {1}", node.Name, ex.Message);
+                pipeline.LogException(ex, $"error backprojecting tile {node.Name}");
                 return null;
             }
         }

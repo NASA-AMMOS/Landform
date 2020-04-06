@@ -177,6 +177,11 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override void LoadOrbital()
+        {
+            //noop
+        }
+
         protected override bool DeleteLocalProductsBeforeRedo()
         {
             return false;

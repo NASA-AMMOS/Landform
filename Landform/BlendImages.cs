@@ -445,7 +445,7 @@ namespace OPS.Landform
 
                     bool hasGray = obs != null;
                     bool hasColor = obs != null && obs.Bands == 3;
-                    bool orbital = obsIndex == Observation.ORBITAL_INDEX;
+                    bool orbital = obs != null && obsIndex == Observation.ORBITAL_INDEX;
 
                     byte lumaFlag = (byte)(hasGray ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
                     byte chromaFlag = (byte)(hasColor ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
@@ -572,6 +572,7 @@ namespace OPS.Landform
 
                     if (obsIndex == Observation.ORBITAL_INDEX)
                     {
+                        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1046
                         return;
                     }
 
@@ -836,6 +837,7 @@ namespace OPS.Landform
             pipeline.LogInfo("blending leaf textures");
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
+            int numSurfacePixels = 0, numOrbitalPixels = 0;
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
@@ -846,15 +848,19 @@ namespace OPS.Landform
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages);
                 var texture = new Image(3, index.Width, index.Height);
-                Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
-                                              fallbackToOriginal: true, orbitalTexture: orbitalTexture);
-
+                var stats = Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
+                                                          options.BackprojectInpaintPixels, fallbackToOriginal: true,
+                                                          orbitalTexture: orbitalTexture);
+                Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
+                Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 TemporaryFile.GetAndDelete(tileList.ImageExt, tmpFile => {
                         texture.Save<byte>(tmpFile);
                         string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.ImageExt);
                         pipeline.SaveFile(tmpFile, textureUrl);
                     });
             });
+            pipeline.LogInfo("blended {0} pixels from surface observations, {1} pixels from orbital",
+                             Fmt.KMG(numSurfacePixels), Fmt.KMG(numOrbitalPixels));
         }
     }
 }

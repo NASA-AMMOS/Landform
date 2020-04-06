@@ -78,7 +78,8 @@
 #     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$run/orbital --mission $mission \
 #     --raw --nosubdirs
 # 
-# ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets --orbitaldem out/$run/orbital/$dem
+# ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets \
+#     --orbitaldem out/$run/orbital/$dem --orbitalimage out/$run/orbital/$ortho
 
 # exit script on ctrl-c
 ctrlc() { exit 1; }
@@ -105,7 +106,8 @@ help="\
 USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
 [--writedebug] [--debug] [--verbose] [---singlethreaded]
-[--onlyingest] [--onlyforcameras Mastcam,Navcam] [--orbitaldem path/to/dem.tif]
+[--onlyingest] [--onlyforcameras Mastcam,Navcam]
+[--orbitaldem path/to/dem.tif] [--orbitalimage path/to/ortho.tif] [--noorbital]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"] [--ingestargs \"--arg val\"]
 [--bevargs \"--arg val\"] [--heightmapargs \"--arg val\"]
@@ -162,7 +164,7 @@ copy_combined_manifest=
 only_ingest=
 s3_proxy=
 cameras=
-orbital_dem=
+orbital=
 
 manifest=true
 dry=
@@ -212,8 +214,9 @@ while (( "$#" )); do
         "--nocombinedmanifest") combined_manifest=;;
         "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
         "--onlyforcameras") shift; expect $# "camera list"; cameras="--onlyforcameras $1";;
-        "--orbitaldem") shift; expect $# "DEM path"; orbital_dem="--orbitaldem $1";;
-		"--orbitalimage") shift; expect $# "orbital image path"; orbital_image="--orbitalimage $1";;
+        "--orbitaldem") shift; expect $# "DEM path"; orbital="$orbital --orbitaldem $1";;
+		    "--orbitalimage") shift; expect $# "orbital image path"; orbital="$orbital --orbitalimage $1";;
+		    "--noorbital") shift; orbital="--noorbital";;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
         "--ingestargs") shift; expect $# "ingest args"; ingestargs="$1";;
         "--bevargs") shift; expect $# "BEV args"; bevargs="$1";;
@@ -270,10 +273,10 @@ if [ "$generate" ]; then
 
     if [ ! "$only_ingest" ]; then
         ${dry}$landform bev-align $proj $stdopts --fixsitedrives $sd $bevargs | tee -a $log
-        ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $orbital_dem $heightmapargs | tee -a $log
-        ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $orbital_dem $geometryargs | tee -a $log
-        ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $orbital_image $tilingargs | tee -a $log
-        ${dry}$landform blend-images $proj $stdopts --meshframe $sd $orbital_image $blendargs | tee -a $log
+        ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $orbital $heightmapargs | tee -a $log
+        ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $orbital $geometryargs | tee -a $log
+        ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $orbital $tilingargs | tee -a $log
+        ${dry}$landform blend-images $proj $stdopts --meshframe $sd $orbital $blendargs | tee -a $log
         ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
         
         ${dry}rm -rf $outproj

@@ -123,9 +123,6 @@ namespace OPS.Landform
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
-        [Option(HelpText = "Don't use orbital to fill in outer edges of mesh (orbital requires --reconstructionmethod=Poission)", Default = false)]
-        public bool NoOrbital { get; set; }
-
         [Option(HelpText = "Orbital sampling rate outside blend radius, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
 
@@ -143,15 +140,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Orbital blend min blend, 0-1, larger preserves orbital more", Default = 0.1)]
         public double OrbitalBlendMin { get; set; }
-
-        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
-        public string OrbitalDEM { get; set; }
-
-        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "DEM values less than this will be ignored")]
-        public double DEMMinFilter { get; set; }
-
-        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "DEM larger than this will be ignored")]
-        public double DEMMaxFilter { get; set; }
 
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
@@ -182,9 +170,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]
         public string OutputMesh { get; set; }
-
-        [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
-        public bool NoSurfaceObs { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
