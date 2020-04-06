@@ -252,7 +252,10 @@ if [ "$dry" -o "$only_ingest" -o "$only_cleanup" ]; then log=; else mkdir -p $lo
 
 echo "processing ${mission} contextual mesh ${sol}_${sd} (${num_sd} sitedrives) from ${indir} to ${outdir}"
 
-if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
+if [ "$cleanup" -a -d $storagedir/$venue ]; then
+    echo "removing prior results in $storagedir/$venue" | tee -a $log
+    ${dry}rm -rf $storagedir/$venue
+fi
 
 if [ "$only_cleanup" ]; then exit 0; fi 
 
@@ -260,8 +263,8 @@ if [ "$generate" ]; then
     
     for f in $indir/*masks.zip; do
         if [ -f $f ]; then
-          ${dry}mkdir -p $storage/$venue/masks
-          ${dry}unzip $f -d $storage/$venue/masks
+          ${dry}mkdir -p $storagedir/$venue/masks
+          ${dry}unzip $f -d $storagedir/$venue/masks
         fi
     done
     
@@ -330,7 +333,10 @@ if [ "$upload" ]; then
     fi
 fi
 
-if [ "$cleanup" ]; then ${dry}rm -rf $storage/$venue; fi
+if [ "$cleanup" -a -d $storagedir/$venue ]; then
+    echo "removing intermediate results in $storagedir/$venue" | tee -a $log
+    ${dry}rm -rf $storagedir/$venue
+fi
 
 if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" -o "$only_ingest" ]; then
     printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
