@@ -28,7 +28,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Message queue name, required with --service")]
         public string QueueName { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Fail queue name, null or empty for none")]
+        [Option(Required = false, Default = "auto", HelpText = "Fail queue name, null, empty, or \"none\" to disable, \"auto\" to append suffix \"-fail\" to --queuename")]
         public string FailQueueName { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Message queue is Landform owned")]
@@ -210,7 +210,7 @@ namespace OPS.Landform
                 bool requireFailQueue = peekFailedMessages || retryMessages || failMessages || dropFailedMessages;
                 if (serviceMode || lvopts.DeleteQueues || requireFailQueue)
                 {
-                    if (!string.IsNullOrEmpty(lvopts.FailQueueName))
+                    if (!string.IsNullOrEmpty(lvopts.FailQueueName) && lvopts.FailQueueName.ToLower() != "none")
                     {
                         failMessageQueue = GetFailMessageQueue(); //creates queue if necessary with --landformowned
                     }
@@ -306,8 +306,16 @@ namespace OPS.Landform
 
         protected virtual MessageQueue GetFailMessageQueue()
         {
-            return GetMessageQueue(lvopts.FailQueueName, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedFailQueue,
-                                   "fail message");
+            string name = lvopts.FailQueueName;
+            if (string.IsNullOrEmpty(name) || name.ToLower() == "none")
+            {
+                return null;
+            }
+            if (name.ToLower() == "auto")
+            {
+                name = lvopts.QueueName + "-fail";
+            }
+            return GetMessageQueue(name, GetDefaultMessageTimeoutSec(), lvopts.LandformOwnedFailQueue, "fail message");
         }
 
         protected MessageQueue GetMessageQueue(string name, int defTimeoutSec, bool landformOwned, string what)

@@ -18,7 +18,6 @@
 #
 # ./Scripts/contextual-master.sh M2020 --landformownedqueues \
 #     --queuename=m20-ids-g-landform-contextual-master-$USERNAME \
-#     --failqueuename=m20-ids-g-landform-contextual-master-fail-$USERNAME \
 #     --workerqueuename=m20-ids-g-landform-contextual-$USERNAME
 
 if [ $# -lt 1 ]; then

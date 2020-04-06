@@ -15,9 +15,7 @@
 #
 # ./Scripts/m20-credss.sh
 #
-# ./Scripts/contextual-service.sh M2020 --landformownedqueues \
-#     --queuename=m20-ids-g-landform-contextual-$USERNAME \
-#     --failqueuename=m20-ids-g-landform-contextual-fail-$USERNAME \
+# ./Scripts/contextual-service.sh M2020 --landformownedqueues --queuename=m20-ids-g-landform-contextual-$USERNAME \
 #     --maxfetch=50G --maxorbital=20G --nocombinedmanifest [--noorbital]
 
 if [ $# -lt 1 ]; then

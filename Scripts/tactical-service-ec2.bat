@@ -21,7 +21,7 @@ if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 set queue=m20-ids-g-landform-tactical
 if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
 
-set failqueue=m20-ids-g-landform-tactical-fail
+set failqueue=auto
 if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
 
 set awsprofile=none
