@@ -273,7 +273,7 @@ if [ "$generate" ]; then
         ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $orbital_dem $heightmapargs | tee -a $log
         ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $orbital_dem $geometryargs | tee -a $log
         ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $orbital_image $tilingargs | tee -a $log
-        ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
+        ${dry}$landform blend-images $proj $stdopts --meshframe $sd $orbital_image $blendargs | tee -a $log
         ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
         
         ${dry}rm -rf $outproj
