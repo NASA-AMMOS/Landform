@@ -292,14 +292,17 @@ namespace OPS.Landform
                 {
                     pipeline.LogVerbose("adding/updating tile mesh {0}", tile);
                 }
-                var meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
-                var imgUrl =
-                    withTextures ? pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt) : null;
-                string indexUrl = options.WithIndexImages ?
-                                  indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
-                                  tile + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT)
-                                  : null;
-                
+                string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
+                string imgUrl = null, indexUrl = null;
+                if (withTextures)
+                {
+                    imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt);
+                    if (options.WithIndexImages)
+                    {
+                        indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
+                                                          tile + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT);
+                    }
+                }
                 var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, indexUrl, tile);
                 inputs.Add(input.Name);
             }
@@ -310,7 +313,8 @@ namespace OPS.Landform
 
         private void BuildTilesAndDefineParents()
         {
-            TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE, TILING_NODE_LRU_INDEX_CACHE_SIZE);
+            TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE,
+                                           TILING_NODE_LRU_INDEX_CACHE_SIZE);
             var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
             dt.DownloadInputsAndBuildTree(tilingProject, !options.NoProgress,
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);

@@ -343,7 +343,7 @@ namespace OPS.Pipeline.TilingServer
                 string imageExt = TilingProject.ToExt(project.InternalImageFormat);
                 string imageFile = Id + imageExt;
                 string indexExt = TilingProject.ToExt(project.InternalIndexFormat);
-                string indexFile = Id + TileList.INDEX_FILE_SUFFIX + indexExt;
+                string indexFile = !string.IsNullOrEmpty(indexExt) ? Id + TileList.INDEX_FILE_SUFFIX + indexExt : null;
                 if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
                 {
                     ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
@@ -360,7 +360,7 @@ namespace OPS.Pipeline.TilingServer
                             }
                         });
                     }
-                    if(pair.Index != null)
+                    if (pair.Index != null && indexFile != null)
                     {
                         IndexUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, indexFile);
                         lock (indexReadWriteLock)
@@ -429,95 +429,99 @@ namespace OPS.Pipeline.TilingServer
             string tileMeshExt = pair.Mesh.HasFaces ? TilingProject.ToExt(project.TilesetMeshFormat) : ".pnts";
             string tileImageExt = TilingProject.ToExt(project.TilesetImageFormat);
             string tileIndexExt = TilingProject.ToExt(project.TilesetIndexFormat);
+            var exts = new List<string>() { tileMeshExt, tileImageExt };
+            if (!string.IsNullOrEmpty(project.InternalIndexFormat) && !string.IsNullOrEmpty(tileIndexExt))
+            {
+                exts.Add(tileIndexExt);
+            }
             if (!string.IsNullOrEmpty(project.TilesetDir))
             {
                 string tileUrl = pipeline.GetStorageUrl(project.TilesetDir, ProjectName, Id + tileMeshExt);
-                TemporaryFile.GetAndDelete(tileMeshExt, tmpMesh =>
+                TemporaryFile.GetAndDeleteMultiple(exts.ToArray(), tmpFiles =>
                 {
-                    TemporaryFile.GetAndDelete(tileImageExt, tmpImage =>
+                    var tmpMesh = tmpFiles[0];
+                    var tmpImage = tmpFiles[1];
+                    var tmpIndex = tmpFiles.Length > 2 ? tmpFiles[2] : null;
+
+                    if (pair.Image != null)
                     {
-                        TemporaryFile.GetAndDelete(tileIndexExt, tmpIndex =>
+                        pair.Image.Save<byte>(tmpImage);
+                        if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
                         {
-                            if (pair.Image != null)
+                            upload(tmpImage, exImageUrl);
+                            uploadedExImage = true;
+                        }
+                    }
+                    else
+                    {
+                        tmpImage = null;
+                    }
+                    
+                    if (pair.Index != null && tmpIndex != null)
+                    {
+                        saveIndex(tmpIndex, pair.Index);
+                        if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
+                        {
+                            upload(tmpIndex, exIndexUrl);
+                            uploadedExIndex = true;
+                        }
+                    }
+                    else
+                    {
+                        tmpIndex = null;
+                    }
+
+                    if (pair.Mesh != null)
+                    {
+                        Mesh tilesetMesh = pair.Mesh;
+                        if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
+                        {
+                            var bounds = GetBounds();
+                            if (!bounds.HasValue)
                             {
-                                pair.Image.Save<byte>(tmpImage);
-                                if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
-                                {
-                                    upload(tmpImage, exImageUrl);
-                                    uploadedExImage = true;
-                                }
+                                bounds = tilesetMesh.Bounds();
+                                SetBounds(bounds.Value);
                             }
                             else
                             {
-                                tmpImage = null;
+                                SetBounds(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
                             }
-
-                            if (pair.Index != null)
+                            
+                            tilesetMesh = new Mesh(tilesetMesh);
+                            tilesetMesh.AddSkirt(project.GetSkirtMode());
+                            
+                            SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
+                        }
+                        else
+                        {
+                            BoundsWithSkirt = "";
+                        }
+                        
+                        if (tmpIndex != null)
+                        {
+                            if (!project.EmbedIndexes)
                             {
-                                saveIndex(tmpIndex, pair.Index);
-                                if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
-                                {
-                                    upload(tmpIndex, exIndexUrl);
-                                    uploadedExIndex = true;
-                                }
+                                IndexUrl =
+                                StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
+                                upload(tmpIndex, IndexUrl);
+                                tmpIndex = null; //Don't also add to b3dm
                             }
-                            else
-                            {
-                                tmpIndex = null;
-                            }
+                        }
+                        else
+                        {
+                            IndexUrl = null;
+                        }
 
-                            if (pair.Mesh != null)
-                            {
-                                Mesh tilesetMesh = pair.Mesh;
-                                if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
-                                {
-                                    var bounds = GetBounds();
-                                    if (!bounds.HasValue)
-                                    {
-                                        bounds = tilesetMesh.Bounds();
-                                        SetBounds(bounds.Value);
-                                    }
-                                    else
-                                    {
-                                        SetBounds(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
-                                    }
-
-                                    tilesetMesh = new Mesh(tilesetMesh);
-                                    tilesetMesh.AddSkirt(project.GetSkirtMode());
-
-                                    SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
-                                }
-                                else
-                                {
-                                    BoundsWithSkirt = "";
-                                }
-
-                                if (tmpIndex != null)
-                                {
-                                    if (!project.EmbedIndexes)
-                                    {
-                                        IndexUrl = StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
-                                        upload(tmpIndex, IndexUrl);
-                                        tmpIndex = null; //Don't also add to b3dm
-                                    }
-                                }
-                                else
-                                {
-                                    IndexUrl = null;
-                                }
-
-                                //for b3dm this reads the image data if any and embeds it into the mesh file
-                                //for pnts the image data is ignored
-                                tilesetMesh.Save(tmpMesh, tmpImage, tmpIndex);
-                                upload(tmpMesh, tileUrl);
-
-                                if (tileMeshExt == exMeshExt)
-                                {
-                                    uploadedExMesh = true;
-                                }
-                            }
-                        });
-                    });
+                        //for b3dm this reads the image data if any and embeds it into the mesh file
+                        //for pnts the image data is ignored
+                        tilesetMesh.Save(tmpMesh, tmpImage, tmpIndex);
+                        upload(tmpMesh, tileUrl);
+                        
+                        if (tileMeshExt == exMeshExt)
+                        {
+                            uploadedExMesh = true;
+                        }
+                    }
                 });
             }
 
