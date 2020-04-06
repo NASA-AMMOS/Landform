@@ -62,12 +62,12 @@
 # bucket=roastt-dev-0205
 # fetchargs="--onlyforcameras=Navcam --excludepattern=*393112341*,*393112436*"
 #
-# winpty ./Utils/credss.exe --venue dev -s credss-default
+# ./Scripts/m20-credss.sh
 #
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs s3://$bucket/ods/$ver/sol/#####/ids/rdr \
 #     --mission $mission --summary $fetchargs
 #
-# ./Scripts/processTactical.sh out/$run/rdrs $mission out/$run/tilesets --exportmeshext ply --exportimgext png
+# ./Scripts/process-tactical.sh out/$run/rdrs $mission out/$run/tilesets --exportmeshext ply --exportimgext png
 
 # exit script on ctrl-c
 ctrlc() { exit 1; }
@@ -91,7 +91,7 @@ fi
 
 #                                                                         80char|
 help="\
-USAGE: processTactical.sh IN_DIR MISSION [OUT_DIR]
+USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
 [--debug] [--verbose] [--singlethreaded]
 [--nolods] [--meshext iv] [--imgext IMG]

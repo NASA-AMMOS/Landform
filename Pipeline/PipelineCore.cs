@@ -456,7 +456,7 @@ namespace OPS.Pipeline
         /// If url ends with "/" then it's taken to be a directory name and the search returns all matching files within
         /// or below that directory.
         ///
-        /// Otherwise the last path segment of url is taken to be a stem name, and is prefixed onto the glob pattern.
+        /// Otherwise the last path segment of url is taken to be a stem name.
         /// The search directory is the url without its last path segment.
         ///
         /// The glob pattern is always applied as a filter to the full path portion of the returned URLs. i.e. each

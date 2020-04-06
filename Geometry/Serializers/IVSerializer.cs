@@ -873,7 +873,13 @@ namespace OPS.Geometry
             //opting to go ahead and merge identical verts right away rather than let them get out of here
             //and possibly never get dealt with
             //also, see below about normals...
-            mesh.Clean();
+            Action<string> verbose = null, warn = null;
+            if (Logger != null)
+            {
+                verbose = msg => Logger.LogVerbose(msg);
+                warn = msg => Logger.LogWarn(msg);
+            }
+            mesh.Clean(verbose: verbose, warn: warn);
 
             //surprisingly, IV files for IDS mesh products do not contain precomputed normals (confirmed with Oleg)
             //there is a similar set of tradeoffs for generating them here as for whether we should clean the mesh

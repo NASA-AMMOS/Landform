@@ -1,20 +1,25 @@
 @echo off
 
-rem see https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
+rem Runs process-contextual as a service on an EC2 instance.
+rem
+rem See contextual-service.sh for developer use.
+rem
+rem Environment variables can be set from the EC2 user data script, see
+rem https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
 
 set service=contextual
-
-set lfver=newest
-if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
 set mission=M2020
 if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
-set queue=mission
-if not "%LANDFORM_CONTEXTUAL_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_QUEUE%
+set lfver=newest
+if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
-set failqueue=mission
-if not "%LANDFORM_CONTEXTUAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_FAIL_QUEUE%
+set queue=m20-ids-g-landform-contextual-worker
+if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
+
+set failqueue=m20-ids-g-landform-contextual-worker-fail
+if not "%LANDFORM_CONTEXTUAL_WORKER_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_WORKER_FAIL_QUEUE%
 
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
@@ -50,9 +55,24 @@ if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXT
 set venue=%service%-service
 if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
 
+set maxfetch=50G
+if not "%LANDFORM_CONTEXTUAL_MAX_FETCH%"=="" set maxfetch=%LANDFORM_CONTEXTUAL_MAX_FETCH%
+
+set maxorbital=20G
+if not "%LANDFORM_CONTEXTUAL_MAX_ORBITAL%"=="" set maxorbital=%LANDFORM_CONTEXTUAL_MAX_ORBITAL%
+
+set nocombinedmanifest=
+if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest==--nocombinedmanifest
+
+set noorbital=
+if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set noorbital==--noorbital
+
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
+set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
+
+set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
@@ -62,6 +82,7 @@ move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 
 @echo on
 
-%landform% configure-local %cfgopts% %quiet%
+rem note %quiet% must always be last, it's a redirect not an option
 
-%landform% process-%service% %svcopts% %quiet% --awsprofile=%awsprofile% --awsregion=%awsregion% 
+%landform% configure-local %cfgopts% %quiet%
+%landform% process-%service% %svcopts% %contextualopts% %quiet% 

@@ -66,7 +66,6 @@ if [ "$credss" ]; then
         echo "must specify credss.exe password as command line option"
         exit 1
     fi
-    credss_user=$USERNAME
     credss_pass=$1
 fi
 
@@ -84,26 +83,17 @@ if [ "$fetch" -a ! -f "$landform" ]; then
     exit 1
 fi
 
-credssexe=$scriptdir/../Utils/credss.exe
-if [ "$credss" -a ! -f "$credssexe" ]; then
-    echo "could not find credss.exe"
-    exit 1
-fi
-
 dry=
 if [ "$dryrun" ]; then dry="echo "; fi
 
 landform="${dry}${landform}"
-credssexe="${dry}${credssexe}"
 
 all_the_args="$suffix $dryrun $writedebug $export $cfgargs $ingestargs"
 all_the_args="$all_the_args $bevargs $heightmapargs $geometryargs $blendargs $tilingargs $tilesetargs $manifestargs"
 
 do_all_the_things() {
 
-    if [ "$credss" ]; then
-        $credssexe --venue dev -s credss-default -u $credss_user -p $credss_pass
-    fi
+    if [ "$credss" ]; then ${dry}$scriptdir/m20-credss.sh $credss_pass; fi
     
     if [ "$fetch" ]; then
         
@@ -125,14 +115,14 @@ do_all_the_things() {
     fi
         
     if [ "$tactical" -a "$enable_tactical" ]; then
-        $scriptdir/processTactical.sh out/$run/rdrs $mission out/$run/tilesets $all_the_args
+        $scriptdir/process-tactical.sh out/$run/rdrs $mission out/$run/tilesets $all_the_args
     fi
     
     if [ "$contextual" -a "$enable_contextual" ]; then
         IFS=',' read -ra solarray <<< $sols
         primarysol=${solarray[0]}
-        $scriptdir/processContextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
-                                        --orbitaldem out/$run/orbital/$dem
+        $scriptdir/process-contextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
+                                         --orbitaldem out/$run/orbital/$dem
     fi
 }
 

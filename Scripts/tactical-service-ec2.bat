@@ -1,8 +1,16 @@
 @echo off
 
-rem see https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
+rem Runs process-tactical as a service on an EC2 instance.
+rem
+rem See tactical-service.sh for developer use.
+rem
+rem Environment variables can be set from the EC2 user data script, see
+rem https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data-scripts
 
 set service=tactical
+
+set mission=M2020
+if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
 set meshformat=mission
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
@@ -10,13 +18,10 @@ if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_M
 set lfver=newest
 if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
-set mission=M2020
-if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
-
-set queue=mission
+set queue=m20-ids-g-landform-tactical
 if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
 
-set failqueue=mission
+set failqueue=m20-ids-g-landform-tactical-fail
 if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
 
 set awsprofile=none
@@ -56,6 +61,9 @@ if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
+set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
+
+set tacticalopts=--meshformat=%meshformat%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (
@@ -65,7 +73,7 @@ move /Y %appsdir%\opengl32-for-ivcat.dll %appsdir%\opengl32.dll
 
 @echo on
 
+rem note %quiet% must always be last, it's a redirect not an option
+
 %landform% configure-local %cfgopts% %quiet%
-
-
-%landform% process-%service% %svcopts% %quiet% --awsprofile=%awsprofile% --awsregion=%awsregion% --meshformat=%meshformat%
+%landform% process-%service% %svcopts% %tacticalopts% %quiet% 

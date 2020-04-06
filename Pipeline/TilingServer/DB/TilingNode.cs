@@ -32,6 +32,8 @@ namespace OPS.Pipeline.TilingServer
 
         public string ImageUrl;
 
+        public string IndexUrl;
+
         public HashSet<string> DependsOn = new HashSet<string>(); //MT safety: lock before accessing
 
         public HashSet<string> DependedOnBy = new HashSet<string>(); //MT safety: lock before accessing
@@ -134,6 +136,11 @@ namespace OPS.Pipeline.TilingServer
                 if (!string.IsNullOrEmpty(ImageUrl))
                 {
                     pipeline.DeleteFile(ImageUrl, ignoreErrors);
+                }
+
+                if (!string.IsNullOrEmpty(IndexUrl))
+                {
+                    pipeline.DeleteFile(IndexUrl, ignoreErrors);
                 }
             }
 
@@ -261,13 +268,26 @@ namespace OPS.Pipeline.TilingServer
             string exImageExt = null;
             string exImageFile = null;
             string exImageUrl = null;
+
+            string exIndexExt = null;
+            string exIndexFile = null;
+            string exIndexUrl = null;
+
             bool uploadedExImage = false;
+            bool uploadedExIndex = false;
             if (!string.IsNullOrEmpty(project.ExportDir) && !string.IsNullOrEmpty(project.ExportImageFormat) &&
                 pair.Image != null)
             {
                 exImageExt = TilingProject.ToExt(project.ExportImageFormat);
                 exImageFile = Id + exImageExt;
                 exImageUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exImageFile);
+
+                if (!string.IsNullOrEmpty(project.ExportIndexFormat) && pair.Index != null)
+                {
+                    exIndexExt = TilingProject.ToExt(project.ExportIndexFormat);
+                    exIndexFile = Id + TileList.INDEX_FILE_SUFFIX + exIndexExt;
+                    exIndexUrl = pipeline.GetStorageUrl(project.ExportDir, ProjectName, exIndexFile);
+                }
             }
 
             var alreadyUploaded = new HashSet<string>();
@@ -295,6 +315,25 @@ namespace OPS.Pipeline.TilingServer
                 }
             };
 
+            Action<string, Image> saveIndex = (path, img) =>
+            {
+                string ext = Path.GetExtension(path).ToLower();
+                if (ext == ".tif" || ext == ".tiff")
+                {
+                    var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                    var serializer = new GDALSerializer(opts);
+                    serializer.Write<float>(path, img);
+                }
+                else if (ext == ".ppm" || ext == ".ppmz")
+                {
+                    img.Save<ushort>(path);
+                }
+                else
+                {
+                    img.Save<byte>(path);
+                }
+            };
+
             if (enableInternal)
             {
                 //save node image to S3 for our internal use
@@ -303,6 +342,8 @@ namespace OPS.Pipeline.TilingServer
                 //also saves export image to S3 iff it is the same format as our internal format
                 string imageExt = TilingProject.ToExt(project.InternalImageFormat);
                 string imageFile = Id + imageExt;
+                string indexExt = TilingProject.ToExt(project.InternalIndexFormat);
+                string indexFile = Id + TileList.INDEX_FILE_SUFFIX + indexExt;
                 if (!string.IsNullOrEmpty(project.InternalTileDir) && pair.Image != null)
                 {
                     ImageUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, imageFile);
@@ -318,6 +359,27 @@ namespace OPS.Pipeline.TilingServer
                                 uploadedExImage = true;
                             }
                         });
+                    }
+                    if(pair.Index != null)
+                    {
+                        IndexUrl = pipeline.GetStorageUrl(project.InternalTileDir, ProjectName, indexFile);
+                        lock (indexReadWriteLock)
+                        {
+                            TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
+                            {
+                                saveIndex(tmpIndex, pair.Index);
+                                upload(tmpIndex, IndexUrl);
+                                if(exIndexUrl != null && exIndexExt == indexExt)
+                                {
+                                    upload(tmpIndex, exIndexUrl);
+                                    uploadedExIndex = true;
+                                }
+                            });
+                        }
+                    }
+                    else
+                    {
+                        IndexUrl = indexFile = null;
                     }
                 }
                 else
@@ -366,6 +428,7 @@ namespace OPS.Pipeline.TilingServer
             //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
             string tileMeshExt = pair.Mesh.HasFaces ? TilingProject.ToExt(project.TilesetMeshFormat) : ".pnts";
             string tileImageExt = TilingProject.ToExt(project.TilesetImageFormat);
+            string tileIndexExt = TilingProject.ToExt(project.TilesetIndexFormat);
             if (!string.IsNullOrEmpty(project.TilesetDir))
             {
                 string tileUrl = pipeline.GetStorageUrl(project.TilesetDir, ProjectName, Id + tileMeshExt);
@@ -373,55 +436,87 @@ namespace OPS.Pipeline.TilingServer
                 {
                     TemporaryFile.GetAndDelete(tileImageExt, tmpImage =>
                     {
-                        if (pair.Image != null)
+                        TemporaryFile.GetAndDelete(tileIndexExt, tmpIndex =>
                         {
-                            pair.Image.Save<byte>(tmpImage);
-                            if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
+                            if (pair.Image != null)
                             {
-                                upload(tmpImage, exImageUrl);
-                                uploadedExImage = true;
-                            }
-                        }
-                        else
-                        {
-                            tmpImage =  null;
-                        }
-
-                        if (pair.Mesh != null)
-                        {
-                            Mesh tilesetMesh = pair.Mesh;
-                            if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
-                            {
-                                var bounds = GetBounds();
-                                if (!bounds.HasValue)
+                                pair.Image.Save<byte>(tmpImage);
+                                if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
                                 {
-                                    bounds = tilesetMesh.Bounds();
-                                    SetBounds(bounds.Value);
+                                    upload(tmpImage, exImageUrl);
+                                    uploadedExImage = true;
                                 }
-                                else
-                                {
-                                    SetBounds(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
-                                }
-
-                                tilesetMesh = new Mesh(tilesetMesh);
-                                tilesetMesh.AddSkirt(project.GetSkirtMode());
-
-                                SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
                             }
                             else
                             {
-                                BoundsWithSkirt = "";
+                                tmpImage = null;
                             }
-                            
-                            //for b3dm this reads the image data if any and embeds it into the mesh file
-                            //for pnts the image data is ignored
-                            tilesetMesh.Save(tmpMesh, tmpImage);
-                            upload(tmpMesh, tileUrl);
-                            if (tileMeshExt == exMeshExt)
+
+                            if (pair.Index != null)
                             {
-                                uploadedExMesh = true;
+                                saveIndex(tmpIndex, pair.Index);
+                                if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
+                                {
+                                    upload(tmpIndex, exIndexUrl);
+                                    uploadedExIndex = true;
+                                }
                             }
-                        }
+                            else
+                            {
+                                tmpIndex = null;
+                            }
+
+                            if (pair.Mesh != null)
+                            {
+                                Mesh tilesetMesh = pair.Mesh;
+                                if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
+                                {
+                                    var bounds = GetBounds();
+                                    if (!bounds.HasValue)
+                                    {
+                                        bounds = tilesetMesh.Bounds();
+                                        SetBounds(bounds.Value);
+                                    }
+                                    else
+                                    {
+                                        SetBounds(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
+                                    }
+
+                                    tilesetMesh = new Mesh(tilesetMesh);
+                                    tilesetMesh.AddSkirt(project.GetSkirtMode());
+
+                                    SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
+                                }
+                                else
+                                {
+                                    BoundsWithSkirt = "";
+                                }
+
+                                if (tmpIndex != null)
+                                {
+                                    if (!project.EmbedIndexes)
+                                    {
+                                        IndexUrl = StringHelper.StripUrlExtension(tileUrl) + TileList.INDEX_FILE_SUFFIX + tileIndexExt;
+                                        upload(tmpIndex, IndexUrl);
+                                        tmpIndex = null; //Don't also add to b3dm
+                                    }
+                                }
+                                else
+                                {
+                                    IndexUrl = null;
+                                }
+
+                                //for b3dm this reads the image data if any and embeds it into the mesh file
+                                //for pnts the image data is ignored
+                                tilesetMesh.Save(tmpMesh, tmpImage, tmpIndex);
+                                upload(tmpMesh, tileUrl);
+
+                                if (tileMeshExt == exMeshExt)
+                                {
+                                    uploadedExMesh = true;
+                                }
+                            }
+                        });
                     });
                 });
             }
@@ -434,6 +529,17 @@ namespace OPS.Pipeline.TilingServer
                     pair.Image.Save<byte>(tmpImage);
                     upload(tmpImage, exImageUrl);
                     uploadedExImage = true;
+                });
+            }
+
+            //save export image to S3 iff we haven't already
+            if (pair.Index != null && exIndexUrl != null && exIndexExt != null && !uploadedExIndex)
+            {
+                TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
+                {
+                    saveIndex(tmpIndex, pair.Index);
+                    upload(tmpIndex, exImageUrl);
+                    uploadedExIndex = true;
                 });
             }
 
@@ -458,18 +564,22 @@ namespace OPS.Pipeline.TilingServer
             {
                 imageCache[ImageUrl] = pair.Image;
             }
+            if (pair.Index != null && !string.IsNullOrEmpty(IndexUrl) && indexCache != null)
+            {
+                indexCache[IndexUrl] = pair.Index;
+            }
 
             if (computeStats)
             {
                 Stats = new MeshImagePairStats(pair);
             }
         }
-
         
         private static LRUCache<string, Mesh> meshCache;
         private static LRUCache<string, Image> imageCache;
+        private static LRUCache<string, Image> indexCache;
 
-        public static void SetLRUCacheCapacity(int meshCapacity, int imageCapacity)
+        public static void SetLRUCacheCapacity(int meshCapacity, int imageCapacity, int indexCapacity)
         {
             if (meshCapacity > 0)
             {
@@ -502,6 +612,22 @@ namespace OPS.Pipeline.TilingServer
             {
                 imageCache = null;
             }
+
+            if (indexCapacity > 0)
+            {
+                if (indexCache == null)
+                {
+                    indexCache = new LRUCache<string, Image>(indexCapacity);
+                }
+                else
+                {
+                    indexCache.Capacity = indexCapacity;
+                }
+            }
+            else
+            {
+                indexCache = null;
+            }
         }
 
         public static void DumpLRUCacheStats(PipelineCore pipeline)
@@ -520,6 +646,7 @@ namespace OPS.Pipeline.TilingServer
 
         private Object meshReadWriteLock = new Object();
         private Object imageReadWriteLock = new Object();
+        private Object indexReadWriteLock = new Object();
 
         public MeshImagePair LoadMeshImagePair(PipelineCore pipeline, bool loadImage = true, bool cleanMesh = false)
         {
@@ -596,8 +723,35 @@ namespace OPS.Pipeline.TilingServer
                     }
                 }
             }
-            
-            return new MeshImagePair(mesh, img);
+
+            Image index = null;
+            if (IndexUrl != null)
+            {
+                if (indexCache != null)
+                {
+                    index = indexCache[IndexUrl];
+                }
+                if (index == null)
+                {
+                    lock (indexReadWriteLock)
+                    {
+                        if (indexCache != null)
+                        {
+                            index = indexCache[IndexUrl];
+                        }
+                        if (index == null)
+                        {
+                            index = pipeline.LoadImage(IndexUrl);
+                            if (indexCache != null)
+                            {
+                                indexCache[IndexUrl] = index;
+                            }
+                        }
+                    }
+                }
+            }
+
+            return new MeshImagePair(mesh, img, index);
         }
 
         public SceneNode MakeSceneNode()

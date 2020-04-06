@@ -81,7 +81,8 @@ namespace OPS.Pipeline.TilingServer
                         message.TileId, parent.DependsOn.Count);
                 if(!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
                                                           project.FacesPerTile, project.TileResolution,
-                                                          project.GetSkirtMode(), info: msg => LogInfo(msg),
+                                                          project.GetSkirtMode(), 
+                                                          info: msg => LogInfo(msg),
                                                           error: msg => { throw new Exception(msg); }))
                 {
                     throw new Exception("failed to build parent from children");

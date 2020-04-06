@@ -72,7 +72,7 @@ namespace OPS.Landform
         public Mission Mission { get; set; }
 
         [Option(HelpText = "Don't save tile backproject index images", Default = false)]
-        public bool NoBackprojectIndexImages { get; set; }
+        public bool NoIndexImages { get; set; }
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
@@ -222,13 +222,13 @@ namespace OPS.Landform
                 //if the input mesh actually only had one LOD (we don't know that yet here)
                 texGenMode = TextureGenMode.Clip;
                 description = "clipping/baking from source texture";
-                options.NoBackprojectIndexImages = true;
+                options.NoIndexImages = true;
             }
             else if (!string.IsNullOrEmpty(options.InputTexture))
             {
                 texGenMode = TextureGenMode.Bake;
                 description = "baking from source texture";
-                options.NoBackprojectIndexImages = true;
+                options.NoIndexImages = true;
             }
             else
             {
@@ -236,7 +236,7 @@ namespace OPS.Landform
                 description = "backprojecting from observations";
             }
 
-            if (!options.NoBackprojectIndexImages && texGenMode != TextureGenMode.Backproject)
+            if (!options.NoIndexImages && texGenMode != TextureGenMode.Backproject)
             {
                 throw new Exception("not backprojecting textures, cannot save backproject index images");
             }
@@ -469,7 +469,7 @@ namespace OPS.Landform
                 MeshExt = meshExt,
                 ImageExt = withTextures ? imageExt : null,
                 MeshFrame = meshFrame,
-                HasIndexImages = !options.NoBackprojectIndexImages,
+                HasIndexImages = !options.NoIndexImages,
                 TilingScheme = options.TilingScheme,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
@@ -508,7 +508,7 @@ namespace OPS.Landform
                              texGenMode == TextureGenMode.Bake ? ", baking " + texMsg :
                              texGenMode == TextureGenMode.Backproject ? ", backprojecting " + texMsg :
                              texGenMode == TextureGenMode.Clip ? ", clipping " + texMsg : "");
-            if (texGenMode == TextureGenMode.Backproject && !options.NoBackprojectIndexImages)
+            if (texGenMode == TextureGenMode.Backproject && !options.NoIndexImages)
             {
                 pipeline.LogInfo("saving tile backproject index images");
             }
@@ -529,7 +529,7 @@ namespace OPS.Landform
 
                 MeshImagePair mp = tile.GetComponent<MeshImagePair>();
 
-                Image index = null;
+                Image index = !options.NoIndexImages ? new Image(3, resolution, resolution) : null;
                 if (texGenMode == TextureGenMode.Bake)
                 {
                     var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogVerbose(msg));
@@ -540,8 +540,7 @@ namespace OPS.Landform
                     }
                 }
                 else if (texGenMode == TextureGenMode.Backproject)
-                {
-                    index = !options.NoBackprojectIndexImages ? new Image(3, resolution, resolution) : null;
+                {                
                     mp.Image = BackprojectTile(tile, mp.Mesh, index);
                 }
                 else if (texGenMode == TextureGenMode.Clip)
@@ -597,6 +596,11 @@ namespace OPS.Landform
             }
         }
 
+        private string IndexName(string tileName)
+        {
+            return tileName + TileList.INDEX_FILE_SUFFIX;
+        }
+
         private void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
         {
             string imgName = image != null ? name + imageExt : null;
@@ -609,7 +613,7 @@ namespace OPS.Landform
                 }
                 if (index != null)
                 {
-                    string indexImageName = name + TileList.INDEX_FILE_SUFFIX;
+                    string indexImageName = IndexName(name);
                     SaveFloatTIFF(index, indexImageName);
                     if (options.WriteBackprojectDebug)
                     {
@@ -647,7 +651,6 @@ namespace OPS.Landform
 
                 TemporaryFile.GetAndDelete(meshExt, tmpFile =>
                 {
-
                     mesh.Save(tmpFile, imgName);
                     string meshName = name + meshExt;
                     string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);

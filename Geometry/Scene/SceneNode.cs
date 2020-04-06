@@ -45,7 +45,6 @@ namespace OPS.Geometry
             this.Transform.Scale = scale;
         }
 
-
         /// <summary>
         /// Add a component of type T.
         /// </summary>

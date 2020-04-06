@@ -227,16 +227,23 @@ namespace OPS.Geometry
             }
         }
 
+        bool CheckUV(Vector2 uv)
+        {
+            return 0 <= uv.X && uv.X <= 1 && 0 <= uv.Y && uv.Y <= 1;
+        }
 
         /// <summary>
-        /// Checks if the face contains any vertices located at the same point in space which would render it invalid
+        /// Checks if the face is logically or geometrically degenerate.
+        /// Also checks that the involved UVs, if any, are valid.
         /// </summary>
-        /// <param name="f"></param>
-        /// <returns></returns>
         bool FaceIsValid(Face f)
         {
             // Are any two of the vertices referenced by this face the same index
             if (!f.IsValid())
+            {
+                return false;
+            }
+            if (HasUVs && (!CheckUV(Vertices[f.P0].UV) || !CheckUV(Vertices[f.P1].UV) || !CheckUV(Vertices[f.P2].UV)))
             {
                 return false;
             }
@@ -849,21 +856,49 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Removes duplicate vertices and faces.
-        /// If mesh has faces this will also remove degenerate faces and any vertices not referenced by a face.
+        /// If mesh has faces this will also remove
+        /// * degenerate faces
+        /// * faces with invalid UVs
+        /// * vertices not referenced by a face
         /// Normalizes normals.
         /// </summary>
-        public void Clean(bool normalize=true, bool removeDuplicateVerts=true)
+        public void Clean(bool normalize = true, bool removeDuplicateVerts = true,
+                          Action<string> verbose = null, Action<string> warn = null)
         {
+            verbose = verbose ?? (msg => {});
+            warn = warn ?? (msg => {});
             if (removeDuplicateVerts)
             {
+                int nv = 0;
                 RemoveDuplicateVertices();
+                if (Vertices.Count < nv)
+                {
+                    verbose($"removed {nv - Vertices.Count} duplicate vertices");
+                }
             }
 
             if (HasFaces)
             {
+                int nf = Faces.Count;
                 RemoveInvalidFaces();
+                if (Faces.Count < nf)
+                {
+                    warn($"removed {nf - Faces.Count} invalid faces");
+                }
+
+                int nv = Vertices.Count;
                 RemoveUnreferencedVertices();
+                if (Vertices.Count < nv)
+                {
+                    verbose($"removed {nv - Vertices.Count} unreferenced vertices");
+                }
+
+                nf = Faces.Count;
                 RemoveDuplicateFaces();
+                if (Faces.Count < nf)
+                {
+                    verbose($"removed {nf - Faces.Count} duplicate faces");
+                }
             }
             if (normalize && HasNormals)
             {
@@ -1553,7 +1588,7 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="filename"></param>
         /// <param name="textureFilename"></param>
-        public void Save(string filename, string textureFilename = null)
+        public void Save(string filename, string textureFilename = null, string indexFilename = null)
         {
             string ext = Path.GetExtension(filename).ToLower();
             var serializers = MeshSerializers.Instance;
@@ -1564,7 +1599,25 @@ namespace OPS.Geometry
                                                                 "supported formats: {1}", ext,
                                                                 string.Join(", ", serializers.SupportedFormats())));
             }
-            s.Save(this, filename, textureFilename);
+
+            bool isB3dm = s.GetType() == typeof(B3DMSerializer);
+            bool hasIndex = !String.IsNullOrEmpty(indexFilename);
+
+            if (hasIndex)
+            {
+                if (isB3dm)
+                {
+                    ((B3DMSerializer)s).Save(this, filename, textureFilename, indexFilename);
+                }
+                else
+                {
+                    throw new MeshSerializerException("Index image only supported for b3dm serializer");
+                }
+            }
+            else
+            {
+                s.Save(this, filename, textureFilename);
+            }
         }
 
         /// <summary>

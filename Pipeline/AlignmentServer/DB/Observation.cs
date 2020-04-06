@@ -29,7 +29,8 @@ namespace OPS.Pipeline.AlignmentServer
         //https://stackoverflow.com/a/3793950
         //this makes it possible to store an observation index in one band of a float image
         //and we want to do that when creating backproject index images
-        public const int MAX_INDEX = 16777216;
+        public const int MAX_INDEX = 65535; //Max supported by PPMSerializer (16 bit per channel)
+        //public const int MAX_INDEX = 16777216; //Max if we remove 16 bit constraint
 
         // this constant reserves a value for orbital images
         public const int ORBITAL_INDEX = MAX_INDEX - 1; 

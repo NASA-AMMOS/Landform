@@ -69,7 +69,7 @@
 # ortho=out_clean_25cm.iGrid.ClipToDEM.tif
 # fetchargs=
 # 
-# winpty ./Utils/credss.exe --venue dev -s credss-default
+# ./Scripts/m20-credss.sh
 # 
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs \
 #     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --summary $fetchargs
@@ -78,7 +78,7 @@
 #     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$run/orbital --mission $mission \
 #     --raw --nosubdirs
 # 
-# ./Scripts/processContextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets --orbitaldem out/$run/orbital/$dem
+# ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets --orbitaldem out/$run/orbital/$dem
 
 # exit script on ctrl-c
 ctrlc() { exit 1; }
@@ -102,7 +102,7 @@ fi
 
 #                                                                         80char|
 help="\
-USAGE: processContextual.sh IN_DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [OUT_DIR]
+USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
 [--writedebug] [--debug] [--verbose] [---singlethreaded]
 [--onlyingest] [--onlyforcameras Mastcam,Navcam] [--orbitaldem path/to/dem.tif]

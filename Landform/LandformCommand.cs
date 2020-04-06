@@ -81,6 +81,7 @@ namespace OPS.Landform
             RunPhase("scan for user image masks", () => pipeline.InitUserMasks());
 
             PDSSerializer.DataPath = pipeline.PDSDataPath;
+            MeshSerializer.Logger = pipeline;
         }
 
         protected void StartStopwatch()

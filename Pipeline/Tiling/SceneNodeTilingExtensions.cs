@@ -150,7 +150,8 @@ namespace OPS.Pipeline
 
             BoundingBox searchBounds;
             var childNodes = FindNodesRequiredForParent(node, root, out searchBounds, childBoundSearchRatio);
-            var pairs = childNodes.Where(n => n.HasComponent<MeshImagePair>()).Select(n => n.GetComponent<MeshImagePair>());
+            var filtered = childNodes.Where(n => n.HasComponent<MeshImagePair>());
+            var pairs = filtered.Select(n => n.GetComponent<MeshImagePair>());
             var childMeshes = pairs.Where(p => p.Mesh != null).Select(p => p.Mesh);
             
             Mesh combinedFull = Mesh.MergeWithCommonAttributes(childMeshes.ToArray(), clean:true, normalize:true);
@@ -218,6 +219,7 @@ namespace OPS.Pipeline
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
 
             Image img = null;
+            Image index = null;
             if (size != 0)
             {
                 info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
@@ -229,7 +231,8 @@ namespace OPS.Pipeline
                 }
 
                 info("baking parent tile texture");
-                img = TextureBaker.BakeTexture(pairs.ToArray(), combinedDecimated, size, size);
+                TextureBaker tb = new TextureBaker(pairs.ToArray());
+                img = tb.Bake(combinedDecimated, size, size, out index); //Writes index iff indexes not null
 
                 // Estimate the size of a pixel for this texture
                 // If this is greater than the geometric error use it instead
@@ -250,7 +253,7 @@ namespace OPS.Pipeline
             node.GetComponent<NodeBounds>().Bounds = bounds;
 
             // Add new mesh and image to parent
-            node.AddComponent(new MeshImagePair(combinedDecimated, img));
+            node.AddComponent(new MeshImagePair(combinedDecimated, img, index));
 
             // Ensure geo error is at least as large as children
             foreach (var child in node.Children)
