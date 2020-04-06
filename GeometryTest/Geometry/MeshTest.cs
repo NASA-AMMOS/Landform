@@ -61,9 +61,9 @@ namespace GeometryTest
         public void MeshCopyConstructorTest()
         {
             Mesh m = new Mesh(true, true, true);
-            m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1));
-            m.Vertices.Add(new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
-            m.Vertices.Add(new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
+            m.Vertices.Add(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1));
+            m.Vertices.Add(new Vertex(1,   0, 0, 0, 0, 1, 0.5,  0, 0, 1, 0, 1));
+            m.Vertices.Add(new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1));
             m.Vertices.Add(new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
             m.Faces.Add(new Face(0, 1, 2));
             m.Faces.Add(new Face(0, 2, 3));
@@ -94,12 +94,12 @@ namespace GeometryTest
         public void MeshFromTrianglesTest()
         {
             List<Triangle> ts = new List<Triangle>();
-            Triangle t1 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1),
-                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
-            Triangle t2 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1),
-                new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
+            Triangle t1 = new Triangle(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1),
+                                       new Vertex(1,   0, 0, 0, 0, 1, 0.5,  0, 0, 1, 0, 1),
+                                       new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1));
+            Triangle t2 = new Triangle(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1),
+                                       new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1),
+                                       new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
 
             ts.Add(t1);
             ts.Add(t2);
@@ -209,10 +209,10 @@ namespace GeometryTest
         public void MeshNormalizeNormalsTest()
         {
             Mesh m = new Mesh();
-            m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
-            m.Vertices.Add(new Vertex(1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0, 0,   0, 0, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(1, 0, 0, 1,   0, 0, 0, 0, 0, 0, 0, 0));
             m.Vertices.Add(new Vertex(0, 1, 0, 0.3, 4, 2, 0, 0, 0, 0, 0, 0));
-            m.Vertices.Add(new Vertex(0, 0, 0, 1, 2, 3, 0, 0, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(0, 0, 0, 1,   2, 3, 0, 0, 0, 0, 0, 0));
             m.NormalizeNormals();
             AssertE.AreSimilar(0, m.Vertices[0].Normal.Length());
             AssertE.AreSimilar(1, m.Vertices[1].Normal.Length());
@@ -491,20 +491,20 @@ namespace GeometryTest
         {
 
             Mesh m = new Mesh(true, true, true);
-            m.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1));
-            m.Vertices.Add(new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
-            m.Vertices.Add(new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
+            m.Vertices.Add(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1));
+            m.Vertices.Add(new Vertex(1,   0, 0, 0, 0, 1, 0.5,  0, 0, 1, 0, 1));
+            m.Vertices.Add(new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1));
             m.Vertices.Add(new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
             m.Faces.Add(new Face(0, 1, 2));
             m.Faces.Add(new Face(0, 2, 3));
 
             List<Triangle> ts = m.Triangles();
-            Triangle t1 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1),
-                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
-            Triangle t2 = new Triangle(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1),
-                new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1),
-                new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
+            Triangle t1 = new Triangle(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1),
+                                       new Vertex(1,   0, 0, 0, 0, 1, 0.5,  0, 0, 1, 0, 1),
+                                       new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1));
+            Triangle t2 = new Triangle(new Vertex(0,   0, 0, 0, 0, 1, 0,    0, 1, 0, 0, 1),
+                                       new Vertex(1,   1, 0, 0, 0, 1, 0.5,  1, 0, 0, 1, 1),
+                                       new Vertex(0.5, 1, 0, 0, 0, 1, 0.25, 1, 0, 0, 1, 1));
             Assert.AreEqual(2, ts.Count);
             Assert.AreEqual(t1.V0, ts[0].V0);
             Assert.AreEqual(t1.V1, ts[0].V1);
@@ -545,14 +545,14 @@ namespace GeometryTest
         public void MeshMergeTest()
         {
             Mesh a = new Mesh(true, true, true);
-            a.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1));
+            a.Vertices.Add(new Vertex(0, 0, 0, 0, 0, 1, 0,   0, 1, 0, 0, 1));
             a.Vertices.Add(new Vertex(1, 0, 0, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
             a.Vertices.Add(new Vertex(1, 1, 0, 0, 0, 1, 0.5, 1, 0, 0, 1, 1));
             a.Faces.Add(new Face(0, 1, 2));
 
             Mesh b = new Mesh(true, true, true);
-            b.Vertices.Add(new Vertex(1, 0, 2, 0, 0, 1, 0.5, 0, 0, 1, 0, 1));
-            b.Vertices.Add(new Vertex(1, 2, 0, 0, 0, 1, 0.5, 1, 2, 0, 1, 1));
+            b.Vertices.Add(new Vertex(1,   0, 2, 0, 0, 1, 0.5,  0, 0, 1, 0, 1));
+            b.Vertices.Add(new Vertex(1,   2, 0, 0, 0, 1, 0.5,  1, 2, 0, 1, 1));
             b.Vertices.Add(new Vertex(0.5, 1, 2, 0, 0, 1, 0.25, 1, 0, 2, 1, 1));
             b.Faces.Add(new Face(0, 1, 2));
 
@@ -568,7 +568,7 @@ namespace GeometryTest
             Assert.AreEqual(new Face(0, 1, 2), t.Faces[0]);
             Assert.AreEqual(new Face(3, 4, 5), t.Faces[1]);
 
-            a.Vertices[0].UV.X = 3;
+            a.Vertices[0].UV.X = 0.3;
             a.Faces[0] = new Face(2, 1, 0);
             Assert.AreNotEqual(a.Vertices[0], t.Vertices[0]);
             Assert.AreNotEqual(a.Faces[0], t.Faces[0]);
@@ -736,17 +736,17 @@ namespace GeometryTest
         public void MeshNormalAndUVBoundsTest()
         {
             Mesh m = new Mesh();
-            m.Vertices.Add(new Vertex(-1, 0, 0, 2, 3, 7, 1, 3, 0, 0, 0, 0));
-            m.Vertices.Add(new Vertex(1, 0, 0, 5, 2, -1, 4, 2, 4, 5, 2, 1));
-            m.Vertices.Add(new Vertex(0, 2, 3, -3, 5, 1, 9, 1, 2, 4, 2, 4));
-            m.Vertices.Add(new Vertex(0, 1, 0, 2, 6, 2, 7, -8, 3, 1, 3, 4));
-            m.Vertices.Add(new Vertex(0, -7, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0));
+            m.Vertices.Add(new Vertex(-1, 0, 0,  2, 3,  7, 0.1,  0.3, 0, 0, 0, 0));
+            m.Vertices.Add(new Vertex(1,  0, 0,  5, 2, -1, 0.4,  0.2, 4, 5, 2, 1));
+            m.Vertices.Add(new Vertex(0,  2, 3, -3, 5,  1, 0.9,  0.1, 2, 4, 2, 4));
+            m.Vertices.Add(new Vertex(0,  1, 0,  2, 6,  2, 0.7, -0.8, 3, 1, 3, 4));
+            m.Vertices.Add(new Vertex(0, -7, 0,  0, 0,  0, 0.0,  0.1, 1, 0, 0, 0));
             BoundingBox bounds = m.NormalBounds();
             Assert.AreEqual(new Vector3(-3, 0, -1), bounds.Min);
             Assert.AreEqual(new Vector3(5, 6, 7), bounds.Max);
             bounds = m.UVBounds();
-            Assert.AreEqual(new Vector3(0, -8, 0), bounds.Min);
-            Assert.AreEqual(new Vector3(9, 3, 0), bounds.Max);
+            Assert.AreEqual(new Vector3(0, -0.8, 0), bounds.Min);
+            Assert.AreEqual(new Vector3(0.9, 0.3, 0), bounds.Max);
         }
 
         [TestMethod]
@@ -766,10 +766,10 @@ namespace GeometryTest
         public void MeshSkirtTest()
         {
             Mesh m = new Mesh(true, true, true);
-            m.Vertices.Add(new Vertex(0, 0, 0, 2, 3, 7, 1, 3, 5, 6, 7, 8));
-            m.Vertices.Add(new Vertex(1, 0, 0, 3, 1, 0, 3, 5, 2, 1, 4, 0));
-            m.Vertices.Add(new Vertex(0, 0, 1, 6, 2, 7, 8, 3, 5, 2, 3, 4));
-            m.Vertices.Add(new Vertex(1, 0, 1, 4, 6, 8, 0, 4, 2, 3, 4, 2));
+            m.Vertices.Add(new Vertex(0, 0, 0, 2, 3, 7, 0.1, 0.3, 5, 6, 7, 8));
+            m.Vertices.Add(new Vertex(1, 0, 0, 3, 1, 0, 0.3, 0.5, 2, 1, 4, 0));
+            m.Vertices.Add(new Vertex(0, 0, 1, 6, 2, 7, 0.8, 0.3, 5, 2, 3, 4));
+            m.Vertices.Add(new Vertex(1, 0, 1, 4, 6, 8, 0.0, 0.4, 2, 3, 4, 2));
             m.Faces.Add(new Face(0, 1, 3));
             m.Faces.Add(new Face(0, 2, 3));
             m.AddSkirt(SkirtMode.Y);
