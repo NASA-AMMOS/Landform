@@ -655,11 +655,12 @@ namespace OPS.Landform
 
         private void LoadOrbital()
         {
+            string demFile = options.OrbitalDEM;
             try
             {
-                orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), options.OrbitalDEM,
-                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                 logger: pipeline);
+                orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), ref demFile,
+                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                    logger: pipeline);
             }
             catch (Exception ex)
             {
@@ -676,10 +677,12 @@ namespace OPS.Landform
                 return;
             }
 
-            var orbitalToWorld = ft.Transform.Mean;
-            var meshToWorld = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-            orbitalToMesh = orbitalToWorld * Matrix.Invert(meshToWorld);
+            var orbitalToRoot = ft.Transform.Mean;
+            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+            orbitalToMesh = orbitalToRoot * Matrix.Invert(meshToRoot);
             meshToOrbital = Matrix.Invert(orbitalToMesh);
+
+            pipeline.LogInfo("loaded {0}x{1} orbital DEM {2}", orbitalDEM.Width, orbitalDEM.Height, demFile);
         }
 
         private void CreateShrinkwrappedSurfaceMesh()
