@@ -775,8 +775,12 @@ namespace OPS.Landform
                 }
 
                 //orbital
-                var orbitalResults = Backproject.BackprojectOrbital(orbitalTexture, sitedriveToOrbitalBody,
+                IDictionary<Pixel, Backproject.ObsPixel> orbitalResults = null;
+                if (!options.NoOrbitalTexture)
+                {
+                    orbitalResults = Backproject.BackprojectOrbital(orbitalTexture, sitedriveToOrbitalBody,
                     orbitalImageTransform, missingPixels, orbitalObs);
+                }
 
                 // tile with no textures means it is wholly extrapolation by reconstruction algorithm. skip it.
                 Image image = new Image(3, resolution, resolution);
