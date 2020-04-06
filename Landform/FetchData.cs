@@ -872,7 +872,7 @@ namespace OPS.Landform
                     }
                     if (!options.DryRun)
                     {
-                        string msg = string.Format("{0F3%}: {1} {2}", (done + rejected + failed) * 100.0 / total,
+                        string msg = string.Format("{0:F3%}: {1} {2}", (done + rejected + failed) * 100.0 / total,
                                                    bytes >= 0 ? "downloaded" : "failed to download",
                                                    StringHelper.GetLastUrlPathSegment(url));
                         if (bytes >= 0)

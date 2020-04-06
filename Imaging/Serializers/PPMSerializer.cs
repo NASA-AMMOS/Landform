@@ -53,7 +53,7 @@ namespace OPS.Imaging
             return s;
         }
 
-        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null, bool useFillValueFromFile = false)
         {
             Image img;
             var sr = new StreamReader(OpenReadStream(filename));
