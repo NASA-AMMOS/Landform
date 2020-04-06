@@ -542,7 +542,7 @@ namespace OPS.Landform
 
                         if (!accepted && !string.IsNullOrEmpty(rejectionReason))
                         {
-                            pipeline.LogInfo("rejected message: {0}", rejectionReason);
+                            pipeline.LogVerbose("rejected message: {0}", rejectionReason);
                         }
 
                         if (!accepted || handled || tooOld)
