@@ -189,7 +189,8 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    throw new Exception("no orbital image file provided");
+                    pipeline.LogWarn("no orbital image provided.");
+                    return false;
                 }
             }
 
