@@ -358,9 +358,10 @@ namespace OPS.Landform
                         .ToArray(),
                     };
                 }
+                double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
                 tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               texSplitOpts);
+                                                               texSplitOpts, null, surfaceExtent);
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));

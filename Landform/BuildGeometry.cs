@@ -111,7 +111,7 @@ namespace OPS.Landform
         [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = 32)]
         public double ClipSurfaceExtent { get; set; }
 
-        [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 32)]
+        [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 64)]
         public double ClipExtent { get; set; }
 
         [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 7.5)]
@@ -1100,6 +1100,15 @@ namespace OPS.Landform
             if (!options.NoSave)
             {
                 pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
+                double surfaceExtent = -1; //unlimited
+                if (options.NoSurfaceObs)
+                {
+                    surfaceExtent = 0; //only orbital
+                }
+                else if (options.ClipSurfaceExtent > 0)
+                {
+                    surfaceExtent = options.ClipSurfaceExtent;
+                }
                 string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
                 var variant = MeshVariant.Default;
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
@@ -1109,12 +1118,13 @@ namespace OPS.Landform
                     var meshProd = new PlyGZDataProduct(mesh);
                     pipeline.SaveDataProduct(project, meshProd);
                     sceneMesh.MeshGuid = meshProd.Guid;
+                    sceneMesh.SurfaceExtent = surfaceExtent;
                     sceneMesh.Save(pipeline);
                 }
                 else
                 {
                     sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames,
-                                                 mesh: mesh);
+                                                 mesh: mesh, surfaceExtent: surfaceExtent);
                 }
             }
                 
