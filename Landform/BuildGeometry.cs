@@ -229,6 +229,11 @@ namespace OPS.Landform
                 if (!options.NoOrbital)
                 {
                     RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
+
+                    if (options.NoOrbital && options.NoSurfaceObs)
+                    {
+                        throw new Exception("--nosurfaceobs but failed to load orbital");
+                    }
                 }
 
                 if (!options.NoSurfaceObs && (!options.NoFillHoles || !options.NoOrbital))
@@ -242,21 +247,7 @@ namespace OPS.Landform
                     }
                 }
 
-                if (!options.NoOrbital)
-                {
-                    RunPhase("build orbital mesh", BuildOrbitalMesh);
-
-                    if (options.NoSurfaceObs)
-                    {
-                        // in the case where there is no surface data orbital is the scene mesh
-                        mesh = orbitalMesh;
-                    }
-                    else
-                    {
-                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
-                    }
-                }
-                else if (options.NoOrbital || options.NoFillHoles)
+                if (options.NoOrbital)
                 {
                     //just clip surface mesh
                     double extent = options.ClipExtent;
@@ -268,11 +259,17 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    //surface mesh has already been clipped
+                    //surface mesh (if any) has already been clipped
                     //and we've already verified that 0 < ClipSurfaceExtent < ClipExtent
                     //now build orbital to ClipExtent
+
                     RunPhase("build orbital mesh", BuildOrbitalMesh);
-                    if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
+
+                    if (options.NoSurfaceObs)
+                    {
+                        mesh = orbitalMesh;
+                    }
+                    else if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
                     {
                         RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                     }
@@ -308,6 +305,11 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
+            if (options.NoOrbital && options.NoSurfaceObs)
+            {
+                throw new Exception("cannot combine --noorbital with --nosurfaceobs");
+            }
+
             if (options.ReconstructionMethod != MeshReconstructionMethod.FSSR &&
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
