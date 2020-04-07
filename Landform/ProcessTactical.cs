@@ -388,14 +388,17 @@ namespace OPS.Landform
 
         private bool AddImage(MeshImagePair pair)
         {
-            string imageUrl = StringHelper.StripUrlExtension(pair.mesh) + imageExt;
-            if (!FileExists(imageUrl))
+            foreach (var ext in new string[] { imageExt, imageExt.ToUpper() })
             {
-                pipeline.LogWarn("could not find {0} image for mesh {1}", imageExt, pair.mesh);
-                return false;
+                string imageUrl = StringHelper.StripUrlExtension(pair.mesh) + ext;
+                if (FileExists(imageUrl))
+                {
+                    pair.image = imageUrl;
+                    return true;
+                }
             }
-            pair.image = imageUrl;
-            return true;
+            pipeline.LogWarn("could not find {0} image for mesh {1}", imageExt, pair.mesh);
+            return false;
         }
             
         private void BuildTacticalTileset(MeshImagePair pair)
