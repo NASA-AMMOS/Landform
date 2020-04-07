@@ -853,6 +853,11 @@ namespace OPS.Pipeline
                 }
             }
 
+            if (!File.Exists(demFile))
+            {
+                throw new Exception("orbital DEM not found: " + demFile);
+            }
+
             if (!metersPerPixel.HasValue)
             {
                 metersPerPixel = cfg.OrbitalDEMMetersPerPixel;
@@ -893,6 +898,11 @@ namespace OPS.Pipeline
                 {
                     throw new Exception("orbital image not available");
                 }
+            }
+
+            if (!File.Exists(imgFile))
+            {
+                throw new Exception("orbital image not found: " + imgFile);
             }
 
             orbitalTransform = new OrbitalImage(imgFile, PlanetaryBody.GetByName(cfg.OrbitalBodyName));
