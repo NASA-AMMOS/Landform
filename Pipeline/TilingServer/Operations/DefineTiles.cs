@@ -403,7 +403,10 @@ namespace OPS.Pipeline.TilingServer
                
             }
 
-            pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);
+            pipeline.LogInfo("{0}build tile tree: building bounds tree, max {1} faces per tile, {2} split criteria, " +
+                             "texture split {3}", logPrefix, Fmt.KMG(facesPerTile), splitCriteria.Count,
+                             splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled");
+
             return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), surfaceExtent, info);
         }
 

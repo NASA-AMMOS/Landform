@@ -133,7 +133,7 @@ namespace OPS.Landform
         [Option(HelpText = "Redo blurred texture", Default = false)]
         public bool RedoBlurredTexture { get; set; }
 
-        [Option(HelpText = "Redo blended blended texture", Default = false)]
+        [Option(HelpText = "Redo blended texture", Default = false)]
         public bool RedoBlendedTexture { get; set; }
     }
 
@@ -565,7 +565,7 @@ namespace OPS.Landform
 
             double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
 
-            int np = 0, nc = 0;
+            int np = 0, nc = 0, nf = 0;
             CoreLimitedParallel.ForEach(indexedImages, entry => {
 
                     int obsIndex = entry.Key;
@@ -580,8 +580,9 @@ namespace OPS.Landform
 
                     if (!winners.ContainsKey(obsIndex))
                     {
-                        pipeline.LogWarn("cannot blend image for observation {0}, no mesh points backprojected to it",
-                                         obs.Name);
+                        pipeline.LogVerbose("cannot blend image for observation {0}, no points backprojected to it",
+                                            obs.Name);
+                        Interlocked.Increment(ref nf);
                         if (!options.NoSave)
                         {
                             obs.BlendedGuid = Guid.Empty;
@@ -749,6 +750,7 @@ namespace OPS.Landform
                     else
                     {
                         pipeline.LogWarn("cannot blend image for observation {0}, no valid backprojections", obs.Name);
+                        Interlocked.Increment(ref nf);
                         if (!options.NoSave)
                         {
                             obs.BlendedGuid = Guid.Empty;
@@ -759,6 +761,8 @@ namespace OPS.Landform
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
+            pipeline.LogInfo("created blended images for {0}/{1} observations, skipped {2} with no backprojections",
+                             nc, no, nf);
         }
 
         private void BuildBackprojectIndexFromLeaves()
