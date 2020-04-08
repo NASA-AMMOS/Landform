@@ -69,8 +69,12 @@ namespace OPS.Pipeline
             return ret;
         }
 
-        public static double CalculateForObs(SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs, CameraModel cam, ConvexHull obsHull, Matrix obsToOutput,
-            BoundingBox specificMeshBounds, double pctPtsToSample = 1.0, bool writeDebug = false, string localDebugOutputPath = "")
+        /// <summary>
+        /// Estimates minimum lineal meters on mesh per pixel in obs, median across allSamples.
+        /// </summary>
+        public static double CalculateForObs(SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs,
+                                             CameraModel cam, ConvexHull obsHull, Matrix obsToOutput,
+                                             BoundingBox specificMeshBounds, double pctPtsToSample = 1.0)
         {
             int numPoints = allSamples.Count();
             int skip = numPoints / Math.Max(1, (int)(numPoints * pctPtsToSample));
@@ -95,7 +99,8 @@ namespace OPS.Pipeline
                         //Issue #523: want median or average in case glancing angle?
                         //want a term that looks for consistancy in spacing? implies dead on?
                         double dist = GetMinPixelSpreadInMeters(sceneCaster, cam, obsToOutput,
-                                                      pt.Pixel, pt.Point, specificMeshBounds, obs.Width, obs.Height);
+                                                                pt.Pixel, pt.Point, specificMeshBounds,
+                                                                obs.Width, obs.Height);
                         spreads[spreadIndex] = dist;
                     }
                     else
@@ -133,7 +138,8 @@ namespace OPS.Pipeline
                 return double.MaxValue;
             }
 
-            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh, specificMeshBounds, offsetPixels);
+            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(sceneCaster, camera, camToMesh,
+                                                                          specificMeshBounds, offsetPixels);
             foreach (var curPos in meshPositions)
             {
                 double sqDist = (curPos - srcPos).LengthSquared();
@@ -147,8 +153,8 @@ namespace OPS.Pipeline
         }
 
         //Issue #531: raycast bundle of 4 with embree
-        //Note: if you are looking through a keyhole at your target point, you could get an overconfident answer of the quality
-        // as the corners hit a closer mesh than intended
+        //Note: if you are looking through a keyhole at your target point,
+        // you could get an overconfident answer of the quality as the corners hit a closer mesh than intended
         public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster sceneCaster, CameraModel camera,
                                                                     Matrix camToMesh, BoundingBox specificMeshBounds,
                                                                     IEnumerable<Vector2> srcPixels)

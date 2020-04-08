@@ -547,29 +547,47 @@ namespace OPS.Landform
             {
                 throw new Exception("must build mesh operator before initializing backproject strategy");
             }
+
             pipeline.LogInfo("initializing backproject observation seletion strategy {0} for {1} observations",
                              tcopts.ObsSelectionStrategy, imageObservations.Count);
+
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+
+            if (tcopts.WriteBackprojectDebug)
+            {
+                backprojectStrategy.DebugOutputPath = backprojectDebugDir;
+            }
+            if (!tcopts.NoOrbital)
+            {
+                backprojectStrategy.OrbitalMetersPerPixel = orbitalMetersPerPixel;
+            }
+
             var contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,orbitalMetersPerPixel,
-                                           tcopts.BackprojectQuality, tcopts.WriteBackprojectDebug, backprojectDebugDir);
+
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,
+                                           tcopts.BackprojectQuality);
         }
 
-        protected void BackprojectObservations()
+        protected void BackprojectRoverObservations()
         {
             if (backprojectStrategy == null)
             {
                 InitBackprojectStrategy();
             }
-            pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
-            BackprojectObservations(mesh, backprojectStrategy, backprojectMissingPixels);
+
+            pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
+
+            backprojectResults = BackprojectRoverObservations(mesh, backprojectStrategy, backprojectMissingPixels);
+
+            pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
+                             Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, ObsSelectionStrategy strategy, List<PixelPoint> missingPixels,
-                                    string debugSubdir = "")
+            BackprojectRoverObservations(Mesh mesh, ObsSelectionStrategy strategy, List<PixelPoint> missingPixels,
+                                         string debugSubdir = "")
         {
             bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
@@ -596,17 +614,22 @@ namespace OPS.Landform
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };
-            return Backproject.BackprojectObservations(opts, missingPixels);
+            return Backproject.BackprojectRoverObservations(opts, missingPixels);
         }
 
         protected void BackprojectOrbital(List<PixelPoint> missingPixels,
                                           IDictionary<Pixel, Backproject.ObsPixel> backprojectResults)
         {
-            if (orbitalTexture != null && indexedImages != null && indexedImages.ContainsKey(Observation.ORBITAL_INDEX))
+            if (!tcopts.NoOrbital)
             {
+                pipeline.LogInfo("backprojecting {0} pixels to orbital", Fmt.KMG(missingPixels.Count));
                 var orbitalObs = (OrbitalObservation)indexedImages[Observation.ORBITAL_INDEX];
+                int countWas = backprojectResults.Count;
                 Backproject.BackprojectOrbital(orbitalTexture, meshToOrbitalBody, orbitalImageTransform,
                                                missingPixels, orbitalObs, backprojectResults);
+                int numSuccessful = backprojectResults.Count - countWas;
+                pipeline.LogInfo("backprojected {0} pixels to orbital ({1} failed)",
+                                 Fmt.KMG(numSuccessful), Fmt.KMG(missingPixels.Count - numSuccessful));
             }
         }
 

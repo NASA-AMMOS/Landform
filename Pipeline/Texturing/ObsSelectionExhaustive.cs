@@ -20,39 +20,38 @@ namespace OPS.Pipeline.Texturing
     // between similar quality textures
     public class ObsSelectionExhaustive : ObsSelectionStrategy
     {
+        public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Exhaustive; } }
+
         protected SceneCaster OcclusionScene;
         protected MeshOperator MeshOp;
-        protected bool WriteDebug;
-        protected string LocalOutputPath;
-        double OrbitalPixelsPerMeter;
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double orbitalMetersPerPixel,
-                               double quality, bool writeDebug, string localOutputPath)
+                                        List<Backproject.Context> contexts, int outputTextureResolution,
+                                        double quality = 1)
         {
             MeshOp = meshOp;
             OcclusionScene = occlusionScene;
-            WriteDebug = writeDebug;
-            LocalOutputPath = localOutputPath;
-            OrbitalPixelsPerMeter = orbitalMetersPerPixel;
         }
     
-        public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
+        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
+                                                                        List<Backproject.Context> contexts,
+                                                                        Dictionary<string, double> scoresByObs = null)
         {
-            sortedContexts.Clear();
+            var sortedContexts = new List<Backproject.Context>();
+
             if (scoresByObs != null)
             {
                 scoresByObs.Clear();
             }
 
             //intersecting contexts
-            var visibleContexts = inContexts.Where(c => c.FrustumHull.Contains(forPoint));
+            var visibleContexts = contexts.Where(c => c.FrustumHull.Contains(forPoint));
             
             //calculate goodness: median distance between neighboring source pixels in meters on the terrain
             //smaller distance == better texture resolution
             foreach (var ctx in visibleContexts)
             {
-                double dist = double.MaxValue;
+                double dist = double.MaxValue; //estimate of min meters on mesh per pixel in obs
 
                 var pixel = ctx.CameraModel.Project(Vector3.Transform(forPoint, ctx.MeshToObs), out double range);
 
@@ -70,11 +69,12 @@ namespace OPS.Pipeline.Texturing
                         Point = forPoint
                     };
 
-                     dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene, new List<PixelPoint>() { forSrcPixelPt },
-                                                                           ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, MeshOp.Bounds,
-                                                                           1.0, WriteDebug, LocalOutputPath);
-
-                    if (dist > OrbitalPixelsPerMeter)
+                     dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene,
+                                                                    new List<PixelPoint>() { forSrcPixelPt },
+                                                                    ctx.Obs, ctx.CameraModel, ctx.FrustumHull,
+                                                                    ctx.ObsToMesh, MeshOp.Bounds);
+                     
+                    if (OrbitalMetersPerPixel > 0 && dist > OrbitalMetersPerPixel)
                     {
                         dist = double.MaxValue;
                     }
@@ -83,13 +83,19 @@ namespace OPS.Pipeline.Texturing
                 //no valid measurement, ignore image
                 if (dist != double.MaxValue)
                 {
-                    scoresByObs.Add(ctx.Obs.Name, dist);
+                    if (scoresByObs != null)
+                    {
+                        scoresByObs.Add(ctx.Obs.Name, dist);
+                    }
                     sortedContexts.Add(ctx);
                 }
             };
             
             //sort contexts by decreasing quality
+            //highest quality is min meters on mesh per pixel in obs, so sort in order low to high
             sortedContexts.Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
+
+            return sortedContexts;
         }
     }
 }

@@ -97,7 +97,7 @@ namespace OPS.Landform
         private Image sceneTexture;
         private SceneNode tileTree;
 
-        private int numBackprojectedSurfacePixels, numBackprojectedOrbitalPixels;
+        private int numBackprojectedSurfacePixels, numBackprojectFailedSurfacePixels, numBackprojectedOrbitalPixels;
       
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -580,8 +580,9 @@ namespace OPS.Landform
 
             if (texGenMode == TextureGenMode.Backproject)
             {
-                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} pixels from orbital",
-                                 Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectedOrbitalPixels));
+                pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed), {2} from orbital",
+                                 Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectFailedSurfacePixels),
+                                 Fmt.KMG(numBackprojectedOrbitalPixels));
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
@@ -769,17 +770,27 @@ namespace OPS.Landform
                             .Where(obs => obsToHull.ContainsKey(obs.Name) && tileHull.Intersects(obsToHull[obs.Name]))
                             .ToList();
                         var contexts =
-                            Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache, meshFrame,
-                                                      options.UsePriors, options.OnlyAligned, msg => pipeline.LogWarn(msg));
-                        strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution, orbitalMetersPerPixel,
-                                            options.BackprojectQuality, options.WriteDebug,
-                                            Path.Combine(backprojectDebugDir, node.Name));
+                            Backproject.BuildContexts(obsToHull, tileObs, mission, frameCache, observationCache,
+                                                      meshFrame, options.UsePriors, options.OnlyAligned,
+                                                      msg => pipeline.LogWarn(msg));
+                        if (options.WriteBackprojectDebug)
+                        {
+                            strategy.DebugOutputPath = Path.Combine(backprojectDebugDir, node.Name);
+                        }
+                        if (!options.NoOrbital)
+                        {
+                            strategy.OrbitalMetersPerPixel = orbitalMetersPerPixel;
+                        }
+                        strategy.Initialize(mesh, tileOp, sceneCaster, contexts, options.TextureResolution,
+                                            options.BackprojectQuality);
                     }
                     missingPixels = new List<PixelPoint>();
-                    backprojectResults = BackprojectObservations(mesh, strategy, missingPixels, node.Name);
+                    backprojectResults = BackprojectRoverObservations(mesh, strategy, missingPixels, node.Name);
                 }
 
-                if (!options.NoOrbital && missingPixels != null && missingPixels.Count > 0)
+                Interlocked.Add(ref numBackprojectFailedSurfacePixels, missingPixels.Count);
+
+                if (!options.NoOrbital && missingPixels.Count > 0)
                 {
                     BackprojectOrbital(missingPixels, backprojectResults);
                 }

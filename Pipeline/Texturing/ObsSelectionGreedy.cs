@@ -14,6 +14,8 @@ namespace OPS.Pipeline.Texturing
 {
     public class ObsSelectionGreedy : ObsSelectionStrategy
     {
+        public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Greedy; } }
+
         protected List<Backproject.Context> sortedContexts;
         protected ConcurrentDictionary<string, double> ObsToScore;
 
@@ -26,18 +28,18 @@ namespace OPS.Pipeline.Texturing
         // each tile. can be faster than alternatives depending on percentage of pixels
         // to test (quality).
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene, 
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double orbitalMetersPerPixel,
-                               double quality, bool writeDebug, string localOutputPath)
+                                        List<Backproject.Context> contexts, int outputTextureResolution,
+                                        double quality = 1)
         {
             List<PixelPoint> samplePoints = meshOp.SampleUVSpace(outputTextureResolution, outputTextureResolution);
 
             //intersecting contexts
             ObsToScore = new ConcurrentDictionary<string, double>();
-            CoreLimitedParallel.ForEach(allContexts, ctx =>
+            CoreLimitedParallel.ForEach(contexts, ctx =>
             {
                 var dist = ProjectedPixelDistances.CalculateForObs(occlusionScene, samplePoints,
-                                                                   ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh,
-                                                                   meshOp.Bounds, quality);
+                                                                   ctx.Obs, ctx.CameraModel, ctx.FrustumHull,
+                                                                   ctx.ObsToMesh, meshOp.Bounds, quality);
 
                 if (dist == double.MaxValue)
                 {
@@ -52,25 +54,26 @@ namespace OPS.Pipeline.Texturing
             });
 
             //sort contexts (smaller distance means better quality means sorted to the front of the list)          
-            sortedContexts = new List<Backproject.Context>(allContexts);
+            sortedContexts = new List<Backproject.Context>(contexts);
             sortedContexts.Sort((ctx0, ctx1) => ObsToScore[ctx0.Obs.Name].CompareTo(ObsToScore[ctx1.Obs.Name]));
         }
 
-        public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
+        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
+                                                                        List<Backproject.Context> contexts,
+                                                                        Dictionary<string, double> scoresByObs = null)
         {
             if (scoresByObs != null)
             {
+                scoresByObs.Clear();
                 foreach (var pair in ObsToScore)
                 {
                     scoresByObs.Add(pair.Key, pair.Value);
                 }
             }
 
-            sortedContexts.Clear();
-            foreach (var ctx in this.sortedContexts)
-            {
-                sortedContexts.Add(ctx);
-            }
+            var ret = new List<Backproject.Context>(sortedContexts.Count);
+            ret.AddRange(sortedContexts);
+            return ret;
         }
     }
 }
