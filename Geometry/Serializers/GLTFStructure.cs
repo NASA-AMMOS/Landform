@@ -261,6 +261,10 @@ namespace OPS.Geometry.GLTF
                         {
                             sb.Append(GLTFImage.PPMZ_HEADER);
                         }
+                        else if (ext == ".ppm")
+                        {
+                            sb.Append(GLTFImage.PPM_HEADER);
+                        }
                         else
                         {
                             throw new MeshSerializerException("Unsupported image format for gltf export");
@@ -292,15 +296,21 @@ namespace OPS.Geometry.GLTF
                         {
                             img.mimeType = GLTFImage.PPMZ_MIME;
                         }
+                        else if (ext == ".ppm")
+                        {
+                            img.mimeType = GLTFImage.PPM_MIME;
+                        }
                         else
                         {
                             throw new MeshSerializerException("Unsupported image format for gltf export");
                         }
                     }
                     // Add padding to ensure 4 byte alignment
+                    paddingAdded = 0;
                     while (bytes.Count % 4 != 0)
                     {
                         bytes.Add((byte)0);
+                        paddingAdded++;
                     }
                     images.Add(img);
                 }
@@ -446,10 +456,12 @@ namespace OPS.Geometry.GLTF
     {
         public const string JPG_HEADER = "data:image/jpeg;base64,";
         public const string PNG_HEADER = "data:image/png;base64,";
-        public const string PPMZ_HEADER = "data:image/x-portable-pixmap+gzip;base64";
+        public const string PPMZ_HEADER = "data:image/x-portable-pixmap+gzip;base64,";
+        public const string PPM_HEADER = "data:image/x-portable-pixmap;base64,";
         public const string JPG_MIME = "image/jpeg";
         public const string PNG_MIME = "image/png";
         public const string PPMZ_MIME = "image/x-portable-pixmap+gzip";
+        public const string PPM_MIME = "image/x-portable-pixmap";
 
         public string uri;
         public string mimeType;
