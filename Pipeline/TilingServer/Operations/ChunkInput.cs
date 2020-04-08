@@ -51,12 +51,12 @@ namespace OPS.Pipeline.TilingServer
             var input = TilingInput.Find(pipeline, projectName, message.InputName);
             if (input.Chunked)
             {
-                LogInfo("input {0} has already been chunked, skipping", message.InputName);
+                LogLess("input {0} has already been chunked, skipping", message.InputName);
                 pipeline.EnqueueToMaster(message);
                 return;
             }
 
-            LogInfo("downloading and cleaning input mesh {0}", input.MeshUrl);
+            LogLess("downloading and cleaning input mesh {0}", input.MeshUrl);
             Mesh mesh = null;
             pipeline.GetFile(input.MeshUrl, f =>
             {
@@ -68,26 +68,26 @@ namespace OPS.Pipeline.TilingServer
             string imageBaseUrl = null;
             if (input.ImageUrl != null)
             {
-                LogInfo("downloading and chunking image {0} from {1}", message.InputName, input.ImageUrl);
+                LogLess("downloading and chunking image {0} from {1}", message.InputName, input.ImageUrl);
                 sparseImage = new SparsePipelineImage(pipeline, input.ImageUrl, CHUNK_RESOLUTION);
                 imageBaseUrl = pipeline.GetStorageUrl("chunk", projectName, Guid.NewGuid().ToString());
-                LogInfo("saving chunks for input {0} to {1}", message.InputName, imageBaseUrl);
+                LogLess("saving chunks for input {0} to {1}", message.InputName, imageBaseUrl);
                 sparseImage.Save<byte>(imageBaseUrl, IMAGE_EXT);
                 input.ImageBands = sparseImage.Bands;
                 input.ImageWidth = sparseImage.Width;
                 input.ImageHeight = sparseImage.Height;
             }
-            LogInfo("building acceleration structures to chunk input {0}", message.InputName);
+            LogLess("building acceleration structures to chunk input {0}", message.InputName);
             var multiClipper = new MultiMeshClipper();
             var dataset = new MultiMeshClipperInput(mesh, sparseImage);
             multiClipper.AddInput(dataset);
 
-            LogInfo("building bounds tree to chunk input {0}", message.InputName);
+            LogLess("building bounds tree to chunk input {0}", message.InputName);
             var tilingScheme = new BinaryTreeTilingScheme();
             var root = DefineTiles.BuildBoundsTree(multiClipper, tilingScheme,
                                                    new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
 
-            LogInfo("building mesh chunks for input {0}", message.InputName);
+            LogLess("building mesh chunks for input {0}", message.InputName);
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();
             var leaves = root.Leaves().ToList();
             Serial.ForEach(leaves, (leaf, pls, i) =>
@@ -102,11 +102,11 @@ namespace OPS.Pipeline.TilingServer
                     pipeline.SaveFile(f, meshUrl);
                     TilingInputChunk record = TilingInputChunk.Create(pipeline, id, meshUrl, imageBaseUrl, bounds);
                     chunkIds.Add(id);
-                    LogInfo("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
+                    LogLess("generated chunk {0}/{1} for input {2}", chunkIds.Count(), leaves.Count, message.InputName);
                 });
             });
 
-            LogInfo("saving chunk IDs");
+            LogLess("saving chunk IDs");
             lock (input.ChunkIds)
             {
                 input.ChunkIds.UnionWith(chunkIds);

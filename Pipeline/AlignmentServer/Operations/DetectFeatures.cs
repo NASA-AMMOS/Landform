@@ -41,12 +41,12 @@ namespace OPS.Pipeline.AlignmentServer
             var project = Project.Find(pipeline, projectName);
             var detector = new FeatureDetector(pipeline, MissionSpecific.GetInstance(project.Mission).GetMasker());
             var shortUrl = StringHelper.GetLastUrlPathSegment(message.ImageUrl);
-            LogInfo("detecting features for image {0} in project {1}", shortUrl, project.Name);
+            LogLess("detecting features for image {0} in project {1}", shortUrl, project.Name);
             var res = detector.Detect(message.ImageUrl, message.MaskUrl, project);
             if (res != null)
             {
                 pipeline.SaveDataProduct(project.ProductPath, res, projectName);
-                LogInfo("detected features for image {0} in project {1}", shortUrl, project.Name);
+                LogLess("detected features for image {0} in project {1}", shortUrl, project.Name);
                 pipeline.EnqueueToMaster(new FeaturesDetectedMessage()
                                          { ImageUrl = message.ImageUrl, FeaturesGuid = res.Guid });
             }

@@ -38,12 +38,12 @@ namespace OPS.Pipeline.TilingServer
 
             if (parent.MeshUrl != null && parent.GeometricError.HasValue)
             {
-                LogInfo("parent {0} already complete, skipping", parent.Id);
+                LogLess("parent {0} already complete, skipping", parent.Id);
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
                 return;
             }
 
-            LogInfo("collecting dependencies to build parent {0}", parent.Id);
+            LogLess("collecting dependencies to build parent {0}", parent.Id);
             var idToNode = new ConcurrentDictionary<string, SceneNode>();
             var dependsOnTilingNodes = parent.DependsOn.Select(id => TilingNode.Find(pipeline, projectName, id));
             CoreLimitedParallel.ForEach(dependsOnTilingNodes, tilingNode =>
@@ -77,12 +77,12 @@ namespace OPS.Pipeline.TilingServer
 
             if (parent.MeshUrl == null)
             {
-                LogInfo("generating parent {0} mesh and geometric error from {1} tiles",
+                LogLess("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
                 if(!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
                                                           project.FacesPerTile, project.TileResolution,
                                                           project.GetSkirtMode(), 
-                                                          info: msg => LogInfo(msg),
+                                                          info: msg => LogLess(msg),
                                                           error: msg => { throw new Exception(msg); }))
                 {
                     throw new Exception("failed to build parent from children");
@@ -97,7 +97,7 @@ namespace OPS.Pipeline.TilingServer
                 var meshImageParent = parent.LoadMeshImagePair(pipeline,loadImage:false);
                 parentSceneNode.AddComponent<MeshImagePair>(meshImageParent);
 
-                LogInfo("generating parent {0} geometric error from {1} tiles", message.TileId, parent.DependsOn.Count);
+                LogLess("generating parent {0} geometric error from {1} tiles", message.TileId, parent.DependsOn.Count);
                 parent.GeometricError = parentSceneNode.CalculateGeometricError();
                 parent.Save(pipeline);
             }

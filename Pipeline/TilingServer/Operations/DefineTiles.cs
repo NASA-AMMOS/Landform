@@ -98,7 +98,7 @@ namespace OPS.Pipeline.TilingServer
                     var msg = string.Format("{0} {1} nodes", what, n);
                     if (progress)
                     {
-                        LogInfo(msg);
+                        LogLess(msg);
                     }
                     else
                     {
