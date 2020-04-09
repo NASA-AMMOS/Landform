@@ -293,7 +293,7 @@ namespace OPS.Pipeline
 
             return
                 "{ " +
-                "\"Url\": \"https://places.dev.m20.jpl.nasa.gov\", " +
+                "\"Url\": \"https://places-msl.dev.m20.jpl.nasa.gov\", " +
                 "\"View\": \"best_tactical\", " +
                 "\"AuthCookieName\": \"ssosession\", " +
                 "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
