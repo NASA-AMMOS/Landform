@@ -22,7 +22,7 @@ namespace ImagingTest
             double[] E = new double[] {0,0,0 };
 
             CAHVORE cahvor = new CAHVORE(new Vector3(C), new Vector3(A), new Vector3(H), new Vector3(V), 
-                                       new Vector3(O), new Vector3(R), new Vector3(E), LinearityMode.Perspective);
+                                       new Vector3(O), new Vector3(R), new Vector3(E), CAHVORE.PERSPECTIVE_LINEARITY);
             Reference.CAHVORE oldcahvore = new Reference.CAHVORE(C, A, H, V, O, R, E, 0, 1);
 
             double[] pos3 = new double[3];
@@ -71,7 +71,7 @@ namespace ImagingTest
         [TestMethod]
         public void TestCAHVOREClone()
         {
-            CAHVORE cm = new CAHVORE(new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9), new Vector3(10, 11, 12), new Vector3(13, 14, 15), new Vector3(16, 17, 18), new Vector3(19, 20, 21), new LinearityMode(7));
+            CAHVORE cm = new CAHVORE(new Vector3(1, 2, 3), new Vector3(4, 5, 6), new Vector3(7, 8, 9), new Vector3(10, 11, 12), new Vector3(13, 14, 15), new Vector3(16, 17, 18), new Vector3(19, 20, 21), 7);
             CAHVORE cm2 = (CAHVORE)cm.Clone();
             Assert.AreEqual(cm.C, cm2.C);
             Assert.AreEqual(cm.A, cm2.A);
@@ -80,10 +80,9 @@ namespace ImagingTest
             Assert.AreEqual(cm.O, cm2.O);
             Assert.AreEqual(cm.R, cm2.R);
             Assert.AreEqual(cm.E, cm2.E);
-            Assert.AreEqual(cm.linearityMode, cm2.linearityMode);
-            Assert.AreEqual(cm.linearityMode.Linearity, cm2.linearityMode.Linearity);
+            Assert.AreEqual(cm.Linearity, cm2.Linearity);
             cm2.C = cm2.A = cm2.H = cm2.V = cm2.O = cm2.R = cm2.E = Vector3.Zero;
-            cm2.linearityMode.Linearity = 2;
+            cm2.Linearity = 2;
             Assert.AreEqual(new Vector3(1, 2, 3), cm.C);
             Assert.AreEqual(new Vector3(4, 5, 6), cm.A);
             Assert.AreEqual(new Vector3(7, 8, 9), cm.H);
@@ -91,7 +90,7 @@ namespace ImagingTest
             Assert.AreEqual(new Vector3(13, 14, 15), cm.O);
             Assert.AreEqual(new Vector3(16, 17, 18), cm.R);
             Assert.AreEqual(new Vector3(19, 20, 21), cm.E);
-            Assert.AreEqual(7, cm.linearityMode.Linearity);
+            Assert.AreEqual(7, cm.Linearity);
         }
     }
 }

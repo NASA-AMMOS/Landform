@@ -621,20 +621,23 @@ namespace OPS.Landform
         {
             if (!tcopts.NoOrbital)
             {
-                pipeline.LogInfo("backprojecting {0} pixels to orbital", Fmt.KMG(missingPixels.Count));
                 var orbitalObs = (OrbitalObservation)indexedImages[Observation.ORBITAL_INDEX];
-                int countWas = backprojectResults.Count;
                 Backproject.BackprojectOrbital(orbitalTexture, orbitalCamera,
                                                missingPixels, orbitalObs, backprojectResults);
-                int numSuccessful = backprojectResults.Count - countWas;
-                pipeline.LogInfo("backprojected {0} pixels to orbital ({1} failed)",
-                                 Fmt.KMG(numSuccessful), Fmt.KMG(missingPixels.Count - numSuccessful));
             }
         }
 
         protected void BackprojectOrbital()
         {
-            BackprojectOrbital(backprojectMissingPixels, backprojectResults);
+            if (!tcopts.NoOrbital)
+            {
+                pipeline.LogInfo("backprojecting {0} pixels to orbital", Fmt.KMG(backprojectMissingPixels.Count));
+                int countWas = backprojectResults.Count;
+                BackprojectOrbital(backprojectMissingPixels, backprojectResults);
+                int numSuccessful = backprojectResults.Count - countWas;
+                pipeline.LogInfo("backprojected {0} pixels to orbital ({1} failed)",
+                                 Fmt.KMG(numSuccessful), Fmt.KMG(backprojectMissingPixels.Count - numSuccessful));
+            }
         }
 
         protected void BuildBackprojectIndex()

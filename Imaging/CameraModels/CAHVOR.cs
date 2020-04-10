@@ -1,40 +1,21 @@
-﻿
-using System;
-using System.Xml;
+﻿using System;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Imaging
 {
     public class CAHVOR : CAHV
     {
-
-        const int MAXITER = 20;
-        const float CONV = 1.0e-6f;
+        public const int MAXITER = 20;
+        public const float CONV = 1.0e-6f;
 
         public Vector3 O;
         public Vector3 R;
-        
-        public override bool Linear
-        {
-            get
-            {
-                return false;
-            }
-        }
 
-        public override Vector3 ImagePlaneNormal
-        {
-            get
-            {
-                return A;
-            }
-        }
+        [JsonIgnore]
+        public override bool Linear { get { return false; } }
 
-        //Default constructor for json deserialization 
-        public CAHVOR()
-        {
-
-        }
+        public CAHVOR() { }
 
         public CAHVOR(Vector3 c, Vector3 a, Vector3 h, Vector3 v, Vector3 o, Vector3 r) : base(c,a,h,v)
         {

@@ -2,9 +2,8 @@
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using System.Linq;
-using System.Text;
-using System.IO;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using OSGeo.GDAL;
 using OSGeo.OSR;
 using OPS.Util;
@@ -153,11 +152,14 @@ namespace OPS.Imaging
     /// </summary>
     public class GISCameraModel : CameraModel, IDisposable
     {
+        public string BodyName { get { return Body.Name; } } //for json serialization
+
+        [JsonIgnore]
+        public PlanetaryBody Body { get; private set; }
+
         public int Bands { get; private set; }
         public int Width { get; private set; }
         public int Height { get; private set; }
-
-        public PlanetaryBody Body { get; private set; }
 
         //example:
         //PROJCS["Equirectangular Mars 2000 Sphere IAU",
@@ -184,11 +186,16 @@ namespace OPS.Imaging
             }
         }
 
+        [JsonIgnore]
         public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }
 
+        [JsonIgnore]
         public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
 
+        [JsonIgnore]
         public double WidthMeters { get { return Width * MetersPerPixel.X; } }
+
+        [JsonIgnore]
         public double HeightMeters { get { return Height * MetersPerPixel.Y; } }
 
         //GDAL has two ways of describing the relationship between raster positions and georeferenced coordinates.
@@ -200,7 +207,7 @@ namespace OPS.Imaging
         //Xp = affineTransform[0] + C * affineTransform[1] + R * affineTransform[2];
         //Yp = affineTransform[3] + C * affineTransform[4] + R * affineTransform[5];
         //
-        //In the particular, but common, case of a “north up” image without any rotation or shearing, 
+        //In the particular, but common, case of a "north up" image without any rotation or shearing, 
         //the georeferencing transform takes the following form: (https://gdal.org/tutorials/raster_api_tut.html)
         //
         //colRowToEastingNorthing[0] = top left x
@@ -219,9 +226,9 @@ namespace OPS.Imaging
         //(easting, northing, elevation) meters -> (longitude degrees, latitude degrees, elevation meters)
         private CoordinateTransformation eastingNorthingElevToLonLatElev;
 
-        public GISCameraModel(string geoTiff, PlanetaryBody body)
+        public GISCameraModel(string geoTiff, string bodyName)
         {
-            this.Body = body;
+            this.Body = PlanetaryBody.GetByName(bodyName);
 
             using (var gdalDataset = Gdal.Open(geoTiff, Access.GA_ReadOnly))
             {
@@ -232,17 +239,18 @@ namespace OPS.Imaging
                 ProjectionRef = gdalDataset.GetProjectionRef();
                 
                 //The default transform is (0, 1, 0, 0, 0, 1) and should be returned even when a CE_Failure error 
-                //is returned, such as for formats that don’t support transformation to projection coordinates.
+                //is returned, such as for formats that don't support transformation to projection coordinates.
                 //from: https://gdal.org/api/gdaldataset_cpp.html
                 gdalDataset.GetGeoTransform(colRowToEastingNorthing);
             }
             Init();
         }
 
-        public GISCameraModel(PlanetaryBody body, int bands, int width, int height, string projectionRef,
+        [JsonConstructor]
+        public GISCameraModel(string bodyName, int bands, int width, int height, string projectionRef,
                               Vector2 minEastingNorthing, Vector2 metersPerPixel)
         {
-            this.Body = body;
+            this.Body = PlanetaryBody.GetByName(bodyName);
             this.Bands = bands;
             this.Width = width;
             this.Height = height;
@@ -277,15 +285,13 @@ namespace OPS.Imaging
                 new CoordinateTransformation(projectionSpatialRef, sphericalBodySpatialRef);
         }
 
-        public GISCameraModel(string geoTiff, string bodyName) : this(geoTiff, PlanetaryBody.GetByName(bodyName)) { }
-
         public void Dump(ILogger logger)
         {
             var x = colRowToEastingNorthing;
             logger.LogInfo("easting  = {0} + col * {1} + row * {2}", x[0], x[1], x[2]);
             logger.LogInfo("northing = {0} + col * {1} + row * {2}", x[3], x[4], x[5]);
             logger.LogInfo("projection ref: {0}", ProjectionRef);
-            logger.LogInfo("planetary body: {0}", Body.Name);
+            logger.LogInfo("planetary body: {0}", BodyName);
         }
 
         /// <summary>
@@ -293,7 +299,7 @@ namespace OPS.Imaging
         /// </summary>
         public GISCameraModel Decimated(int blocksize)
         {
-            return new GISCameraModel(Body, Bands, Width / blocksize, Height / blocksize,
+            return new GISCameraModel(BodyName, Bands, Width / blocksize, Height / blocksize,
                                       ProjectionRef, MinEastingNorthing, MetersPerPixel * blocksize);
         }
 
@@ -326,6 +332,24 @@ namespace OPS.Imaging
             {
                 parentToCamera = value;
                 cameraToParent = Matrix.Invert(value);
+            }
+        }
+
+        [JsonIgnore]
+        public override bool Linear { get { return false; } }
+
+        /// <summary>
+        /// Get a unit vector along the GIS image plane normal at the center pixel in planetary body frame.
+        ///
+        /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
+        /// this (or any planet-scale) frame, and nominal Landform codepaths should and probably can avoid it as well.
+        /// </summary>
+        [JsonIgnore]
+        public override Vector3 ImagePlaneNormal
+        {
+            get
+            {
+                return Unproject(new Vector2(Width, Height) * 0.5).Direction;
             }
         }
 
@@ -368,25 +392,9 @@ namespace OPS.Imaging
             return new Vector2(colRowElev.X, colRowElev.Y);
         }
 
-        public override bool Linear { get { return false; } }
-
         public override object Clone()
         {
             return (GISCameraModel) MemberwiseClone();
-        }
-
-        /// <summary>
-        /// Get a unit vector along the GIS image plane normal at the center pixel in planetary body frame.
-        ///
-        /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
-        /// this (or any planet-scale) frame, and nominal Landform codepaths should and probably can avoid it as well.
-        /// </summary>
-        public override Vector3 ImagePlaneNormal
-        {
-            get
-            {
-                return Unproject(new Vector2(Width, Height) * 0.5).Direction;
-            }
         }
 
         /* end CameraModel implementation *****************************************************************************/
@@ -526,60 +534,6 @@ namespace OPS.Imaging
         public double CheckLocalGISImageBasisAndGetAspect(Vector2 originPixel, ILogger logger = null,
                                                           bool throwOnError = false)
         {
-            GetLocalGISImageBasisInBodyFrame(originPixel, out Vector3 elevationInBody,
-                                             out Vector3 gisImageRightInBody, out Vector3 gisImageDownInBody);
-
-            double elevationScale = elevationInBody.Length();
-
-            if (logger != null)
-            {
-                logger.LogInfo("GIS elevation scale: {0}", elevationScale);
-            }
-
-            var metersPerPixel = new Vector2(gisImageRightInBody.Length(), gisImageDownInBody.Length());
-
-            double pixelAspect = metersPerPixel.X / metersPerPixel.Y;
-
-            if (logger != null)
-            {
-                logger.LogInfo("GIS meters per pixel: {0}x, {1}y, aspect {2}",
-                               metersPerPixel.X, metersPerPixel.Y, pixelAspect);
-            }
-
-            elevationInBody = Vector3.Normalize(elevationInBody);
-            gisImageRightInBody = Vector3.Normalize(gisImageRightInBody);
-            gisImageDownInBody = Vector3.Normalize(gisImageDownInBody);
-
-            double angle(Vector3 unitVecA, Vector3 unitVecB)
-            {
-                return Math.Atan2(Vector3.Cross(unitVecA, unitVecB).Length(), Vector3.Dot(unitVecA, unitVecB));
-            }
-
-            double rad2deg = 180 / Math.PI;
-
-            double tolDeg = 1e-3;
-
-            double skewAngleDeg = (angle(gisImageRightInBody, gisImageDownInBody) - 0.5 * Math.PI) * rad2deg;
-            bool skewOK = skewAngleDeg < tolDeg;
-
-            if (logger != null)
-            {
-                logger.LogInfo("GIS image basis skew angle: {0}deg", skewAngleDeg);
-            }
-
-            if (!skewOK)
-            {
-                string msg = string.Format("GIS image basis skew angle {0}deg > {1}", skewAngleDeg, tolDeg);
-                if (logger != null)
-                {
-                    logger.LogWarn(msg);
-                }
-                if (throwOnError)
-                {
-                    throw new Exception(msg);
-                }
-            }
-            
             Vector3 bodyNorth = Vector3.Normalize(LonLatToXYZ(new Vector2(0, 90)));
 
             if (logger != null)
@@ -603,17 +557,72 @@ namespace OPS.Imaging
                 logger.LogInfo("body frame +Z: lat={0}, lon={1}", zLonLat.Y, zLonLat.X);
             }
 
+            GetLocalGISImageBasisInBodyFrame(originPixel, out Vector3 elevationInBody,
+                                             out Vector3 gisImageRightInBody, out Vector3 gisImageDownInBody);
+
+            double elevationScale = elevationInBody.Length();
+
+            if (logger != null)
+            {
+                logger.LogInfo("GIS elevation scale: {0}", elevationScale);
+            }
+
+            var metersPerPixel = new Vector2(gisImageRightInBody.Length(), gisImageDownInBody.Length());
+
+            double pixelAspect = metersPerPixel.X / metersPerPixel.Y;
+
+            if (logger != null)
+            {
+                logger.LogInfo("GIS local image basis at pixel ({0}, {1})", originPixel.X, originPixel.Y);
+                logger.LogInfo("GIS local meters per pixel: {0}x, {1}y, aspect {2}",
+                               metersPerPixel.X, metersPerPixel.Y, pixelAspect);
+            }
+
+            elevationInBody = Vector3.Normalize(elevationInBody);
+            gisImageRightInBody = Vector3.Normalize(gisImageRightInBody);
+            gisImageDownInBody = Vector3.Normalize(gisImageDownInBody);
+
+            double angle(Vector3 unitVecA, Vector3 unitVecB)
+            {
+                return Math.Atan2(Vector3.Cross(unitVecA, unitVecB).Length(), Vector3.Dot(unitVecA, unitVecB));
+            }
+
+            double rad2deg = 180 / Math.PI;
+
+            double tolDeg = 1e-3;
+
+            double skewAngleDeg = (angle(gisImageRightInBody, gisImageDownInBody) - 0.5 * Math.PI) * rad2deg;
+            bool skewOK = skewAngleDeg < tolDeg;
+
+            if (logger != null)
+            {
+                logger.LogInfo("GIS local image basis skew angle: {0}deg", skewAngleDeg);
+            }
+
+            if (!skewOK)
+            {
+                string msg = string.Format("GIS local image basis skew angle {0}deg > {1}", skewAngleDeg, tolDeg);
+                if (logger != null)
+                {
+                    logger.LogWarn(msg);
+                }
+                if (throwOnError)
+                {
+                    throw new Exception(msg);
+                }
+            }
+            
             double rollAngleDeg = (angle(gisImageRightInBody, bodyNorth) - 0.5 * Math.PI) * rad2deg;
             bool rollOK = rollAngleDeg < tolDeg;
 
             if (logger != null)
             {
-                logger.LogInfo("GIS image basis roll angle: {0}deg", rollAngleDeg);
+                logger.LogInfo("GIS local image basis roll angle: {0}deg", rollAngleDeg);
             }
 
             if (!rollOK)
             {
-                string msg = string.Format("GIS image basis roll angle {0}deg > {1}", rollAngleDeg, tolDeg);
+                string msg = string.Format("GIS local image basis roll angle {0}deg > {1}", rollAngleDeg, tolDeg);
                 if (logger != null)
                 {
                     logger.LogWarn(msg);
@@ -857,101 +866,6 @@ namespace OPS.Imaging
                 eastingNorthingElevToLonLatElev.Dispose();
                 eastingNorthingElevToLonLatElev = null;
             }
-        }
-    }
-
-    /// <summary>
-    /// Also see OPS.Geometry.DEM which is a more general purpose DEM implementation that can be backed by any Image.
-    /// </summary>
-    public class GISElevationMap : IDisposable
-    {
-        private GISCameraModel cameraModel;
-
-        private Dataset gdalDataset;
-
-        private ConcurrentDictionary<Tuple<Vector2, int>, double> interpCache =
-            new ConcurrentDictionary<Tuple<Vector2, int>, double>();
-
-        public GISElevationMap(string geoTiff, PlanetaryBody body)
-        {
-            cameraModel = new GISCameraModel(geoTiff, body);
-
-            gdalDataset = Gdal.Open(geoTiff, Access.GA_ReadOnly);
-
-            if (cameraModel.Bands != 1)
-            {
-                throw new Exception("expected single band elevation image");
-            }
-        }
-
-        public GISElevationMap(string geoTiff, string bodyName) : this(geoTiff, PlanetaryBody.GetByName(bodyName)) { }
-
-        public void Dispose()
-        {
-            Dispose(true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool isDisposing)
-        {
-            if (isDisposing && gdalDataset != null)
-            {
-                gdalDataset.Dispose();
-                gdalDataset = null;
-            }
-        }
-
-        /// <summary>
-        /// input: X = longitude, Y = latitude
-        /// radius is interpolation window size
-        /// output: average of non-masked values in window about pixel corresponding to given lon/lat
-        /// </summary>
-        public double InterpolateElevationAtLonLat(Vector2 lonLat, int radius = 2)
-        {
-            double lon = lonLat.X, lat = lonLat.Y;
-            return interpCache.GetOrAdd(new Tuple<Vector2, int>(new Vector2(lon, lat), radius), _ =>
-            {
-                
-                Vector3 px = cameraModel.LonLatToImage(new Vector3(lon, lat, 0.0));
-                
-                if (px.X < 0 || px.X >= cameraModel.Width || px.Y < 0 || px.Y >= cameraModel.Height)
-                {
-                    throw new ArgumentException(string.Format("lat={0} lon={1} out of DEM bounds", lat, lon));
-                }
-                
-                int xl = (int)Math.Max(Math.Round(px.X - radius), 0);
-                int yl = (int)Math.Max(Math.Round(px.Y - radius), 0);
-                int xu = (int)Math.Min(Math.Round(px.X + radius), cameraModel.Width - 1);
-                int yu = (int)Math.Min(Math.Round(px.Y + radius), cameraModel.Height - 1);
-                int w = xu - xl + 1;
-                int h = yu - yl + 1;
-                
-                float[] window = new float[w * h];
-                double maskValue = 0;
-                int hasMaskValue = 0;
-                
-                //though GDAL seems to claim to be MT safe, this does seem necessary
-                //another strategy may be to read the whole entire raster into a big managed array at construction
-                lock (this)
-                {
-                    var band = gdalDataset.GetRasterBand(1);
-                    band.ReadRaster(xl, yl, w, h, window, w, h, 0, 0);
-                    band.GetNoDataValue(out maskValue, out hasMaskValue);
-                }
-                
-                double sum = 0;
-                int n = 0;
-                for (int i = 0; i < window.Length; i++)
-                {
-                    if (hasMaskValue == 0 || window[i] != maskValue)
-                    {
-                        sum += window[i];
-                        n++;
-                    }
-                }
-                
-                return sum / n;
-            });
         }
     }
 }

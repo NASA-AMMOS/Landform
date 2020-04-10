@@ -1,9 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Imaging
 {
@@ -17,26 +16,36 @@ namespace OPS.Imaging
         public Vector3 Right { get; private set; }
         public Vector3 Down { get; private set; }
 
-        public Vector2 CenterPixel { get; private set; }
-
         public int Width { get; private set; }
         public int Height { get; private set; }
 
-        private double ff, rr, dd;
+        [JsonIgnore]
+        public Vector2 CenterPixel { get; private set; }
 
+        [JsonIgnore]
         public override bool Linear { get { return true; } }
 
-        private Vector3 normal;
+        [JsonIgnore]
         public override Vector3 ImagePlaneNormal { get { return normal; } }
 
+        [JsonIgnore]
         public Vector2 MetersPerPixel { get { return new Vector2(Right.Length(), Down.Length()); } }
 
+        [JsonIgnore]
         public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }
 
+        [JsonIgnore]
         public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
 
+        [JsonIgnore]
         public double WidthMeters { get { return Width * MetersPerPixel.X; } }
+
+        [JsonIgnore]
         public double HeightMeters { get { return Height * MetersPerPixel.Y; } }
+
+        private Vector3 normal;
+
+        private double ff, rr, dd;
 
         /// <summary>
         /// Create an orthograpic camera model.
@@ -55,6 +64,7 @@ namespace OPS.Imaging
         /// <param name="height">number of image rows</param>
         /// <param name="metersPerPixel">scale of image</param>
         /// <returns></returns>
+        [JsonConstructor]
         public OrthographicCameraModel(Vector3 center, Vector3 forward, Vector3 right, Vector3 down,
                                        int width, int height)
         {

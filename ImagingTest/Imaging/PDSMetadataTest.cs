@@ -129,9 +129,9 @@ namespace ImagingTest.Serializers
                 Assert.IsTrue(Vector3.AlmostEqual(mc_5, cm.O));
                 Assert.IsTrue(Vector3.AlmostEqual(mc_6, cm.R));
                 Assert.IsTrue(Vector3.AlmostEqual(mc_7, cm.E));
-                Assert.AreNotEqual(LinearityMode.Perspective, cm.linearityMode);
-                Assert.AreNotEqual(LinearityMode.Fisheye, cm.linearityMode);
-                Assert.AreEqual(0.37, cm.linearityMode.Linearity);
+                Assert.AreNotEqual(CAHVORE.PERSPECTIVE_LINEARITY, cm.Linearity);
+                Assert.AreNotEqual(CAHVORE.FISHEYE_LINEARITY, cm.Linearity);
+                Assert.AreEqual(0.37, cm.Linearity);
             }
         }
 

@@ -54,6 +54,9 @@
       <HintPath>..\packages\log4net.2.0.8\lib\net45-full\log4net.dll</HintPath>
       <Private>True</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="ogr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\ogr_csharp.dll</HintPath>
       <Private>True</Private>
@@ -86,6 +89,7 @@
     <Compile Include="CameraModels\OrthographicCameraModel.cs" />
     <Compile Include="Imaging\FITSMetadata.cs" />
     <Compile Include="Imaging\GenericImage.cs" />
+    <Compile Include="Imaging\GISElevationMap.cs" />
     <Compile Include="Imaging\IImageLoader.cs" />
     <Compile Include="Imaging\Image.cs" />
     <Compile Include="Imaging\ImageCoordinate.cs" />
@@ -99,7 +103,7 @@
     <Compile Include="Operations\Colorize.cs" />
     <Compile Include="Operations\Colorspace.cs" />
     <Compile Include="Operations\Inpainter.cs" />
-    <Compile Include="Imaging\PDSCameraModelParser.cs" />
+    <Compile Include="CameraModels\PDSCameraModelParser.cs" />
     <Compile Include="Imaging\PDSMetadata.cs" />
     <Compile Include="Imaging\RawMetadata.cs" />
     <Compile Include="Imaging\SparseImage.cs" />

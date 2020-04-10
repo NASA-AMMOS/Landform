@@ -42,25 +42,25 @@ namespace OPS.Imaging
             else if (cameraModelType == "CAHVORE")
             {
                 bool validMode = false;
-                LinearityMode mode = LinearityMode.Perspective;
+                double linearity = CAHVORE.PERSPECTIVE_LINEARITY;
                 if (CAHVORE_MType == CAHVORE_CMOD_TYPE_PERSPECTIVE)
                 {
-                    mode = LinearityMode.Perspective;
+                    linearity = CAHVORE.PERSPECTIVE_LINEARITY;
                     validMode = true;
                 }
                 else if (CAHVORE_MType == CAHVORE_CMOD_TYPE_FISHEYE)
                 {
-                    mode = LinearityMode.Fisheye;
+                    linearity = CAHVORE.FISHEYE_LINEARITY;
                     validMode = true;
                 }
                 else if (CAHVORE_MType == CAHVORE_CMOD_TYPE_GENERAL)
                 {
-                    mode = new LinearityMode(CAHVORE_MParm);
+                    linearity = CAHVORE_MParm;
                     validMode = true;
                 }
                 if (validMode)
                 {
-                    return new CAHVORE(CAHV_C, CAHV_A, CAHV_H, CAHV_V, CAHV_O, CAHV_R, CAHV_E, mode);
+                    return new CAHVORE(CAHV_C, CAHV_A, CAHV_H, CAHV_V, CAHV_O, CAHV_R, CAHV_E, linearity);
                 }
             }
 

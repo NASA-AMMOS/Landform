@@ -133,7 +133,7 @@ namespace OPS.Pipeline
         public double[] O;
         public double[] R;
         public double[] E;
-        public double linearityMode;
+        public double Linearity;
         
         public CameraModelManifest() { } //for deserialization
         
@@ -159,7 +159,7 @@ namespace OPS.Pipeline
             {
                 var cahvore = cmod as CAHVORE;
                 E = cahvore.E.ToDoubleArray();
-                linearityMode = cahvore.linearityMode.Linearity;
+                Linearity = cahvore.Linearity;
             }
         }
     }
