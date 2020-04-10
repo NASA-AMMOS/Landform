@@ -80,8 +80,7 @@ namespace OPS.Alignment
 
             //current implementation assumes error can be computed as Z values
             //and also directly optimizes Z translation
-            Func<DEM, bool> zAligned = d => d.CameraModel.Forward.X == 0 && d.CameraModel.Forward.Y == 0;
-            if (!zAligned(dem) || scenes.Any(scene => !zAligned(scene)))
+            if (!dem.IsZAligned() || scenes.Any(scene => !scene.IsZAligned()))
             {
                 throw new ArgumentException("all inputs must have elevations aligned to Z axis");
             }

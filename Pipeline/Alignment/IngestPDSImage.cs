@@ -304,7 +304,7 @@ namespace OPS.Pipeline
         {
             var siteDrive = new SiteDrive(parser.SiteDrive);
 
-            var loc = Locations.Location(siteDrive);
+            var loc = Locations.GetLocation(siteDrive);
             if (loc == null)
             {
                 pipeline.LogWarn("no MSL location for site drive {0}", siteDrive);
@@ -339,7 +339,7 @@ namespace OPS.Pipeline
             Vector3 loc = Vector3.Zero;
             try
             {
-                loc = Places.GetEstimatedOffsetToStart(siteDrive);
+                loc = Places.GetOffsetToStart(siteDrive);
             }
             catch (Exception ex)
             {
@@ -350,7 +350,7 @@ namespace OPS.Pipeline
                 warn(string.Format("site drive {0}, trying site {1}", siteDrive, siteDrive.Site), ex);
                 try
                 {
-                    loc = Places.GetEstimatedOffsetToStart(new SiteDrive(siteDrive.Site, 0));
+                    loc = Places.GetOffsetToStart(new SiteDrive(siteDrive.Site, 0));
                     loc += parser.OriginOffset; //local_level origin in site frame
                     source = TransformSource.PlacesDBSitePDSLocal;
                 }

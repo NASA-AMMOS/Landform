@@ -113,7 +113,7 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="sd"></param>
         /// <returns></returns>
-        public MSLLocation Location(SiteDrive sd)
+        public MSLLocation GetLocation(SiteDrive sd)
         {
             MSLLocation loc = null;
             if(this.locations.TryGetValue(sd, out loc))
@@ -123,27 +123,27 @@ namespace OPS.Pipeline
             return null;
         }
 
-        private OrbitalDEM basemapDEM = null;
+        private GISElevationMap basemapDEM = null;
         private double? basemapDEMZ0 = null;
 
         public bool HasBasemapDEM { get { return basemapDEM != null; } }
 
         public void LoadBasemapDEM(string file)
         {
-            basemapDEM = new OrbitalDEM(file, "Mars");
+            basemapDEM = new GISElevationMap(file, "Mars");
         }
 
-        public double GetZFromBasemap(double lat, double lon)
-        {
-            return basemapDEM.InterpolateElevationAtLatLon(lat, lon);
-        }
+        //public double GetZFromBasemap(double lat, double lon)
+       // {
+       //     return basemapDEM.InterpolateElevationAtLonLat(lat, lon);
+       // }
 
         /// <summary>
         /// locations.xml Z values are in site frame
         /// if you instead want Z to be relative to the landing site, like the Places database
         /// this API will do that by estimating the difference in elevations using the orbital DEM
         /// </summary>
-        public MSLLocation SetZFromBasemap(MSLLocation loc, int interpolationRadius = 2)
+        public MSLLocation SetZFromBasemap(MSLLocation loc, int radius = 2)
         {
             if (basemapDEM == null)
             {
@@ -151,10 +151,10 @@ namespace OPS.Pipeline
             }
             if (!basemapDEMZ0.HasValue)
             {
-                var loc0 = Location(new SiteDrive(1, 0));
-                basemapDEMZ0 = basemapDEM.InterpolateElevationAtLatLon(loc0.LatLon.X, loc0.LatLon.Y, 2);
+                var loc0 = GetLocation(new SiteDrive(1, 0));
+                basemapDEMZ0 = basemapDEM.InterpolateElevationAtLonLat(new Vector2(loc0.LatLon.Y, loc0.LatLon.X), 2);
             }
-            var z = basemapDEM.InterpolateElevationAtLatLon(loc.LatLon.X, loc.LatLon.Y, interpolationRadius);
+            var z = basemapDEM.InterpolateElevationAtLonLat(new Vector2(loc.LatLon.Y, loc.LatLon.X), radius);
             loc.Position.Z = -(z - basemapDEMZ0.Value); 
             return loc;
         }

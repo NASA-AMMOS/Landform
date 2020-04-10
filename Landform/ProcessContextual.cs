@@ -926,7 +926,7 @@ namespace OPS.Landform
                             {
                                 try
                                 {
-                                    double dist = placesDB.GetEstimatedOffset(primarySD, list.SiteDrive).Length();
+                                    double dist = placesDB.GetOffset(primarySD, list.SiteDrive).Length();
                                     if (dist <= maxDistance)
                                     {
                                         keepers[list.SiteDrive] = filtered;

@@ -10,17 +10,16 @@ using OPS.Util;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Wraps any scalar Image as a Digital Elevation Map with an OrthographicCameraModel.
-    /// The underlying image can be a SparseImage.
-    /// Helper classes SparseDEMImage and SparseDEM are included with default SparseImage chunk cache settings.
+    /// Wraps any scalar Image as a Digital Elevation Map.
+    /// The underlying image can be a SparseImage, see in particular SparseGISElevationMap.
     /// Provides API surfaces for interpolating points, estimating normals, and creating meshes.
-    /// Also see OPS.Imaging.OrbitalDEM which is limited to working with GDAL geographic images.
+    /// Also see OPS.Imaging.GISDEM which is limited to working with GDAL geographic images.
     /// </summary>
     public class DEM
     {
         //mission surface frames are typically +X north, +Y east, +Z down
-        //orbital DEM images typically have latitude increasing with row and longitude increasing with col
-        public static Vector3 DEF_UP_DIR { get; } = new Vector3(0, 0, -1);
+        //orbital DEM images typically have latitude decreasing with row and longitude increasing with col
+        public static Vector3 DEF_ELEVATION_DIR { get; } = new Vector3(0, 0, -1);
         public static Vector3 DEF_RIGHT_DIR { get; } = new Vector3(0, 1, 0);
         public static Vector3 DEF_DOWN_DIR { get; } = new Vector3(-1, 0, 0);
 
@@ -38,31 +37,21 @@ namespace OPS.Geometry
         public int Height { get { return dem.Height; } }
         public int Area { get { return dem.Area; } }
 
+        public CameraModel CameraModel { get { return dem.CameraModel; } }
+
         public bool IsValid(int r, int c)
         {
             return dem.IsValid(r, c);
         }
 
-        public OrthographicCameraModel CameraModel { get; private set; }
-
         public Vector2 OriginPixel { get { return CameraModel.Project(Vector3.Zero); } }
 
-        public Vector2 MetersPerPixel { get { return CameraModel.MetersPerPixel; } }
+        public Vector2 MetersPerPixel { get; private set; }
+        public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }
 
-        //ratio of pixel with to height
         public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
 
-        public double AvgMetersPerPixel
-        {
-            get
-            {
-                var mpp = MetersPerPixel;
-                return (mpp.X + mpp.Y) * 0.5;
-            }
-        }
-
         public double WidthMeters { get { return Width * MetersPerPixel.X; } }
-
         public double HeightMeters { get { return Height * MetersPerPixel.Y; } }
 
         public double ElevationScale = 1; //applied by GetElevation() and all related
@@ -71,77 +60,40 @@ namespace OPS.Geometry
 
         private Image dem; //may have mask
 
-        /// <summary>
-        /// Sparse DEM texture image backed by an image file.
-        /// Applies the standard read/write converters that normalize the band values to [0, 1].
-        /// File format must support partial reads, currently only GDALSerializer does.
-        /// The chunks are loaded lazily from disk.  Call Populate() to load them all.
-        /// </summary>
-        public class SparseDEMImage : SparseImage
-        {
-            public const int CHUNK_SIZE = 512;
-            public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
-            public SparseDEMImage(string path) : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE) { }
-        }
+        public DEM(Image dem, double metersPerPixel = 1) : this(dem, Vector2.One * metersPerPixel) { }
 
-        /// <summary>
-        /// Sparse DEM elevation map backed by an image file.
-        /// Disables the standard read/write converters that normalize the band values to [0, 1].
-        /// </summary>
-        public class SparseDEM : SparseDEMImage
-        {
-            public SparseDEM(string path) : base(path) { }
-
-            protected override IImageConverter GetReadConverter()
-            {
-                return ImageConverters.PassThrough;
-            }
-            
-            protected override IImageConverter GetWriteConverter()
-            {
-                return ImageConverters.PassThrough;
-            }
-        }
-
-        public DEM(Image dem, OrthographicCameraModel cameraModel)
+        public DEM(Image dem, Vector2 metersPerPixel)
         {
             this.dem = dem;
-            this.CameraModel = cameraModel;
+            this.MetersPerPixel = metersPerPixel;
         }
 
-        public DEM(Image dem, double metersPerPixel = 1, double pixelAspect = 1, double elevationScale = 1,
-                   Vector2? originPixel = null, double? originElevation = null,
-                   double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
-            : this(dem, DEF_UP_DIR, DEF_RIGHT_DIR, DEF_DOWN_DIR,
-                   metersPerPixel, pixelAspect, elevationScale, originPixel, originElevation, minFilter, maxFilter)
-        { }
-
         /// <summary>
-        /// enclosing coordinate frame origin corresponds to originPixel, originElevation in dem
+        /// Make a DEM with an OrthographicCameraModel.
         ///
-        /// if originElevation is omitted it is looked up with GetInterpolatedElevation(originPixel)
-        /// (an exception is thrown in that case if originPixel is out of bounds or has no valid neighbors in dem)
+        /// Camera location corresponds to originPixel, originElevation in dem.  This makes reported elevations relative
+        /// to the elevation at that location.
         ///
-        /// if originPixel is omitted it defaults to the center of dem
+        /// If originElevation is omitted it is looked up with GetInterpolatedElevation(originPixel)
+        /// (an exception is thrown in that case if originPixel is out of bounds or has no valid neighbors in dem).
         ///
-        /// the orientation of the orthographic camera in the enclosing frame is defined by elevationDir,
-        /// rightDir, downDir which should be unit vectors
-        /// 
-        /// the location of the orthographic camera in the enclosing frame corresponds to the center pixel of the dem
-        /// at zero elevation
+        /// If originPixel is omitted it defaults to the center of dem.
+        ///
+        /// The orientation of the orthographic camera is defined by elevationDir, rightDir, downDir which should be
+        /// unit vectors. See MissionSpecific.GetOrthonormalGISBasisInLocalLevelFrame().
         /// </summary>
-        public DEM(Image dem, Vector3 elevationDir, Vector3 rightDir, Vector3 downDir,
-                   double metersPerPixel = 1, double pixelAspect = 1, double elevationScale = 1,
-                   Vector2? originPixel = null, double? originElevation = null,
-                   double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
+        public static DEM OrthoDEM(Image dem, Vector3 elevationDir, Vector3 rightDir, Vector3 downDir,
+                                   double metersPerPixel = 1, double pixelAspect = 1, double elevationScale = 1,
+                                   Vector2? originPixel = null, double? originElevation = null,
+                                   double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
         {
-            this.dem = dem;
+            var ret = new DEM(dem);
 
-            this.MinFilter = minFilter;
-            this.MaxFilter = maxFilter;
-            this.ElevationScale = elevationScale;
+            ret.MinFilter = minFilter;
+            ret.MaxFilter = maxFilter;
+            ret.ElevationScale = elevationScale;
 
-            Vector2 centerPixel = new Vector2(Width, Height) * 0.5;
+            Vector2 centerPixel = new Vector2(ret.Width, ret.Height) * 0.5;
             
             if (!originPixel.HasValue)
             {
@@ -152,7 +104,7 @@ namespace OPS.Geometry
             {
                 //GetInterpolatedElevation() doesn't need camera model
                 //and we already initialized MinFilter/MaxFilter and ElevationScale
-                originElevation = GetInterpolatedElevation(originPixel.Value);
+                originElevation = ret.GetInterpolatedElevation(originPixel.Value);
             }
 
             if (!originElevation.HasValue)
@@ -168,12 +120,41 @@ namespace OPS.Geometry
 
             Vector3 camCtr = originToCenter.X * right + originToCenter.Y * down - originElevation.Value * elevationDir;
             
-            this.CameraModel = new OrthographicCameraModel(camCtr, elevationDir, right, down, Width, Height);
+            dem.CameraModel = new OrthographicCameraModel(camCtr, elevationDir, right, down, ret.Width, ret.Height);
+
+            ret.MetersPerPixel = new Vector2(pixelAspect, 1) * metersPerPixel;
+
+            return ret;
         }
 
-        public DEM Decimated(int blocksize)
+        public static DEM OrthoDEM(Image dem,
+                                   double metersPerPixel = 1, double pixelAspect = 1, double elevationScale = 1,
+                                   Vector2? originPixel = null, double? originElevation = null,
+                                   double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
         {
-            return new DEM(dem.Decimated(blocksize), CameraModel.Decimated(blocksize));
+            return OrthoDEM(dem, DEF_ELEVATION_DIR, DEF_RIGHT_DIR, DEF_DOWN_DIR,
+                            metersPerPixel, pixelAspect, elevationScale, originPixel, originElevation,
+                            minFilter, maxFilter);
+        }
+
+       public DEM Decimated(int blocksize)
+        {
+            var cmod = (CameraModel)(CameraModel.Clone());
+            if (cmod is OrthographicCameraModel)
+            {
+                cmod = (cmod as OrthographicCameraModel).Decimated(blocksize);
+            }
+            else if (cmod is GISCameraModel)
+            {
+                cmod = (cmod as GISCameraModel).Decimated(blocksize);
+            }
+            else
+            {
+                throw new NotImplementedException("decimation not imlemented for " + cmod.GetType().Name);
+            }
+            var decimated = dem.Decimated(blocksize);
+            decimated.CameraModel = cmod;
+            return new DEM(decimated);
         }
 
         public DEM DecimateTo(int maxSize)
@@ -184,6 +165,12 @@ namespace OPS.Geometry
                 return this;
             }
             return Decimated((int)Math.Ceiling(sz / maxSize));
+        }
+
+        public bool IsZAligned()
+        {
+            var ipn = CameraModel.ImagePlaneNormal;
+            return ipn.X == 0 && ipn.Y == 0;
         }
 
         /// <summary>
@@ -390,7 +377,7 @@ namespace OPS.Geometry
                 centerPoint = Vector3.Zero;
             }
             Vector2 center = CameraModel.Project(centerPoint.Value);
-            Vector2 mpp = CameraModel.MetersPerPixel;
+            Vector2 mpp = MetersPerPixel;
             return dem.GetSubrect(center, new Vector2(radiusMeters / mpp.X, radiusMeters / mpp.Y));
         }
 

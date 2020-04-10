@@ -12,20 +12,13 @@ namespace OPS.Imaging
         protected CameraModel() { }
 
         /// <summary>
-        /// Fast reference based method projecting a ray.  Camera model classes
-        /// implement this method
+        /// Fast reference based method projecting a ray.
         /// </summary>
-        /// <param name="pixelPos"></param>
-        /// <param name="ray"></param>
-        /// <returns></returns>
         public abstract void Unproject(ref Vector2 pixelPos, out Ray ray);
 
         /// <summary>
-        /// Convience method returns a ray coming out of a camera at a particular
-        /// pixel position
+        /// Convience method returns a ray coming out of a camera at a particular pixel position
         /// </summary>
-        /// <param name="pixelPos"></param>
-        /// <returns></returns>
         public Ray Unproject(Vector2 pixelPos)
         {
             Ray r = new Ray();
@@ -34,10 +27,8 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Return a 3D position unprojected from the given pixel
+        /// Return a 3D position unprojected from the given pixel.
         /// </summary>
-        /// <param name="pixelPos"></param>
-        /// <returns></returns>
         public virtual Vector3 Unproject(Vector2 pixelPos, double range)
         {
             Ray r = Unproject(pixelPos);
@@ -45,12 +36,13 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Project a 3D position to a pixel location in an image
+        /// Project a 3D position to a pixel location in an image.
         /// </summary>
-        /// <param name="pos"></param>
-        /// <returns></returns>
         public abstract Vector2 Project(Vector3 pos, out double range);
 
+        /// <summary>
+        /// Project a 3D position to a pixel location in an image.
+        /// </summary>
         public Vector2 Project(Vector3 pos)
         {
             return Project(pos, out double range);

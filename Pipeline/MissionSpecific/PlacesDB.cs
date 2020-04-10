@@ -145,7 +145,7 @@ namespace OPS.Pipeline
             try
             {
                 view = config.View;
-                GetEstimatedOffsetToStart(new SiteDrive(1, 0)); //test query
+                GetOffsetToStart(new SiteDrive(1, 0)); //test query
             }
             catch
             {
@@ -158,7 +158,7 @@ namespace OPS.Pipeline
                 logger.LogWarn("trying fallback view {0}", view);
                 try
                 {
-                    GetEstimatedOffsetToStart(new SiteDrive(1, 0));
+                    GetOffsetToStart(new SiteDrive(1, 0));
                 }
                 catch
                 {
@@ -359,10 +359,9 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Finds the estimated mars lat and lon for a given site drive
-        /// returned X = longitude degrees, Y = latitude degrees
+        /// returns X = longitude degrees, Y = latitude degrees
         /// </summary>
-        public Vector2 GetEstimatedLatLon(SiteDrive sd, int orbitalIndex = 0, string orbitalFileName=null)
+        public Vector2 GetLonLat(SiteDrive sd, int orbitalIndex = 0)
         {
             if (!ellipsoidRadius.HasValue)
             {
@@ -371,19 +370,34 @@ namespace OPS.Pipeline
             string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital({3})",
                                          view, sd.Site, sd.Drive, orbitalIndex);
             Vector3 v = GetOffset(query);
-            // x is northing (distance along surface on prime meridian above equator)
-            // y is easting (distance along surfae on equator east of prime meridian)
-            // circumference is 2 * PI * radius
-            // so divide by radius to get radians
-            double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
-            double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
+            double easting = v.Y; // distance along surface on equator east of prime meridian
+            double northing = v.X; // distance along surface on prime meridian north of equator
+            // circumference is 2 * PI * radius, so divide by radius to get radians
+            double rad2deg = 180 / Math.PI;
+            double lat = (northing / ellipsoidRadius.Value) * rad2deg;
+            double lon = (easting / ellipsoidRadius.Value) * rad2deg;
             return new Vector2(lon, lat);
         }
 
         /// <summary>
-        /// Returns the Local_level frame offset between the "from" sitedrive to the "to" site
+        /// returns X = easting meters, Y = northing meters
+        /// Easting is distance along equator east from prime meridian.
+        /// Northing is distance north of equator along a meridian.
         /// </summary>
-        public Vector3 GetEstimatedOffsetToSite(SiteDrive fromSD, int toSite)
+        public Vector2 GetEastingNorthing(SiteDrive sd, int orbitalIndex = 0)
+        {
+            string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital({3})",
+                                         view, sd.Site, sd.Drive, orbitalIndex);
+            Vector3 v = GetOffset(query);
+            double easting = v.Y; // distance along surface on equator east of prime meridian
+            double northing = v.X; // distance along surface on prime meridian north of equator
+            return new Vector2(easting, northing);
+        }
+
+        /// <summary>
+        /// Returns the LOCAL_LEVEL frame offset between the "from" sitedrive to the "to" site
+        /// </summary>
+        public Vector3 GetOffsetToSite(SiteDrive fromSD, int toSite)
         {
             string query = null;
             if (fromSD.Drive > 0)
@@ -403,15 +417,15 @@ namespace OPS.Pipeline
         /// </summary>
         /// <param name="sd"></param>
         /// <returns></returns>
-        public Vector3 GetEstimatedOffsetToStart(SiteDrive sd)
+        public Vector3 GetOffsetToStart(SiteDrive sd)
         {
-            return cachedOffsetFromStart.GetOrAdd(sd, _ => GetEstimatedOffsetToSite(sd, 1));
+            return cachedOffsetFromStart.GetOrAdd(sd, _ => GetOffsetToSite(sd, 1));
         }
 
         /// <summary>
         /// Returns the Local_level frame offset between the "from" sitedrive to the "to" sitedrive
         /// </summary>
-        public Vector3 GetEstimatedOffset(SiteDrive fromSD, SiteDrive toSD)
+        public Vector3 GetOffset(SiteDrive fromSD, SiteDrive toSD)
         {
             string query = null;
             if (fromSD.Drive > 0 && toSD.Drive > 0)

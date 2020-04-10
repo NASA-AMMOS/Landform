@@ -122,16 +122,14 @@ namespace OPS.Pipeline
         //<DST, SRC>
         // SRC: col, row
         static public IDictionary<Pixel,ObsPixel>
-            BackprojectOrbital(SparseImage orbitalTexture, Matrix outputMeshFrameToBodyXYZ, OrbitalImage bodyToImage,
+            BackprojectOrbital(SparseImage orbitalTexture, GISCameraModel orbitalCamera,
                                List<PixelPoint> pixelsToBackproject, OrbitalObservation orbitalObs,
                                IDictionary<Pixel, ObsPixel> results = null)
         {
             results = results ?? new Dictionary<Pixel, ObsPixel>();
             foreach(var destPixelPt in pixelsToBackproject)
             {
-                var ptOutputMeshFrame = destPixelPt.Point;
-                var ptBodyXYZ = Vector3.Transform(ptOutputMeshFrame, outputMeshFrameToBodyXYZ);
-                var pixel = bodyToImage.XYZToImage(ptBodyXYZ); //returns col, row
+                var pixel = orbitalCamera.Project(destPixelPt.Point);
                 results[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs,new Vector2(pixel.X, pixel.Y));
             }
             return results;

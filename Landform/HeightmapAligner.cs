@@ -290,10 +290,10 @@ namespace OPS.Landform
             foreach (var siteDrive in dems.Keys)
             {
                 var img = dems[siteDrive];
-                sdDEMs[siteDrive] = new DEM(dems[siteDrive], upDir, rightDir, downDir,
-                                            BEVMetersPerPixel, pixelAspect, elevationScale,
-                                            sdOriginPixel[siteDrive], originElevation,
-                                            options.DEMMinFilter, options.DEMMaxFilter);
+                sdDEMs[siteDrive] = DEM.OrthoDEM(dems[siteDrive], upDir, rightDir, downDir,
+                                                 BEVMetersPerPixel, pixelAspect, elevationScale,
+                                                 sdOriginPixel[siteDrive], originElevation,
+                                                 options.DEMMinFilter, options.DEMMaxFilter);
             }
             foreach (var sd in siteDrives)
             {

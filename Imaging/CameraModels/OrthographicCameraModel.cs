@@ -24,27 +24,19 @@ namespace OPS.Imaging
 
         private double ff, rr, dd;
 
-        public override bool Linear
-        {
-            get { return true; }
-        }
+        public override bool Linear { get { return true; } }
 
         private Vector3 normal;
-        public override Vector3 ImagePlaneNormal
-        {
-            get
-            {
-                return normal;
-            }
-        }
+        public override Vector3 ImagePlaneNormal { get { return normal; } }
 
-        public Vector2 MetersPerPixel
-        {
-            get
-            {
-                return new Vector2(Right.Length(), Down.Length());
-            }
-        }
+        public Vector2 MetersPerPixel { get { return new Vector2(Right.Length(), Down.Length()); } }
+
+        public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }
+
+        public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
+
+        public double WidthMeters { get { return Width * MetersPerPixel.X; } }
+        public double HeightMeters { get { return Height * MetersPerPixel.Y; } }
 
         /// <summary>
         /// Create an orthograpic camera model.
@@ -117,7 +109,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Goes with Image.Decimated() and DEM.Decimated()
+        /// Goes with Image.Decimated() and DEM.Decimated().
         /// </summary>
         public OrthographicCameraModel Decimated(int blocksize)
         {

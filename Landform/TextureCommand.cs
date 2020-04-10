@@ -92,7 +92,7 @@ namespace OPS.Landform
 
         protected SceneMesh sceneMesh;
         protected SparseImage orbitalTexture;
-        protected OrbitalImage orbitalImageTransform;
+        protected GISCameraModel orbitalCamera;
         protected Matrix meshToOrbitalBody;
         protected double orbitalMetersPerPixel;
 
@@ -179,7 +179,7 @@ namespace OPS.Landform
             try
             {
                 orbitalTexture = mission.LoadOrbitalImage(new SiteDrive(meshFrame), ref imgFile,
-                                                          out orbitalImageTransform, out orbitalToBody,
+                                                          out orbitalCamera, out orbitalToBody,
                                                           out orbitalMetersPerPixel, logger: pipeline);
             }
             catch (Exception ex)
@@ -205,11 +205,11 @@ namespace OPS.Landform
             var parent = frameCache.GetFrame(meshFrame);
             string frameName = "OrbitalImage";
             Frame orbFrame = Frame.Create(pipeline, project.Name, frameName, parent, save:false);
-            //ISSUE #1036 properly store image frame transform
-            GISCameraModel orbCam = new GISCameraModel(orbitalImageTransform, meshToOrbitalBody);
+
+            orbitalCamera.ParentToCamera = meshToOrbitalBody;
 
             indexedImages[Observation.ORBITAL_INDEX] =
-                OrbitalObservation.Create(orbFrame, frameName, imgFile, orbCam, false, false, true);
+                OrbitalObservation.Create(orbFrame, frameName, imgFile, orbitalCamera, false, false, true);
 
             pipeline.LogInfo("loaded {0}x{1} orbital image {2}", orbitalTexture.Width, orbitalTexture.Height, imgFile);
         }
@@ -624,7 +624,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("backprojecting {0} pixels to orbital", Fmt.KMG(missingPixels.Count));
                 var orbitalObs = (OrbitalObservation)indexedImages[Observation.ORBITAL_INDEX];
                 int countWas = backprojectResults.Count;
-                Backproject.BackprojectOrbital(orbitalTexture, meshToOrbitalBody, orbitalImageTransform,
+                Backproject.BackprojectOrbital(orbitalTexture, orbitalCamera,
                                                missingPixels, orbitalObs, backprojectResults);
                 int numSuccessful = backprojectResults.Count - countWas;
                 pipeline.LogInfo("backprojected {0} pixels to orbital ({1} failed)",
