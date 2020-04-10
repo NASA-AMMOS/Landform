@@ -244,6 +244,7 @@ namespace OPS.Pipeline
 
             var observations =
                 observationCache.GetAllObservationsForFrame(frame)
+                .Where(obs => obs is RoverObservation)
                 .Cast<RoverObservation>()
                 .Where(obs =>
                        (opts.IncludeForAlignment && obs.UseForAlignment) ||

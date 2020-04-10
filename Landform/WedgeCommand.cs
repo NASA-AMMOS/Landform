@@ -26,13 +26,13 @@ namespace OPS.Landform
         [Option(HelpText = "Mesh decimation method (EdgeCollapse, ResampleFSSR, ResamplePoisson, MeshLab, MeshLabResample)", Default = MeshDecimationMethod.EdgeCollapse)]
         public virtual MeshDecimationMethod MeshDecimator { get; set; }
 
-        [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
+        [Option(HelpText = "Only use specific surface observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
         public virtual string OnlyForObservations { get; set; }
 
-        [Option(HelpText = "Only use specific frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
+        [Option(HelpText = "Only use specific surface frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
         public virtual string OnlyForFrames { get; set; }
 
-        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
+        [Option(HelpText = "Only use specific surface cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
         public virtual string OnlyForCameras { get; set; }
 
         [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
@@ -54,7 +54,7 @@ namespace OPS.Landform
         public virtual bool NoOrbital { get; set; }
 
         [Option(HelpText = "Disable suface observations, only orbital", Default = false)]
-        public virtual bool NoSurfaceObs { get; set; }
+        public virtual bool NoSurface { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
         public string OrbitalDEM { get; set; }
@@ -89,6 +89,11 @@ namespace OPS.Landform
 
         protected virtual bool ParseArgumentsAndLoadCaches(string outDir)
         {
+            if (wcopts.NoOrbital && wcopts.NoSurface)
+            {
+                throw new Exception("cannot combine --noorbital with --nosurface");
+            }
+
             if (wcopts.UsePriors && wcopts.OnlyAligned)
             {
                 throw new Exception("cannot specify both --usepriors and --onlyaligned");
@@ -161,14 +166,33 @@ namespace OPS.Landform
             observationCache = new ObservationCache(pipeline, project.Name);
 
             int num = observationCache.
-                Preload(obs => obs is RoverObservation && ObservationFilter((RoverObservation)obs) &&
-                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
-                        (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
-                        (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
-                        (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera))));
-    
-            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
-                             num, DescribeObservationFilter(), project.Name,
+                Preload(obs =>
+                        (!wcopts.NoOrbital && obs.IsOrbital) ||
+                        (!wcopts.NoSurface && (obs is RoverObservation) && ObservationFilter((RoverObservation)obs) &&
+                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
+                         (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
+                         (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
+                         (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera)))));
+
+            //TODO
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1037 
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/976
+            //if (num == 0)
+            //{
+            //    throw new Exception("no surface or orbital data available");
+            //}
+
+            int numOrbital = wcopts.NoOrbital ? 0 : observationCache.GetAllObservations().Count(obs => obs.IsOrbital);
+            int numSurface = num - numOrbital;
+
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1037 
+            //wcopts.NoOrbital |= numOrbital == 0;
+            wcopts.NoSurface |= numSurface == 0;
+
+            pipeline.LogInfo("loaded {0}{1} surface observations{2} in project {3}{4}{5}",
+                             numSurface, DescribeObservationFilter(),
+                             numOrbital > 0 ? $" and {numOrbital} orbital observations" : "",
+                             project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
         }

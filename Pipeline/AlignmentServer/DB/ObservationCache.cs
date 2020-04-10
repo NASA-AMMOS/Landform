@@ -38,12 +38,18 @@ namespace OPS.Pipeline.AlignmentServer
 
         public int Preload(Func<Observation, bool> filter = null)
         {
-            RoverObservation.Find(pipeline, projectName).ToList().ForEach(obs => {
-                    if (filter == null || filter(obs))
-                    {
-                        Add(obs);
-                    }
-                });
+            void maybeAddObs(Observation obs)
+            {
+                if (filter == null || filter(obs))
+                {
+                    Add(obs);
+                }
+            }
+
+            RoverObservation.Find(pipeline, projectName).ToList().ForEach(maybeAddObs); //surface observations
+
+            Observation.Find(pipeline, projectName).ToList().ForEach(maybeAddObs); //other observations incl orbital
+
             foreach (var obs in observations.Values)
             {
                 if (!forFrame.ContainsKey(obs.FrameName))
@@ -64,7 +70,8 @@ namespace OPS.Pipeline.AlignmentServer
             if (!forFrame.ContainsKey(frame.Name))
             {
                 forFrame[frame.Name] = new List<Observation>(); //handles case there are none
-                RoverObservation.Find(pipeline, frame).ToList().ForEach(obs => Add(obs));
+                RoverObservation.Find(pipeline, frame).ToList().ForEach(Add); //surface observations
+                Observation.Find(pipeline, frame).ToList().ForEach(Add); //other observations incl orbital
             }
             return forFrame[frame.Name];
         }

@@ -121,16 +121,16 @@ namespace OPS.Pipeline
 
         //<DST, SRC>
         // SRC: col, row
-        static public IDictionary<Pixel,ObsPixel>
-            BackprojectOrbital(SparseImage orbitalTexture, GISCameraModel orbitalCamera,
-                               List<PixelPoint> pixelsToBackproject, OrbitalObservation orbitalObs,
-                               IDictionary<Pixel, ObsPixel> results = null)
+        static public IDictionary<Pixel,ObsPixel> BackprojectOrbital(Observation orbitalObs,
+                                                                     List<PixelPoint> pixelsToBackproject,
+                                                                     IDictionary<Pixel, ObsPixel> results = null)
         {
+            var orbitalCamera = orbitalObs.CameraModel;
             results = results ?? new Dictionary<Pixel, ObsPixel>();
             foreach(var destPixelPt in pixelsToBackproject)
             {
                 var pixel = orbitalCamera.Project(destPixelPt.Point);
-                results[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs,new Vector2(pixel.X, pixel.Y));
+                results[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs, new Vector2(pixel.X, pixel.Y));
             }
             return results;
         }
@@ -175,7 +175,7 @@ namespace OPS.Pipeline
             {
                 var sourceObs = group.First().Value.Obs;
                 var sourceImageIndex = sourceObs.Index;
-                if (sourceImageIndex < Observation.MIN_INDEX)
+                if (sourceImageIndex < Observation.MIN_INDEX || sourceObs.IsOrbitalDEM)
                 {
                     throw new InvalidDataException("invalid image index in backproject results");
                 }
@@ -204,7 +204,7 @@ namespace OPS.Pipeline
                 }
 
                 Image sourceImage = null;
-                if (sourceObs.Index == Observation.ORBITAL_INDEX)
+                if (sourceObs.IsOrbitalImage)
                 {
                     sourceImage = orbitalTexture;
                 }
@@ -265,7 +265,7 @@ namespace OPS.Pipeline
                         //mark mask as valid
                         outputImage.SetMaskValue((int)outputPixel.Row, (int)outputPixel.Col, false);
 
-                        if (sourceObs.Index == Observation.ORBITAL_INDEX)
+                        if (sourceObs.IsOrbitalImage)
                         {
                             stats.BackprojectedOrbitalPixels++;
                         }
@@ -318,8 +318,8 @@ namespace OPS.Pipeline
             public Project project;
             public MissionSpecific mission;
             public FrameCache frameCache;
-            public ObservationCache observationCache; //for collecting rover mask observations (if any)
-            public IEnumerable<Observation> observations; //set of observations to backproject
+            public ObservationCache observationCache; //for rover mask observations
+            public IEnumerable<RoverObservation> observations; //set of observations to backproject
             public Mesh mesh; //mesh from which to collect sample points to backproject
             public string meshFrame;
             public int resolution; //output texture resolution
@@ -350,8 +350,7 @@ namespace OPS.Pipeline
             var error = opts.error ?? (msg => { });
 
             var imageObservations = opts.observations
-                .Where(obs => obs is RoverObservation)
-                .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
+                .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
             info("building input mesh data structures");
@@ -390,7 +389,7 @@ namespace OPS.Pipeline
 
             //find the reduced set of observations that intersect the desired mesh
             info(string.Format("testing {0} image observations for intersection", imageObservations.Count()));
-            var intersectingObservations = new List<Observation>();
+            var intersectingObservations = new List<RoverObservation>();
             CoreLimitedParallel.ForEach(imageObservations, obs =>
             {
                 if (obsToHull.ContainsKey(obs.Name) && meshHull.Intersects(obsToHull[obs.Name]))
@@ -568,10 +567,11 @@ namespace OPS.Pipeline
             return results;
         }
 
-        public static List<Context> BuildContexts(IDictionary<string, ConvexHull> obsToHull, List<Observation> observations,
-                                                MissionSpecific mission, FrameCache frameCache, ObservationCache observationCache,
-                                                string meshFrame, bool usePriors, bool onlyAligned,
-                                                Action<string> warn)
+        public static List<Context> BuildContexts(IDictionary<string, ConvexHull> obsToHull,
+                                                  List<RoverObservation> observations, MissionSpecific mission,
+                                                  FrameCache frameCache, ObservationCache observationCache,
+                                                  string meshFrame, bool usePriors, bool onlyAligned,
+                                                  Action<string> warn)
         {
             var contexts = new List<Context>();
             var comparator = mission.GetRoverObservationComparator();
@@ -584,8 +584,15 @@ namespace OPS.Pipeline
                     continue;
                 }
 
-                var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName));
-                var maskObs = comparator.KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both, RoverProductType.RoverMask).Where(o => o.IsLinear == obs.IsLinear).FirstOrDefault(); ;
+                var off = observationCache
+                    .GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                    .Where(o => o is RoverObservation)
+                    .ToList();
+                var maskObs = comparator
+                    .KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both,
+                                               RoverProductType.RoverMask)
+                    .Where(o => o.IsLinear == obs.IsLinear)
+                    .FirstOrDefault();
 
                 contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
             }
@@ -593,7 +600,8 @@ namespace OPS.Pipeline
             return contexts;
         }
 
-        private static void DebugWriteCoverageImage(BackprojectOptions opts, SceneCaster debugTileOcclusion, Observation obs, Matrix obsToMesh)
+        private static void DebugWriteCoverageImage(BackprojectOptions opts, SceneCaster debugTileOcclusion,
+                                                    Observation obs, Matrix obsToMesh)
         {
             Image srcImg = opts.pipeline.LoadImage(obs.Url);
 

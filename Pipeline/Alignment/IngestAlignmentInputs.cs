@@ -361,7 +361,7 @@ namespace OPS.Pipeline
             frameCache.Preload();
 
             var observationCache = new ObservationCache(pipeline, project.Name);
-            observationCache.Preload();
+            observationCache.Preload(); //include both surface and orbital
 
             //register each observation with the frame it uses
             var framesToSave = new HashSet<string>();

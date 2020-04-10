@@ -219,7 +219,7 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (!options.NoSurfaceObs)
+                if (!options.NoSurface)
                 {
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
                     RunPhase("merge point clouds", MergePointClouds);
@@ -230,13 +230,13 @@ namespace OPS.Landform
                 {
                     RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
 
-                    if (options.NoOrbital && options.NoSurfaceObs)
+                    if (options.NoOrbital && options.NoSurface)
                     {
                         throw new Exception("--nosurfaceobs but failed to load orbital");
                     }
                 }
 
-                if (!options.NoSurfaceObs && (!options.NoFillHoles || !options.NoOrbital))
+                if (!options.NoSurface && (!options.NoFillHoles || !options.NoOrbital))
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
@@ -265,7 +265,7 @@ namespace OPS.Landform
 
                     RunPhase("build orbital mesh", BuildOrbitalMesh);
 
-                    if (options.NoSurfaceObs)
+                    if (options.NoSurface)
                     {
                         mesh = orbitalMesh;
                     }
@@ -305,11 +305,6 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (options.NoOrbital && options.NoSurfaceObs)
-            {
-                throw new Exception("cannot combine --noorbital with --nosurfaceobs");
-            }
-
             if (options.ReconstructionMethod != MeshReconstructionMethod.FSSR &&
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
@@ -653,6 +648,7 @@ namespace OPS.Landform
             }
         }
 
+        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1037 
         private void LoadOrbital()
         {
             string demFile = options.OrbitalDEM;
@@ -1101,7 +1097,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
                 double surfaceExtent = -1; //unlimited
-                if (options.NoSurfaceObs)
+                if (options.NoSurface)
                 {
                     surfaceExtent = 0; //only orbital
                 }

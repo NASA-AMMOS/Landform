@@ -111,7 +111,7 @@ namespace OPS.Landform
 
             var observationCache = new ObservationCache(pipeline, options.ProjectName);
             observationCache.Preload(obs => obs.UseForAlignment &&
-                                     (allowed.Length == 0 || allowed.Any(name => name == obs.Name)));
+                                     (!obs.IsOrbital && allowed.Length == 0 || allowed.Any(name => name == obs.Name)));
 
             var obsForFrame = new Dictionary<string, List<RoverObservation>>();
             foreach (var obs in observationCache.GetAllObservations())

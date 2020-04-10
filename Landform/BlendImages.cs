@@ -444,9 +444,14 @@ namespace OPS.Landform
 
                     var obs = obsIndex >= Observation.MIN_INDEX ? indexedImages[obsIndex] : null;
 
+                    if (obs.IsOrbitalDEM)
+                    {
+                        obs = null; //no, this shouldn't happen...
+                    }
+
                     bool hasGray = obs != null;
                     bool hasColor = obs != null && obs.Bands == 3;
-                    bool orbital = obs != null && obsIndex == Observation.ORBITAL_INDEX;
+                    bool orbital = obs != null && obs.IsOrbitalImage;
 
                     byte lumaFlag = (byte)(hasGray ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
                     byte chromaFlag = (byte)(hasColor ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
@@ -573,14 +578,13 @@ namespace OPS.Landform
             CoreLimitedParallel.ForEach(indexedImages, entry => {
 
                     int obsIndex = entry.Key;
-
-                    if (obsIndex == Observation.ORBITAL_INDEX)
+                    Observation obs = entry.Value;
+                    
+                    if (obs.IsOrbital)
                     {
                         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1046
                         return;
                     }
-
-                    Observation obs = entry.Value;
 
                     if (!winners.ContainsKey(obsIndex))
                     {

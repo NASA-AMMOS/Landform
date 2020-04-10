@@ -29,11 +29,11 @@ namespace OPS.Pipeline.AlignmentServer
         //https://stackoverflow.com/a/3793950
         //this makes it possible to store an observation index in one band of a float image
         //and we want to do that when creating backproject index images
+        //public const int MAX_INDEX = 16777216; //Max int that can be stored in float
         public const int MAX_INDEX = 65535; //Max supported by PPMSerializer (16 bit per channel)
-        //public const int MAX_INDEX = 16777216; //Max if we remove 16 bit constraint
 
-        // this constant reserves a value for orbital images
-        public const int ORBITAL_INDEX = MAX_INDEX - 1; 
+        public const int ORBITAL_IMAGE_INDEX = MAX_INDEX - 1; 
+        public const int ORBITAL_DEM_INDEX = ORBITAL_IMAGE_INDEX - 1;
 
         [DynamoDBRangeKey]
         public string ProjectName;
@@ -82,6 +82,15 @@ namespace OPS.Pipeline.AlignmentServer
 
         [JsonIgnore]
         public bool IsLinear { get { return CameraModel.Linear; } }
+
+        [JsonIgnore]
+        public bool IsOrbitalImage { get { return Index == ORBITAL_IMAGE_INDEX; } }
+
+        [JsonIgnore]
+        public bool IsOrbitalDEM { get { return Index == ORBITAL_DEM_INDEX; } }
+
+        [JsonIgnore]
+        public bool IsOrbital { get { return IsOrbitalDEM || IsOrbitalImage; } }
 
         /// Add required fields here 
         protected void IsValid()
@@ -234,7 +243,7 @@ namespace OPS.Pipeline.AlignmentServer
         public virtual string ToString(bool brief)
         {
             return string.Format("{0} Frame={1}, {2}{3}CameraModel={4} ({5}), {6}{7}{8}Size={9}x{10}, Bands={11}, " +
-                                 "Bits={12}, Day={13}, Version={14}, Index={15}",
+                                 "Bits={12}, Day={13}, Version={14}, Index={15}{16}",
                                  Name, FrameName, //0, 1
                                  brief ? "" : string.Format("Url={0}, ", Url), //2
                                  brief ? "" : string.Format("Project={0}, ", ProjectName), //3
@@ -243,7 +252,8 @@ namespace OPS.Pipeline.AlignmentServer
                                  brief ? "" : string.Format("UseForAlignment={0}, ", UseForAlignment), //6
                                  brief ? "" : string.Format("UseForMeshing={0}, ", UseForMeshing), //7
                                  brief ? "" : string.Format("UseForTexturing={0}, ", UseForTexturing), //8
-                                 Width, Height, Bands, Bits, Day, Version, Index); //9-15
+                                 Width, Height, Bands, Bits, Day, Version, Index, //9-15
+                                 (brief || !IsOrbital) ? "" : IsOrbitalImage ? " (orbital image)" : " (orbital DEM)");
         }
 
         public override string ToString()

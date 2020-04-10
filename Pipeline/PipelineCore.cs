@@ -118,8 +118,8 @@ namespace OPS.Pipeline
                 typeof(Project),
                 typeof(Frame),
                 typeof(FrameTransform),
-                //typeof(Observation),
-                typeof(RoverObservation), //TODO msl specific
+                typeof(Observation), //general observations including orbital
+                typeof(RoverObservation), //surface observations
                 typeof(BirdsEyeView),
                 typeof(BirdsEyeViewFeatures),
                 typeof(SceneHeightmap),

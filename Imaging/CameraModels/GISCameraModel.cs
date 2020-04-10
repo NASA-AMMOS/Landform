@@ -7,6 +7,7 @@ using Newtonsoft.Json;
 using OSGeo.GDAL;
 using OSGeo.OSR;
 using OPS.Util;
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
@@ -157,6 +158,7 @@ namespace OPS.Imaging
         [JsonIgnore]
         public PlanetaryBody Body { get; private set; }
 
+        public int Bits { get; private set; }
         public int Bands { get; private set; }
         public int Width { get; private set; }
         public int Height { get; private set; }
@@ -232,6 +234,7 @@ namespace OPS.Imaging
 
             using (var gdalDataset = Gdal.Open(geoTiff, Access.GA_ReadOnly))
             {
+                Bits = GDALSerializer.GetBitDepth(gdalDataset);
                 Bands = gdalDataset.RasterCount;
                 Width = gdalDataset.RasterXSize;
                 Height = gdalDataset.RasterYSize;
@@ -305,33 +308,35 @@ namespace OPS.Imaging
 
         /* start CameraModel implementation ***************************************************************************/
 
-        private Matrix cameraToParent = Matrix.Identity;
-        public Matrix CameraToParent
+        private Matrix cameraToWorld = Matrix.Identity, worldToCamera = Matrix.Identity;
+
+        [JsonIgnore]
+        public Matrix CameraToWorld
         {
             get
             {
-                return cameraToParent;
+                return cameraToWorld;
             }
 
             set
             {
-                cameraToParent = value;
-                parentToCamera = Matrix.Invert(value);
+                cameraToWorld = value;
+                worldToCamera = Matrix.Invert(value);
             }
         }
 
-        private Matrix parentToCamera = Matrix.Identity;
-        public Matrix ParentToCamera
+        [JsonConverter(typeof(XNAMatrixJsonConverter))]
+        public Matrix WorldToCamera
         {
             get
             {
-                return parentToCamera;
+                return worldToCamera;
             }
 
             set
             {
-                parentToCamera = value;
-                cameraToParent = Matrix.Invert(value);
+                worldToCamera = value;
+                cameraToWorld = Matrix.Invert(value);
             }
         }
 
@@ -354,13 +359,13 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Get a ray in camera parent frame corresponding to a given pixel.
+        /// Get a ray in camera world frame corresponding to a given pixel.
         ///
         /// The origin of the ray is a point on the planetary reference surface (i.e. at elevation 0).
         /// The direction of the ray is zenith.
         ///
-        /// Camera parent frame defaults to planetary body frame.  If you want something different, set ParentToCamera
-        /// to a transform taking points in the desired frame to planetary body frame (or CameraToParent to the
+        /// Camera world frame defaults to planetary body frame.  If you want something different, set WorldToCamera
+        /// to a transform taking points in the desired frame to planetary body frame (or CameraToWorld to the
         /// inverse).
         ///
         /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
@@ -369,17 +374,17 @@ namespace OPS.Imaging
         public override void Unproject(ref Vector2 pixel, out Ray ray)
         {
             var rayOrigin = ImageToXYZ(new Vector3(pixel.X, pixel.Y, 0));
-            ray = new Ray(Vector3.Transform(rayOrigin, cameraToParent),
-                          Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(rayOrigin), cameraToParent)));
+            ray = new Ray(Vector3.Transform(rayOrigin, cameraToWorld),
+                          Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(rayOrigin), cameraToWorld)));
         }
 
         /// <summary>
-        /// Get a pixel corresponding to a point in camera parent frame.
+        /// Get a pixel corresponding to a point in camera world frame.
         ///
         /// Range is the elevation of the point above the planetary reference surface.
         ///
-        /// Camera parent frame defaults to planetary body frame.  If you want something different, set ParentToCamera
-        /// to a transform taking points in the desired frame to planetary body frame (or CameraToParent to the
+        /// Camera world frame defaults to planetary body frame.  If you want something different, set WorldToCamera
+        /// to a transform taking points in the desired frame to planetary body frame (or CameraToWorld to the
         /// inverse).
         ///
         /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
@@ -387,7 +392,7 @@ namespace OPS.Imaging
         /// </summary>
         public override Vector2 Project(Vector3 point, out double range)
         {
-            Vector3 colRowElev = XYZToImage(Vector3.Transform(point, parentToCamera));
+            Vector3 colRowElev = XYZToImage(Vector3.Transform(point, worldToCamera));
             range = colRowElev.Z;
             return new Vector2(colRowElev.X, colRowElev.Y);
         }

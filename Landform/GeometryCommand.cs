@@ -149,6 +149,7 @@ namespace OPS.Landform
                                               
                 var sds = observationCache
                     .GetAllObservations()
+                    .Where(obs => obs is RoverObservation)
                     .Select(obs => ((RoverObservation)obs).SiteDrive)
                     .Distinct()
                     .ToArray();

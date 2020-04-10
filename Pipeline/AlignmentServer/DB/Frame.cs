@@ -206,7 +206,7 @@ namespace OPS.Pipeline.AlignmentServer
                             {
                                 pipeline.LogInfo("populating legacy compat observation cache...");
                                 compatObservationCache = new ObservationCache(pipeline, frame.ProjectName);
-                                compatObservationCache.Preload();
+                                compatObservationCache.Preload(obs => obs is RoverObservation);
                             }
                             foreach (var obs in compatObservationCache.GetAllObservationsForFrame(frame))
                             {
