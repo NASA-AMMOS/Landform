@@ -19,8 +19,11 @@ namespace OPS.Landform
 {
     public class TilingCommandOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 512)]
-        public int TileResolution { get; set; }
+        [Option(HelpText = "Max resolution per tile, 0 disables texturing, negative for unlimited/default", Default = 512)]
+        public int MaxTileResolution { get; set; }
+
+        [Option(HelpText = "Require power of two textures", Default = false)]
+        public bool PowerOfTwoTextures { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
         public bool NoTextures { get; set; }
@@ -38,7 +41,7 @@ namespace OPS.Landform
 
         protected TilingCommandOptions tilingOpts;
 
-        protected int tileResolution;
+        protected int maxTileResolution;
         protected bool withTextures;
         protected bool localSave;
         protected bool cloudSave;
@@ -59,14 +62,14 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            tileResolution = tilingOpts.TileResolution;
+            maxTileResolution = tilingOpts.MaxTileResolution;
 
-            if (!NumberHelper.IsPowerOfTwo(tileResolution))
+            if (maxTileResolution > 0 && !NumberHelper.IsPowerOfTwo(maxTileResolution) && tilingOpts.PowerOfTwoTextures)
             {
-                pipeline.LogWarn("tile texture resolution {0} not a power of two", tileResolution);
+                pipeline.LogWarn("tile texture resolution {0} not a power of two", maxTileResolution);
             }
 
-            withTextures = !tilingOpts.NoTextures && tileResolution != 0;
+            withTextures = !tilingOpts.NoTextures && maxTileResolution != 0;
 
             localSave = tilingOpts.WriteDebug || (!tilingOpts.NoSave && pipeline is LocalPipeline);
             cloudSave = !tilingOpts.NoSave && pipeline is CloudPipeline;

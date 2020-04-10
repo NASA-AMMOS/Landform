@@ -153,7 +153,8 @@ namespace OPS.Pipeline
         public static bool BuildGeometryFromChildren
             (this SceneNode node, SceneNode root, MeshReconstructionMethod reconstructionMethod,
              int maxFaceCountTarget, SkirtMode? skirtAxis, TextureMode textureMode, int maxTextureSize,
-             float maxTextureStretch, TextureProjector textureProjector = null, Image textureImage = null,
+             float maxTextureStretch, bool powerOfTwoTextures,
+             TextureProjector textureProjector = null, Image textureImage = null,
              double childBoundSearchRatio = DEFAULT_SEARCH_RATIO,
              Action<string> info = null, Action<string> error = null)
         {
@@ -267,7 +268,7 @@ namespace OPS.Pipeline
 
                 if (textureMode == TextureMode.Clip && textureProjector != null && textureImage != null)
                 {
-                    var tmc = new TexturedMeshClipper(logger: logger);
+                    var tmc = new TexturedMeshClipper(powerOfTwoTextures: powerOfTwoTextures, logger: logger);
                     var pair = tmc.RemapMeshClipImage(combinedDecimated, textureImage, size);
                     combinedDecimated = pair.Mesh;
                     img = pair.Image;
@@ -284,7 +285,7 @@ namespace OPS.Pipeline
                     //but a parent tile can only get usable UVs for clipping by texture projection
                 }
 
-                if (maxTextureStretch < 1)
+                if (maxTextureStretch < 1 && !powerOfTwoTextures)
                 {
                     img = combinedDecimated.ClipImageAndRemapUVs(img);
                 }

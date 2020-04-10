@@ -111,7 +111,7 @@ namespace OPS.Pipeline.TilingServer
             LogInfo("building acceleration datastructures");
             bool hasImages = false;
             bool hasUVs = false;
-            var clipper = new MultiMeshClipper();
+            var clipper = new MultiMeshClipper(powerOfTwoTextures: project.PowerOfTwoTextures, logger: pipeline);
             foreach (var group in inputGroups)
             {
                 var meshes = group.Chunks.Select(c => Mesh.Load(pipeline.GetFileCached(c.MeshUrl, "meshes"))).ToArray();
@@ -136,7 +136,7 @@ namespace OPS.Pipeline.TilingServer
                 clipper.AddInput(mergedMesh, image);
             }
 
-            int maxTexRes = project.TextureResolution;
+            int maxTexRes = project.MaxTextureResolution;
 
             if (needUVs && !hasUVs)
             {
@@ -197,7 +197,8 @@ namespace OPS.Pipeline.TilingServer
                         LogInfo("clipping leaf texture");
                         pair = clipper.ClipWithTexture(bounds, maxTexRes);
                     }
-                    if (pair.Mesh != null && pair.Image != null && project.MaxTextureStretch < 1)
+                    if (pair.Mesh != null && pair.Image != null &&
+                        project.MaxTextureStretch < 1 && !project.PowerOfTwoTextures)
                     {
                         pair.Image = pair.Mesh.ClipImageAndRemapUVs(pair.Image);
                     }

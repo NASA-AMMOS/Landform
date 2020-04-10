@@ -80,7 +80,7 @@ namespace OPS.Pipeline.TilingServer
                 LogInfo("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
 
-                int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.TextureResolution;
+                int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.MaxTextureResolution;
 
                 TextureProjector textureProjector = null;
                 Image textureImage = null;
@@ -97,8 +97,9 @@ namespace OPS.Pipeline.TilingServer
                 if (!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.ReconstructionMethod,
                                                                project.FacesPerTile, project.SkirtMode,
                                                                project.TextureMode, maxTextureSize,
-                                                               project.MaxTextureStretch, textureProjector,
-                                                               textureImage, info: msg => LogInfo(msg),
+                                                               project.MaxTextureStretch, project.PowerOfTwoTextures,
+                                                               textureProjector, textureImage,
+                                                               info: msg => LogInfo(msg),
                                                                error: msg => { throw new Exception(msg); }))
                 {
                     throw new Exception("failed to build parent from children");

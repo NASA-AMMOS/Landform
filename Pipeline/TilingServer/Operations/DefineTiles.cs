@@ -205,7 +205,8 @@ namespace OPS.Pipeline.TilingServer
                     pairs.Add(DownloadInput(input));
                 }
                 LogInfo("loaded {0} input meshes, building tree", inputs.Count);
-                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, pairs, null, logPrefix);
+                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, project.PowerOfTwoTextures,
+                                               pairs, null, logPrefix);
             }
 
             LogInfo("computing tiling node dependencies");
@@ -370,13 +371,14 @@ namespace OPS.Pipeline.TilingServer
         }
 
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        int facesPerTile, List<MeshImagePair> pairs,
-                                                        SplitByTextureOpts texOpts = null, string logPrefix = null)
+                                                        int facesPerTile, bool powerOfTwoTextures,
+                                                        List<MeshImagePair> pairs, SplitByTextureOpts texOpts = null,
+                                                        string logPrefix = null)
         {
             EnsureLogPrefix(ref logPrefix);
 
             pipeline.LogInfo("{0}build tile tree: building mesh clipper", logPrefix);
-            var multiClipper = new MultiMeshClipper();
+            var multiClipper = new MultiMeshClipper(powerOfTwoTextures: powerOfTwoTextures, logger: pipeline);
             foreach (var pair in pairs)
             {
                 multiClipper.AddInput(pair.Mesh, pair.Image);

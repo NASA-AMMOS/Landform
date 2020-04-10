@@ -28,7 +28,7 @@ namespace OPS.Pipeline
         public double pctSampledPixelsSatisfied;    // of all the pixels sampled for a given source texture, what percentage of them need to be above the split criteria (1.0 any pixel that needs a split is enough, 0.5 at least half the pixels need a split, etc)
         public double splitPixelTexelRatio;         // valid values > 1.0. a value of 2.0 would mean if 2 source textures are being squeezed into a single output texture that incur a split
         public bool useApproximateTileSplit;               // if true use a faster and less accurate method of determining when to split tiles
-        public int tileResolution;
+        public int maxTileResolution;
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
 
@@ -117,7 +117,7 @@ namespace OPS.Pipeline
             {
                 try
                 {
-                    clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution,
+                    clippedMesh = UVAtlas.Atlas(clippedMesh, options.maxTileResolution, options.maxTileResolution,
                                                 maxStretch: options.maxTextureStretch,
                                                 logger: new ThunkLogger() { Info = options.info });
                     if (clippedMesh == null)
@@ -134,7 +134,7 @@ namespace OPS.Pipeline
             }
             else
             {
-                clippedMesh.RescaleUVsForTexture(options.tileResolution, options.tileResolution,
+                clippedMesh.RescaleUVsForTexture(options.maxTileResolution, options.maxTileResolution,
                                                  options.maxTextureStretch);
             }
 
@@ -142,7 +142,7 @@ namespace OPS.Pipeline
             MeshOperator clippedOp =
                 new MeshOperator(clippedMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             List<PixelPoint> ptsToTest =
-                clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.tileResolution, options.tileResolution);
+                clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.maxTileResolution, options.maxTileResolution);
 
             //record the pixel area of the image that would be used to texture the mesh for each output atlas pixel
             Dictionary<CameraInstance, List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();
@@ -166,7 +166,7 @@ namespace OPS.Pipeline
 
                 // calculate src pixels area contributing to the pixel  
                 Vector2[] dstPixelCorners = Image.GetPixelCorners(destPixelPt.Pixel);
-                var dstUVCorners = dstPixelCorners.Select(c => Image.PixelToUV(c, options.tileResolution, options.tileResolution));
+                var dstUVCorners = dstPixelCorners.Select(c => Image.PixelToUV(c, options.maxTileResolution, options.maxTileResolution));
                 var destPixelMeshPositions =
                     dstUVCorners
                     .Select(uv => clippedOp.UVToBarycentric(uv))
@@ -292,7 +292,7 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            double numTexels = options.tileResolution * options.tileResolution;
+            double numTexels = options.maxTileResolution * options.maxTileResolution;
 
             //the uv atlas wastes some amount of pixels on gutter, accounted for here by APPROX_TEXTURE_UTILIZATION
             // the uv atlas also allocates area unequally in the atlas, could spend 80% of the pixels

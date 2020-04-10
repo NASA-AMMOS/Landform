@@ -48,6 +48,8 @@ namespace OPS.Pipeline.TilingServer
 
         public void Process()
         {
+            var project = TilingProject.Find(pipeline, projectName);
+
             var input = TilingInput.Find(pipeline, projectName, message.InputName);
             if (input.Chunked)
             {
@@ -78,7 +80,7 @@ namespace OPS.Pipeline.TilingServer
                 input.ImageHeight = sparseImage.Height;
             }
             LogInfo("building acceleration structures to chunk input {0}", message.InputName);
-            var multiClipper = new MultiMeshClipper();
+            var multiClipper = new MultiMeshClipper(powerOfTwoTextures: project.PowerOfTwoTextures, logger: pipeline);
             multiClipper.AddInput(mesh, sparseImage);
 
             LogInfo("building bounds tree to chunk input {0}", message.InputName);

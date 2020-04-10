@@ -187,11 +187,12 @@ namespace OPS.Landform
                     }
                 }
 
-                tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme, options.SkirtMode,
-                                                     options.ReconstructionMethod, options.FacesPerTile,
-                                                     tileResolution, maxTextureStretch, texMode,
-                                                     projectType, options.ExportMeshFormat, options.ExportImageFormat,
-                                                     maxTileGroupSize, project.ProductPath);
+                tilingProject =
+                    TilingProject.Create(pipeline, project.Name, tilingScheme, options.SkirtMode,
+                                         options.ReconstructionMethod, options.FacesPerTile,
+                                         maxTileResolution, maxTextureStretch, options.PowerOfTwoTextures, texMode,
+                                         projectType, options.ExportMeshFormat, options.ExportImageFormat,
+                                         maxTileGroupSize, project.ProductPath);
 
                 tilingProject.ExportDir = null;
                 if (!string.IsNullOrEmpty(options.ExportMeshFormat) || !string.IsNullOrEmpty(options.ExportImageFormat))

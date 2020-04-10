@@ -38,9 +38,16 @@ namespace OPS.Pipeline
         }
 
         public BoundingBox TotalBounds;
-        private List<Dataset> Inputs = new List<Dataset>();
-        private TextureBaker TextureBaker;
-        private TexturedMeshClipper TexturedMeshClipper = new TexturedMeshClipper();
+
+        private List<Dataset> inputs = new List<Dataset>();
+        private TextureBaker textureBaker;
+        private TexturedMeshClipper texturedMeshClipper;
+
+        public MultiMeshClipper(int borderSize = 5, bool powerOfTwoTextures = false, bool allowRotation = false,
+                                ILogger logger = null)
+        {
+            texturedMeshClipper = new TexturedMeshClipper(borderSize, powerOfTwoTextures, allowRotation, logger);
+        }
 
         /// <summary>
         /// Adds a new input dataset
@@ -52,20 +59,20 @@ namespace OPS.Pipeline
         /// <param name="dataset"></param>
         public void AddInput(Mesh mesh, Image img)
         {
-            if (TextureBaker != null)
+            if (textureBaker != null)
             {
                 throw new Exception("Cannot add dataset after calling InitTextureBaker()");
             }
 
             var dataset = new Dataset(mesh, img);
-            Inputs.Add(dataset);
+            inputs.Add(dataset);
 
             var bounds = dataset.MeshOperator.Bounds;
-            TotalBounds = Inputs.Count == 1 ? bounds : BoundingBoxExtensions.Union(TotalBounds, bounds);
+            TotalBounds = inputs.Count == 1 ? bounds : BoundingBoxExtensions.Union(TotalBounds, bounds);
 
             if (img != null && dataset.MeshOperator.HasUVs)
             {
-                TexturedMeshClipper.AddMeshImagePair(dataset.MeshOperator, img);
+                texturedMeshClipper.AddMeshImagePair(dataset.MeshOperator, img);
             }
         }
 
@@ -75,13 +82,13 @@ namespace OPS.Pipeline
         /// </summary>
         public void InitTextureBaker()
         {            
-            var datasets = Inputs
+            var datasets = inputs
                 .Where(d => d.Image != null && d.Mesh.HasUVs)
                 .Select(d => new MeshImagePair(d.Mesh, d.Image))
                 .ToArray();
             if (datasets.Length > 0)
             {
-                TextureBaker = new TextureBaker(datasets);
+                textureBaker = new TextureBaker(datasets);
             }
         }
 
@@ -95,7 +102,7 @@ namespace OPS.Pipeline
             List<BoundingBox> results = new List<BoundingBox>();
             foreach (var b in boxes)
             {
-                foreach (var dataset in Inputs)
+                foreach (var dataset in inputs)
                 {
                     if (!dataset.MeshOperator.Empty(b))
                     {
@@ -115,7 +122,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public bool ShouldSplit(ITileSplitCriteria splitCriteria, BoundingBox box)
         {
-            foreach (var dataset in Inputs)
+            foreach (var dataset in inputs)
             {
                 // Issue #221
                 // This only checks if any single input needs to be split
@@ -138,7 +145,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
-            var meshes = Inputs.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged));
+            var meshes = inputs.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged));
             var merged = Mesh.Merge(meshes.ToArray());
             merged.Clean();
             return merged;
@@ -154,7 +161,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public MeshImagePair ClipWithTexture(BoundingBox box, int maxTextureSize)
         {
-            return TexturedMeshClipper.Clip(box, maxTextureSize);
+            return texturedMeshClipper.Clip(box, maxTextureSize);
         }
 
         /// <summary>
@@ -173,7 +180,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public MeshImagePair BakeTexture(Mesh mesh, int textureSize, float maxStretch = 1, Action<string> info = null)
         {
-            if (TextureBaker == null)
+            if (textureBaker == null)
             {
                 throw new Exception("InitTextureBaker() must be called before BakeTexture");
             }
@@ -193,7 +200,7 @@ namespace OPS.Pipeline
             }
 
             info("baking texture");
-            var img = TextureBaker.Bake(mesh, textureSize, textureSize);
+            var img = textureBaker.Bake(mesh, textureSize, textureSize);
 
             return new MeshImagePair(mesh, img);
         }
