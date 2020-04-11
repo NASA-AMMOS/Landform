@@ -11,7 +11,7 @@ namespace OPS.Geometry
     {
         /// <summary>
         /// Triangulates a closed, non-intersecting polygon defined by perimeter,
-        /// assumed to be oriented ccw (counter if ccw = false) as viewed from +Z
+        /// assumed to be oriented ccw (clockwise if ccw = false) as viewed from +Z
         /// Triangle winding order will match polygon winding
         /// 
         /// If polygon is intersecting, the triangulated will (most likely) have holes
@@ -21,6 +21,11 @@ namespace OPS.Geometry
         /// <returns></returns>
         public static List<Edge> Triangulate(List<Edge> perimeter, bool ccw = true)
         {
+            if(perimeter.Count < 3)
+            {
+                throw new Exception("triangulate called on fewer than 3 edges");
+            }
+
             //deep copy without faces (left set to null)
             perimeter = perimeter.Select(e => new Edge(e.Src, e.Dst, null)).ToList();
 
@@ -57,14 +62,14 @@ namespace OPS.Geometry
             }
 
             List<Edge> triangulated = new List<Edge>();
-            while (perimeter.Count > 3)
+            while (perimeter.Count > 2) //Non-degenerate
             {
                 bool progress = false;
-                for (int i  = 0; i < perimeter.Count - 1; ++i) //Simple polygon should have at least 2 ears
+                for (int i = 0; i < perimeter.Count - 1; ++i) //Simple polygon should have at least 2 ears
                 {
                     Edge e1 = perimeter[i];
                     Edge e2 = perimeter[i + 1];
-                    if(e1.Dst.ID != e2.Src.ID)
+                    if (e1.Dst.ID != e2.Src.ID)
                     {
                         throw new Exception("Corrupted edge list.");
                     }
@@ -104,7 +109,7 @@ namespace OPS.Geometry
                                     {
                                         //Point lands on triangle edge, check edge direction to see if intersects
                                         Vector3 ortho = new Vector3(triEdge.Y, -triEdge.X, 0);
-                                        if(Math.Abs(Vector3.Dot(ortho, new Vector3(thirdPoint, 0))) < 1E-8)
+                                        if (Math.Abs(Vector3.Dot(ortho, new Vector3(thirdPoint, 0))) < 1E-8)
                                         {
                                             throw new Exception("Should not check itersection against 0 area tri"); //should have been caught by area check
                                         }
@@ -130,7 +135,7 @@ namespace OPS.Geometry
                         }
 
                         //Triangle contained another point/edge, not a valid cut
-                        if(!empty)
+                        if (!empty)
                         {
                             continue;
                         }
@@ -139,23 +144,39 @@ namespace OPS.Geometry
                         perimeter.Remove(e1);
                         perimeter.Remove(e2);
                         perimeter.Insert(i, new Edge(e1.Src, e2.Dst, null));
-                                           
+
                         e1.Left = e2.Dst; //Store the triangle
                         triangulated.Add(e1);
                         progress = true;
+                        //We just cut an ear, so the polygon could now be degenerate.
+                        //While it is correct to always break here and let the enclosing while loop catch this case,
+                        //we (heuristically) avoid long skinny triangles by continuing to search along the perimeter.
+                        if (perimeter.Count < 3)
+                        {
+                            break;
+                        }
                     }
                 }
                 if (!progress)
                 {
+                    //Ideally we never hit this case; this means we failed to triangulate fully.
+                    //However, this is possible if the perimeter is intersecting.
                     return triangulated;
                 }
             }
-            if (perimeter.Count <= 2)
+            if (perimeter.Count < 2 ||
+                perimeter[0].Src.Position != perimeter[1].Dst.Position ||
+                perimeter[0].Dst.Position != perimeter[1].Src.Position)
             {
-                throw new Exception("TriangulatePolygon called on fewer than 3 edges...");
-            }
-            perimeter[0].Left = perimeter[1].Dst; //Only create one triangle
-            triangulated.Add(perimeter[0]);
+                //Hitting this most likely means a bug.
+                //Triangulate should iteratively clip ears until the last clip (on a single triangle) leaves a degenerate pair of edges.
+                //Here we either:
+                //A: Ended with 0 or 1 edges (over clipped or perimeter was invalid)
+                //B: Ended with 2 edges that don't form a closed degenerate polygon (only share 0 or 1 verticies).
+                throw new Exception("triangulate should terminate with a closed pair of edges");
+            }             
+            //perimeter[0].Left = perimeter[1].Dst; //Only create one triangle
+            //triangulated.Add(perimeter[0]);
             return triangulated;
         }
     }

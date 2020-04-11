@@ -34,15 +34,15 @@ using System.IO;
 /// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh
 /// and finding its largest boundary polygon.  That polygon is then triangulated and used as a "surface mask" for
 /// further operations.  The surface mesh is reconstructed from the full scene point cloud a second time, but this time
-/// with less agressive trimming options for Poisson reconstruction (hole filling is only implemented for Poisson
+/// with less aggressive trimming options for Poisson reconstruction (hole filling is only implemented for Poisson
 /// reconstruction).  The resulting mesh is clipped to the surface mask created from the original construction.  In this
-/// way the potential undesirable effects of less agressive Poisson surface trimming around the outer boundary of the
+/// way the potential undesirable effects of less aggressive Poisson surface trimming around the outer boundary of the
 /// mesh are avoided, but the benefits of allowing more internal hole filling are gained.
 ///
 /// If an orbital DEM is available a square portion of it centered on the origin of the primary sitedrive frame is
 /// organized meshed.  The bounds of this mesh may be larger than the surface mesh bounds.  For example, if the surface
 /// mesh bounds are 32m then the orbital mesh bounds may be 64m (or surface could be 64m and orbital 256m).  It is also
-/// possible for the orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaler.
+/// possible for the orbital mesh bounds to be the same as the surface mesh bounds, but they can't be smaller.
 ///
 /// Typically the orbital mesh includes both coarse and fine portions.  A fine area is defined within a small blend
 /// radius (typicaly 3m) of the surface bounds. A reasonable level of interpolation (typically 15 samples/meter) is used
@@ -57,8 +57,8 @@ using System.IO;
 /// surface mesh.
 ///
 /// If the total clip extent is larger than the orbital fine mesh extent, then a coarse orbital mesh is also added,
-/// witha smaller amount of interpolation (typically 1 sample/meter).  The orbital fine mesh is typically computded with
-/// at small outer gutter area (tyupically 4 samples) that is not subject to blending.  This helps ensure a seamless
+/// with a smaller amount of interpolation (typically 1 sample/meter).  The orbital fine mesh is typically computed with
+/// a small outer gutter area (typically 4 samples) that is not subject to blending.  This helps ensure a seamless
 /// boundary between the fine and coarse portions of the orbital mesh under certain conditions.  As long as the sampling
 /// rate of the coarse portion matches the actual DEM resolution, and the sampling rate of the fine portion is an
 /// integer (which it is currently constrained to be), then they should line up because the subsampling is linear.
@@ -114,13 +114,13 @@ namespace OPS.Landform
         [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 32)]
         public double ClipExtent { get; set; }
 
-        [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 7.5)]
+        [Option(HelpText = "Surface density based trimmer octree level (higher means more aggressive, 0 disables)", Default = 7.5)]
         public double TrimmerLevel { get; set; }
 
         [Option(HelpText = "Fill holes in largest island created from surface trimmer, cull other islands (hole filling requires --reconstructionmethod=Poission)", Default = false)]
         public bool NoFillHoles { get; set; }
 
-        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.001)]
+        [Option(HelpText = "Island removal based on percentage of total surface area (higher means more aggressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
         [Option(HelpText = "Don't use orbital to fill in outer edges of mesh (orbital requires --reconstructionmethod=Poission)", Default = false)]
