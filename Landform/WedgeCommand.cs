@@ -1,8 +1,11 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using CommandLine;
+using Microsoft.Xna.Framework;
 using OPS.Util;
+using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
@@ -80,7 +83,16 @@ namespace OPS.Landform
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
 
-        protected string effectiveRootFrame;
+        protected SiteDrive? rootSiteDrive;
+
+        protected DEM orbitalDEM;
+        protected double orbitalAvgMetersPerPixel;
+        protected Matrix orbitalToRoot;
+
+        protected bool IsRootSiteDrive(SiteDrive sd)
+        {
+            return rootSiteDrive.HasValue && sd == rootSiteDrive.Value;
+        }
 
         protected WedgeCommand(WedgeCommandOptions wcopts) : base(wcopts)
         {
@@ -137,13 +149,14 @@ namespace OPS.Landform
             frameCache = new FrameCache(pipeline, project.Name);
             int num = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
             pipeline.LogInfo("loaded {0} frames in project {1}", num, project.Name);
-            if (!frameCache.CheckPriors(out effectiveRootFrame))
+            rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
+            if (!rootSiteDrive.HasValue)
             {
                 pipeline.LogError("incomplete priors: not all sitedrives are connected");
             }
             else
             {
-                pipeline.LogInfo("effective root frame for project: {0}", effectiveRootFrame);
+                pipeline.LogInfo("effective root frame for project: {0}", rootSiteDrive.Value);
             }
         }
 
@@ -195,6 +208,103 @@ namespace OPS.Landform
                              project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
+        }
+
+        protected void LoadOrbitalDEM(SiteDrive originSiteDrive)
+        {
+            try
+            {
+                string demFile = wcopts.OrbitalDEM;
+                orbitalDEM = LoadOrbitalDEM(mission, originSiteDrive, ref demFile,
+                                            minFilter: wcopts.DEMMinFilter, maxFilter: wcopts.DEMMaxFilter,
+                                            logger: pipeline);
+
+                orbitalAvgMetersPerPixel = orbitalDEM.AvgMetersPerPixel;
+
+                orbitalToRoot = frameCache.GetBestPrior(originSiteDrive.ToString()).Transform.Mean;
+
+                var originPixel = orbitalDEM.OriginPixel;
+                var cmod = orbitalDEM.CameraModel;
+                pipeline.LogInfo("loaded {0}x{1} orbital DEM {2} at sitedrive {3} (pixel {4:F3}, {5:F3}) using {6}" +
+                                 ", ({7}, {8}) meters per pixel",
+                                 orbitalDEM.Width, orbitalDEM.Height, demFile,
+                                 originSiteDrive, originPixel.X, originPixel.Y, cmod.GetType().Name,
+                                 orbitalDEM.MetersPerPixel.X, orbitalDEM.MetersPerPixel.Y);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("failed to load orbital DEM or PlacesDB, running without orbital: {0}", ex.Message);
+                wcopts.NoOrbital = true;
+            }
+        }
+
+        /// <summary>
+        /// Load an orbital DEM image.
+        ///
+        /// demFile defaults to OrbitalConfig.OrbitalDEMStoragePath under LocalPipelineConfig.StorageDir.
+        ///
+        /// metersPerPixel defaults to OrbitalConfig.OrbitalDEMMetersPerPixel.
+        ///
+        /// Has OrthographicCameraModel that projects points in siteDrive frame to pixels on the DEM.
+        ///
+        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
+        ///
+        /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
+        ///
+        /// Requires PlacesDB to map siteDrive to a Lat/Lon in DEM.
+        ///
+        /// Uses the planetary body given by OrbitalConfig.OrbitalBodyName.
+        ///
+        /// Throws exception if
+        /// * failed to get lat/lon for siteDrive 
+        /// * lat/lon for siteDrive outside bounds of DEM
+        /// * no vaid elevation at lat/lon for siteDrive in DEM
+        ///
+        /// TODO #1034 optionally respect cfg.OrbitalImageMetersPerPixel
+        /// TODO #1042 use either OrthographicCameraModel or GISCameraModel
+        /// TODO #1015 validate PlacesDB orbital metadata
+        /// TODO #1037 move this whole thing to ingest
+        /// </summary>
+        public static DEM LoadOrbitalDEM(MissionSpecific mission, SiteDrive siteDrive, ref string demFile,
+                                         double? metersPerPixel = null, double? elevationScale = null,
+                                         double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
+                                         ILogger logger = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+            
+            if (string.IsNullOrEmpty(demFile) && !string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
+            {
+                demFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
+            }
+            if (string.IsNullOrEmpty(demFile) || !File.Exists(demFile))
+            {
+                throw new Exception("orbital DEM not found: " + demFile);
+            }
+
+            if (!metersPerPixel.HasValue)
+            {
+                metersPerPixel = cfg.OrbitalDEMMetersPerPixel;
+            }
+
+            if (!elevationScale.HasValue)
+            {
+                elevationScale = cfg.OrbitalDEMElevationScale;
+            }
+
+            var placesDB = new PlacesDB(logger, requireOrbital: true);
+            var gisCam = new GISCameraModel(demFile, cfg.OrbitalBodyName);
+            var originPixel = gisCam.LonLatToImage(placesDB.GetLonLat(siteDrive));
+            
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevationDir,
+                                                            out Vector3 rightDir, out Vector3 downDir);
+
+            var mpp = gisCam.CheckLocalGISImageBasisAndGetResolution(originPixel, logger, throwOnError: true);
+
+            double? originElevation = null; //DEM constructor will look this up given originPixel
+
+            return DEM.OrthoDEM(new SparseGISElevationMap(demFile), elevationDir, rightDir, downDir,
+                                metersPerPixel.Value, mpp.X / mpp.Y, elevationScale.Value,
+                                originPixel, originElevation, minFilter, maxFilter);
         }
     }
 }

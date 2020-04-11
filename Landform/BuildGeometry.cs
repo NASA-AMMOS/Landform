@@ -181,6 +181,8 @@ namespace OPS.Landform
 
         public const int BLEND_GUTTER_SAMPLES = 4;
 
+        private string dbgMeshPrefix;
+
         private BuildGeometryOptions options;
 
         private Observation[] onlyForObs;
@@ -192,17 +194,12 @@ namespace OPS.Landform
         private Mesh mesh;
         private SceneMesh sceneMesh;
 
-        private DEM orbitalDEM;
-        private Matrix orbitalToMesh, meshToOrbital;
-
         private Mesh shrinkwrapMesh;
         private MeshOperator maskUVMeshOp;
+
         private Mesh orbitalMesh;
 
-        private string dbgMeshPrefix;
-
         private double blendRadius, sewRadius;
-        private double orbitalMetersPerPixel;
         private int blendSamplesPerPixel, orbitalSamplesPerPixel;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
@@ -224,16 +221,6 @@ namespace OPS.Landform
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
-                }
-
-                if (!options.NoOrbital)
-                {
-                    RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
-
-                    if (options.NoOrbital && options.NoSurface)
-                    {
-                        throw new Exception("--nosurfaceobs but failed to load orbital");
-                    }
                 }
 
                 if (!options.NoSurface && (!options.NoFillHoles || !options.NoOrbital))
@@ -329,9 +316,20 @@ namespace OPS.Landform
 
             if (!options.NoOrbital && !SiteDrive.IsSiteDriveString(meshFrame))
             {
-                throw new Exception(string.Format("mesh frame {0} is not a site drive, cannot use orbital", meshFrame));
+                pipeline.LogWarn("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
+                options.NoOrbital = true;
             }
 
+            if (!options.NoOrbital)
+            {
+                LoadOrbitalDEM(new SiteDrive(meshFrame)); //may overwrite options.NoOrbital
+                
+                if (options.NoOrbital && options.NoSurface)
+                {
+                    throw new Exception("--nosurface but failed to load orbital");
+                }
+            }
+            
             onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
 
             poissonOpts = new PoissonReconstruction.Options
@@ -395,18 +393,16 @@ namespace OPS.Landform
                                                   + " to use orbital", options.ClipSurfaceExtent, options.ClipExtent));
             }
 
-            orbitalMetersPerPixel = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
-
             orbitalSamplesPerPixel = 1;
             if (options.OrbitalPointsPerMeter > 0)
             {
-                orbitalSamplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * orbitalMetersPerPixel);
+                orbitalSamplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * orbitalAvgMetersPerPixel);
             }
             
             blendSamplesPerPixel = 1;
             if (options.OrbitalBlendPointsPerMeter > 0)
             {
-                blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalMetersPerPixel);
+                blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalAvgMetersPerPixel);
             }
 
             return true;
@@ -648,39 +644,6 @@ namespace OPS.Landform
             }
         }
 
-        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1037 
-        private void LoadOrbital()
-        {
-            string demFile = options.OrbitalDEM;
-            try
-            {
-                orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), ref demFile,
-                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                    logger: pipeline);
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogWarn("failed to load orbital DEM or PlacesDB, running without orbital: {0}", ex.Message);
-                options.NoOrbital = true;
-                return;
-            }
-
-            FrameTransform ft = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
-            if (ft == null)
-            {
-                pipeline.LogWarn("failed to retrieve aligned orbital transform");
-                options.NoOrbital = true;
-                return;
-            }
-
-            var orbitalToRoot = ft.Transform.Mean;
-            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-            orbitalToMesh = orbitalToRoot * Matrix.Invert(meshToRoot);
-            meshToOrbital = Matrix.Invert(orbitalToMesh);
-
-            pipeline.LogInfo("loaded {0}x{1} orbital DEM {2}", orbitalDEM.Width, orbitalDEM.Height, demFile);
-        }
-
         private void CreateShrinkwrappedSurfaceMesh()
         {
             var bounds = mesh.Bounds();
@@ -784,6 +747,9 @@ namespace OPS.Landform
                 maskOp = new MeshOperator(tmp, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             }
 
+            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+            var orbitalToMesh = orbitalToRoot * Matrix.Invert(meshToRoot);
+
             Mesh makeMesh(int subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
             {
                 int w = (outerBounds.Width - 1) * subsample + 1;
@@ -821,10 +787,11 @@ namespace OPS.Landform
                 return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
             }
 
-            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalMetersPerPixel);
+            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalAvgMetersPerPixel);
 
             double br = blendRadius > 0 ? blendRadius : 0;
-            int blendExtentPixels = (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalMetersPerPixel);
+            int blendExtentPixels =
+                (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalAvgMetersPerPixel);
 
             Image.Subrect blendBounds = null;
             if (blendSamplesPerPixel != orbitalSamplesPerPixel)
@@ -833,8 +800,8 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("making {0}x{0} orbital mesh at {1} samples/meter",
-                             2* orbitalExtentPixels * orbitalMetersPerPixel,
-                             orbitalSamplesPerPixel / orbitalMetersPerPixel);
+                             2* orbitalExtentPixels * orbitalAvgMetersPerPixel,
+                             orbitalSamplesPerPixel / orbitalAvgMetersPerPixel);
 
             orbitalMesh =
                 makeMesh(orbitalSamplesPerPixel, orbitalDEM.GetSubrectPixels(orbitalExtentPixels), blendBounds);
@@ -849,8 +816,8 @@ namespace OPS.Landform
                 }
 
                 pipeline.LogInfo("making {0}x{0} orbital blend mesh at {1} samples/meter",
-                                 2 * blendExtentPixels * orbitalMetersPerPixel,
-                                 blendSamplesPerPixel / orbitalMetersPerPixel);
+                                 2 * blendExtentPixels * orbitalAvgMetersPerPixel,
+                                 blendSamplesPerPixel / orbitalAvgMetersPerPixel);
 
                 var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
 
@@ -884,7 +851,7 @@ namespace OPS.Landform
 
             if (BLEND_GUTTER_SAMPLES > 0)
             {
-                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalMetersPerPixel / blendSamplesPerPixel);
+                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalAvgMetersPerPixel / blendSamplesPerPixel);
                 if (radius > gutterMeters)
                 {
                     radius -= gutterMeters;

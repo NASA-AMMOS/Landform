@@ -58,6 +58,11 @@ namespace OPS.Pipeline
             return "root";
         }
 
+        public virtual SiteDrive GetLandingSiteDrive()
+        {
+            return new SiteDrive(1, 0);
+        }
+
         public virtual string RoverMotionCounter(PDSParser parser)
         {
             return parser.RMC;
@@ -823,120 +828,6 @@ namespace OPS.Pipeline
             gisElevationInLocalLevel = -nadir;
             gisImageRightInLocalLevel = east;
             gisImageDownInLocalLevel = -north;
-        }
-
-        /// <summary>
-        /// Load an orbital DEM image.
-        ///
-        /// demFile defaults to OrbitalConfig.OrbitalDEMStoragePath under LocalPipelineConfig.StorageDir.
-        ///
-        /// metersPerPixel defaults to OrbitalConfig.OrbitalDEMMetersPerPixel.
-        ///
-        /// Has OrthographicCameraModel that projects points in siteDrive frame to pixels on the DEM.
-        ///
-        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
-        ///
-        /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
-        ///
-        /// Requires PlacesDB to map siteDrive to a Lat/Lon in DEM.
-        ///
-        /// Uses the planetary body given by OrbitalConfig.OrbitalBodyName.
-        ///
-        /// Throws exception if
-        /// * failed to get lat/lon for siteDrive 
-        /// * lat/lon for siteDrive outside bounds of DEM
-        /// * no vaid elevation at lat/lon for siteDrive in DEM
-        /// </summary>
-        public virtual DEM LoadOrbitalDEM(SiteDrive siteDrive, ref string demFile,
-                                          double? metersPerPixel = null, double? elevationScale = null,
-                                          double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
-                                          ILogger logger = null)
-        {
-            var cfg = OrbitalConfig.Instance;
-            
-            if (string.IsNullOrEmpty(demFile))
-            {
-                if (!string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
-                {
-                    demFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
-                }
-                else
-                {
-                    throw new Exception("orbital DEM not available");
-                }
-            }
-
-            if (!File.Exists(demFile))
-            {
-                throw new Exception("orbital DEM not found: " + demFile);
-            }
-
-            if (!metersPerPixel.HasValue)
-            {
-                metersPerPixel = cfg.OrbitalDEMMetersPerPixel;
-            }
-
-            if (!elevationScale.HasValue)
-            {
-                elevationScale = cfg.OrbitalDEMElevationScale;
-            }
-
-            var placesDB = new PlacesDB(logger, requireOrbital: true);
-            var cameraModel = new GISCameraModel(demFile, cfg.OrbitalBodyName);
-            var originPixel = cameraModel.LonLatToImage(placesDB.GetLonLat(siteDrive));
-            
-            GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevationDir,
-                                                    out Vector3 rightDir, out Vector3 downDir);
-
-            double pixelAspect =
-                cameraModel.CheckLocalGISImageBasisAndGetAspect(originPixel, logger, throwOnError: true);
-
-            double? originElevation = null; //DEM constructor will look this up given originPixel
-
-            return DEM.OrthoDEM(new SparseGISElevationMap(demFile), elevationDir, rightDir, downDir,
-                                metersPerPixel.Value, pixelAspect, elevationScale.Value,
-                                originPixel, originElevation, minFilter, maxFilter);
-        }
-
-        public virtual SparseImage LoadOrbitalImage(SiteDrive siteDrive, ref string imgFile,
-                                                    out GISCameraModel cameraModel,
-                                                    out Matrix sdToOrbitalBody, out double orbitalMetersPerPixel,
-                                                    ILogger logger = null)
-        {
-            var cfg = OrbitalConfig.Instance;
-            
-            if (string.IsNullOrEmpty(imgFile))
-            {
-                if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
-                {
-                    imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
-                }
-                else
-                {
-                    throw new Exception("orbital image not available");
-                }
-            }
-
-            if (!File.Exists(imgFile))
-            {
-                throw new Exception("orbital image not found: " + imgFile);
-            }
-           
-            var placesDB = new PlacesDB(logger, requireOrbital: true);
-            cameraModel = new GISCameraModel(imgFile, cfg.OrbitalBodyName);
-            var originPixel = cameraModel.LonLatToImage(placesDB.GetLonLat(siteDrive));
-
-            GetLocalLevelBasis(out Vector3 north, out Vector3 east, out Vector3 nadir);
-
-            sdToOrbitalBody = cameraModel.GetLocalLevelToBodyTransform(originPixel, north, east, nadir);
-
-            var sdOriginInBody = Vector3.Transform(Vector3.Zero, sdToOrbitalBody);
-
-            //ISSUE #1034: ideally this would be recalculated at each point in question
-            //but for now we will do at a single site
-            orbitalMetersPerPixel = cameraModel.GetFinestEstimatedMetersPerPixelAtXYZ(sdOriginInBody);
-
-            return new SparseGISImage(imgFile);
         }
     }
 }

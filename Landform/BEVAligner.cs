@@ -1246,46 +1246,8 @@ namespace OPS.Landform
         /// </summary>
         private void SaveTransforms(IEnumerable<Node> aligned, TransformSource transformSource)
         {
-            var unaligned = new HashSet<SiteDrive>(siteDrives);
-            foreach (var node in aligned)
-            {
-                unaligned.Remove(node.siteDrive);
-                var ut = new UncertainRigidTransform(node.worldTransform.Value);
-                var frame = frameCache.GetFrame(node.siteDrive.ToString());
-                var ft = FrameTransform.FindOrCreate(pipeline, frame, transformSource, ut);
-                ft.Transform = ut;
-                ft.Save(pipeline);
-                bool added = false;
-                lock (frame.Transforms)
-                {
-                    added = frame.Transforms.Add(ft.Source);
-                }
-                if (added)
-                {
-                    frame.Save(pipeline);
-                }
-                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", transformSource, node.siteDrive);
-            }
-            foreach (var sd in unaligned)
-            {
-                var frame = frameCache.GetFrame(sd.ToString());
-                bool removed = false;
-                lock (frame.Transforms)
-                {
-                    removed = frame.Transforms.Remove(transformSource);
-                }
-                if (removed)
-                {
-                    frame.Save(pipeline);
-                }
-                //can't use frameCache here because it was loaded with only priors
-                //but that's OK because FrameTransform.Find() doesn't scan
-                var ft = FrameTransform.Find(pipeline, frame, transformSource);
-                if (ft != null)
-                {
-                    ft.Delete(pipeline);
-                }
-            }
+            SaveTransforms(aligned.Select(node => node.siteDrive).ToArray(),
+                           aligned.Select(node => node.worldTransform.Value).ToArray(), transformSource);
         }
 
         private void SaveCalves(IEnumerable<Node> aligned)

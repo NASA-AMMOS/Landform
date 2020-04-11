@@ -448,12 +448,39 @@ namespace OPS.Pipeline
                 pipeline.LogError("failed to chain all PDS priors");
             }
 
-            if (!frameCache.CheckPriors(out string effectiveRoot))
+            var rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
+            if (!rootSiteDrive.HasValue)
             {
                 pipeline.LogError("incomplete priors: not all sitedrives are connected");
             }
+            else
+            {
+                pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, rootSiteDrive.Value);
 
-            pipeline.LogInfo("effective root frame for project {0}: {1}", project.Name, effectiveRoot);
+                //in most production workflows the effective root frame for the project is the mission landing site
+                //because e.g. PlacesDB is available during ingestion
+                //so all sitedrive frames have priors that take them back to mission root
+                //but it's possible that there are no observations in the project actually in the landing sitedrive
+                //so at this point there may not actually be a frame in the project for the landing site
+                //we add it here so that particularly orbital codepaths can look it up cleanly later
+
+                var landingSite = mission.GetLandingSiteDrive();
+                if (rootSiteDrive.Value == landingSite && !frameCache.ContainsFrame(landingSite.ToString()))
+                {
+                    pipeline.LogInfo("adding frame for landing sitedrive {0} to database", landingSite);
+                    var rootFrame = Frame.Find(pipeline, project.Name,  mission.RootFrameName());
+                    var landingFrame = Frame.FindOrCreate(pipeline, project.Name, landingSite.ToString(), rootFrame);
+                    var source = TransformSource.Prior;
+                    var frameTransform = FrameTransform.Find(pipeline, landingFrame, source);
+                    if (frameTransform == null)
+                    {
+                        var identity = new UncertainRigidTransform();
+                        frameTransform = FrameTransform.Create(pipeline, landingFrame, source, identity);
+                        frameTransform.Save(pipeline);
+                    }
+                    landingFrame.Save(pipeline);
+                }
+            }
         }
 
         private void SpewStats(IEnumerable<IngestImage.Result> results, int numUrls, double startTime)

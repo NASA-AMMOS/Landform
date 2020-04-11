@@ -139,9 +139,9 @@ namespace OPS.Landform
                 throw new Exception("--nosave not implemented for this command");
             }
 
-            if (!options.NoSurface)
+            if (options.NoSurface)
             {
-                throw new Exception("orbital not implemented for this command");
+                throw new Exception("--nosurface not implemented for this command");
             }
 
             //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available

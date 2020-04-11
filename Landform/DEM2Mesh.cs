@@ -222,9 +222,9 @@ namespace OPS.Landform
                 }
 
                 string demFile = options.InputDEM;
-                dem = mission.LoadOrbitalDEM(new SiteDrive(options.OutputFrame), ref demFile,
-                                             demMetersPerPixel, elevationScale,
-                                             options.DEMMinFilter, options.DEMMaxFilter, logger);
+                dem = WedgeCommand.LoadOrbitalDEM(mission, new SiteDrive(options.OutputFrame), ref demFile,
+                                                  demMetersPerPixel, elevationScale,
+                                                  options.DEMMinFilter, options.DEMMaxFilter, logger);
 
                 logger.LogInfo("loaded {0}x{1} DEM {2}", dem.Width, dem.Height, demFile);
             }
@@ -264,8 +264,8 @@ namespace OPS.Landform
                 }
 
                 double? originElevation = null; //DEM constructor will look this up given originPixel
-                double pixelAspect = demCamera.CheckLocalGISImageBasisAndGetAspect(originPixel, logger);
-                dem = DEM.OrthoDEM(new SparseGISElevationMap(options.InputDEM), demMetersPerPixel, pixelAspect,
+                var mpp = demCamera.CheckLocalGISImageBasisAndGetResolution(originPixel, logger);
+                dem = DEM.OrthoDEM(new SparseGISElevationMap(options.InputDEM), demMetersPerPixel, mpp.X / mpp.Y,
                                    elevationScale, originPixel, originElevation,
                                    options.DEMMinFilter, options.DEMMaxFilter); 
             }
@@ -481,7 +481,8 @@ namespace OPS.Landform
                                                                               out Vector3 orbitalRight,
                                                                               out Vector3 orbitalDown);
 
-            double orbitalPixelAspect = demCamera.CheckLocalGISImageBasisAndGetAspect(originPixel, logger);
+            var orbitalResolution = demCamera.CheckLocalGISImageBasisAndGetResolution(originPixel, logger);
+            double orbitalPixelAspect = orbitalResolution.X / orbitalResolution.Y;
 
             var zenith = Vector3.Normalize(orbitalOriginXYZ); //gravity-aligned vector pointing away from center of body
 

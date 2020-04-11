@@ -706,10 +706,11 @@ namespace OPS.Pipeline.AlignmentServer
         ///
         /// Spews warning or error messages depending on the badness.
         ///
-        /// Returns true as long as the frame tree is at least connected,
-        /// i.e. all siteDrives are referenced to some common shared ancestor.
+        /// Returns root site drive as long as the frame tree is at least connected. If all siteDriveFrames have
+        /// complete priors then that will be landingSiteDrive.  Otherwise it will be the earliest site in the
+        /// FrameCache.
         /// </summary>
-        public bool CheckPriors(out string effectiveRoot)
+        public SiteDrive? CheckPriors(SiteDrive landingSiteDrive)
         {
             pipeline.LogInfo("checking priors...");
 
@@ -717,15 +718,10 @@ namespace OPS.Pipeline.AlignmentServer
             var sdsWithPDSPriors = new HashSet<string>();
             var sdsWithChainedPriors = new HashSet<string>();
             var sdsWithMixedPriors = new HashSet<string>(); //PlacesDB site offset but PDS local_level offset
-            var sdsWithRootPriors = new HashSet<string>();
+            var sdsWithFullPriors = new HashSet<string>();
             int firstSite = -1;
-            string orbitalFrameName = OrbitalConfig.Instance.OrbitalFrameName;
             foreach (var frame in GetAllFrames())
             {
-                if (frame.Name == orbitalFrameName)
-                {
-                    continue;
-                }
                 var parent = frame.ParentName != null ? GetFrame(frame.ParentName) : null;
                 if (parent != null && parent.ParentName == null) //parent is root frame -> frame is a siteDriveFrame
                 {
@@ -734,7 +730,7 @@ namespace OPS.Pipeline.AlignmentServer
                         prior.Source == TransformSource.PDS ? sdsWithPDSPriors :
                         prior.Source == TransformSource.PDSChained ? sdsWithChainedPriors :
                         prior.Source == TransformSource.PlacesDBSitePDSLocal ? sdsWithMixedPriors :
-                        sdsWithRootPriors;
+                        sdsWithFullPriors;
                     group.Add(frame.Name);
                     int site = (new SiteDrive(frame.Name)).Site;
                     if (firstSite < 0 || site < firstSite)
@@ -753,25 +749,22 @@ namespace OPS.Pipeline.AlignmentServer
             pipeline.LogInfo("{0} sitedrives with only PlacesDB site but PDS local_level priors: {1}",
                              sdsWithMixedPriors.Count, string.Join(", ", sdsWithMixedPriors));
             pipeline.LogInfo("{0} sitedrives with full priors: {1}",
-                             sdsWithRootPriors.Count, string.Join(", ", sdsWithRootPriors));
+                             sdsWithFullPriors.Count, string.Join(", ", sdsWithFullPriors));
 
-            bool ok = true;
-            effectiveRoot = (new SiteDrive(1, 0)).ToString();
+            SiteDrive? rootSiteDrive = landingSiteDrive;
             if (sdsWithNoPriors.Count > 0)
             {
                 pipeline.LogError("incomplete priors! {0} sitedrives with no priors", sdsWithNoPriors.Count);
-                effectiveRoot = null;
-                ok = false;
+                rootSiteDrive = null;
             }
             else if (sdsWithPDSPriors.Count > 0)
             {
-                int toRoot = sdsWithRootPriors.Count + sdsWithMixedPriors.Count;
+                int toRoot = sdsWithFullPriors.Count + sdsWithMixedPriors.Count;
                 if (toRoot > 0)
                 {
                     pipeline.LogError("incomplete priors: {0} sitedrives relative to root and {1} relative to site",
                                       toRoot, sdsWithPDSPriors.Count);
-                    effectiveRoot = null;
-                    ok = false;
+                    rootSiteDrive = null;
                 }
                 else
                 {
@@ -790,14 +783,13 @@ namespace OPS.Pipeline.AlignmentServer
                     {
                         pipeline.LogError("incomplete priors: sitedrives relative to {0} different site frames",
                                           sites.Count);
-                        effectiveRoot = null;
-                        ok = false;
+                        rootSiteDrive = null;
                     }
                     else
                     {
                         pipeline.LogWarn("incomplete priors: all sitedrives relative to site {0} frame, not root",
                                          firstSite);
-                        effectiveRoot = (new SiteDrive(firstSite, 0)).ToString();
+                        rootSiteDrive = new SiteDrive(firstSite, 0);
                     }
                 }
             }
@@ -807,7 +799,7 @@ namespace OPS.Pipeline.AlignmentServer
                                  sdsWithMixedPriors.Count);
             }
 
-            return ok;
+            return rootSiteDrive;
         }
     }
 }

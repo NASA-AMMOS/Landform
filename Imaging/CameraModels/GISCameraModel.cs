@@ -85,7 +85,11 @@ namespace OPS.Imaging
     {
         public const int CHUNK_SIZE = 512;
         public const int CHUNK_CACHE_SIZE = 400; //important: cache size > 0 limits memory usage
-        public SparseGISImage(string path) : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE) { }
+        public SparseGISImage(string path, CameraModel cameraModel = null)
+            : base(path, chunkSize: CHUNK_SIZE, cacheSize: CHUNK_CACHE_SIZE)
+        {
+            this.CameraModel = cameraModel;
+        }
     }
 
     /// <summary>
@@ -94,7 +98,7 @@ namespace OPS.Imaging
     /// </summary>
     public class SparseGISElevationMap : SparseGISImage
     {
-        public SparseGISElevationMap(string path) : base(path) { }
+        public SparseGISElevationMap(string path, CameraModel cameraModel = null) : base(path, cameraModel) { }
         
         protected override IImageConverter GetReadConverter()
         {
@@ -127,9 +131,9 @@ namespace OPS.Imaging
     ///
     /// Occasionally we may work with locations in equirectangular GeoTIFF assets far from the standard parallel at
     /// which they were projected.  In such a case the assumption that pixels are square may be violated.  However, this
-    /// can be accomodated by computing the pixel aspect ratio (ratio of width to height) which will be greater than 1.
-    /// The function CheckLocalGISImageBasisAndGetAspect() will both validate that the projection is equirectangular and
-    /// also compute this aspect ratio.  Also see DEM2Mesh.CheckPlanarity().
+    /// can be accomodated by computing the pixel aspect ratio (ratio of width to height) which will be less than 1.
+    /// The function CheckLocalGISImageBasisAndGetResolution() will both validate that the projection is equirectangular
+    /// and also return the effective resolution.  Also see DEM2Mesh.CheckPlanarity().
     ///
     /// Fred and others recommend avoiding lon/lat and body frame coordinates.  Rather, they recommend to stick to
     /// easting/northing and pixels.  The recommended way to get the pixel location of a sitedrive is to call 
@@ -144,8 +148,8 @@ namespace OPS.Imaging
     /// Corresponds to IAU Working Group for Cartographic Coordinates and Rotational Elements
     /// (https://www.iau.org/public/images/detail/ann18010a/).
     ///
-    /// NOTE: few if any other mission systems use this or any other kind of "planetary body" frame, and only a few
-    /// select and likely off-nominal codepaths in Landform use it.
+    /// NOTE: Few if any other mission systems use this (or any planet-scale) frame, and nominal Landform codepaths
+    /// should and probably can avoid it as well.
     ///
     /// As a camera model, the "image" is a raster in some GIS projection. It's pixels correspond to a grid of points
     /// laid out on the reference planetary surface (sphere). The origin of each pixel ray is a point on that surface.
@@ -245,6 +249,11 @@ namespace OPS.Imaging
                 //is returned, such as for formats that don't support transformation to projection coordinates.
                 //from: https://gdal.org/api/gdaldataset_cpp.html
                 gdalDataset.GetGeoTransform(colRowToEastingNorthing);
+
+                if (colRowToEastingNorthing[2] != 0 || colRowToEastingNorthing[4] != 0)
+                {
+                    throw new Exception("skew detected in GeoTransform, only Equirectangular projection supported");
+                }
             }
             Init();
         }
@@ -308,35 +317,35 @@ namespace OPS.Imaging
 
         /* start CameraModel implementation ***************************************************************************/
 
-        private Matrix cameraToWorld = Matrix.Identity, worldToCamera = Matrix.Identity;
+        private Matrix bodyToLocal = Matrix.Identity, localToBody = Matrix.Identity;
 
         [JsonIgnore]
-        public Matrix CameraToWorld
+        public Matrix BodyToLocal
         {
             get
             {
-                return cameraToWorld;
+                return bodyToLocal;
             }
 
             set
             {
-                cameraToWorld = value;
-                worldToCamera = Matrix.Invert(value);
+                bodyToLocal = value;
+                localToBody = Matrix.Invert(value);
             }
         }
 
         [JsonConverter(typeof(XNAMatrixJsonConverter))]
-        public Matrix WorldToCamera
+        public Matrix LocalToBody
         {
             get
             {
-                return worldToCamera;
+                return localToBody;
             }
 
             set
             {
-                worldToCamera = value;
-                cameraToWorld = Matrix.Invert(value);
+                localToBody = value;
+                bodyToLocal = Matrix.Invert(value);
             }
         }
 
@@ -344,7 +353,12 @@ namespace OPS.Imaging
         public override bool Linear { get { return false; } }
 
         /// <summary>
-        /// Get a unit vector along the GIS image plane normal at the center pixel in planetary body frame.
+        /// Get a unit vector along the GIS image plane normal at the origin pixel in local frame, or the center pixel
+        /// if local frame is planetary body frame.
+        ///
+        /// Local frame defaults to planetary body frame.  If you want something different, set LocalToBody
+        /// to a transform taking points in the desired frame to planetary body frame (or BodyToLocal to the
+        /// inverse).
         ///
         /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
         /// this (or any planet-scale) frame, and nominal Landform codepaths should and probably can avoid it as well.
@@ -354,18 +368,19 @@ namespace OPS.Imaging
         {
             get
             {
-                return Unproject(new Vector2(Width, Height) * 0.5).Direction;
+                var ctr = LocalToBody != Matrix.Identity ? Project(Vector3.Zero) : 0.5 * new Vector2(Width, Height);
+                return Unproject(ctr).Direction;
             }
         }
 
         /// <summary>
-        /// Get a ray in camera world frame corresponding to a given pixel.
+        /// Get a ray in local frame corresponding to a given pixel.
         ///
         /// The origin of the ray is a point on the planetary reference surface (i.e. at elevation 0).
         /// The direction of the ray is zenith.
         ///
-        /// Camera world frame defaults to planetary body frame.  If you want something different, set WorldToCamera
-        /// to a transform taking points in the desired frame to planetary body frame (or CameraToWorld to the
+        /// Local frame defaults to planetary body frame.  If you want something different, set LocalToBody
+        /// to a transform taking points in the desired frame to planetary body frame (or BodyToLocal to the
         /// inverse).
         ///
         /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
@@ -374,17 +389,17 @@ namespace OPS.Imaging
         public override void Unproject(ref Vector2 pixel, out Ray ray)
         {
             var rayOrigin = ImageToXYZ(new Vector3(pixel.X, pixel.Y, 0));
-            ray = new Ray(Vector3.Transform(rayOrigin, cameraToWorld),
-                          Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(rayOrigin), cameraToWorld)));
+            ray = new Ray(Vector3.Transform(rayOrigin, bodyToLocal),
+                          Vector3.Normalize(Vector3.TransformNormal(Vector3.Normalize(rayOrigin), bodyToLocal)));
         }
 
         /// <summary>
-        /// Get a pixel corresponding to a point in camera world frame.
+        /// Get a pixel corresponding to a point in local frame.
         ///
         /// Range is the elevation of the point above the planetary reference surface.
         ///
-        /// Camera world frame defaults to planetary body frame.  If you want something different, set WorldToCamera
-        /// to a transform taking points in the desired frame to planetary body frame (or CameraToWorld to the
+        /// Local frame defaults to planetary body frame.  If you want something different, set LocalToBody
+        /// to a transform taking points in the desired frame to planetary body frame (or BodyToLocal to the
         /// inverse).
         ///
         /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
@@ -392,7 +407,7 @@ namespace OPS.Imaging
         /// </summary>
         public override Vector2 Project(Vector3 point, out double range)
         {
-            Vector3 colRowElev = XYZToImage(Vector3.Transform(point, worldToCamera));
+            Vector3 colRowElev = XYZToImage(Vector3.Transform(point, localToBody));
             range = colRowElev.Z;
             return new Vector2(colRowElev.X, colRowElev.Y);
         }
@@ -417,7 +432,7 @@ namespace OPS.Imaging
         /// Return "elevation" vector points in the direction of increasing elevation (zenith).
         ///
         /// These are not necessarily unit vectors, orthogonal, or right-handed, but see
-        /// CheckLocalGISImageBasisAndGetAspect().
+        /// CheckLocalGISImageBasisAndGetResolution().
         ///
         /// NOTE: See class header comments for definition of planetary body frame. Few if any other mission systems use
         /// this (or any planet-scale) frame, and nominal Landform codepaths should and probably can avoid it as well.
@@ -510,8 +525,7 @@ namespace OPS.Imaging
         /// * the gdal basis may have roll, i.e. right may not be east in body.
         ///
         /// This function checks for those conditions, reports the relevant angles, and can throw exceptions if the skew
-        /// or roll is significant.  It returns the pixel aspect ratio, defined as the ratio of pixel width to pixel
-        /// height at originPixel.
+        /// or roll is significant.  It returns the effective meters per pixel.
         ///
         /// Note that many current mission systems currently assume equirectangular projection.  For example, from the
         /// PlacesDB user guide v2.0.b.002:
@@ -536,8 +550,8 @@ namespace OPS.Imaging
         /// tangent plane to a sphere gets further from the sphere the further away from the tangent point you walk. I
         /// calculate this as on the order of about 16cm at 1km from the tangent point for a planet the size of Mars.
         /// </summary>
-        public double CheckLocalGISImageBasisAndGetAspect(Vector2 originPixel, ILogger logger = null,
-                                                          bool throwOnError = false)
+        public Vector2 CheckLocalGISImageBasisAndGetResolution(Vector2 originPixel, ILogger logger = null,
+                                                               bool throwOnError = false)
         {
             Vector3 bodyNorth = Vector3.Normalize(LonLatToXYZ(new Vector2(0, 90)));
 
@@ -638,7 +652,7 @@ namespace OPS.Imaging
                 }
             }
 
-            return pixelAspect;
+            return metersPerPixel;
         }
 
         /// <summary>

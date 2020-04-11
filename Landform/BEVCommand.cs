@@ -7,6 +7,7 @@ using System.Threading;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using CommandLine;
+using OPS.MathExtensions;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -89,6 +90,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Debug mesh coordinate frame: if set must be a sitedrive SSSSSDDDDD or SSSDDDD, defaults to project root if unset", Default = null)]
         public string MeshFrame { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSurface { get; set; }
     }
 
     public abstract class BEVCommand : WedgeCommand
@@ -170,6 +174,11 @@ namespace OPS.Landform
 
         protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
+            if (bcopts.NoSurface)
+            {
+                throw new Exception("--nosurface not supported for this command");
+            }
+            
             if (bcopts.OnlyAligned)
             {
                 //wedge meshes are always generated in root frame using transform priors
@@ -905,6 +914,52 @@ namespace OPS.Landform
             pipeline.LogInfo("{0} valid pixels, min {1:F3}, max {2:F3}, mean {3:F3}, stddev {4:F3}",
                              n, min, max, mean, stddev);
             pipeline.LogInfo("collected stats for {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
+        }
+
+        protected void SaveTransforms(SiteDrive[] alignedSiteDrives, Matrix[] alignedSiteDriveToRoot,
+                                      TransformSource source)
+        {
+            var unaligned = new HashSet<SiteDrive>(siteDrives);
+            for (int i = 0; i < alignedSiteDrives.Length; i++)
+            {
+                var sd = alignedSiteDrives[i];
+                unaligned.Remove(sd);
+                var ut = new UncertainRigidTransform(alignedSiteDriveToRoot[i]);
+                var frame = frameCache.GetFrame(sd.ToString());
+                var ft = FrameTransform.FindOrCreate(pipeline, frame, source, ut);
+                ft.Transform = ut;
+                ft.Save(pipeline);
+                bool added = false;
+                lock (frame.Transforms)
+                {
+                    added = frame.Transforms.Add(ft.Source);
+                }
+                if (added)
+                {
+                    frame.Save(pipeline);
+                }
+            }
+            foreach (var sd in unaligned)
+            {
+                var frame = frameCache.GetFrame(sd.ToString());
+                bool removed = false;
+                lock (frame.Transforms)
+                {
+                    removed = frame.Transforms.Remove(source);
+                }
+                if (removed)
+                {
+                    pipeline.LogWarn("removed existing {0} transform for site drive {1}", source, sd);
+                    frame.Save(pipeline);
+                }
+                //can't use frameCache here because it was loaded with only priors
+                //but that's OK because FrameTransform.Find() doesn't scan
+                var ft = FrameTransform.Find(pipeline, frame, source);
+                if (ft != null)
+                {
+                    ft.Delete(pipeline);
+                }
+            }
         }
     }
 }

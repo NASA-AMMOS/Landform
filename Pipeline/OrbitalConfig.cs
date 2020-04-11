@@ -59,11 +59,6 @@ namespace OPS.Pipeline
         //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
         [ConfigEnvironmentVariable("LANDFORM_ORBITAL_IMAGE_METERS_PER_PIXEL")]
         public double OrbitalImageMetersPerPixel { get; set; } = 1;
-
-        //name for orbital adjusted frame transform
-        //may be overridden by MissionSpecific.GetOrbitalConfigDefaults()
-        [ConfigEnvironmentVariable("LANDFORM_ORBITAL_FRAME_NAME")]
-        public string OrbitalFrameName { get; set; } = "Orbital";
     }
 }
 

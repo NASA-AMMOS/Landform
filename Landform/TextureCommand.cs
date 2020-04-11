@@ -98,8 +98,7 @@ namespace OPS.Landform
         protected Dictionary<int, Observation> indexedImages;
 
         protected SceneMesh sceneMesh;
-        protected SparseImage orbitalTexture;
-        protected double orbitalMetersPerPixel;
+        protected Image orbitalTexture;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
@@ -131,6 +130,12 @@ namespace OPS.Landform
             if (!base.ParseArgumentsAndLoadCaches(outDir))
             {
                 return false; //help
+            }
+
+            if (!tcopts.NoOrbital && !SiteDrive.IsSiteDriveString(meshFrame))
+            {
+                pipeline.LogWarn("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
+                tcopts.NoOrbital = true;
             }
 
             resolution = tcopts.TextureResolution;
@@ -178,7 +183,12 @@ namespace OPS.Landform
                 //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1037 
                 if (!tcopts.NoOrbital && !indexedImages.ContainsKey(Observation.ORBITAL_IMAGE_INDEX))
                 {
-                    LoadOrbital(); //may overwrite tcopts.NoOrbital
+                    LoadOrbitalImage(new SiteDrive(meshFrame)); //may overwrite tcopts.NoOrbital
+
+                    if (tcopts.NoOrbital && tcopts.NoSurface)
+                    {
+                        throw new Exception("--nosurface but failed to load orbital");
+                    }
                 }
             }
 
@@ -220,46 +230,68 @@ namespace OPS.Landform
             }
         }
             
-        protected void LoadOrbital()
+        //TODO #1034 optionally respect cfg.OrbitalImageMetersPerPixel
+        //TODO #1042 use either OrthographicCameraModel or GISCameraModel
+        //TODO #1015 validate PlacesDB orbital metadata
+        //TODO #1037 move this whole thing to ingest
+        //TODO need to account for local elevation at originSiteDrive (wire it through from PlacesDB)
+        protected void LoadOrbitalImage(SiteDrive originSiteDrive)
         {
-            Matrix orbitalToBody = Matrix.Identity;
+            var cfg = OrbitalConfig.Instance;
+            
             string imgFile = tcopts.OrbitalImage;
-            GISCameraModel orbitalCamera = null;
+            if (string.IsNullOrEmpty(imgFile) && !string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
+            {
+                imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
+            }
+
+            if (string.IsNullOrEmpty(imgFile) || !File.Exists(imgFile))
+            {
+                pipeline.LogWarn("orbital image not found: {0}", imgFile);
+                tcopts.NoOrbital = true;
+                return;
+            }
+
             try
             {
-                orbitalTexture = mission.LoadOrbitalImage(new SiteDrive(meshFrame), ref imgFile,
-                                                          out orbitalCamera, out orbitalToBody,
-                                                          out orbitalMetersPerPixel, logger: pipeline);
+                var placesDB = new PlacesDB(pipeline, requireOrbital: true);
+                var gisCam = new GISCameraModel(imgFile, cfg.OrbitalBodyName);
+                var originPixel = gisCam.LonLatToImage(placesDB.GetLonLat(originSiteDrive));
+                
+                var mpp = gisCam.CheckLocalGISImageBasisAndGetResolution(originPixel, pipeline, throwOnError: true);
+                orbitalAvgMetersPerPixel = 0.5 * (mpp.X + mpp.Y);
+
+                var sdName = originSiteDrive.ToString();
+                orbitalToRoot = frameCache.GetBestPrior(sdName).Transform.Mean;
+
+                var sdToRoot = frameCache.GetBestTransform(sdName).Transform.Mean;
+
+                mission.GetLocalLevelBasis(out Vector3 north, out Vector3 east, out Vector3 nadir);
+                var orbitalToBody = gisCam.GetLocalLevelToBodyTransform(originPixel, north, east, nadir);
+
+                gisCam.LocalToBody = sdToRoot * Matrix.Invert(orbitalToRoot) * orbitalToBody;
+                
+                orbitalTexture = new SparseGISImage(imgFile, gisCam);
+
+                indexedImages[Observation.ORBITAL_IMAGE_INDEX] =
+                    Observation.Create(pipeline, frameCache.GetFrame(sdName), "OrbitalImage",
+                                       StringHelper.NormalizeUrl(Path.GetFullPath(imgFile), "file://"),
+                                       gisCam, useForAlignment: false, useForMeshing: false, useForTexturing: true,
+                                       width: gisCam.Width, height: gisCam.Height,
+                                       bands: gisCam.Bands, bits: gisCam.Bits, day: 0, version: 0,
+                                       index: Observation.ORBITAL_IMAGE_INDEX, save: false);
+                
+                pipeline.LogInfo("loaded {0}x{1} orbital image {2} at sitedrive {3} (pixel {4:F3}, {5:F3}) using {6}" +
+                                 ", ({7}, {8}) meters per pixel",
+                                 orbitalTexture.Width, orbitalTexture.Height, imgFile,
+                                 originSiteDrive, originPixel.X, originPixel.Y, gisCam.GetType().Name,
+                                 gisCam.MetersPerPixel.X, gisCam.MetersPerPixel.Y);
             }
             catch (Exception ex)
             {
                 pipeline.LogWarn("failed to load orbital image or PlacesDB, running without orbital: {0}", ex.Message);
                 tcopts.NoOrbital = true;
-                return;
             }
-
-            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-
-            var orbitalFrame = frameCache.GetFrame(OrbitalConfig.Instance.OrbitalFrameName);
-            FrameTransform ft = frameCache.GetBestTransform(orbitalFrame);
-            if (ft == null)
-            {
-                pipeline.LogWarn("failed to retrieve aligned orbital transform");
-                tcopts.NoOrbital = true;
-                return;
-            }
-            var rootToOrbital = Matrix.Invert(ft.Transform.Mean);
-
-            orbitalCamera.WorldToCamera = meshToRoot * rootToOrbital * orbitalToBody;
-
-            indexedImages[Observation.ORBITAL_IMAGE_INDEX] =
-                Observation.Create(pipeline, orbitalFrame, "OrbitalImage", imgFile, orbitalCamera,
-                                   useForAlignment: false, useForMeshing: false, useForTexturing: true,
-                                   width: orbitalCamera.Width, height: orbitalCamera.Height,
-                                   bands: orbitalCamera.Bands, bits: orbitalCamera.Bits, day: 0, version: 0,
-                                   index: Observation.ORBITAL_IMAGE_INDEX, save: false);
-            
-            pipeline.LogInfo("loaded {0}x{1} orbital image {2}", orbitalTexture.Width, orbitalTexture.Height, imgFile);
         }
 
         protected override bool ObservationFilter(RoverObservation obs)
@@ -603,7 +635,7 @@ namespace OPS.Landform
 
             if (!tcopts.NoOrbital)
             {
-                backprojectStrategy.OrbitalMetersPerPixel = orbitalMetersPerPixel;
+                backprojectStrategy.OrbitalMetersPerPixel = orbitalAvgMetersPerPixel;
             }
 
             var contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,

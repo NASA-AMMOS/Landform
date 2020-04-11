@@ -444,7 +444,7 @@ namespace OPS.Landform
 
                     var obs = obsIndex >= Observation.MIN_INDEX ? indexedImages[obsIndex] : null;
 
-                    if (obs.IsOrbitalDEM)
+                    if (obs != null && obs.IsOrbitalDEM)
                     {
                         obs = null; //no, this shouldn't happen...
                     }
