@@ -17,7 +17,6 @@ namespace OPS.Pipeline.TilingServer
     public class TilingInputChunk
     {
         [DynamoDBHashKey] //Partition key
-        [DynamoDBProperty()]
         public string Id;
 
         public string MeshUrl;

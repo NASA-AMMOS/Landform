@@ -33,7 +33,7 @@ namespace OPS.TilingServer
         [Option(Default = 256, HelpText = "maximum image resolution per tile")]
         public int TileResolution { get; set; }
 
-        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline")]
+        [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline, currently only GenericTiling is supported")]
         public PipelineStateMachine.ProjectType ProjectType { get; set; }
 
         [Option(Default = null, HelpText = "write additional mesh format, or \"help\" to list")]
@@ -68,6 +68,14 @@ namespace OPS.TilingServer
 
         public int Run()
         {
+
+            if (options.ProjectType != PipelineStateMachine.ProjectType.GenericTiling)
+            {
+                pipeline.LogError("unsupported project type: {0}, currently only {1} is supported",
+                                  options.ProjectType, PipelineStateMachine.ProjectType.GenericTiling);
+                return 1;
+            }
+
             string exMeshFmt = null;
             if (!string.IsNullOrEmpty(options.ExportMeshFormat))
             {
@@ -135,7 +143,7 @@ namespace OPS.TilingServer
                                          ReconstructionMethod = options.ReconstructionMethod,
                                          FacesPerTile = options.FacesPerTile,
                                          TileResolution = options.TileResolution,
-                                         ProjectType = options.ProjectType.ToString(),
+                                         ProjectType = options.ProjectType,
                                          ExportMeshFormat = exMeshFmt,
                                          ExportImageFormat = exImageFmt,
                                          MaxLeafGroupSize = options.MaxLeafGroupSize
