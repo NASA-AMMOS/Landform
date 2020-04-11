@@ -161,6 +161,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]
         public bool Overwrite { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Overwrite existing files even if they are the same size")]
+        public bool ForceOverwrite { get; set; }
+
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
@@ -241,6 +244,8 @@ namespace OPS.Landform
             options = opts;
 
             options.DryRun |= options.NoSave;
+
+            options.Overwrite |= options.ForceOverwrite;
 
             traceExts = StringHelper.ParseList(options.TraceExts);
             tracePrefixes = StringHelper.ParseList(options.Trace);
@@ -584,7 +589,7 @@ namespace OPS.Landform
                 }
                 if (ShouldTrace(product) && !string.IsNullOrEmpty(reason))
                 {
-                    logger.InfoFormat("rejected {0}: {1}", product, reason);
+                    logger.InfoFormat("filtered {0}: {1}", product, reason);
                 }
             }
 
@@ -610,7 +615,7 @@ namespace OPS.Landform
                 .SelectMany(files => RoverObservationComparator
                             .FilterProductIdGroups(files, mission, msg => logger.Info(msg), ShouldTrace))
                 .ToList();
-            logger.InfoFormat("RoverObservationComparator rejected {0} products", nf - filtered.Count);
+            logger.InfoFormat("RoverObservationComparator filtered {0} products", nf - filtered.Count);
 
             //apply unified mesh filter after RoverObservationComparator.FilterProductIdGroups()
             //because that might remove e.g. a right eye geometry product if there is a corresponding left eye product
@@ -636,11 +641,11 @@ namespace OPS.Landform
                         var ums = unifiedMeshes[sd];
                         path = ums.ContainsKey(cam) ? ums[cam].Path : ums.ContainsKey(oc) ? ums[oc].Path : null;
                     }
-                    logger.InfoFormat("rejected {0}: not in unified mesh{1}",
+                    logger.InfoFormat("filtered {0}: not in unified mesh{1}",
                                       product, path != null ? " " + StringHelper.GetLastUrlPathSegment(path) : "");
                 }
             }
-            logger.InfoFormat("unified meshes rejected {0} products", filtered.Count - umFiltered.Count);
+            logger.InfoFormat("unified meshes filtered {0} products", filtered.Count - umFiltered.Count);
             filtered = umFiltered;
 
             if (traceExts.Length > 0)
@@ -733,66 +738,51 @@ namespace OPS.Landform
             long remoteBytes = url.ToLower().StartsWith("s3://") ? storageHelper.FileSize(url) : -1;
             if (maxBytes > 0 && remoteBytes > maxBytes)
             {
-                if (ShouldTrace(url))
-                {
-                    logger.InfoFormat("rejected {0}: {1} bytes > max download {2}",
-                                      url, Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
-                }
+                logger.InfoFormat("not downloading {0}: {1} bytes > max download {2}",
+                                  url, Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
                 return false;
             }
             if (maxBytes > 0 && remoteBytes > 0 && !options.AccountExisting &&
                 (downloadedBytes + batchBytes + remoteBytes) > maxBytes)
             {
-                if (ShouldTrace(url))
-                {
-                    logger.InfoFormat("rejected {0}: {1} + {2} bytes > max download {3}",
-                                      url, Fmt.DiskBytes(downloadedBytes + batchBytes), Fmt.DiskBytes(remoteBytes),
-                                      Fmt.DiskBytes(maxBytes));
-                }
+                logger.InfoFormat("not downloading {0}: {1} + {2} bytes > max download {3}",
+                                  url, Fmt.DiskBytes(downloadedBytes + batchBytes), Fmt.DiskBytes(remoteBytes),
+                                  Fmt.DiskBytes(maxBytes));
                 return false;
             }
             if (maxBytes > 0 && remoteBytes > 0 && options.AccountExisting && !options.DeleteLRU &&
                 (diskBytes + batchBytes + remoteBytes) > maxBytes)
             {
-                if (ShouldTrace(url))
-                {
-                    logger.InfoFormat("rejected {0}: {1} + {2} bytes > max disk usage {3}",
-                                      url, Fmt.DiskBytes(diskBytes + batchBytes), Fmt.DiskBytes(remoteBytes),
-                                      Fmt.DiskBytes(maxBytes));
-                }
+                logger.InfoFormat("not downloading {0}: {1} + {2} bytes > max disk usage {3}",
+                                  url, Fmt.DiskBytes(diskBytes + batchBytes), Fmt.DiskBytes(remoteBytes),
+                                  Fmt.DiskBytes(maxBytes));
                 return false;
             }
             string localPath = LocalPath(url);
             long localBytes = File.Exists(localPath) ? new FileInfo(localPath).Length : -1;
             if (localBytes >= 0)
             {
+                if (remoteBytes >= 0 && localBytes == remoteBytes && !options.ForceOverwrite)
+                {
+                    if (options.Verbose)
+                    {
+                        logger.InfoFormat("not downloading {0}: local file {1} already downloaded ({2} = {2} bytes)",
+                                          url, localPath, Fmt.DiskBytes(localBytes));
+                    }
+                    return false; //already downloaded
+                }
                 if (!options.Overwrite)
                 {
-                    if (ShouldTrace(url))
-                    {
-                        logger.InfoFormat("rejected {0}: cannot overwrite local file {1}", url, localPath);
-                    }
+                    logger.InfoFormat("not downloading {0}: cannot overwrite local file {1}", url, localPath);
                     return false;
                 }
                 if (maxBytes > 0 && remoteBytes > 0 && options.AccountExisting && !options.DeleteLRU &&
                     (diskBytes + batchBytes - localBytes + remoteBytes) > maxBytes)
                 {
-                    if (ShouldTrace(url))
-                    {
-                        logger.InfoFormat("rejected {0}: {1} + {2} bytes > max disk usage {3}", url,
-                                          Fmt.DiskBytes(diskBytes + batchBytes - localBytes),
-                                          Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
-                    }
+                    logger.InfoFormat("not downloading {0}: {1} + {2} bytes > max disk usage {3}", url,
+                                      Fmt.DiskBytes(diskBytes + batchBytes - localBytes),
+                                      Fmt.DiskBytes(remoteBytes), Fmt.DiskBytes(maxBytes));
                     return false; //replacing existing file would exceed allowed disk space
-                }
-                if (remoteBytes >= 0 && localBytes == remoteBytes)
-                {
-                    if (ShouldTrace(url))
-                    {
-                        logger.InfoFormat("rejected {0}: local file {1} already downloaded ({2} = {2} bytes)",
-                                          url, localPath, Fmt.DiskBytes(localBytes));
-                    }
-                    return false; //already downloaded
                 }
             }
             if (remoteBytes >= 0)
@@ -824,7 +814,7 @@ namespace OPS.Landform
             //download in parallel groups of up to maxBatch files or maxBatchBytes, whichever is reached first
             long maxBatchBytes = (long)1e9;
             var po = new ParallelOptions() { MaxDegreeOfParallelism = maxBatch };
-            int total = remaining.Count, done = 0, rejected = 0, failed = 0;
+            int total = remaining.Count, done = 0, skipped = 0, failed = 0;
             var batch = new List<string>();
             long batchBytes = 0;
             while (remaining.Count > 0)
@@ -835,15 +825,15 @@ namespace OPS.Landform
                     var url = remaining.Dequeue();
                     if (!ShouldDownload(url, ref batchBytes))
                     {
-                        rejected++;
+                        skipped++;
                         continue;
                     }
                     batch.Add(url);
                 }
 
-                logger.InfoFormat("{0F3}%: {1} downloaded, {2} rejected, {3} failed, {4} to go, " +
+                logger.InfoFormat("{0:f2}%: {1} downloaded, {2} skipped, {3} failed, {4} to go, " +
                                   "downloading batch of {5} files ({6} bytes) in parallel",
-                                  (done + rejected + failed) * 100.0 / total, done, rejected, failed, remaining.Count,
+                                  (done + skipped + failed) * 100.0 / total, done, skipped, failed, remaining.Count,
                                   batch.Count, Fmt.DiskBytes(batchBytes));
 
                 //batchBytes can actually be greater than maxBatchBytes here because we download whole files
@@ -857,9 +847,12 @@ namespace OPS.Landform
 
                 batchBytes = 0; //now we'll re-account the actual downloaded bytes
                 var batchFiles = new ConcurrentBag<FileInfo>(); //ConcurrentBag has no Clear()
+                int np = 0;
                 CoreLimitedParallel.ForEach(batch, po, url =>
                 {
+                    Interlocked.Increment(ref np);
                     long bytes = DownloadFile(url);
+                    Interlocked.Decrement(ref np);
                     if (bytes >= 0)
                     {
                         Interlocked.Add(ref batchBytes, bytes);
@@ -872,7 +865,8 @@ namespace OPS.Landform
                     }
                     if (!options.DryRun)
                     {
-                        string msg = string.Format("{0:F3%}: {1} {2}", (done + rejected + failed) * 100.0 / total,
+                        string msg = string.Format("{0:f2}%: ({1} active downloads) {2} {3}",
+                                                   (done + skipped + failed) * 100.0 / total, np,
                                                    bytes >= 0 ? "downloaded" : "failed to download",
                                                    StringHelper.GetLastUrlPathSegment(url));
                         if (bytes >= 0)

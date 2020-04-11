@@ -1,7 +1,7 @@
 #!/bin/sh
 
 if [ $# -ne 1 ]; then
-    echo "USAGE: packRelease.sh MAJOR.MINOR.PATCH"
+    echo "USAGE: pack-release.sh MAJOR.MINOR.PATCH"
     exit 1
 fi
 

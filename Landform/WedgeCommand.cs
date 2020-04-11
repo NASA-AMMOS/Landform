@@ -49,6 +49,24 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public virtual bool OnlyAligned { get; set; }
+
+        [Option(HelpText = "Disable orbital", Default = false, Required = false)]
+        public virtual bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Disable suface observations, only orbital", Default = false)]
+        public virtual bool NoSurfaceObs { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
+        public string OrbitalDEM { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
+        public string OrbitalImage { get; set; }
+
+        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "DEM values less than this will be ignored")]
+        public double DEMMinFilter { get; set; }
+
+        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "DEM larger than this will be ignored")]
+        public double DEMMaxFilter { get; set; }
     }
 
     public class WedgeCommand : LandformCommand

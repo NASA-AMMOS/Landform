@@ -20,18 +20,22 @@ namespace OPS.Pipeline.Texturing
     // and tunable noisiness that is better than exhaustive. 
     public class ObsSelectionSpatial : ObsSelectionStrategy
     {
-        Dictionary<string, Backproject.Context> ObsToContext;
-        Dictionary<string, List<ObsSelectionStrategy.ScoredPoint>> ScoredRefPtsByObs;
-        double OrbitalMetersPerPixel;
+        public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
+
+        Dictionary<string, Backproject.Context> ObsToContext = new Dictionary<string, Backproject.Context>();
+
+        Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
+
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
-                               List<Backproject.Context> allContexts, int outputTextureResolution, double orbitalMetersPerPixel, 
-                               double quality, bool writeDebug, string localOutputPath)
+                                        List<Backproject.Context> contexts, int outputTextureResolution,
+                                        double quality = 1)
         {
             // any sorts that would be better served by orbital will have their contexts filtered
-            OrbitalMetersPerPixel = orbitalMetersPerPixel;
 
             // collect points on the surface of the mesh
             double samplesPerMeter = quality * 100.0;
+
+            //TODO why can't this just be new SurfacePointSampler().Sample()?
             Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
 
             //guarantee at least a single point on the mesh (zero on mesh can occur with very small meshes)
@@ -41,14 +45,14 @@ namespace OPS.Pipeline.Texturing
                 sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
             }
 
-            if (writeDebug)
+            if (!string.IsNullOrEmpty(DebugOutputPath))
             {
-                mesh.Save(PathHelper.EnsureDir(localOutputPath, "sceneMesh.ply"));
-                sampledMesh.Save(PathHelper.EnsureDir(localOutputPath, "spatialSamplePts_base.ply"));
+                mesh.Save(PathHelper.EnsureDir(DebugOutputPath, "sceneMesh.ply"));
+                sampledMesh.Save(PathHelper.EnsureDir(DebugOutputPath, "spatialSamplePts_base.ply"));
             }
 
             //add center point of each observation (to make sure small fov images are considered)
-            foreach (var ctx in allContexts)
+            foreach (var ctx in contexts)
             {
                 Vector2 pixel = new Vector2(ctx.Obs.Width / 2.0, ctx.Obs.Height / 2.0);
                 Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, pixel, occlusionScene);
@@ -58,47 +62,41 @@ namespace OPS.Pipeline.Texturing
                 }
             }
 
-            if (writeDebug)
+            if (!string.IsNullOrEmpty(DebugOutputPath))
             {
-                sampledMesh.Save(PathHelper.EnsureDir(localOutputPath, "spatialSamplePts_wObs.ply"));
+                sampledMesh.Save(PathHelper.EnsureDir(DebugOutputPath, "spatialSamplePts_wObs.ply"));
             }
 
             //calculate the scores per reference point (grouped by observation)
-            ObsToContext = new Dictionary<string, Backproject.Context>();
-            Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>> scoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>>();
-            foreach (var ctx in allContexts)
+            var scoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>>();
+            foreach (var ctx in contexts)
             {
                 scoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ObsSelectionStrategy.ScoredPoint>());
                 ObsToContext.Add(ctx.Obs.Name, ctx);
             }
 
-            string ptDebugPath = localOutputPath;
+            //exhaustively sort for each sample point
+            var refSelect = new ObsSelectionExhaustive();
+            refSelect.OrbitalMetersPerPixel = OrbitalMetersPerPixel;
+            refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality);
 
             //collect a sorted list of contexts (best to worst) for each sample point
             CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
             {
-                if (writeDebug)
-                {
-                    ptDebugPath = Path.Combine(localOutputPath, "Point_" + pt.X + "_" + pt.Y + "_" + pt.Z);
-                }
-
-                //exhaustively sort for each sample point
-                ObsSelectionExhaustive refSelect = new ObsSelectionExhaustive();
-                refSelect.Initialize(mesh, meshOp, occlusionScene, allContexts, outputTextureResolution, orbitalMetersPerPixel,
-                    quality, writeDebug, ptDebugPath);
                 Dictionary<string, double> ptScoresByObs = new Dictionary<string, double>();
 
-                List<Backproject.Context> sortedContexts = new List<Backproject.Context>(allContexts.Count());
-                refSelect.FilterAndSortContexts(pt, allContexts, sortedContexts, ptScoresByObs);
+                var sortedContexts = refSelect.FilterAndSortContexts(pt, contexts, ptScoresByObs);
 
                 foreach (var pair in ptScoresByObs)
                 {
                     scoredRefPtsByObs[pair.Key].Add(new ObsSelectionStrategy.ScoredPoint(pt, pair.Value));
                 }
 
-                if (writeDebug && sortedContexts.Count() > 0)
+                if (!string.IsNullOrEmpty(DebugOutputPath) && sortedContexts.Count() > 0)
                 {
-                    using (StreamWriter sw = new StreamWriter(PathHelper.EnsureDir(localOutputPath, "RefScoresForPoint_" + pt.X + "_" + pt.Y + "_" + pt.Z + ".txt")))
+                    using (StreamWriter sw =
+                           new StreamWriter(PathHelper.EnsureDir(DebugOutputPath,
+                                                                 $"RefScoresForPoint_{pt.X}_{pt.Y}_{pt.Z}.txt")))
                     {
                         sw.WriteLine(string.Format("{0}: {1}", "Observation Name", "Score (lower is better)"));
                         foreach (var ctx in sortedContexts)
@@ -110,24 +108,20 @@ namespace OPS.Pipeline.Texturing
             });
 
             //flatten to list for later perf
-            ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
-            foreach (var ctx in allContexts)
+            foreach (var ctx in contexts)
             {
                 ScoredRefPtsByObs.Add(ctx.Obs.Name, scoredRefPtsByObs[ctx.Obs.Name].ToList());
             }
         }
 
-        public override void FilterAndSortContexts(Vector3 forPoint, List<Backproject.Context> inContexts, List<Backproject.Context> sortedContexts, Dictionary<string, double> scoresByObs)
+        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
+                                                                        List<Backproject.Context> contexts,
+                                                                        Dictionary<string, double> scoresByObs = null)
         {
-            sortedContexts.Clear();
-            if (scoresByObs != null)
-            {
-                scoresByObs.Clear();
-            }
+            var sortedContexts = new List<Backproject.Context>(contexts.Count);
+            var scoresByObsIndex = new Dictionary<int, double>(contexts.Count);
 
-            Dictionary<int, double> scoresByObsIndex = new Dictionary<int, double>(inContexts.Count());
-
-            foreach (var ctx in inContexts)
+            foreach (var ctx in contexts)
             {
                 if (!ObsToContext.ContainsKey(ctx.Obs.Name))
                 {
@@ -146,7 +140,8 @@ namespace OPS.Pipeline.Texturing
                             throw new Exception("invalid score provided");
                         }
 
-                        //heuristic: makes a quality metric from the min pixel spread on the terrain and the squared distance to ther reference pt
+                        //heuristic: makes a quality metric from the min pixel spread on the terrain
+                        //and the squared distance to ther reference pt
                         double distanceToRefPtSq = Vector3.DistanceSquared(pt.Point, forPoint);
                         double weightedScore = distanceToRefPtSq * pt.Score;
                         if (weightedScore < minWeightedScore)
@@ -164,16 +159,21 @@ namespace OPS.Pipeline.Texturing
                 }
             }
 
-            sortedContexts.Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
+            sortedContexts
+                .Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
 
             //optionally return scores
             if (scoresByObs != null)
             {
+                scoresByObs.Clear();
+
                 foreach (var ctx in sortedContexts)
                 {
                     scoresByObs.Add(ctx.Obs.Name, scoresByObsIndex[ctx.Obs.Index]);
                 }
             }
+
+            return sortedContexts;
         }
     }
 }

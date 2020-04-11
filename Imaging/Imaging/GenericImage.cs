@@ -521,6 +521,20 @@ namespace OPS.Imaging
             }
         }
 
+        public void Fill(T[] bandValues, bool applyToMaskedValues = false)
+        {
+            for (int b = 0; b < Bands; b++)
+            {
+                for (int i = 0; i < data[b].Length; i++)
+                {
+                    if (applyToMaskedValues || IsValid(i))
+                    {
+                        data[b][i] = bandValues[b];
+                    }
+                }
+            }
+        }
+
         /// <summary>
         /// Iterates over all values across all bands in the image
         /// </summary>

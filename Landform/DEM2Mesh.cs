@@ -222,9 +222,12 @@ namespace OPS.Landform
                     throw new Exception("--originpixel exclussive with --outputframe");
                 }
 
-                dem = mission.LoadOrbitalDEM(new SiteDrive(options.OutputFrame), options.InputDEM,
+                string demFile = options.InputDEM;
+                dem = mission.LoadOrbitalDEM(new SiteDrive(options.OutputFrame), ref demFile,
                                              demMetersPerPixel, elevationScale,
                                              options.DEMMinFilter, options.DEMMaxFilter, new ThunkLogger(logger));
+
+                logger.InfoFormat("loaded {0}x{1} DEM {2}", dem.Width, dem.Height, demFile);
             }
             else
             {

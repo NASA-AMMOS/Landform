@@ -15,9 +15,7 @@
 #
 # ./Scripts/m20-credss.sh
 #
-# ./Scripts/tactical-service.sh M2020 --landformownedqueues \
-#     --queuename=m20-ids-g-landform-tactical-$USERNAME \
-#     --failqueuename=m20-ids-g-landform-tactical-fail-$USERNAME \
+# ./Scripts/tactical-service.sh M2020 --landformownedqueues --queuename=m20-ids-g-landform-tactical-$USERNAME \
 #     --meshformat=IV
 
 if [ $# -lt 1 ]; then

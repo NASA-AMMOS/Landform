@@ -228,7 +228,10 @@ for f in `find ${indir} -name '*'.${meshext}`; do
 
         printf "processing tactical tileset for ${mesh}, ${img}\r\n" | tee -a $log
 
-        if [ "$cleanup" ]; then ${dry}rm -rf $storagedir/$venue; fi
+        if [ "$cleanup" -a -d $storagedir/$venue ]; then
+            echo "removing prior results in $storagedir/$venue" | tee -a $log
+            ${dry}rm -rf $storagedir/$venue
+        fi
 
         if [ "$generate" ]; then
             ${dry}$landform configure-local $cfgopts $cfgargs
@@ -247,7 +250,10 @@ for f in `find ${indir} -name '*'.${meshext}`; do
             fi
         fi
         
-        if [ "$cleanup" ]; then ${dry}rm -rf $storagedir/$venue; fi
+        if [ "$cleanup" -a -d $storagedir/$venue ]; then
+            echo "removing intermediate results in $storagedir/$venue" | tee -a $log
+            ${dry}rm -rf $storagedir/$venue
+        fi
 
         if [ "$upload" ]; then
             ${dry}aws --profile=credss-default s3 sync $outproj $s3rdrdir/tileset/$proj \

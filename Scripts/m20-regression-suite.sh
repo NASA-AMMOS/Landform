@@ -119,10 +119,15 @@ do_all_the_things() {
     fi
     
     if [ "$contextual" -a "$enable_contextual" ]; then
+        noorbital=--noorbital
+        demarg=
+        orthoarg=
+        if [ -f out/$run/orbital/$dem ]; then demarg="--orbitaldem out/$run/orbital/$dem"; noorbital=; fi
+        if [ -f out/$run/orbital/$ortho ]; then orthoarg="--orbitalimage out/$run/orbital/$ortho"; noorbital=; fi
         IFS=',' read -ra solarray <<< $sols
         primarysol=${solarray[0]}
         $scriptdir/process-contextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \
-                                         --orbitaldem out/$run/orbital/$dem --orbitalimage out/$run/orbital/$ortho
+                                         $demarg $orthoarg $noorbital
     fi
 }
 

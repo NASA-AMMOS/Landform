@@ -32,7 +32,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public void LogInfo(string msg, params Object[] args)
+        public void LogLess(string msg, params Object[] args)
         {
             msg = string.Format(msg, args);
             if (LessSpew)
@@ -44,6 +44,11 @@ namespace OPS.Pipeline
                 pipeline.LogInfo(logPrefix + msg);
             }
             SendStatusToMaster(msg);
+        }
+
+        public void LogInfo(string msg, params Object[] args)
+        {
+            pipeline.LogInfo(logPrefix + string.Format(msg, args));
         }
 
         public void LogVerbose(string msg, params Object[] args)

@@ -98,7 +98,7 @@ namespace OPS.Pipeline.TilingServer
                     var msg = string.Format("{0} {1} nodes", what, n);
                     if (progress)
                     {
-                        LogInfo(msg);
+                        LogLess(msg);
                     }
                     else
                     {
@@ -372,7 +372,8 @@ namespace OPS.Pipeline.TilingServer
 
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
                                                         int facesPerTile, List<MeshImagePair> pairs,
-                                                        SplitByTextureOpts texOpts = null, string logPrefix = null)
+                                                        SplitByTextureOpts texOpts = null, string logPrefix = null,
+                                                        double surfaceExtent = -1)
         {
             EnsureLogPrefix(ref logPrefix);
 
@@ -402,8 +403,11 @@ namespace OPS.Pipeline.TilingServer
                
             }
 
-            pipeline.LogInfo("{0}build tile tree: building bounds tree", logPrefix);
-            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), info);
+            pipeline.LogInfo("{0}build tile tree: building bounds tree, max {1} faces per tile, {2} split criteria, " +
+                             "texture split {3}", logPrefix, Fmt.KMG(facesPerTile), splitCriteria.Count,
+                             splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled");
+
+            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), surfaceExtent, info);
         }
 
         private static ITilingScheme GetTilingScheme(TilingScheme tilingScheme)
@@ -437,16 +441,31 @@ namespace OPS.Pipeline.TilingServer
         //thus each node name encodes a full path from the root to the node
         //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme,
-                                                ITileSplitCriteria[] splitCriteria, Action<string> infoAction = null)
+                                                ITileSplitCriteria[] splitCriteria, double surfaceExtent = -1,
+                                                Action<string> infoAction = null)
         {
             var info = infoAction ?? (msg => { });
 
+            var totalBounds = multiClipper.TotalBounds;
+
+            //if surfaceExtent is negative then treat the whole scene like surface
+            //if surfaceExtent is zero then treat the whole scene like orbital
+            BoundingBox? surfaceBounds = null;
+            var orbitalSplitCriteria = splitCriteria.Where(sc => sc is FaceSplitCriteria).ToArray();
+            if (surfaceExtent > 0)
+            {
+                double rad = 0.5 * surfaceExtent;
+                surfaceBounds = new BoundingBox(new Vector3(-rad, -rad, totalBounds.Min.Z),
+                                                new Vector3(rad, rad, totalBounds.Max.Z));
+            }
+
             SceneNode root = new SceneNode("");
-            root.AddComponent(new NodeBounds(multiClipper.TotalBounds));
+            root.AddComponent(new NodeBounds(totalBounds));
             Queue<SceneNode> queue = new Queue<SceneNode>();
             queue.Enqueue(root);
 
             int tilesComplete = 0;
+            int surfaceTiles = 0, orbitalTiles = 0, surfaceSplits = 0, orbitalSplits = 0;
             while (queue.Count > 0)
             {
                 List<SceneNode> toProcess = new List<SceneNode>(queue.Count());
@@ -456,39 +475,59 @@ namespace OPS.Pipeline.TilingServer
                 }
 
                 CoreLimitedParallel.ForEach(toProcess, cur =>
-            {
-                var curBounds = cur.GetComponent<NodeBounds>().Bounds;
-
-                if (splitCriteria.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
                 {
-                    info(string.Format("splitting tile: {0}", cur.Name));
-                    var childBounds = tilingScheme.Split(null, curBounds);
-                    childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                    var curBounds = cur.GetComponent<NodeBounds>().Bounds;
 
+                    var sc = splitCriteria;
+                    if (surfaceExtent == 0 || (surfaceBounds.HasValue && !surfaceBounds.Value.Intersects(curBounds)))
+                    {
+                        sc = orbitalSplitCriteria;
+                        Interlocked.Increment(ref orbitalTiles);
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref surfaceTiles);
+                    }
+                    if (sc.Length > 0 && sc.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
+                    {
+                        if (sc == orbitalSplitCriteria)
+                        {
+                            Interlocked.Increment(ref orbitalSplits);
+                        }
+                        else
+                        {
+                            Interlocked.Increment(ref surfaceSplits);
+                        }
+                        info(string.Format("splitting tile: {0}", cur.Name));
+                        var childBounds = tilingScheme.Split(null, curBounds);
+                        childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                        
                         //For quad trees, expand bounds in the non-split dimension
                         //Otherwise, we clip high peaks/low valleys in the decimated mesh
                         //that exceed the bounds of the original mesh
                         //childBounds = childBounds.Select(box => tilingScheme.ExpandBounds(box, null));
                         //disabled - see https://github.jpl.nasa.gov/OnSight/Landform/pull/656
-
+                        
                         int counter = 0; //note this is always exactly one decimal digit
                         foreach (var childBound in childBounds)
-                    {
-                        SceneNode child = CreateChildNode(cur, ref counter, childBound);
-
-                        lock (queue)
                         {
-                            queue.Enqueue(child);
+                            SceneNode child = CreateChildNode(cur, ref counter, childBound);
+                            
+                            lock (queue)
+                            {
+                                queue.Enqueue(child);
+                            }
+                            
                         }
-
                     }
-                }
-                else
-                {
-                    info(string.Format("not Splitting tile: {0} ({1})", cur.Name, Interlocked.Increment(ref tilesComplete)));
-                }
-            });
+                    else
+                    {
+                        info(string.Format("not Splitting tile: {0} ({1})",
+                                           cur.Name, Interlocked.Increment(ref tilesComplete)));
+                    }
+                });
             }
+            info($"split {surfaceSplits}/{surfaceTiles} surface tiles, {orbitalSplits}/{orbitalTiles} orbital");
             root.Name = "root";
             return root;
         }

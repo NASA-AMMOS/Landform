@@ -133,7 +133,7 @@ namespace OPS.Landform
         [Option(HelpText = "Redo blurred texture", Default = false)]
         public bool RedoBlurredTexture { get; set; }
 
-        [Option(HelpText = "Redo blended blended texture", Default = false)]
+        [Option(HelpText = "Redo blended texture", Default = false)]
         public bool RedoBlendedTexture { get; set; }
     }
 
@@ -393,7 +393,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("creating blurred texture from shrinkwrap mesh");
                 BuildSceneCaster();
                 BuildMeshOperator();
-                BackprojectObservations();
+                BackprojectRoverObservations();
                 BuildBackprojectIndex();
             }
 
@@ -445,7 +445,7 @@ namespace OPS.Landform
 
                     bool hasGray = obs != null;
                     bool hasColor = obs != null && obs.Bands == 3;
-                    bool orbital = obsIndex == Observation.ORBITAL_INDEX;
+                    bool orbital = obs != null && obsIndex == Observation.ORBITAL_INDEX;
 
                     byte lumaFlag = (byte)(hasGray ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
                     byte chromaFlag = (byte)(hasColor ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
@@ -565,13 +565,14 @@ namespace OPS.Landform
 
             double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
 
-            int np = 0, nc = 0;
+            int np = 0, nc = 0, nf = 0;
             CoreLimitedParallel.ForEach(indexedImages, entry => {
 
                     int obsIndex = entry.Key;
 
                     if (obsIndex == Observation.ORBITAL_INDEX)
                     {
+                        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1046
                         return;
                     }
 
@@ -579,8 +580,9 @@ namespace OPS.Landform
 
                     if (!winners.ContainsKey(obsIndex))
                     {
-                        pipeline.LogWarn("cannot blend image for observation {0}, no mesh points backprojected to it",
-                                         obs.Name);
+                        pipeline.LogVerbose("cannot blend image for observation {0}, no points backprojected to it",
+                                            obs.Name);
+                        Interlocked.Increment(ref nf);
                         if (!options.NoSave)
                         {
                             obs.BlendedGuid = Guid.Empty;
@@ -748,6 +750,7 @@ namespace OPS.Landform
                     else
                     {
                         pipeline.LogWarn("cannot blend image for observation {0}, no valid backprojections", obs.Name);
+                        Interlocked.Increment(ref nf);
                         if (!options.NoSave)
                         {
                             obs.BlendedGuid = Guid.Empty;
@@ -758,6 +761,8 @@ namespace OPS.Landform
                     Interlocked.Decrement(ref np);
                     Interlocked.Increment(ref nc);
                 });
+            pipeline.LogInfo("created blended images for {0}/{1} observations, skipped {2} with no backprojections",
+                             nc, no, nf);
         }
 
         private void BuildBackprojectIndexFromLeaves()
@@ -836,6 +841,7 @@ namespace OPS.Landform
             pipeline.LogInfo("blending leaf textures");
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
+            int numSurfacePixels = 0, numOrbitalPixels = 0;
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
@@ -846,15 +852,19 @@ namespace OPS.Landform
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages);
                 var texture = new Image(3, index.Width, index.Height);
-                Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
-                                              fallbackToOriginal: true, orbitalTexture: orbitalTexture);
-
+                var stats = Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
+                                                          options.BackprojectInpaintPixels, fallbackToOriginal: true,
+                                                          orbitalTexture: orbitalTexture);
+                Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
+                Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 TemporaryFile.GetAndDelete(tileList.ImageExt, tmpFile => {
                         texture.Save<byte>(tmpFile);
                         string textureUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.ImageExt);
                         pipeline.SaveFile(tmpFile, textureUrl);
                     });
             });
+            pipeline.LogInfo("blended {0} pixels from surface observations, {1} pixels from orbital",
+                             Fmt.KMG(numSurfacePixels), Fmt.KMG(numOrbitalPixels));
         }
     }
 }

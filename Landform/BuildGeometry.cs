@@ -111,7 +111,7 @@ namespace OPS.Landform
         [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = 32)]
         public double ClipSurfaceExtent { get; set; }
 
-        [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 32)]
+        [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 64)]
         public double ClipExtent { get; set; }
 
         [Option(HelpText = "Surface density based trimmer octree level (higher means more agressive, 0 disables)", Default = 7.5)]
@@ -122,9 +122,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more agressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
-
-        [Option(HelpText = "Don't use orbital to fill in outer edges of mesh (orbital requires --reconstructionmethod=Poission)", Default = false)]
-        public bool NoOrbital { get; set; }
 
         [Option(HelpText = "Orbital sampling rate outside blend radius, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
@@ -143,15 +140,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Orbital blend min blend, 0-1, larger preserves orbital more", Default = 0.1)]
         public double OrbitalBlendMin { get; set; }
-
-        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
-        public string OrbitalDEM { get; set; }
-
-        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "DEM values less than this will be ignored")]
-        public double DEMMinFilter { get; set; }
-
-        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "DEM larger than this will be ignored")]
-        public double DEMMaxFilter { get; set; }
 
         [Option(HelpText = "Clever combine cell size (meters)", Default = CleverCombine.DEF_CELL_SIZE)]
         public double CleverCombineCellSize { get; set; }
@@ -182,9 +170,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]
         public string OutputMesh { get; set; }
-
-        [Option(HelpText = "no surface mesh data, only orbital", Default = false)]
-        public bool NoSurfaceObs { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -244,6 +229,11 @@ namespace OPS.Landform
                 if (!options.NoOrbital)
                 {
                     RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
+
+                    if (options.NoOrbital && options.NoSurfaceObs)
+                    {
+                        throw new Exception("--nosurfaceobs but failed to load orbital");
+                    }
                 }
 
                 if (!options.NoSurfaceObs && (!options.NoFillHoles || !options.NoOrbital))
@@ -257,21 +247,7 @@ namespace OPS.Landform
                     }
                 }
 
-                if (!options.NoOrbital)
-                {
-                    RunPhase("build orbital mesh", BuildOrbitalMesh);
-
-                    if (options.NoSurfaceObs)
-                    {
-                        // in the case where there is no surface data orbital is the scene mesh
-                        mesh = orbitalMesh;
-                    }
-                    else
-                    {
-                        RunPhase("blend orbital to surface", BlendOrbitalToSurface);
-                    }
-                }
-                else if (options.NoOrbital || options.NoFillHoles)
+                if (options.NoOrbital)
                 {
                     //just clip surface mesh
                     double extent = options.ClipExtent;
@@ -283,11 +259,17 @@ namespace OPS.Landform
                 }
                 else
                 {
-                    //surface mesh has already been clipped
+                    //surface mesh (if any) has already been clipped
                     //and we've already verified that 0 < ClipSurfaceExtent < ClipExtent
                     //now build orbital to ClipExtent
+
                     RunPhase("build orbital mesh", BuildOrbitalMesh);
-                    if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
+
+                    if (options.NoSurfaceObs)
+                    {
+                        mesh = orbitalMesh;
+                    }
+                    else if (options.OrbitalBlendRadius > 0 || options.OrbitalSewRadius > 0)
                     {
                         RunPhase("blend orbital to surface", BlendOrbitalToSurface);
                     }
@@ -323,6 +305,11 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
+            if (options.NoOrbital && options.NoSurfaceObs)
+            {
+                throw new Exception("cannot combine --noorbital with --nosurfaceobs");
+            }
+
             if (options.ReconstructionMethod != MeshReconstructionMethod.FSSR &&
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
@@ -668,11 +655,12 @@ namespace OPS.Landform
 
         private void LoadOrbital()
         {
+            string demFile = options.OrbitalDEM;
             try
             {
-                orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), options.OrbitalDEM,
-                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                 logger: pipeline);
+                orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), ref demFile,
+                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
+                                                    logger: pipeline);
             }
             catch (Exception ex)
             {
@@ -689,10 +677,12 @@ namespace OPS.Landform
                 return;
             }
 
-            var orbitalToWorld = ft.Transform.Mean;
-            var meshToWorld = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-            orbitalToMesh = orbitalToWorld * Matrix.Invert(meshToWorld);
+            var orbitalToRoot = ft.Transform.Mean;
+            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+            orbitalToMesh = orbitalToRoot * Matrix.Invert(meshToRoot);
             meshToOrbital = Matrix.Invert(orbitalToMesh);
+
+            pipeline.LogInfo("loaded {0}x{1} orbital DEM {2}", orbitalDEM.Width, orbitalDEM.Height, demFile);
         }
 
         private void CreateShrinkwrappedSurfaceMesh()
@@ -1110,6 +1100,15 @@ namespace OPS.Landform
             if (!options.NoSave)
             {
                 pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
+                double surfaceExtent = -1; //unlimited
+                if (options.NoSurfaceObs)
+                {
+                    surfaceExtent = 0; //only orbital
+                }
+                else if (options.ClipSurfaceExtent > 0)
+                {
+                    surfaceExtent = options.ClipSurfaceExtent;
+                }
                 string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
                 var variant = MeshVariant.Default;
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
@@ -1119,12 +1118,13 @@ namespace OPS.Landform
                     var meshProd = new PlyGZDataProduct(mesh);
                     pipeline.SaveDataProduct(project, meshProd);
                     sceneMesh.MeshGuid = meshProd.Guid;
+                    sceneMesh.SurfaceExtent = surfaceExtent;
                     sceneMesh.Save(pipeline);
                 }
                 else
                 {
                     sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames,
-                                                 mesh: mesh);
+                                                 mesh: mesh, surfaceExtent: surfaceExtent);
                 }
             }
                 

@@ -18,7 +18,7 @@ if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 set queue=m20-ids-g-landform-contextual-worker
 if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
 
-set failqueue=m20-ids-g-landform-contextual-worker-fail
+set failqueue=auto
 if not "%LANDFORM_CONTEXTUAL_WORKER_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_WORKER_FAIL_QUEUE%
 
 set awsprofile=none

@@ -59,7 +59,7 @@ namespace OPS.Pipeline.TilingServer
 
         public string InternalImageFormat = "png";
 
-        public string InternalIndexFormat = "tif";
+        public string InternalIndexFormat = "tif"; //tile backproject index images disabled if null
 
         public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
 
@@ -67,12 +67,16 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
 
-        public string TilesetIndexFormat = "ppmz"; //gzipped ppm, will be embedded in b3dm
+        public string TilesetIndexFormat = "ppmz"; //e.g. tiff, ppm, ppmz, only used if InternalIndexFormat is also set
 
-        public bool EmbedIndexes = true; //Disabling will write index images as seperate files, embedded in b3dm by default
+        public bool EmbedIndexes = true; //embed tileset indexes in b3dm
 
         public static string ToExt(string fmt)
         {
+            if (string.IsNullOrEmpty(fmt))
+            {
+                return fmt;
+            }
             if (!fmt.StartsWith("."))
             {
                 fmt = "." + fmt;

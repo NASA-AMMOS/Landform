@@ -63,12 +63,6 @@ namespace OPS.Landform
         [Option(Required = false, Default = true, HelpText = "Only allow vertical adjustment and out of plane rotation between sitedrives (does not apply to orbital).")]
         public bool PreserveXY { get; set; }
 
-        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "Orbital DEM values less than this will be ignored")]
-        public double DEMMinFilter { get; set; }
-
-        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "Orbital DEM larger than this will be ignored")]
-        public double DEMMaxFilter { get; set; }
-
         [Option(Required = false, Default = 500, HelpText = "Orbital DEM will be ignored beyond this radius from base site drive origin")]
         public double DEMRadiusFilter { get; set; }
 
@@ -87,17 +81,11 @@ namespace OPS.Landform
         [Option(Required = false, Default = 1000, HelpText = "Maximum number of samples for alignment")]
         public int MaxSamples { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
-        public string OrbitalDEM { get; set; }
-
         [Option(Required = false, Default = false, HelpText = "Disable final alignment of sitedrives to aligned obital DEM")]
         public bool NoAlignToDem { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't only align unaligned sitedrives to aligned obital DEM")]
         public bool NoOnlyAlignUnalignedToDem { get; set; }
-
-        [Option(HelpText = "Disable orbital alignment", Default = false, Required = false)]
-        public bool NoOrbital { get; set; }
 
         [Option(HelpText = "Stop after rendering site drive DEMs", Default = false)]
         public bool OnlyRenderDEMs { get; set; }
@@ -397,9 +385,11 @@ namespace OPS.Landform
         {
             try
             {
-                orbitalDEM = mission.LoadOrbitalDEM(baseSiteDrive, options.OrbitalDEM,
+                string demFile = options.OrbitalDEM;
+                orbitalDEM = mission.LoadOrbitalDEM(baseSiteDrive, ref demFile,
                                                  minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
                                                  logger: pipeline);
+                pipeline.LogInfo("loaded {0}x{1} orbital DEM {2}", orbitalDEM.Width, orbitalDEM.Height, demFile);
             }
             catch (Exception ex)
             {

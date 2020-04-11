@@ -36,6 +36,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public string Bounds;
 
+        public double SurfaceExtent; //-1 if unlimited, 0 if no surface (only orbital)
+
         public Guid MeshGuid;
 
         public Guid BackprojectIndexGuid;
@@ -61,7 +63,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         protected SceneMesh(string projectName, string frame, MeshVariant variant = MeshVariant.Default,
                             SiteDrive[] siteDrives = null, string[] observations = null,
-                            Guid meshGuid = default(Guid), Guid textureGuid = default(Guid))
+                            Guid meshGuid = default(Guid), Guid textureGuid = default(Guid),
+                            double surfaceExtent = -1)
         {
             this.ProjectName = projectName;
             this.Name = MakeName(frame, variant, siteDrives, observations);
@@ -81,6 +84,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.BlurredTextureGuid = Guid.Empty;
             this.BlendedTextureGuid = Guid.Empty;
             this.TileListGuid = Guid.Empty;
+            this.SurfaceExtent = surfaceExtent;
             IsValid();
         }
 
@@ -105,7 +109,8 @@ namespace OPS.Pipeline.AlignmentServer
         public static SceneMesh Create(PipelineCore pipeline, Project project, string frame,
                                        MeshVariant variant = MeshVariant.Default,
                                        SiteDrive[] siteDrives = null, string[] observations = null,
-                                       Mesh mesh = null, Image texture = null, bool noSave = false)
+                                       Mesh mesh = null, Image texture = null, double surfaceExtent = -1,
+                                       bool noSave = false)
         {
             var meshProd = mesh != null ? new PlyGZDataProduct(mesh) : null;
             if (meshProd != null)
@@ -121,7 +126,8 @@ namespace OPS.Pipeline.AlignmentServer
 
             var ret = new SceneMesh(project.Name, frame, variant, siteDrives, observations,
                                     meshProd != null ? meshProd.Guid : Guid.Empty,
-                                    textureProd != null ? textureProd.Guid : Guid.Empty);
+                                    textureProd != null ? textureProd.Guid : Guid.Empty,
+                                    surfaceExtent);
 
             if (mesh != null)
             {

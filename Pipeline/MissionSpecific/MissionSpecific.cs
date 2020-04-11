@@ -834,10 +834,10 @@ namespace OPS.Pipeline
         /// * lat/lon for siteDrive outside bounds of DEM
         /// * no vaid elevation at lat/lon for siteDrive in DEM
         /// </summary>
-        public virtual DEM LoadOrbitalDEM(SiteDrive siteDrive, string demFile = null,
-                                       double? metersPerPixel = null, double? elevationScale = null,
-                                       double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
-                                       ILogger logger = null)
+        public virtual DEM LoadOrbitalDEM(SiteDrive siteDrive, ref string demFile,
+                                          double? metersPerPixel = null, double? elevationScale = null,
+                                          double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
+                                          ILogger logger = null)
         {
             var cfg = OrbitalConfig.Instance;
             
@@ -851,6 +851,11 @@ namespace OPS.Pipeline
                 {
                     throw new Exception("orbital DEM not available");
                 }
+            }
+
+            if (!File.Exists(demFile))
+            {
+                throw new Exception("orbital DEM not found: " + demFile);
             }
 
             if (!metersPerPixel.HasValue)
@@ -876,31 +881,59 @@ namespace OPS.Pipeline
                            originPixel, originElevation, minFilter, maxFilter);
         }
 
-        public virtual SparsePipelineImage LoadOrbitalImage(PipelineCore pipeline, SiteDrive siteDrive,string OrbitalBodyName,
-            out OrbitalImage orbitalTransform, out Matrix sitedriveToOrbitalBody, out double orbitalMetersPerPixel, string imgFile = null, 
-            ILogger logger = null)
+        public virtual SparseImage LoadOrbitalImage(SiteDrive siteDrive, ref string imgFile,
+                                                    out OrbitalImage orbitalTransform,
+                                                    out Matrix siteDriveToOrbitalBody, out double orbitalMetersPerPixel,
+                                                    ILogger logger = null)
         {
-            orbitalTransform = new OrbitalImage(imgFile, PlanetaryBody.GetByName(OrbitalBodyName));
+            var cfg = OrbitalConfig.Instance;
+            
+            if (string.IsNullOrEmpty(imgFile))
+            {
+                if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
+                {
+                    imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
+                }
+                else
+                {
+                    throw new Exception("orbital image not available");
+                }
+            }
+
+            if (!File.Exists(imgFile))
+            {
+                throw new Exception("orbital image not found: " + imgFile);
+            }
+
+            orbitalTransform = new OrbitalImage(imgFile, PlanetaryBody.GetByName(cfg.OrbitalBodyName));
            
-            var placesDB = new PlacesDB(pipeline, requireOrbital: true);
+            var placesDB = new PlacesDB(logger, requireOrbital: true);
             Vector2 meshFrameLonLat = placesDB.GetEstimatedLatLon(siteDrive);
-            logger.LogInfo("Places: primary sitedrive {0} at longitude {1} and latitude {2}", siteDrive, meshFrameLonLat.X, meshFrameLonLat.Y);
+
+            if (logger != null)
+            {
+                logger.LogInfo("Places: primary sitedrive {0} at longitude {1} and latitude {2}",
+                               siteDrive, meshFrameLonLat.X, meshFrameLonLat.Y);
+            }
 
             Vector3 bodyXYZ = orbitalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0));
 
-            //ISSUE #1034 (comments): this bolts a single transform gluing a flat plane to this location transformations km away from this location will be incorrect
+            //ISSUE #1034: this bolts a single transform gluing a flat plane to this location
+            //transformations km away from this location will be incorrect
             Vector3 siteDriveZInBody = Vector3.Normalize(bodyXYZ); // sd: nadir, should be - but need to convert from right handed site to lefthanded body
             Vector3 siteDriveYInBody = Vector3.Normalize(Vector3.Cross(siteDriveZInBody, new Vector3(1, 0, 0))); // sd: east,
             Vector3 siteDriveXInBody = Vector3.Normalize(Vector3.Cross(siteDriveYInBody, siteDriveZInBody)); // sd: north, 
 
-            sitedriveToOrbitalBody = new Matrix(siteDriveXInBody.X, siteDriveXInBody.Y, siteDriveXInBody.Z, 0,
-                                               siteDriveYInBody.X, siteDriveYInBody.Y, siteDriveYInBody.Z, 0,
-                                               siteDriveZInBody.X, siteDriveZInBody.Y, siteDriveZInBody.Z, 0,
-                                               bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
+            siteDriveToOrbitalBody = new Matrix(siteDriveXInBody.X, siteDriveXInBody.Y, siteDriveXInBody.Z, 0,
+                                                siteDriveYInBody.X, siteDriveYInBody.Y, siteDriveYInBody.Z, 0,
+                                                siteDriveZInBody.X, siteDriveZInBody.Y, siteDriveZInBody.Z, 0,
+                                                bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
 
-            //#ISSUE 1034 (comments): ideally this would be recalculated at each point in question, but for now we will do at a single site
+            //ISSUE #1034: ideally this would be recalculated at each point in question
+            //but for now we will do at a single site
             orbitalMetersPerPixel = orbitalTransform.GetFinestEstimatedMetersPerPixelAtXYZ(bodyXYZ);
-            return new SparsePipelineImage(pipeline, imgFile);
+
+            return new DEM.SparseDEMImage(imgFile);
         }
     }
 }
