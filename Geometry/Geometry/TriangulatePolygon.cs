@@ -175,8 +175,6 @@ namespace OPS.Geometry
                 //B: Ended with 2 edges that don't form a closed degenerate polygon (only share 0 or 1 verticies).
                 throw new Exception("triangulate should terminate with a closed pair of edges");
             }             
-            //perimeter[0].Left = perimeter[1].Dst; //Only create one triangle
-            //triangulated.Add(perimeter[0]);
             return triangulated;
         }
     }
