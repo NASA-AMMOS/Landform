@@ -362,6 +362,7 @@ namespace OPS.Imaging
         /// resulting image will have mask set for any source block that had no valid pixels
         /// does not mutate source image
         /// This method does not retain metadata or camera model.
+        /// If the image has a CalibratedCameraModel then you could use CalibratedCameraModel.Decimated().
         /// </summary>
         public Image Decimated(int blocksize)
         {

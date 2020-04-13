@@ -155,7 +155,7 @@ namespace OPS.Imaging
     /// laid out on the reference planetary surface (sphere). The origin of each pixel ray is a point on that surface.
     /// The direction of each pixel ray is the outward pointing unit normal to that surface at that point.
     /// </summary>
-    public class GISCameraModel : CameraModel, IDisposable
+    public class GISCameraModel : ConformalCameraModel, IDisposable
     {
         public string BodyName { get { return Body.Name; } } //for json serialization
 
@@ -164,8 +164,6 @@ namespace OPS.Imaging
 
         public int Bits { get; private set; }
         public int Bands { get; private set; }
-        public int Width { get; private set; }
-        public int Height { get; private set; }
 
         //example:
         //PROJCS["Equirectangular Mars 2000 Sphere IAU",
@@ -184,25 +182,7 @@ namespace OPS.Imaging
             }
         }
 
-        public Vector2 MetersPerPixel
-        {
-            get
-            {
-                return new Vector2(colRowToEastingNorthing[1], Math.Abs(colRowToEastingNorthing[5]));
-            }
-        }
-
-        [JsonIgnore]
-        public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }
-
-        [JsonIgnore]
-        public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
-
-        [JsonIgnore]
-        public double WidthMeters { get { return Width * MetersPerPixel.X; } }
-
-        [JsonIgnore]
-        public double HeightMeters { get { return Height * MetersPerPixel.Y; } }
+        private int width, height;
 
         //GDAL has two ways of describing the relationship between raster positions and georeferenced coordinates.
         //
@@ -240,8 +220,8 @@ namespace OPS.Imaging
             {
                 Bits = GDALSerializer.GetBitDepth(gdalDataset);
                 Bands = gdalDataset.RasterCount;
-                Width = gdalDataset.RasterXSize;
-                Height = gdalDataset.RasterYSize;
+                width = gdalDataset.RasterXSize;
+                height = gdalDataset.RasterYSize;
                 
                 ProjectionRef = gdalDataset.GetProjectionRef();
                 
@@ -264,8 +244,8 @@ namespace OPS.Imaging
         {
             this.Body = PlanetaryBody.GetByName(bodyName);
             this.Bands = bands;
-            this.Width = width;
-            this.Height = height;
+            this.width = width;
+            this.height = height;
             this.ProjectionRef = projectionRef;
             this.colRowToEastingNorthing[0] = minEastingNorthing.X;
             this.colRowToEastingNorthing[1] = metersPerPixel.X;
@@ -306,15 +286,6 @@ namespace OPS.Imaging
             logger.LogInfo("planetary body: {0}", BodyName);
         }
 
-        /// <summary>
-        /// Goes with Image.Decimated() and DEM.Decimated().
-        /// </summary>
-        public GISCameraModel Decimated(int blocksize)
-        {
-            return new GISCameraModel(BodyName, Bands, Width / blocksize, Height / blocksize,
-                                      ProjectionRef, MinEastingNorthing, MetersPerPixel * blocksize);
-        }
-
         /* start CameraModel implementation ***************************************************************************/
 
         private Matrix bodyToLocal = Matrix.Identity, localToBody = Matrix.Identity;
@@ -351,6 +322,17 @@ namespace OPS.Imaging
 
         [JsonIgnore]
         public override bool Linear { get { return false; } }
+
+        public override int Width { get { return width; } }
+        public override int Height { get { return height; } }
+
+        public override Vector2 MetersPerPixel
+        {
+            get
+            {
+                return new Vector2(colRowToEastingNorthing[1], Math.Abs(colRowToEastingNorthing[5]));
+            }
+        }
 
         /// <summary>
         /// Get a unit vector along the GIS image plane normal at the origin pixel in local frame, or the center pixel
@@ -414,7 +396,13 @@ namespace OPS.Imaging
 
         public override object Clone()
         {
-            return (GISCameraModel) MemberwiseClone();
+            return (GISCameraModel)MemberwiseClone();
+        }
+
+        public override ConformalCameraModel Decimated(int blocksize)
+        {
+            return new GISCameraModel(BodyName, Bands, Width / blocksize, Height / blocksize,
+                                      ProjectionRef, MinEastingNorthing, MetersPerPixel * blocksize);
         }
 
         /* end CameraModel implementation *****************************************************************************/

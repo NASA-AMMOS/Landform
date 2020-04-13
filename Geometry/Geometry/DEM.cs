@@ -10,7 +10,7 @@ using OPS.Util;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Wraps any scalar Image as a Digital Elevation Map.
+    /// Wraps any scalar Image with a CalibratedCameraModel as a Digital Elevation Map.
     /// The underlying image can be a SparseImage, see in particular SparseGISElevationMap.
     /// Provides API surfaces for interpolating points, estimating normals, and creating meshes.
     /// Also see OPS.Imaging.GISDEM which is limited to working with GDAL geographic images.
@@ -37,20 +37,16 @@ namespace OPS.Geometry
         public int Height { get { return dem.Height; } }
         public int Area { get { return dem.Area; } }
 
-        public CameraModel CameraModel { get { return dem.CameraModel; } }
-
         public bool IsValid(int r, int c)
         {
             return dem.IsValid(r, c);
         }
 
+        public ConformalCameraModel CameraModel { get { return dem.CameraModel as ConformalCameraModel; } }
         public Vector2 OriginPixel { get { return CameraModel.Project(Vector3.Zero); } }
-
-        public Vector2 MetersPerPixel { get; private set; }
+        public Vector2 MetersPerPixel { get { return CameraModel.MetersPerPixel; } }
         public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }
-
         public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
-
         public double WidthMeters { get { return Width * MetersPerPixel.X; } }
         public double HeightMeters { get { return Height * MetersPerPixel.Y; } }
 
@@ -60,12 +56,9 @@ namespace OPS.Geometry
 
         private Image dem; //may have mask
 
-        public DEM(Image dem, double metersPerPixel = 1) : this(dem, Vector2.One * metersPerPixel) { }
-
-        public DEM(Image dem, Vector2 metersPerPixel)
+        private DEM(Image dem)
         {
             this.dem = dem;
-            this.MetersPerPixel = metersPerPixel;
         }
 
         /// <summary>
@@ -122,8 +115,6 @@ namespace OPS.Geometry
             
             dem.CameraModel = new OrthographicCameraModel(camCtr, elevationDir, right, down, ret.Width, ret.Height);
 
-            ret.MetersPerPixel = new Vector2(pixelAspect, 1) * metersPerPixel;
-
             return ret;
         }
 
@@ -139,21 +130,8 @@ namespace OPS.Geometry
 
        public DEM Decimated(int blocksize)
         {
-            var cmod = (CameraModel)(CameraModel.Clone());
-            if (cmod is OrthographicCameraModel)
-            {
-                cmod = (cmod as OrthographicCameraModel).Decimated(blocksize);
-            }
-            else if (cmod is GISCameraModel)
-            {
-                cmod = (cmod as GISCameraModel).Decimated(blocksize);
-            }
-            else
-            {
-                throw new NotImplementedException("decimation not imlemented for " + cmod.GetType().Name);
-            }
             var decimated = dem.Decimated(blocksize);
-            decimated.CameraModel = cmod;
+            decimated.CameraModel = CameraModel.Decimated(blocksize);
             return new DEM(decimated);
         }
 

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using OPS.Util;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Imaging
 {
@@ -69,5 +70,35 @@ namespace OPS.Imaging
         {
             return (CameraModel)JsonHelper.FromJson(str);
         }
+    }
+
+    /// <summary>
+    /// Camera model where pixels correspond to points in a regular grid on a surface.
+    /// For OrthographicCameraModel the surface is a plane.
+    /// For GISCameraModel the surface is a planetary reference surface (sphere, ellipsoid, or geoid).
+    /// </summary>
+    public abstract class ConformalCameraModel : CameraModel
+    {
+        public abstract int Width { get; }
+        public abstract int Height { get; }
+
+        public abstract Vector2 MetersPerPixel { get; }
+
+        [JsonIgnore]
+        public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }
+
+        [JsonIgnore]
+        public double PixelAspect { get { return MetersPerPixel.X / MetersPerPixel.Y; } }
+
+        [JsonIgnore]
+        public double WidthMeters { get { return Width * MetersPerPixel.X; } }
+
+        [JsonIgnore]
+        public double HeightMeters { get { return Height * MetersPerPixel.Y; } }
+
+        /// <summary>
+        /// Goes with Image.Decimated() and DEM.Decimated().
+        /// </summary>
+        public abstract ConformalCameraModel Decimated(int blocksize);
     }
 }
