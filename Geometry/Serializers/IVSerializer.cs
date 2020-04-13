@@ -472,7 +472,7 @@ namespace OPS.Geometry
                     else if (curNode == NodeType.IndexedTriangleStripSet && curField == FieldName.coordIndex)
                     {
                         parseList<int>(triStripIndices, (s, _) => int.Parse(s), "IndexedTriangleStripSet.coordIndex");
-                        AddLODMesh(ref lod, lodMeshes, vertices, texCoords, triStripIndices);
+                        AddLODMesh(ref lod, lodMeshes, vertices, texCoords, triStripIndices, filename);
                         curField = FieldName.None;
                     }
                 }
@@ -770,7 +770,7 @@ namespace OPS.Geometry
                     else if (curNode == NodeType.IndexedTriangleStripSet && curField == FieldName.coordIndex)
                     {
                         parseList<int>(triStripIndices, 1, v => v[0], "IndexedTriangleStripSet.coordIndex");
-                        AddLODMesh(ref lod, lodMeshes, vertices, texCoords, triStripIndices);
+                        AddLODMesh(ref lod, lodMeshes, vertices, texCoords, triStripIndices, filename);
                         curField = FieldName.None;
                     }
                 }
@@ -781,7 +781,7 @@ namespace OPS.Geometry
         }
 
         private void AddLODMesh(ref int lod, List<List<Mesh>> lodMeshes, List<Vector3> vertices,
-                                List<Vector2> texCoords, List<int> triStripIndices)
+                                List<Vector2> texCoords, List<int> triStripIndices, string filename)
         {
             if (triStripIndices.Count > 0 && (vertices.Count == 0 || texCoords.Count == 0))
             {
@@ -791,7 +791,7 @@ namespace OPS.Geometry
             {
                 lodMeshes.Add(new List<Mesh>());
             }
-            lodMeshes[lod].Add(ToMesh(lod, vertices, texCoords, triStripIndices));
+            lodMeshes[lod].Add(ToMesh(lod, vertices, texCoords, triStripIndices, filename));
             vertices.Clear();
             texCoords.Clear();
             triStripIndices.Clear();
@@ -825,7 +825,8 @@ namespace OPS.Geometry
             return meshes;
         }
             
-        private Mesh ToMesh(int lod, List<Vector3> vertexPositions, List<Vector2> texCoords, List<int> triStripIndices)
+        private Mesh ToMesh(int lod, List<Vector3> vertexPositions, List<Vector2> texCoords, List<int> triStripIndices,
+                            string filename)
         {
             var mesh = new Mesh(hasUVs: true);
             mesh.Faces.Capacity = triStripIndices.Count;
@@ -876,8 +877,8 @@ namespace OPS.Geometry
             Action<string> verbose = null, warn = null;
             if (Logger != null)
             {
-                verbose = msg => Logger.LogVerbose(msg);
-                warn = msg => Logger.LogWarn(msg);
+                verbose = msg => Logger.LogVerbose(msg + " in " + filename);
+                warn = msg => Logger.LogWarn(msg + " in " + filename);
             }
             mesh.Clean(verbose: verbose, warn: warn);
 
