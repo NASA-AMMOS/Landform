@@ -247,7 +247,7 @@ geometrydir=$storagedir/$venue/meshing/GeometryProducts/*/best/$proj
 blenddir=$storagedir/$venue/texturing/BlendProducts/*/best/$proj
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
-cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
 stdopts="$stdopts $dbg"
 
 if [ "$dry" -o "$only_ingest" -o "$only_cleanup" ]; then log=; else mkdir -p $logdir; printf "${cmdline}\r\n" > $log; fi

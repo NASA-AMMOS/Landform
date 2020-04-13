@@ -15,14 +15,16 @@ using OPS.Pipeline;
 /// Example command line, batch mode:
 ///
 /// Landform.exe configure-local --venue=landform-local --storagedir=c:/Users/$USERNAME/Documents/landform-storage
-///   --maxcores=0 --randomseed=-1
 /// </summary>
 namespace OPS.Landform
 {
     [Verb("configure-local", HelpText = "Configures Landform local")]
     public class ConfigureLocalOptions : ConfigureBaseOptions
     {
-        //null defaults force interactive prompt
+        //NOTE: any non-null default values for options will short circuit the Prompt() functionality
+        //because it can't differentiate an option that got its value as a default
+        //vs an option that was explicitly specified on the command line
+        //instead put defaults in {Local,Cloud}PipelineConfig
         
         [Option(Default = null, HelpText = "Storage directory")]
         public string StorageDir { get; set; }
@@ -43,12 +45,13 @@ namespace OPS.Landform
         {
             LocalPipelineConfig config = new LocalPipelineConfig();
 
-            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
-            config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir);
+            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
+            config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir,
+                                                     options.Interactive);
             config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
-                                                   options.MaxCores, config.MaxCores);
+                                                   options.MaxCores, config.MaxCores, options.Interactive);
             config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
-                                                     options.RandomSeed, config.RandomSeed);
+                                                     options.RandomSeed, config.RandomSeed, options.Interactive);
 
             config.Validate();
 
