@@ -54,6 +54,9 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ImagingEmgu", "ImagingEmgu\ImagingEmgu.csproj", "{9722C3B0-63D5-4B8A-9C4F-3381223BF3A2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MathExtensionsTest", "MathExtensionsTest\MathExtensionsTest.csproj", "{3140AF23-F2F0-4836-8EB7-8D636E7A1CBD}"
+	ProjectSection(ProjectDependencies) = postProject
+		{46759719-42D9-473B-A8AD-0848A33BDAC6} = {46759719-42D9-473B-A8AD-0848A33BDAC6}
+	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Alignment", "Alignment\Alignment.csproj", "{AE1B74CC-7CBB-4AAF-9BE6-68534D61D264}"
 EndProject

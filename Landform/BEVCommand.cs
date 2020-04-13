@@ -938,6 +938,18 @@ namespace OPS.Landform
                 {
                     frame.Save(pipeline);
                 }
+
+                var prevBest = frameCache.GetBestTransform(sd.ToString()).Source;
+                var prevBestToRoot = BestTransform(sd);
+                var adjToPrevBest = alignedSiteDriveToRoot[i] * Matrix.Invert(prevBestToRoot);
+                
+                var bestPrior = frameCache.GetBestPrior(sd.ToString()).Source;
+                var bestPriorToRoot = PriorTransform(sd);
+                var adjToPrior = alignedSiteDriveToRoot[i] * Matrix.Invert(bestPriorToRoot);
+                
+                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}: " +
+                                 "{2} relative to {3}, {4} relative to {5}", source, sd,
+                                 adjToPrevBest.ToStringEuler(), prevBest, adjToPrior.ToStringEuler(), bestPrior);
             }
             foreach (var sd in unaligned)
             {
