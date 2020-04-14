@@ -163,10 +163,12 @@ namespace OPS.Landform
         protected Vector2 BEVPointToPixel(Func<SiteDrive, Matrix> sdToRoot, Vector3 srcPoint,
                                           SiteDrive srcSiteDrive, SiteDrive dstSiteDrive)
         {
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation, out Vector3 right, out Vector3 down);
             var srcToRoot = sdToRoot(srcSiteDrive);
             var ptInRoot = Vector3.Transform(srcPoint, srcToRoot);
-            var pixelInRoot = ptInRoot * BEVPixelsPerMeter;
-            return rootOriginPixel[dstSiteDrive] + new Vector2(pixelInRoot.X, pixelInRoot.Y);
+            var pixelInRoot =
+                new Vector2(Vector3.Dot(ptInRoot, right), Vector3.Dot(ptInRoot, down)) * BEVPixelsPerMeter;
+            return rootOriginPixel[dstSiteDrive] + pixelInRoot;
         }
 
         public BEVCommand(BEVCommandOptions options) : base(options)
@@ -332,17 +334,27 @@ namespace OPS.Landform
 
         protected void MakeBEVOpts()
         {
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation, out Vector3 right, out Vector3 down);
+
             bevOptions = new BirdsEyeView.BEVOptions
             {
-                BlendMode = bcopts.BEVBlending,
                 MetersPerPixel = bcopts.BEVMetersPerPixel, //yes bcopts.BEVMetersPerPixel not this.BEVMetersPerPixel
+
+                MaxRadiusMeters = bcopts.MaxBEVRadius,
+
+                //WidthPixels, HeightPixels will be auto-computed
+
+                //CameraLocation will be set independently for each sitedrive
+
+                RightInImage = right,
+                DownInImage = down,
+
+                BlendMode = bcopts.BEVBlending,
                 SparseBlockSize = bcopts.BEVSparseBlocksize,
                 MinSparseBlockValidRatio = bcopts.BEVMinValidBlockRatio,
                 Inpaint = bcopts.BEVInpaint,
                 Blur = bcopts.BEVSmoothing,
                 Decimate = bcopts.BEVDecimation,
-                MaxRadiusMeters = bcopts.MaxBEVRadius,
-                RadiusRelativeToOrigin = true,
 
                 ImageFactory = BEVImageFactory,
 
@@ -521,8 +533,7 @@ namespace OPS.Landform
                 .ToArray();
             pipeline.LogInfo("rendering {0} birds eye views...", bevsNeeded.Length);
 
-            var demOptions = bevOptions.Clone();
-            demOptions.BlendMode = BlendMode.Average;
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation, out Vector3 right, out Vector3 down);
 
             int np = 0, nc = 0, nf = 0;
             CoreLimitedParallel.ForEach(bevsNeeded, siteDrive =>
@@ -595,7 +606,7 @@ namespace OPS.Landform
                             }
                             case BirdsEyeView.ColorMode.Elevation:
                             {
-                                mesh.ColorByElevation(absolute: true);
+                                mesh.ColorByElevation(absolute: true, up: elevation);
                                 break;
                             }
                         }
@@ -611,38 +622,20 @@ namespace OPS.Landform
                         SaveMesh(mesh, name, img != null ? (name + imageExt) : null);
                     }
 
-                    var sdToWorld = PriorTransform(siteDrive);
-                    var sdCenter = Vector3.Transform(Vector3.Zero, sdToWorld);
-
-                    //careful, use the raw bcopts.BEVMetersPerPixel here
-                    //not this.BEVMetersPerPixel which also accounts for BEVDecimation
-                    var sdCenterPixel = new Vector2(sdCenter.X, sdCenter.Y) / bcopts.BEVMetersPerPixel;
+                    var sdBEVOpts = bevOptions.Clone();
+                    sdBEVOpts.CameraLocation = Vector3.Transform(Vector3.Zero, PriorTransform(siteDrive));
 
                     if (renderBEV)
                     {
                         pipeline.LogVerbose("rendering BEV image for site drive {0}...", siteDrive);
 
-                        //"origin" param to Rasterizer.RenderBirdsEyeView() has different semantics on input vs output
-                        //
-                        //on input it defines the pixel about which bevOptions.MaxRadiusMeters applies
-                        //(since bevOptions.RadiusRelativeToOrigin = true)
-                        //we set it as the pixel to which the origin of sitedrive frame would project
-                        //this is in naieve BEV image coordinates
-                        //without decimation, restriction to mesh bounds, or sparse block trimming
-                        //
-                        //on output it is the pixel to which the origin of mesh frame would project
-                        //and mesh frame is project root frame (WedgeObservations.MeshOptions.Frame = "root")
-                        //this is in the actual output BEV image coordinates
-                        //including decimation, restriction to mesh bounds, and sparse block trimming
-
-                        Vector2 origin = sdCenterPixel;
-                        var bev = Rasterizer.RenderBirdsEyeView(mesh, img, ref origin, bevOptions);
+                        var bev = Rasterizer.Rasterize(mesh, img, out Vector2 originPixel, sdBEVOpts);
                         
-                        pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3}, {4}), " +
+                        pipeline.LogVerbose("birds eye view for site drive {0}: {1}x{2}, origin ({3:f1}, {4:f1}), " +
                                             "{5} meters/pixel ({6} with decimation), sparse block size {7}, " +
                                             "valid block ratio {8}, inpaint {9}, smoothing {10}, decimation {11}, " +
                                             "max radius {12}m",
-                                            siteDrive, bev.Width, bev.Height, (int)origin.X, (int)origin.Y,
+                                            siteDrive, bev.Width, bev.Height, originPixel.X, originPixel.Y,
                                             bcopts.BEVMetersPerPixel, BEVMetersPerPixel, bcopts.BEVSparseBlocksize,
                                             bcopts.BEVMinValidBlockRatio, bcopts.BEVInpaint, bcopts.BEVSmoothing,
                                             bcopts.BEVDecimation, bcopts.MaxBEVRadius);
@@ -664,11 +657,7 @@ namespace OPS.Landform
 
                         bevs[siteDrive] = bev;
 
-                        rootOriginPixel[siteDrive] = origin;
-
-                        //careful, it would not be right to say sdOriginPixel[siteDrive] = origin + sdCenterPixel
-                        //because sdCenterPixel doesn't account for
-                        //BEV image decimation, restriction to mesh bounds, or sparse block trimming
+                        rootOriginPixel[siteDrive] = originPixel;
                         sdOriginPixel[siteDrive] = BEVPointToPixel(PriorTransform, Vector3.Zero, siteDrive, siteDrive);
                     }
 
@@ -686,10 +675,12 @@ namespace OPS.Landform
                         {
                             pipeline.LogVerbose("rendering DEM image for site drive {0}...", siteDrive);
 
-                            mesh.ColorByElevation(absolute: true);
+                            mesh.ColorByElevation(absolute: true, up: elevation);
 
-                            Vector2 origin = sdCenterPixel;
-                            dem = Rasterizer.RenderBirdsEyeView(mesh, null, ref origin, demOptions);
+                            var opts = sdBEVOpts.Clone();
+                            opts.BlendMode = BlendMode.Average;
+
+                            dem = Rasterizer.Rasterize(mesh, null, out Vector2 originPixel, opts);
 
                             if (bev != null && (dem.Width != bev.Width || dem.Height != bev.Height))
                             {
@@ -699,14 +690,14 @@ namespace OPS.Landform
 
                             if (!rootOriginPixel.ContainsKey(siteDrive))
                             {
-                                rootOriginPixel[siteDrive] = origin;
+                                rootOriginPixel[siteDrive] = originPixel;
                                 sdOriginPixel[siteDrive] =
                                 BEVPointToPixel(PriorTransform, Vector3.Zero, siteDrive, siteDrive);
                             }
-                            else if (origin != rootOriginPixel[siteDrive])
+                            else if (originPixel != rootOriginPixel[siteDrive])
                             {
                                 throw new Exception(string.Format("DEM origin {0} doesn't match BEV {1}",
-                                                                  origin, rootOriginPixel[siteDrive]));
+                                                                  originPixel, rootOriginPixel[siteDrive]));
                             }
 
                             try
@@ -728,8 +719,6 @@ namespace OPS.Landform
 
                         //at this point DEM has absolute elevations in project root frame
                         //make them relative to the origin of the site drive
-                        //NOTE: mission frames SITE and LOCAL_LEVEL are +Z down
-                        //Mesh.ColorByElevation() accounts for this by defaulting up = (0, 0, -1)
                         double sdOriginElevation = -Vector3.Transform(Vector3.Zero, PriorTransform(siteDrive)).Z;
                         for (int r = 0; r < dem.Height; r++)
                         {

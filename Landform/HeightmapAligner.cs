@@ -263,10 +263,7 @@ namespace OPS.Landform
             LoadOrRenderBEVs(includeBEVs: false, includeDEMs: true);
 
             //make OrthographicCameraModel that projects points in sitedrive frame to pixels in sitedrive DEM image
-            mission.GetLocalLevelBasis(out Vector3 north, out Vector3 east, out Vector3 nadir);
-            var elevationDir = -nadir;
-            var rightDir = new Vector3(1, 0, 0); //sitedrive BEVs and DEMS are always rendered
-            var downDir = new Vector3(0, 1, 0);  //+X right in image, +Y down in image
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation, out Vector3 right, out Vector3 down);
 
             double elevationScale = 1; //sitedrive DEM elevations are always in meters
             double pixelAspect = 1; //sitedrive DEMs are always square pixels
@@ -275,7 +272,7 @@ namespace OPS.Landform
             foreach (var siteDrive in dems.Keys)
             {
                 var img = dems[siteDrive];
-                sdDEMs[siteDrive] = DEM.OrthoDEM(dems[siteDrive], elevationDir, rightDir, downDir,
+                sdDEMs[siteDrive] = DEM.OrthoDEM(dems[siteDrive], elevation, right, down,
                                                  BEVMetersPerPixel, pixelAspect, elevationScale,
                                                  sdOriginPixel[siteDrive], originElevation,
                                                  options.DEMMinFilter, options.DEMMaxFilter);

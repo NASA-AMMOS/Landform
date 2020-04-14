@@ -842,9 +842,13 @@ namespace OPS.Landform
             var modelDEM = dems[modelSiteDrive];
             var dataDEM = dems[dataSiteDrive];
 
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation, out Vector3 right, out Vector3 down);
+
             //DEM elevations are relative to site drive origin
-            double modelSiteDriveOriginZElevation = -Vector3.Transform(Vector3.Zero, PriorTransform(modelSiteDrive)).Z;
-            double dataSiteDriveOriginZElevation = -Vector3.Transform(Vector3.Zero, PriorTransform(dataSiteDrive)).Z;
+            double modelSiteDriveOriginElevation =
+                Vector3.Dot(Vector3.Transform(Vector3.Zero, PriorTransform(modelSiteDrive)), elevation);
+            double dataSiteDriveOriginElevation =
+                Vector3.Dot(Vector3.Transform(Vector3.Zero, PriorTransform(dataSiteDrive)), elevation);
 
             var pair = modelSiteDrive + "-" + dataSiteDrive;
 
@@ -855,22 +859,15 @@ namespace OPS.Landform
                 var mf = modelFeatures[match.ModelIndex];
                 var df = dataFeatures[match.DataIndex];
 
-                var mxy = (mf.Location - modelOrigin) * BEVMetersPerPixel;
-                var dxy = (df.Location - dataOrigin) * BEVMetersPerPixel;
+                var mxy = mf.Location - modelOrigin;
+                var dxy = df.Location - dataOrigin;
 
-                //DEM elevations were computed as
-                //elevationInSiteDrive = -1 * zInRoot - siteDriveOriginZElevation
-                //where the -1 is because the default definition of "up" in Mesh.ColorByElevation() is (0, 0, -1)
-                //which matches mission standard coordinate frames (SITE, LOCAL_LEVEL)
-                //so doing some algebra to solve for zInRoot:
-                //elevationInSiteDrive = -1 * zInRoot - siteDriveOriginZElevation
-                //-zInRoot = elevationInSiteDrive + siteDriveOriginZElevation
-                //zInRoot = -(elevationInSiteDrive + siteDriveOriginZElevation)
-                var mz = -(modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X] + modelSiteDriveOriginZElevation);
-                var dz = -(dataDEM[0, (int)df.Location.Y, (int)df.Location.X] + dataSiteDriveOriginZElevation);
+                var me = modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X] + modelSiteDriveOriginElevation;
+                var de = dataDEM[0, (int)df.Location.Y, (int)df.Location.X] + dataSiteDriveOriginElevation;
 
-                var mp = new Vector3(mxy.X, mxy.Y, mz);
-                var dp = new Vector3(dxy.X, dxy.Y, dz);
+                var mp = right * mxy.X * BEVMetersPerPixel + down * mxy.Y * BEVMetersPerPixel + elevation * me;
+                var dp = right * dxy.X * BEVMetersPerPixel + down * dxy.Y * BEVMetersPerPixel + elevation * de;
+
                 lengths.Add(Vector3.Distance(mp, dp));
                 pairs.Add(new SpatialMatch(mp, dp));
             }

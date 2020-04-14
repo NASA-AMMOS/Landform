@@ -132,6 +132,11 @@ namespace OPS.MathExtensions
         {
             return q.ToRodriguesVector() * 2;
         }
+
+        public static Vector2 XY(this Vector3 v)
+        {
+            return new Vector2(v.X, v.Y);
+        }
     }
 
     public class XNAMatrixJsonConverter : JsonConverter

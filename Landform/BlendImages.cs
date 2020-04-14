@@ -796,11 +796,14 @@ namespace OPS.Landform
 
             backprojectIndex = new Image(3, resolution, resolution);
 
-            var opts = Rasterizer.BEVOptions.DirectToImage(backprojectIndex);
+            var opts = Rasterizer.Options.DirectToImage(backprojectIndex);
 
             double maxDim = Math.Max(boundsSize.X, boundsSize.Y);
             opts.MetersPerPixel = maxDim / resolution;
-            opts.MeshOffset = new Vector2(boundsSize.X, boundsSize.Y) * 0.5;
+
+            opts.CameraLocation = bounds.Value.Center();
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation,
+                                                            out opts.RightInImage, out opts.DownInImage);
             
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
                              resolution, tileList.LeafNames.Count, opts.MetersPerPixel);
@@ -832,7 +835,7 @@ namespace OPS.Landform
                     }
                 }
 
-                Rasterizer.RenderBirdsEyeView(leafMesh, leafIndex, opts);
+                Rasterizer.Rasterize(leafMesh, leafIndex, opts);
             });
 
             //fill small gaps along tile boundaries, should make LimberDMG happier

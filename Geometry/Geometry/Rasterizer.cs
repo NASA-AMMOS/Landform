@@ -17,11 +17,20 @@ namespace OPS.Geometry
 
     public class Rasterizer
     {
-        public class BEVOptions
+        public class Options
         {
-            public BlendMode BlendMode = BlendMode.Average;
-            public bool CCW = false;
             public double MetersPerPixel = 0.005;
+
+            public double MaxRadiusMeters = 20; //clamp mesh bounds in image plane to this limit if positive
+
+            public int WidthPixels = 0; //if non-positive compute from mesh bounds, MetersPerPixel, and MaxRadiusMeters
+            public int HeightPixels = 0; //if non-positive compute from mesh bounds, MetersPerPixel, and MaxRadiusMeters
+
+            public Vector3 CameraLocation = Vector3.Zero;
+            public Vector3 RightInImage = new Vector3(1, 0, 0);
+            public Vector3 DownInImage = new Vector3(0, 1, 0);
+
+            public BlendMode BlendMode = BlendMode.Average;
             public bool Greyscale = false;
             public double SparseBlockSize = 0.005;
             public double MinSparseBlockValidRatio = 0.8;
@@ -29,11 +38,6 @@ namespace OPS.Geometry
             public int Inpaint = 20;
             public int Blur = 0;
             public int Decimate = 2;
-            public double MaxRadiusMeters = 20;
-            public bool RadiusRelativeToOrigin = false;
-            public int WidthPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
-            public int HeightPixels = 0; //if non-positive auto compute based on mesh bounds and MetersPerPixel
-            public Vector2? MeshOffset = null; //XY plane offset to apply to mesh, auto compute if null
 
             [JsonIgnore]
             public Func<int, int, int, Image> ImageFactory = null; //defaults to new Image()
@@ -44,18 +48,16 @@ namespace OPS.Geometry
             [JsonIgnore]
             public Func<Mesh, Face, bool> FaceFilter = null; //true = rasterize face
 
-            public BEVOptions Clone()
+            public Options Clone()
             {
-                return (BEVOptions) MemberwiseClone();
+                return (Options) MemberwiseClone();
             }
 
-            public static BEVOptions DirectToImage(Image img)
+            public static Options DirectToImage(Image img)
             {
-                return new BEVOptions() {
+                return new Options() {
 
                     BlendMode = BlendMode.Under, //don't overwrite any already valid pixels
-                        
-                    CCW = true,
                         
                     Greyscale = img.Bands == 1,
                         
@@ -70,7 +72,6 @@ namespace OPS.Geometry
                     MetersPerPixel = 1,
                     WidthPixels = img.Width,
                     HeightPixels = img.Height,
-                    MeshOffset = new Vector2(0, 0),
                         
                     ImageFactory = (b, w, h) => img, //rasterize into supplied image
 
@@ -80,27 +81,21 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// rasterize a birds eye view image of mesh
+        /// rasterize a mesh using a parallel projection camera
         ///
-        /// if mesh has UVs and img is not null it will be texture mapped
-        /// otherwise the mesh vertex colors will be used
+        /// camera extrinsics (pose) and intrinsics (resolution) are controlled by options
         ///
-        /// the view is from above but assuming +Z is down, so that we are looking at the backfaces of ccw triangles
-        /// and we do render the backfaces
-        /// you can flip all that by specifying ccw = true in the options
+        /// if mesh has UVs and img is not null it will be texture mapped, otherwise vertex colors will be used
         ///
-        /// occlusion is painters algorithm, so sort the mesh faces if you need to
+        /// backface culling and z buffering are TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/733
         ///
-        /// input meshOrigin is the center in mesh frame to use if MaxRadiusMeters>0 and RadiusRelativeToOrigin=true
-        /// (if MaxRadiusMeters>0 but RadiusRelativeToOrigin=false then the mesh bounds center is used)
-        ///
-        /// output meshOrigin is the pixel corresponding to the origin of mesh frame (which may be outside image)
+        /// output meshOrigin is the pixel corresponding to the origin of mesh frame (may be outside returned image)
         /// </summary>
-        public static Image RenderBirdsEyeView(Mesh mesh, Image img, ref Vector2 meshOrigin, BEVOptions options = null)
+        public static Image Rasterize(Mesh mesh, Image img, out Vector2 meshOrigin, Options options = null)
         {
             if (options == null)
             {
-                options = new BEVOptions();
+                options = new Options();
             }
 
             Func<int, int, int, Image> imageFactory = options.ImageFactory;
@@ -109,53 +104,65 @@ namespace OPS.Geometry
                 imageFactory = (b, w, h) => new Image(b, w, h);
             }
 
-            bool ccw = options.CCW;
             double pixelsPerMeter = 1 / options.MetersPerPixel;
 
-            var meshBounds = mesh.Bounds();
+            var right = options.RightInImage;
+            var down = options.DownInImage;
+            var forward = Vector3.Cross(right, down);
+
+            //may be non-positive if auto-computing
+            //also may need to adjust for options.MaxRadiusMeters
+            int widthPixels = options.WidthPixels;
+            int heightPixels = options.HeightPixels;
+
+            //will be computed below after resolving actual width and height
+            Vector2 ctrPixel = Vector2.Zero;
+
+            Vector3 project(Vector3 pt)
+            {
+                var camToPt = pt - options.CameraLocation;
+                return new Vector3(Vector3.Dot(camToPt, right) * pixelsPerMeter + ctrPixel.X,
+                                   Vector3.Dot(camToPt, down) * pixelsPerMeter + ctrPixel.Y,
+                                   Vector3.Dot(camToPt, forward));
+            }
+
+            if (widthPixels <= 0 || heightPixels <= 0)
+            {
+                if (mesh.Vertices.Count > 0)
+                {
+                    var min = new Vector2(double.PositiveInfinity, double.PositiveInfinity);
+                    var max = new Vector2(double.NegativeInfinity, double.NegativeInfinity);
+                    foreach (var v in mesh.Vertices)
+                    {
+                        var px = project(v.Position);
+                        min.X = Math.Min(px.X, min.X);
+                        min.Y = Math.Min(px.Y, min.Y);
+                        max.X = Math.Max(px.X, max.X);
+                        max.Y = Math.Max(px.Y, max.Y);
+                    }
+                    widthPixels = Math.Max(widthPixels, (int)Math.Ceiling(max.X - min.X));
+                    heightPixels = Math.Max(heightPixels, (int)Math.Ceiling(max.Y - min.Y));
+                }
+                widthPixels = Math.Max(widthPixels, 1);
+                heightPixels = Math.Max(heightPixels, 1);
+            }
 
             if (options.MaxRadiusMeters > 0)
             {
-                var ctr = options.RadiusRelativeToOrigin ? options.MetersPerPixel * meshOrigin
-                    : 0.5 * new Vector2(meshBounds.Max.X + meshBounds.Min.X, meshBounds.Max.Y + meshBounds.Min.Y);
-                if (ctr.X - meshBounds.Min.X > options.MaxRadiusMeters)
+                int maxDiameterPixels = (int)Math.Ceiling(2 * options.MaxRadiusMeters * pixelsPerMeter);
+                if (widthPixels > maxDiameterPixels)
                 {
-                    meshBounds.Min.X = ctr.X - options.MaxRadiusMeters;
+                    widthPixels = maxDiameterPixels;
+                    ctrPixel.X = 0.5 * widthPixels;
                 }
-                if (meshBounds.Max.X - ctr.X > options.MaxRadiusMeters)
+                if (heightPixels > maxDiameterPixels)
                 {
-                    meshBounds.Max.X = ctr.X + options.MaxRadiusMeters;
-                }
-                if (ctr.Y - meshBounds.Min.Y > options.MaxRadiusMeters)
-                {
-                    meshBounds.Min.Y = ctr.Y - options.MaxRadiusMeters;
-                }
-                if (meshBounds.Max.Y - ctr.Y > options.MaxRadiusMeters)
-                {
-                    meshBounds.Max.Y = ctr.Y + options.MaxRadiusMeters;
+                    heightPixels = maxDiameterPixels;
+                    ctrPixel.Y = 0.5 * heightPixels;
                 }
             }
 
-            int widthPixels = options.WidthPixels;
-            if (widthPixels <= 0)
-            {
-                double widthMeters = meshBounds.Max.X - meshBounds.Min.X;
-                widthPixels = (int)(widthMeters * pixelsPerMeter);
-            }
-
-            int heightPixels = options.HeightPixels;
-            if (heightPixels <= 0)
-            {
-                double heightMeters = meshBounds.Max.Y - meshBounds.Min.Y;
-                heightPixels = (int)(heightMeters * pixelsPerMeter);
-            }
-
-            //ptInImageFramePixels = (ptInMeshFrameMeters + offset) * pixelsPerMeter
-            Vector2 offset =
-                options.MeshOffset.HasValue ? options.MeshOffset.Value :
-                -1 * (new Vector2(meshBounds.Min.X, ccw ? meshBounds.Max.Y : meshBounds.Min.Y));
-
-            meshOrigin = offset * pixelsPerMeter;
+            ctrPixel = new Vector2(widthPixels, heightPixels) * 0.5;
 
             bool greyscale = options.Greyscale || (img != null && img.Bands == 1);
             int bands = greyscale ? 1 : 3;
@@ -223,8 +230,10 @@ namespace OPS.Geometry
             }
 
             Vector2 zero = new Vector2(0, 0), one = new Vector2(1, 1);
-            void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double alpha, double beta, double gamma)
+            void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double d0, double d1, double d2,
+                               double alpha, double beta, double gamma)
             {
+                //TODO z buffer
                 bool overdraw = ret.IsValid(r, c);
                 if (mesh.HasUVs && img != null)
                 {
@@ -263,26 +272,30 @@ namespace OPS.Geometry
                     continue;
                 }
 
-                var v0 = mesh.Vertices[ccw ? t.P0 : t.P2];
+                var v0 = mesh.Vertices[t.P0];
                 var v1 = mesh.Vertices[t.P1];
-                var v2 = mesh.Vertices[ccw ? t.P2 : t.P0];
+                var v2 = mesh.Vertices[t.P2];
 
-                if (meshBounds.Contains(v0.Position) == ContainmentType.Disjoint &&
-                    meshBounds.Contains(v1.Position) == ContainmentType.Disjoint &&
-                    meshBounds.Contains(v2.Position) == ContainmentType.Disjoint)
-                {
-                    continue;
-                }
+                var pd0 = project(v0.Position);
+                var pd1 = project(v1.Position);
+                var pd2 = project(v2.Position);
 
-                var p0 = (new Vector2(v0.Position.X, v0.Position.Y) + offset) * pixelsPerMeter;
-                var p1 = (new Vector2(v1.Position.X, v1.Position.Y) + offset) * pixelsPerMeter;
-                var p2 = (new Vector2(v2.Position.X, v2.Position.Y) + offset) * pixelsPerMeter;
+                var p0 = new Vector2(pd0.X, pd0.Y);
+                var p1 = new Vector2(pd1.X, pd1.Y);
+                var p2 = new Vector2(pd2.X, pd2.Y);
+
+                double d0 = pd0.Z;
+                double d1 = pd1.Z;
+                double d2 = pd2.Z;
 
                 var minR = (int)Math.Max(0, Math.Min(Math.Min(p0.Y, p1.Y), p2.Y));
                 var maxR = (int)Math.Min(ret.Height - 1, Math.Max(Math.Max(p0.Y, p1.Y), p2.Y));
 
                 var minC = (int)Math.Max(0, Math.Min(Math.Min(p0.X, p1.X), p2.X));
                 var maxC = (int)Math.Min(ret.Width - 1, Math.Max(Math.Max(p0.X, p1.X), p2.X));
+
+                //if tri is entirely outside raster at this point we'll have either
+                //minR > maxR or minC > maxC
 
                 double alpha, beta, gamma;
                 if (minR == maxR || minC == maxC) //degenerate
@@ -292,12 +305,13 @@ namespace OPS.Geometry
                     {
                         for (int c = minC; c <= maxC; c++)
                         { 
-                            writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                            writeFragment(r, c, v0, v1, v2, d0, d1, d2, alpha, beta, gamma);
                         }
                     }
                 }
                 else
                 {
+                    //TODO backface cull 
                     for (int r =  minR; r <= maxR; r++)
                     {
                         for (int c = minC; c <= maxC; c++)
@@ -308,12 +322,14 @@ namespace OPS.Geometry
                             gamma = relDist(px, p0, p1) / relDist(p2, p0, p1);
                             if ((alpha >= 0) && (beta >= 0) && (gamma >= 0))
                             {
-                                writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                                writeFragment(r, c, v0, v1, v2, d0, d1, d2, alpha, beta, gamma);
                             }
                         }
                     }
                 }
             }
+
+            meshOrigin = project(Vector3.Zero).XY();
 
             if (options.SparseBlockSize > 0)
             {
@@ -362,10 +378,9 @@ namespace OPS.Geometry
             return ret;
         }
 
-        public static Image RenderBirdsEyeView(Mesh mesh, Image img, BEVOptions options = null)
+        public static Image Rasterize(Mesh mesh, Image img, Options options = null)
         {
-            Vector2 meshOrigin = new Vector2();
-            return RenderBirdsEyeView(mesh, img, ref meshOrigin, options);
+            return Rasterize(mesh, img, out Vector2 meshOrigin, options);
         }
 
         /// <summary>
@@ -412,12 +427,12 @@ namespace OPS.Geometry
                 throw new ArgumentException("supplied image must have at least 3 unmasked pixels");
             }
 
-            var opts = BEVOptions.DirectToImage(img);
+            var opts = Options.DirectToImage(img);
             if (filter != null)
             {
                 opts.FaceFilter = filter;
             }
-            return RenderBirdsEyeView(Delaunay.Triangulate(seeds), null, opts);
+            return Rasterize(Delaunay.Triangulate(seeds), null, opts);
         }
     }
 }
