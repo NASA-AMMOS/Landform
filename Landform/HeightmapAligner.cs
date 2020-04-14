@@ -465,7 +465,7 @@ namespace OPS.Landform
                 pipeline.LogInfo("delaunay meshing {0}x{1} orbital DEM ({2} meters/pixel, {3}x{4}m), max radius {5}",
                                  orbitalDEM.Width, orbitalDEM.Height, orbitalDEM.AvgMetersPerPixel,
                                  orbitalDEM.WidthMeters, orbitalDEM.HeightMeters, MAX_MESH_RADIUS_METERS);
-                var mesh = orbitalDEM.DelaunayMesh(MAX_MESH_RADIUS_METERS, reverseWinding: true);
+                var mesh = orbitalDEM.OrganizedMesh(MAX_MESH_RADIUS_METERS);
                 SaveMesh(Mesh.Transformed(mesh, orbitalToRoot), "orbital_Heightmap");
             }
         }
