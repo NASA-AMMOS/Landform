@@ -13,10 +13,12 @@ using OPS.Imaging;
 
 namespace OPS.Geometry
 {
-    public enum BlendMode { Over, Under, Average, Max, Min };
-
     public class Rasterizer
     {
+        public enum CullMode { None, KeepCCWFaces, KeepCWFaces }
+        public enum DepthTest { None, KeepCloser, KeepCloserOrEqual, KeepFurther, KeepFurtherOrEqual }
+        public enum BlendMode { Over, Under, Average, Max, Min };
+
         public class Options
         {
             public double MetersPerPixel = 0.005;
@@ -30,11 +32,16 @@ namespace OPS.Geometry
             public Vector3 RightInImage = new Vector3(1, 0, 0);
             public Vector3 DownInImage = new Vector3(0, 1, 0);
 
+            public CullMode CullMode = CullMode.KeepCCWFaces;
+            public DepthTest DepthTest = DepthTest.KeepCloser;
             public BlendMode BlendMode = BlendMode.Average;
+
             public bool Greyscale = false;
+
             public double SparseBlockSize = 0.005;
             public double MinSparseBlockValidRatio = 0.8;
             public double KeepLargestComponents = 0.2; //keep components within this tol of size of largest, 0 disables
+
             public int Inpaint = 20;
             public int Blur = 0;
             public int Decimate = 2;
@@ -44,6 +51,9 @@ namespace OPS.Geometry
 
             [JsonIgnore]
             public Func<int, int, Image> MaskFactory = null; //defaults to use ImageFactory
+
+            [JsonIgnore]
+            public Func<int, int, Image> DepthBufferFactory = null; //defaults to use ImageFactory
 
             [JsonIgnore]
             public Func<Mesh, Face, bool> FaceFilter = null; //true = rasterize face
@@ -66,16 +76,17 @@ namespace OPS.Geometry
                     Inpaint = 0,
                     Blur = 0,
                     Decimate = 0,
-                    MaxRadiusMeters = 0,
                         
                     //mesh coordinates are already in image pixel space
                     MetersPerPixel = 1,
+                    MaxRadiusMeters = 0,
                     WidthPixels = img.Width,
                     HeightPixels = img.Height,
                         
                     ImageFactory = (b, w, h) => img, //rasterize into supplied image
 
-                    MaskFactory = (w, h) => new Image(1, w, h) //otherwise MaskFactory would default to ImageFactory
+                    MaskFactory = (w, h) => new Image(1, w, h), //otherwise would default to ImageFactory
+                    DepthBufferFactory = (w, h) => new Image(1, w, h), //otherwise would default to ImageFactory
                 };
             }
         }
@@ -86,8 +97,6 @@ namespace OPS.Geometry
         /// camera extrinsics (pose) and intrinsics (resolution) are controlled by options
         ///
         /// if mesh has UVs and img is not null it will be texture mapped, otherwise vertex colors will be used
-        ///
-        /// backface culling and z buffering are TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/733
         ///
         /// output meshOrigin is the pixel corresponding to the origin of mesh frame (may be outside returned image)
         /// </summary>
@@ -178,62 +187,31 @@ namespace OPS.Geometry
                 ret.CreateMask(true); //pixels default to masked
             }
 
-            double relDist(Vector2 p, Vector2 a, Vector2 b)
-            {
-                var n = new Vector2(a.Y - b.Y, b.X - a.X); //normal to segment from a to b
-                return p.Dot(n) - a.Dot(n);
-            }
-
             Action<int, int, int, float, bool> blend = null;
             switch (options.BlendMode)
             {
-                case BlendMode.Over:
-                {
-                    blend = (int b, int r, int c, float v, bool overdraw) => { ret[b, r, c] = v; };
-                    break;
-                }
-                case BlendMode.Under:
-                {
-                    blend = (int b, int r, int c, float v, bool overdraw) =>
-                        {
-                            if (!overdraw)
-                            {
-                                ret[b, r, c] = v;
-                            }
-                        };
-                    break;
-                }
+                case BlendMode.Over: blend = (b, r, c, v, overdraw) => { ret[b, r, c] = v; }; break;
+                case BlendMode.Under: blend = (b, r, c, v, overdraw) => { if (!overdraw) { ret[b, r, c] = v; } }; break;
                 case BlendMode.Average:
                 {
-                    blend = (int b, int r, int c, float v, bool overdraw) =>
-                        {
-                            ret[b, r, c] = overdraw ? 0.5f * (ret[b, r, c] + v) : v;
-                        };
+                    blend = (b, r, c, v, overdraw) => { ret[b, r, c] = overdraw ? 0.5f * (ret[b, r, c] + v) : v; };
                     break;
                 }
                 case BlendMode.Max:
                 {
-                    blend = (int b, int r, int c, float v, bool overdraw) =>
-                        {
-                            ret[b, r, c] = overdraw ? Math.Max(ret[b, r, c], v) : v;
-                        };
+                    blend = (b, r, c, v, overdraw) => { ret[b, r, c] = overdraw ? Math.Max(ret[b, r, c], v) : v; };
                     break;
                 }
                 case BlendMode.Min:
                 {
-                    blend = (int b, int r, int c, float v, bool overdraw) =>
-                        {
-                            ret[b, r, c] = overdraw ? Math.Min(ret[b, r, c], v) : v;
-                        };
+                    blend = (b, r, c, v, overdraw) => { ret[b, r, c] = overdraw ? Math.Min(ret[b, r, c], v) : v; };
                     break;
                 }
             }
 
             Vector2 zero = new Vector2(0, 0), one = new Vector2(1, 1);
-            void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double d0, double d1, double d2,
-                               double alpha, double beta, double gamma)
+            void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double alpha, double beta, double gamma)
             {
-                //TODO z buffer
                 bool overdraw = ret.IsValid(r, c);
                 if (mesh.HasUVs && img != null)
                 {
@@ -263,7 +241,65 @@ namespace OPS.Geometry
                 }
             }
 
+            Func<Vector2, Vector2, double> crossZ = (a, b) => a.X * b.Y - a.Y * b.X;
+            Func<Vector2, Vector2, Vector2, bool> cull = null;
+            switch (options.CullMode)
+            {
+                //careful: because image is X right, Y down handedness is flipped in pixel space
+                case CullMode.KeepCCWFaces: cull = (p0, p1, p2) => crossZ(p1 - p0, p2 - p0) > 0; break;
+                case CullMode.KeepCWFaces: cull = (p0, p1, p2) => crossZ(p1 - p0, p2 - p0) < 0; break;
+                default: cull = (p0, p1, p2) => false; break;
+            }
+
+            Image depthBuffer = null;
+            if (options.DepthTest != DepthTest.None)
+            {
+                var depthBufferFactory = options.DepthBufferFactory ?? ((w, h) => imageFactory(1, w, h));
+
+                depthBuffer = depthBufferFactory(ret.Width, ret.Height);
+
+                if (options.DepthTest == DepthTest.KeepFurther || options.DepthTest == DepthTest.KeepFurtherOrEqual)
+                {
+                    depthBuffer.Fill(new float[] { float.NegativeInfinity });
+                }
+                else
+                {
+                    depthBuffer.Fill(new float[] { float.PositiveInfinity });
+                }
+            }
+
+            Func<int, int, double, double, double, double, double, double, bool>
+                depthTest(Func<double, double, bool> shouldWrite)
+            {
+                return (int r, int c, double d0, double d1, double d2, double alpha, double beta, double gamma) =>
+                {
+                    double fragmentDepth = d0 * alpha + d1 * beta + d2 * gamma;
+                    if (shouldWrite(fragmentDepth, depthBuffer[0, r, c]))
+                    {
+                        depthBuffer[0, r, c] = (float)fragmentDepth;
+                        return true;
+                    }
+                    return false;
+                };
+            }
+
+            Func<int, int, double, double, double, double, double, double, bool> depthTestFragment = null;
+            switch (options.DepthTest)
+            {
+                case DepthTest.KeepCloser:         depthTestFragment = depthTest((fd, db) => fd < db); break;
+                case DepthTest.KeepCloserOrEqual:  depthTestFragment = depthTest((fd, db) => fd <= db); break;
+                case DepthTest.KeepFurther:        depthTestFragment = depthTest((fd, db) => fd > db); break;
+                case DepthTest.KeepFurtherOrEqual: depthTestFragment = depthTest((fd, db) => fd >= db); break;
+                default: depthTestFragment = (r, c, d0, d1, d2, alpha, beta, gamma) => true; break;
+            }
+
             Func<Mesh, Face, bool> filter = options.FaceFilter ?? ((m, t) => true);
+
+            double relDist(Vector2 p, Vector2 a, Vector2 b)
+            {
+                var n = new Vector2(a.Y - b.Y, b.X - a.X); //normal to segment from a to b
+                return p.Dot(n) - a.Dot(n);
+            }
 
             foreach (var t in mesh.Faces)
             {
@@ -305,13 +341,15 @@ namespace OPS.Geometry
                     {
                         for (int c = minC; c <= maxC; c++)
                         { 
-                            writeFragment(r, c, v0, v1, v2, d0, d1, d2, alpha, beta, gamma);
+                            if (depthTestFragment(r, c, d0, d1, d2, alpha, beta, gamma))
+                            {
+                                writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                            }
                         }
                     }
                 }
-                else
+                else if (!cull(p0, p1, p2))
                 {
-                    //TODO backface cull 
                     for (int r =  minR; r <= maxR; r++)
                     {
                         for (int c = minC; c <= maxC; c++)
@@ -320,9 +358,10 @@ namespace OPS.Geometry
                             alpha = relDist(px, p1, p2) / relDist(p0, p1, p2);
                             beta  = relDist(px, p2, p0) / relDist(p1, p2, p0);
                             gamma = relDist(px, p0, p1) / relDist(p2, p0, p1);
-                            if ((alpha >= 0) && (beta >= 0) && (gamma >= 0))
+                            if ((alpha >= 0) && (beta >= 0) && (gamma >= 0) &&
+                                depthTestFragment(r, c, d0, d1, d2, alpha, beta, gamma))
                             {
-                                writeFragment(r, c, v0, v1, v2, d0, d1, d2, alpha, beta, gamma);
+                                writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
                             }
                         }
                     }
@@ -348,13 +387,9 @@ namespace OPS.Geometry
 
             if (options.Inpaint > 0)
             {
-                Func<int, int, Image> maskFactory = options.MaskFactory;
-                if (maskFactory == null)
-                {
-                    maskFactory = (w, h) => imageFactory(1, w, h);
-                }
                 //inpaint just the interior holes
                 //we do this by first creating a mask by floodfilling exterior invalid regions
+                var maskFactory = options.MaskFactory ?? ((w, h) => imageFactory(1, w, h));
                 Image mask = maskFactory(ret.Width, ret.Height);
                 ret.AddOuterRegionsToMask(mask);
                 ret.Inpaint(options.Inpaint);

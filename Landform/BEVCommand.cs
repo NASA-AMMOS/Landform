@@ -55,9 +55,6 @@ namespace OPS.Landform
         [Option(HelpText = "Max dense BEV image dimension, 0 or negative to use max heap allocation size", Default = 0)]
         public int SparseImageThreshold { get; set; }
 
-        [Option(HelpText = "Birds eye view blend mode (Over, Average, Max, Min)", Default = BlendMode.Max)]
-        public BlendMode BEVBlending { get; set; }
-
         [Option(HelpText = "Birds eye view coloring (Texture, Tilt, Elevation}", Default = BirdsEyeView.ColorMode.Tilt)]
         public BirdsEyeView.ColorMode BEVColoring { get; set; }
 
@@ -349,7 +346,6 @@ namespace OPS.Landform
                 RightInImage = right,
                 DownInImage = down,
 
-                BlendMode = bcopts.BEVBlending,
                 SparseBlockSize = bcopts.BEVSparseBlocksize,
                 MinSparseBlockValidRatio = bcopts.BEVMinValidBlockRatio,
                 Inpaint = bcopts.BEVInpaint,
@@ -659,6 +655,9 @@ namespace OPS.Landform
 
                         rootOriginPixel[siteDrive] = originPixel;
                         sdOriginPixel[siteDrive] = BEVPointToPixel(PriorTransform, Vector3.Zero, siteDrive, siteDrive);
+
+                        pipeline.LogInfo("rendered {0}x{1} BEV for site drive {2}, origin pixel ({3}, {4})",
+                                         bev.Width, bev.Height, siteDrive, (int)(originPixel.X), (int)(originPixel.Y));
                     }
 
                     if (renderDEM)
@@ -666,8 +665,7 @@ namespace OPS.Landform
                         var bev = bevs.ContainsKey(siteDrive) ? bevs[siteDrive] : null;
                         Image dem = null;
 
-                        if (bev != null && bcopts.BEVColoring == BirdsEyeView.ColorMode.Elevation &&
-                            bcopts.BEVBlending == BlendMode.Average)
+                        if (bev != null && bcopts.BEVColoring == BirdsEyeView.ColorMode.Elevation)
                         {
                             dem = new Image(bev); //deep copy - BEV may later be post-processed
                         }
@@ -678,7 +676,6 @@ namespace OPS.Landform
                             mesh.ColorByElevation(absolute: true, up: elevation);
 
                             var opts = sdBEVOpts.Clone();
-                            opts.BlendMode = BlendMode.Average;
 
                             dem = Rasterizer.Rasterize(mesh, null, out Vector2 originPixel, opts);
 
@@ -729,6 +726,8 @@ namespace OPS.Landform
                         }
 
                         dems[siteDrive] = dem;
+
+                        pipeline.LogInfo("rendered {0}x{1} DEM for site drive {2}", dem.Width, dem.Height, siteDrive);
                     }
                         
                     Interlocked.Increment(ref nc);
@@ -783,6 +782,7 @@ namespace OPS.Landform
                             var bev = pipeline.GetDataProduct<TiffDataProduct>(project, rec.BEVGuid).Image;
                             bev.UnionMask(mask, new float[] { 1 });
                             bevs[siteDrive] = bev;
+                            pipeline.LogInfo("loaded {0}x{1} BEV for site drive {2}", bev.Width, bev.Height, siteDrive);
                         }
 
                         if (includeDEMs)
@@ -790,6 +790,7 @@ namespace OPS.Landform
                             var dem = pipeline.GetDataProduct<TiffDataProduct>(project, rec.DEMGuid).Image;
                             dem.UnionMask(mask, new float[] { 1 });
                             dems[siteDrive] = dem;
+                            pipeline.LogInfo("loaded {0}x{1} DEM for site drive {2}", dem.Width, dem.Height, siteDrive);
                         }
 
                         rootOriginPixel[siteDrive] = rec.RootOriginPixel;
@@ -903,7 +904,7 @@ namespace OPS.Landform
             stddev = Math.Sqrt(variance);
 
             pipeline.LogInfo("{0} valid pixels, min {1:F3}, max {2:F3}, mean {3:F3}, stddev {4:F3}",
-                             n, min, max, mean, stddev);
+                             Fmt.KMG(n), min, max, mean, stddev);
             pipeline.LogInfo("collected stats for {0} birds eye views ({1:F3}s)", bevs.Count, UTCTime.Now() - startSec);
         }
 
@@ -930,17 +931,18 @@ namespace OPS.Landform
                     frame.Save(pipeline);
                 }
 
-                var prevBest = frameCache.GetBestTransform(sd.ToString()).Source;
-                var prevBestToRoot = BestTransform(sd);
-                var adjToPrevBest = alignedSiteDriveToRoot[i] * Matrix.Invert(prevBestToRoot);
-                
                 var bestPrior = frameCache.GetBestPrior(sd.ToString()).Source;
                 var bestPriorToRoot = PriorTransform(sd);
                 var adjToPrior = alignedSiteDriveToRoot[i] * Matrix.Invert(bestPriorToRoot);
+                string relPriorMsg = $"{adjToPrior.ToStringEuler()} relative to {bestPrior} prior";
                 
-                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}: " +
-                                 "{2} relative to {3}, {4} relative to {5}", source, sd,
-                                 adjToPrevBest.ToStringEuler(), prevBest, adjToPrior.ToStringEuler(), bestPrior);
+                var prevBest = frameCache.GetBestTransform(sd.ToString()).Source;
+                var prevBestToRoot = BestTransform(sd);
+                var adjToPrevBest = alignedSiteDriveToRoot[i] * Matrix.Invert(prevBestToRoot);
+                string relPrevBestMsg = $", {adjToPrevBest.ToStringEuler()} relative to {prevBest}";
+
+                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}: {2}{3}",
+                                 source, sd, relPriorMsg, bestPrior != prevBest ? relPrevBestMsg : "");
             }
             foreach (var sd in unaligned)
             {
