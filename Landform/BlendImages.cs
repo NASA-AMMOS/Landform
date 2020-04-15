@@ -533,11 +533,14 @@ namespace OPS.Landform
                     if (markWinnersForObs >= Observation.MIN_INDEX)
                     {
                         img = new Image(img);
-                        while (img.Bands < 3 )
+                        if (img.Bands < 3)
                         {
-                            img.AddBand();
+                            float[] intensity = img.GetBandData(0);
+                            while (img.Bands < 3 )
+                            {
+                                Array.Copy(intensity, img.GetBandData(img.AddBand()), intensity.Length);
+                            }
                         }
-                        
                         float[] winnerColor = new float[] { 0, 1, 0 };
                         foreach (var pixel in winners[markWinnersForObs].Keys)
                         {
@@ -794,7 +797,7 @@ namespace OPS.Landform
             opts.MetersPerPixel = maxDim / resolution;
             opts.MeshOffset = new Vector2(boundsSize.X, boundsSize.Y) * 0.5;
             
-            pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F3} meters/pixel",
+            pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
                              resolution, tileList.LeafNames.Count, opts.MetersPerPixel);
 
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
