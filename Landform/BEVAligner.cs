@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -136,6 +137,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Spatial outlier number of mean absolute deviations", Default = 5)]
         public double SpatialOutlierMADs { get; set; }
+
+        [Option(HelpText = "Write RANSAC debug images", Default = false)]
+        public bool WriteRansacDebug { get; set; }
     }
 
     public class BEVAligner : BEVCommand
@@ -770,7 +774,7 @@ namespace OPS.Landform
                 }
             }
 
-            if (options.WriteDebug)
+            if (options.WriteRansacDebug)
             {
                 var mf = bestMatches
                     .Select(m => modelFeatures[matchArray[m].ModelIndex])
@@ -801,9 +805,9 @@ namespace OPS.Landform
                     SaveImage(img.ToOPSImage(), pair + "_BEV_RANSAC" + suffix);
                 }
                 
-                writeImage("_0_priors", pt => pt);
-                writeImage("_1_rotation", pt => bestTransform.Rotate(pt));
-                writeImage("_2_solved", pt => bestTransform.Transform(pt));
+                writeImage("_0_Priors", pt => pt);
+                writeImage("_1_Rotation", pt => bestTransform.Rotate(pt));
+                writeImage("_2_Solved", pt => bestTransform.Transform(pt));
             }
                         
             ransacMatches[pair] = bestMatches.Select(m => matchArray[m]).ToArray();
@@ -1024,7 +1028,7 @@ namespace OPS.Landform
                         var data = pair.Item2;
                         var pairName = model + "-" + data;
 
-                        if (matches[pairName].Length > 0)
+                        if (options.WriteRansacDebug && matches[pairName].Length > 0)
                         {
                             SaveImage(AlignmentUtils
                                       .DrawMatches(bevs[model], bevs[data], features[model], features[data],
@@ -1032,7 +1036,7 @@ namespace OPS.Landform
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
                                                    .ToArray(),
                                                    model.ToString(), data.ToString(), stretch: false),
-                                      pairName + "_BEV_Matches");
+                                      pairName + "_BEV_Pre_RANSAC_Matches");
                         }
 
                         if (ransacMatches[pairName].Length > 0)
@@ -1043,7 +1047,7 @@ namespace OPS.Landform
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
                                                    .ToArray(),
                                                    model.ToString(), data.ToString(), stretch: false),
-                                      pairName + "_BEV_RANSAC_Matches");
+                                      pairName + "_BEV_Matches");
                         }
 
                         if (spatialMatches[pairName].Length > 0)
@@ -1246,8 +1250,39 @@ namespace OPS.Landform
         /// </summary>
         private void SaveTransforms(IEnumerable<Node> aligned, TransformSource transformSource)
         {
-            SaveTransforms(aligned.Select(node => node.siteDrive).ToArray(),
-                           aligned.Select(node => node.worldTransform.Value).ToArray(), transformSource);
+            var sds = aligned.Select(node => node.siteDrive).ToArray();
+            var xforms = aligned.Select(node => node.worldTransform.Value).ToArray();
+
+            SaveTransforms(sds, xforms, transformSource);
+
+            if (options.WriteDebug)
+            {
+                string sfx = transformSource == TransformSource.LandformBEV ? "_Adj"
+                    : transformSource == TransformSource.LandformBEVCalf ? "_Calf" : null;
+                if (sfx != null)
+                {
+                    var meshToRoot =
+                        dbgMeshTransform.HasValue ? Matrix.Invert(dbgMeshTransform.Value) : Matrix.Identity;
+                    CoreLimitedParallel.For(0, sds.Length, i =>
+                    {
+                        string bn = sds[i] + DEBUG_BEV_MESH_SUFFIX;
+                        string imgFile = bn + imageExt;
+                        if (!File.Exists(Path.Combine(localOutputPath, imgFile)))
+                        {
+                            imgFile = null;
+                        }
+                        string meshPath = Path.Combine(localOutputPath, bn + meshExt);
+                        if (File.Exists(meshPath))
+                        {
+                            var mesh = Mesh.Load(meshPath);
+                            string meshFile = bn + sfx;
+                            var rootToSD = Matrix.Invert(PriorTransform(sds[i]));
+                            var sdToRoot = xforms[i];
+                            SaveMesh(Mesh.Transformed(mesh, meshToRoot * rootToSD * sdToRoot), meshFile, imgFile);
+                        }
+                    });
+                }
+            }
         }
 
         private void SaveCalves(IEnumerable<Node> aligned)
@@ -1378,8 +1413,8 @@ namespace OPS.Landform
             {
                 case AlignmentMode.Simultaneous: return SimultaneousAlign();
                 case AlignmentMode.Pairwise: return PairwiseAlign();
+                default: return 0;
             }
-            return 0;
         }
 
         /// <summary>

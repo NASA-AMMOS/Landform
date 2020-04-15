@@ -97,6 +97,8 @@ namespace OPS.Landform
 
     public abstract class BEVCommand : WedgeCommand
     {
+        public const string DEBUG_BEV_MESH_SUFFIX = "_BEV_Mesh";
+
         private BEVCommandOptions bcopts;
 
         private bool useMeshRDRs;
@@ -134,7 +136,7 @@ namespace OPS.Landform
         protected double BEVMetersPerPixel { get { return bcopts.BEVMetersPerPixel * bcopts.BEVDecimation; } }
         protected double BEVPixelsPerMeter { get { return 1 / BEVMetersPerPixel; } }
 
-        private Matrix? dbgMeshTransform;
+        protected Matrix? dbgMeshTransform;
 
         /// <summary>
         /// get prior transform from siteDrive to project root frame
@@ -601,7 +603,7 @@ namespace OPS.Landform
                     
                     if (bcopts.WriteDebug)
                     {
-                        string name = siteDrive + "_BEV_Mesh";
+                        string name = siteDrive + DEBUG_BEV_MESH_SUFFIX;
                         if (img != null)
                         {
                             SaveImage(img, name);
