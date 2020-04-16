@@ -396,13 +396,14 @@ namespace OPS.Landform
             orbitalSamplesPerPixel = 1;
             if (options.OrbitalPointsPerMeter > 0)
             {
-                orbitalSamplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * orbitalAvgMetersPerPixel);
+                orbitalSamplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * orbitalDEMAvgMetersPerPixel);
             }
             
             blendSamplesPerPixel = 1;
             if (options.OrbitalBlendPointsPerMeter > 0)
             {
-                blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalAvgMetersPerPixel);
+                blendSamplesPerPixel =
+                    (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalDEMAvgMetersPerPixel);
             }
 
             return true;
@@ -748,7 +749,7 @@ namespace OPS.Landform
             }
 
             var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-            var orbitalToMesh = orbitalToRoot * Matrix.Invert(meshToRoot);
+            var orbitalToMesh = orbitalDEMToRoot * Matrix.Invert(meshToRoot);
 
             Mesh makeMesh(int subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
             {
@@ -787,11 +788,11 @@ namespace OPS.Landform
                 return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
             }
 
-            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalAvgMetersPerPixel);
+            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalDEMAvgMetersPerPixel);
 
             double br = blendRadius > 0 ? blendRadius : 0;
             int blendExtentPixels =
-                (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalAvgMetersPerPixel);
+                (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalDEMAvgMetersPerPixel);
 
             Image.Subrect blendBounds = null;
             if (blendSamplesPerPixel != orbitalSamplesPerPixel)
@@ -800,8 +801,8 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("making {0}x{0} orbital mesh at {1} samples/meter",
-                             2* orbitalExtentPixels * orbitalAvgMetersPerPixel,
-                             orbitalSamplesPerPixel / orbitalAvgMetersPerPixel);
+                             2* orbitalExtentPixels * orbitalDEMAvgMetersPerPixel,
+                             orbitalSamplesPerPixel / orbitalDEMAvgMetersPerPixel);
 
             orbitalMesh =
                 makeMesh(orbitalSamplesPerPixel, orbitalDEM.GetSubrectPixels(orbitalExtentPixels), blendBounds);
@@ -816,8 +817,8 @@ namespace OPS.Landform
                 }
 
                 pipeline.LogInfo("making {0}x{0} orbital blend mesh at {1} samples/meter",
-                                 2 * blendExtentPixels * orbitalAvgMetersPerPixel,
-                                 blendSamplesPerPixel / orbitalAvgMetersPerPixel);
+                                 2 * blendExtentPixels * orbitalDEMAvgMetersPerPixel,
+                                 blendSamplesPerPixel / orbitalDEMAvgMetersPerPixel);
 
                 var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
 
@@ -851,7 +852,7 @@ namespace OPS.Landform
 
             if (BLEND_GUTTER_SAMPLES > 0)
             {
-                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalAvgMetersPerPixel / blendSamplesPerPixel);
+                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalDEMAvgMetersPerPixel / blendSamplesPerPixel);
                 if (radius > gutterMeters)
                 {
                     radius -= gutterMeters;

@@ -10,7 +10,7 @@ using OPS.Util;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Wraps any scalar Image with a CalibratedCameraModel as a Digital Elevation Map.
+    /// Wraps any scalar Image with a ConformalCameraModel as a Digital Elevation Map.
     /// The underlying image can be a SparseImage, see in particular SparseGISElevationMap.
     /// Provides API surfaces for interpolating points, estimating normals, and creating meshes.
     /// Also see OPS.Imaging.GISDEM which is limited to working with GDAL geographic images.
@@ -56,9 +56,28 @@ namespace OPS.Geometry
 
         private Image dem; //may have mask
 
-        private DEM(Image dem)
+        public DEM(Image dem, double elevationScale = 0, double minFilter = 0, double maxFilter = 0)
         {
+            //null camera model is allowed because GetInterpolatedElevation() doesn't require camera model
+            //and some codepaths like OrthoDEM() below bootstrap the camera model using GetInterpolatedElevation()
+            if (dem.CameraModel != null && !(dem.CameraModel is ConformalCameraModel))
+            {
+                throw new ArgumentException("dem must have ConformalCameraModel, got " +
+                                            dem.CameraModel.GetType().Name);
+            }
+
             this.dem = dem;
+
+            if (elevationScale > 0)
+            {
+                this.ElevationScale = elevationScale;
+            }
+
+            if (maxFilter > minFilter)
+            {
+                this.MinFilter = minFilter;
+                this.MaxFilter = maxFilter;
+            }
         }
 
         /// <summary>
@@ -80,11 +99,7 @@ namespace OPS.Geometry
                                    Vector2? originPixel = null, double? originElevation = null,
                                    double minFilter = DEF_MIN_FILTER, double maxFilter = DEF_MAX_FILTER)
         {
-            var ret = new DEM(dem);
-
-            ret.MinFilter = minFilter;
-            ret.MaxFilter = maxFilter;
-            ret.ElevationScale = elevationScale;
+            var ret = new DEM(dem, elevationScale, minFilter, maxFilter);
 
             Vector2 centerPixel = new Vector2(ret.Width, ret.Height) * 0.5;
             

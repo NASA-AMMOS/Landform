@@ -167,6 +167,12 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Override default orbital DEM URL")]
         public string OrbitalDEMURL { get; set; }
 
+        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
+        public string OrbitalImage { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital image URL")]
+        public string OrbitalImageURL { get; set; }
+
         [Option(HelpText = "Disable orbital", Default = false)]
         public bool NoOrbital { get; set; }
 
@@ -692,12 +698,18 @@ namespace OPS.Landform
             string tilesetDir = GetTilesetDir(venue, sdStr, project);
             string destDir = GetDestDir(solDir);
 
-            string demURL = !string.IsNullOrEmpty(options.OrbitalDEMURL) ? options.OrbitalDEMURL
-                : OrbitalConfig.Instance.OrbitalDEMURL;
-            string demFile = !string.IsNullOrEmpty(options.OrbitalDEM) ? options.OrbitalDEM
-                : fetchDir + "/orbital/" + OrbitalConfig.Instance.OrbitalDEMStoragePath;
-            string noOrbital = (options.NoOrbital || string.IsNullOrEmpty(demURL)) ? "--noorbital" : "";
-
+            var orbitalCfg = OrbitalConfig.Instance;
+            var orbitalDir = fetchDir + "/orbital/";
+            Func<string, string, string> orbitalOpt = (opt, cfg) => !string.IsNullOrEmpty(opt) ? opt : cfg;
+            string orbitalDEMUrl = orbitalOpt(options.OrbitalDEMURL, orbitalCfg.DEMURL);
+            string orbitalDEMFile = orbitalOpt(options.OrbitalDEM, orbitalDir + orbitalCfg.DEMStoragePath);
+            string orbitalImageUrl = orbitalOpt(options.OrbitalImageURL, orbitalCfg.ImageURL);
+            string orbitalImageFile = orbitalOpt(options.OrbitalImage, orbitalDir + orbitalCfg.ImageStoragePath);
+            string noOrbital = "";
+            if (options.NoOrbital || (string.IsNullOrEmpty(orbitalDEMUrl) && string.IsNullOrEmpty(orbitalImageUrl)))
+            {
+                noOrbital = "--noorbital";
+            }
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
@@ -714,17 +726,25 @@ namespace OPS.Landform
                           "--onlyforsitedrives", sdsStr, "--summary");
                 }
 
-                if (!options.NoFetch && !options.NoOrbital && !string.IsNullOrEmpty(demURL))
+                if (!options.NoFetch && !options.NoOrbital)
                 {
-                    string dir = Path.GetDirectoryName(demFile);
-                    Fetch(options.MaxOrbital, demURL, dir, "--raw", "--nosubdirs");
-                    string srcFile = StringHelper.GetLastUrlPathSegment(demURL);
-                    string destFile = Path.GetFileName(demFile);
-                    string fetchedFile = Path.Combine(dir, srcFile);
-                    if (srcFile != destFile && File.Exists(fetchedFile))
+                    Action<string, string> fetchOrbitalAsset = (url, file) =>
                     {
-                        PathHelper.MoveFileAtomic(fetchedFile, demFile); //overwrites existing
-                    }
+                        if (!string.IsNullOrEmpty(url) && !string.IsNullOrEmpty(file))
+                        {
+                            string dir = Path.GetDirectoryName(file);
+                            Fetch(options.MaxOrbital, url, dir, "--raw", "--nosubdirs");
+                            string srcFile = StringHelper.GetLastUrlPathSegment(url);
+                            string destFile = Path.GetFileName(file);
+                            string fetchedFile = Path.Combine(dir, srcFile);
+                            if (srcFile != destFile && File.Exists(fetchedFile))
+                            {
+                                PathHelper.MoveFileAtomic(fetchedFile, file); //overwrites existing
+                            }
+                        }
+                    };
+                    fetchOrbitalAsset(orbitalDEMUrl, orbitalDEMFile);
+                    fetchOrbitalAsset(orbitalImageUrl, orbitalImageFile);
                 }
 
                 if (!options.NoIngest)
@@ -742,14 +762,16 @@ namespace OPS.Landform
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr);
 
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr,
-                               noOrbital, "--orbitaldem", demFile);
+                               noOrbital, "--orbitaldem", orbitalDEMFile);
                     
                     RunCommand("build-geometry", project, "--meshframe", sdStr,
-                               noOrbital, "--orbitaldem", demFile);
+                               noOrbital, "--orbitaldem", orbitalDEMFile);
                     
-                    RunCommand("build-tiling-input", project, "--meshframe", sdStr);
+                    RunCommand("build-tiling-input", project, "--meshframe", sdStr,
+                               noOrbital, "--orbitalimage", orbitalImageFile);
                     
-                    RunCommand("blend-images", project, "--meshframe", sdStr);
+                    RunCommand("blend-images", project, "--meshframe", sdStr,
+                               noOrbital, "--orbitalimage", orbitalImageFile);
                     
                     BuildTileset(project, "--meshframe", sdStr);
                     

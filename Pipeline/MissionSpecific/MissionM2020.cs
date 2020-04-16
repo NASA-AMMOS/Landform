@@ -324,12 +324,13 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
             //use assets at
             //s3://m20-ids-g-landform/M2020/orbital
-            return
-                "{ " +
-                "\"OrbitalDEMURL\": \"\", " +
-                "\"OrbitalImageURL\": \"\", " +
-                "\"OrbitalDEMStoragePath\": \"\", " +
-                "\"OrbitalImageStoragePath\": \"\"" +
+            return "{\n" +
+                "\"DEMURL\": \"\",\n" +
+                "\"ImageURL\": \"\",\n" +
+                "\"DEMStoragePath\": \"\",\n" +
+                "\"ImageStoragePath\": \"\",\n" +
+                "\"DEMPlacesDBIndex\": -1,\n" +
+                "\"ImagePlacesDBIndex\": -1\n" +
                 "}";
         }
 
@@ -341,12 +342,11 @@ namespace OPS.Pipeline
 
             //though that'd just be for dev, still TBD what the places instance will be for flight
 
-            //return
-            //    "{ " +
-            //    "\"Url\": \"https://places-pipeline.dev.m20.jpl.nasa.gov\", " +
-            //    "\"View\": \"best_tactical\", " +
-            //    "\"AuthCookieName\": \"ssosession\", " +
-            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+            //return "{\n" +
+            //    "\"Url\": \"https://places-pipeline.dev.m20.jpl.nasa.gov\",\n" +
+            //    "\"View\": \"best_tactical\",\n" +
+            //    "\"AuthCookieName\": \"ssosession\",\n" +
+            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
             //    "}";
 
             return null;
@@ -418,12 +418,11 @@ namespace OPS.Pipeline
         public override string GetPlacesConfigDefaults()
         {
             //NOTE as of 3/19/20 it is unlikely that this PLACES instance still is populated with TT4 data
-            //return
-            //    "{ " +
-            //    "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\", " +
-            //    "\"View\": \"best_tactical\", " +
-            //    "\"AuthCookieName\": \"ssosession\", " +
-            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+            //return "{\n" +
+            //    "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\",\n" +
+            //    "\"View\": \"best_tactical\",\n" +
+            //    "\"AuthCookieName\": \"ssosession\",\n" +
+            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
             //    "}";
 
             return null;
@@ -511,13 +510,14 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
             //use assets at
             //s3://m20-ids-g-landform/MarsYard_Aerial06062019
-            return
-                "{ " +
-                "\"OrbitalDEMURL\": \"\", " +
-                "\"OrbitalImageURL\": \"\", " +
-                "\"OrbitalDEMStoragePath\": \"\", " +
-                "\"OrbitalImageStoragePath\": \"\", " +
-                "\"OrbitalBodyName\": \"Earth\"" +
+            return "{\n" +
+                "\"DEMURL\": \"\",\n" +
+                "\"ImageURL\": \"\",\n" +
+                "\"DEMStoragePath\": \"\",\n" +
+                "\"ImageStoragePath\": \"\",\n" +
+                "\"BodyName\": \"Earth\",\n" +
+                "\"DEMPlacesDBIndex\": -1,\n" +
+                "\"ImagePlacesDBIndex\": -1\n" +
                 "}";
         }
 
@@ -576,13 +576,14 @@ namespace OPS.Pipeline
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
             //use assets at
             //s3://m20-ids-g-landform/ROASTT20/orbital
-            return
-                "{ " +
-                "\"OrbitalDEMURL\": \"\", " +
-                "\"OrbitalImageURL\": \"\", " +
-                "\"OrbitalDEMStoragePath\": \"\", " +
-                "\"OrbitalImageStoragePath\": \"\", " +
-                "\"OrbitalBodyName\": \"Earth\"" +
+            return "{\n" +
+                "\"DEMURL\": \"\",\n" +
+                "\"ImageURL\": \"\",\n" +
+                "\"DEMStoragePath\": \"\",\n" +
+                "\"ImageStoragePath\": \"\",\n" +
+                "\"BodyName\": \"Earth\",\n" +
+                "\"DEMPlacesDBIndex\": -1,\n" +
+                "\"ImagePlacesDBIndex\": -1\n" +
                 "}";
         }
 
@@ -592,12 +593,11 @@ namespace OPS.Pipeline
             //per Kevin Grimes on 3/18/20 ROASTT20 data will soon move to
             //https://places-roastt.dev.m20.jpl.nasa.gov
 
-            return
-                "{ " +
-                "\"Url\": \"https://places-rocs.dev.m20.jpl.nasa.gov\", " +
-                "\"View\": \"best_tactical\", " +
-                "\"AuthCookieName\": \"ssosession\", " +
-                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+            return "{\n" +
+                "\"Url\": \"https://places-rocs.dev.m20.jpl.nasa.gov\",\n" +
+                "\"View\": \"best_tactical\",\n" +
+                "\"AuthCookieName\": \"ssosession\",\n" +
+                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
                 "}";
         }
     }

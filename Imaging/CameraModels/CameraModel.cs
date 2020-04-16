@@ -82,7 +82,7 @@ namespace OPS.Imaging
         public abstract int Width { get; }
         public abstract int Height { get; }
 
-        public abstract Vector2 MetersPerPixel { get; }
+        public abstract Vector2 MetersPerPixel { get; set; }
 
         [JsonIgnore]
         public double AvgMetersPerPixel { get { return (MetersPerPixel.X + MetersPerPixel.Y) * 0.5; } }

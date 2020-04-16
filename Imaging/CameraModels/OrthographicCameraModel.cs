@@ -29,7 +29,20 @@ namespace OPS.Imaging
         public override Vector3 ImagePlaneNormal { get { return normal; } }
 
         [JsonIgnore]
-        public override Vector2 MetersPerPixel { get { return new Vector2(Right.Length(), Down.Length()); } }
+        public override Vector2 MetersPerPixel
+        {
+            get
+            {
+                return new Vector2(Right.Length(), Down.Length());
+            }
+
+            set
+            {
+                Right = Vector3.Normalize(Right) * value.X;
+                Down = Vector3.Normalize(Down) * value.Y;
+                Init();
+            }
+        }
 
         private int width, height;
         private Vector3 normal;

@@ -274,8 +274,7 @@ namespace OPS.Landform
                 var img = dems[siteDrive];
                 sdDEMs[siteDrive] = DEM.OrthoDEM(dems[siteDrive], elevation, right, down,
                                                  BEVMetersPerPixel, pixelAspect, elevationScale,
-                                                 sdOriginPixel[siteDrive], originElevation,
-                                                 options.DEMMinFilter, options.DEMMaxFilter);
+                                                 sdOriginPixel[siteDrive], originElevation);
             }
 
             foreach (var sd in siteDrives)
@@ -352,7 +351,7 @@ namespace OPS.Landform
             //but this is just because the DEMAligner.AlignDEMToScene() API is assymetric
             //it can only align one DEM to a "scene" consisting of one or more DEMs
             //it *shouldn't* matter, we just call it this way and use the inverse of the result
-            var adj = aligner.AlignDEMToScene(orbitalDEM, orbitalToRoot,
+            var adj = aligner.AlignDEMToScene(orbitalDEM, orbitalDEMToRoot,
                                               aligned.Select(sd => sdDEMs[sd]).ToArray(),
                                               aligned.Select(sd => BestAdjustedTransform(sd)).ToArray(),
                                               out double initialRMS, out double finalRMS);
@@ -375,7 +374,7 @@ namespace OPS.Landform
             if (unaligned.Length > 0)
             {
                 pipeline.LogInfo("aligning {0} unaligned site drives to orbital DEM", unaligned.Length);
-                IncrementalAlign(orbitalDEM, orbitalToRoot, "orbital", unaligned, cumulative: false);
+                IncrementalAlign(orbitalDEM, orbitalDEMToRoot, "orbital", unaligned, cumulative: false);
             }
         }
 
@@ -462,11 +461,11 @@ namespace OPS.Landform
             }
             if (orbitalDEM != null)
             {
-                pipeline.LogInfo("delaunay meshing {0}x{1} orbital DEM ({2} meters/pixel, {3}x{4}m), max radius {5}",
+                pipeline.LogInfo("organized meshing {0}x{1} orbital DEM ({2} meters/pixel, {3}x{4}m), max radius {5}",
                                  orbitalDEM.Width, orbitalDEM.Height, orbitalDEM.AvgMetersPerPixel,
                                  orbitalDEM.WidthMeters, orbitalDEM.HeightMeters, MAX_MESH_RADIUS_METERS);
                 var mesh = orbitalDEM.OrganizedMesh(MAX_MESH_RADIUS_METERS);
-                SaveMesh(Mesh.Transformed(mesh, orbitalToRoot), "orbital_Heightmap");
+                SaveMesh(Mesh.Transformed(mesh, orbitalDEMToRoot), "orbital_Heightmap");
             }
         }
 

@@ -6,6 +6,7 @@ using Microsoft.Xna.Framework;
 using CommandLine;
 using log4net;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
@@ -56,7 +57,7 @@ namespace OPS.Landform
         [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "Dem values larger than this will be ignored")]
         public double DEMMaxFilter { get; set; }
 
-        [Option(Required = false, Default = "", HelpText = "Origin at and output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission")]
+        [Option(Required = false, Default = "", HelpText = "Origin at and output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission and PlacesDB support")]
         public string OutputFrame { get; set; }
 
         [Option(Required = false, Default = 200, HelpText = "Radius in meters around origin pixel to build mesh, negative for unlimited")]
@@ -73,6 +74,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
         public Mission Mission { get; set; }
+
+        [Option(Required = false, Default = -1, HelpText = "index of DEM metadata in PlacesDB, negative to use orbital config default for mission")]
+        public int DEMPlacesDBIndex { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Compare planar approximation to spherical for mesh region")]
         public bool CheckPlanarity { get; set; }
@@ -165,10 +169,12 @@ namespace OPS.Landform
             //this has the important side effect of setting defaults for PlacesConfig and OrbitalConfig
             mission = MissionSpecific.GetInstance(options.Mission);
 
+            var cfg = OrbitalConfig.Instance;
+
             demMetersPerPixel = 1;
             if (string.IsNullOrEmpty(options.DEMMetersPerPixel) || options.DEMMetersPerPixel.ToLower() == "auto")
             {
-                demMetersPerPixel = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
+                demMetersPerPixel = cfg.DEMMetersPerPixel;
                 if (mission == null)
                 {
                     logger.LogWarn("no mission, using default orbital DEM meters per pixel: {0}", demMetersPerPixel);
@@ -182,7 +188,7 @@ namespace OPS.Landform
             elevationScale = 1;
             if (string.IsNullOrEmpty(options.VerticalScale) || options.VerticalScale.ToLower() == "auto")
             {
-                elevationScale = OrbitalConfig.Instance.OrbitalDEMElevationScale;
+                elevationScale = cfg.DEMElevationScale;
                 if (mission == null)
                 {
                     logger.LogWarn("no mission, using default orbital DEM elevation scale: {0}", elevationScale);
@@ -196,7 +202,7 @@ namespace OPS.Landform
             demBody = "mars";
             if (string.IsNullOrEmpty(options.DEMBody) || options.DEMBody.ToLower() == "auto")
             {
-                demBody = OrbitalConfig.Instance.OrbitalBodyName;
+                demBody = cfg.BodyName;
                 if (mission == null)
                 {
                     logger.LogWarn("no mission, using default orbital DEM body: {0}", demBody);
@@ -208,6 +214,13 @@ namespace OPS.Landform
             }
 
             demCamera = new GISCameraModel(options.InputDEM, demBody);
+            logger.LogInfo("loaded GeoTIFF metadata from {0}", options.InputDEM);
+            demCamera.Dump(logger);
+
+            var elevationMap = new SparseGISElevationMap(options.InputDEM);
+
+            double? originElevation = null; //DEM.OrthoDEM() will look this up given originPixel
+            Vector2 originPixel = new Vector2(demCamera.Width - 1, demCamera.Height - 1) * 0.5;
 
             if (SiteDrive.IsSiteDriveString(options.OutputFrame))
             {
@@ -218,19 +231,35 @@ namespace OPS.Landform
 
                 if (!string.IsNullOrEmpty(options.OriginPixel))
                 {
-                    throw new Exception("--originpixel exclussive with --outputframe");
+                    throw new Exception("--originpixel exclusive with --outputframe");
                 }
 
-                string demFile = options.InputDEM;
-                dem = WedgeCommand.LoadOrbitalDEM(mission, new SiteDrive(options.OutputFrame), ref demFile,
-                                                  demMetersPerPixel, elevationScale,
-                                                  options.DEMMinFilter, options.DEMMaxFilter, logger);
+                int index = options.DEMPlacesDBIndex >= 0 ? options.DEMPlacesDBIndex : cfg.DEMPlacesDBIndex;
+                var sd = new SiteDrive(options.OutputFrame);
 
-                logger.LogInfo("loaded {0}x{1} DEM {2}", dem.Width, dem.Height, demFile);
+                var placesDB = new PlacesDB(logger);
+
+                var eastingNorthingElev = placesDB.GetEastingNorthingElevation(sd, index);
+
+                originPixel = demCamera.EastingNorthingToImage(eastingNorthingElev).XY();
+
+                logger.LogInfo("resolved output frame site drive {0} using PlacesDB orbital index {1}: " +
+                               "(easting, northing, elevation) = ({2:f3}, {3:f3}, {4:f3})m, " +
+                               "(x, y) = ({5:f2}, {6:f2})px",
+                               sd, index, eastingNorthingElev.X, eastingNorthingElev.Y, eastingNorthingElev.Z,
+                               originPixel.X, originPixel.Y);
+            
+                var mpp = demCamera.CheckLocalGISImageBasisAndGetResolution(originPixel, logger);
+                
+                mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevationDir,
+                                                                out Vector3 rightDir, out Vector3 downDir);
+                
+                dem = DEM.OrthoDEM(elevationMap, elevationDir, rightDir, downDir,
+                                   demMetersPerPixel, mpp.X / mpp.Y, elevationScale,
+                                   originPixel, originElevation, options.DEMMinFilter, options.DEMMaxFilter);
             }
             else
             {
-                Vector2 originPixel = new Vector2(demCamera.Width, demCamera.Height) * 0.5;
                 if (!string.IsNullOrEmpty(options.OriginPixel))
                 {
                     var op = options.OriginPixel.Trim();
@@ -263,35 +292,39 @@ namespace OPS.Landform
                     }
                 }
 
-                double? originElevation = null; //DEM constructor will look this up given originPixel
                 var mpp = demCamera.CheckLocalGISImageBasisAndGetResolution(originPixel, logger);
-                dem = DEM.OrthoDEM(new SparseGISElevationMap(options.InputDEM), demMetersPerPixel, mpp.X / mpp.Y,
+                dem = DEM.OrthoDEM(elevationMap, demMetersPerPixel, mpp.X / mpp.Y,
                                    elevationScale, originPixel, originElevation,
                                    options.DEMMinFilter, options.DEMMaxFilter); 
             }
 
-            logger.LogInfo("loaded {0}x{1} ({2:f3}x{3:f3}m at {4:f3} m/pixel) dem {5}",
-                           dem.Width, dem.Height, dem.Width * demMetersPerPixel, dem.Height * demMetersPerPixel,
-                           demMetersPerPixel, options.InputDEM);
+            var demOriginLonLat = demCamera.ImageToLonLat(originPixel);
+            originElevation = dem.GetInterpolatedElevation(originPixel);
 
-            var demOriginLonLat = demCamera.ImageToLonLat(dem.OriginPixel);
-
-            logger.LogInfo("origin pixel ({0}, {1}) ({2:f3}m, {3:f3}m), (lon, lat) ({4:f3}, {5:f3})",
-                           dem.OriginPixel.X, dem.OriginPixel.Y,
-                           dem.OriginPixel.X * demMetersPerPixel, dem.OriginPixel.Y * demMetersPerPixel,
-                           demOriginLonLat.X, demOriginLonLat.Y);
+            logger.LogInfo("origin pixel ({0:f3}, {1:f3}), (lon, lat) ({2:f7}, {3:f7})deg, elevation {4:f3}m",
+                           originPixel.X, originPixel.Y, demOriginLonLat.X, demOriginLonLat.Y,
+                           originElevation.HasValue ? originElevation.Value : double.NaN);
                 
             var demMinLonLat = demCamera.ImageToLonLat(Vector2.Zero);
             var demMaxPixel = new Vector2(demCamera.Width - 1, demCamera.Height - 1);
             var demMaxLonLat = demCamera.ImageToLonLat(demMaxPixel);
             var demCtrPixel = 0.5 * demMaxPixel;
             var demCtrLonLat = demCamera.ImageToLonLat(demCtrPixel);
-            logger.LogInfo("dem min pixel (0, 0) is (lon, lat) ({0:f3}, {1:f3})",
+            var demMinEastingNorthing = demCamera.ImageToEastingNorthing(Vector2.Zero);
+            var demMaxEastingNorthing = demCamera.ImageToEastingNorthing(demMaxPixel);
+            var demCtrEastingNorthing = demCamera.ImageToEastingNorthing(demCtrPixel);
+            logger.LogInfo("dem min pixel (0, 0) is (lon, lat) ({0:f7}, {1:f7})deg",
                            demMinLonLat.X, demMinLonLat.Y);
-            logger.LogInfo("dem center pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+            logger.LogInfo("dem center pixel ({0:f3}, {1:f3}) is (lon, lat) ({2:f7}, {3:f7})deg",
                            demCtrPixel.X, demCtrPixel.Y, demCtrLonLat.X, demCtrLonLat.Y);
-            logger.LogInfo("dem max pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+            logger.LogInfo("dem max pixel ({0:f3}, {1:f3}) is (lon, lat) ({2:f7}, {3:f7})deg",
                            demMaxPixel.X, demMaxPixel.Y, demMaxLonLat.X, demMaxLonLat.Y);
+            logger.LogInfo("dem min pixel (0, 0) is (easting, northing) ({0:f3}, {1:f3})m",
+                           demMinEastingNorthing.X, demMinEastingNorthing.Y);
+            logger.LogInfo("dem center pixel ({0:f3}, {1:f3}) is (easting, northing) ({2:f3}, {3:f3})m",
+                           demCtrPixel.X, demCtrPixel.Y, demCtrEastingNorthing.X, demCtrEastingNorthing.Y);
+            logger.LogInfo("dem max pixel ({0:f3}, {1:f3}) is (easting, northing) ({2:f3}, {3:f3})m",
+                           demMaxPixel.X, demMaxPixel.Y, demMaxEastingNorthing.X, demMaxEastingNorthing.Y);
 
             if (!string.IsNullOrEmpty(options.InputImage) && options.MaxTextureResolution != 0)
             {
@@ -299,7 +332,7 @@ namespace OPS.Landform
                 if (string.IsNullOrEmpty(options.ImageMetersPerPixel) ||
                     options.ImageMetersPerPixel.ToLower() == "auto")
                 {
-                    imageMetersPerPixel = OrbitalConfig.Instance.OrbitalImageMetersPerPixel;
+                    imageMetersPerPixel = cfg.ImageMetersPerPixel;
                     if (mission == null)
                     {
                         logger.LogWarn("no mission, using default orbital image meters per pixel: {0}",
@@ -311,24 +344,31 @@ namespace OPS.Landform
                     imageMetersPerPixel = double.Parse(options.ImageMetersPerPixel);
                 }
 
+                imageCamera = new GISCameraModel(options.InputImage, demBody);
+                logger.LogInfo("loaded GeoTIFF metadata from {0}", options.InputImage);
+                imageCamera.Dump(logger);
+
                 image = new SparseGISImage(options.InputImage);
 
-                logger.LogInfo("loaded {0}x{1} ({2:f3}x{3:f3}m at {4:f3} m/pixel) image {5}",
-                               image.Width, image.Height,
-                               image.Width * imageMetersPerPixel, image.Height * imageMetersPerPixel,
-                               imageMetersPerPixel, options.InputImage);
-
-                imageCamera = new GISCameraModel(options.InputImage, demBody);
                 var imgMinLonLat = imageCamera.ImageToLonLat(Vector2.Zero);
                 var imgMaxPixel = new Vector2(imageCamera.Width - 1, imageCamera.Height - 1);
                 var imgMaxLonLat = imageCamera.ImageToLonLat(imgMaxPixel);
                 var imgCtrPixel = 0.5 * imgMaxPixel;
                 var imgCtrLonLat = imageCamera.ImageToLonLat(imgCtrPixel);
-                logger.LogInfo("image min pixel (0, 0) is (lon, lat) ({0:f3}, {1:f3})", imgMinLonLat.X, imgMinLonLat.Y);
-                logger.LogInfo("image center pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                var imgMinEastingNorthing = imageCamera.ImageToEastingNorthing(Vector2.Zero);
+                var imgMaxEastingNorthing = imageCamera.ImageToEastingNorthing(imgMaxPixel);
+                var imgCtrEastingNorthing = imageCamera.ImageToEastingNorthing(imgCtrPixel);
+                logger.LogInfo("image min pixel (0, 0) is (lon, lat) ({0:f7}, {1:f7})", imgMinLonLat.X, imgMinLonLat.Y);
+                logger.LogInfo("image center pixel ({0:f3}, {1:f3}) is (lon, lat) ({2:f7}, {3:f7})deg",
                                imgCtrPixel.X, imgCtrPixel.Y, imgCtrLonLat.X, imgCtrLonLat.Y);
-                logger.LogInfo("image max pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+                logger.LogInfo("image max pixel ({0:f3}, {1:f3}) is (lon, lat) ({2:f7}, {3:f7})deg",
                                imgMaxPixel.X, imgMaxPixel.Y, imgMaxLonLat.X, imgMaxLonLat.Y);
+                logger.LogInfo("image min pixel (0, 0) is (easting, northing) ({0:f3}, {1:f3})m",
+                               imgMinEastingNorthing.X, imgMinEastingNorthing.Y);
+                logger.LogInfo("image center pixel ({0:f3}, {1:f3}) is (easting, northing) ({2:f3}, {3:f3})m",
+                               imgCtrPixel.X, imgCtrPixel.Y, imgCtrEastingNorthing.X, imgCtrEastingNorthing.Y);
+                logger.LogInfo("image max pixel ({0:f3}, {1:f3}) is (easting, northing) ({2:f3}, {3:f3})m",
+                               imgMaxPixel.X, imgMaxPixel.Y, imgMaxEastingNorthing.X, imgMaxEastingNorthing.Y);
 
                 outputImage = Path.Combine(Path.GetDirectoryName(outputMesh),
                                            Path.GetFileNameWithoutExtension(outputMesh) + "_texture" + imageExt);
@@ -433,25 +473,25 @@ namespace OPS.Landform
         {
             var demOriginLonLat = demCamera.ImageToLonLat(dem.OriginPixel);
 
-            logger.LogInfo("checking planarity around origin pixel ({0}, {1}) ({2:f3}m, {3:f3}m), " +
-                           "(lon, lat) ({4:f3}, {5:f3})",
+            logger.LogInfo("checking planarity around origin pixel ({0:f3}, {1:f3}) ({2:f3}, {3:f3})m, " +
+                           "(lon, lat) ({4:f7}, {5:f7})deg",
                            dem.OriginPixel.X, dem.OriginPixel.Y,
                            dem.OriginPixel.X * demMetersPerPixel, dem.OriginPixel.Y * demMetersPerPixel,
                            demOriginLonLat.X, demOriginLonLat.Y);
 
-            logger.LogInfo("DEM body {0}, radius {1}", demBody, demCamera.Body.Radius);
+            logger.LogInfo("DEM body {0}, radius {1:f3}", demBody, demCamera.Body.Radius);
 
             var subrect = dem.GetSubrectMeters(options.RadiusMeters);
 
             var demMinLonLat = demCamera.ImageToLonLat(subrect.Min);
             var demMaxLonLat = demCamera.ImageToLonLat(subrect.Max);
 
-            logger.LogInfo("subrect min pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+            logger.LogInfo("subrect min pixel ({0:f3}, {1:f3}) is (lon, lat) ({2:f7}, {3:f7})deg",
                            subrect.MinX, subrect.MinY, demMinLonLat.X, demMinLonLat.Y);
-            logger.LogInfo("subrect max pixel ({0}, {1}) is (lon, lat) ({2:f3}, {3:f3})",
+            logger.LogInfo("subrect max pixel ({0:f3}, {1:f3}) is (lon, lat) ({2:f7}, {3:f7})deg",
                            subrect.MaxX, subrect.MaxY, demMaxLonLat.X, demMaxLonLat.Y);
             
-            logger.LogInfo("checking {0} pixels in {1}x{2} ({3:f3}mx{4:f3}m)subrect",
+            logger.LogInfo("checking {0} pixels in {1:f3}x{2:f3} ({3:f3}x{4:f3})m subrect",
                            Fmt.KMG(subrect.Area), subrect.Width, subrect.Height,
                            subrect.Width * demMetersPerPixel, subrect.Height * demMetersPerPixel);
 
@@ -472,7 +512,6 @@ namespace OPS.Landform
                 return pointOnPlane + relInPlane;
             }
 
-            demCamera.Dump(logger);
 
             var originPixel = subrect.Center;
 

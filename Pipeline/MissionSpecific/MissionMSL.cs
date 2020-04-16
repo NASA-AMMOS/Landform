@@ -251,7 +251,8 @@ namespace OPS.Pipeline
 
         public override string GetOrbitalConfigDefaults()
         {
-            //TODO switch to newer assets
+            //TODO possibly switch to newer assets
+            //though at least for Windjana the older assets (out_XXX.tif) seem to have more definition
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/1011#issuecomment-269256
             //s3://m20-ids-g-landform/MSL/orbital/MSL_Gale_DEM_Mosaic_1m_v3.tif
             //s3://m20-ids-g-landform/MSL/orbital/MSL_Gale_Orthophoto_Mosaic_25cm_v3.tif
@@ -260,14 +261,27 @@ namespace OPS.Pipeline
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/1017
             //MSL_Gale_HiRISE-LRGB_16quads.tif
 
-            return "{ " +
-                "\"OrbitalDEMURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_deltaradii_smg_1m.tif\", " +
-                "\"OrbitalImageURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\", " +
-                "\"OrbitalDEMStoragePath\": \"MSL/orbital/out_deltaradii_smg_1m.tif\", " +
-                "\"OrbitalImageStoragePath\": \"MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\"," +
-                "\"OrbitalDEMMetersPerPixel\": 1," +
-                "\"OrbitalImageMetersPerPixel\": 0.25" +
-                " }";
+            //available PlacesDB metadata entries, from "wardialing" https://places-msl.dev.m20.jpl.nasa.gov
+            //0 - seems to be generic entry, has ellipsoid_radius, projection, and a few others, but not {x,y}_scale
+            //1 - MSL_Gale_MSLICE_HIRISE_Mosaic_25cm.tif
+            //2 - MSL_Gale_MSLICE_HIRISE_Mosaic_1m.tif
+            //3 - Gale_DTM_geoid_1m.tif (8 bit int)
+            //4 - Gale_DTM_geoid_1m.tif (32 bit float)
+            //5 - MSL_Gale_Orthophoto_Mosaic_25cm_v3.tif
+            //6 - MSL_Gale_DEM_Mosaic_1m_v3.tif
+            //7 - MSL_Gale_HiRISE-LRGB_16quads.tif
+            //there do not seem to be entries for the old "out_XXX.tif" assets
+            
+            return "{\n" +
+                "\"DEMURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_deltaradii_smg_1m.tif\",\n" +
+                "\"ImageURL\": \"s3://m20-ids-g-landform/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\",\n" +
+                "\"DEMStoragePath\": \"MSL/orbital/out_deltaradii_smg_1m.tif\",\n" +
+                "\"ImageStoragePath\": \"MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif\",\n" +
+                "\"DEMMetersPerPixel\": 1,\n" +
+                "\"ImageMetersPerPixel\": 0.25,\n" +
+                "\"DEMPlacesDBIndex\": 0, \n" +
+                "\"ImagePlacesDBIndex\": 0\n" +
+                "}";
         }
 
         public override string GetPlacesConfigDefaults()
@@ -291,12 +305,11 @@ namespace OPS.Pipeline
             //per Kevin Grimes on 3/18/20 MSL data will soon move to
             //https://places-msl.dev.m20.jpl.nasa.gov
 
-            return
-                "{ " +
-                "\"Url\": \"https://places-msl.dev.m20.jpl.nasa.gov\", " +
-                "\"View\": \"best_tactical\", " +
-                "\"AuthCookieName\": \"ssosession\", " +
-                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
+            return "{\n" +
+                "\"Url\": \"https://places-msl.dev.m20.jpl.nasa.gov\",\n" +
+                "\"View\": \"best_tactical\",\n" +
+                "\"AuthCookieName\": \"ssosession\",\n" +
+                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
                 "}";
         }
     }
