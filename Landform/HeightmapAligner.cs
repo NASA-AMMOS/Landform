@@ -26,19 +26,19 @@ using OPS.Pipeline.AlignmentServer;
 /// aligned "scene" to which later ones are aligned.  It is possible that one or more sitedrives fails to align at this
 /// stage, e.g. to insufficient overlap.
 ///
-/// If an orbital DEM is available it is loaded in the prior frame corresponding to the base sitedrive.  The aligned
-/// scene of sitedrives, which will always contain at least the base sitedrive, is aligned to it.
+/// If an orbital DEM is available the aligned scene of sitedrives, which will always contain at least the base
+/// sitedrive, is aligned to it. All sitedrives that failed to align in the first stage are then aligned to the orbital
+/// DEM.
 ///
-/// All sitedrives that failed to align in the first stage are then aligned to the orbital DEM.
-///
-/// Either or both simulated annealing and/or ICP (iterated closest point) stages are used to perform each alignment.
+/// Either ICP (iterated closest point) is typically used to perform each alignment, but simulated annealing can
+/// optionally be enabled as well.
 ///
 /// Debug meshes can be optionally saved with the aligned and unaligned heightmaps and the sample point pair matches
 /// used to perform the alignments.  Only the portion of the orbital DEM near the base sitedrive is saved.
 ///
 /// Example:
 ///
-/// Landform.exe heightmap-align windjana --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif --basesitedrive 0311472
+/// Landform.exe heightmap-align windjana --basesitedrive 0311472
 ///
 /// </summary>
 namespace OPS.Landform
@@ -80,7 +80,7 @@ namespace OPS.Landform
         public bool OnlyRenderDEMs { get; set; }
 
         [Option(HelpText = "Don't align site drives to each other before aligning to orbital", Default = false)]
-        public bool OnlyOrbital { get; set; }
+        public override bool NoSurface { get; set; }
     }
 
     public class HeightmapAligner : BEVCommand
@@ -154,7 +154,7 @@ namespace OPS.Landform
                     return 0;
                 }
 
-                if (!options.OnlyOrbital)
+                if (!options.NoSurface)
                 {
                     RunPhase("align site drives to each other", AlignSiteDrives);
                 }
@@ -195,6 +195,11 @@ namespace OPS.Landform
             if (siteDrives.Length < 1)
             {
                 throw new Exception("at least one site drive required");
+            }
+
+            if (!options.NoOrbital)
+            {
+                LoadOrbitalDEM(); //may overwrite options.NoOrbital
             }
 
             return true;
@@ -293,12 +298,6 @@ namespace OPS.Landform
             }
 
             SortSiteDrives(); //also sets baseSiteDrive
-
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1037 
-            if (!options.NoOrbital)
-            {
-                LoadOrbitalDEM(baseSiteDrive); //may overwrite options.NoOrbital
-            }
         }
 
         private DEMAligner MakeAligner(bool? preserveXY = null)
@@ -464,7 +463,9 @@ namespace OPS.Landform
                 pipeline.LogInfo("organized meshing {0}x{1} orbital DEM ({2} meters/pixel, {3}x{4}m), max radius {5}",
                                  orbitalDEM.Width, orbitalDEM.Height, orbitalDEM.AvgMetersPerPixel,
                                  orbitalDEM.WidthMeters, orbitalDEM.HeightMeters, MAX_MESH_RADIUS_METERS);
-                var mesh = orbitalDEM.OrganizedMesh(MAX_MESH_RADIUS_METERS);
+                var baseSiteDriveToOrbital = BestTransform(baseSiteDrive) * Matrix.Invert(orbitalDEMToRoot);
+                var centerPointInOrbital = Vector3.Transform(Vector3.Zero, baseSiteDriveToOrbital);
+                var mesh = orbitalDEM.OrganizedMesh(MAX_MESH_RADIUS_METERS, centerPointInOrbital);
                 SaveMesh(Mesh.Transformed(mesh, orbitalDEMToRoot), "orbital_Heightmap");
             }
         }

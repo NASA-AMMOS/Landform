@@ -173,9 +173,6 @@ namespace OPS.Landform
         [Option(Required = false, Default = null, HelpText = "Override default orbital image URL")]
         public string OrbitalImageURL { get; set; }
 
-        [Option(HelpText = "Disable orbital", Default = false)]
-        public bool NoOrbital { get; set; }
-
         [Option(HelpText = "Abort contextual mesh workflow on unexpected error in an alignment stage", Default = false)]
         public bool AbortOnAlignmentError { get; set; }
 
@@ -710,6 +707,7 @@ namespace OPS.Landform
             {
                 noOrbital = "--noorbital";
             }
+            string noSurface = options.NoSurface ? "--nosurface" : "";
 
             pipeline.LogInfo("building contextual tileset {0} from {1} sitedrives in {2} sols",
                              project, siteDrives.Count, sols.Count);
@@ -754,24 +752,22 @@ namespace OPS.Landform
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
                     RunCommand("ingest", project, "--mission", missionStr, "--onlyforsitedrives", sdsStr,
-                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"));
+                               "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"),
+                               noOrbital, noSurface, "--orbitaldem", orbitalDEMFile, "--orbitalimage", orbitalImageFile,
+                               "--orbitalframe", sdStr);
                 }
 
                 if (!options.NoTileset)
                 {
                     RunCommand("bev-align", options.AbortOnAlignmentError, project, "--fixsitedrives", sdStr);
 
-                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr,
-                               noOrbital, "--orbitaldem", orbitalDEMFile);
+                    RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr);
                     
-                    RunCommand("build-geometry", project, "--meshframe", sdStr,
-                               noOrbital, "--orbitaldem", orbitalDEMFile);
+                    RunCommand("build-geometry", project, "--meshframe", sdStr);
                     
-                    RunCommand("build-tiling-input", project, "--meshframe", sdStr,
-                               noOrbital, "--orbitalimage", orbitalImageFile);
+                    RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     
-                    RunCommand("blend-images", project, "--meshframe", sdStr,
-                               noOrbital, "--orbitalimage", orbitalImageFile);
+                    RunCommand("blend-images", project, "--meshframe", sdStr);
                     
                     BuildTileset(project, "--meshframe", sdStr);
                     

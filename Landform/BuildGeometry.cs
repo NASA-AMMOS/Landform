@@ -21,14 +21,14 @@ using System.IO;
 /// a grid-based approach.
 ///
 /// The mesh is then reconstructed on the full scene point cloud, typically with Poisson reconstruction.  Mission normal
-/// map RDRs (UVW products) give each point a normal, which is usually required.  Points with bad or suspected bad
-/// normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the confidence
-/// of each point, though at this time ingestion of mission RNE products is still TODO
+/// map RDRs (UVW products) give each point a normal vector, which is usually required.  Points with bad or suspected
+/// bad normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the
+/// confidence of each point, though at this time ingestion of mission RNE products is still TODO
 /// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
 /// distance from the camera as a proxy.
 ///
 /// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 32m square around the origin
-/// if the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
+/// of the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
 /// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
 ///
 /// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh
@@ -82,7 +82,7 @@ using System.IO;
 ///
 /// Example:
 ///
-/// Landform.exe build-geometry windjana --meshframe 0311472 --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif
+/// Landform.exe build-geometry windjana --meshframe 0311472
 ///
 /// </summary>
 namespace OPS.Landform
@@ -185,7 +185,7 @@ namespace OPS.Landform
 
         private BuildGeometryOptions options;
 
-        private Observation[] onlyForObs;
+        private RoverObservation[] onlyForObs;
         private PoissonReconstruction.Options poissonOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
@@ -200,7 +200,9 @@ namespace OPS.Landform
         private Mesh orbitalMesh;
 
         private double blendRadius, sewRadius;
+        private double orbitalMetersPerPixel;
         private int blendSamplesPerPixel, orbitalSamplesPerPixel;
+        private Matrix meshToOrbital, orbitalToMesh;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
@@ -322,7 +324,7 @@ namespace OPS.Landform
 
             if (!options.NoOrbital)
             {
-                LoadOrbitalDEM(new SiteDrive(meshFrame)); //may overwrite options.NoOrbital
+                LoadOrbitalDEM(); //may overwrite options.NoOrbital
                 
                 if (options.NoOrbital && options.NoSurface)
                 {
@@ -330,7 +332,10 @@ namespace OPS.Landform
                 }
             }
             
-            onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
+            onlyForObs = observationCache.ParseList(options.OnlyFacesForObs)
+                .Where(obs => obs is RoverObservation)
+                .Cast<RoverObservation>()
+                .ToArray();
 
             poissonOpts = new PoissonReconstruction.Options
             {
@@ -393,17 +398,30 @@ namespace OPS.Landform
                                                   + " to use orbital", options.ClipSurfaceExtent, options.ClipExtent));
             }
 
+            orbitalMetersPerPixel = 1;
+            if (!options.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_DEM_INDEX))
+            {
+                var obs = observationCache.GetObservation(Observation.ORBITAL_DEM_INDEX);
+                orbitalMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+            }
+
             orbitalSamplesPerPixel = 1;
             if (options.OrbitalPointsPerMeter > 0)
             {
-                orbitalSamplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * orbitalDEMAvgMetersPerPixel);
+                orbitalSamplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * orbitalMetersPerPixel);
             }
             
             blendSamplesPerPixel = 1;
             if (options.OrbitalBlendPointsPerMeter > 0)
             {
-                blendSamplesPerPixel =
-                    (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalDEMAvgMetersPerPixel);
+                blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalMetersPerPixel);
+            }
+
+            if (!options.NoOrbital)
+            {
+                var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+                orbitalToMesh = orbitalDEMToRoot * Matrix.Invert(meshToRoot);
+                meshToOrbital = meshToRoot * Matrix.Invert(orbitalDEMToRoot);
             }
 
             return true;
@@ -748,9 +766,6 @@ namespace OPS.Landform
                 maskOp = new MeshOperator(tmp, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             }
 
-            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-            var orbitalToMesh = orbitalDEMToRoot * Matrix.Invert(meshToRoot);
-
             Mesh makeMesh(int subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
             {
                 int w = (outerBounds.Width - 1) * subsample + 1;
@@ -788,24 +803,26 @@ namespace OPS.Landform
                 return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
             }
 
-            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalDEMAvgMetersPerPixel);
+            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalMetersPerPixel);
 
             double br = blendRadius > 0 ? blendRadius : 0;
-            int blendExtentPixels =
-                (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalDEMAvgMetersPerPixel);
+            int blendExtentPixels = (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalMetersPerPixel);
+
+            Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
 
             Image.Subrect blendBounds = null;
             if (blendSamplesPerPixel != orbitalSamplesPerPixel)
             {
-                blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels);
+                blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels, meshOriginInOrbital);
             }
 
-            pipeline.LogInfo("making {0}x{0} orbital mesh at {1} samples/meter",
-                             2* orbitalExtentPixels * orbitalDEMAvgMetersPerPixel,
-                             orbitalSamplesPerPixel / orbitalDEMAvgMetersPerPixel);
+            pipeline.LogInfo("making {0}x{0}m orbital mesh at {1} samples/meter",
+                             2 * orbitalExtentPixels * orbitalMetersPerPixel,
+                             orbitalSamplesPerPixel / orbitalMetersPerPixel);
 
-            orbitalMesh =
-                makeMesh(orbitalSamplesPerPixel, orbitalDEM.GetSubrectPixels(orbitalExtentPixels), blendBounds);
+            var orbitalBounds = orbitalDEM.GetSubrectPixels(orbitalExtentPixels, meshOriginInOrbital);
+
+            orbitalMesh = makeMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds);
 
             pipeline.LogInfo("made orbital mesh with {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
 
@@ -817,8 +834,8 @@ namespace OPS.Landform
                 }
 
                 pipeline.LogInfo("making {0}x{0} orbital blend mesh at {1} samples/meter",
-                                 2 * blendExtentPixels * orbitalDEMAvgMetersPerPixel,
-                                 blendSamplesPerPixel / orbitalDEMAvgMetersPerPixel);
+                                 2 * blendExtentPixels * orbitalMetersPerPixel,
+                                 blendSamplesPerPixel / orbitalMetersPerPixel);
 
                 var blendMesh = makeMesh(blendSamplesPerPixel, blendBounds);
 
@@ -852,7 +869,7 @@ namespace OPS.Landform
 
             if (BLEND_GUTTER_SAMPLES > 0)
             {
-                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalDEMAvgMetersPerPixel / blendSamplesPerPixel);
+                double gutterMeters = BLEND_GUTTER_SAMPLES * (orbitalMetersPerPixel / blendSamplesPerPixel);
                 if (radius > gutterMeters)
                 {
                     radius -= gutterMeters;

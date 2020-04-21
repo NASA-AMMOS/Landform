@@ -690,7 +690,9 @@ namespace OPS.Landform
             }
 
             var images = observationCache.GetAllObservations()
-                .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
+                .Where(obs => obs is RoverObservation)
+                .Cast<RoverObservation>()
+                .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
             var backprojectedPixels = new Dictionary<int, int>();

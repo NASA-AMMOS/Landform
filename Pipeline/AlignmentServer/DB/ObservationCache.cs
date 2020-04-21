@@ -14,6 +14,9 @@ namespace OPS.Pipeline.AlignmentServer
         //Observation name -> Observation
         private readonly Dictionary<string, Observation> observations = new Dictionary<string, Observation>();
 
+        //Observation index -> Observation
+        private readonly Dictionary<int, Observation> indexedObservations = new Dictionary<int, Observation>();
+
         //Frame name -> Observations
         private readonly Dictionary<string, List<Observation>> forFrame = new Dictionary<string, List<Observation>>();
 
@@ -28,6 +31,7 @@ namespace OPS.Pipeline.AlignmentServer
             if (!observations.ContainsKey(obs.Name)) //ensure that forFrame doesn't get duplicates
             {
                 observations[obs.Name] = obs;
+                indexedObservations[obs.Index] = obs;
                 if (!forFrame.ContainsKey(obs.FrameName))
                 {
                     forFrame[obs.FrameName] = new List<Observation>();
@@ -96,6 +100,23 @@ namespace OPS.Pipeline.AlignmentServer
         public bool ContainsObservation(string name)
         {
             return observations.ContainsKey(name);
+        }
+
+        /// <summary>
+        /// Unlike GetObservation(string) this only works if the observation has already been loaded into the cache.
+        /// </summary>
+        public Observation GetObservation(int index)
+        {
+            if (!indexedObservations.ContainsKey(index))
+            {
+                return null;
+            }
+            return indexedObservations[index];
+        }
+
+        public bool ContainsObservation(int index)
+        {
+            return indexedObservations.ContainsKey(index);
         }
 
         public IEnumerable<string> GetAllFramesWithObservations()

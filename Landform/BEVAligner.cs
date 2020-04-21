@@ -52,7 +52,7 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Example:
 ///
-/// Landform.exe heightmap-align windjana --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif --basesitedrive 0311472
+/// Landform.exe bev-align windjana --fixsitedrives 0311472
 ///
 /// </summary>
 namespace OPS.Landform
@@ -140,6 +140,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Write RANSAC debug images", Default = false)]
         public bool WriteRansacDebug { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = true)]
+        public override bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSurface { get; set; }
     }
 
     public class BEVAligner : BEVCommand
@@ -203,6 +209,11 @@ namespace OPS.Landform
         {
             try
             {
+                if (options.NoSurface)
+                {
+                    throw new Exception("--nosurface not supported for this command");
+                }
+
                 if (!ParseArgumentsAndLoadCaches(OUT_DIR))
                 {
                     return 0; //help

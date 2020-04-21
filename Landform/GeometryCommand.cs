@@ -16,7 +16,7 @@ namespace OPS.Landform
 {
     public class GeometryCommandOptions : WedgeCommandOptions
     {
-        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSSSDDDDD", Default = "auto")]
+        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
         public virtual string MeshFrame { get; set; }
     }
 

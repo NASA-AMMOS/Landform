@@ -260,7 +260,7 @@ for f in `find ${indir} -name '*'.${meshext}`; do
                   --acl bucket-owner-full-control  $syncargs | tee -a $log
         fi
 
-        if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" ]; then
+        if [[ ! ( "$dry" || "$only_cleanup" || "$only_upload" ) ]]; then
             printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
             if [ -d $outproj ]; then
                 printf "moved output to ${outproj}\r\n" | tee -a $log

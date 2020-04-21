@@ -105,15 +105,7 @@ namespace OPS.Landform
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
         protected Image orbitalTexture;
-        protected Observation orbitalTextureObservation;
-        protected Matrix orbitalTextureToRoot; //unprojected point from orbitalTextureObservation camera model -> root
-        protected double orbitalTextureAvgMetersPerPixel
-        {
-            get
-            {
-                return (orbitalTextureObservation.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
-            }
-        }
+        protected Matrix orbitalTextureToRoot; //unprojected point in orbitalTexture camera model -> project root frame
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -190,10 +182,9 @@ namespace OPS.Landform
                     indexedImages[obs.Index] = obs;
                 }
 
-                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1037 
-                if (!tcopts.NoOrbital && !indexedImages.ContainsKey(Observation.ORBITAL_IMAGE_INDEX))
+                if (!tcopts.NoOrbital)
                 {
-                    LoadOrbitalImage(new SiteDrive(meshFrame)); //may overwrite tcopts.NoOrbital
+                    LoadOrbitalTexture(); //may overwrite tcopts.NoOrbital
 
                     if (tcopts.NoOrbital && tcopts.NoSurface)
                     {
@@ -240,19 +231,23 @@ namespace OPS.Landform
             }
         }
             
-        protected void LoadOrbitalImage(SiteDrive originSiteDrive)
+        protected void LoadOrbitalTexture()
         {
             try
             {
                 int idx = Observation.ORBITAL_IMAGE_INDEX;
-                orbitalTexture =
-                    LoadOrbitalAsset(originSiteDrive, idx, out orbitalTextureObservation, out orbitalTextureToRoot);
-                indexedImages[idx] = orbitalTextureObservation;
-                orbitalImages.Add(orbitalTextureObservation);
+                orbitalTexture = LoadOrbitalAsset(idx);
+                if (orbitalTexture != null)
+                {
+                    var obs = observationCache.GetObservation(idx);
+                    orbitalTextureToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
+                    indexedImages[idx] = obs;
+                    orbitalImages.Add(obs);
+                }
             }
             catch (Exception ex)
             {
-                pipeline.LogWarn("failed to load orbital image, running without orbital: {0}", ex.Message);
+                pipeline.LogWarn("failed to load orbital image, running without it: {0}", ex.Message);
                 tcopts.NoOrbital = true;
             }
         }
@@ -326,15 +321,10 @@ namespace OPS.Landform
 
         protected void BuildBlurredObservationImages()
         {
-            int no = imageObservations.Count;
+            int no = roverImages.Count;
             int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            CoreLimitedParallel.ForEach(roverImages, obs =>
             {
-                if (obs.IsOrbital) //no blur needed on orbital it is already low frequency relative to terrain
-                {
-                    return;
-                }
-                
                 if (!tcopts.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
                 {
                     Interlocked.Increment(ref nc);
@@ -342,35 +332,43 @@ namespace OPS.Landform
                 }
                 
                 Interlocked.Increment(ref np);
-                
+
                 if (!tcopts.NoProgress)
                 {
                     pipeline.LogInfo("creating blurred image for observation {0}, processing {1} in parallel, " +
                                      "completed {2}/{3}", obs.Name, np, nc, no);
                 }
-                
-                Image orig = pipeline.LoadImage(obs.Url);
-                
-                //notes from TerrainTools PDSImageRoutines.cs
-                //"Used to do a guass blur 4 with photoshop"
-                //the current code is: img.SmoothBlur(13, 13)
-                Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
 
-                if (tcopts.WriteDebug)
+                try
                 {
-                    SaveDebugWedgeImage(blurredImage, obs, "_blurred");
+                    Image orig = pipeline.LoadImage(obs.Url);
+                    
+                    //notes from TerrainTools PDSImageRoutines.cs
+                    //"Used to do a guass blur 4 with photoshop"
+                    //the current code is: img.SmoothBlur(13, 13)
+                    Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
+                    
+                    if (tcopts.WriteDebug)
+                    {
+                        SaveDebugWedgeImage(blurredImage, obs, "_blurred");
+                    }
+                    
+                    if (!tcopts.NoSave)
+                    {
+                        var imgProd = new PngDataProduct(blurredImage);
+                        pipeline.SaveDataProduct(project, imgProd);
+                        obs.BlurredGuid = imgProd.Guid;
+                        obs.Save(pipeline);
+                    }
+                    
+                    Interlocked.Increment(ref nc);
                 }
-                
-                if (!tcopts.NoSave)
+                catch (Exception ex)
                 {
-                    var imgProd = new PngDataProduct(blurredImage);
-                    pipeline.SaveDataProduct(project, imgProd);
-                    obs.BlurredGuid = imgProd.Guid;
-                    obs.Save(pipeline);
+                    pipeline.LogException(ex, $"error creating blurred image for observation {obs.Name}");
                 }
-                
+
                 Interlocked.Decrement(ref np);
-                Interlocked.Increment(ref nc);
             });
         }
 
@@ -378,11 +376,10 @@ namespace OPS.Landform
         {
             var comparator =
                 mission != null ? mission.GetRoverObservationComparator() : new RoverObservationComparator();
-            int no = imageObservations.Count;
+            int no = roverImages.Count;
             int np = 0, nc = 0;
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            CoreLimitedParallel.ForEach(roverImages, obs =>
             {
-                
                 if (!tcopts.RedoObservationMasks && obs.MaskGuid != Guid.Empty)
                 {
                     Interlocked.Increment(ref nc);
@@ -396,31 +393,39 @@ namespace OPS.Landform
                     pipeline.LogInfo("creating mask for observation {0}, processing {1} in parallel, " +
                                      "completed {2}/{3}", obs.Name, np, nc, no);
                 }
-                
-                Image img = pipeline.LoadImage(obs.Url);
-                
-                var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
-                .Where(o => o is RoverObservation)
-                .ToList();
-                
-                var maskObs = comparator
-                .KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both,
-                                           RoverProductType.RoverMask)
-                .Where(o => o.IsLinear == obs.IsLinear)
-                .FirstOrDefault();
-                
-                Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
-                
-                if (!tcopts.NoSave)
+
+                try
                 {
-                    var maskProd = new PngDataProduct(maskImage);
-                    pipeline.SaveDataProduct(project, maskProd);
-                    obs.MaskGuid = maskProd.Guid;
-                    obs.Save(pipeline);
+                    Image img = pipeline.LoadImage(obs.Url);
+                    
+                    var off = observationCache.GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
+                    .Where(o => o is RoverObservation)
+                    .ToList();
+                    
+                    var maskObs = comparator
+                    .KeepBestRoverObservations(off, RoverObservationComparator.LinearVariants.Both,
+                                               RoverProductType.RoverMask)
+                    .Where(o => o.IsLinear == obs.IsLinear)
+                    .FirstOrDefault();
+                    
+                    Image maskImage = ImageMasker.MakeMask(pipeline, masker, maskObs != null ? maskObs.Url : null, img);
+                    
+                    if (!tcopts.NoSave)
+                    {
+                        var maskProd = new PngDataProduct(maskImage);
+                        pipeline.SaveDataProduct(project, maskProd);
+                        obs.MaskGuid = maskProd.Guid;
+                        obs.Save(pipeline);
+                    }
+
+                    Interlocked.Increment(ref nc);
                 }
-                
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"error creating mask for observation {obs.Name}");
+                }
+
                 Interlocked.Decrement(ref np);
-                Interlocked.Increment(ref nc);
             });
         }
 
@@ -569,7 +574,7 @@ namespace OPS.Landform
         protected void BuildObsHulls()
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                     tcopts.OnlyAligned, imageObservations);
+                                                     tcopts.OnlyAligned, roverImages);
             if (tcopts.WriteDebug)
             {
                 foreach (var entry in obsToHull)
@@ -596,9 +601,11 @@ namespace OPS.Landform
                 backprojectStrategy.DebugOutputPath = backprojectDebugDir;
             }
 
-            if (!tcopts.NoOrbital)
+            if (!tcopts.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_IMAGE_INDEX))
             {
-                backprojectStrategy.OrbitalMetersPerPixel = orbitalTextureAvgMetersPerPixel;
+                var texObs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
+                backprojectStrategy.OrbitalMetersPerPixel =
+                    (texObs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
             }
 
             var contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
@@ -659,8 +666,10 @@ namespace OPS.Landform
         {
             if (!tcopts.NoOrbital)
             {
-                Backproject.BackprojectOrbital(indexedImages[Observation.ORBITAL_IMAGE_INDEX],
-                                               missingPixels, backprojectResults);
+                var obs = indexedImages[Observation.ORBITAL_IMAGE_INDEX];
+                var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+                var meshToOrbital = meshToRoot * Matrix.Invert(orbitalTextureToRoot);
+                Backproject.BackprojectOrbital(obs, meshToOrbital, missingPixels, backprojectResults);
             }
         }
 

@@ -121,15 +121,15 @@ namespace OPS.Pipeline
 
         //<DST, SRC>
         // SRC: col, row
-        static public IDictionary<Pixel,ObsPixel> BackprojectOrbital(Observation orbitalObs,
-                                                                     List<PixelPoint> pixelsToBackproject,
-                                                                     IDictionary<Pixel, ObsPixel> results = null)
+        static public IDictionary<Pixel,ObsPixel>
+            BackprojectOrbital(Observation orbitalObs, Matrix meshToOrbital, List<PixelPoint> pixelsToBackproject,
+                               IDictionary<Pixel, ObsPixel> results = null)
         {
             var orbitalCamera = orbitalObs.CameraModel;
             results = results ?? new Dictionary<Pixel, ObsPixel>();
             foreach(var destPixelPt in pixelsToBackproject)
             {
-                var pixel = orbitalCamera.Project(destPixelPt.Point);
+                var pixel = orbitalCamera.Project(Vector3.Transform(destPixelPt.Point, meshToOrbital));
                 results[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs, new Vector2(pixel.X, pixel.Y));
             }
             return results;
@@ -732,7 +732,7 @@ namespace OPS.Pipeline
      
         static public IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
-                             bool onlyAligned, IEnumerable<Observation> imageObservations)
+                             bool onlyAligned, IEnumerable<RoverObservation> imageObservations)
         {
             int no = imageObservations.Count();
 

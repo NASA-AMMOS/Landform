@@ -381,7 +381,7 @@ namespace OPS.Pipeline
             }
             if (missing.Count > 0)
             {
-                variances.Add("missing: " + string.Join(", ", missing));
+                variances.Add("missing " + string.Join(", ", missing));
             }
             return variances.ToArray();
         }
@@ -550,6 +550,11 @@ namespace OPS.Pipeline
             return new Vector2(col, row);
         }
 
+        private static string SDRef(SiteDrive sd)
+        {
+            return sd.Drive > 0 ? $"rover({sd.Site},{sd.Drive})" : $"site({sd.Site})";
+        }
+
         /// <summary>
         /// returns X = easting meters, Y = northing meters, Z = elevation meters
         ///
@@ -562,8 +567,7 @@ namespace OPS.Pipeline
         public Vector3 GetEastingNorthingElevation(SiteDrive sd, int orbitalIndex, bool absolute = true,
                                                    Vector2? defULCEastingNorthing = null)
         {
-            string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital({3})",
-                                         view, sd.Site, sd.Drive, orbitalIndex);
+            string query = string.Format("query/primary/{0}?from={1}&to=orbital({2})", view, SDRef(sd), orbitalIndex);
 
             //offset is in standard mission local level frame: +X north, +Y east, +Z down
             var v = GetOffset(query);
@@ -607,17 +611,7 @@ namespace OPS.Pipeline
         /// </summary>
         public Vector3 GetOffsetToSite(SiteDrive fromSD, int toSite)
         {
-            string query = null;
-            if (fromSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})",
-                                      view, fromSD.Site, fromSD.Drive, toSite);
-            }
-            else
-            {
-                query = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSite);
-            }
-            return GetOffset(query);
+            return GetOffset(string.Format("query/primary/{0}?from={1}&to=site({2})", view, SDRef(fromSD), toSite));
         }
 
         /// <summary>
@@ -633,27 +627,7 @@ namespace OPS.Pipeline
         /// </summary>
         public Vector3 GetOffset(SiteDrive fromSD, SiteDrive toSD)
         {
-            string query = null;
-            if (fromSD.Drive > 0 && toSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=rover({3},{4})",
-                                      view, fromSD.Site, fromSD.Drive, toSD.Site, toSD.Drive);
-            }
-            else if (fromSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})",
-                                      view, fromSD.Site, fromSD.Drive, toSD.Site);
-            }
-            else if (toSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=site({1})&to=rover({2},{3})",
-                                      view, fromSD.Site, toSD.Site, toSD.Drive);
-            }
-            else
-            {
-                query = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSD.Site);
-            }
-            return GetOffset(query);
+            return GetOffset(string.Format("query/primary/{0}?from={1}&to={2}", view, SDRef(fromSD), SDRef(toSD)));
         }
     }
 }

@@ -483,7 +483,7 @@ namespace OPS.Pipeline
 
         public void AddOrUpdateContextualTileset(string tilesetId, string tilesetUrl, string siteDrive,
                                                  FrameCache frameCache, bool usePriors, bool onlyAligned,
-                                                 List<Observation> images,
+                                                 List<RoverObservation> images,
                                                  Dictionary<int, int> backprojectedPixels = null, ILogger logger = null)
         {
             if (logger != null)

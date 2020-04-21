@@ -33,6 +33,22 @@ namespace OPS.Pipeline.AlignmentServer
         //DEPRECATED - for legacy compat only
         public HashSet<string> PriorIds = new HashSet<string>(); //MT safety: lock before accessing
 
+        public double EastingMeters; //along equator east of prime meridian
+
+        public double NorthingMeters; //along a meridian north of equator
+
+        public bool HasEastingNorthing;
+
+        public double ElevationMeters;
+
+        public bool HasElevation;
+
+        public double LongitudeDegrees;
+
+        public double LatitudeDegrees;
+
+        public bool HasLonLat;
+
         //This constructor must be public for DynamoDB but should not be used
         public Frame() { }
 

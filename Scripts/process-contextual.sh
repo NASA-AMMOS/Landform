@@ -23,7 +23,7 @@
 # The required positional arguments are IN_DIR, MISSION, the primary sol TTTT, and the primary sitedrive SSSDDDD.
 # Additional sitedrives can be appended with commas (no spaces) after the primary one.  A final positional argument
 # OUT_DIR is optional and defaults to . (current directory).  Remaining arguments must be in the form --flag or
-# --name value. Unknown arguments are ignored.
+# --name value (not --name=value). Unknown arguments are ignored.
 #
 # The tileset name is TTTT_SSSDDDD, with an optional suffix if specified with the --suffix option.  Suffixes are useful
 # for segregating the output of multiple runs with different custom options. Custom options can include
@@ -75,11 +75,11 @@
 #     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --summary $fetchargs
 #
 # ./Landform/bin/Release/Landform.exe fetch \
-#     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$run/orbital --mission $mission \
+#     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$mission/orbital --mission $mission \
 #     --raw --nosubdirs
 # 
 # ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets \
-#     --orbitaldem out/$run/orbital/$dem --orbitalimage out/$run/orbital/$ortho
+#     --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho
 
 # exit script on ctrl-c
 ctrlc() { exit 1; }
@@ -103,11 +103,12 @@ fi
 
 #                                                                         80char|
 help="\
-USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,SSSDDDD[,...]] [OUT_DIR]
+USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,...] [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
 [--writedebug] [--debug] [--verbose] [---singlethreaded]
 [--onlyingest] [--onlyforcameras Mastcam,Navcam]
-[--orbitaldem path/to/dem.tif] [--orbitalimage path/to/ortho.tif] [--noorbital]
+[--orbitaldem path/to/dem.tif] [--orbitalimage path/to/ortho.tif]
+[--noorbital] [--nosurface]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"] [--ingestargs \"--arg val\"]
 [--bevargs \"--arg val\"] [--heightmapargs \"--arg val\"]
@@ -166,7 +167,7 @@ copy_combined_manifest=
 only_ingest=
 s3_proxy=
 cameras=
-orbital=
+orbitalopts="--orbitalframe $sd"
 
 manifest=true
 dry=
@@ -216,9 +217,10 @@ while (( "$#" )); do
         "--nocombinedmanifest") combined_manifest=;;
         "--onlyingest") only_ingest=true; manifest=; combined_manifest=; upload=; cleanup=;;
         "--onlyforcameras") shift; expect $# "camera list"; cameras="--onlyforcameras $1";;
-        "--orbitaldem") shift; expect $# "DEM path"; orbital="$orbital --orbitaldem $1";;
-		    "--orbitalimage") shift; expect $# "orbital image path"; orbital="$orbital --orbitalimage $1";;
-		    "--noorbital") shift; orbital="--noorbital";;
+        "--orbitaldem") shift; expect $# "DEM path"; orbitalopts="$orbitalopts --orbitaldem $1";;
+		    "--orbitalimage") shift; expect $# "orbital image path"; orbitalopts="$orbitalopts --orbitalimage $1";;
+		    "--noorbital") shift; orbitalopts="$orbitalopts --noorbital";;
+		    "--nosurface") shift; orbitalopts="$orbitalopts --nosurface";;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
         "--ingestargs") shift; expect $# "ingest args"; ingestargs="$1";;
         "--bevargs") shift; expect $# "BEV args"; bevargs="$1";;
@@ -274,14 +276,14 @@ if [ "$generate" ]; then
 
     # using --inputpath=$indir/** with equal sign, not --inputpath $dir/**, to avoid shell glob expansion
     ${dry}$landform ingest $proj $stdopts --inputpath=$indir/** --mission $mission --onlyforsitedrives $sds $cameras \
-          $ingestargs | tee -a $log
+          $orbitalopts $ingestargs | tee -a $log
 
     if [ ! "$only_ingest" ]; then
         ${dry}$landform bev-align $proj $stdopts --fixsitedrives $sd $bevargs | tee -a $log
-        ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $orbital $heightmapargs | tee -a $log
-        ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $orbital $geometryargs | tee -a $log
-        ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $orbital $tilingargs | tee -a $log
-        ${dry}$landform blend-images $proj $stdopts --meshframe $sd $orbital $blendargs | tee -a $log
+        ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $heightmapargs | tee -a $log
+        ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $geometryargs | tee -a $log
+        ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
+        ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
         ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
         
         ${dry}rm -rf $outproj
@@ -340,7 +342,7 @@ if [ "$cleanup" -a -d $storagedir/$venue ]; then
     ${dry}rm -rf $storagedir/$venue
 fi
 
-if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" -o "$only_ingest" ]; then
+if [[ ! ( "$dry" || "$only_cleanup" || "$only_upload" || "$only_ingest" ) ]]; then
     printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
     if [ -d $outproj ]; then
         printf "moved output to ${outproj}\r\n" | tee -a $log
