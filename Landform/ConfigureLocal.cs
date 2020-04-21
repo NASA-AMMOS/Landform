@@ -43,21 +43,29 @@ namespace OPS.Landform
 
         public int Run()
         {
-            LocalPipelineConfig config = new LocalPipelineConfig();
-
-            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
-            config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir,
-                                                     options.Interactive);
-            config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
-                                                   options.MaxCores, config.MaxCores, options.Interactive);
-            config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
-                                                     options.RandomSeed, config.RandomSeed, options.Interactive);
-
-            config.Validate();
-
-            var cfgPath = config.ConfigFilePath();
-            logger.Info("persisting config to " + cfgPath);
-            config.Save();
+            try
+            {
+                LocalPipelineConfig config = new LocalPipelineConfig();
+                
+                config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
+                config.StorageDir = ConsoleHelper.Prompt("storage directory", options.StorageDir, config.StorageDir,
+                                                         options.Interactive);
+                config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
+                                                       options.MaxCores, config.MaxCores, options.Interactive);
+                config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
+                                                         options.RandomSeed, config.RandomSeed, options.Interactive);
+                
+                config.Validate();
+                
+                var cfgPath = config.ConfigFilePath();
+                logger.Info("persisting config to " + cfgPath);
+                config.Save();
+            }
+            catch (Exception ex)
+            {
+                Logging.LogException(logger, ex);
+                return 1;
+            }
 
             return 0;
         }

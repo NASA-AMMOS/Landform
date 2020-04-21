@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using log4net;
 using log4net.Appender;
 using log4net.Layout;
@@ -100,7 +101,16 @@ namespace OPS.Util
             }
             else
             {
-                LogError("{0}: {1}", msg, ex.Message);
+                LogError((!string.IsNullOrEmpty(msg) ? msg + ": " : "") +
+                         $"({ex.GetType().Name}) {ex.Message}\n{ex.StackTrace}");
+                var innerExceptions = Logging.GetInnerExceptions(ex);
+                if (innerExceptions != null)
+                {
+                    foreach (var ex2 in innerExceptions)
+                    {
+                        LogError($"{ex2.Message}\n{ex2.StackTrace}");
+                    }
+                }
             }
         }
 
@@ -117,6 +127,32 @@ namespace OPS.Util
     {
         //%level must be last token before : to faciltate parsing errors in web code
         const string DEBUG_PATTERN_LAYOUT = "%date %logger{1} %location %level: %message%newline";
+
+        public static IEnumerable<Exception> GetInnerExceptions(Exception ex)
+        {
+            if (ex is AggregateException)
+            {
+                return (ex as AggregateException).InnerExceptions;
+            }
+            if (ex is TargetInvocationException)
+            {
+                return new Exception[] { (ex as TargetInvocationException).InnerException };
+            }
+            return null;
+        }
+
+        public static void LogException(ILog logger, Exception ex)
+        {
+            logger.ErrorFormat("({0}} {1}\n{2}", ex.GetType().Name, ex.Message, ex.StackTrace);
+            var innerExceptions = Logging.GetInnerExceptions(ex);
+            if (innerExceptions != null)
+            {
+                foreach (var ex2 in innerExceptions)
+                {
+                    logger.ErrorFormat("{0}\n{1}", ex2.Message, ex2.StackTrace);
+                }
+            }
+        }
 
         public static string GetLogFile()
         {

@@ -139,7 +139,27 @@ namespace OPS.Util
 
             if (File.Exists(file))
             {
-                JsonConvert.PopulateObject(File.ReadAllText(file), this);
+                string json = null;
+                try
+                {
+                    json = File.ReadAllText(file);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"error reading {GetType().Name} file {file}: {ex.Message}");
+                }
+                if (!string.IsNullOrEmpty(json))
+                {
+                    try
+                    {
+                        JsonConvert.PopulateObject(json, this);
+                    }
+                    catch (Exception ex)
+                    {
+                        throw new Exception($"error parsing JSON for {GetType().Name} from {file}: {ex.Message}\n" +
+                                            json.Replace("{", "{{").Replace("}", "}}"));
+                    }
+                }
             }
         }
 
@@ -148,7 +168,15 @@ namespace OPS.Util
             string json = DefaultsProvider != null ? DefaultsProvider.GetConfigDefaults(ConfigFileName()) : null;
             if (!string.IsNullOrEmpty(json))
             {
-                JsonConvert.PopulateObject(json, this);
+                try
+                {
+                    JsonConvert.PopulateObject(json, this);
+                }
+                catch (Exception ex)
+                {
+                    throw new Exception($"error loading JSON defaults for {GetType().Name}: {ex.Message}\n" +
+                                        json.Replace("{", "{{").Replace("}", "}}"));
+                }
             }
         }
 

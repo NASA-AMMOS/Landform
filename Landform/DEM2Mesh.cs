@@ -133,7 +133,7 @@ namespace OPS.Landform
             }
             catch (Exception ex)
             {
-                logger.LogError(ex.Message);
+                logger.LogException(ex);
                 return 1;
             }
             
