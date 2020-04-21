@@ -359,8 +359,7 @@ if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" -o "$only_ingest" ]; then
             out=${out%%/*}
         fi
 
-        url=http://localhost:8000/Unity3DTilesWeb/index.html?Tileset=http://localhost:8000/..
-        url=${url}$outsfx/$proj/${proj}_tileset.json
+        url=http://localhost:8000/Unity3DTilesWeb/index.html?Tileset=..$outsfx/$proj/${proj}_tileset.json
 
         echo "commands you could run to view tileset in Unity3DTiles:"
         echo $landform fetch s3://$lfbucket/Unity3DTilesWeb.zip $out --raw --nosubdirs --mission M2020
