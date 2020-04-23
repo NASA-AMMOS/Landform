@@ -98,6 +98,7 @@ namespace OPS.Landform
         protected Dictionary<int, Observation> indexedImages;
 
         protected SceneMesh sceneMesh;
+        protected Image sceneTexture;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
@@ -707,6 +708,26 @@ namespace OPS.Landform
             }
         }
 
+        protected void MaskBackprojectIndex(Image index)
+        {
+            index.CreateMask();
+            for (int r = 0; r < index.Height; r++)
+            {
+                for (int c = 0; c < index.Width; c++)
+                {
+                    if (index[0, r, c] < Observation.MIN_INDEX)
+                    {
+                        index.SetMaskValue(r, c, true);
+                    }
+                }
+            }
+        }
+
+        protected void MaskBackprojectIndex()
+        {
+            MaskBackprojectIndex(backprojectIndex);
+        }
+
         protected void BuildBackprojectResultsFromIndex()
         {
             pipeline.LogInfo("building backproject results from index");
@@ -775,13 +796,91 @@ namespace OPS.Landform
 
         protected void SaveDebugWedgeImage(Image img, Observation obs, string suffix)
         {
-            int bs = WedgeObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages, tcopts.TargetWedgeImageResolution);
+            int bs = WedgeObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages,
+                                                    tcopts.TargetWedgeImageResolution);
             if (bs > 1)
             {
                 img = img.Decimated(bs);
             }
             
             SaveImage(img, obs.Name + suffix);
+        }
+
+        protected void SaveSceneMesh(string outputMesh, bool withIndex = false)
+        {
+            var meshURL = CheckOutputURL(outputMesh, sceneMesh.Name, outputFolder, MeshSerializers.Instance);
+            var imgURL = StringHelper.ChangeUrlExtension(meshURL, imageExt);
+
+            if (withIndex)
+            {
+                var index = backprojectIndex;
+                if (index == null && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+                {
+                    index = pipeline.GetDataProduct<TiffDataProduct>(project, sceneMesh.BackprojectIndexGuid).Image;
+                }
+                if (index != null)
+                {
+                    var ext = ".tif";
+                    var indexURL = StringHelper.ChangeUrlExtension(meshURL, ext);
+                    pipeline.LogInfo("saving {0}x{1} float tiff backproject index image {2}",
+                                     index.Width, index.Height, indexURL);
+                    TemporaryFile.GetAndDelete(ext, tmpFile =>
+                    {
+                        var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                        var serializer = new GDALSerializer(opts);
+                        serializer.Write<float>(tmpFile, index);
+                        pipeline.SaveFile(tmpFile, indexURL, constrainToStorage: false);
+                    });
+                }
+            }
+
+            var texture = sceneTexture;
+            if (texture == null)
+            {
+                Guid texGuid = Guid.Empty;
+                switch (tcopts.TextureVariant)
+                {
+                    case TextureVariant.Original: texGuid = sceneMesh.TextureGuid; break;
+                    case TextureVariant.Blurred: texGuid = sceneMesh.BlurredTextureGuid; break;
+                    case TextureVariant.Blended: texGuid = sceneMesh.BlendedTextureGuid; break;
+                    default: throw new Exception("unknown texture variant " + tcopts.TextureVariant);
+                }
+                if (texGuid != Guid.Empty)
+                {
+                    texture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                }
+            }
+
+            if (texture != null)
+            {
+                pipeline.LogInfo("saving {0}x{1} scene texture {2}", texture.Width, texture.Height, imgURL);
+                TemporaryFile.GetAndDelete(imageExt, tmpFile =>
+                {
+                    texture.Save<byte>(tmpFile);
+                    pipeline.SaveFile(tmpFile, imgURL, constrainToStorage: false);
+                });
+            }
+
+            var mesh = this.mesh;
+            if (mesh == null && sceneMesh.MeshGuid != Guid.Empty)
+            {
+                mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+            }
+
+            if (mesh != null)
+            {
+                pipeline.LogInfo("saving {0}scene mesh", texture != null ? "textured " : "");
+                TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(meshURL), tmpFile =>
+                {
+                    string texFile = texture != null ? StringHelper.GetLastUrlPathSegment(imgURL) : null;
+                    mesh.Save(tmpFile, texFile);
+                    pipeline.SaveFile(tmpFile, meshURL, constrainToStorage: false);
+                });
+            }
+            else
+            {
+                pipeline.LogWarn("no scene mesh to save");
+            }
         }
     }
 }

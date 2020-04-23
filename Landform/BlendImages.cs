@@ -29,9 +29,9 @@ using OPS.Pipeline.TilingServer;
 /// https://github.jpl.nasa.gov/OnSight/Landform/wiki/Composite-Image-Stitching-aka-DMG
 /// https://github.jpl.nasa.gov/OnSight/Landform/wiki/DMG---a-brief-history
 ///
-/// The blend-images stage is typically run after build-tiling-input, but it can also be run after build-geometry
-/// (i.e. before build-tiling-input).  The latter corresponds more directly to the legacy approach in TerrainTools for
-/// MSL OnSight.  It is also acceptable to skip the blend-images stage to build a tileset without seam-blended textures.
+/// The blend-images stage is typically run after build-tiling-input, but it can also be run after build-geometry or
+/// build-texture.  Running after build-gemetry corresponds more directly to the legacy approach in TerrainTools for MSL
+/// OnSight.  It is also acceptable to skip the blend-images stage to build a tileset without blended textures.
 ///
 /// When run after build-tiling-input, the leaf tile meshes are loaded, textured with the per-leaf backproject index
 /// images, and rasterized in a birds eye view generating a scene backproject index image typically with 4k
@@ -40,6 +40,9 @@ using OPS.Pipeline.TilingServer;
 ///
 /// When run after build-geometry, the scene mesh is loaded and shrinkwrapped, and the shrinkwrapped mesh is
 /// backprojected to generate the scene backproject index image, also typically with 4k resolution.
+///
+/// When run after build-texture, the scene mesh is loaded and the existing backproject index is reprojected in a birds
+/// eye view in a similar approach to the method used when running after build-tiling-input.
 ///
 /// However the full-scene backproject index is made, a corresponding full-scene texture is then built from it but using
 /// a blurred version of the observation images to remove high frequency comonents so that LimberDMG does not attempt to
@@ -64,6 +67,13 @@ using OPS.Pipeline.TilingServer;
 ///
 /// If run after build-tiling-input the existing leaf tile textures are directly replaced with blended versions.
 ///
+/// If run after build-texture the blended scene texture is saved to project storage and referenced from the SceneMesh
+/// database object.
+///
+/// The textured scene mesh is also optionally saved to the location given by the second positional command line
+/// parameter, which has similar semantics to the --outputmesh option in build-geometry. The blended texture is
+/// saved as its sibling.
+///
 /// Example:
 ///
 /// Landform.exe blend-images windjana --meshframe 0311472
@@ -76,8 +86,14 @@ namespace OPS.Landform
     [Verb("blend-images", HelpText = "blend observation images")]
     public class BlendImagesOptions : TextureCommandOptions
     {
+        [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save textured scene mesh", Default = null)]
+        public string OutputMesh { get; set; }
+
         [Option(HelpText = "Don't use existing leaves to build backproject index", Default = false)]
         public bool NoUseExistingLeaves { get; set; }
+
+        [Option(HelpText = "Don't use existing backproject index", Default = false)]
+        public bool NoUseExistingIndex { get; set; }
 
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
         public override TextureVariant TextureVariant { get; set; }
@@ -143,9 +159,12 @@ namespace OPS.Landform
 
         private BlendImagesOptions options;
 
-        private bool useExistingLeaves;
+        private bool useExistingLeaves, useExistingIndex;
+
         private Image blurredTexture;
         private Image blendedTexture;
+
+        private Image originalBackprojectIndex;
 
         public BlendImages(BlendImagesOptions options) : base(options)
         {
@@ -171,19 +190,41 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
                 if (!useExistingLeaves)
                 {
-                    RunPhase("check/generate observation image masks", BuildObservationImageMasks);
-                    RunPhase("build observation frustum hulls", BuildObsHulls);
-                    RunPhase("load or generate shrinkwrap mesh", LoadOrBuildShrinkwrapMesh);
+                    if (sceneMesh.Variant == MeshVariant.Shrinkwrap)
+                    {
+                        RunPhase("load or generate shrinkwrap mesh", LoadOrBuildShrinkwrapMesh);
+                    }
+                    else
+                    {
+                        RunPhase("load input mesh", () => LoadInputMesh(requireUVs: useExistingIndex));
+                    }
                 }
+
+                RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
                 RunPhase("load or generate blurred texture", LoadOrBuildBlurredTexture);
                 RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
                 RunPhase("generate blended observation images", BuildBlendedObservationImages);
-                if (useExistingLeaves && !string.IsNullOrEmpty(tileList.ImageExt) && !options.NoSave)
+
+                if (!options.NoSave)
                 {
-                    RunPhase("generate blended leaf textures", BuildBlendedLeafTextures);
+                    if (useExistingLeaves && !string.IsNullOrEmpty(tileList.ImageExt))
+                    {
+                        RunPhase("generate blended leaf textures", BuildBlendedLeafTextures);
+                    }
+
+                    bool saveMesh = !string.IsNullOrEmpty(options.OutputMesh);
+
+                    if ((useExistingIndex && sceneMesh.Variant == MeshVariant.Default) || saveMesh)
+                    {
+                        RunPhase("generate blended scene texture", BuildBlendedSceneTexture);
+                    }
+                    
+                    if (saveMesh)
+                    {
+                        RunPhase("save mesh", () => SaveSceneMesh(options.OutputMesh));
+                    }
                 }
             }
             catch (Exception ex)
@@ -210,9 +251,12 @@ namespace OPS.Landform
             }
 
             useExistingLeaves = false;
+            useExistingIndex = false;
+
+            var dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+
             if (!options.NoUseExistingLeaves)
             {
-                var dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
                 if (dsm != null && dsm.TileListGuid != Guid.Empty)
                 {
                     sceneMesh = dsm;
@@ -224,11 +268,25 @@ namespace OPS.Landform
 
             if (!useExistingLeaves)
             {
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
-                if (sceneMesh == null)
+                if (!options.NoUseExistingIndex && dsm != null && dsm.BackprojectIndexGuid != Guid.Empty)
                 {
-                    sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
-                                                 noSave: options.NoSave);
+                    sceneMesh = dsm;
+                    useExistingIndex = true;
+                    pipeline.LogInfo("reprojecting existing backproject index");
+                }
+                else
+                {
+                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
+                    if (sceneMesh == null)
+                    {
+                        sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
+                                                     noSave: options.NoSave);
+                    }
+                    else if (!options.NoUseExistingIndex && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+                    {
+                        useExistingIndex = true;
+                        pipeline.LogInfo("using existing shrinkwrap mesh backproject index");
+                    }
                 }
             }
 
@@ -362,8 +420,8 @@ namespace OPS.Landform
 
         private void LoadOrBuildBlurredTexture()
         {
-            if (sceneMesh.BlurredTextureGuid != Guid.Empty && sceneMesh.BackprojectIndexGuid != Guid.Empty &&
-                !options.RedoBlurredTexture)
+            if (!options.RedoBlurredTexture && sceneMesh.Variant == MeshVariant.Shrinkwrap &&
+                sceneMesh.BlurredTextureGuid != Guid.Empty && sceneMesh.BackprojectIndexGuid != Guid.Empty)
             {
                 pipeline.LogInfo("loading blurred texture from database");
                 var texGuid = sceneMesh.BlurredTextureGuid;
@@ -386,13 +444,30 @@ namespace OPS.Landform
 
             if (useExistingLeaves)
             {
-                pipeline.LogInfo("creating blurred texture from existing leaves");
+                pipeline.LogInfo("creating blurred texture from existing leaf backproject indices");
                 BuildBackprojectIndexFromLeaves();
+                BuildBackprojectResultsFromIndex();
+            }
+            else if (useExistingIndex)
+            {
+                var indexGuid = sceneMesh.BackprojectIndexGuid;
+                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
+                if (sceneMesh.Variant != MeshVariant.Shrinkwrap)
+                {
+                    pipeline.LogInfo("creating blurred texture from reprojected existing backproject index");
+                    ReprojectBackprojectIndex();
+                }
+                else
+                {
+                    pipeline.LogInfo("creating blurred texture from existing shrinkwrap backproject index");
+                }
                 BuildBackprojectResultsFromIndex();
             }
             else
             {
-                pipeline.LogInfo("creating blurred texture from shrinkwrap mesh");
+                pipeline.LogInfo("backprojecting blurred texture from shrinkwrap mesh");
+                BuildObservationImageMasks();
+                BuildObsHulls();
                 BuildSceneCaster();
                 BuildMeshOperator();
                 InitBackprojectStrategy();
@@ -568,7 +643,8 @@ namespace OPS.Landform
                              "fill avg: {4}", options.InpaintWinners, !options.NoBarycentricInterpolateWinners,
                              options.InpaintDiff, options.BlurDiff, !options.NoFillBlendWithAverageDiff);
 
-            if (!options.NoBarycentricInterpolateWinners && options.BarycentricInterpolateMaxTriangleSideLengthPixels > 0)
+            if (!options.NoBarycentricInterpolateWinners &&
+                options.BarycentricInterpolateMaxTriangleSideLengthPixels > 0)
             {
                 pipeline.LogInfo("barycentric interpolate max triangle side {0}px",
                                  options.BarycentricInterpolateMaxTriangleSideLengthPixels);
@@ -825,22 +901,50 @@ namespace OPS.Landform
                 //it seems common that there are some losing pixels right around the leaf boundary
                 //(not sure why, mb that is a bug)
                 //if we leave those masked then below we can inpaint them
-                leafIndex.CreateMask();
-                for (int r = 0; r < leafIndex.Height; r++)
-                {
-                    for (int c = 0; c < leafIndex.Width; c++)
-                    {
-                        if (leafIndex[0, r, c] < Observation.MIN_INDEX)
-                        {
-                            leafIndex.SetMaskValue(r, c, true);
-                        }
-                    }
-                }
+                MaskBackprojectIndex(leafIndex);
 
                 Rasterizer.Rasterize(leafMesh, leafIndex, opts);
             });
 
-            //fill small gaps along tile boundaries, should make LimberDMG happier
+            //fill small gaps, particularly along tile boundaries, should make LimberDMG happier
+            backprojectIndex.Inpaint(2, useAnyNeighbor: true);
+
+            if (tcopts.WriteDebug)
+            {
+                SaveBackprojectIndexDebug(backprojectIndex);
+            }
+        }
+
+        private void ReprojectBackprojectIndex()
+        {
+            pipeline.LogInfo("reprojecting backproject index top-down");
+
+            var bounds = mesh.Bounds();
+            var boundsSize = bounds.Size();
+            pipeline.LogInfo("scene mesh XY plane bounds: {0:F3}x{1:F3}", boundsSize.X, boundsSize.Y);
+
+            var reprojectedBackprojectIndex = new Image(3, resolution, resolution);
+
+            var opts = Rasterizer.Options.DirectToImage(reprojectedBackprojectIndex);
+
+            double maxDim = Math.Max(boundsSize.X, boundsSize.Y);
+            opts.MetersPerPixel = maxDim / resolution;
+
+            opts.CameraLocation = bounds.Center();
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation,
+                                                            out opts.RightInImage, out opts.DownInImage);
+            
+            pipeline.LogInfo("reprojecting {0}x{1} backproject index to {2}x{2}, {3:F5} meters/pixel",
+                             backprojectIndex.Width, backprojectIndex.Height, resolution, opts.MetersPerPixel);
+
+            MaskBackprojectIndex();
+
+            Rasterizer.Rasterize(mesh, backprojectIndex, opts);
+
+            originalBackprojectIndex = backprojectIndex;
+            backprojectIndex = reprojectedBackprojectIndex;
+
+            //fill small gaps, should make LimberDMG happier
             backprojectIndex.Inpaint(2, useAnyNeighbor: true);
 
             if (tcopts.WriteDebug)
@@ -878,6 +982,16 @@ namespace OPS.Landform
             });
             pipeline.LogInfo("blended {0} pixels from surface observations, {1} pixels from orbital",
                              Fmt.KMG(numSurfacePixels), Fmt.KMG(numOrbitalPixels));
+        }
+
+        private void BuildBlendedSceneTexture()
+        {
+            if (originalBackprojectIndex != null)
+            {
+                backprojectIndex = originalBackprojectIndex;
+                BuildBackprojectResultsFromIndex();
+            }
+            sceneTexture = BuildBackprojectTexture(TextureVariant.Blended);
         }
     }
 }

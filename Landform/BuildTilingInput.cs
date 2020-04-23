@@ -91,7 +91,6 @@ namespace OPS.Landform
         };
         private TextureGenMode texGenMode = TextureGenMode.None;
 
-        private Image sceneTexture;
         private SceneNode tileTree;
 
         private int numBackprojectedSurfacePixels, numBackprojectFailedSurfacePixels, numBackprojectedOrbitalPixels;

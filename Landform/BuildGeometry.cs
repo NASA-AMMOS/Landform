@@ -72,13 +72,13 @@ using System.IO;
 ///
 /// Atlasing of the full scene mesh can be attempted by specifying --generateuvs.
 ///
-/// If a tileset is not required, the full scene mesh can also be directly saved with the --outputmesh option.
-/// When running locally this can be either a relative or absolute disk path with an accepted mesh file extension, or
-/// just the extension, in which case a default filename will be used in the current working directory.  When running
-/// with --cloud the output mesh must either be a URL within the project venue storage area, or a relative path which
-/// will be prepended with the project storage venue URL and "meshing/GeometryProducts", or just a known mesh format
-/// extension.  The output scene mesh will not be textured.  However, if atlasing was successful, then a textured mesh
-/// can be generated with build-texture.
+/// If a tileset is not required, the full scene mesh can also be directly saved by specifying an output mesh as the
+/// second positional command line argument.  When running locally this can be either a relative or absolute disk path
+/// with an accepted mesh file extension, or just the extension, in which case a default filename will be used in the
+/// current working directory.  When running with --cloud the output mesh must either be a URL within the project venue
+/// storage area, or a relative path which will be prepended with the project storage venue URL and
+/// "meshing/GeometryProducts", or just a known mesh format extension.  The output scene mesh will not be textured.
+/// However, if atlasing was successful, then a textured mesh can be generated with build-texture.
 ///
 /// Example:
 ///
@@ -90,6 +90,9 @@ namespace OPS.Landform
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
     public class BuildGeometryOptions : GeometryCommandOptions
     {
+        [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]
+        public string OutputMesh { get; set; }
+
         [Option(HelpText = "Decimate the scene mesh to this target number of faces if positive", Default = 0)]
         public int TargetSceneMeshFaces { get; set; }
 
@@ -162,14 +165,11 @@ namespace OPS.Landform
         [Option(HelpText = "Poisson reconstruction BSpline degree", Default = 2)]
         public int PoissonBSplineDegree { get; set; }
 
-        [Option(HelpText = "Generate full-mesh UVs with UVAtlas", Default = false)]
+        [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
 
         [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
         public int TextureResolution { get; set; }
-
-        [Option(HelpText = "URL, file, or file type (extension starting with \".\") to which to save scene mesh", Default = null)]
-        public string OutputMesh { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -816,7 +816,7 @@ namespace OPS.Landform
                 blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels, meshOriginInOrbital);
             }
 
-            pipeline.LogInfo("making {0}x{0}m orbital mesh at {1} samples/meter",
+            pipeline.LogInfo("making {0:f3}x{0:f3}m orbital mesh at {1:f3} samples/meter",
                              2 * orbitalExtentPixels * orbitalMetersPerPixel,
                              orbitalSamplesPerPixel / orbitalMetersPerPixel);
 
@@ -833,7 +833,7 @@ namespace OPS.Landform
                     SaveMesh(orbitalMesh, dbgMeshPrefix + "-outerOrbital");
                 }
 
-                pipeline.LogInfo("making {0}x{0} orbital blend mesh at {1} samples/meter",
+                pipeline.LogInfo("making {0:f3}x{0:f3} orbital blend mesh at {1:f3} samples/meter",
                                  2 * blendExtentPixels * orbitalMetersPerPixel,
                                  blendSamplesPerPixel / orbitalMetersPerPixel);
 
@@ -885,7 +885,7 @@ namespace OPS.Landform
             double blendRadiusSq = radius * radius;
             double sewRadiusSq = sewRadius * sewRadius;
 
-            pipeline.LogInfo("collecting nearest surface vertices within {0}m of orbital", radius);
+            pipeline.LogInfo("collecting nearest surface vertices within {0:f3}m of orbital", radius);
             var vertPairs = new ConcurrentDictionary<int, int>(); //orbitalMesh vert index -> mesh vert index
             CoreLimitedParallel.For(0, orbitalMesh.Vertices.Count, i =>
             {
@@ -991,7 +991,7 @@ namespace OPS.Landform
 
             if (extent > 0)
             {
-                pipeline.LogInfo("clipping mesh to {0} meter box around {1} frame origin in XY plane",
+                pipeline.LogInfo("clipping mesh to {0:f3} meter box around {1} frame origin in XY plane",
                                  extent, meshFrame);
                 mesh = Mesh.Clip(mesh, BoundsFromXYExtent(Vector3.Zero, extent, minZ, maxZ));
             }
@@ -1014,11 +1014,11 @@ namespace OPS.Landform
         private void DecimateMesh()
         {
             pipeline.LogInfo("decimating mesh with {0}, target {1} faces",
-                             options.MeshDecimator, options.TargetSceneMeshFaces);
+                             options.MeshDecimator, Fmt.KMG(options.TargetSceneMeshFaces));
 
             mesh = mesh.Decimate(options.TargetSceneMeshFaces, options.MeshDecimator);
 
-            pipeline.LogInfo("decimated mesh to {0} faces", mesh.Faces.Count);
+            pipeline.LogInfo("decimated mesh to {0} faces", Fmt.KMG(mesh.Faces.Count));
 
             if (mesh.Faces.Count == 0)
             {
@@ -1057,7 +1057,7 @@ namespace OPS.Landform
                 throw new Exception("mesh is empty");
             }
 
-            pipeline.LogInfo("kept {0} faces visible in specified observations", mesh.Faces.Count);
+            pipeline.LogInfo("kept {0} faces visible in specified observations", Fmt.KMG(mesh.Faces.Count));
         }
 
         private void AtlasMesh(int textureResolution)
@@ -1124,7 +1124,7 @@ namespace OPS.Landform
             }
 
             var bounds = mesh.Bounds().Size();
-            pipeline.LogInfo("scene bounds (meters): {0:F3}x{1:F3}x{2:F3}", bounds.X, bounds.Y, bounds.Z);
+            pipeline.LogInfo("scene bounds (meters): {0:f3}x{1:f3}x{2:f3}", bounds.X, bounds.Y, bounds.Z);
         }
     }
 }
