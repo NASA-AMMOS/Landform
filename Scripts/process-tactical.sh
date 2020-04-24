@@ -92,7 +92,7 @@ fi
 #                                                                         80char|
 help="\
 USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
-[--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
+[--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--redo]
 [--debug] [--verbose] [--singlethreaded]
 [--nolods] [--meshext iv] [--imgext IMG]
 [--exportmeshext ply] [--exportimgext png]
@@ -136,6 +136,7 @@ dry=
 generate=true
 cleanup=true
 only_cleanup=
+redo=
 upload=
 only_upload=
 s3rdrdir=
@@ -159,11 +160,12 @@ while (( "$#" )); do
         "--help") echo "$help"; exit 0;;
         "--nocleanup") cleanup=;;
         "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
+        "--redo") redo="--redo";;
         "--onlyupload") upload=true; only_upload=true; cleanup=; only_cleanup=; generate=;;
-        "--quiet") dbg="${dbg} --quiet";;
-        "--debug") dbg="${dbg} --debug";;
-        "--verbose") dbg="${dbg} --verbose";;
-        "--singlethreaded") dbg="${dbg} --singlethreaded";;
+        "--quiet") dbg="$dbg --quiet";;
+        "--debug") dbg="$dbg --debug";;
+        "--verbose") dbg="$dbg --verbose";;
+        "--singlethreaded") dbg="$dbg --singlethreaded";;
         "--upload") shift; expect $# "upload URL"; upload=true; s3rdrdir=$1;;
         "--suffix") shift; expect $# "suffix"; suffix="_$1";;
         "--exportmeshext") shift; expect $# "export mesh extension"; export="$export --exportmeshformat $1";;
@@ -197,7 +199,7 @@ for f in `find ${indir} -name '*'.${meshext}`; do
 
     stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
     cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
-    stdopts="$stdopts $dbg"
+    stdopts="$stdopts $dbg $redo"
 
     # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
     # apparently it is possible that foo.iv might refer to bar.rgb as its texture
