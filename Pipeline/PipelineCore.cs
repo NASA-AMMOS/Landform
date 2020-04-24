@@ -697,7 +697,7 @@ namespace OPS.Pipeline
 
             if (stackTrace || Debug || StackTraces)
             {
-                LogError("{0}: {1}{2}{3}", ex.GetType().Name, msg, Environment.NewLine, ex.StackTrace);
+                LogError("{0}: {1}{2}{3}", ex.GetType().Name, msg, Environment.NewLine, Logging.GetStackTrace(ex));
             }
             else
             {
@@ -714,7 +714,7 @@ namespace OPS.Pipeline
                     if (aggregateStackTrace || Debug || StackTraces)
                     {
                         LogError("{0}: {1}{2}{3}",
-                                 ex2.GetType().Name, ex2.Message, Environment.NewLine, ex2.StackTrace);
+                                 ex2.GetType().Name, ex2.Message, Environment.NewLine, Logging.GetStackTrace(ex2));
                     }
                     if (!(Debug || StackTraces) && ++i >= maxAggregateSpew)
                     {

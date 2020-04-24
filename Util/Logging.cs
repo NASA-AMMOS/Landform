@@ -102,13 +102,13 @@ namespace OPS.Util
             else
             {
                 LogError((!string.IsNullOrEmpty(msg) ? msg + ": " : "") +
-                         $"({ex.GetType().Name}) {ex.Message}\n{ex.StackTrace}");
+                         $"({ex.GetType().Name}) {ex.Message}\n{Logging.GetStackTrace(ex)}");
                 var innerExceptions = Logging.GetInnerExceptions(ex);
                 if (innerExceptions != null)
                 {
                     foreach (var ex2 in innerExceptions)
                     {
-                        LogError($"{ex2.Message}\n{ex2.StackTrace}");
+                        LogError($"{ex2.Message}\n{Logging.GetStackTrace(ex2)}");
                     }
                 }
             }
@@ -143,17 +143,29 @@ namespace OPS.Util
 
         public static void LogException(ILog logger, Exception ex)
         {
-            logger.ErrorFormat("({0}} {1}\n{2}", ex.GetType().Name, ex.Message, ex.StackTrace);
+            logger.ErrorFormat("({0}} {1}\n{2}", ex.GetType().Name, ex.Message, GetStackTrace(ex));
             var innerExceptions = Logging.GetInnerExceptions(ex);
             if (innerExceptions != null)
             {
                 foreach (var ex2 in innerExceptions)
                 {
-                    logger.ErrorFormat("{0}\n{1}", ex2.Message, ex2.StackTrace);
+                    logger.ErrorFormat("{0}\n{1}", ex2.Message, GetStackTrace(ex2));
                 }
             }
         }
 
+        public static string GetStackTrace(Exception ex)
+        {
+            try
+            {
+                return ex.StackTrace;
+            }
+            catch (Exception ex2)
+            {
+                return "(error getting stack trace): " + ex2.Message;
+            }
+        }
+        
         public static string GetLogFile()
         {
             var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
