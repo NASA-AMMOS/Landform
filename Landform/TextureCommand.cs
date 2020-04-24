@@ -298,28 +298,6 @@ namespace OPS.Landform
             return !string.IsNullOrEmpty(meshFrame) ? meshFrame : tcopts.MeshFrame.ToLower().Trim();
         }
 
-        protected void EnsureOrBuildObservationTextures()
-        {
-            switch (tcopts.TextureVariant)
-            {
-                case TextureVariant.Original: break;
-                case TextureVariant.Blurred: BuildBlurredObservationImages(); break;
-                case TextureVariant.Blended: EnsureBlendedObservationImages(); break;
-                default: throw new Exception("unknown texture variant " + tcopts.TextureVariant);
-            }
-        }
-
-        protected void EnsureBlendedObservationImages()
-        {
-            foreach (var obs in imageObservations)
-            {
-                if (obs.BlendedGuid == Guid.Empty)
-                {
-                    throw new Exception(string.Format("no blended texture for {0}, run blend-images", obs.Name));
-                }
-            }
-        }
-
         protected void BuildBlurredObservationImages()
         {
             int no = roverImages.Count;
@@ -730,18 +708,30 @@ namespace OPS.Landform
         protected void BuildBackprojectResultsFromIndex()
         {
             pipeline.LogInfo("building backproject results from index");
+            if (backprojectIndex == null)
+            {
+                var indexGuid = sceneMesh.BackprojectIndexGuid;
+                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
+            }
             backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages);
         }
 
         protected Image BuildBackprojectTexture(TextureVariant textureVariant)
         {
-            pipeline.LogInfo("creating {0}x{0} backproject texture", resolution);
+            pipeline.LogInfo("creating {0}x{0} {1} backproject texture from {2} backproject results, inpaint {3}",
+                             resolution, textureVariant, Fmt.KMG(backprojectResults.Count),
+                             tcopts.BackprojectInpaintPixels);
             Image texture = new Image(3, resolution, resolution);
             texture.Fill(MISSING_COLOR);
             var stats = Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant,
                                                       tcopts.BackprojectInpaintPixels, orbitalTexture: orbitalTexture);
             pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} pixels from orbital",
                              Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels));
+            if (stats.NumFallbacks > 0)
+            {
+                pipeline.LogWarn("falling back to {0} texture on {1} observations missing {2} texture",
+                                 TextureVariant.Original, stats.NumFallbacks, textureVariant);
+            }
 
             if (!tcopts.NoSave)
             {

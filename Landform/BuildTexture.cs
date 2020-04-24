@@ -68,26 +68,28 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase(string.Format("checking/generating {0} observation textures", options.TextureVariant),
-                         EnsureOrBuildObservationTextures);
-
                 RunPhase("loading input mesh", () => LoadInputMesh(requireUVs: true));
-                RunPhase("check/build observation image masks", BuildObservationImageMasks);
-                RunPhase("build observation frustum hulls", BuildObsHulls);
-                RunPhase("build occlusion datastructures", BuildSceneCaster);
-                RunPhase("build acceleration datastructures", BuildMeshOperator);
 
-                RunPhase("initialize backproject strategy", InitBackprojectStrategy);
-                RunPhase("backproject observations", BackprojectRoverObservations);
-
-                if (!options.NoOrbital)
+                if (!options.Redo && sceneMesh.BackprojectIndexGuid != Guid.Empty)
                 {
-                    RunPhase("backproject orbital", BackprojectOrbital);
+                    RunPhase("build backproject results from existing index", BuildBackprojectResultsFromIndex);
                 }
-
-                if (!options.NoIndex)
+                else
                 {
-                    RunPhase("generate backproject index", BuildBackprojectIndex);
+                    RunPhase("check/build observation image masks", BuildObservationImageMasks);
+                    RunPhase("build observation frustum hulls", BuildObsHulls);
+                    RunPhase("build occlusion datastructures", BuildSceneCaster);
+                    RunPhase("build acceleration datastructures", BuildMeshOperator);
+                    RunPhase("initialize backproject strategy", InitBackprojectStrategy);
+                    RunPhase("backproject observations", BackprojectRoverObservations);
+                    if (!options.NoOrbital)
+                    {
+                        RunPhase("backproject orbital", BackprojectOrbital);
+                    }
+                    if (!options.NoIndex)
+                    {
+                        RunPhase("generate backproject index", BuildBackprojectIndex);
+                    }
                 }
 
                 if (!options.OnlyIndex)

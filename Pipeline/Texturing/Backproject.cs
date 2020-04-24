@@ -141,6 +141,7 @@ namespace OPS.Pipeline
         {
             public int BackprojectedSurfacePixels;
             public int BackprojectedOrbitalPixels;
+            public int NumFallbacks;
         }
 
         /// <summary>
@@ -187,6 +188,7 @@ namespace OPS.Pipeline
                                            (tex == TextureVariant.Blurred && sourceObs.BlurredGuid == Guid.Empty)))
                 {
                     tex = TextureVariant.Original;
+                    stats.NumFallbacks++;
                 }
 
                 if (tex != TextureVariant.Original)
