@@ -620,7 +620,7 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
 
-            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels);
+            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels, quiet: false);
 
             pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
                              Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
@@ -628,13 +628,12 @@ namespace OPS.Landform
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
             BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels,
-                                         string debugSubdir = "")
+                                         string debugSubdir = "", bool quiet = true)
         {
             if (backprojectStrategy == null)
             {
                 throw new Exception("must initialize backproject strategy before backprojecting observations");
             }
-            bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
             {
                 pipeline = pipeline,
@@ -654,8 +653,8 @@ namespace OPS.Landform
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
                 obsSelectionStrategy = backprojectStrategy,
                 obsToHull = obsToHull,
-                info = msg => { if (logging) pipeline.LogInfo(msg); },
-                progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
+                info = msg => { if (!quiet) pipeline.LogInfo(msg); },
+                verbose = msg => { if (!quiet) pipeline.LogVerbose(msg); },
                 warn = msg => pipeline.LogWarn(msg),
                 error = msg => pipeline.LogError(msg)
             };

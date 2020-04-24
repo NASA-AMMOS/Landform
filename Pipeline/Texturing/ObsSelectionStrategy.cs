@@ -25,6 +25,8 @@ namespace OPS.Pipeline.Texturing
 
         public string DebugOutputPath; //null disables debug output
 
+        public int MaxContexts = 10;
+
         public struct ScoredPoint
         {
             public Vector3 Point;
@@ -59,7 +61,7 @@ namespace OPS.Pipeline.Texturing
                                         double quality = 1);
 
         //sorts observations from best to worst
-        //returns filtered and sorted contexts
+        //returns up to MaxContexts filtered and sorted contexts
         //optionally returns scores for each observation
         public abstract List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
                                                                         List<Backproject.Context> contexts,

@@ -162,6 +162,8 @@ namespace OPS.Pipeline.Texturing
             sortedContexts
                 .Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
 
+            sortedContexts = sortedContexts.Take(MaxContexts).ToList();
+
             //optionally return scores
             if (scoresByObs != null)
             {

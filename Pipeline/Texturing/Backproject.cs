@@ -21,6 +21,8 @@ namespace OPS.Pipeline
 {
     public class Backproject
     {
+        public const int MAX_SAMPLES_PER_BATCH = 100000;
+
         public struct ObsPixel
         {
             public Observation Obs;
@@ -332,7 +334,7 @@ namespace OPS.Pipeline
             public ObsSelectionStrategy obsSelectionStrategy;  //the approach used to pick the best source data
             public IDictionary<string, ConvexHull> obsToHull = null; //observation name -> hull, computed if null
             public Action<string> info = null;
-            public Action<string> progress = null;
+            public Action<string> verbose = null;
             public Action<string> warn = null;
             public Action<string> error = null;
         }
@@ -345,7 +347,7 @@ namespace OPS.Pipeline
                                                                                 List<PixelPoint> missingPixels = null)
         {
             var info = opts.info ?? (msg => { });
-            var progress = opts.progress ?? (msg => { });
+            var verbose = opts.verbose ?? (msg => { });
             var warn = opts.warn ?? (msg => { });
             var error = opts.error ?? (msg => { });
 
@@ -441,115 +443,126 @@ namespace OPS.Pipeline
                 info("observation selection strategy required for backproject");
             }
 
-            info($"getting per-pixel {opts.obsSelectionStrategy.Name} sortings of {intersectingContexts.Count} contexts"
-                 + $" for {Fmt.KMG(samplePoints.Count)} pixels");
-
-            var sortedContextBySample = new Dictionary<int, List<Context>>(samplePoints.Count);
-
-            int maxCandidateDepth = 0;
-            for (int idx = 0; idx < samplePoints.Count; idx++)
-            {               
-                //find the strategy specific ranking of contexts for this pixel
-                var sortedContexts = opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point,
-                                                                                     intersectingContexts);
-                sortedContextBySample.Add(idx, sortedContexts);
-                if (sortedContexts.Count > maxCandidateDepth)
-                {
-                    maxCandidateDepth = sortedContexts.Count;
-                }
-            }
-
-            info($"collected up to {maxCandidateDepth} contexts per pixel");
-
-            info($"attempting to backproject {Fmt.KMG(samplePoints.Count)} pixels");
-
             var masker = opts.mission.GetMasker();
-            Dictionary<Pixel, ObsPixel> results = new Dictionary<Pixel, ObsPixel>();
 
-            int candidateDepth = 0;
+            var results = new Dictionary<Pixel, ObsPixel>();
             int totalFailed = 0;
-            var remainingIndices = Enumerable.Range(0, samplePoints.Count).ToList();
-            while (remainingIndices.Count > 0 && candidateDepth < maxCandidateDepth)
+            int numBatches = (int)Math.Ceiling(((double)samplePoints.Count) / MAX_SAMPLES_PER_BATCH);
+            for (int batch = 0; batch < numBatches; batch++)
             {
-                // remove pixels who had all candidate contexts fail (or which had no candidate contexts)
-                var failedIndices = remainingIndices
-                    .Where(idx => sortedContextBySample[idx].Count <= candidateDepth)
-                    .ToList();
-                int nf = failedIndices.Count;
-                totalFailed += nf;
-                if (missingPixels != null)
+                int startIdx = batch * MAX_SAMPLES_PER_BATCH;
+                int batchSize = Math.Min(samplePoints.Count - startIdx, MAX_SAMPLES_PER_BATCH);
+
+                info($"backprojecting batch {batch + 1}/{numBatches} of " +
+                     $"{Fmt.KMG(batchSize)}/{Fmt.KMG(samplePoints.Count)} pixels");
+
+                info($"getting per-pixel {opts.obsSelectionStrategy.Name} sortings " +
+                     $"of {intersectingContexts.Count} contexts for {Fmt.KMG(batchSize)} pixels");
+
+                //find the strategy specific ranking of contexts for each pixel in batch
+                var sortedContextBySample = new ConcurrentDictionary<int, List<Context>>();
+                CoreLimitedParallel.For(startIdx, startIdx + batchSize, idx =>
                 {
-                    missingPixels.AddRange(failedIndices.Select(i => samplePoints[i]).ToList());
-                }
+                    sortedContextBySample[idx] =
+                        opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts);
+                });
+                int maxCandidateDepth = sortedContextBySample.Values.Max(contexts => contexts.Count);
+                
+                info($"collected up to {maxCandidateDepth} contexts per pixel");
+                
+                info($"attempting to backproject {Fmt.KMG(batchSize)} pixels");
 
-                remainingIndices = remainingIndices
-                    .Where(idx => sortedContextBySample[idx].Count > candidateDepth)
-                    .ToList();
-
-                //group all remaining points by their current best candidate
-                var remainingByCurrentWinningObs = remainingIndices
-                    .GroupBy(idx => sortedContextBySample[idx].ElementAt(candidateDepth).Obs.Index);
-
-                info($"attempting to backproject {Fmt.KMG(remainingIndices.Count)} pixels " +
-                     $"into {remainingByCurrentWinningObs.Count()} preference {candidateDepth} observations");
-
-                int no = 0, ns = 0;
-                foreach (var group in remainingByCurrentWinningObs)
+                int candidateDepth = 0;
+                var remainingIndices = Enumerable.Range(startIdx, batchSize).ToList();
+                while (remainingIndices.Count > 0 && candidateDepth < maxCandidateDepth)
                 {
-                    //get the list of points with this texture as the winner
-                    var ctx = intersectingContexts.Where(c => c.Obs.Index == group.Key).First();
-                    var pointsWithCtx = group.Select(idx => samplePoints.ElementAt(idx));
-
-                    if (!pointsWithCtx.Any())
+                    // remove pixels who had all candidate contexts fail (or which had no candidate contexts)
+                    var failedIndices = remainingIndices
+                        .Where(idx => sortedContextBySample[idx].Count <= candidateDepth)
+                        .ToList();
+                    int nf = failedIndices.Count;
+                    totalFailed += nf;
+                    if (missingPixels != null)
                     {
-                        continue;
+                        missingPixels.AddRange(failedIndices.Select(i => samplePoints[i]).ToList());
                     }
+                    
+                    remainingIndices = remainingIndices
+                        .Where(idx => sortedContextBySample[idx].Count > candidateDepth)
+                        .ToList();
 
-                    //backproject to see if any win
-                    Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
-                    var succeeded = Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask,
-                                                                pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height,
-                                                                opts.sceneOcclusion);
-                    if (succeeded.Any())
+                    if (remainingIndices.Count == 0)
                     {
-                        no++;
-                        ns += succeeded.Count;
+                        break;
+                    }
+                        
+                    //group all remaining points by their current best candidate
+                    var remainingByCurrentWinningObs = remainingIndices
+                        .GroupBy(idx => sortedContextBySample[idx].ElementAt(candidateDepth).Obs.Index);
+                    
+                    verbose($"attempting to backproject {Fmt.KMG(remainingIndices.Count)} pixels " +
+                            $"into {remainingByCurrentWinningObs.Count()} preference {candidateDepth} observations");
 
-                        //save winners
-                        foreach (var res in succeeded)
+                    int no = 0, ns = 0;
+                    foreach (var group in remainingByCurrentWinningObs)
+                    {
+                        //get the list of points with this texture as the winner
+                        var ctx = intersectingContexts.Where(c => c.Obs.Index == group.Key).First();
+                        var pointsWithCtx = group.Select(idx => samplePoints.ElementAt(idx));
+                        
+                        if (!pointsWithCtx.Any())
                         {
-                            results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
+                            continue;
                         }
+                        
+                        //backproject to see if any win
+                        Image mask =
+                            ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
+                        var succeeded =
+                            Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask,
+                                                        pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height,
+                                                        opts.sceneOcclusion);
+                        if (succeeded.Any())
+                        {
+                            no++;
+                            ns += succeeded.Count;
+                            
+                            //save winners
+                            foreach (var res in succeeded)
+                            {
+                                results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
+                            }
+                            
+                            //remove winners from list to do
+                            remainingIndices = remainingIndices
+                                .Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel))
+                                .ToList();
+                        }
+                    }
 
-                        //remove winners from list to do
-                        remainingIndices = remainingIndices
-                            .Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel))
-                            .ToList();
+                    verbose($"backprojected {Fmt.KMG(ns)} pixels into {no} preference {candidateDepth} observations");
+                    
+                    if (nf > 0)
+                    {
+                        verbose($"gave up on {Fmt.KMG(nf)} pixels with no preference {candidateDepth} observation");
+                    }
+                    
+                    candidateDepth++;
+                }
+                
+                info($"backprojected {Fmt.KMG(batchSize - remainingIndices.Count)} pixels");
+                
+                if (remainingIndices.Count > 0) //I don't think this can happen, but ok...
+                {
+                    totalFailed += remainingIndices.Count;
+                    
+                    if (missingPixels != null)
+                    {
+                        missingPixels.AddRange(remainingIndices.Select(i => samplePoints[i]).ToList());
                     }
                 }
-
-                info($"backprojected {Fmt.KMG(ns)} pixels into {no} preference {candidateDepth} observations");
-
-                if (nf > 0)
-                {
-                    info($"gave up on {Fmt.KMG(nf)} pixels with no preference {candidateDepth} observation");
-                }
-
-                candidateDepth++;
             }
-
-            info($"backprojected {Fmt.KMG(samplePoints.Count - remainingIndices.Count)} pixels");
-
-            if (remainingIndices.Count > 0) //I don't think this can happen, but ok...
-            {
-                totalFailed += remainingIndices.Count;
-
-                if (missingPixels != null)
-                {
-                    missingPixels.AddRange(remainingIndices.Select(i => samplePoints[i]).ToList());
-                }
-            }
-
+                
             if (totalFailed > 0)
             {
                 info($"failed to backproject {Fmt.KMG(totalFailed)} pixels");

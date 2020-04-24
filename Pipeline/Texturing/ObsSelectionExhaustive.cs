@@ -93,9 +93,10 @@ namespace OPS.Pipeline.Texturing
             
             //sort contexts by decreasing quality
             //highest quality is min meters on mesh per pixel in obs, so sort in order low to high
-            sortedContexts.Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
+            sortedContexts
+                .Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
 
-            return sortedContexts;
+            return sortedContexts.Take(MaxContexts).ToList();
         }
     }
 }
