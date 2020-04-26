@@ -93,7 +93,7 @@ namespace OPS.Landform
 
         private SceneNode tileTree;
 
-        private int numBackprojectedSurfacePixels, numBackprojectFailedSurfacePixels, numBackprojectedOrbitalPixels;
+        private int numBackprojectedSurfacePixels, numBackprojectedOrbitalPixels, numBackprojectFailedPixels;
       
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
@@ -540,9 +540,9 @@ namespace OPS.Landform
 
             if (texGenMode == TextureGenMode.Backproject)
             {
-                pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed), {2} from orbital",
-                                 Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectFailedSurfacePixels),
-                                 Fmt.KMG(numBackprojectedOrbitalPixels));
+                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed",
+                                 Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectedOrbitalPixels),
+                                 Fmt.KMG(numBackprojectFailedPixels));
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
@@ -688,7 +688,7 @@ namespace OPS.Landform
             {
                 try
                 {
-                    tileMesh = UVAtlas.Atlas(tileMesh, options.TextureResolution, options.TextureResolution);
+                    tileMesh = UVAtlas.Atlas(tileMesh, resolution, resolution);
                     if (tileMesh == null)
                     {
                         pipeline.LogError("error atlasing tile mesh {0}: {1}", tile.Name);
@@ -709,42 +709,22 @@ namespace OPS.Landform
         {
             try
             {
-                List<PixelPoint> missingPixels = null;
-                IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = null;
-                if (options.NoSurface)
-                {
-                    //if no surface imagery is used, all pixels will be textured by orbital
-                    MeshOperator tileMeshOp = new MeshOperator(mesh);
-                    missingPixels = tileMeshOp.SampleUVSpace(options.TextureResolution,  options.TextureResolution);
-                }
-                else
-                {
-                    missingPixels = new List<PixelPoint>();
-                    backprojectResults = BackprojectRoverObservations(mesh, options.TextureResolution, missingPixels,
-                                                                      debugSubdir: node.Name);
-                }
-
-                Interlocked.Add(ref numBackprojectFailedSurfacePixels, missingPixels.Count);
-
-                if (!options.NoOrbital && missingPixels.Count > 0)
-                {
-                    BackprojectOrbital(missingPixels, backprojectResults);
-                }
-
+                var backprojectResults = BackprojectObservations(mesh, debugSubdir: node.Name, quiet: true);
+                
                 Image image = new Image(3, resolution, resolution);
-                image.Fill(MISSING_COLOR);
+                var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, image,
+                                                          options.TextureVariant, options.BackprojectInpaintMissing,
+                                                          options.BackprojectInpaintGutter,
+                                                          fallbackToOriginal: true, orbitalTexture: orbitalTexture);
+
+                Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
+                Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
+                Interlocked.Add(ref numBackprojectFailedPixels, stats.BackprojectMissingPixels);
 
                 if (index != null)
                 {
                     Backproject.FillIndexImage(backprojectResults, index);
                 }
-                
-                var stats = Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
-                                                          options.BackprojectInpaintPixels, fallbackToOriginal: true,
-                                                          orbitalTexture: orbitalTexture);
-
-                Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
-                Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
 
                 return image;
             }

@@ -1,5 +1,4 @@
 //#define NO_PARALLEL_RAYCASTS
-//#define BACKPROJECT_TIMING
 
 using System;
 using System.Collections.Generic;
@@ -21,50 +20,56 @@ namespace OPS.Pipeline
 {
     public class Backproject
     {
-        public const int MAX_SAMPLES_PER_BATCH = 100000;
+        public const int MAX_SAMPLES_PER_BATCH = 500000;
+        public const float RAYCAST_NEAR_METERS = 0.001f;
+        public static readonly float[] NO_OBSERVATION_COLOR = new float[] { 0.5f, 0.5f, 0.5f };
 
-        public struct ObsPixel
+        public class ObsPixel
         {
-            public Observation Obs;
-            public Vector2 Pixel; //col, row
+            public Observation Obs; //may be (a) RoverObservation, (b) orbital image, (c) null (no observation)
+            public Vector2 Pixel; //col, row of pixel in Obs
 
             public ObsPixel(Observation obs, Vector2 pixel)
             {
                 Obs = obs;
                 Pixel = pixel;
             }
+
+            public ObsPixel() { }
         }
 
-        public struct Context
+        public class Context
         {
-            public Observation Obs;                     //observation to backproject
-            public Observation MaskObs;                 //mission rover mask obs corresponding to Obs if any
-            public ConvexHull FrustumHull;              //frustum hull for observation in mesh space
-            public Matrix ObsToMesh;                    //transform from observation to mesh
-            public Matrix MeshToObs;                    //transform from mesh to obs
-            public CameraModel CameraModel;             //cached camera model
-            public Context(Observation obs, Observation maskObs, ConvexHull frustumHull,
-                                      UncertainRigidTransform obsToMesh)
+            public Observation Obs; //observation to backproject
+
+            public Observation MaskObs; //mission rover mask obs corresponding to Obs if any
+
+            public ConvexHull FrustumHull; //frustum hull for observation in mesh space
+
+            public Matrix ObsToMesh;
+            public Matrix MeshToObs; 
+
+            public CameraModel CameraModel { get { return Obs.CameraModel; } }
+
+            public Context(Observation obs, Observation maskObs, ConvexHull frustumHull, Matrix obsToMesh)
             {
                 Obs = obs;
                 MaskObs = maskObs;
                 FrustumHull = frustumHull;
-                ObsToMesh = obsToMesh.Mean;
+                ObsToMesh = obsToMesh;
                 MeshToObs = Matrix.Invert(ObsToMesh);
-                CameraModel = obs.CameraModel;
             }
         }
-
-        private static readonly float RaycastNearMeters = 0.001f;
 
         /// <summary>
         /// high level function that takes backproject results
         /// and emits an image with observations indices and source pixel locations as the pixel colors
-        /// output band 0: observation index
+        /// output band 0: observation index (see range and special values in Observation.cs)
         /// output band 1: observation pixel row
         /// output band 2: observation column
         /// </summary>
-        static public void FillIndexImage(IDictionary<Pixel, ObsPixel> backprojectResults, Image outputImage)
+        static public void FillIndexImage(IDictionary<Pixel, ObsPixel> backprojectResults, Image outputImage,
+                                          bool clear = true)
         {
             if (backprojectResults == null || backprojectResults.Count == 0)
             {
@@ -76,21 +81,22 @@ namespace OPS.Pipeline
                 throw new InvalidDataException("Expecting a 3 channel output image for backproject index image");
             }
 
+            if (clear)
+            {
+                outputImage.Fill(new float[] { Observation.GUTTER_INDEX, 0, 0 });
+            }
+
             foreach (var entry in backprojectResults)
             {
                 var outputPixel = entry.Key;
-                var sourceImageIndex = entry.Value.Obs.Index;
+                var obs = entry.Value.Obs;
+                var sourceImageIndex = obs != null ? obs.Index : Observation.NO_OBSERVATION_INDEX;
                 var sourcePixel = entry.Value.Pixel;
 
                 if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
                     outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
                 {
                     throw new InvalidDataException("Backproject output pixel is located outside of output image");
-                }
-
-                if (sourceImageIndex < Observation.MIN_INDEX)
-                {
-                    throw new InvalidDataException("invalid image index in backproject results");
                 }
 
                 outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
@@ -101,493 +107,550 @@ namespace OPS.Pipeline
         public static Image GenerateIndexPreviewImage(Image indexImage)
         {
             Image previewImg = new Image(3, indexImage.Width, indexImage.Height);
-            var colorsByIndex = new Dictionary<float, Vector3>();
-            Random rand = NumberHelper.MakeRandomGenerator();
+            var colorsByIndex = new Dictionary<float, float[]>();
+            colorsByIndex[Observation.GUTTER_INDEX] = new float[] { 1, 0, 0 }; //red
+            colorsByIndex[Observation.NO_OBSERVATION_INDEX] = new float[] { 1, 1, 0 }; //yellow
+            var rnd = NumberHelper.MakeRandomGenerator();
             int numPixels = indexImage.Width * indexImage.Height;
-            for (int idxPixel = 0; idxPixel < numPixels; idxPixel++)
+            for (int i = 0; i < numPixels; i++)
             {
-                float index = indexImage.GetBandValues(idxPixel)[0];
-                if (index < Observation.MIN_INDEX)
-                {
-                    continue;
-                }
+                float index = indexImage.GetBandValues(i)[0];
                 if (!colorsByIndex.ContainsKey(index))
                 {
-                    colorsByIndex.Add(index, new Vector3(rand.NextDouble(), rand.NextDouble(), rand.NextDouble()));
+                    colorsByIndex[index] = new float[] { (float)(0.5 * rnd.NextDouble()),
+                                                         (float)rnd.NextDouble(), (float)rnd.NextDouble() };
                 }
-                previewImg.SetBandValues(idxPixel, colorsByIndex[index].ToFloatArray());
+                previewImg.SetBandValues(i, colorsByIndex[index]);
             }
-
             return previewImg;
         }
 
-        //<DST, SRC>
-        // SRC: col, row
-        static public IDictionary<Pixel,ObsPixel>
-            BackprojectOrbital(Observation orbitalObs, Matrix meshToOrbital, List<PixelPoint> pixelsToBackproject,
-                               IDictionary<Pixel, ObsPixel> results = null)
+        /// <summary>
+        /// reconstitute backproject results from an index image
+        /// </summary>
+        public static IDictionary<Pixel, Backproject.ObsPixel>
+            BuildResultsFromIndex(Image index, IDictionary<int, Observation> indexedObservations,
+                                  Action<string> warn = null)
         {
-            var orbitalCamera = orbitalObs.CameraModel;
-            results = results ?? new Dictionary<Pixel, ObsPixel>();
-            foreach(var destPixelPt in pixelsToBackproject)
+            warn = warn ?? (msg => {});
+            var bad = new HashSet<int>();
+            var results = new Dictionary<Pixel, Backproject.ObsPixel>();
+            for (int r = 0; r < index.Height; r++)
             {
-                var pixel = orbitalCamera.Project(Vector3.Transform(destPixelPt.Point, meshToOrbital));
-                results[SubpixelToPixel(destPixelPt.Pixel)] = new ObsPixel(orbitalObs, new Vector2(pixel.X, pixel.Y));
+                for (int c = 0; c < index.Width; c++)
+                {
+                    int idx = (int)index[0, r, c];
+                    if (idx == Observation.NO_OBSERVATION_INDEX)
+                    {
+                        results[new Pixel(r, c)] = new ObsPixel();
+                    }
+                    else if (indexedObservations.ContainsKey(idx))
+                    {
+                        float or = index[1, r, c];
+                        float oc = index[2, r, c];
+                        results[new Pixel(r, c)] = new ObsPixel(indexedObservations[idx], new Vector2(oc, or));
+                    }
+                    else if (idx >= Observation.MIN_INDEX && !bad.Contains(idx))
+                    {
+                        bad.Add(idx);
+                        warn($"no observation with index {idx}");
+                    }
+                }
             }
             return results;
         }
 
-        public struct FillStats
-        {
-            public int BackprojectedSurfacePixels;
-            public int BackprojectedOrbitalPixels;
-            public int NumFallbacks;
-        }
-
         /// <summary>
-        /// high level function that takes backproject results
-        /// and emits an image that is the best pixels from all the source images ready to be applied to the output mesh
+        /// high level function that uses backproject results to populate an image
+        /// with corresponding pixels from all the source images
+        /// if inpaintMissing is nonzero then missing pixel and gutter areas will be inpainted by that amount
+        /// if inpaintGutter is nonzero then gutter areas will be further inpainted by that amount
+        /// negative means unlimited inpaint
+        /// if outputImage does not have a mask it will be created
+        /// if outputImage does have a mask it will be overwritten
+        /// project can be null iff textureVariant = TextureVariant.Original or fallbackToOriginal = true
         /// </summary>
-        static public FillStats
-            FillOutputTexture(PipelineCore pipeline, IDictionary<Pixel, ObsPixel> backprojectResults,
-                              Image outputImage, TextureVariant textureVariant, int inpaint,
-                              bool fallbackToOriginal = true, Image orbitalTexture = null)
+        static public Stats FillOutputTexture(PipelineCore pipeline, Project project,
+                                              IDictionary<Pixel, ObsPixel> backprojectResults,
+                                              Image outputImage, TextureVariant textureVariant,
+                                              int inpaintMissing = 4, int inpaintGutter = -1,
+                                              bool fallbackToOriginal = true, Image orbitalTexture = null)
         {
-            var stats = new FillStats();
+            var stats = new Stats();
+
+            if (outputImage.Bands != 3)
+            {
+                throw new NotImplementedException("3 band output image required");
+            }
+
+            //set all output pixels invalid
+            if (!outputImage.HasMask)
+            {
+                outputImage.CreateMask(true);
+            }
+            else
+            {
+                outputImage.FillMask(true);
+            }
 
             if (backprojectResults == null || backprojectResults.Count == 0)
             {
                 return stats;
             }
 
-            if (outputImage.Bands != 3)
+            Image getObservationImage(Observation obs)
             {
-                throw new NotImplementedException("Expecting a 3 band output image currently");
+                if (obs.IsOrbitalImage)
+                {
+                    return orbitalTexture;
+                }
+
+                var variant = fallbackToOriginal ? obs.GetTextureVariantWithFallback(textureVariant) : textureVariant;
+
+                if (project == null && fallbackToOriginal)
+                {
+                    variant = TextureVariant.Original;
+                }
+
+                if (variant == TextureVariant.Original)
+                {
+                    if (variant != textureVariant)
+                    {
+                        Interlocked.Increment(ref stats.NumFallbacks);
+                    }
+                    return pipeline.LoadImage(obs.Url);
+                }
+
+                if (project == null)
+                {
+                    throw new ArgumentException($"project required to load {variant} texture");
+                }
+
+                if (project.Name != obs.ProjectName)
+                {
+                    throw new ArgumentException("cannot load observations from multiple projects: " +
+                                                $"{project.Name}, {obs.ProjectName}");
+                }
+
+                return pipeline.GetDataProduct<PngDataProduct>(project, obs.GetTextureVariantGuid(variant)).Image;
             }
 
-            if (!outputImage.HasMask)
-            {
-                outputImage.CreateMask(true);
-            }
-
-            Project project = null; //only needed if textureVariant != TextureVariant.Original
+            var results = backprojectResults.ToList();
 
             //group by source texture for perfomance (load the image once for all pixels needed from it)
-            var groupedByObsName = backprojectResults.ToList().GroupBy(bpr => bpr.Value.Obs.Name);
-            foreach (var group in groupedByObsName)
+            var groupedWinners =
+                results
+                .Where(pair => pair.Value.Obs != null &&
+                       (pair.Value.Obs is RoverObservation ||
+                        (pair.Value.Obs.IsOrbitalImage && orbitalTexture != null)))
+                .ToList()
+                .GroupBy(pair => pair.Value.Obs.Name);
+
+            var failedObservations = new ConcurrentDictionary<string, IEnumerable<KeyValuePair<Pixel, ObsPixel>>>();
+            var failedPixels = new ConcurrentBag<Pixel>();
+            CoreLimitedParallel.ForEach(groupedWinners, group =>
             {
-                var sourceObs = group.First().Value.Obs;
-                var sourceImageIndex = sourceObs.Index;
-                if (sourceImageIndex < Observation.MIN_INDEX || sourceObs.IsOrbitalDEM)
+                var obs = group.First().Value.Obs;
+                Image srcImg = null;
+                try
                 {
-                    throw new InvalidDataException("invalid image index in backproject results");
+                    srcImg = getObservationImage(obs);
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogWarn("error loading image for observation {0}: {1}", obs.Name, ex.Message);
                 }
 
-                var tex = textureVariant;
-                if (fallbackToOriginal && ((tex == TextureVariant.Blended && sourceObs.BlendedGuid == Guid.Empty) ||
-                                           (tex == TextureVariant.Blurred && sourceObs.BlurredGuid == Guid.Empty)))
+                if (srcImg == null)
                 {
-                    tex = TextureVariant.Original;
-                    stats.NumFallbacks++;
+                    failedObservations[obs.Name] = group;
+                    return;
                 }
 
-                if (tex != TextureVariant.Original)
+                foreach (var pair in group)
                 {
-                    if (project == null)
+                    var dstPx = pair.Key;
+                    if (dstPx.Col < 0 || dstPx.Col >= outputImage.Width ||
+                        dstPx.Row < 0 || dstPx.Row >= outputImage.Height)
                     {
-                        project = Project.Find(pipeline, sourceObs.ProjectName);
-                        if (project == null)
-                        {
-                            throw new ArgumentException("error loading project " + sourceObs.ProjectName);
-                        }
+                        pipeline.LogWarn("backproject output pixel ({0}, {1}) outside {2}x{3} output image",
+                                         dstPx.Col, dstPx.Row, outputImage.Width, outputImage.Height);
+                        continue;
                     }
-                    else if (project.Name != sourceObs.ProjectName)
+                    
+                    var srcPx = pair.Value.Pixel;
+                    if (srcPx.X < 0 || srcPx.X >= srcImg.Width || srcPx.Y < 0 || srcPx.Y >= srcImg.Height)
                     {
-                        throw new ArgumentException("cannot load observations from multiple projects");
+                        pipeline.LogWarn("backproject source pixel ({0}, {1}) outside {2}x{3} image " +
+                                         "for observation {4}", srcPx.X, srcPx.Y, srcImg.Width, srcImg.Height,
+                                         obs.Name);
+                        failedPixels.Add(dstPx);
+                        continue;
                     }
-                }
 
-                Image sourceImage = null;
-                if (sourceObs.IsOrbitalImage)
-                {
-                    sourceImage = orbitalTexture;
-                }
-                else
-                {
-                    switch (tex)
+                    var color = srcImg.SampleAsColor(srcPx);
+                    outputImage.SetAsColor(color, dstPx.Row, dstPx.Col);
+                    outputImage.SetMaskValue(dstPx.Row, dstPx.Col, false);
+                    
+                    if (obs.IsOrbitalImage)
                     {
-                        case TextureVariant.Original:
-                        {
-                            sourceImage = pipeline.LoadImage(sourceObs.Url);
-                            break;
-                        }
-                        case TextureVariant.Blurred:
-                        {
-                            if (sourceObs.BlurredGuid == Guid.Empty)
-                            {
-                                throw new Exception("blurred texture not available for observation " + sourceObs.Name);
-                            }
-                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlurredGuid).Image;
-                            break;
-                        }
-                        case TextureVariant.Blended:
-                        {
-                            if (sourceObs.BlendedGuid == Guid.Empty)
-                            {
-                                throw new Exception("blended texture not available for observation " + sourceObs.Name);
-                            }
-                            sourceImage = pipeline.GetDataProduct<PngDataProduct>(project, sourceObs.BlendedGuid).Image;
-                            break;
-                        }
-                        default: throw new Exception("unknown texture variant " + tex);
+                        Interlocked.Increment(ref stats.BackprojectedOrbitalPixels);
+                    }
+                    else
+                    {
+                        Interlocked.Increment(ref stats.BackprojectedSurfacePixels);
                     }
                 }
+            });
 
-                if (sourceImage != null)
-                {
-                    foreach (var pair in group)
-                    {
-                        var outputPixel = pair.Key;
-                        
-                        if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
-                            outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
-                        {
-                            throw new InvalidDataException("Backproject output pixel located outside of output image");
-                        }
-                        
-                        var sourceImagePixel = pair.Value.Pixel;
-                        if (sourceImagePixel.X < 0 || sourceImagePixel.X >= sourceImage.Width ||
-                            sourceImagePixel.Y < 0 || sourceImagePixel.Y >= sourceImage.Height)
-                        {
-                            throw new InvalidDataException("Backproject source pixel located outside of source image");
-                        }
-                        
-                        //copy src image data to dst image data
-                        float[] samples = sourceImage.SampleAsColor(sourceImagePixel);
-                        outputImage.SetAsColor(samples, (int)outputPixel.Row, (int)outputPixel.Col);
-                        
-                        //mark mask as valid
-                        outputImage.SetMaskValue((int)outputPixel.Row, (int)outputPixel.Col, false);
-
-                        if (sourceObs.IsOrbitalImage)
-                        {
-                            stats.BackprojectedOrbitalPixels++;
-                        }
-                        else
-                        {
-                            stats.BackprojectedSurfacePixels++;
-                        }
-                    }
-                }
+            if (failedObservations.Count > 0)
+            {
+                pipeline.LogWarn("error loading {0} observation images", failedObservations.Count);
             }
 
-            if (inpaint != 0)
+            var failed = new HashSet<Pixel>();
+            failed.UnionWith(failedPixels);
+            foreach (var group in failedObservations.Values)
             {
-                //though a single pixel inpaint would be sufficient for bilinear sampling of subpixel locations,
-                //full inpaint (inpaint = -1) needed for building parent tiles (??)
-                //unfortunately full inpaint will also have the effect of inpainting completely through all
-                //regions where backproject failed, e.g. portions of the mesh behind rocks that were occluded in all
-                //the source observations, which is both incorrect and looks bad
-                outputImage.Inpaint(inpaint, preserveMask: false);
+                failed.UnionWith(group.Select(pair => pair.Key));
+            }
+            if (failed.Count > 0)
+            {
+                pipeline.LogWarn("error filling {0} backprojected pixels", Fmt.KMG(failed.Count));
+            }
+
+            //at this point all successfull backproject pixels have been filled in and unmasked
+            //and all remaining pixels remain masked, including:
+            //(a) atlas gutter pixels
+            //(b) pixels for which there was no backproject observation (BackprojectResult.Obs == null)
+            //(c) pixels for which there was a problem (e.g. failed to load source image, bad coordinates)
+
+            if (inpaintMissing != 0)
+            {
+                //do some inpaint into both failed and gutter regions
+                //generally this is limited so that larger areas that were truly occluded or lacking data
+                //are not filled in too much, which is both incorrect and looks bad
+                outputImage.Inpaint(inpaintMissing, preserveMask: false);
+            }
+
+            //fill in all remaining non-gutter failed pixels with the no-observation color
+            failed.UnionWith(results.Where(pair => pair.Value.Obs == null).Select(pair => pair.Key));
+            foreach (var px in failed)
+            {
+                if (px.Col < 0 || px.Col >= outputImage.Width || px.Row < 0 || px.Row >= outputImage.Height)
+                {
+                    pipeline.LogWarn("backproject failed output pixel ({0}, {1}) outside {2}x{3} output image",
+                                     px.Col, px.Row, outputImage.Width, outputImage.Height);
+                    continue;
+                }
+                outputImage.SetAsColor(NO_OBSERVATION_COLOR, px.Row, px.Col);
+                outputImage.SetMaskValue(px.Row, px.Col, false);
+                stats.BackprojectMissingPixels++;
+            }
+
+            if (inpaintGutter != 0)
+            {
+                //inpaint the gutter more, possibly completely if inpaintGutter < 0
+                //this can be important for proper behavior of texture minification
+                outputImage.Inpaint(inpaintGutter, preserveMask: false);
             }
 
             return stats;
         }
 
-        public static IDictionary<Pixel, Backproject.ObsPixel>
-            BuildResultsFromIndex(Image index, IDictionary<int, Observation> indexedObservations)
-        {
-            var results = new Dictionary<Pixel, Backproject.ObsPixel>();
-            for (int r = 0; r < index.Height; r++)
-            {
-                for (int c = 0; c < index.Width; c++)
-                {
-                    int obsIndex = (int)index[0, r, c];
-                    if (obsIndex >= Observation.MIN_INDEX)
-                    {
-                        Observation obs = indexedObservations[obsIndex];
-                        int obsRow = (int)index[1, r, c];
-                        int obsCol = (int)index[2, r, c];
-                        var obsPixel = new Vector2(obsCol, obsRow);
-                        results[new Pixel(r, c)] = new Backproject.ObsPixel(obs, obsPixel);
-                    }
-                }
-            }
-            return results;
-        }
-
-        public class BackprojectOptions
+        public class Options
         {
             public PipelineCore pipeline;
+
             public Project project;
             public MissionSpecific mission;
+
             public FrameCache frameCache;
             public ObservationCache observationCache; //for rover mask observations
-            public IEnumerable<RoverObservation> observations; //set of observations to backproject
+
+            public IDictionary<string, ConvexHull> obsToHull; //observation name -> hull, computed if null
+
             public Mesh mesh; //mesh from which to collect sample points to backproject
+            public ConvexHull meshHull; //in mesh frame
+            public MeshOperator meshOp; //only uv face tree required
             public string meshFrame;
-            public int resolution; //output texture resolution
+
             public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
+
             public bool usePriors;
             public bool onlyAligned;
-            public bool writeDebug = false;
+
+            public bool writeDebug;
             public string localDebugOutputPath;
+
+            public int outputResolution;
             public double quality; //0 < quality <= 1 (best, slowest)
             public ObsSelectionStrategy obsSelectionStrategy;  //the approach used to pick the best source data
-            public IDictionary<string, ConvexHull> obsToHull = null; //observation name -> hull, computed if null
-            public Action<string> info = null;
-            public Action<string> verbose = null;
-            public Action<string> warn = null;
-            public Action<string> error = null;
+
+            public Vector3 skyDirInMesh; //for checking orbital occlusion
+            public Matrix meshToOrbital;
+
+            public bool quiet;
+        }
+
+        public class Stats
+        {
+            public int BackprojectedSurfacePixels;
+            public int BackprojectedOrbitalPixels;
+            public int BackprojectMissingPixels;
+            public int NumFallbacks;
         }
 
         /// <summary>
         /// high level api with database helpers
         /// this is for when you want to just call with all the observations you have and see what lands on the mesh
+        /// performs either or both surface and orbital backproject
+        /// depending on whether observations contains rover images and/or orbital imge
+        /// returned dictionary will contain at most opts.outputResolution^2 entries
+        /// it will have no entry for a texel in the atlas gutter (i.e. not in the used UV space of the mesh)
+        /// the entry will have a null observation for non-gutter texels that failed to backproject
         /// </summary>
-        static public IDictionary<Pixel, ObsPixel> BackprojectRoverObservations(BackprojectOptions opts,
-                                                                                List<PixelPoint> missingPixels = null)
+        static public IDictionary<Pixel, ObsPixel>
+            BackprojectObservations(Options opts, IEnumerable<Observation> observations, out Stats stats)
         {
-            var info = opts.info ?? (msg => { });
-            var verbose = opts.verbose ?? (msg => { });
-            var warn = opts.warn ?? (msg => { });
-            var error = opts.error ?? (msg => { });
+            stats = new Stats();
+#if NO_PARALLEL_RAYCASTS
+            var results = new Dictionary<Pixel, ObsPixel>();
+#else
+            var results = new ConcurrentDictionary<Pixel, ObsPixel>();
+#endif
 
-            var imageObservations = opts.observations
+            Action<string> info = msg => { if (!opts.quiet) opts.pipeline.LogInfo(msg); };
+            Action<string> verbose = msg => { if (!opts.quiet) opts.pipeline.LogVerbose(msg); };
+            Action<string> warn = msg => opts.pipeline.LogWarn(msg);
+
+            var surfaceImages = observations
+                .Where(obs => obs is RoverObservation)
+                .Cast<RoverObservation>()
                 .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
-            info("building input mesh data structures");
-            ConvexHull meshHull = new ConvexHull(opts.mesh);
-            MeshOperator meshOp = new MeshOperator(opts.mesh);
-            SceneCaster debugTileOcclusion = null;
-            if (opts.writeDebug)
-            {
-                debugTileOcclusion = new SceneCaster();
-                debugTileOcclusion.AddMesh(opts.mesh, null, Matrix.Identity);
-                debugTileOcclusion.Build();
-            }
+            var orbitalImage = observations.Where(obs => obs.IsOrbitalImage).FirstOrDefault();
 
-            info(string.Format("collecting sample points from mesh to {0}x{0} destination texture", opts.resolution));
-            List<PixelPoint> samplePoints = meshOp.SampleUVSpace(opts.resolution, opts.resolution);
+            int resolution = opts.outputResolution;
+            info(string.Format("collecting sample points from mesh to {0}x{0} destination texture", resolution));
+            List<PixelPoint> samplePoints = opts.meshOp.SampleUVSpace(resolution, resolution);
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
 
-            if (imageObservations.Count() == 0)
+            if (surfaceImages.Count() == 0 && orbitalImage == null)
             {
                 warn("no image observations found");
-                if (missingPixels != null)
+                foreach (var sample in samplePoints)
                 {
-                    missingPixels.AddRange(samplePoints);
+                    results[SubpixelToPixel(sample.Pixel)] = new ObsPixel();
+                    return results;
                 }
-                return new Dictionary<Pixel, ObsPixel>();
-            }
-
-            //generate frustum hulls
-            var obsToHull = opts.obsToHull;
-            if (obsToHull == null)
-            {
-                obsToHull = BuildConvexHulls(opts.pipeline, opts.frameCache, opts.meshFrame, opts.usePriors,
-                                             opts.onlyAligned, imageObservations);
             }
 
             //find the reduced set of observations that intersect the desired mesh
-            info(string.Format("testing {0} image observations for intersection", imageObservations.Count()));
-            var intersectingObservations = new List<RoverObservation>();
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            var intersectingObservations = surfaceImages;
+            if (opts.meshHull != null)
             {
-                if (obsToHull.ContainsKey(obs.Name) && meshHull.Intersects(obsToHull[obs.Name]))
+                info($"testing {surfaceImages.Count} surface image observations for intersection with mesh hull");
+                intersectingObservations = new List<RoverObservation>();
+                CoreLimitedParallel.ForEach(surfaceImages, obs =>
                 {
-                    lock (intersectingObservations)
+                    if (!opts.obsToHull.ContainsKey(obs.Name))
                     {
-                        intersectingObservations.Add(obs);
+                        warn($"missing hull for observation {obs.Name}");
+                        return;
                     }
-
-                    if (opts.writeDebug)
+                    if (opts.meshHull.Intersects(opts.obsToHull[obs.Name]))
                     {
-                        obsToHull[obs.Name].Mesh.Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obs.Name +
-                                                                           "_intersectingHull.ply"));
+                        lock (intersectingObservations)
+                        {
+                            intersectingObservations.Add(obs);
+                        }
+                        if (opts.writeDebug)
+                        {
+                            opts.obsToHull[obs.Name].Mesh
+                            .Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obs.Name + "_intersectingHull.ply"));
+                        }
                     }
-                }
-            });
+                });
+            }
+            else
+            {
+                warn("no mesh hull supplied, proceeding with all mesh observations");
+            }
 
             info(string.Format("{0}/{1} image observations intersect mesh",
-                               intersectingObservations.Count, imageObservations.Count));
+                               intersectingObservations.Count, surfaceImages.Count));
 
-            if (intersectingObservations.Count() == 0)
+            if (intersectingObservations.Count() == 0 && orbitalImage == null)
             {
-                if (missingPixels != null)
+                warn("no intersecting observations found");
+                foreach (var sample in samplePoints)
                 {
-                    missingPixels.AddRange(samplePoints);
+                    results[SubpixelToPixel(sample.Pixel)] = new ObsPixel();
+                    return results;
                 }
-                else
-                {
-                    warn("no intersecting observations found");
-                }
-                return new Dictionary<Pixel, ObsPixel>();
             }
 
             List<Context> intersectingContexts =
-                BuildContexts(obsToHull, intersectingObservations, opts.mission, opts.frameCache, opts.observationCache,
-                              opts.meshFrame, opts.usePriors, opts.onlyAligned, warn);
+                BuildContexts(opts.obsToHull, intersectingObservations, opts.mission, opts.frameCache,
+                              opts.observationCache, opts.meshFrame, opts.usePriors, opts.onlyAligned, warn);
 
             if (opts.writeDebug)
             {
                 info("building debug coverage images");
+                //opts.sceneOcclusion may be built for a full scene mesh
+                //of which opts.mesh is only a potententially small subset
+                var debugTileOcclusion = new SceneCaster();
+                debugTileOcclusion.AddMesh(opts.mesh, null, Matrix.Identity);
+                debugTileOcclusion.Build();
                 foreach (var ctx in intersectingContexts)
                 {
                     DebugWriteCoverageImage(opts, debugTileOcclusion, ctx.Obs, ctx.ObsToMesh);
                 }
             }
 
-            if (opts.obsSelectionStrategy == null)
-            {
-                info("observation selection strategy required for backproject");
-            }
-
             var masker = opts.mission.GetMasker();
 
-            var results = new Dictionary<Pixel, ObsPixel>();
-            int totalFailed = 0;
+            var failed = new List<int>();
             int numBatches = (int)Math.Ceiling(((double)samplePoints.Count) / MAX_SAMPLES_PER_BATCH);
+            if (intersectingContexts.Count == 0)
+            {
+                numBatches = 0;
+                failed = null; //will be treated as all failed below
+            }
             for (int batch = 0; batch < numBatches; batch++)
             {
                 int startIdx = batch * MAX_SAMPLES_PER_BATCH;
                 int batchSize = Math.Min(samplePoints.Count - startIdx, MAX_SAMPLES_PER_BATCH);
 
-                info($"backprojecting batch {batch + 1}/{numBatches} of " +
-                     $"{Fmt.KMG(batchSize)}/{Fmt.KMG(samplePoints.Count)} pixels");
+                if (numBatches > 1)
+                {
+                    info($"backprojecting batch {batch + 1}/{numBatches} of " +
+                         $"{Fmt.KMG(batchSize)}/{Fmt.KMG(samplePoints.Count)} pixels");
+                }
 
-                info($"getting per-pixel {opts.obsSelectionStrategy.Name} sortings " +
-                     $"of {intersectingContexts.Count} contexts for {Fmt.KMG(batchSize)} pixels");
+                verbose($"getting per-pixel {opts.obsSelectionStrategy.Name} sortings " +
+                        $"of {intersectingContexts.Count} contexts for {Fmt.KMG(batchSize)} pixels");
 
                 //find the strategy specific ranking of contexts for each pixel in batch
-                var sortedContextBySample = new ConcurrentDictionary<int, List<Context>>();
+                var sortedContexts = new ConcurrentDictionary<int, List<Context>>();
                 CoreLimitedParallel.For(startIdx, startIdx + batchSize, idx =>
                 {
-                    sortedContextBySample[idx] =
+                    sortedContexts[idx] =
                         opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts);
                 });
-                int maxCandidateDepth = sortedContextBySample.Values.Max(contexts => contexts.Count);
+                int maxContextDepth = sortedContexts.Values.Max(contexts => contexts.Count);
                 
-                info($"collected up to {maxCandidateDepth} contexts per pixel");
-                
-                info($"attempting to backproject {Fmt.KMG(batchSize)} pixels");
+                verbose($"collected up to {maxContextDepth} contexts per pixel");
+                verbose($"attempting to backproject {Fmt.KMG(batchSize)} pixels");
 
-                int candidateDepth = 0;
                 var remainingIndices = Enumerable.Range(startIdx, batchSize).ToList();
-                while (remainingIndices.Count > 0 && candidateDepth < maxCandidateDepth)
+                for (int contextDepth = 0; remainingIndices.Count > 0 && contextDepth < maxContextDepth; contextDepth++)
                 {
-                    // remove pixels who had all candidate contexts fail (or which had no candidate contexts)
-                    var failedIndices = remainingIndices
-                        .Where(idx => sortedContextBySample[idx].Count <= candidateDepth)
-                        .ToList();
-                    int nf = failedIndices.Count;
-                    totalFailed += nf;
-                    if (missingPixels != null)
+                    // remove pixels that had all contexts fail (or which had no contexts)
+                    int prevFailed = failed.Count;
+                    failed.AddRange(remainingIndices.Where(idx => sortedContexts[idx].Count <= contextDepth));
+                    if (failed.Count > prevFailed)
                     {
-                        missingPixels.AddRange(failedIndices.Select(i => samplePoints[i]).ToList());
+                        verbose($"gave up on {Fmt.KMG(failed.Count - prevFailed)} pixels with no preference " +
+                                $"{contextDepth} observation");
                     }
-                    
-                    remainingIndices = remainingIndices
-                        .Where(idx => sortedContextBySample[idx].Count > candidateDepth)
-                        .ToList();
 
+                    remainingIndices = remainingIndices.Where(idx => sortedContexts[idx].Count > contextDepth).ToList();
                     if (remainingIndices.Count == 0)
                     {
                         break;
                     }
                         
-                    //group all remaining points by their current best candidate
-                    var remainingByCurrentWinningObs = remainingIndices
-                        .GroupBy(idx => sortedContextBySample[idx].ElementAt(candidateDepth).Obs.Index);
+                    //group all remaining points by their current best context
+                    var groups = remainingIndices.GroupBy(idx => sortedContexts[idx][contextDepth].Obs.Index);
                     
                     verbose($"attempting to backproject {Fmt.KMG(remainingIndices.Count)} pixels " +
-                            $"into {remainingByCurrentWinningObs.Count()} preference {candidateDepth} observations");
+                            $"into {groups.Count()} preference {contextDepth} observations");
 
                     int no = 0, ns = 0;
-                    foreach (var group in remainingByCurrentWinningObs)
+                    foreach (var group in groups)
                     {
-                        //get the list of points with this texture as the winner
-                        var ctx = intersectingContexts.Where(c => c.Obs.Index == group.Key).First();
-                        var pointsWithCtx = group.Select(idx => samplePoints.ElementAt(idx));
-                        
-                        if (!pointsWithCtx.Any())
-                        {
-                            continue;
-                        }
-                        
-                        //backproject to see if any win
-                        Image mask =
-                            ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
-                        var succeeded =
-                            Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask,
-                                                        pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height,
-                                                        opts.sceneOcclusion);
-                        if (succeeded.Any())
+                        var succeeded = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.sceneOcclusion, masker,
+                                                              sortedContexts[group.First()][contextDepth],
+                                                              samplePoints, group, results);
+                        if (succeeded.Count > 0)
                         {
                             no++;
                             ns += succeeded.Count;
-                            
-                            //save winners
-                            foreach (var res in succeeded)
-                            {
-                                results.Add(SubpixelToPixel(res.Key), new ObsPixel(ctx.Obs, res.Value));
-                            }
-                            
-                            //remove winners from list to do
-                            remainingIndices = remainingIndices
-                                .Where(idx => !succeeded.ContainsKey(samplePoints[idx].Pixel))
-                                .ToList();
+                            remainingIndices = remainingIndices.Where(idx => !succeeded.Contains(idx)).ToList();
                         }
                     }
-
-                    verbose($"backprojected {Fmt.KMG(ns)} pixels into {no} preference {candidateDepth} observations");
-                    
-                    if (nf > 0)
-                    {
-                        verbose($"gave up on {Fmt.KMG(nf)} pixels with no preference {candidateDepth} observation");
-                    }
-                    
-                    candidateDepth++;
+                        
+                    verbose($"backprojected {Fmt.KMG(ns)} pixels into {no} priority {contextDepth} observations");
+                    stats.BackprojectedSurfacePixels += ns;
                 }
                 
-                info($"backprojected {Fmt.KMG(batchSize - remainingIndices.Count)} pixels");
+                info($"backprojected {Fmt.KMG(batchSize - remainingIndices.Count)} pixels, " +
+                     $"{Fmt.KMG(remainingIndices.Count)} failed");
                 
-                if (remainingIndices.Count > 0) //I don't think this can happen, but ok...
-                {
-                    totalFailed += remainingIndices.Count;
-                    
-                    if (missingPixels != null)
-                    {
-                        missingPixels.AddRange(remainingIndices.Select(i => samplePoints[i]).ToList());
-                    }
-                }
+                failed.AddRange(remainingIndices);
             }
-                
-            if (totalFailed > 0)
+
+            int nf = failed != null ? failed.Count : samplePoints.Count;
+            if (nf > 0)
             {
-                info($"failed to backproject {Fmt.KMG(totalFailed)} pixels");
+                info($"failed to backproject {Fmt.KMG(nf)} pixels to surface observations");
+                if (orbitalImage != null)
+                {
+                    info("backprojecting into orbital image");
+                    var indices = failed ?? Enumerable.Range(0, samplePoints.Count);
+                    var succeeded = BackprojectOrbitalObs(orbitalImage, opts.sceneOcclusion, samplePoints,
+                                                          indices, opts.meshToOrbital, opts.skyDirInMesh, results);
+                    stats.BackprojectedOrbitalPixels = succeeded.Count;
+                    foreach (var idx in indices.Where(idx => !succeeded.Contains(idx)))
+                    {
+                        results[SubpixelToPixel(samplePoints[idx].Pixel)] = new ObsPixel();
+                        stats.BackprojectMissingPixels++;
+                    }
+                }
+                else
+                {
+                    info("no orbital image");
+                    for (int i = 0; i < nf; i++)
+                    {
+                        results[SubpixelToPixel(samplePoints[failed != null ? failed[i] : i].Pixel)] = new ObsPixel();
+                        stats.BackprojectMissingPixels++;
+                    }
+                }
             }
-
+            
             if (opts.writeDebug)
             {
-                var winningObs = results.Select(p => p.Value.Obs.Name).Distinct();
+                var winningObs = results
+                    .Where(pair => pair.Value.Obs is RoverObservation)
+                    .Select(pair => pair.Value.Obs.Name)
+                    .Distinct();
                 foreach (var obsName in winningObs)
                 {
-                    obsToHull[obsName].Mesh.Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
+                    opts.obsToHull[obsName].Mesh
+                        .Save(PathHelper.EnsureDir(opts.localDebugOutputPath, obsName + "_winninghull.ply"));
                 }
             }
 
             return results;
         }
 
+        static public IDictionary<Pixel, ObsPixel>
+            BackprojectObservations(Options opts, IEnumerable<Observation> observations)
+        {
+            return BackprojectObservations(opts, observations, out Stats stats);
+        }
+
         public static List<Context> BuildContexts(IDictionary<string, ConvexHull> obsToHull,
                                                   List<RoverObservation> observations, MissionSpecific mission,
                                                   FrameCache frameCache, ObservationCache observationCache,
                                                   string meshFrame, bool usePriors, bool onlyAligned,
-                                                  Action<string> warn)
+                                                  Action<string> warn = null)
         {
+            warn = warn ?? (msg => {});
             var contexts = new List<Context>();
             var comparator = mission.GetRoverObservationComparator();
             foreach (var obs in observations)
@@ -595,10 +658,14 @@ namespace OPS.Pipeline
                 var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, usePriors, onlyAligned);
                 if (obsToMesh == null)
                 {
-                    warn(string.Format("failed to get transform for observation {0}", obs.Name));
+                    warn($"failed to get transform for observation {obs.Name}");
                     continue;
                 }
-
+                if (!obsToHull.ContainsKey(obs.Name))
+                {
+                    warn($"no hull for observation {obs.Name}");
+                    continue;
+                }
                 var off = observationCache
                     .GetAllObservationsForFrame(frameCache.GetFrame(obs.FrameName))
                     .Where(o => o is RoverObservation)
@@ -608,15 +675,13 @@ namespace OPS.Pipeline
                                                RoverProductType.RoverMask)
                     .Where(o => o.IsLinear == obs.IsLinear)
                     .FirstOrDefault();
-
-                contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh));
+                contexts.Add(new Context(obs, maskObs, obsToHull[obs.Name], obsToMesh.Mean));
             }
-
             return contexts;
         }
 
-        private static void DebugWriteCoverageImage(BackprojectOptions opts, SceneCaster debugTileOcclusion,
-                                                    Observation obs, Matrix obsToMesh)
+        private static void DebugWriteCoverageImage(Options opts, SceneCaster debugTileOcclusion, Observation obs,
+                                                    Matrix obsToMesh)
         {
             Image srcImg = opts.pipeline.LoadImage(obs.Url);
 
@@ -633,7 +698,8 @@ namespace OPS.Pipeline
                     Vector3? ptMesh = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), debugTileOcclusion);
                     if (ptMesh.HasValue)
                     {
-                        Vector3? ptScene = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow), opts.sceneOcclusion);
+                        Vector3? ptScene = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow),
+                                                       opts.sceneOcclusion);
                         if (ptScene.HasValue)
                         {
                             //check to tell if the points are likely the same
@@ -650,35 +716,38 @@ namespace OPS.Pipeline
             obsCoverage.Save<byte>(PathHelper.EnsureDir(opts.localDebugOutputPath, obs.Name + "_coverage.png"));
         }
 
-        //lowest level function that takes a set of points to backproject
-        //and returns a dictionary of key:destination image pixel, value:source observation pixel
-        static public IDictionary<Vector2, Vector2>
-        CoreBackproject(Matrix obsToMesh, ConvexHull obsHullInMesh, CameraModel camera, Image mask,
-                        List<PixelPoint> samplePoints, int obsWidth, int obsHeight, SceneCaster occlusion)
+        //lowest level function that takes a set of PixelPoints to backproject
+        //and attempts to backproject them into an observation image context
+        //returns set of winners
+        private static HashSet<int>
+            BackprojectSurfaceObs(PipelineCore pipeline, Project project, SceneCaster sc, RoverMasker masker,
+                                  Context ctx, List<PixelPoint> samplePoints, IEnumerable<int> indices,
+                                  IDictionary<Pixel, ObsPixel> results)
         {
-            ConcurrentDictionary<Vector2, Vector2> backprojectedPoints = new ConcurrentDictionary<Vector2, Vector2>();
-            Matrix meshToObs = Matrix.Invert(obsToMesh);
+            Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
 
 #if NO_PARALLEL_RAYCASTS
+            var winners = new HashSet<int>();
             Serial.
 #else
+            var winners = new ConcurrentBag<int>();
             CoreLimitedParallel.
 #endif
-            ForEach(samplePoints, pixelPoint =>
+            ForEach(indices, index =>
             {
+                var pixelPoint = samplePoints[index];
 
                 // validate surface point is in the frustum to avoid camera model issues with offscreen points
                 Vector3 meshPos = pixelPoint.Point;
-                if (obsHullInMesh.Contains(meshPos))
+                if (ctx.FrustumHull.Contains(meshPos))
                 {
                     //project into observation
-                    Vector3 obsPos = Vector3.Transform(meshPos, meshToObs);
-                    Vector2 obsPixel = camera.Project(obsPos, out double range);
+                    Vector3 obsPos = Vector3.Transform(meshPos, ctx.MeshToObs);
+                    Vector2 obsPixel = ctx.CameraModel.Project(obsPos, out double range);
 
                     //sanity check: actually needed for CAVHORE where convex hull is overly conservative
                     if (range <= 0 ||
-                        (int)obsPixel.X < 0 || (int)obsPixel.X >= obsWidth ||
-                        (int)obsPixel.Y < 0 || (int)obsPixel.Y >= obsHeight)
+                        obsPixel.X < 0 || obsPixel.X >= ctx.Obs.Width || obsPixel.Y < 0 || obsPixel.Y >= ctx.Obs.Height)
                     {
                         return;
                     }
@@ -686,28 +755,66 @@ namespace OPS.Pipeline
                     //test if rover masked or missing data
                     //any neighbor pixels that are set to zero will cause the bilinear sample to be less than 1
                     //mask: 0 means bad, 1 means good (opposite of Image.Mask)
-                    if (mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 1)
+                    if (mask == null || mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 1)
                     {
                         //raycast the scene to test if the desired position is occluded by terrain
-                        if (!IsOccluded(camera, obsPixel, meshPos, occlusion, range, obsToMesh))
+                        if (!IsOccluded(ctx.CameraModel, obsPixel, meshPos, sc, range, ctx.ObsToMesh))
                         {
-                            if (!backprojectedPoints.TryAdd(pixelPoint.Pixel, obsPixel))
-                            {
-                                throw new InvalidOperationException("multiple writes to same output pixel");
-                            }
+                            results[SubpixelToPixel(pixelPoint.Pixel)] = new ObsPixel(ctx.Obs, obsPixel);
+                            winners.Add(index);
                         }
                     }
                 }
             });
+#if NO_PARALLEL_RAYCASTS
+            return winners;
+#else
+            var tmp = new HashSet<int>();
+            tmp.UnionWith(winners);
+            return tmp;
+#endif
+        }
 
-            return backprojectedPoints;
+        private static HashSet<int> BackprojectOrbitalObs(Observation orbitalObs, SceneCaster sc,
+                                                          List<PixelPoint> samplePoints, IEnumerable<int> indices,
+                                                          Matrix meshToOrbital, Vector3 skyDirInMesh,
+                                                          IDictionary<Pixel, ObsPixel> results)
+        {
+#if NO_PARALLEL_RAYCASTS
+            var winners = new HashSet<int>();
+            Serial.
+#else
+            var winners = new ConcurrentBag<int>();
+            CoreLimitedParallel.
+#endif
+            ForEach(indices, index =>
+            {
+                var sample = samplePoints[index];
+                var rayMeshToSky = new Ray(sample.Point, skyDirInMesh);
+                if (sc.RaycastDistance(rayMeshToSky, RAYCAST_NEAR_METERS) == null)
+                {
+                    var srcPx = orbitalObs.CameraModel.Project(Vector3.Transform(sample.Point, meshToOrbital));
+                    if (srcPx.X >= 0 && srcPx.X < orbitalObs.Width && srcPx.Y >= 0 && srcPx.Y < orbitalObs.Height)
+                    {
+                        results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(orbitalObs, srcPx);
+                        winners.Add(index);
+                    }
+                }
+            });
+#if NO_PARALLEL_RAYCASTS
+            return winners;
+#else
+            var tmp = new HashSet<int>();
+            tmp.UnionWith(winners);
+            return tmp;
+#endif
         }
 
         /// <summary>
         /// helper function to test if there is another part of the mesh between the camera and the test point
         /// </summary>
         public static bool IsOccluded(CameraModel camera, Vector2 pixel, Vector3 meshPos, SceneCaster sc,
-                                       double rangeMeshToImage, Matrix obsToMesh)
+                                      double rangeMeshToImage, Matrix obsToMesh)
         {
             Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
             Ray rayMeshToCam = new Ray(meshPos, -rayCamToMesh.Direction);
@@ -716,13 +823,13 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            double? dist = sc.RaycastDistance(rayMeshToCam, RaycastNearMeters);
+            double? dist = sc.RaycastDistance(rayMeshToCam, RAYCAST_NEAR_METERS);
 
             //if hit something else before camera, occluded
             return (dist != null) && (dist < rangeMeshToImage);
         }
 
-        protected static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
+        private static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
         {
             //get ray from camera through pixel associated with meshPos
             Ray rayCamToMeshInObsFrame = camera.Unproject(pixel);
@@ -742,10 +849,10 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            return sc.RaycastPosition(rayCamToMesh, RaycastNearMeters);
+            return sc.RaycastPosition(rayCamToMesh, RAYCAST_NEAR_METERS);
         }
      
-        static public IDictionary<string, ConvexHull> //indexed by observation name
+        public static IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
                              bool onlyAligned, IEnumerable<RoverObservation> imageObservations)
         {
@@ -776,7 +883,7 @@ namespace OPS.Pipeline
         }
 
         //helper fucntion to convert from subpixel coordinates to integer pixel texture addresses
-        static protected Pixel SubpixelToPixel(Vector2 subPixel)
+        private static Pixel SubpixelToPixel(Vector2 subPixel)
         {
             return new Pixel((int)subPixel.Y, (int)subPixel.X);
         }

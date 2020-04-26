@@ -81,11 +81,7 @@ namespace OPS.Landform
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
                     RunPhase("build acceleration datastructures", BuildMeshOperator);
                     RunPhase("initialize backproject strategy", InitBackprojectStrategy);
-                    RunPhase("backproject observations", BackprojectRoverObservations);
-                    if (!options.NoOrbital)
-                    {
-                        RunPhase("backproject orbital", BackprojectOrbital);
-                    }
+                    RunPhase("backproject observations", BackprojectObservations);
                     if (!options.NoIndex)
                     {
                         RunPhase("generate backproject index", BuildBackprojectIndex);

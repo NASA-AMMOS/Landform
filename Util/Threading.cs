@@ -40,9 +40,9 @@ namespace OPS.Util
             }
         }
 
-        public static void For(int startInclusive, int endExclusive, Action<int> action)
+        public static void For(int fromInclusive, int toExclusive, Action<int> action)
         {            
-            for(int i = startInclusive; i < endExclusive; i++ )
+            for(int i = fromInclusive; i < toExclusive; i++ )
             {
                 action(i);
             }
@@ -109,16 +109,18 @@ namespace OPS.Util
             Parallel.ForEach<T>(list, options, action);
         }
 
-        public static void For(int start, int end, Action<int> action)
+        public static void For(int fromInclusive, int toExclusive, Action<int> action)
         {            
-            Parallel.For(start, end, new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, action);
+            Parallel.For(fromInclusive, toExclusive,
+                         new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, action);
         }
 
         //parallel for with thread local data
-        public static void For<TLocal>(int start, int end, Func<TLocal> localInit, Func<int,TLocal,TLocal> action,
-                                       Action<TLocal> localFinally)
+        public static void For<TLocal>(int fromInclusive, int toExclusive, Func<TLocal> localInit,
+                                       Func<int,TLocal,TLocal> action, Action<TLocal> localFinally)
         {            
-            Parallel.For(start, end, new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, localInit,
+            Parallel.For(fromInclusive, toExclusive,
+                         new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, localInit,
                          (i, opts, local) => action(i, local), localFinally);
         }
     }

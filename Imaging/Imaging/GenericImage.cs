@@ -198,6 +198,14 @@ namespace OPS.Imaging
             }
         }
 
+        public void FillMask(bool maskValue)
+        {
+            for (int i = 0; i < mask.Length; i++)
+            {
+                mask[i] = maskValue;
+            }
+        }
+
         /// <summary>
         /// Creates a mask and maskes out all pixels with the matching per-band values
         /// </summary>

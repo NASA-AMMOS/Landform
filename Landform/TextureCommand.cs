@@ -63,8 +63,11 @@ namespace OPS.Landform
         [Option(HelpText = "Redo observation image masks", Default = false)]
         public bool RedoObservationMasks { get; set; }
 
-        [Option(HelpText = "Number of inpaint pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
-        public int BackprojectInpaintPixels { get; set; }
+        [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
+        public int BackprojectInpaintMissing { get; set; }
+
+        [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = -1)]
+        public int BackprojectInpaintGutter { get; set; }
 
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
@@ -72,8 +75,6 @@ namespace OPS.Landform
 
     public class TextureCommand : GeometryCommand
     {
-        public readonly float[] MISSING_COLOR = new float[] { 0.5f, 0.5f, 0.5f };
-
         protected TextureCommandOptions tcopts;
 
         protected int resolution;
@@ -84,7 +85,6 @@ namespace OPS.Landform
 
         protected ObsSelectionStrategy backprojectStrategy;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
-        protected List<PixelPoint> backprojectMissingPixels = new List<PixelPoint>();
         protected string backprojectDebugDir;
         protected Image backprojectIndex;
 
@@ -594,74 +594,74 @@ namespace OPS.Landform
             backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
         }
 
-        protected void BackprojectRoverObservations()
+        protected void BackprojectObservations()
         {
-            pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
-
-            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels, quiet: false);
-
-            pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
-                             Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
+            backprojectResults = BackprojectObservations(mesh);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels,
-                                         string debugSubdir = "", bool quiet = true)
+            BackprojectObservations(Mesh mesh, string debugSubdir = "", bool quiet = false)
         {
             if (backprojectStrategy == null)
             {
                 throw new Exception("must initialize backproject strategy before backprojecting observations");
             }
-            var opts = new Backproject.BackprojectOptions()
+
+            var opts = new Backproject.Options()
             {
                 pipeline = pipeline,
+
                 project = project,
                 mission = mission,
+
                 frameCache = frameCache,
                 observationCache = observationCache,
-                observations = roverImages,
+
+                obsToHull = obsToHull,
+
                 mesh = mesh,
+                meshHull = new ConvexHull(mesh),
+                meshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true),
                 meshFrame = meshFrame,
-                resolution = resolution,
+
                 sceneOcclusion = sceneCaster,
+
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
-                quality = tcopts.BackprojectQuality,
+
                 writeDebug = tcopts.WriteBackprojectDebug,
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
+
+                outputResolution = resolution,
+                quality = tcopts.BackprojectQuality,
                 obsSelectionStrategy = backprojectStrategy,
-                obsToHull = obsToHull,
-                info = msg => { if (!quiet) pipeline.LogInfo(msg); },
-                verbose = msg => { if (!quiet) pipeline.LogVerbose(msg); },
-                warn = msg => pipeline.LogWarn(msg),
-                error = msg => pipeline.LogError(msg)
+
+                quiet = quiet
             };
-            return Backproject.BackprojectRoverObservations(opts, missingPixels);
-        }
 
-        protected void BackprojectOrbital(List<PixelPoint> missingPixels,
-                                          IDictionary<Pixel, Backproject.ObsPixel> backprojectResults)
-        {
             if (!tcopts.NoOrbital)
             {
-                var obs = indexedImages[Observation.ORBITAL_IMAGE_INDEX];
                 var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-                var meshToOrbital = meshToRoot * Matrix.Invert(orbitalTextureToRoot);
-                Backproject.BackprojectOrbital(obs, meshToOrbital, missingPixels, backprojectResults);
+                opts.meshToOrbital = meshToRoot * Matrix.Invert(orbitalTextureToRoot);
+                mission.GetLocalLevelBasis(out Vector3 north, out Vector3 east, out Vector3 nadir);
+                opts.skyDirInMesh = -nadir;
             }
-        }
 
-        protected void BackprojectOrbital()
-        {
-            if (!tcopts.NoOrbital)
+            if (!quiet)
             {
-                pipeline.LogInfo("backprojecting {0} pixels to orbital", Fmt.KMG(backprojectMissingPixels.Count));
-                int countWas = backprojectResults.Count;
-                BackprojectOrbital(backprojectMissingPixels, backprojectResults);
-                int numSuccessful = backprojectResults.Count - countWas;
-                pipeline.LogInfo("backprojected {0} pixels to orbital ({1} failed)",
-                                 Fmt.KMG(numSuccessful), Fmt.KMG(backprojectMissingPixels.Count - numSuccessful));
+                pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
             }
+
+            var results = Backproject.BackprojectObservations(opts, imageObservations, out Backproject.Stats stats);
+
+            if (!quiet)
+            {
+                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed",
+                                 Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels),
+                                 Fmt.KMG(stats.BackprojectMissingPixels));
+            }
+
+            return results;
         }
 
         protected void BuildBackprojectIndex()
@@ -713,20 +713,22 @@ namespace OPS.Landform
                 var indexGuid = sceneMesh.BackprojectIndexGuid;
                 backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
             }
-            backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages);
+            backprojectResults =
+                Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages, msg => pipeline.LogWarn(msg));
         }
 
         protected Image BuildBackprojectTexture(TextureVariant textureVariant)
         {
             pipeline.LogInfo("creating {0}x{0} {1} backproject texture from {2} backproject results, inpaint {3}",
                              resolution, textureVariant, Fmt.KMG(backprojectResults.Count),
-                             tcopts.BackprojectInpaintPixels);
+                             tcopts.BackprojectInpaintMissing);
             Image texture = new Image(3, resolution, resolution);
-            texture.Fill(MISSING_COLOR);
-            var stats = Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant,
-                                                      tcopts.BackprojectInpaintPixels, orbitalTexture: orbitalTexture);
-            pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} pixels from orbital",
-                             Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels));
+            var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, texture, textureVariant,
+                                                      tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
+                                                      orbitalTexture: orbitalTexture);
+            pipeline.LogInfo("filled {0} pixels from surface observations, {1} from orbital, {2} failed",
+                             Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels),
+                             Fmt.KMG(stats.BackprojectMissingPixels));
             if (stats.NumFallbacks > 0)
             {
                 pipeline.LogWarn("falling back to {0} texture on {1} observations missing {2} texture",

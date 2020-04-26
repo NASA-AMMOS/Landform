@@ -471,7 +471,7 @@ namespace OPS.Landform
                 BuildSceneCaster();
                 BuildMeshOperator();
                 InitBackprojectStrategy();
-                BackprojectRoverObservations();
+                BackprojectObservations();
                 BuildBackprojectIndex();
             }
 
@@ -519,7 +519,7 @@ namespace OPS.Landform
 
                     index[0, r, c] = obsIndex;
 
-                    var obs = obsIndex >= Observation.MIN_INDEX ? indexedImages[obsIndex] : null;
+                    var obs = indexedImages.ContainsKey(obsIndex) ? indexedImages[obsIndex] : null;
 
                     if (obs != null && obs.IsOrbitalDEM)
                     {
@@ -967,11 +967,12 @@ namespace OPS.Landform
                 string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);
-                var results = Backproject.BuildResultsFromIndex(index, indexedImages);
+                var results = Backproject.BuildResultsFromIndex(index, indexedImages, msg => pipeline.LogWarn(msg));
                 var texture = new Image(3, index.Width, index.Height);
-                var stats = Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
-                                                          options.BackprojectInpaintPixels, fallbackToOriginal: true,
-                                                          orbitalTexture: orbitalTexture);
+                var stats = Backproject.FillOutputTexture(pipeline, project, results, texture, TextureVariant.Blended,
+                                                          options.BackprojectInpaintMissing,
+                                                          options.BackprojectInpaintGutter,
+                                                          fallbackToOriginal: true, orbitalTexture: orbitalTexture);
                 Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
                 Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 TemporaryFile.GetAndDelete(tileList.ImageExt, tmpFile => {
