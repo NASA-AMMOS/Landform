@@ -170,6 +170,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
         public int TextureResolution { get; set; }
+
+        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = 0)]
+        public int MaxTextureCharts { get; set; }
+
+        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = 0.1)]
+        public double MaxTextureStretch { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -1068,7 +1074,8 @@ namespace OPS.Landform
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
             pipeline.LogWarn("UVAtlas may not work well on large meshes");
 
-            mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution);
+            mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution,
+                                 options.MaxTextureCharts, (float)options.MaxTextureStretch);
 
             if (mesh == null)
             {
