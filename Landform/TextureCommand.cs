@@ -306,6 +306,11 @@ namespace OPS.Landform
             {
                 if (!tcopts.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
                 {
+                    if (tcopts.WriteDebug)
+                    {
+                        SaveDebugWedgeImage(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image,
+                                            obs, "_blurred");
+                    }
                     Interlocked.Increment(ref nc);
                     return;
                 }
@@ -717,13 +722,14 @@ namespace OPS.Landform
                 Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages, msg => pipeline.LogWarn(msg));
         }
 
-        protected Image BuildBackprojectTexture(TextureVariant textureVariant)
+        protected Image BuildBackprojectTexture(TextureVariant srcTextureVariant,
+                                                TextureVariant? dstTextureVariant = null)
         {
             pipeline.LogInfo("creating {0}x{0} {1} backproject texture from {2} backproject results, inpaint {3}",
-                             resolution, textureVariant, Fmt.KMG(backprojectResults.Count),
+                             resolution, srcTextureVariant, Fmt.KMG(backprojectResults.Count),
                              tcopts.BackprojectInpaintMissing);
             Image texture = new Image(3, resolution, resolution);
-            var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, texture, textureVariant,
+            var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, texture, srcTextureVariant,
                                                       tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
                                                       orbitalTexture: orbitalTexture);
             pipeline.LogInfo("filled {0} pixels from surface observations, {1} from orbital, {2} failed",
@@ -732,27 +738,32 @@ namespace OPS.Landform
             if (stats.NumFallbacks > 0)
             {
                 pipeline.LogWarn("falling back to {0} texture on {1} observations missing {2} texture",
-                                 TextureVariant.Original, stats.NumFallbacks, textureVariant);
+                                 TextureVariant.Original, stats.NumFallbacks, srcTextureVariant);
+            }
+
+            if (!dstTextureVariant.HasValue)
+            {
+                dstTextureVariant = srcTextureVariant;
             }
 
             if (!tcopts.NoSave)
             {
-                pipeline.LogInfo("saving backproject texture");
+                pipeline.LogInfo("saving {0} backproject texture", dstTextureVariant.Value);
                 var texProd = new PngDataProduct(texture);
                 pipeline.SaveDataProduct(project, texProd);
-                switch (textureVariant)
+                switch (dstTextureVariant.Value)
                 {
                     case TextureVariant.Original: sceneMesh.TextureGuid = texProd.Guid; break;
                     case TextureVariant.Blurred: sceneMesh.BlurredTextureGuid = texProd.Guid; break;
                     case TextureVariant.Blended: sceneMesh.BlendedTextureGuid = texProd.Guid; break;
-                    default: throw new Exception("unknown texture variant " + textureVariant);
+                    default: throw new Exception("unknown texture variant " + dstTextureVariant.Value);
                 }
                 sceneMesh.Save(pipeline);
             }
             
             if (tcopts.WriteDebug)
             {
-                SaveBackprojectTextureDebug(texture, textureVariant);
+                SaveBackprojectTextureDebug(texture, dstTextureVariant.Value);
             }
 
             return texture;

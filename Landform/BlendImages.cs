@@ -151,6 +151,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Redo blended texture", Default = false)]
         public bool RedoBlendedTexture { get; set; }
+
+        [Option(HelpText = "Redo blended observation textures", Default = false)]
+        public bool RedoBlendedObservationTextures { get; set; }
     }
 
     public class BlendImages : TextureCommand
@@ -175,6 +178,7 @@ namespace OPS.Landform
                 options.RedoShrinkwrapMesh = true;
                 options.RedoBlurredTexture = true;
                 options.RedoBlendedTexture = true;
+                options.RedoBlendedObservationTextures = true;
             }
 
             options.RedoBlurredTexture |= options.RedoShrinkwrapMesh;
@@ -250,49 +254,39 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            useExistingLeaves = false;
-            useExistingIndex = false;
+            sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
 
-            var dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
-
-            if (!options.NoUseExistingLeaves)
+            if (!options.NoUseExistingLeaves && sceneMesh != null && sceneMesh.TileListGuid != Guid.Empty)
             {
-                if (dsm != null && dsm.TileListGuid != Guid.Empty)
-                {
-                    sceneMesh = dsm;
-                    useExistingLeaves = true;
-                    pipeline.LogInfo("using existing leaves");
-                    LoadTileList();
-                }
+                useExistingLeaves = true;
+                pipeline.LogInfo("using existing leaves");
+                LoadTileList();
             }
 
-            if (!useExistingLeaves)
+            if (!options.NoUseExistingIndex && sceneMesh != null && sceneMesh.BackprojectIndexGuid != Guid.Empty)
             {
-                if (!options.NoUseExistingIndex && dsm != null && dsm.BackprojectIndexGuid != Guid.Empty)
+                useExistingIndex = true;
+                pipeline.LogInfo("reprojecting existing backproject index");
+            }
+            else if (!useExistingLeaves)
+            {
+                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
+                if (sceneMesh == null)
                 {
-                    sceneMesh = dsm;
-                    useExistingIndex = true;
-                    pipeline.LogInfo("reprojecting existing backproject index");
+                    sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
+                                                 noSave: options.NoSave);
                 }
-                else
+                else if (!options.NoUseExistingIndex && sceneMesh.BackprojectIndexGuid != Guid.Empty)
                 {
-                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
-                    if (sceneMesh == null)
-                    {
-                        sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
-                                                     noSave: options.NoSave);
-                    }
-                    else if (!options.NoUseExistingIndex && sceneMesh.BackprojectIndexGuid != Guid.Empty)
-                    {
-                        useExistingIndex = true;
-                        pipeline.LogInfo("using existing shrinkwrap mesh backproject index");
-                    }
+                    useExistingIndex = true;
+                    pipeline.LogInfo("using existing shrinkwrap mesh backproject index");
                 }
             }
 
             if (options.BlendStrategy == BlendStrategy.Auto)
             {
-                options.BlendStrategy = useExistingLeaves ? BlendStrategy.Inpaint : BlendStrategy.Barycentric;
+                options.BlendStrategy =
+                    (useExistingLeaves || useExistingIndex) ? BlendStrategy.Inpaint : BlendStrategy.Barycentric;
             }
 
             switch (options.BlendStrategy)
@@ -420,35 +414,23 @@ namespace OPS.Landform
 
         private void LoadOrBuildBlurredTexture()
         {
-            if (!options.RedoBlurredTexture && sceneMesh.Variant == MeshVariant.Shrinkwrap &&
-                sceneMesh.BlurredTextureGuid != Guid.Empty && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+            if (!options.RedoBlurredTexture && sceneMesh.BlurredTextureGuid != Guid.Empty)
             {
                 pipeline.LogInfo("loading blurred texture from database");
                 var texGuid = sceneMesh.BlurredTextureGuid;
-                var indexGuid = sceneMesh.BackprojectIndexGuid;
                 blurredTexture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
-                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
-                if (blurredTexture.Width != resolution || blurredTexture.Height != resolution ||
-                    backprojectIndex.Width != resolution || backprojectIndex.Height != resolution)
+                if (blurredTexture.Width != resolution || blurredTexture.Height != resolution)
                 {
                     throw new Exception(string.Format("existing blurred texture or index not {0}x{0}, " +
                                                       "re-run with --redoblurredtexture", resolution, resolution));
                 }
                 if (options.WriteDebug)
                 {
-                    SaveBackprojectIndexDebug(backprojectIndex);
                     SaveBackprojectTextureDebug(blurredTexture, TextureVariant.Blurred);
                 }
-                return;
             }
 
-            if (useExistingLeaves)
-            {
-                pipeline.LogInfo("creating blurred texture from existing leaf backproject indices");
-                BuildBackprojectIndexFromLeaves();
-                BuildBackprojectResultsFromIndex();
-            }
-            else if (useExistingIndex)
+            if (useExistingIndex)
             {
                 var indexGuid = sceneMesh.BackprojectIndexGuid;
                 backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
@@ -461,6 +443,12 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("creating blurred texture from existing shrinkwrap backproject index");
                 }
+                BuildBackprojectResultsFromIndex();
+            }
+            else if (useExistingLeaves)
+            {
+                pipeline.LogInfo("creating blurred texture from existing leaf backproject indices");
+                BuildBackprojectIndexFromLeaves();
                 BuildBackprojectResultsFromIndex();
             }
             else
@@ -661,6 +649,16 @@ namespace OPS.Landform
                     if (obs.IsOrbital)
                     {
                         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1046
+                        Interlocked.Increment(ref nc);
+                        return;
+                    }
+
+                    if (!options.RedoBlendedObservationTextures && obs.BlendedGuid != Guid.Empty)
+                    {
+                        writeDebug(pipeline.LoadImage(obs.Url), obs, "");
+                        writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlendedGuid).Image,
+                                   obs, "_blended");
+                        Interlocked.Increment(ref nc);
                         return;
                     }
 
@@ -987,12 +985,17 @@ namespace OPS.Landform
 
         private void BuildBlendedSceneTexture()
         {
+            //careful here, in blend-after-texture and blend-after-tiling
+            //workflows the sceneMesh is the default scene mesh, not shrinkwrap
+            //its backproject index guid and original texture guid, if any, are the atlassed versions matching mesh UVs
+            //but its burred and blended texture guids are the BEV reprojected versions
             if (originalBackprojectIndex != null)
             {
                 backprojectIndex = originalBackprojectIndex;
                 BuildBackprojectResultsFromIndex();
             }
-            sceneTexture = BuildBackprojectTexture(TextureVariant.Blended);
+            sceneTexture = BuildBackprojectTexture(srcTextureVariant: TextureVariant.Blended,
+                                                   dstTextureVariant: TextureVariant.Original);
         }
     }
 }
