@@ -86,7 +86,7 @@ namespace OPS.Pipeline
                 outputImage.Fill(new float[] { Observation.GUTTER_INDEX, 0, 0 });
             }
 
-            foreach (var entry in backprojectResults)
+            CoreLimitedParallel.ForEach(backprojectResults, entry =>
             {
                 var outputPixel = entry.Key;
                 var obs = entry.Value.Obs;
@@ -96,32 +96,30 @@ namespace OPS.Pipeline
                 if (outputPixel.Col < 0 || outputPixel.Col >= outputImage.Width ||
                     outputPixel.Row < 0 || outputPixel.Row >= outputImage.Height)
                 {
-                    throw new InvalidDataException("Backproject output pixel is located outside of output image");
+                    throw new ArgumentException($"backproject output pixel ({outputPixel.Col}, {outputPixel.Row}) " +
+                                                $"outside {outputImage.Width}x{outputImage.Height} output image");
                 }
 
                 outputImage.SetBandValues(outputPixel.Row, outputPixel.Col,
                                           new float[] { sourceImageIndex, (float)sourcePixel.Y, (float)sourcePixel.X });
-            }
+            });
         }
 
-        public static Image GenerateIndexPreviewImage(Image indexImage)
+        public static Image GenerateIndexPreviewImage(Image index)
         {
-            Image previewImg = new Image(3, indexImage.Width, indexImage.Height);
-            var colorsByIndex = new Dictionary<float, float[]>();
+            Image previewImg = new Image(3, index.Width, index.Height);
+            var colorsByIndex = new ConcurrentDictionary<int, float[]>();
             colorsByIndex[Observation.GUTTER_INDEX] = new float[] { 1, 0, 0 }; //red
             colorsByIndex[Observation.NO_OBSERVATION_INDEX] = new float[] { 1, 1, 0 }; //yellow
             var rnd = NumberHelper.MakeRandomGenerator();
-            int numPixels = indexImage.Width * indexImage.Height;
-            for (int i = 0; i < numPixels; i++)
+            int numPixels = index.Width * index.Height;
+            CoreLimitedParallel.For(0, numPixels, i =>
             {
-                float index = indexImage.GetBandValues(i)[0];
-                if (!colorsByIndex.ContainsKey(index))
-                {
-                    colorsByIndex[index] = new float[] { (float)(0.5 * rnd.NextDouble()),
-                                                         (float)rnd.NextDouble(), (float)rnd.NextDouble() };
-                }
-                previewImg.SetBandValues(i, colorsByIndex[index]);
-            }
+                previewImg.SetBandValues(i, colorsByIndex.GetOrAdd((int)index.GetBandValues(i)[0], _ =>
+                                                                   new float[] { (float)(0.5 * rnd.NextDouble()),
+                                                                                 (float)rnd.NextDouble(),
+                                                                                 (float)rnd.NextDouble() }));
+            });
             return previewImg;
         }
 
@@ -133,30 +131,30 @@ namespace OPS.Pipeline
                                   Action<string> warn = null)
         {
             warn = warn ?? (msg => {});
-            var bad = new HashSet<int>();
-            var results = new Dictionary<Pixel, Backproject.ObsPixel>();
-            for (int r = 0; r < index.Height; r++)
+            var bad = new ConcurrentDictionary<int, bool>();
+            var results = new ConcurrentDictionary<Pixel, Backproject.ObsPixel>();
+            int numPixels = index.Width * index.Height;
+            CoreLimitedParallel.For(0, numPixels, i =>
             {
-                for (int c = 0; c < index.Width; c++)
+                float[] indexRowCol = index.GetBandValues(i);
+                int idx = (int)indexRowCol[0];
+                int r = i / index.Width;
+                int c = i % index.Width;
+                if (idx == Observation.NO_OBSERVATION_INDEX)
                 {
-                    int idx = (int)index[0, r, c];
-                    if (idx == Observation.NO_OBSERVATION_INDEX)
-                    {
-                        results[new Pixel(r, c)] = new ObsPixel();
-                    }
-                    else if (indexedObservations.ContainsKey(idx))
-                    {
-                        float or = index[1, r, c];
-                        float oc = index[2, r, c];
-                        results[new Pixel(r, c)] = new ObsPixel(indexedObservations[idx], new Vector2(oc, or));
-                    }
-                    else if (idx >= Observation.MIN_INDEX && !bad.Contains(idx))
-                    {
-                        bad.Add(idx);
-                        warn($"no observation with index {idx}");
-                    }
+                    results[new Pixel(r, c)] = new ObsPixel();
                 }
-            }
+                else if (indexedObservations.ContainsKey(idx))
+                {
+                    results[new Pixel(r, c)] = new ObsPixel(indexedObservations[idx],
+                                                            new Vector2(indexRowCol[2], indexRowCol[1]));
+                }
+                else if (idx >= Observation.MIN_INDEX && !bad.ContainsKey(idx))
+                {
+                    bad[idx] = true;
+                    warn($"no observation with index {idx}");
+                }
+            });
             return results;
         }
 
@@ -267,7 +265,7 @@ namespace OPS.Pipeline
                     return;
                 }
 
-                foreach (var pair in group)
+                CoreLimitedParallel.ForEach(group, pair =>
                 {
                     var dstPx = pair.Key;
                     if (dstPx.Col < 0 || dstPx.Col >= outputImage.Width ||
@@ -275,7 +273,7 @@ namespace OPS.Pipeline
                     {
                         pipeline.LogWarn("backproject output pixel ({0}, {1}) outside {2}x{3} output image",
                                          dstPx.Col, dstPx.Row, outputImage.Width, outputImage.Height);
-                        continue;
+                        return;
                     }
                     
                     var srcPx = pair.Value.Pixel;
@@ -285,7 +283,7 @@ namespace OPS.Pipeline
                                          "for observation {4}", srcPx.X, srcPx.Y, srcImg.Width, srcImg.Height,
                                          obs.Name);
                         failedPixels.Add(dstPx);
-                        continue;
+                        return;
                     }
 
                     var color = srcImg.SampleAsColor(srcPx);
@@ -300,7 +298,7 @@ namespace OPS.Pipeline
                     {
                         Interlocked.Increment(ref stats.BackprojectedSurfacePixels);
                     }
-                }
+                });
             });
 
             if (failedObservations.Count > 0)
@@ -335,18 +333,18 @@ namespace OPS.Pipeline
 
             //fill in all remaining non-gutter failed pixels with the no-observation color
             failed.UnionWith(results.Where(pair => pair.Value.Obs == null).Select(pair => pair.Key));
-            foreach (var px in failed)
+            CoreLimitedParallel.ForEach(failed, px =>
             {
                 if (px.Col < 0 || px.Col >= outputImage.Width || px.Row < 0 || px.Row >= outputImage.Height)
                 {
                     pipeline.LogWarn("backproject failed output pixel ({0}, {1}) outside {2}x{3} output image",
                                      px.Col, px.Row, outputImage.Width, outputImage.Height);
-                    continue;
+                    return;
                 }
                 outputImage.SetAsColor(NO_OBSERVATION_COLOR, px.Row, px.Col);
                 outputImage.SetMaskValue(px.Row, px.Col, false);
-                stats.BackprojectMissingPixels++;
-            }
+                Interlocked.Increment(ref stats.BackprojectMissingPixels);
+            });
 
             if (inpaintGutter != 0)
             {
