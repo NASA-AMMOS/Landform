@@ -725,16 +725,31 @@ namespace OPS.Landform
         protected Image BuildBackprojectTexture(TextureVariant srcTextureVariant,
                                                 TextureVariant? dstTextureVariant = null)
         {
-            pipeline.LogInfo("creating {0}x{0} {1} backproject texture from {2} backproject results, inpaint {3}",
-                             resolution, srcTextureVariant, Fmt.KMG(backprojectResults.Count),
+            //careful here, if we already have a full-scene backprojectIndex
+            //then the full-scene texture we're going to generate should be the same resolution
+            //in most cases the resolution should match tcopts.TextureResolution
+            //but in some workflows, such as blend-after-texture with a lower res blend, it may not
+            int width = resolution, height = resolution;
+            if (backprojectIndex != null)
+            {
+                width = backprojectIndex.Width;
+                height = backprojectIndex.Height;
+            }
+            
+            pipeline.LogInfo("creating {0}x{1} {2} backproject texture from {3} backproject results, inpaint {4}",
+                             width, height, srcTextureVariant, Fmt.KMG(backprojectResults.Count),
                              tcopts.BackprojectInpaintMissing);
-            Image texture = new Image(3, resolution, resolution);
+
+            Image texture = new Image(3, width, height);
+
             var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, texture, srcTextureVariant,
                                                       tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
                                                       orbitalTexture: orbitalTexture);
+
             pipeline.LogInfo("filled {0} pixels from surface observations, {1} from orbital, {2} failed",
                              Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels),
                              Fmt.KMG(stats.BackprojectMissingPixels));
+
             if (stats.NumFallbacks > 0)
             {
                 pipeline.LogWarn("falling back to {0} texture on {1} observations missing {2} texture",

@@ -34,33 +34,37 @@ using OPS.Pipeline.TilingServer;
 /// OnSight.  It is also acceptable to skip the blend-images stage to build a tileset without blended textures.
 ///
 /// When run after build-tiling-input, the leaf tile meshes are loaded, textured with the per-leaf backproject index
-/// images, and rasterized in a birds eye view generating a scene backproject index image typically with 4k
+/// images, and rasterized in a birds eye view generating a coherent scene backproject index image typically with 4k
 /// resolution. Each pixel in the index image refers to a pixel in one of the source observation images, i.e. its 3
-/// components are (observation index, observation pixel row, observation pixel column).
+/// components are (observation index, observation pixel row, observation pixel column).  It is coherent in the sense
+/// that adjacent pixels are also at least approximately spatially adjacent, which is not generally true for an atlased
+/// texture.  At least approximate spatial coherence is required for LimberDMG.
 ///
 /// When run after build-geometry, the scene mesh is loaded and shrinkwrapped, and the shrinkwrapped mesh is
-/// backprojected to generate the scene backproject index image, also typically with 4k resolution.
+/// backprojected to generate the coherent scene backproject index image, also typically with 4k resolution.
 ///
 /// When run after build-texture, the scene mesh is loaded and the existing backproject index is reprojected in a birds
-/// eye view in a similar approach to the method used when running after build-tiling-input.
+/// eye view in a similar approach to the method used when running after build-tiling-input to produce a coherent scene
+/// backproject index.  Note that in this case the existing backproject index may have a different resolution and it may
+/// be atlased (not spatially coherent).
 ///
-/// However the full-scene backproject index is made, a corresponding full-scene texture is then built from it but using
-/// a blurred version of the observation images to remove high frequency comonents so that LimberDMG does not attempt to
-/// blend small variations along image seams.
+/// However the coherent full-scene backproject index is made, a corresponding coherent full-scene texture is then built
+/// from it but using a blurred version of the observation images to remove high frequency comonents so that LimberDMG
+/// does not attempt to blend small variations along image seams.
 ///
-/// LimberDMG is then run on the blurred full-scene image and index.  The index tells LimberDMG where the seams between
-/// source images are, and the image gives the pixel values to be blended.
+/// LimberDMG is then run on the blurred full-scene coherent texture and index.  The index tells LimberDMG where the
+/// seams between source images are, and the texture gives the pixel values to be blended.
 ///
-/// LimberDMG returns a blended version of the full-scene image.  The pixels in this full-scene image correspond to a
+/// LimberDMG returns a blended version of the full-scene coherent texture.  The pixels in this image correspond to a
 /// sampling of pixels from orginal observation images, with sparsity and coverage that depends on how backproject
-/// selected images and also on the resolution of the full-scene image.  When compared to the original values at the
-/// same locations in the blurred observation images, these samples indicate how to adjust that region of the original
-/// observation image.
+/// selected images and also on the resolution of the full-scene coherent texture.  When compared to the original values
+/// at the same locations in the blurred observation images, these samples indicate how to adjust that region of the
+/// original observation image.
 ///
-/// We then interpolate these adjustments across the original observation images, and save those new images as a
+/// We then interpolate these adjustments across the original observation images and save those new images as a
 /// "Blended" variant of the observation images.  Several strategies to perform this interopolation are implemented
 /// using various combinations of inpaint, barycentric interpolation, and blurring.  A default strategy is
-/// automatically selected depending on whether blend-images is run before or after build-tiling-input.
+/// automatically selected depending on where in the workflow blend-images is run.
 ///
 /// If run before build-tiling-input, that stage will detect that Blended variants of (at least some) observation images
 /// are available, and use them to build the leaf tile textures.
@@ -68,11 +72,16 @@ using OPS.Pipeline.TilingServer;
 /// If run after build-tiling-input the existing leaf tile textures are directly replaced with blended versions.
 ///
 /// If run after build-texture the blended scene texture is saved to project storage and referenced from the SceneMesh
-/// database object.
+/// database object.  This is not the coherent blended scene texture, but rather a different version of the blended
+/// scene texture that is generated to match the existing scene texture resolution and UV atlas.
 ///
-/// The textured scene mesh is also optionally saved to the location given by the second positional command line
-/// parameter, which has similar semantics to the --outputmesh option in build-geometry. The blended texture is
-/// saved as its sibling.
+/// A textured scene mesh is also optionally saved to the location given by the second positional command line
+/// parameter, which has similar semantics to the --outputmesh option in build-geometry. The blended texture is saved as
+/// its sibling.  When run after build-geometry this will be the shrinkwrap mesh textured with the coherent blended
+/// scene texture.  When run after build-texture this will be the original scene mesh textured with a different version
+/// of the blended scene texture that is generated to match the existing scene texture resolution and UV atlas.  Saving
+/// the mesh is not supported when run after build-tiling-input, except in the unusual case that build-texture has also
+/// already been run.
 ///
 /// Example:
 ///
@@ -281,6 +290,11 @@ namespace OPS.Landform
                     useExistingIndex = true;
                     pipeline.LogInfo("using existing shrinkwrap mesh backproject index");
                 }
+            }
+
+            if (!string.IsNullOrEmpty(options.OutputMesh) && useExistingLeaves && !useExistingIndex)
+            {
+                throw new Exception("cannot save mesh when using existing leaves but not existing index");
             }
 
             if (options.BlendStrategy == BlendStrategy.Auto)
