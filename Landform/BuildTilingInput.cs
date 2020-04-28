@@ -316,10 +316,7 @@ namespace OPS.Landform
                         useApproximateTileSplit = !options.NoApproxTileSplit,
                         tileResolution = resolution,
                         scInMesh = sceneCaster,
-                        cameraInstances =
-                        imageObservations
-                        .Select(obs => toCameraInstance((RoverObservation)obs))
-                        .ToArray(),
+                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray()
                     };
                 }
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
