@@ -1,8 +1,10 @@
-﻿using System;
+﻿//#define ENABLE_GDAL_JPG_PNG_BMP
+
+using System;
+using System.IO;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Microsoft.Xna.Framework;
 using OPS.Imaging;
-using System.IO;
 using OPS.Test;
 
 namespace ImageTest
@@ -47,7 +49,12 @@ namespace ImageTest
             {
                 Assert.Fail();
             }
-            Image imgRead = Image.Load("load.png", new GDALSerializer(), ImageConverters.ValueRangeToNormalizedImage);
+#if ENABLE_GDAL_JPG_PNG_BMP
+            var ser = new GDALSerializer();
+#else
+            var ser = new ImageSharpSerializer();
+#endif
+            Image imgRead = Image.Load("load.png", ser, ImageConverters.ValueRangeToNormalizedImage);
             Assert.AreEqual(imgOrig.Bands, imgRead.Bands);
             Assert.AreEqual(imgOrig.Width, imgRead.Width);
             Assert.AreEqual(imgOrig.Height, imgRead.Height);

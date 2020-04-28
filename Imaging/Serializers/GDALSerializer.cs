@@ -1,16 +1,27 @@
 ﻿//#define ENABLE_GDAL_READ_MT
 //#define ENABLE_GDAL_WRITE_MT
+//#define ENABLE_GDAL_JPG_PNG_BMP
+
+//GDAL is supposed to be at least mostly threadsafe
+//however we are still using a global lock for it
+//largely because without it we get a lot of "TemporaryFile failed to delete"
+//https://github.jpl.nasa.gov/OnSight/Landform/issues/111
+//this slows down a lot of our main workflows like blending and tiling
+//so we use ImageSharp to serialize JPG, PNG, BMP, and GIF
+//it's fast and it doesn't involve any global locks which is a major factor in parallel workflows
+//we still use GDAL for tiff for extended data types, GeoTIFF, and sparse reads
+
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Threading;
-using OSGeo.GDAL;
 using System.IO;
-using OPS.MathExtensions;
+using OSGeo.GDAL;
 using log4net;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {    
@@ -47,9 +58,11 @@ namespace OPS.Imaging
                 extensionToGdalDriver = new Dictionary<string, Tuple<string, bool>>();
                 extensionToGdalDriver.Add(".tif", new Tuple<string, bool>("GTIFF", false));
                 extensionToGdalDriver.Add(".tiff", new Tuple<string, bool>("GTIFF", false));
+#if ENABLE_GDAL_JPG_PNG_BMP
                 extensionToGdalDriver.Add(".jpg", new Tuple<string, bool>("JPEG", true));
-                extensionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
                 extensionToGdalDriver.Add(".png", new Tuple<string, bool>("PNG", true));
+                extensionToGdalDriver.Add(".bmp", new Tuple<string, bool>("BMP", true));
+#endif
                 extensionToGdalDriver.Add(".jp2", new Tuple<string, bool>("JP2OpenJPEG", true));
                 extensionToGdalDriver.Add(".j2k", new Tuple<string, bool>("JP2OpenJPEG", true));
                 // Native to gdal type conversion

@@ -1,11 +1,13 @@
-﻿using System;
+﻿//#define ENABLE_GDAL_JPG_PNG_BMP
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using OPS.Util;
 using log4net;
+using OPS.Util;
 
 namespace OPS.Imaging
 {
@@ -32,14 +34,18 @@ namespace OPS.Imaging
             Image img = null;
             TemporaryFile.GetAndDelete(".png", f =>
             {
-                ProgramRunner pr = RunCruch(string.Format("-file \"{0}\" -out \"{1}\"", filename, f));
+                ProgramRunner pr = RunCrunch(string.Format("-file \"{0}\" -out \"{1}\"", filename, f));
                 if (!File.Exists(filename))
                 {
                     logger.Error(pr.OutputText);
                     logger.Error(pr.ErrorText);
                     throw new Exception("Crunch failed to read DDS");
                 }
-                GDALSerializer ser = new GDALSerializer();
+#if ENABLE_GDAL_JPG_PNG_BMP
+                var ser = new GDALSerializer();
+#else
+                var ser = new ImageSharpSerializer();
+#endif
                 img = ser.Read(f, converter, fillValue);
             });
             return img;
@@ -76,9 +82,13 @@ namespace OPS.Imaging
             
             TemporaryFile.GetAndDelete(".png", inImage =>
             {
-                GDALSerializer ser = new GDALSerializer();
+#if ENABLE_GDAL_JPG_PNG_BMP
+                var ser = new GDALSerializer();
+#else
+                var ser = new ImageSharpSerializer();
+#endif
                 ser.Write<T>(inImage, image, converter, fillValue);
-                ProgramRunner pr = RunCruch(string.Format("-file \"{0}\" -fileformat {1} -{2} -out {3}", inImage, fileFormat, encoding, filename));
+                ProgramRunner pr = RunCrunch(string.Format("-file \"{0}\" -fileformat {1} -{2} -out {3}", inImage, fileFormat, encoding, filename));
                 if (!File.Exists(filename))
                 {
                     logger.Error(pr.OutputText);
@@ -88,7 +98,7 @@ namespace OPS.Imaging
             });
         }
 
-        ProgramRunner RunCruch(string parameters)
+        ProgramRunner RunCrunch(string parameters)
         {
             string crunchExeName = "crunch.exe";     // 32 bit version
             if (IntPtr.Size == 8)
