@@ -400,8 +400,8 @@ namespace OPS.Landform
             if (!options.NoOrbital && (options.ClipSurfaceExtent <= 0 || options.ClipExtent <= 0 ||
                                        options.ClipSurfaceExtent > options.ClipExtent))
             {
-                throw new Exception(string.Format("surface clip {0} must be greater than 0 and less than outer clip {1}"
-                                                  + " to use orbital", options.ClipSurfaceExtent, options.ClipExtent));
+                throw new Exception($"surface clip {options.ClipSurfaceExtent} must be greater than 0 " +
+                                    $"and less than or equal to outer clip {options.ClipExtent} to use orbital");
             }
 
             orbitalMetersPerPixel = 1;
@@ -811,8 +811,8 @@ namespace OPS.Landform
 
             int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalMetersPerPixel);
 
-            double br = blendRadius > 0 ? blendRadius : 0;
-            int blendExtentPixels = (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalMetersPerPixel);
+            double br = Math.Min(options.ClipExtent, options.ClipSurfaceExtent + Math.Max(blendRadius, 0));
+            int blendExtentPixels = (int)Math.Ceiling(0.5 * br / orbitalMetersPerPixel);
 
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
 
@@ -822,15 +822,18 @@ namespace OPS.Landform
                 blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels, meshOriginInOrbital);
             }
 
-            pipeline.LogInfo("making {0:f3}x{0:f3}m orbital mesh at {1:f3} samples/meter",
-                             2 * orbitalExtentPixels * orbitalMetersPerPixel,
-                             orbitalSamplesPerPixel / orbitalMetersPerPixel);
+            if (orbitalExtentPixels > blendExtentPixels || blendBounds == null)
+            {
+                var orbitalBounds = orbitalDEM.GetSubrectPixels(orbitalExtentPixels, meshOriginInOrbital);
 
-            var orbitalBounds = orbitalDEM.GetSubrectPixels(orbitalExtentPixels, meshOriginInOrbital);
+                pipeline.LogInfo("making {0:f3}x{0:f3}m orbital mesh at {1:f3} samples/meter",
+                                 2 * orbitalExtentPixels * orbitalMetersPerPixel,
+                                 orbitalSamplesPerPixel / orbitalMetersPerPixel);
+                
+                orbitalMesh = makeMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds);
 
-            orbitalMesh = makeMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds);
-
-            pipeline.LogInfo("made orbital mesh with {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
+                pipeline.LogInfo("made orbital mesh with {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
+            }
 
             if (blendBounds != null)
             {
@@ -850,12 +853,17 @@ namespace OPS.Landform
                     SaveMesh(blendMesh, dbgMeshPrefix + "-preblendOrbital");
                 }
 
-                pipeline.LogInfo("made orbital blend mesh with {0} triangles, merging with orbital",
-                                 Fmt.KMG(blendMesh.Faces.Count));
+                pipeline.LogInfo("made orbital blend mesh with {0} triangles", Fmt.KMG(blendMesh.Faces.Count));
 
-                orbitalMesh.MergeWith(blendMesh);
-
-                pipeline.LogInfo("total orbital mesh size {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
+                if (orbitalMesh != null)
+                {
+                    orbitalMesh.MergeWith(blendMesh);
+                    pipeline.LogInfo("combined orbital mesh size {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
+                }
+                else
+                {
+                    orbitalMesh = blendMesh;
+                }
             }
                 
             if (options.WriteDebug)
