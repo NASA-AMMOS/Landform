@@ -293,6 +293,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("loading existing shrinkwrap mesh from database");
                 mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+                meshLOD = new List<Mesh>() { mesh };
                 writeDebug();
                 return;
             }
@@ -332,6 +333,7 @@ namespace OPS.Landform
 
             mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis,
                                    options.ShrinkwrapMiss);
+            meshLOD = new List<Mesh>() { mesh };
 
             pipeline.LogInfo("built shrinkwrap mesh with {0} faces", Fmt.KMG(mesh.Faces.Count));
 
