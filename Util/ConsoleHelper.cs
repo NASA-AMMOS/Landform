@@ -8,12 +8,16 @@ namespace OPS.Util
 {
     public class ConsoleHelper
     {
-        public static string Prompt(string prompt, string fixedValue = null, string defaultValue = null)
+        public static string Prompt(string prompt, string fixedValue = null, string defaultValue = null,
+                                    bool forceInteractive = false)
         {
             if (fixedValue != null)
             {
-                Console.WriteLine(prompt + ": " + fixedValue);
                 return fixedValue;
+            }
+            if (defaultValue != null && !forceInteractive)
+            {
+                return defaultValue;
             }
             string ret = null;
             while (string.IsNullOrEmpty(ret))
@@ -29,48 +33,48 @@ namespace OPS.Util
             return ret;
         }
 
-        public static int Prompt(string prompt, int? fixedValue, int? defaultValue)
+        public static int Prompt(string prompt, int? fixedValue, int? defaultValue, bool forceInteractive = false)
         {
             string fv = fixedValue.HasValue ? fixedValue.ToString() : null;
             string dv = defaultValue.HasValue ? defaultValue.ToString() : null;
             int? ret = null;
             while (!ret.HasValue)
             {
-                ret = StringHelper.ParseIntSafe(Prompt(prompt, fv, dv));
+                ret = StringHelper.ParseIntSafe(Prompt(prompt, fv, dv, forceInteractive));
             }
             return ret.Value;
         }
 
-        public static int Prompt(string prompt, string fixedValue, int? defaultValue)
+        public static int Prompt(string prompt, string fixedValue, int? defaultValue, bool forceInteractive = false)
         {
-            return Prompt(prompt, StringHelper.ParseIntSafe(fixedValue), defaultValue);
+            return Prompt(prompt, StringHelper.ParseIntSafe(fixedValue), defaultValue, forceInteractive);
         }
 
-        public static int Prompt(string prompt, int? fixedValue, string defaultValue)
+        public static int Prompt(string prompt, int? fixedValue, string defaultValue, bool forceInteractive = false)
         {
-            return Prompt(prompt, fixedValue, StringHelper.ParseIntSafe(defaultValue));
+            return Prompt(prompt, fixedValue, StringHelper.ParseIntSafe(defaultValue), forceInteractive);
         }
 
-        public static bool Prompt(string prompt, bool? fixedValue, bool? defaultValue)
+        public static bool Prompt(string prompt, bool? fixedValue, bool? defaultValue, bool forceInteractive = false)
         {
             string fv = fixedValue.HasValue ? fixedValue.ToString() : null;
             string dv = defaultValue.HasValue ? defaultValue.ToString() : null;
             bool? ret = null;
             while (!ret.HasValue)
             {
-                ret = StringHelper.ParseBoolSafe(Prompt(prompt, fv, dv));
+                ret = StringHelper.ParseBoolSafe(Prompt(prompt, fv, dv, forceInteractive));
             }
             return ret.Value;
         }
 
-        public static bool Prompt(string prompt, string fixedValue, bool? defaultValue)
+        public static bool Prompt(string prompt, string fixedValue, bool? defaultValue, bool forceInteractive = false)
         {
-            return Prompt(prompt, StringHelper.ParseBoolSafe(fixedValue), defaultValue);
+            return Prompt(prompt, StringHelper.ParseBoolSafe(fixedValue), defaultValue, forceInteractive);
         }
 
-        public static bool Prompt(string prompt, bool? fixedValue, string defaultValue)
+        public static bool Prompt(string prompt, bool? fixedValue, string defaultValue, bool forceInteractive = false)
         {
-            return Prompt(prompt, fixedValue, StringHelper.ParseBoolSafe(defaultValue));
+            return Prompt(prompt, fixedValue, StringHelper.ParseBoolSafe(defaultValue), forceInteractive);
         }
     }
 }

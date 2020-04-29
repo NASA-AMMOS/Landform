@@ -159,6 +159,8 @@ if [[ $# -gt 0 ]] && [[ $1 != -* ]]; then
     shift
 fi
 
+lfbucket=m20-ids-g-landform
+
 combined_manifest=true
 copy_combined_manifest=
 only_ingest=
@@ -245,7 +247,7 @@ geometrydir=$storagedir/$venue/meshing/GeometryProducts/*/best/$proj
 blenddir=$storagedir/$venue/texturing/BlendProducts/*/best/$proj
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
-cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
 stdopts="$stdopts $dbg"
 
 if [ "$dry" -o "$only_ingest" -o "$only_cleanup" ]; then log=; else mkdir -p $logdir; printf "${cmdline}\r\n" > $log; fi
@@ -343,6 +345,31 @@ if [ ! "$dry" -o "$only_cleanup" -o "$only_upload" -o "$only_ingest" ]; then
     if [ -d $outproj ]; then
         printf "moved output to ${outproj}\r\n" | tee -a $log
         mv $log $outproj
+
+        # . => out=. outsfx=
+        # ./out/foo => out=out, outsfx=/foo
+        # out/foo => out=out, outsfx=/foo
+        # out/ => out=out, outsfx=
+        out=$outdir
+        outsfx=
+        if [[ "$out" == *\/* ]]; then
+            if [[ "$out" == .\/* ]]; then out=${out#./}; fi
+            outsfx=/${out#*/}
+            outsfx=${outsfx%/}
+            out=${out%%/*}
+        fi
+
+        url=http://localhost:8000/Unity3DTilesWeb/index.html?Tileset=http://localhost:8000/..
+        url=${url}$outsfx/$proj/${proj}_tileset.json
+
+        echo "commands you could run to view tileset in Unity3DTiles:"
+        echo $landform fetch s3://$lfbucket/Unity3DTilesWeb.zip $out --raw --nosubdirs --mission M2020
+        echo powershell $scriptdir/unzip.ps1 ./$out/Unity3DTilesWeb.zip ./$out
+        echo python -m http.server 8000 --directory $out \# Python 3.7
+        echo cd $out \&\& python -m SimpleHTTPServer 8000 \# Python 2.7
+        echo start \"$url\"
+        echo start \"${url}\&TilesetOptions=zero_sse_tileset_options.json\"
+        echo "tip: run python last to avoid opening another terminal"
     fi
 fi
 

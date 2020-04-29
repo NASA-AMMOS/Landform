@@ -196,7 +196,7 @@ for f in `find ${indir} -name '*'.${meshext}`; do
     cfgfolder=$venue
 
     stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
-    cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
+    cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
     stdopts="$stdopts $dbg"
 
     # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951

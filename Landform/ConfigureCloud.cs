@@ -24,7 +24,7 @@ using OPS.Pipeline;
 /// Landform.exe configure-cloud --venue=landform-dev-test --s3url=s3://landlords-dev/landform-web
 ///   --awsregion=us-west-1 --awsprofile=default
 ///   --msliceawsprofile=mslice --msliceawsregion=us-west-1 --mslices3url=s3://red-product
-///   --workerexecutable=TilingServer.exe --maxcores=0 --randomseed=-1 --legacycompat=false
+///   --workerexecutable=TilingServer.exe
 /// </summary>
 namespace OPS.Landform
 {
@@ -34,11 +34,7 @@ namespace OPS.Landform
         //NOTE: any non-null default values for options will short circuit the Prompt() functionality
         //because it can't differentiate an option that got its value as a default
         //vs an option that was explicitly specified on the command line
-        //and the Prompt() function is designed to not take interactive input for options that are specified on cmd line
-        //among other things, it's done that way so that scripts (e.g. Web/tools/configureBackend.js)
-        //can run this subcommand non-interactively
-        //
-        //instead of specifying non-null defaults here, please note them in docs/cloud-pipeline.md
+        //instead put defaults in CloudPipelineConfig
 
         [Option(Default = null, HelpText = "S3 url")]
         public string S3Url { get; set; }
@@ -86,21 +82,24 @@ namespace OPS.Landform
         {
             CloudPipelineConfig config = new CloudPipelineConfig();
 
-            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue);
-            config.S3Url = ConsoleHelper.Prompt("S3 url", options.S3Url, config.S3Url);
-            config.AWSRegion = ConsoleHelper.Prompt("AWS region", options.AWSRegion, config.AWSRegion);
-            config.AWSProfile = ConsoleHelper.Prompt("AWS profile", options.AWSProfile, config.AWSProfile);
+            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
+            config.S3Url = ConsoleHelper.Prompt("S3 url", options.S3Url, config.S3Url, options.Interactive);
+            config.AWSRegion = ConsoleHelper.Prompt("AWS region", options.AWSRegion, config.AWSRegion,
+                                                    options.Interactive);
+            config.AWSProfile = ConsoleHelper.Prompt("AWS profile", options.AWSProfile, config.AWSProfile,
+                                                     options.Interactive);
             config.MSLICEAWSProfile = ConsoleHelper.Prompt("MSLICE AWS profile", options.MSLICEAWSProfile,
-                                                           config.MSLICEAWSProfile);
-            config.MSLICEAWSRegion = ConsoleHelper.Prompt("MSLICE AWS region", options.MSLICEAWSRegion,
-                                                          config.MSLICEAWSRegion);
-            config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url);
-            config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
-                                                   options.MaxCores, config.MaxCores);
+                                                           config.MSLICEAWSProfile, options.Interactive);
+            config.MSLICEAWSRegion = ConsoleHelper.Prompt("MSLICE AWS region",options.MSLICEAWSRegion,
+                                                          config.MSLICEAWSRegion, options.Interactive);
+            config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url,
+                                                      options.Interactive);
+            config.MaxCores =ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
+                                                   options.MaxCores, config.MaxCores, options.Interactive);
             config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
-                                                     options.RandomSeed, config.RandomSeed);
+                                                     options.RandomSeed, config.RandomSeed, options.Interactive);
             config.LegacyCompat = ConsoleHelper.Prompt("legacy compatability (read only) true/false",
-                                                       options.LegacyCompat, config.LegacyCompat);
+                                                       options.LegacyCompat, config.LegacyCompat, options.Interactive);
 
             config.Validate();
 

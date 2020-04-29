@@ -228,7 +228,6 @@
     <Compile Include="StateMachines\ProjectCache.cs" />
     <Compile Include="Texturing\Backproject.cs" />
     <Compile Include="Texturing\ObsSelectionExhaustive.cs" />
-    <Compile Include="Texturing\ObsSelectionGreedy.cs" />
     <Compile Include="Texturing\ObsSelectionSpatial.cs" />
     <Compile Include="Texturing\ObsSelectionStrategy.cs" />
     <Compile Include="Texturing\ProjectedPixelDistances.cs" />

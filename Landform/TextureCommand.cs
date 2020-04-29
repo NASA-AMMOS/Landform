@@ -548,7 +548,7 @@ namespace OPS.Landform
                 throw new Exception("must build mesh operator before initializing backproject strategy");
             }
 
-            pipeline.LogInfo("initializing backproject observation seletion strategy {0} for {1} observations",
+            pipeline.LogInfo("initializing backproject observation selection strategy {0} for {1} observations",
                              tcopts.ObsSelectionStrategy, imageObservations.Count);
 
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
@@ -557,6 +557,7 @@ namespace OPS.Landform
             {
                 backprojectStrategy.DebugOutputPath = backprojectDebugDir;
             }
+
             if (!tcopts.NoOrbital)
             {
                 backprojectStrategy.OrbitalMetersPerPixel = orbitalMetersPerPixel;
@@ -566,29 +567,27 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, tcopts.TextureResolution,
-                                           tcopts.BackprojectQuality);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
         }
 
         protected void BackprojectRoverObservations()
         {
-            if (backprojectStrategy == null)
-            {
-                InitBackprojectStrategy();
-            }
-
             pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
 
-            backprojectResults = BackprojectRoverObservations(mesh, backprojectStrategy, backprojectMissingPixels);
+            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels);
 
             pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
                              Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectRoverObservations(Mesh mesh, ObsSelectionStrategy strategy, List<PixelPoint> missingPixels,
+            BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels,
                                          string debugSubdir = "")
         {
+            if (backprojectStrategy == null)
+            {
+                throw new Exception("must initialize backproject strategy before backprojecting observations");
+            }
             bool logging = pipeline.Verbose || pipeline.Debug;
             var opts = new Backproject.BackprojectOptions()
             {
@@ -607,7 +606,7 @@ namespace OPS.Landform
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteBackprojectDebug,
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
-                obsSelectionStrategy = strategy,
+                obsSelectionStrategy = backprojectStrategy,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
