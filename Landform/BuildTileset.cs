@@ -101,7 +101,7 @@ namespace OPS.Landform
             this.options = options;
         }
 
-        public int Run()
+        public virtual int Run()
         {
             try
             {
@@ -208,7 +208,7 @@ namespace OPS.Landform
             }
         }
 
-        private void CreateTilingProject()
+        protected void CreateTilingProject()
         {
             var keepMeshes = new HashSet<string>();
             keepMeshes.UnionWith(tileList.LeafNames);

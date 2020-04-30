@@ -18,25 +18,24 @@ using OPS.Pipeline.TilingServer;
 namespace OPS.Landform
 {
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
-    public class BuildSkySphereOptions : TilingCommandOptions
+    public class BuildSkySphereOptions : BuildTilesetOptions
     {
         [Option(HelpText = "Sky sphere radius (meters)", Default = 200)]
         public double SphereRadiusMeters { get; set; }
     }
 
-    public class BuildSkySphere : BuildTilesetOptions
+    public class BuildSkySphere : BuildTileset
     {
-        public const string TILESET_DIR = "tiling/Tileset/SkySphere";
+        //public const string TILESET_DIR = "tiling/Tileset/SkySphere";
 
         private BuildSkySphereOptions options;
-        private string tilesetFolder;
 
         public BuildSkySphere(BuildSkySphereOptions options) : base(options)
         {
             this.options = options;
         }
 
-        public int Run()
+        public override int Run()
         {
             try
             {
@@ -45,14 +44,12 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
+                options.Redo = true; //triggers delete of previous tiling project results
+
                 //TODO: optimization to reduce the number of observations
                 //RunPhase("filter observations", FilterObservations);
 
-                RunPhase("create tiling project", () =>
-                {
-                    BuildTileset.CreateTilingProject(pipeline, project, tilingOpts, tileList,
-                        options, resolution, tilesetFolder, outputFolder, out tilingProject);
-                });
+                RunPhase("create tiling project", CreateTilingProject);
 
                 //TODO: -1 radius uses radius of bounding sphere of the terrain?
                 //RunPhase("build sphere tile geometry", BuildSphereTiles);
