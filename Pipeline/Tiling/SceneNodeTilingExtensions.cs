@@ -209,12 +209,7 @@ namespace OPS.Pipeline
             info("cleaning parent tile mesh");
             combinedDecimated.Clean();
 
-            info("computing parent tile geometric error and resolution");
-            NodeGeometricError geoError = node.GetOrAddComponent<NodeGeometricError>();
-            double accuracy = combinedDecimated.Bounds().MaxDimension() * 0.005; // 0.5 percent of max bounds 
-            double geometricError = combinedDecimated.HausdorffDistance(accuracy, fullClipped);
-            geoError.Error = Math.Max(geoError.Error, geometricError);
-
+            info("computing parent tile resolution");
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
 
             Image img = null;
@@ -232,12 +227,6 @@ namespace OPS.Pipeline
                 info("baking parent tile texture");
                 TextureBaker tb = new TextureBaker(pairs.ToArray());
                 img = tb.Bake(combinedDecimated, size, size, out index); //Writes index iff indexes not null
-
-                // Estimate the size of a pixel for this texture
-                // If this is greater than the geometric error use it instead
-                var ext = minimumBounds.Extent();
-                double sizePerPixel = new Vector2(ext.X, ext.Z).Length() / new Vector2(size / 2, size / 2).Length();
-                geoError.Error = Math.Max(geoError.Error, sizePerPixel);
             }
 
             if (!combinedDecimated.HasNormals)
@@ -254,11 +243,17 @@ namespace OPS.Pipeline
             // Add new mesh and image to parent
             node.AddComponent(new MeshImagePair(combinedDecimated, img, index));
 
-            // Ensure geo error is at least as large as children
-            foreach (var child in node.Children)
+            //prevent UpdateGeometricError() from using child meshes if combinedDecimated == fullClipped
+            //meaning we chose not to decimate the merged clipped child meshes
+            //in that case the geometric error is just the max of the children's errors
+            info("computing parent tile geometric error");
+            var depMeshes = new List<Mesh>(); //empty list (not null) if combinedDecimated == fullClipped
+            if (combinedDecimated != fullClipped)
             {
-                geoError.Error = Math.Max(child.GetComponent<NodeGeometricError>().Error, geoError.Error);
+                depMeshes.Add(fullClipped);
             }
+            node.UpdateGeometricError(childNodes, depMeshes, info);
+            //TODO: move constants in UpdateGeometricError() to TilingDefaults when dev/tiling-updates is merged
 
             return true;
         }
@@ -348,6 +343,126 @@ namespace OPS.Pipeline
                 }
                 curParents = nextParents;
             }           
+        }
+
+        /// <summary>
+        /// Add or recompute NodeGeometricError.
+        ///
+        /// Assumes the node's children are available and already have their errors computed.
+        ///
+        /// https://github.com/CesiumGS/3d-tiles/blob/master/3d-tiles-overview.pdf
+        /// discusses specifically what the geometric error is supposed to represent in section 5 - Geometric Error:
+        /// > Each tileset and each tile has a geometricError property that quantifies the error
+        /// > of the simplified geometry compared to the actual geometry.
+        ///
+        /// For a leaf node the error is always 0.
+        ///
+        /// For a node with no mesh of its own the error is the max of its children's errors.
+        ///
+        /// Otherwise, for a parent node we essentially compute the the Hausdorff distance between the decimated mesh,
+        /// if any, vs the child meshes.  We then add that to the maximum geometric error of any of the children.
+        /// Because none of that will account for situations where the parent geometry is good but its texture is less
+        /// good, we also estimate the effective parent mesh texture resolution in units of lineal meters per texel,
+        /// multiplied by an adjustment factor.  If that is larger than th Hausdorff distance it is used instead
+        /// (i.e. instead of the sum of the Hausdorff distance and the max child error).
+        ///
+        /// Yes, this is quite confusing.  Consider the effect in the viewer, where the maximum screenspace error
+        /// threshold is set at say 16 pixels.
+        ///
+        /// First consider the nominal  case when the tile geometric error dominates the  texture error.  The tile error
+        /// will be transformed  from meters to screen pixels depending  on the current distance from the  camera to the
+        /// tile.   This computation  is done  assuming the  tile error  is measured  in lineal  meters.  If  the actual
+        /// geometric error, say 0.05m, dominates the tile texture error and the effective conversion factor from linear
+        /// error in meters to  screen pixels (dependent on the camera FOV, screen  resolution, and distance from camera
+        /// to terrain) is greater than 320 then it will call for switching to the next finer LOD, because errors in the
+        /// currently displayed geometry can move things more than 0.05m  * 320px/m = 16 px from  where they should be.
+        ///   
+        /// Now consider the case where the tile texture error dominates, say 0.05, meaning the actual tile texture
+        /// resolution is 0.0125 lineal meters per texel if TEXTURE_ERROR_MULTIPLIER=4.  Then one lineal texel maps to
+        /// 0.0125*320 = 4 lineal pixels (16 square pixels) on screen, a relatively large amount of texture
+        /// magnification.  The next finer LOD will be triggered because of the texture magnification.
+        /// </summary>
+        public static double UpdateGeometricError(this SceneNode node,
+                                                  List<SceneNode> dependencies,
+                                                  List<Mesh> dependencyMeshes = null,
+                                                  Action<string> info = null)
+        {
+            info = info ?? (msg => {});
+            int nd = dependencies.Count;
+
+            //TODO: move these to TilingDefaults when dev/tiling-updates is merged
+            double TEXTURE_ERROR_MULTIPLIER = 4;
+            double HAUSDORFF_RELATIVE_ACCURACY = 0.005; //0.5% of mesh bounds
+
+            if (node.IsLeaf)
+            {
+                node.GetOrAddComponent<NodeGeometricError>().Error = 0;
+                info($"{node.Name} is a leaf, geometric error 0");
+                return 0;
+            }
+
+            double maxDepError = 0;
+            foreach (var dep in dependencies)
+            {
+                var depError = dep.GetComponent<NodeGeometricError>();
+                if (depError != null)
+                {
+                    maxDepError = Math.Max(depError.Error, maxDepError);
+                }
+            }
+
+            var mip = node.GetComponent<MeshImagePair>();
+            if (mip == null || mip.Mesh == null)
+            {
+                node.GetOrAddComponent<NodeGeometricError>().Error = maxDepError;
+                info($"{node.Name} empty, geometric error {maxDepError:F3} (max of {nd} dependencies)");
+                return maxDepError;
+            }
+
+            if (dependencyMeshes == null)
+            {
+                dependencyMeshes = dependencies
+                    .Select(d => d.GetComponent<MeshImagePair>())
+                    .Where(p => p != null && p.Mesh != null)
+                    .Select(p => p.Mesh)
+                    .ToList();
+            }
+
+            double meshError = 0; //meters
+            if (dependencyMeshes.Count > 0)
+            {
+                double accuracy = 0.001; //1mm
+                var bounds = node.GetComponent<NodeBounds>();
+                if (bounds != null)
+                {
+                    accuracy = bounds.Bounds.MaxDimension() * HAUSDORFF_RELATIVE_ACCURACY;
+                }
+                meshError = maxDepError + mip.Mesh.HausdorffDistance(accuracy, dependencyMeshes.ToArray());
+            }
+
+            info($"{node.Name} mesh error {meshError:F3} (incl max {maxDepError:F3} of {nd} dependencies)");
+
+            double textureError = 0; //lineal meters per texel
+            double pixelArea = 0, surfaceArea = 0;
+            if (mip.Image != null)
+            {
+                pixelArea = mip.Mesh.ComputePixelArea(mip.Image);
+                if (pixelArea > 0)
+                {
+                    surfaceArea = mip.Mesh.SurfaceArea();
+                    textureError = TEXTURE_ERROR_MULTIPLIER * Math.Sqrt(surfaceArea / pixelArea);
+                }
+            }
+
+            info($"{node.Name} texture error {textureError:F3}" +
+                 (pixelArea > 0 ? $" = {TEXTURE_ERROR_MULTIPLIER} * sqrt({surfaceArea:F3}m^2 / {pixelArea:F3}px^2)"
+                  : ""));
+
+            double error = Math.Max(meshError, textureError);
+            info($"{node.Name} geometric error {error:F3}, meshError={meshError:F3}, textureError={textureError:F3}");
+
+            node.GetOrAddComponent<NodeGeometricError>().Error = error;
+            return error;
         }
 
         public static void DumpStats(this SceneNode root, Action<string> writeLine)
@@ -485,73 +600,6 @@ namespace OPS.Pipeline
             var leafLevels = leaves.Select(n => n.Transform.Depth()).DefaultIfEmpty(-1);
             dumpLevel(leaves, string.Format("{0} leaves at level(s) {1}-{2}",
                                             leaves.Count(), leafLevels.Min(), leafLevels.Max()));
-        }
-
-        /// <summary>
-        /// Returns max difference between node and its children
-        /// </summary>
-        /// <param name="node"></param>
-        /// <returns></returns>
-        public static double CalculateGeometricError(this SceneNode node)
-        {
-            if (node.Transform.ChildCount == 0)
-            {
-                return 0;
-            }
-            // If this node doesn't have a mesh get the first parent mesh 
-            // supports case when some parent nodes dont have meshes
-            Mesh parentMesh = null;
-            SceneNode parent = node;
-            while(parent != null)
-            {
-                var pair = parent.GetComponent<MeshImagePair>();
-                if(pair != null && pair.Mesh != null)
-                {
-                    parentMesh = pair.Mesh;
-                    break;
-                }
-
-                //if hit root bail out
-                if (parent.Transform.Parent == null)
-                    break;
-
-                parent = parent.Transform.Parent.Node;
-            }
-
-            if(parentMesh == null)
-            {
-                return 0; //no meshes including or above this node
-            }
-
-            // Get first set of descendants that have meshes
-            List<Mesh> childrenMeshes = new List<Mesh>();
-            Queue<SceneNode> childrenQueue = new Queue<SceneNode>();
-            foreach (var n in node.Children)
-            {
-                childrenQueue.Enqueue(n);
-            }
-            while (childrenQueue.Count > 0)
-            {
-                SceneNode curNode = childrenQueue.Dequeue();
-                var pair = curNode.GetComponent<MeshImagePair>();
-                if (pair != null && pair.Mesh != null)
-                {
-                    childrenMeshes.Add(pair.Mesh);
-                }
-                else
-                {
-                    foreach (var n in curNode.Children)
-                    {
-                        childrenQueue.Enqueue(n);
-                    }
-                }
-            }
-            // If there are no children with meshes there is no error
-            if (childrenMeshes.Count == 0)
-            {
-                return 0;
-            }
-            return parentMesh.HausdorffDistance(childrenMeshes.ToArray());
         }
     }
 }

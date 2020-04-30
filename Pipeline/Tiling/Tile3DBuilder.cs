@@ -94,21 +94,6 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Calculates the geometric error between all children and thir parent tiles using
-        /// Bidirectional Hausdorff Distance
-        /// </summary>
-        public void CalculateGeometricError()
-        {
-            CoreLimitedParallel.ForEach(Root.DepthFirstTraverse(), curNode =>
-            {
-                if (!curNode.HasComponent<NodeGeometricError>())
-                {
-                    curNode.AddComponent<NodeGeometricError>(new NodeGeometricError(curNode.CalculateGeometricError()));
-                }
-            });
-        }
-
-        /// <summary>
         /// Converts an AABB to a 3D Tiles Box bound array
         /// </summary>
         /// <param name="b"></param>
