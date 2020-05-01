@@ -3,8 +3,9 @@ using System.IO;
 using System.Linq;
 using CommandLine;
 using log4net;
-using OPS.Geometry;
+using OPS.Util;
 using OPS.Imaging;
+using OPS.Geometry;
 
 /// <summary>
 /// Utility to convert IV meshes to other formats.
@@ -60,94 +61,102 @@ namespace OPS.Landform
 
         public int Run()
         {
-            string[] allowedFormats = new string[] { "ply", "obj" };
-
-            if (!allowedFormats.Any(f => f == options.OutputType))
+            try
             {
-                logger.ErrorFormat("unrecognized output type \"{0}\"", options.OutputType);
-                return 1;
-            }
-
-            string[] files = null;
-            string destDir = null;
-
-            bool directoryMode = Directory.Exists(options.InputPath);
-
-            if (directoryMode)
-            {
-                files = Directory.GetFiles(options.InputPath, "*.iv");
-                destDir = options.InputPath;
-            }
-            else
-            {
-                files = new string[] {  options.InputPath };
-                destDir = Path.GetDirectoryName(options.InputPath); //destDir="" if InputPath was a bare filename
-            }
-
-            if (options.OutputDir != null)
-            {
-                destDir = options.OutputDir;
-            }
-
-            if (files != null && files.Length > 0)
-            {
-
-                if (!string.IsNullOrEmpty(destDir))
+                string[] allowedFormats = new string[] { "ply", "obj" };
+                
+                if (!allowedFormats.Any(f => f == options.OutputType))
                 {
-                    Directory.CreateDirectory(destDir);
-                }
-
-                string ext = "." + options.OutputType;
-
-                string tf = options.TextureFile;
-                string tfExt = Path.GetExtension(tf);
-                if (string.IsNullOrEmpty(tfExt))
-                {
-                    tfExt = tf;
-                }
-                if (!string.IsNullOrEmpty(tfExt))
-                {
-                    tfExt = tfExt.TrimStart('.');
-                    tfExt = "." + tfExt;
+                    logger.ErrorFormat("unrecognized output type \"{0}\"", options.OutputType);
+                    return 1;
                 }
                 
-                for (int i = 0; i < files.Length; i++)
+                string[] files = null;
+                string destDir = null;
+                
+                bool directoryMode = Directory.Exists(options.InputPath);
+                
+                if (directoryMode)
                 {
-                    string bn = Path.GetFileNameWithoutExtension(files[i]);
-                    string tft = tf;
-                    if (!string.IsNullOrEmpty(tfExt) && directoryMode)
+                    files = Directory.GetFiles(options.InputPath, "*.iv");
+                    destDir = options.InputPath;
+                }
+                else
+                {
+                    files = new string[] {  options.InputPath };
+                    destDir = Path.GetDirectoryName(options.InputPath); //destDir="" if InputPath was a bare filename
+                }
+                
+                if (options.OutputDir != null)
+                {
+                    destDir = options.OutputDir;
+                }
+                
+                if (files != null && files.Length > 0)
+                {
+                    
+                    if (!string.IsNullOrEmpty(destDir))
                     {
-                        tft = Path.ChangeExtension(files[i], tfExt);
+                        Directory.CreateDirectory(destDir);
+                    }
+                    
+                    string ext = "." + options.OutputType;
+                    
+                    string tf = options.TextureFile;
+                    string tfExt = Path.GetExtension(tf);
+                    if (string.IsNullOrEmpty(tfExt))
+                    {
+                        tfExt = tf;
+                    }
+                    if (!string.IsNullOrEmpty(tfExt))
+                    {
+                        tfExt = tfExt.TrimStart('.');
+                        tfExt = "." + tfExt;
+                    }
+                    
+                    for (int i = 0; i < files.Length; i++)
+                    {
+                        string bn = Path.GetFileNameWithoutExtension(files[i]);
+                        string tft = tf;
+                        if (!string.IsNullOrEmpty(tfExt) && directoryMode)
+                        {
+                            tft = Path.ChangeExtension(files[i], tfExt);
+                            if (!File.Exists(tft))
+                            {
+                                tft = tf;
+                            }
+                        }
                         if (!File.Exists(tft))
                         {
-                            tft = tf;
+                            tft = null;
                         }
-                    }
-                    if (!File.Exists(tft))
-                    {
-                        tft = null;
-                    }
-                    if (tft != null)
-                    {
-                        tft = Path.GetFileName(tft);
-                    }
-                    if (options.AllLODs)
-                    {
-                        var lodMeshes = Mesh.LoadAllLODs(files[i]);
-                        logger.InfoFormat("converting {0} LOD from {1} to {2} in {3}",
-                                          lodMeshes.Count, files[i], ext, destDir);
-                        for (int lod = 0; lod < lodMeshes.Count; lod++)
+                        if (tft != null)
                         {
-                            string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
-                            lodMeshes[lod].Save(Path.Combine(destDir, dest), tft); //destDir="" ok
+                            tft = Path.GetFileName(tft);
                         }
-                    }
-                    else
-                    {
-                        logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
-                        Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
-                    }
-                }          
+                        if (options.AllLODs)
+                        {
+                            var lodMeshes = Mesh.LoadAllLODs(files[i]);
+                            logger.InfoFormat("converting {0} LOD from {1} to {2} in {3}",
+                                              lodMeshes.Count, files[i], ext, destDir);
+                            for (int lod = 0; lod < lodMeshes.Count; lod++)
+                            {
+                                string dest = string.Format("{0}_LOD{1}{2}", bn, lod, ext);
+                                lodMeshes[lod].Save(Path.Combine(destDir, dest), tft); //destDir="" ok
+                            }
+                        }
+                        else
+                        {
+                            logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
+                            Mesh.Load(files[i]).Save(Path.Combine(destDir, bn + ext), tft); //destDir="" ok
+                        }
+                    }          
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogException(logger, ex);
+                return 1;
             }
 
             return 0;

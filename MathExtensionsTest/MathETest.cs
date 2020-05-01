@@ -1,5 +1,6 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Microsoft.Xna.Framework;
 using OPS.MathExtensions;
 using OPS.Test;
 
@@ -136,6 +137,165 @@ namespace MathExtensionsTest
             catch
             {
 
+            }
+        }
+
+        [TestMethod]
+        public void TestToYawPitchRoll()
+        {
+            double y = 0, p = 0, r = 0;
+            var q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            var ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+            
+            y = 0.5 * Math.PI; p = 0; r = 0;
+            q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+            
+            y = 0; p = 0.5 * Math.PI; r = 0;
+            q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+            
+            y = 0; p = 0; r = 0.5 * Math.PI;
+            q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+            
+            y = 0.1; p = 0.2; r = 0.3;
+            q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+
+            y = -0.1; p = -0.2; r = -0.3;
+            q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+            
+            y = -0.1; p = 0.2; r = -0.3;
+            q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+            
+            y = 0.1; p = -0.2; r = 0.3;
+            q = Quaternion.CreateFromYawPitchRoll(y, p, r);
+            ypr = q.ToYawPitchRoll();
+            AssertE.AreSimilar(y, ypr.X);
+            AssertE.AreSimilar(p, ypr.Y);
+            AssertE.AreSimilar(r, ypr.Z);
+        }
+
+        [TestMethod]
+        public void TestToRotationVector()
+        {
+            Vector3 axis = new Vector3(1, 0, 0);
+            double angle = 0;
+            var q = Quaternion.CreateFromAxisAngle(axis, angle);
+            var r = q.ToRotationVector();
+            double a = r.Length();
+            if (Vector3.Dot(axis, r) < 0)
+            {
+                r = -r;
+                a = -a;
+            }
+            AssertE.AreSimilar(angle, a);
+            if (a > 1e-9)
+            {
+                r = Vector3.Normalize(r);
+                AssertE.AreSimilar(axis.X, r.X);
+                AssertE.AreSimilar(axis.Y, r.Y);
+                AssertE.AreSimilar(axis.Z, r.Z);
+            }
+
+            axis = new Vector3(1, 0, 0);
+            angle = 0.5;
+            q = Quaternion.CreateFromAxisAngle(axis, angle);
+            r = q.ToRotationVector();
+            a = r.Length();
+            if (Vector3.Dot(axis, r) < 0)
+            {
+                r = -r;
+                a = -a;
+            }
+            AssertE.AreSimilar(angle, a);
+            if (a > 1e-9)
+            {
+                r = Vector3.Normalize(r);
+                AssertE.AreSimilar(axis.X, r.X);
+                AssertE.AreSimilar(axis.Y, r.Y);
+                AssertE.AreSimilar(axis.Z, r.Z);
+            }
+
+            axis = new Vector3(1, 0, 0);
+            angle = -0.1;
+            q = Quaternion.CreateFromAxisAngle(axis, angle);
+            r = q.ToRotationVector();
+            a = r.Length();
+            if (Vector3.Dot(axis, r) < 0)
+            {
+                r = -r;
+                a = -a;
+            }
+            AssertE.AreSimilar(angle, a);
+            if (a > 1e-9)
+            {
+                r = Vector3.Normalize(r);
+                AssertE.AreSimilar(axis.X, r.X);
+                AssertE.AreSimilar(axis.Y, r.Y);
+                AssertE.AreSimilar(axis.Z, r.Z);
+            }
+
+            axis = new Vector3(0, 1, 0);
+            angle = 0.1;
+            q = Quaternion.CreateFromAxisAngle(axis, angle);
+            r = q.ToRotationVector();
+            a = r.Length();
+            if (Vector3.Dot(axis, r) < 0)
+            {
+                r = -r;
+                a = -a;
+            }
+            AssertE.AreSimilar(angle, a);
+            if (a > 1e-9)
+            {
+                r = Vector3.Normalize(r);
+                AssertE.AreSimilar(axis.X, r.X);
+                AssertE.AreSimilar(axis.Y, r.Y);
+                AssertE.AreSimilar(axis.Z, r.Z);
+            }
+
+            axis = Vector3.Normalize(new Vector3(1, 2, 3));
+            angle = 4;
+            q = Quaternion.CreateFromAxisAngle(axis, angle);
+            r = q.ToRotationVector();
+            a = r.Length();
+            if (Vector3.Dot(axis, r) < 0)
+            {
+                r = -r;
+                a = -a;
+            }
+            AssertE.AreSimilar(angle, a);
+            if (a > 1e-9)
+            {
+                r = Vector3.Normalize(r);
+                AssertE.AreSimilar(axis.X, r.X);
+                AssertE.AreSimilar(axis.Y, r.Y);
+                AssertE.AreSimilar(axis.Z, r.Z);
             }
         }
     }

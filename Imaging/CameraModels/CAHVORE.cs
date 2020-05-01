@@ -1,74 +1,33 @@
-﻿
-using System;
-using System.Xml;
+﻿using System;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Imaging
 {
-
-    public struct LinearityMode
-    {
-        public double Linearity;       // should be double orint?
-
-        private static LinearityMode perspective = new LinearityMode(1);
-        private static LinearityMode fisheye = new LinearityMode(0);
-
-        public static LinearityMode Perspective
-        {
-            get { return perspective; }
-        }
-
-        public static LinearityMode Fisheye
-        {
-            get { return fisheye; }
-        }
-
-        public LinearityMode(double linearity)
-        {
-            this.Linearity = linearity;
-        }        
-    }
-
     public class CAHVORE : CAHVOR
     {
+        public const int MAX_NEWTON = 100;
 
-        const int MAX_NEWTON = 100;
+        public const double PERSPECTIVE_LINEARITY = 1;
+        public const double FISHEYE_LINEARITY = 0;
 
         public Vector3 E;
-        public LinearityMode linearityMode;
 
-        public CAHVORE()
-        {
+        public double Linearity;
 
-        }
+        public CAHVORE() { }
 
-        public CAHVORE(Vector3 c, Vector3 a, Vector3 h, Vector3 v, Vector3 o, Vector3 r, Vector3 e, LinearityMode linearityMode)
+        public CAHVORE(Vector3 c, Vector3 a, Vector3 h, Vector3 v, Vector3 o, Vector3 r, Vector3 e, double linearity)
             : base(c, a, h, v, o, r)
         {
             this.E = e;
-            this.linearityMode = linearityMode;
+            this.Linearity = linearity;
         }
 
         public CAHVORE(CAHVORE that) : base(that)
         {
             this.E = that.E;
-            this.linearityMode = that.linearityMode;
-        }
-
-        public override bool Linear
-        {
-            get
-            {
-                return false;
-            }
-        }
-
-        public override Vector3 ImagePlaneNormal
-        {
-            get
-            {
-                return A;
-            }
+            this.Linearity = that.Linearity;
         }
 
         /// <summary>
@@ -171,13 +130,12 @@ namespace OPS.Imaging
                     dchi = ((1 + R.X) * chi + R.Y * chi3 + R.Z * chi5 - chip) / deriv;
                     chi -= dchi;
                 }
-                double linearity = linearityMode.Linearity;           
                 /* Compute the incoming ray's angle */
-                linchi = linearity * chi;
-                if (linearity < -EPSILON)
-                    theta = Math.Asin(linchi) / linearity;
-                else if (linearity > EPSILON)
-                    theta = Math.Atan(linchi) / linearity;
+                linchi = Linearity * chi;
+                if (Linearity < -EPSILON)
+                    theta = Math.Asin(linchi) / Linearity;
+                else if (Linearity > EPSILON)
+                    theta = Math.Atan(linchi) / Linearity;
                 else
                     theta = chi;
 
@@ -210,7 +168,6 @@ namespace OPS.Imaging
         public override Vector2 Project(Vector3 pos, out double range)
         {
             int n;
-            double linearity = linearityMode.Linearity;            
             double zeta, lambda;
             double dtheta, theta, theta2, theta3, theta4;
             double upsilon, costh, sinth;
@@ -274,7 +231,7 @@ namespace OPS.Imaging
             }
 
             /* Check the value of theta */
-            if ((theta * Math.Abs(linearity)) > Math.PI / 2.0)
+            if ((theta * Math.Abs(Linearity)) > Math.PI / 2.0)
             {
                 throw new Exception("cahvore_3d_to_2d(): theta out of bounds\n");
                 //Console.WriteLine("cahvore_3d_to_2d(): theta out of bounds\n");
@@ -289,11 +246,11 @@ namespace OPS.Imaging
             {
                 double linth, chi, chi2, chi3, chi4, zetap, mu;
 
-                linth = linearity * theta;
-                if (linearity < -EPSILON)
-                    chi = Math.Sin(linth) / linearity;
-                else if (linearity > EPSILON)
-                    chi = Math.Tan(linth) / linearity;
+                linth = Linearity * theta;
+                if (Linearity < -EPSILON)
+                    chi = Math.Sin(linth) / Linearity;
+                else if (Linearity > EPSILON)
+                    chi = Math.Tan(linth) / Linearity;
                 else
                     chi = theta;
 

@@ -41,6 +41,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Output image format, e.g. png, jpg, help for list", Default = "png")]
         public virtual string ImageFormat { get; set; }
+
+        [Option(HelpText = "Disable orbital", Default = false)]
+        public virtual bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Disable suface observations, only orbital", Default = false)]
+        public virtual bool NoSurface { get; set; }
     }
 
     public class LandformCommand
@@ -194,6 +200,11 @@ namespace OPS.Landform
          
         protected virtual bool ParseArguments(string outDir)
         {
+            if (lcopts.NoOrbital && lcopts.NoSurface)
+            {
+                throw new Exception("cannot combine --noorbital with --nosurface");
+            }
+
             meshExt = MeshSerializers.Instance.CheckFormat(lcopts.MeshFormat, pipeline);
             if (meshExt == null)
             {

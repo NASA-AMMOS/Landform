@@ -21,14 +21,14 @@ using System.IO;
 /// a grid-based approach.
 ///
 /// The mesh is then reconstructed on the full scene point cloud, typically with Poisson reconstruction.  Mission normal
-/// map RDRs (UVW products) give each point a normal, which is usually required.  Points with bad or suspected bad
-/// normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the confidence
-/// of each point, though at this time ingestion of mission RNE products is still TODO
+/// map RDRs (UVW products) give each point a normal vector, which is usually required.  Points with bad or suspected
+/// bad normals are filtered before reconstruction.  Optionally the normals can be scaled by an estimate of the
+/// confidence of each point, though at this time ingestion of mission RNE products is still TODO
 /// https://github.jpl.nasa.gov/OnSight/Landform/issues/766 (and such products may not even be available) so we use
 /// distance from the camera as a proxy.
 ///
 /// The reconstructed mesh is cleaned and clipped to a surface data bounding box typically 32m square around the origin
-/// if the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
+/// of the primary sitedrive frame for the contextual mesh.  Its vertex normals are recomputed from its faces to avoid
 /// issues with bad normals corrupting downstream operations such as reconstruction of parent tile meshes.
 ///
 /// Hole filling is then typically performed.  A non-convex outer boundary is computed by creating a shrinkwrap mesh
@@ -82,7 +82,7 @@ using System.IO;
 ///
 /// Example:
 ///
-/// Landform.exe build-geometry windjana --meshframe 0311472 --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif
+/// Landform.exe build-geometry windjana --meshframe 0311472
 ///
 /// </summary>
 namespace OPS.Landform
@@ -181,9 +181,11 @@ namespace OPS.Landform
 
         public const int BLEND_GUTTER_SAMPLES = 4;
 
+        private string dbgMeshPrefix;
+
         private BuildGeometryOptions options;
 
-        private Observation[] onlyForObs;
+        private RoverObservation[] onlyForObs;
         private PoissonReconstruction.Options poissonOpts;
 
         private ConcurrentDictionary<string, Mesh> observationPointClouds = new ConcurrentDictionary<string, Mesh>();
@@ -192,18 +194,15 @@ namespace OPS.Landform
         private Mesh mesh;
         private SceneMesh sceneMesh;
 
-        private DEM orbitalDEM;
-        private Matrix orbitalToMesh, meshToOrbital;
-
         private Mesh shrinkwrapMesh;
         private MeshOperator maskUVMeshOp;
-        private Mesh orbitalMesh;
 
-        private string dbgMeshPrefix;
+        private Mesh orbitalMesh;
 
         private double blendRadius, sewRadius;
         private double orbitalMetersPerPixel;
         private int blendSamplesPerPixel, orbitalSamplesPerPixel;
+        private Matrix meshToOrbital, orbitalToMesh;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
         {
@@ -219,24 +218,14 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (!options.NoSurfaceObs)
+                if (!options.NoSurface)
                 {
                     RunPhase("build observation point clouds", BuildObservationPointClouds);
                     RunPhase("merge point clouds", MergePointClouds);
                     RunPhase("reconstruct mesh", ReconstructMesh);
                 }
 
-                if (!options.NoOrbital)
-                {
-                    RunPhase("load orbital DEM", LoadOrbital); //may overwrite options.NoOrbital
-
-                    if (options.NoOrbital && options.NoSurfaceObs)
-                    {
-                        throw new Exception("--nosurfaceobs but failed to load orbital");
-                    }
-                }
-
-                if (!options.NoSurfaceObs && (!options.NoFillHoles || !options.NoOrbital))
+                if (!options.NoSurface && (!options.NoFillHoles || !options.NoOrbital))
                 {
                     RunPhase("clip surface mesh", ClipSurfaceMesh);
                     RunPhase("create shrinkwrapped surface mesh", CreateShrinkwrappedSurfaceMesh);
@@ -265,7 +254,7 @@ namespace OPS.Landform
 
                     RunPhase("build orbital mesh", BuildOrbitalMesh);
 
-                    if (options.NoSurfaceObs)
+                    if (options.NoSurface)
                     {
                         mesh = orbitalMesh;
                     }
@@ -305,11 +294,6 @@ namespace OPS.Landform
 
         private bool ParseArgumentsAndLoadCaches()
         {
-            if (options.NoOrbital && options.NoSurfaceObs)
-            {
-                throw new Exception("cannot combine --noorbital with --nosurfaceobs");
-            }
-
             if (options.ReconstructionMethod != MeshReconstructionMethod.FSSR &&
                 options.ReconstructionMethod != MeshReconstructionMethod.Poisson)
             {
@@ -334,10 +318,24 @@ namespace OPS.Landform
 
             if (!options.NoOrbital && !SiteDrive.IsSiteDriveString(meshFrame))
             {
-                throw new Exception(string.Format("mesh frame {0} is not a site drive, cannot use orbital", meshFrame));
+                pipeline.LogWarn("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
+                options.NoOrbital = true;
             }
 
-            onlyForObs = observationCache.ParseList(options.OnlyFacesForObs);
+            if (!options.NoOrbital)
+            {
+                LoadOrbitalDEM(); //may overwrite options.NoOrbital
+                
+                if (options.NoOrbital && options.NoSurface)
+                {
+                    throw new Exception("--nosurface but failed to load orbital");
+                }
+            }
+            
+            onlyForObs = observationCache.ParseList(options.OnlyFacesForObs)
+                .Where(obs => obs is RoverObservation)
+                .Cast<RoverObservation>()
+                .ToArray();
 
             poissonOpts = new PoissonReconstruction.Options
             {
@@ -400,7 +398,12 @@ namespace OPS.Landform
                                                   + " to use orbital", options.ClipSurfaceExtent, options.ClipExtent));
             }
 
-            orbitalMetersPerPixel = OrbitalConfig.Instance.OrbitalDEMMetersPerPixel;
+            orbitalMetersPerPixel = 1;
+            if (!options.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_DEM_INDEX))
+            {
+                var obs = observationCache.GetObservation(Observation.ORBITAL_DEM_INDEX);
+                orbitalMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+            }
 
             orbitalSamplesPerPixel = 1;
             if (options.OrbitalPointsPerMeter > 0)
@@ -412,6 +415,13 @@ namespace OPS.Landform
             if (options.OrbitalBlendPointsPerMeter > 0)
             {
                 blendSamplesPerPixel = (int)Math.Ceiling(options.OrbitalBlendPointsPerMeter * orbitalMetersPerPixel);
+            }
+
+            if (!options.NoOrbital)
+            {
+                var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+                orbitalToMesh = orbitalDEMToRoot * Matrix.Invert(meshToRoot);
+                meshToOrbital = meshToRoot * Matrix.Invert(orbitalDEMToRoot);
             }
 
             return true;
@@ -571,7 +581,7 @@ namespace OPS.Landform
                 {
                     clouds.Add(entry.Value);
                     var pointsObs = observationCache.GetObservation(entry.Key);
-                    var pointsCam = ((CameraModel)JsonHelper.FromJson(pointsObs.CameraModel)) as CAHV;
+                    var pointsCam = pointsObs.CameraModel as CAHV;
                     var obsToMesh = frameCache.GetObservationTransform(pointsObs, meshFrame,
                                                                        options.UsePriors, options.OnlyAligned);
                     //obsToMesh cannot be null here because WedgeObservations.BuildPointCloud() returned non-null
@@ -651,38 +661,6 @@ namespace OPS.Landform
             {
                 SaveMesh(mesh, dbgMeshPrefix + "-clippedSurface");
             }
-        }
-
-        private void LoadOrbital()
-        {
-            string demFile = options.OrbitalDEM;
-            try
-            {
-                orbitalDEM = mission.LoadOrbitalDEM(new SiteDrive(meshFrame), ref demFile,
-                                                    minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                    logger: pipeline);
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogWarn("failed to load orbital DEM or PlacesDB, running without orbital: {0}", ex.Message);
-                options.NoOrbital = true;
-                return;
-            }
-
-            FrameTransform ft = frameCache.GetBestTransform(OrbitalConfig.Instance.OrbitalFrameName);
-            if (ft == null)
-            {
-                pipeline.LogWarn("failed to retrieve aligned orbital transform");
-                options.NoOrbital = true;
-                return;
-            }
-
-            var orbitalToRoot = ft.Transform.Mean;
-            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-            orbitalToMesh = orbitalToRoot * Matrix.Invert(meshToRoot);
-            meshToOrbital = Matrix.Invert(orbitalToMesh);
-
-            pipeline.LogInfo("loaded {0}x{1} orbital DEM {2}", orbitalDEM.Width, orbitalDEM.Height, demFile);
         }
 
         private void CreateShrinkwrappedSurfaceMesh()
@@ -799,7 +777,7 @@ namespace OPS.Landform
                 {
                     for (int c = 0; c < w; c++)
                     {
-                        Vector2 px = outerBounds.Interp(((double)c) / (w - 1), ((double)r) / (h - 1));
+                        Vector2 px = outerBounds.Linterp(((double)c) / (w - 1), ((double)r) / (h - 1));
                         bool mask = true;
                         if (innerBounds == null || !innerBounds.ContainsProper(px, eps))
                         {
@@ -830,18 +808,21 @@ namespace OPS.Landform
             double br = blendRadius > 0 ? blendRadius : 0;
             int blendExtentPixels = (int)Math.Ceiling(0.5 * (options.ClipSurfaceExtent + br) / orbitalMetersPerPixel);
 
+            Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
+
             Image.Subrect blendBounds = null;
             if (blendSamplesPerPixel != orbitalSamplesPerPixel)
             {
-                blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels);
+                blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels, meshOriginInOrbital);
             }
 
-            pipeline.LogInfo("making {0}x{0} orbital mesh at {1} samples/meter",
-                             2* orbitalExtentPixels * orbitalMetersPerPixel,
+            pipeline.LogInfo("making {0}x{0}m orbital mesh at {1} samples/meter",
+                             2 * orbitalExtentPixels * orbitalMetersPerPixel,
                              orbitalSamplesPerPixel / orbitalMetersPerPixel);
 
-            orbitalMesh =
-                makeMesh(orbitalSamplesPerPixel, orbitalDEM.GetSubrectPixels(orbitalExtentPixels), blendBounds);
+            var orbitalBounds = orbitalDEM.GetSubrectPixels(orbitalExtentPixels, meshOriginInOrbital);
+
+            orbitalMesh = makeMesh(orbitalSamplesPerPixel, orbitalBounds, blendBounds);
 
             pipeline.LogInfo("made orbital mesh with {0} triangles", Fmt.KMG(orbitalMesh.Faces.Count));
 
@@ -1101,7 +1082,7 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
                 double surfaceExtent = -1; //unlimited
-                if (options.NoSurfaceObs)
+                if (options.NoSurface)
                 {
                     surfaceExtent = 0; //only orbital
                 }

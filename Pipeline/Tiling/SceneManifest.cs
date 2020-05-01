@@ -133,7 +133,7 @@ namespace OPS.Pipeline
         public double[] O;
         public double[] R;
         public double[] E;
-        public double linearityMode;
+        public double Linearity;
         
         public CameraModelManifest() { } //for deserialization
         
@@ -159,7 +159,7 @@ namespace OPS.Pipeline
             {
                 var cahvore = cmod as CAHVORE;
                 E = cahvore.E.ToDoubleArray();
-                linearityMode = cahvore.linearityMode.Linearity;
+                Linearity = cahvore.Linearity;
             }
         }
     }
@@ -483,7 +483,7 @@ namespace OPS.Pipeline
 
         public void AddOrUpdateContextualTileset(string tilesetId, string tilesetUrl, string siteDrive,
                                                  FrameCache frameCache, bool usePriors, bool onlyAligned,
-                                                 List<Observation> images,
+                                                 List<RoverObservation> images,
                                                  Dictionary<int, int> backprojectedPixels = null, ILogger logger = null)
         {
             if (logger != null)
@@ -523,7 +523,7 @@ namespace OPS.Pipeline
                 image.width = obs.Width;
                 image.height = obs.Height;
                 image.bands = obs.Bands;
-                image.model = new CameraModelManifest(JsonHelper.FromJson<CameraModel>(obs.CameraModel));
+                image.model = new CameraModelManifest(obs.CameraModel);
 
                 tileset.image_ids.Add(image.id);
 

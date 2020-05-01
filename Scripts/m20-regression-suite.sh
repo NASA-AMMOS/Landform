@@ -93,6 +93,8 @@ all_the_args="$all_the_args $bevargs $heightmapargs $geometryargs $blendargs $ti
 
 do_all_the_things() {
 
+    orbitaldir=out/$mission/orbital
+
     if [ "$credss" ]; then ${dry}$scriptdir/m20-credss.sh $credss_pass; fi
     
     if [ "$fetch" ]; then
@@ -106,10 +108,10 @@ do_all_the_things() {
             orbital_bucket=s3://$lfbucket/$mission/orbital
             
             if [ "$dem" ]; then
-                $landform fetch $orbital_bucket/$dem out/$run/orbital --mission $mission --raw --nosubdirs
+                $landform fetch $orbital_bucket/$dem $orbitaldir --mission $mission --raw --nosubdirs
             fi 
             if [ "$ortho" ]; then
-                $landform fetch $orbital_bucket/$ortho out/$run/orbital --mission $mission --raw --nosubdirs
+                $landform fetch $orbital_bucket/$ortho $orbitaldir --mission $mission --raw --nosubdirs
             fi
         fi
     fi
@@ -122,8 +124,8 @@ do_all_the_things() {
         noorbital=--noorbital
         demarg=
         orthoarg=
-        if [ -f out/$run/orbital/$dem ]; then demarg="--orbitaldem out/$run/orbital/$dem"; noorbital=; fi
-        if [ -f out/$run/orbital/$ortho ]; then orthoarg="--orbitalimage out/$run/orbital/$ortho"; noorbital=; fi
+        if [ -f $orbitaldir/$dem ]; then demarg="--orbitaldem $orbitaldir/$dem"; noorbital=; fi
+        if [ -f $orbitaldir/$ortho ]; then orthoarg="--orbitalimage $orbitaldir/$ortho"; noorbital=; fi
         IFS=',' read -ra solarray <<< $sols
         primarysol=${solarray[0]}
         $scriptdir/process-contextual.sh out/$run/rdrs $mission $primarysol $sds out/$run/tilesets $all_the_args \

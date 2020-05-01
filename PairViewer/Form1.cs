@@ -98,7 +98,7 @@ namespace PairViewer
                         if (!siteDriveToNode.ContainsKey(parsed.SiteDrive))
                         {
                             var sdNode = siteDriveToNode[parsed.SiteDrive] = new SceneNode("SD " + parsed.SiteDrive, Scene.Root.Transform);
-                            var locData = Locations.Location(new SiteDrive(parsed.Site, parsed.Drive));
+                            var locData = Locations.GetLocation(new SiteDrive(parsed.Site, parsed.Drive));
                             sdNode.Transform.LocalToWorld = Matrix.CreateTranslation(locData.Position);
 
                             // Made up covariance values, more or less signifying SD of 0.5m translation and 0.5deg rotation (1.0 for Z)

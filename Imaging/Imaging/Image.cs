@@ -362,6 +362,7 @@ namespace OPS.Imaging
         /// resulting image will have mask set for any source block that had no valid pixels
         /// does not mutate source image
         /// This method does not retain metadata or camera model.
+        /// If the image has a CalibratedCameraModel then you could use CalibratedCameraModel.Decimated().
         /// </summary>
         public Image Decimated(int blocksize)
         {
@@ -510,14 +511,19 @@ namespace OPS.Imaging
                 return x > (MinX + eps) && x < (MaxX - eps) && y > (MinY + eps) && y < (MaxY - eps);
             }
 
-            public Vector2 Interp(Vector2 at)
+            public Vector2 Linterp(Vector2 at)
             {
-                return Interp(at.X, at.Y);
+                return Linterp(at.X, at.Y);
             }
 
-            public Vector2 Interp(double atX, double atY)
+            public Vector2 Linterp(double atX, double atY)
             {
                 return new Vector2(MinX * (1 - atX) + MaxX * atX, MinY * (1 - atY) + MaxY * atY);
+            }
+
+            public Vector2 ReverseLinterp(double x, double y)
+            {
+                return new Vector2((x - MinX) / (MaxX - MinX), (y - MinY) / (MaxY - MinY));
             }
 
             public override string ToString()

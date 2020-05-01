@@ -80,48 +80,57 @@ namespace OPS.Landform
 
         public int Run()
         {
-            CloudPipelineConfig config = new CloudPipelineConfig();
-
-            config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
-            config.S3Url = ConsoleHelper.Prompt("S3 url", options.S3Url, config.S3Url, options.Interactive);
-            config.AWSRegion = ConsoleHelper.Prompt("AWS region", options.AWSRegion, config.AWSRegion,
-                                                    options.Interactive);
-            config.AWSProfile = ConsoleHelper.Prompt("AWS profile", options.AWSProfile, config.AWSProfile,
-                                                     options.Interactive);
-            config.MSLICEAWSProfile = ConsoleHelper.Prompt("MSLICE AWS profile", options.MSLICEAWSProfile,
-                                                           config.MSLICEAWSProfile, options.Interactive);
-            config.MSLICEAWSRegion = ConsoleHelper.Prompt("MSLICE AWS region",options.MSLICEAWSRegion,
-                                                          config.MSLICEAWSRegion, options.Interactive);
-            config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url,
-                                                      options.Interactive);
-            config.MaxCores =ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
-                                                   options.MaxCores, config.MaxCores, options.Interactive);
-            config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
-                                                     options.RandomSeed, config.RandomSeed, options.Interactive);
-            config.LegacyCompat = ConsoleHelper.Prompt("legacy compatability (read only) true/false",
-                                                       options.LegacyCompat, config.LegacyCompat, options.Interactive);
-
-            config.Validate();
-
-            var cfgPath = config.ConfigFilePath();
-            if (!options.NoPersist)
+            try
             {
-                logger.Info("persisting config to " + cfgPath);
-                config.Save();
+                CloudPipelineConfig config = new CloudPipelineConfig();
+                
+                config.Venue = ConsoleHelper.Prompt("venue", options.Venue, config.Venue, options.Interactive);
+                config.S3Url = ConsoleHelper.Prompt("S3 url", options.S3Url, config.S3Url, options.Interactive);
+                config.AWSRegion = ConsoleHelper.Prompt("AWS region", options.AWSRegion, config.AWSRegion,
+                                                        options.Interactive);
+                config.AWSProfile = ConsoleHelper.Prompt("AWS profile", options.AWSProfile, config.AWSProfile,
+                                                         options.Interactive);
+                config.MSLICEAWSProfile = ConsoleHelper.Prompt("MSLICE AWS profile", options.MSLICEAWSProfile,
+                                                               config.MSLICEAWSProfile, options.Interactive);
+                config.MSLICEAWSRegion = ConsoleHelper.Prompt("MSLICE AWS region",options.MSLICEAWSRegion,
+                                                              config.MSLICEAWSRegion, options.Interactive);
+                config.MSLICES3Url = ConsoleHelper.Prompt("MSLICE S3 url", options.MSLICES3Url, config.MSLICES3Url,
+                                                          options.Interactive);
+                config.MaxCores = ConsoleHelper.Prompt("max cores, 0 = all available, N = up to N, -M = reserve M",
+                                                       options.MaxCores, config.MaxCores, options.Interactive);
+                config.RandomSeed = ConsoleHelper.Prompt("negative to use a time dependent random seed",
+                                                         options.RandomSeed, config.RandomSeed, options.Interactive);
+                config.LegacyCompat = ConsoleHelper.Prompt("legacy compatability (read only) true/false",
+                                                           options.LegacyCompat, config.LegacyCompat,
+                                                           options.Interactive);
+                
+                config.Validate();
+                
+                var cfgPath = config.ConfigFilePath();
+                if (!options.NoPersist)
+                {
+                    logger.Info("persisting config to " + cfgPath);
+                    config.Save();
+                }
+                else
+                {
+                    logger.Info("not persisting config to " + cfgPath);
+                }
+                string userDataPath = Path.GetFullPath("ec2userdata.txt");
+                if (!options.NoUserData)
+                {
+                    logger.Info("saving EC2 user data script to " + userDataPath);
+                    File.WriteAllText(userDataPath, BuildEC2UserDataScript(config));
+                }
+                else
+                {
+                    logger.Info("not saving EC2 user data script to " + userDataPath);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                logger.Info("not persisting config to " + cfgPath);
-            }
-            string userDataPath = Path.GetFullPath("ec2userdata.txt");
-            if (!options.NoUserData)
-            {
-                logger.Info("saving EC2 user data script to " + userDataPath);
-                File.WriteAllText(userDataPath, BuildEC2UserDataScript(config));
-            }
-            else
-            {
-                logger.Info("not saving EC2 user data script to " + userDataPath);
+                Logging.LogException(logger, ex);
+                return 1;
             }
             return 0;
         }

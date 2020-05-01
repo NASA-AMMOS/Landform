@@ -58,6 +58,11 @@ namespace OPS.Pipeline
             return "root";
         }
 
+        public virtual SiteDrive GetLandingSiteDrive()
+        {
+            return new SiteDrive(1, 0);
+        }
+
         public virtual string RoverMotionCounter(PDSParser parser)
         {
             return parser.RMC;
@@ -793,147 +798,36 @@ namespace OPS.Pipeline
         }
 
         /// <summary>
-        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
-        /// Orbital DEM images typically have north latitude increasing with row and longitude increasing with col.
-        /// 
-        ///  Image X => East 
-        ///  Image Y => South
-        ///  Image Z => Zenith
-        ///  
-        /// But places metadata should be checked for image to image variations
-        /// BUGBUG: in places metadata
-
+        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are typically +X north, +Y east, +Z nadir.
         /// </summary>
-        public virtual void GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 elevationDir, out Vector3 rightDir,
-                                                               out Vector3 downDir)
+        public virtual void GetLocalLevelBasis(out Vector3 north, out Vector3 east, out Vector3 nadir)
         {
-            elevationDir = new Vector3(0, 0, -1);
-            rightDir = new Vector3(0, 1, 0);
-            downDir = new Vector3(-1, 0, 0);
+            north = new Vector3(1, 0, 0);
+            east = new Vector3(0, 1, 0);
+            nadir = new Vector3(0, 0, 1);
         }
 
         /// <summary>
-        /// Load an orbital DEM image.
+        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are typically +X north, +Y east, +Z nadir.
         ///
-        /// demFile defaults to OrbitalConfig.OrbitalDEMStoragePath under LocalPipelineConfig.StorageDir.
+        /// GIS images in Equirectangular projection have
+        /// * latitude decreasing with row
+        /// * longitude increasing with col
+        /// * elevation positive towards the zenith.
         ///
-        /// metersPerPixel defaults to OrbitalConfig.OrbitalDEMMetersPerPixel.
-        ///
-        /// Has OrthographicCameraModel that projects points in siteDrive frame to pixels on the DEM.
-        ///
-        /// Mission surface frames (e.g. SITE, LOCAL_LEVEL) are +X north, +Y east, +Z down.
-        ///
-        /// Orbital DEM images typically have latitude increasing with row and longitude increasing with col.
-        ///
-        /// Requires PlacesDB to map siteDrive to a Lat/Lon in DEM.
-        ///
-        /// Uses the planetary body given by OrbitalConfig.OrbitalBodyName.
-        ///
-        /// Throws exception if
-        /// * failed to get lat/lon for siteDrive 
-        /// * lat/lon for siteDrive outside bounds of DEM
-        /// * no vaid elevation at lat/lon for siteDrive in DEM
+        /// Returns orthonormal basis for a GIS image frame expressed as directions in local level frame which aligns
+        /// * image latitude with LOCAL_LEVEL north (+X)
+        /// * image longitude with LOCAL_LEVEL east (+Y)
+        /// * elevation with LOCAL_LEVEL zenith (-Z).
         /// </summary>
-        public virtual DEM LoadOrbitalDEM(SiteDrive siteDrive, ref string demFile,
-                                          double? metersPerPixel = null, double? elevationScale = null,
-                                          double minFilter = DEM.DEF_MIN_FILTER, double maxFilter = DEM.DEF_MAX_FILTER,
-                                          ILogger logger = null)
+        public virtual void GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 gisElevationInLocalLevel,
+                                                                    out Vector3 gisImageRightInLocalLevel,
+                                                                    out Vector3 gisImageDownInLocalLevel)
         {
-            var cfg = OrbitalConfig.Instance;
-            
-            if (string.IsNullOrEmpty(demFile))
-            {
-                if (!string.IsNullOrEmpty(cfg.OrbitalDEMStoragePath))
-                {
-                    demFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalDEMStoragePath);
-                }
-                else
-                {
-                    throw new Exception("orbital DEM not available");
-                }
-            }
-
-            if (!File.Exists(demFile))
-            {
-                throw new Exception("orbital DEM not found: " + demFile);
-            }
-
-            if (!metersPerPixel.HasValue)
-            {
-                metersPerPixel = cfg.OrbitalDEMMetersPerPixel;
-            }
-
-            if (!elevationScale.HasValue)
-            {
-                elevationScale = cfg.OrbitalDEMElevationScale;
-            }
-
-            var placesDB = new PlacesDB(logger, requireOrbital: true);
-            var gdalDEM = new OrbitalImage(demFile, cfg.OrbitalBodyName);
-            var originPixel = gdalDEM.LatLonToImage(placesDB.GetEstimatedLatLon(siteDrive));
-            
-            GetOrbitalDEMBasisInSiteDriveFrame(out Vector3 elevationDir, out Vector3 rightDir, out Vector3 downDir);
-
-            double? originElevation = null; //DEM constructor will look this up given originPixel
-
-            return new DEM(new DEM.SparseDEM(demFile), elevationDir, rightDir, downDir,
-                           metersPerPixel.Value, elevationScale.Value,
-                           originPixel, originElevation, minFilter, maxFilter);
-        }
-
-        public virtual SparseImage LoadOrbitalImage(SiteDrive siteDrive, ref string imgFile,
-                                                    out OrbitalImage orbitalTransform,
-                                                    out Matrix siteDriveToOrbitalBody, out double orbitalMetersPerPixel,
-                                                    ILogger logger = null)
-        {
-            var cfg = OrbitalConfig.Instance;
-            
-            if (string.IsNullOrEmpty(imgFile))
-            {
-                if (!string.IsNullOrEmpty(cfg.OrbitalImageStoragePath))
-                {
-                    imgFile = Path.Combine(LocalPipelineConfig.Instance.StorageDir, cfg.OrbitalImageStoragePath);
-                }
-                else
-                {
-                    throw new Exception("orbital image not available");
-                }
-            }
-
-            if (!File.Exists(imgFile))
-            {
-                throw new Exception("orbital image not found: " + imgFile);
-            }
-
-            orbitalTransform = new OrbitalImage(imgFile, PlanetaryBody.GetByName(cfg.OrbitalBodyName));
-           
-            var placesDB = new PlacesDB(logger, requireOrbital: true);
-            Vector2 meshFrameLonLat = placesDB.GetEstimatedLatLon(siteDrive);
-
-            if (logger != null)
-            {
-                logger.LogInfo("Places: primary sitedrive {0} at longitude {1} and latitude {2}",
-                               siteDrive, meshFrameLonLat.X, meshFrameLonLat.Y);
-            }
-
-            Vector3 bodyXYZ = orbitalTransform.LatLonToXYZ(new Vector3(meshFrameLonLat.X, meshFrameLonLat.Y, 0));
-
-            //ISSUE #1034: this bolts a single transform gluing a flat plane to this location
-            //transformations km away from this location will be incorrect
-            Vector3 siteDriveZInBody = Vector3.Normalize(bodyXYZ); // sd: nadir, should be - but need to convert from right handed site to lefthanded body
-            Vector3 siteDriveYInBody = Vector3.Normalize(Vector3.Cross(siteDriveZInBody, new Vector3(1, 0, 0))); // sd: east,
-            Vector3 siteDriveXInBody = Vector3.Normalize(Vector3.Cross(siteDriveYInBody, siteDriveZInBody)); // sd: north, 
-
-            siteDriveToOrbitalBody = new Matrix(siteDriveXInBody.X, siteDriveXInBody.Y, siteDriveXInBody.Z, 0,
-                                                siteDriveYInBody.X, siteDriveYInBody.Y, siteDriveYInBody.Z, 0,
-                                                siteDriveZInBody.X, siteDriveZInBody.Y, siteDriveZInBody.Z, 0,
-                                                bodyXYZ.X, bodyXYZ.Y, bodyXYZ.Z, 1);
-
-            //ISSUE #1034: ideally this would be recalculated at each point in question
-            //but for now we will do at a single site
-            orbitalMetersPerPixel = orbitalTransform.GetFinestEstimatedMetersPerPixelAtXYZ(bodyXYZ);
-
-            return new DEM.SparseDEMImage(imgFile);
+            GetLocalLevelBasis(out Vector3 north, out Vector3 east, out Vector3 nadir);
+            gisElevationInLocalLevel = -nadir;
+            gisImageRightInLocalLevel = east;
+            gisImageDownInLocalLevel = -north;
         }
     }
 }

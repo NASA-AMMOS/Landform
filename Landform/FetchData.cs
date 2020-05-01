@@ -946,146 +946,156 @@ namespace OPS.Landform
 
         public int Run()
         {
-            var stopwatch = Stopwatch.StartNew();
-
-            if (!string.IsNullOrEmpty(options.MaxDownload))
+            try
             {
-                var str = options.MaxDownload.ToLower();
-                double mult = str.EndsWith("k") ? 1e3 : str.EndsWith("m") ? 1e6 : str.EndsWith("g") ? 1e9 : 1;
-                if (mult > 1)
-                {
-                    str = str.Substring(0, str.Length - 1);
-                }
-                if (str.Length > 0 && !long.TryParse(str, out maxBytes))
-                {
-                    logger.ErrorFormat("error parsing --maxdownload \"{0}\"", options.MaxDownload);
-                    return 1;
-                }
-                maxBytes *= (long)mult;
-            }
-
-            if (maxBytes > 0 && options.DeleteLRU && !options.AccountExisting)
-            {
-                logger.ErrorFormat("--deletelru requires --accountexisting");
-                return 1;
-            }
-
-            if (maxBytes > 0 && options.AccountExisting && Directory.Exists(options.OutputDir))
-            {
-                logger.InfoFormat("indexing existing downloads, disk usage limit {0} bytes", Fmt.DiskBytes(maxBytes));
-                IndexExistingDownloads(PathHelper.ListFiles(options.OutputDir, recursive: true));
-                logger.InfoFormat("found {0} existing downloads, total {1} bytes",
-                                  Fmt.KMG(lruDownloads.Count), Fmt.DiskBytes(diskBytes));
-            }
-            else if (maxBytes > 0)
-            {
-                logger.InfoFormat("download limit {0} bytes", Fmt.DiskBytes(maxBytes));
-            }
-
-            if (options.Raw)
-            {
-                if (!string.IsNullOrEmpty(options.SearchLocations))
-                {
-                    logger.Error("must not specify search locations with --raw");
-                    return 1;
-                }
-                var files = StringHelper.ParseList(options.Input).ToList();
-                if (options.Summary)
-                {
-                    logger.InfoFormat("--- fetching {0} files ---", files.Count);
-                    files.ForEach(file => logger.Info(file));
-                }
-                DownloadFiles(files);
-            }
-            else
-            {
-                if (string.IsNullOrEmpty(options.SearchLocations))
-                {
-                    logger.Error("must specify search locations without --raw");
-                    return 1;
-                }
-                var locations = StringHelper.ParseList(options.SearchLocations);
-                var sols = ExpandSolSpecifier(options.Input);
-                logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols), string.Join(", ", locations));
+                var stopwatch = Stopwatch.StartNew();
                 
-                var solToProducts = new ConcurrentDictionary<string, List<string>>();
-                CoreLimitedParallel.ForEach(sols, sol =>
+                if (!string.IsNullOrEmpty(options.MaxDownload))
                 {
-                    var prods = new List<string>();
-                    foreach (var location in locations)
+                    var str = options.MaxDownload.ToLower();
+                    double mult = str.EndsWith("k") ? 1e3 : str.EndsWith("m") ? 1e6 : str.EndsWith("g") ? 1e9 : 1;
+                    if (mult > 1)
                     {
-                        var solLocation = StringHelper.ReplaceFixedWidthIntWildcard(location, SOL_WILDCARD,
-                                                                                    int.Parse(sol));
-                        prods.AddRange(IndexFiles(solLocation));
+                        str = str.Substring(0, str.Length - 1);
                     }
-                    solToProducts.TryAdd(sol, prods);
-                });
-
-                if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrameProducts()))
-                {
-                    var urls = new List<string>();
-                    if (!string.IsNullOrEmpty(options.UnifiedMeshes))
+                    if (str.Length > 0 && !long.TryParse(str, out maxBytes))
                     {
-                        var ums = StringHelper.ParseList(options.UnifiedMeshes);
-                        var names = ums.Where(um => um.IndexOf("://") < 0).ToList();
-                        urls = solToProducts
-                            .SelectMany(s => s.Value)
-                            .Where(s => names.Any(um => s.EndsWith(um, ignoreCase: true, culture: null)))
+                        logger.ErrorFormat("error parsing --maxdownload \"{0}\"", options.MaxDownload);
+                        return 1;
+                    }
+                    maxBytes *= (long)mult;
+                }
+                
+                if (maxBytes > 0 && options.DeleteLRU && !options.AccountExisting)
+                {
+                    logger.ErrorFormat("--deletelru requires --accountexisting");
+                    return 1;
+                }
+                
+                if (maxBytes > 0 && options.AccountExisting && Directory.Exists(options.OutputDir))
+                {
+                    logger.InfoFormat("indexing existing downloads, disk usage limit {0} bytes",
+                                      Fmt.DiskBytes(maxBytes));
+                    IndexExistingDownloads(PathHelper.ListFiles(options.OutputDir, recursive: true));
+                    logger.InfoFormat("found {0} existing downloads, total {1} bytes",
+                                      Fmt.KMG(lruDownloads.Count), Fmt.DiskBytes(diskBytes));
+                }
+                else if (maxBytes > 0)
+                {
+                    logger.InfoFormat("download limit {0} bytes", Fmt.DiskBytes(maxBytes));
+                }
+                
+                if (options.Raw)
+                {
+                    if (!string.IsNullOrEmpty(options.SearchLocations))
+                    {
+                        logger.Error("must not specify search locations with --raw");
+                        return 1;
+                    }
+                    var files = StringHelper.ParseList(options.Input).ToList();
+                    if (options.Summary)
+                    {
+                        logger.InfoFormat("--- fetching {0} files ---", files.Count);
+                        files.ForEach(file => logger.Info(file));
+                    }
+                    DownloadFiles(files);
+                }
+                else
+                {
+                    if (string.IsNullOrEmpty(options.SearchLocations))
+                    {
+                        logger.Error("must specify search locations without --raw");
+                        return 1;
+                    }
+                    var locations = StringHelper.ParseList(options.SearchLocations);
+                    var sols = ExpandSolSpecifier(options.Input);
+                    logger.InfoFormat("seaching sols {0} in {1}", string.Join(", ", sols),
+                                      string.Join(", ", locations));
+                    
+                    var solToProducts = new ConcurrentDictionary<string, List<string>>();
+                    CoreLimitedParallel.ForEach(sols, sol =>
+                    {
+                        var prods = new List<string>();
+                        foreach (var location in locations)
+                        {
+                            var solLocation = StringHelper.ReplaceFixedWidthIntWildcard(location, SOL_WILDCARD,
+                                                                                        int.Parse(sol));
+                            prods.AddRange(IndexFiles(solLocation));
+                        }
+                        solToProducts.TryAdd(sol, prods);
+                    });
+                    
+                    if (!options.NoUnifiedMeshes && (mission == null || mission.AllowMultiFrameProducts()))
+                    {
+                        var urls = new List<string>();
+                        if (!string.IsNullOrEmpty(options.UnifiedMeshes))
+                        {
+                            var ums = StringHelper.ParseList(options.UnifiedMeshes);
+                            var names = ums.Where(um => um.IndexOf("://") < 0).ToList();
+                            urls = solToProducts
+                                .SelectMany(s => s.Value)
+                                .Where(s => names.Any(um => s.EndsWith(um, ignoreCase: true, culture: null)))
+                                .ToList();
+                            urls.AddRange(ums.Where(um => um.IndexOf("://") >= 0));
+                            urls = urls.Distinct().ToList();
+                        }
+                        else
+                        {
+                            urls = UnifiedMesh.CollectLatest(solToProducts.SelectMany(s => s.Value).ToList(), mission);
+                        }
+                        logger.InfoFormat("downloading {0} unified meshes", urls.Count);
+                        DownloadFiles(urls);
+                        var files = urls
+                            .Select(url => LocalPath(url))
+                            .Where(path => !options.DryRun || File.Exists(path))
                             .ToList();
-                        urls.AddRange(ums.Where(um => um.IndexOf("://") >= 0));
-                        urls = urls.Distinct().ToList();
+                        unifiedMeshes = UnifiedMesh.LoadAll(files, mission);
                     }
-                    else
-                    {
-                        urls = UnifiedMesh.CollectLatest(solToProducts.SelectMany(s => s.Value).ToList(), mission);
-                    }
-                    logger.InfoFormat("downloading {0} unified meshes", urls.Count);
-                    DownloadFiles(urls);
-                    var files = urls
-                        .Select(url => LocalPath(url))
-                        .Where(path => !options.DryRun || File.Exists(path))
-                        .ToList();
-                    unifiedMeshes = UnifiedMesh.LoadAll(files, mission);
-                }
-
-                foreach (var sol in sols)
-                {
-                    logger.InfoFormat("filtering files for sol {0}", sol);
-                    solToProducts[sol] = Filter(solToProducts[sol]);
-                }
-
-                if (options.Summary)
-                {
+                    
                     foreach (var sol in sols)
                     {
-                        var groups = solToProducts[sol]
-                            .Select(product => StringHelper.GetLastUrlPathSegment(product, stripExtension: true))
-                            .Select(idStr => RoverProductId.Parse(idStr, mission))
-                            .GroupBy(id => id.GetPartialId(mission, includeProductType: false, includeGeometry: false,
-                                                           includeVariants: false, includeVersion: false,
-                                                           includeStereoEye: false))
-                            .Select(ids => ids.Distinct().OrderBy(id => id.FullId).ToList())
-                            .ToList();
-                        logger.InfoFormat("-- fetching {0} product ids for sol {1} --",
-                                          groups.Select(group => group.Count).Sum(), sol);
-                        groups.ForEach(group => group.ForEach(id => logger.Info(id.FullId)));
+                        logger.InfoFormat("filtering files for sol {0}", sol);
+                        solToProducts[sol] = Filter(solToProducts[sol]);
                     }
+                    
+                    if (options.Summary)
+                    {
+                        foreach (var sol in sols)
+                        {
+                            var groups = solToProducts[sol]
+                                .Select(product => StringHelper.GetLastUrlPathSegment(product, stripExtension: true))
+                                .Select(idStr => RoverProductId.Parse(idStr, mission))
+                                .GroupBy(id => id.GetPartialId(mission, includeProductType: false,
+                                                               includeGeometry: false, includeVariants: false,
+                                                               includeVersion: false, includeStereoEye: false))
+                                .Select(ids => ids.Distinct().OrderBy(id => id.FullId).ToList())
+                                .ToList();
+                            logger.InfoFormat("-- fetching {0} product ids for sol {1} --",
+                                              groups.Select(group => group.Count).Sum(), sol);
+                            groups.ForEach(group => group.ForEach(id => logger.Info(id.FullId)));
+                        }
+                    }
+                    
+                    DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
                 }
-                
-                DownloadFiles(solToProducts.SelectMany(s => s.Value).ToList());
+                logger.InfoFormat("downloaded {0} files ({1} bytes), total time: {2}",
+                                  Fmt.DiskBytes(downloadedFiles), Fmt.DiskBytes(downloadedBytes), Fmt.HMS(stopwatch));
+                if (deletedFiles > 0)
+                {
+                    logger.InfoFormat("deleted {0} LRU files, {1} bytes, {2}/{3} bytes free",
+                                      Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
+                                      Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
+                                      Fmt.DiskBytes(maxBytes));
+                }
+                if (deletedDirectories > 0)
+                {
+                    logger.InfoFormat("deleted {0} empty directories", Fmt.KMG(deletedDirectories));
+                }
             }
-            logger.InfoFormat("downloaded {0} files ({1} bytes), total time: {2}",
-                              Fmt.DiskBytes(downloadedFiles), Fmt.DiskBytes(downloadedBytes), Fmt.HMS(stopwatch));
-            if (deletedFiles > 0)
+            catch (Exception ex)
             {
-                logger.InfoFormat("deleted {0} LRU files, {1} bytes, {2}/{3} bytes free",
-                                  Fmt.DiskBytes(deletedFiles), Fmt.DiskBytes(deletedBytes),
-                                  Fmt.DiskBytes(maxBytes - diskBytes), //may be negative
-                                  Fmt.DiskBytes(maxBytes));
-            }
-            if (deletedDirectories > 0)
-            {
-                logger.InfoFormat("deleted {0} empty directories", Fmt.KMG(deletedDirectories));
+                Logging.LogException(logger, ex);
+                return 1;
             }
             return 0;
         }

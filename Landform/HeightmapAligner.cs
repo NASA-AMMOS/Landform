@@ -26,24 +26,19 @@ using OPS.Pipeline.AlignmentServer;
 /// aligned "scene" to which later ones are aligned.  It is possible that one or more sitedrives fails to align at this
 /// stage, e.g. to insufficient overlap.
 ///
-/// If an orbital DEM is available it is then aligned to the aligned scene of sitedrives (which will always contain at
-/// least the base sitedrive).  See OrbitalConfig.cs for details of the orbital DEM metadata.  PlacesDB is also required
-/// to relate the lat/lon of the base sitedrive to a pixel in the orbital DEM.
+/// If an orbital DEM is available the aligned scene of sitedrives, which will always contain at least the base
+/// sitedrive, is aligned to it. All sitedrives that failed to align in the first stage are then aligned to the orbital
+/// DEM.
 ///
-/// All sitedrives that failed to align in the first stage (or optionally all sitedrives except the base sitedrive)
-/// are then aligned to the orbital DEM.
-///
-/// If an orbital DEM is available then its alignment is saved as a Frame with the name given by
-/// OrbitalConfig.OrbitalFrameName in the alignment project database.
-///
-/// Either or both simulated annealing and/or ICP (iterated closest point) stages are used to perform each alignment.
+/// Either ICP (iterated closest point) is typically used to perform each alignment, but simulated annealing can
+/// optionally be enabled as well.
 ///
 /// Debug meshes can be optionally saved with the aligned and unaligned heightmaps and the sample point pair matches
 /// used to perform the alignments.  Only the portion of the orbital DEM near the base sitedrive is saved.
 ///
 /// Example:
 ///
-/// Landform.exe heightmap-align windjana --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif --basesitedrive 0311472
+/// Landform.exe heightmap-align windjana --basesitedrive 0311472
 ///
 /// </summary>
 namespace OPS.Landform
@@ -60,7 +55,7 @@ namespace OPS.Landform
         [Option(HelpText = "Align remaining site drives to base site drive in order of priority (NewestFirst, OldestFirst, BiggestFirst, SmallestFirst)", Default = SiteDrivePriority.BiggestFirst)]
         public SiteDrivePriority RemainingSiteDrivePriority { get; set; }
 
-        [Option(Required = false, Default = true, HelpText = "Only allow vertical adjustment and out of plane rotation between sitedrives (does not apply to orbital).")]
+        [Option(Required = false, Default = true, HelpText = "Only allow vertical adjustment and out of plane rotation between sitedrives (does not apply to orbital or ICP).")]
         public bool PreserveXY { get; set; }
 
         [Option(Required = false, Default = 500, HelpText = "Orbital DEM will be ignored beyond this radius from base site drive origin")]
@@ -81,14 +76,11 @@ namespace OPS.Landform
         [Option(Required = false, Default = 1000, HelpText = "Maximum number of samples for alignment")]
         public int MaxSamples { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Disable final alignment of sitedrives to aligned obital DEM")]
-        public bool NoAlignToDem { get; set; }
-
-        [Option(Required = false, Default = false, HelpText = "Don't only align unaligned sitedrives to aligned obital DEM")]
-        public bool NoOnlyAlignUnalignedToDem { get; set; }
-
         [Option(HelpText = "Stop after rendering site drive DEMs", Default = false)]
         public bool OnlyRenderDEMs { get; set; }
+
+        [Option(HelpText = "Don't align site drives to each other before aligning to orbital", Default = false)]
+        public override bool NoSurface { get; set; }
     }
 
     public class HeightmapAligner : BEVCommand
@@ -101,18 +93,21 @@ namespace OPS.Landform
         private const string OUT_DIR = "alignment/HeightmapProducts";
 
         private SiteDrive baseSiteDrive;
+        private SiteDrive[] remainingSiteDrives; //not including rootSiteDrive or baseSiteDrive
 
-        //sitedrive => DEM
-        //populated by LoadOrRenderDEMs()
         protected Dictionary<SiteDrive, DEM> sdDEMs = new Dictionary<SiteDrive, DEM>();
 
-        // adjustedSiteDriveToWorld = BestTransform(siteDrive) * sdAdjustment[siteDrive]
         private Dictionary<SiteDrive, Matrix> sdAdjustment = new Dictionary<SiteDrive, Matrix>();
 
-        private DEM orbitalDEM;
-
-        //orbitalToWorld = BestTransform(baseSiteDrive) * orbitalAdjustment
-        private Matrix? orbitalAdjustment;
+        private Matrix BestAdjustedTransform(SiteDrive siteDrive)
+        {
+            var xform = base.BestTransform(siteDrive);
+            if (sdAdjustment.ContainsKey(siteDrive))
+            {
+                xform *= sdAdjustment[siteDrive];
+            }
+            return xform;
+        }
 
         public HeightmapAligner(HeightmapAlignerOptions options) : base(options)
         {
@@ -132,12 +127,7 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (!options.NoOrbital)
-                {
-                    RunPhase("load oribital DEM", LoadOrbital); //may overwrite options.NoOrbital
-                }
-
-                if (options.NoOrbital && siteDrives.Length == 1 && !options.OnlyRenderDEMs)
+                if (!options.OnlyRenderDEMs && (options.NoOrbital && siteDrives.Length < 2))
                 {
                     pipeline.LogWarn("at least two site drives required without orbital");
                     StopStopwatch();
@@ -156,25 +146,22 @@ namespace OPS.Landform
                     return 0;
                 }
 
-                RunPhase("sort site drives", SortSiteDrives);
-
-                if (options.NoOrbital && sdDEMs.Keys.Where(sd => sd != baseSiteDrive).Count() == 0)
+                //some sdDEMs may have failed to load or render
+                if (options.NoOrbital && sdDEMs.Count < 2)
                 {
                     pipeline.LogWarn("at least two site drives required without orbital");
                     StopStopwatch();
                     return 0;
                 }
-                    
-                RunPhase("align other site drives to base site drive", AlignSurfaceToBaseSiteDrive);
+
+                if (!options.NoSurface)
+                {
+                    RunPhase("align site drives to each other", AlignSiteDrives);
+                }
 
                 if (!options.NoOrbital)
                 {
-                    RunPhase("align orbital to successfully aligned site drives", AlignOrbitalToSurface);
-                }
-
-                if (!options.NoAlignToDem && orbitalAdjustment.HasValue)
-                {
-                    RunPhase("align site drives to orbital", AlignSurfaceToOrbital);
+                    RunPhase("align site drives to orbital", AlignToOrbital);
                 }
 
                 if (options.WriteDebug)
@@ -184,8 +171,7 @@ namespace OPS.Landform
 
                 if (!options.NoSave)
                 {
-                    RunPhase("save surface transforms", WriteSurfaceTransforms);
-                    RunPhase("save orbital transform", WriteOrbitalTransform);
+                    RunPhase("save adjusted transforms", WriteAdjustedTransforms);
                 }
             }
             catch (Exception ex)
@@ -210,17 +196,12 @@ namespace OPS.Landform
             {
                 throw new Exception("at least one site drive required");
             }
-            
-            if (!string.IsNullOrEmpty(options.BaseSiteDrive))
+
+            if (!options.NoOrbital)
             {
-                baseSiteDrive = new SiteDrive(options.BaseSiteDrive); //allow either SSSDDDD or SSSSSDDDDD
-                if (!siteDrives.Contains(baseSiteDrive))
-                {
-                    throw new Exception("specified base site drive not found: " + options.BaseSiteDrive);
-                }
-                pipeline.LogInfo("base site drive: {0}", baseSiteDrive);
+                LoadOrbitalDEM(); //may overwrite options.NoOrbital
             }
-            
+
             return true;
         }
 
@@ -263,15 +244,23 @@ namespace OPS.Landform
                 baseSiteDrive = sort(siteDrives, options.BaseSiteDrivePriority).First();
                 pipeline.LogInfo("base site drive ({0}): {1}", options.BaseSiteDrivePriority, baseSiteDrive);
             }
-
-            if (!sdDEMs.ContainsKey(baseSiteDrive))
+            else
             {
-                throw new Exception("no DEM for base site drive " + baseSiteDrive);
+                baseSiteDrive = new SiteDrive(options.BaseSiteDrive); //allow either SSSDDDD or SSSSSDDDDD
+                if (!siteDrives.Contains(baseSiteDrive))
+                {
+                    throw new Exception("specified base site drive not found: " + options.BaseSiteDrive);
+                }
+                pipeline.LogInfo("using specified base site drive: {0}", baseSiteDrive);
             }
 
-            siteDrives = new List<SiteDrive> { baseSiteDrive }
-                .Concat(sort(siteDrives.Where(sd => sd != baseSiteDrive), options.RemainingSiteDrivePriority))
-                .ToArray();
+            var sdList = new List<SiteDrive>();
+            sdList.Add(baseSiteDrive);
+
+            remainingSiteDrives = siteDrives.Where(sd => !sdList.Contains(sd)).ToArray();
+            sdList.AddRange(sort(remainingSiteDrives, options.RemainingSiteDrivePriority));
+
+            siteDrives = sdList.ToArray();
         }
 
         protected void LoadOrRenderDEMs()
@@ -279,21 +268,20 @@ namespace OPS.Landform
             LoadOrRenderBEVs(includeBEVs: false, includeDEMs: true);
 
             //make OrthographicCameraModel that projects points in sitedrive frame to pixels in sitedrive DEM image
-            var upDir = new Vector3(0, 0, -1); //sitedrive +Z is opposite of elevation
-            var rightDir = new Vector3(1, 0, 0);
-            var downDir = new Vector3(0, 1, 0);
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation, out Vector3 right, out Vector3 down);
 
             double elevationScale = 1; //sitedrive DEM elevations are always in meters
+            double pixelAspect = 1; //sitedrive DEMs are always square pixels
             double originElevation = 0; //sitredrive DEM elevations are always relative to sitedrive origin
 
             foreach (var siteDrive in dems.Keys)
             {
                 var img = dems[siteDrive];
-                sdDEMs[siteDrive] = new DEM(dems[siteDrive], upDir, rightDir, downDir,
-                                            BEVMetersPerPixel, elevationScale,
-                                            sdOriginPixel[siteDrive], originElevation,
-                                            options.DEMMinFilter, options.DEMMaxFilter);
+                sdDEMs[siteDrive] = DEM.OrthoDEM(dems[siteDrive], elevation, right, down,
+                                                 BEVMetersPerPixel, pixelAspect, elevationScale,
+                                                 sdOriginPixel[siteDrive], originElevation);
             }
+
             foreach (var sd in siteDrives)
             {
                 if (!sdDEMs.ContainsKey(sd))
@@ -301,6 +289,15 @@ namespace OPS.Landform
                     pipeline.LogWarn("failed to load or render DEM for site drive {0}", sd);
                 }
             }
+
+            siteDrives = siteDrives.Where(sd => sdDEMs.ContainsKey(sd)).ToArray();
+
+            if (siteDrives.Length < 1)
+            {
+                throw new Exception("at least one site drive DEM required");
+            }
+
+            SortSiteDrives(); //also sets baseSiteDrive
         }
 
         private DEMAligner MakeAligner(bool? preserveXY = null)
@@ -323,303 +320,161 @@ namespace OPS.Landform
             return ret;
         }
 
-        private void AlignSurfaceToBaseSiteDrive()
+        private void AlignSiteDrives()
         {
-            sdAdjustment[baseSiteDrive] = Matrix.Identity;
+            if (remainingSiteDrives.Length > 0)
+            {
+                pipeline.LogInfo("aligning {0} site drives to base site drive {1}",
+                                 remainingSiteDrives.Length, baseSiteDrive);
+                IncrementalAlign(baseSiteDrive, remainingSiteDrives, cumulative: true);
+            }
+        }
+
+        private void AlignToOrbital()
+        {
+            var aligned = siteDrives.Where(sd => sd == baseSiteDrive || sdAdjustment.ContainsKey(sd)).ToArray();
+            pipeline.LogInfo("alining base site drive {0} and {1} additional aligned site drives to orbital DEM",
+                             baseSiteDrive, aligned.Length - 1);
 
             var aligner = MakeAligner();
 
-            var scenes = new List<DEM>() { sdDEMs[baseSiteDrive] };
-            var sceneToWorlds = new List<Matrix>() { BestTransform(baseSiteDrive) * sdAdjustment[baseSiteDrive] };
-            for (int i = 1 /* don't attempt to align base site drive */; i < siteDrives.Length; i++)
+            if (options.WriteDebug)
             {
-                var siteDrive = siteDrives[i];
+                //naming convention is <model>-<data>
+                var bn = "orbital-surface_Heightmap_";
+                aligner.SavePriorMatchMesh = mesh => SaveMesh(mesh, bn + "Prior_Matches");
+                aligner.SaveAdjustedMatchMesh = mesh => SaveMesh(mesh, bn + "Adj_Matches");
+            }
 
-                if (!sdDEMs.ContainsKey(siteDrive))
+            //we actually align the orbital DEM to the surface
+            //but this is just because the DEMAligner.AlignDEMToScene() API is assymetric
+            //it can only align one DEM to a "scene" consisting of one or more DEMs
+            //it *shouldn't* matter, we just call it this way and use the inverse of the result
+            var adj = aligner.AlignDEMToScene(orbitalDEM, orbitalDEMToRoot,
+                                              aligned.Select(sd => sdDEMs[sd]).ToArray(),
+                                              aligned.Select(sd => BestAdjustedTransform(sd)).ToArray(),
+                                              out double initialRMS, out double finalRMS);
+            if (adj.HasValue)
+            {
+                pipeline.LogInfo("aligned surface to orbital DEM: RMS error {0} -> {1}", initialRMS, finalRMS);
+                var invAdj = Matrix.Invert(adj.Value);
+                foreach (var sd in aligned)
                 {
-                    pipeline.LogWarn("no DEM for site drive {0}", siteDrive);
-                    continue;
+                    sdAdjustment[sd] = (sdAdjustment.ContainsKey(sd) ? sdAdjustment[sd] : Matrix.Identity) * invAdj;
                 }
+            }
+            else
+            {
+                pipeline.LogInfo("insufficient overlap align surface to orbital DEM");
+            }
 
-                pipeline.LogInfo("beginning alignment for site drive {0}", siteDrive);
+            var unaligned = siteDrives.Where(sd => sd != baseSiteDrive && !sdAdjustment.ContainsKey(sd)).ToArray();
 
+            if (unaligned.Length > 0)
+            {
+                pipeline.LogInfo("aligning {0} unaligned site drives to orbital DEM", unaligned.Length);
+                IncrementalAlign(orbitalDEM, orbitalDEMToRoot, "orbital", unaligned, cumulative: false);
+            }
+        }
+
+        private void IncrementalAlign(DEM first, Matrix firstToRoot, string firstName, IEnumerable<SiteDrive> rest,
+                                      bool cumulative)
+        {
+            var aligner = MakeAligner();
+            var dems = new List<DEM>() { first };
+            var demsToRoot = new List<Matrix>() { firstToRoot };
+            var aligned = firstName;
+            foreach (var sd in rest)
+            {
+                pipeline.LogInfo("aligning site drive {0} to {1}", sd, aligned);
                 try
                 {
                     if (options.WriteDebug)
                     {
-                        aligner.SavePriorMatchMesh = mesh =>
-                        {
-                            SaveMesh(mesh, string.Format("surface-{0}_Heightmap_Prior_Matches", siteDrive));
-                        };
-                        aligner.SaveAdjustedMatchMesh = mesh =>
-                        {
-                            SaveMesh(mesh, string.Format("surface-{0}_Heightmap_Adj_Matches", siteDrive));
-                        };
+                        //naming convention is <model>-<data>
+                        var bn = $"{firstName}-{sd}_Heightmap_";
+                        aligner.SavePriorMatchMesh = mesh => SaveMesh(mesh, bn + "Prior_Matches");
+                        aligner.SaveAdjustedMatchMesh = mesh => SaveMesh(mesh, bn + "Adj_Matches");
                     }
-                    pipeline.LogInfo("attempting to align site drive {0}", siteDrive);
-                    var adj =
-                        aligner.AlignDEMToScene(sdDEMs[siteDrive], BestTransform(siteDrive),
-                                                scenes.ToArray(), sceneToWorlds.ToArray(),
-                                                out double initialRMS, out double finalRMS);
-                    if (adj.HasValue)
-                    {
-                        pipeline.LogInfo("aligned site drive {0}: RMS error {1} -> {2}",
-                                         siteDrive, initialRMS, finalRMS);
-                        sdAdjustment[siteDrive] = adj.Value;
-                        scenes.Add(sdDEMs[siteDrive]);
-                        sceneToWorlds.Add(BestTransform(siteDrive) * sdAdjustment[siteDrive]);
-                    }
-                    else
-                    {
-                        pipeline.LogInfo("insufficient overlap to align site drive {0}", siteDrive);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    pipeline.LogException(ex, string.Format("error aligning site drive {0}", siteDrive));
-                }
-            }
-        }
-
-        private void LoadOrbital()
-        {
-            try
-            {
-                string demFile = options.OrbitalDEM;
-                orbitalDEM = mission.LoadOrbitalDEM(baseSiteDrive, ref demFile,
-                                                 minFilter: options.DEMMinFilter, maxFilter: options.DEMMaxFilter,
-                                                 logger: pipeline);
-                pipeline.LogInfo("loaded {0}x{1} orbital DEM {2}", orbitalDEM.Width, orbitalDEM.Height, demFile);
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogWarn("failed to load orbital DEM or PlacesDB, running without orbital: {0}", ex.Message);
-                options.NoOrbital = true;
-            }
-        }
-
-        private void AlignOrbitalToSurface()
-        {
-            try
-            {
-                var aligned = siteDrives.Where(sd => sdAdjustment.ContainsKey(sd)).ToList();
-                pipeline.LogInfo("aligning orbital DEM to {0} aligned site drives", aligned.Count);
-
-                var aligner = MakeAligner(preserveXY: false);
-
-                if (options.WriteDebug)
-                {
-                    aligner.SavePriorMatchMesh = mesh => SaveMesh(mesh, "orbital_Heightmap_Prior_Matches");
-                    aligner.SaveAdjustedMatchMesh = mesh => SaveMesh(mesh, "orbital_Heightmap_Adj_Matches");
-                }
-
-                var adj = aligner.AlignDEMToScene(orbitalDEM, BestTransform(baseSiteDrive),
-                                                  aligned.Select(sd => sdDEMs[sd]).ToArray(),
-                                                  aligned.Select(sd => BestTransform(sd) * sdAdjustment[sd]).ToArray(),
-                                                  out double initialRMS, out double finalRMS);
-                if (!adj.HasValue)
-                {
-                    pipeline.LogWarn("failed to align orbital DEM, insufficient overlap");
-                    return;
-                }
-                pipeline.LogInfo("aligned orbital to {0} site drives: RMS error {1} -> {2}",
-                                 aligned.Count, initialRMS, finalRMS);
-                orbitalAdjustment = adj;
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogException(ex, "error aligning orbital DEM to aligned site drives");
-                return;
-            }
-        }
-
-        private void AlignSurfaceToOrbital()
-        {
-            var sds = siteDrives.Where(sd => sd != baseSiteDrive).ToArray();
-            if (!options.NoOnlyAlignUnalignedToDem)
-            {
-                sds = siteDrives.Where(sd => !sdAdjustment.ContainsKey(sd)).ToArray();
-            }
-
-            sds = sds.Where(sd => sdDEMs.ContainsKey(sd)).ToArray();
-                
-            pipeline.LogInfo("aligning {0} site drives to orbital DEM", sds.Length);
-
-            var aligner = MakeAligner(preserveXY: false);
-
-            var orbitalToWorld = BestTransform(baseSiteDrive) * orbitalAdjustment.Value;
-            foreach (SiteDrive siteDrive in sds)
-            {
-                try
-                {
-                    if (options.WriteDebug)
-                    {
-                        aligner.SavePriorMatchMesh = mesh =>
-                        {
-                            SaveMesh(mesh, string.Format("orbital-{0}_Heightmap_Prior_Matches", siteDrive));
-                        };
-                        aligner.SaveAdjustedMatchMesh = mesh =>
-                        {
-                            SaveMesh(mesh, string.Format("orbital-{0}_Heightmap_Adj_Matches", siteDrive));
-                        };
-                    }
-
-                    pipeline.LogInfo("attempting to align site drive {0} to orbital DEM", siteDrive);
-                    var dem = dems[siteDrive];
-                    var sdToWorld = BestTransform(siteDrive);
-                    if (sdAdjustment.ContainsKey(siteDrive))
-                    {
-                        sdToWorld = sdToWorld * sdAdjustment[siteDrive];
-                    }
-                    var adj = aligner.AlignDEMToScene(sdDEMs[siteDrive], BestTransform(siteDrive),
-                                                      new DEM[] { orbitalDEM }, new Matrix[] { orbitalToWorld },
+                    var adj = aligner.AlignDEMToScene(sdDEMs[sd], BestAdjustedTransform(sd),
+                                                      dems.ToArray(), demsToRoot.ToArray(),
                                                       out double initialRMS, out double finalRMS);
                     if (adj.HasValue)
                     {
-                        pipeline.LogInfo("aligned site drive {0} to orbital DEM: RMS error {1} -> {2}",
-                                         siteDrive, initialRMS, finalRMS);
-                        sdAdjustment[siteDrive] = adj.Value;
+                        pipeline.LogInfo("aligned site drive {0} to {1}: RMS error {2} -> {3}",
+                                         sd, aligned, initialRMS, finalRMS);
+                        if (!sdAdjustment.ContainsKey(sd))
+                        {
+                            sdAdjustment[sd] = adj.Value;
+                        }
+                        else
+                        {
+                            sdAdjustment[sd] = sdAdjustment[sd] * adj.Value;
+                        }
+                        if (cumulative)
+                        {
+                            dems.Add(sdDEMs[sd]);
+                            demsToRoot.Add(BestAdjustedTransform(sd));
+                            aligned += $",{sd.ToString()}";
+                        }
                     }
                     else
                     {
-                        pipeline.LogInfo("insufficient overlap to align site drive {0} to orbital DEM", siteDrive);
+                        pipeline.LogInfo("insufficient overlap to align site drive {0} to {1}", sd, aligned);
                     }
                 }
                 catch (Exception ex)
                 {
-                    pipeline.LogException(ex, string.Format("error aligning site drive {0} to orbital DEM", siteDrive));
+                    pipeline.LogException(ex, string.Format("error aligning site drive {0} to {1}", sd, aligned));
                 }
             }
+        }
+
+        private void IncrementalAlign(SiteDrive first, IEnumerable<SiteDrive> rest, bool cumulative)
+        {
+            IncrementalAlign(sdDEMs[first], BestAdjustedTransform(first), first.ToString(), rest, cumulative);
         }
 
         private void SaveDEMMeshes()
         {
-            foreach (var siteDrive in sdDEMs.Keys)
+            foreach (var sd in sdDEMs.Keys)
             {
-                var sdDEM = sdDEMs[siteDrive]; 
+                var sdDEM = sdDEMs[sd]; 
                 var dem = sdDEM.DecimateTo(MAX_SD_MESH_DEM_RESOLUTION);
                 if (dem.Width != sdDEM.Width || dem.Height != sdDEM.Height)
                 {
                     pipeline.LogInfo("decimated {0}x{1} DEM ({2} meters/pixel) for site drive {3} " +
                                      "to {4}x{5} ({6} meters/pixel) for meshing",
-                                     sdDEM.Width, sdDEM.Height, sdDEM.AvgMetersPerPixel, siteDrive,
+                                     sdDEM.Width, sdDEM.Height, sdDEM.AvgMetersPerPixel, sd,
                                      dem.Width, dem.Height, dem.AvgMetersPerPixel);
                 }
                 pipeline.LogInfo("organized meshing {0}x{1} DEM ({2}x{3}m) for site drive {3}, max radius {4}",
-                                 dem.Width, dem.Height, dem.WidthMeters, dem.HeightMeters, siteDrive,
+                                 dem.Width, dem.Height, dem.WidthMeters, dem.HeightMeters, sd,
                                  MAX_MESH_RADIUS_METERS);
                 var mesh = dem.OrganizedMesh(MAX_MESH_RADIUS_METERS);
-                SaveMesh(Mesh.Transformed(mesh, BestTransform(siteDrive)), siteDrive.ToString() + "_Heightmap");
-                if (sdAdjustment.ContainsKey(siteDrive))
+                SaveMesh(Mesh.Transformed(mesh, BestTransform(sd)), sd.ToString() + "_Heightmap");
+                if (sdAdjustment.ContainsKey(sd))
                 {
-                    SaveMesh(Mesh.Transformed(mesh, BestTransform(siteDrive) * sdAdjustment[siteDrive]),
-                             siteDrive.ToString() + "_Heightmap_Adj");
+                    SaveMesh(Mesh.Transformed(mesh, BestAdjustedTransform(sd)), sd.ToString() + "_Heightmap_Adj");
                 }
             }
             if (orbitalDEM != null)
             {
-                pipeline.LogInfo("delaunay meshing {0}x{1} orbital DEM ({2} meters/pixel, {3}x{4}m), max radius {5}",
+                pipeline.LogInfo("organized meshing {0}x{1} orbital DEM ({2} meters/pixel, {3}x{4}m), max radius {5}",
                                  orbitalDEM.Width, orbitalDEM.Height, orbitalDEM.AvgMetersPerPixel,
                                  orbitalDEM.WidthMeters, orbitalDEM.HeightMeters, MAX_MESH_RADIUS_METERS);
-                var mesh = orbitalDEM.DelaunayMesh(MAX_MESH_RADIUS_METERS, reverseWinding: true);
-                SaveMesh(Mesh.Transformed(mesh, BestTransform(baseSiteDrive)), "orbital_Heightmap");
-                if (orbitalAdjustment.HasValue)
-                {
-                    SaveMesh(Mesh.Transformed(mesh, BestTransform(baseSiteDrive) * orbitalAdjustment.Value),
-                             "orbital_Heightmap_Adj");
-                }
+                var baseSiteDriveToOrbital = BestTransform(baseSiteDrive) * Matrix.Invert(orbitalDEMToRoot);
+                var centerPointInOrbital = Vector3.Transform(Vector3.Zero, baseSiteDriveToOrbital);
+                var mesh = orbitalDEM.OrganizedMesh(MAX_MESH_RADIUS_METERS, centerPointInOrbital);
+                SaveMesh(Mesh.Transformed(mesh, orbitalDEMToRoot), "orbital_Heightmap");
             }
         }
 
-        private void WriteSurfaceTransforms()
+        private void WriteAdjustedTransforms()
         {
-            var source = TransformSource.LandformHeightmap;
-            foreach (var siteDrive in siteDrives.Where(sd => sd != baseSiteDrive))
-            {
-                var frame = frameCache.GetFrame(siteDrive.ToString());
-                if (sdAdjustment.ContainsKey(siteDrive))
-                {
-                    var ut = new UncertainRigidTransform(BestTransform(siteDrive) * sdAdjustment[siteDrive]);
-                    var ft = FrameTransform.FindOrCreate(pipeline, frame, source, ut);
-                    ft.Transform = ut;
-                    ft.Save(pipeline);
-                    bool added = false;
-                    lock (frame.Transforms)
-                    {
-                        added = frame.Transforms.Add(source);
-                    }
-                    if (added)
-                    {
-                        frame.Save(pipeline);
-                    }
-                    pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", source, siteDrive);
-                }
-                else
-                {
-                    pipeline.LogWarn("failed to generate {0} transform for site drive {1}", source, siteDrive);
-                    bool removed = false;
-                    lock (frame.Transforms)
-                    {
-                        removed = frame.Transforms.Remove(source);
-                    }
-                    if (removed)
-                    {
-                        frame.Save(pipeline);
-                    }
-                    //can't use frameCache here because it was loaded with only priors
-                    //but that's OK because FrameTransform.Find() doesn't scan
-                    var ft = FrameTransform.Find(pipeline, frame, source);
-                    if (ft != null)
-                    {
-                        ft.Delete(pipeline);
-                    }
-                    continue;
-                }
-            }
-        }
-
-        private void WriteOrbitalTransform()
-        {
-            var frameName = OrbitalConfig.Instance.OrbitalFrameName;
-            var source = TransformSource.LandformHeightmap;
-
-            if (orbitalAdjustment.HasValue)
-            {
-                if (!frameCache.ContainsFrame(frameName))
-                {
-                    var parent = frameCache.GetFrame(baseSiteDrive.ToString()).GetParent(pipeline);
-                    frameCache.Add(Frame.Create(pipeline, project.Name, frameName, parent));
-                }
-                var frame = frameCache.GetFrame(frameName);
-                var ut = new UncertainRigidTransform(BestTransform(baseSiteDrive) * orbitalAdjustment.Value);
-                var ft = FrameTransform.FindOrCreate(pipeline, frame, source, ut);
-                ft.Transform = ut;
-                ft.Save(pipeline);
-                bool added = false;
-                lock (frame.Transforms)
-                {
-                    added = frame.Transforms.Add(source);
-                }
-                if (added)
-                {
-                    frame.Save(pipeline);
-                }
-                pipeline.LogInfo("saved {0} adjusted transform for {1}", source, frameName);
-            }
-            else
-            {
-                pipeline.LogWarn("failed to generate {0} transform for {1}", source, frameName);
-                if (frameCache.ContainsFrame(frameName))
-                {
-                    var frame = frameCache.GetFrame(frameName);
-                    var ft = FrameTransform.Find(pipeline, frame, source);
-                    if (ft != null)
-                    {
-                        ft.Delete(pipeline);
-                    }
-                    frame.Delete(pipeline);
-                }
-            }
+            var aligned = siteDrives.Where(sd => sdAdjustment.ContainsKey(sd)).ToArray();
+            SaveTransforms(aligned, aligned.Select(sd => BestAdjustedTransform(sd)).ToArray(),
+                           TransformSource.LandformHeightmap);
         }
     }
 }

@@ -1,8 +1,12 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using CommandLine;
+using Microsoft.Xna.Framework;
 using OPS.Util;
+using OPS.MathExtensions;
+using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
@@ -26,13 +30,13 @@ namespace OPS.Landform
         [Option(HelpText = "Mesh decimation method (EdgeCollapse, ResampleFSSR, ResamplePoisson, MeshLab, MeshLabResample)", Default = MeshDecimationMethod.EdgeCollapse)]
         public virtual MeshDecimationMethod MeshDecimator { get; set; }
 
-        [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
+        [Option(HelpText = "Only use specific surface observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
         public virtual string OnlyForObservations { get; set; }
 
-        [Option(HelpText = "Only use specific frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
+        [Option(HelpText = "Only use specific surface frames, comma separated (e.g. MastcamLeft_00031013300028400454000060009001618010680001200000)", Default = null)]
         public virtual string OnlyForFrames { get; set; }
 
-        [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
+        [Option(HelpText = "Only use specific surface cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
         public virtual string OnlyForCameras { get; set; }
 
         [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
@@ -49,24 +53,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Use adjusted transforms only", Default = false)]
         public virtual bool OnlyAligned { get; set; }
-
-        [Option(HelpText = "Disable orbital", Default = false, Required = false)]
-        public virtual bool NoOrbital { get; set; }
-
-        [Option(HelpText = "Disable suface observations, only orbital", Default = false)]
-        public virtual bool NoSurfaceObs { get; set; }
-
-        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
-        public string OrbitalDEM { get; set; }
-
-        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
-        public string OrbitalImage { get; set; }
-
-        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "DEM values less than this will be ignored")]
-        public double DEMMinFilter { get; set; }
-
-        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "DEM larger than this will be ignored")]
-        public double DEMMaxFilter { get; set; }
     }
 
     public class WedgeCommand : LandformCommand
@@ -80,7 +66,10 @@ namespace OPS.Landform
         protected FrameCache frameCache;
         protected ObservationCache observationCache;
 
-        protected string effectiveRootFrame;
+        protected SiteDrive? rootSiteDrive;
+
+        protected DEM orbitalDEM;
+        protected Matrix orbitalDEMToRoot; //unprojected point in orbitalDEM camera model -> project root frame
 
         protected WedgeCommand(WedgeCommandOptions wcopts) : base(wcopts)
         {
@@ -132,13 +121,14 @@ namespace OPS.Landform
             frameCache = new FrameCache(pipeline, project.Name);
             int num = frameCache.PreloadFilteredTransforms(priorSources, adjustedSources, wcopts.UsePriors);
             pipeline.LogInfo("loaded {0} frames in project {1}", num, project.Name);
-            if (!frameCache.CheckPriors(out effectiveRootFrame))
+            rootSiteDrive = frameCache.CheckPriors(mission.GetLandingSiteDrive());
+            if (!rootSiteDrive.HasValue)
             {
                 pipeline.LogError("incomplete priors: not all sitedrives are connected");
             }
             else
             {
-                pipeline.LogInfo("effective root frame for project: {0}", effectiveRootFrame);
+                pipeline.LogInfo("effective root frame for project: {0}", rootSiteDrive.Value);
             }
         }
 
@@ -161,16 +151,95 @@ namespace OPS.Landform
             observationCache = new ObservationCache(pipeline, project.Name);
 
             int num = observationCache.
-                Preload(obs => obs is RoverObservation && ObservationFilter((RoverObservation)obs) &&
-                        (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
-                        (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
-                        (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
-                        (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera))));
-    
-            pipeline.LogInfo("loaded {0}{1} observations in project {2}{3}{4}",
-                             num, DescribeObservationFilter(), project.Name,
+                Preload(obs =>
+                        (!wcopts.NoOrbital && obs.IsOrbital) ||
+                        (!wcopts.NoSurface && (obs is RoverObservation) && ObservationFilter((RoverObservation)obs) &&
+                         (siteDrives.Length == 0 || siteDrives.Any(sd => sd == ((RoverObservation)obs).SiteDrive)) &&
+                         (observations.Length == 0 || observations.Any(name => name == obs.Name)) &&
+                         (frames.Length == 0 || frames.Any(name => name == obs.FrameName)) &&
+                         (cams.Length == 0 || cams.Any(c => RoverCamera.IsCamera(c, ((RoverObservation)obs).Camera)))));
+
+            if (num == 0)
+            {
+                throw new Exception("no surface or orbital data available");
+            }
+
+            int numOrbital = wcopts.NoOrbital ? 0 : observationCache.GetAllObservations().Count(obs => obs.IsOrbital);
+            int numSurface = num - numOrbital;
+
+            wcopts.NoOrbital |= numOrbital == 0;
+            wcopts.NoSurface |= numSurface == 0;
+
+            pipeline.LogInfo("loaded {0}{1} surface observations{2} in project {3}{4}{5}",
+                             numSurface, DescribeObservationFilter(),
+                             numOrbital > 0 ? $" and {numOrbital} orbital observations" : "",
+                             project.Name,
                              siteDrives.Length > 0 ? (" for sitedrives " + string.Join(", ", siteDrives)): "",
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
+        }
+
+        protected void LoadOrbitalDEM()
+        {
+            try
+            {
+                int idx = Observation.ORBITAL_DEM_INDEX;
+                var heightmap = LoadOrbitalAsset(idx);
+                if (heightmap != null)
+                {
+                    var cfg = OrbitalConfig.Instance;
+                    orbitalDEM = new DEM(heightmap, cfg.DEMMetersPerPixel, cfg.DEMMinFilter, cfg.DEMMaxFilter);
+                    var obs = observationCache.GetObservation(idx);
+                    orbitalDEMToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("failed to load orbital DEM, running without it: {0}", ex.Message);
+                wcopts.NoOrbital = true;
+            }
+        }
+
+        /// <summary>
+        /// Common implementation of LoadOrbitalDEM() and TextureCommand.LoadOrbitalImage().
+        /// </summary>
+        protected Image LoadOrbitalAsset(int obsIndex)
+        {
+            if (observationCache == null || !observationCache.ContainsObservation(obsIndex))
+            {
+                pipeline.LogInfo("orbital {0} not available (index {1}), continuing without it",
+                                 obsIndex == Observation.ORBITAL_DEM_INDEX ? "DEM" : "image", obsIndex);
+                wcopts.NoOrbital = true;
+                return null;
+            }
+                
+            var obs = observationCache.GetObservation(obsIndex);
+
+            string filePath = obs.Url;
+            if (!filePath.StartsWith("file://"))
+            {
+                throw new Exception($"URL for {obs.Name} is not local: {obs.Url}");
+            }
+            filePath = filePath.Substring(7);
+
+            var cfg = OrbitalConfig.Instance;
+
+            Image asset = null;
+            if (obsIndex == Observation.ORBITAL_DEM_INDEX)
+
+            {
+                asset = cfg.DEMIsGeoTIFF ? new SparseGISElevationMap(filePath)
+                    : Image.Load(filePath, ImageConverters.PassThrough);
+            }
+            else
+            {
+                asset = cfg.ImageIsGeoTIFF ? new SparseGISImage(filePath) : Image.Load(filePath);
+            }
+            asset.CameraModel = obs.CameraModel;
+
+            pipeline.LogInfo("loaded {0}x{1} {2} as {3} using {4}: {5}", asset.Width, asset.Height, obs.Name,
+                             asset.GetType().Name, asset.CameraModel.GetType().Name, filePath);
+
+            return asset;
         }
     }
 }

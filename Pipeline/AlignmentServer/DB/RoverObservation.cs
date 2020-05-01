@@ -10,7 +10,7 @@ namespace OPS.Pipeline.AlignmentServer
     /// <summary>
     /// An observation with extra metadata specific to Mars rovers
     /// </summary>
-    [DynamoDBTable("Observations")]
+    [DynamoDBTable("RoverObservations")]
     [DynamoDBReadCapacity(50, 100)]
     [DynamoDBWriteCapacity(50, 100)]
     public class RoverObservation : Observation
