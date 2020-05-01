@@ -221,9 +221,7 @@ namespace OPS.Imaging
     /// Easting is distance along equator east from prime meridian.
     /// Northing is distance north of equator along a meridian.
     ///
-    /// According to Fred Calef, for JPL missions it's safe and correct to assume that the GeoTIFF assets will be in
-    /// equirectangular (cylindrical equidistant) projection, with standard parallel approximately through the landing
-    /// site.  This means that
+    /// For JPL missions it's usually safe and correct to assume for GeoTIFF orbital assets that
     /// 1) for locations within some kilometers of the landing site, pixels will be effectively square (and most
     /// mission tools make that assumption)
     /// 2) north is always "up" in the image and east is always "right"
@@ -236,8 +234,8 @@ namespace OPS.Imaging
     /// The function CheckLocalGISImageBasisAndGetResolution() will both validate that the projection is equirectangular
     /// and also return the effective resolution.  Also see DEM2Mesh.CheckPlanarity().
     ///
-    /// Fred and others recommend avoiding lon/lat and body frame coordinates.  Rather, they recommend to stick to
-    /// easting/northing and pixels.  The recommended way to get the pixel location of a sitedrive is to call 
+    /// It is recommended to avoid lon/lat and body frame coordinates.  Rather, stick to easting/northing and pixels.
+    /// The recommended way to get the pixel location of a sitedrive is to call
     /// EastingNorthingToImage(PlacesDB.GetEastingNorthing(siteDrive)).
     ///
     /// Planetary body frame origin is the center of the body.
@@ -275,6 +273,7 @@ namespace OPS.Imaging
         //              UNIT["metre",1,AUTHORITY["EPSG","9001"]]]
         public string ProjectionRef { get; private set; }
 
+        //ULC = upper left corner
         public Vector2 ULCEastingNorthing
         {
             get

@@ -133,10 +133,10 @@ namespace OPS.Pipeline
             basemapDEM = new GISElevationMap(file, "Mars");
         }
 
-        //public double GetZFromBasemap(double lat, double lon)
-       // {
-       //     return basemapDEM.InterpolateElevationAtLonLat(lat, lon);
-       // }
+        public double GetZFromBasemap(double lat, double lon)
+        {
+            return basemapDEM.InterpolateElevationAtLonLat(new Vector2(lon, lat));
+        }
 
         /// <summary>
         /// locations.xml Z values are in site frame
