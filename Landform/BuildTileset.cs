@@ -165,12 +165,15 @@ namespace OPS.Landform
 
             LoadTileList();
 
+            if (tileList != null)
+            {
             if (options.WithIndexImages && !tileList.HasIndexImages)
             {
                 throw new Exception("Tileset does not have index images. Consider disabling --withindeximages.");
             }
 
             withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
+            }
 
             tilesetFolder = DecorateOutDir(TILESET_DIR);
 
