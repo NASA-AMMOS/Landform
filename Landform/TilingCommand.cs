@@ -97,5 +97,96 @@ namespace OPS.Landform
 
             return tilingProject;
         }
+
+        protected string IndexName(string tileName)
+        {
+            return tileName + TileList.INDEX_FILE_SUFFIX;
+        }
+
+        protected void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
+        {
+            string imgName = image != null ? name + imageExt : null;
+
+            if (local)
+            {
+                if (image != null)
+                {
+                    SaveImage(image, name);
+                }
+                if (index != null)
+                {
+                    string indexImageName = IndexName(name);
+                    SaveFloatTIFF(index, indexImageName);
+                }
+                SaveMesh(mesh, name, imgName);
+            }
+
+            if (cloud)
+            {
+                if (image != null)
+                {
+                    TemporaryFile.GetAndDelete(imageExt, tmpFile =>
+                    {
+                        image.Save<byte>(tmpFile);
+                        string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
+                        pipeline.SaveFile(tmpFile, imgUrl);
+                    });
+                }
+
+                if (index != null)
+                {
+                    TemporaryFile.GetAndDelete(".tif", tmpFile =>
+                    {
+                        var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                        var serializer = new GDALSerializer(opts);
+                        serializer.Write<float>(tmpFile, index);
+                        string indexName = name + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                        string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
+                        pipeline.SaveFile(tmpFile, indexUrl);
+                    });
+                }
+
+                TemporaryFile.GetAndDelete(meshExt, tmpFile =>
+                {
+                    mesh.Save(tmpFile, imgName);
+                    string meshName = name + meshExt;
+                    string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
+                    pipeline.SaveFile(tmpFile, meshUrl);
+
+                    if (image != null)
+                    {
+                        string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
+                        if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
+                        {
+                            string mtlName = name + ".mtl";
+                            string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
+                            pipeline.SaveFile(mtlFile, mtlUrl);
+                            PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
+                        }
+                    }
+                });
+            }
+
+            //each tile name is of the form ABCDE... where
+            //A is the index of a child of the root
+            //B is the index of a child of the node corresponding to A, etc
+            //thus each tile name encodes a full path from the root to the tile
+            //and the collection of all tile names encodes the full tree topology
+            if (isLeaf)
+            {
+                lock (tileList.LeafNames)
+                {
+                    tileList.LeafNames.Add(name);
+                }
+            }
+            else
+            {
+                lock (tileList.ParentNames)
+                {
+                    tileList.ParentNames.Add(name);
+                }
+            }
+        }
+
     }
 }
