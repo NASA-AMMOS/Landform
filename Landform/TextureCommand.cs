@@ -578,14 +578,14 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
 
-            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels);
+            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels, backprojectStrategy);
 
             pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
                              Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels,
+            BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels, ObsSelectionStrategy backprojectStrat,
                                          string debugSubdir = "")
         {
             if (backprojectStrategy == null)
@@ -610,7 +610,7 @@ namespace OPS.Landform
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteBackprojectDebug,
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
-                obsSelectionStrategy = backprojectStrategy,
+                obsSelectionStrategy = backprojectStrat,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
