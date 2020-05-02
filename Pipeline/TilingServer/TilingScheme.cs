@@ -13,6 +13,7 @@ namespace OPS.Pipeline.TilingServer
         QuadY,
         QuadZ,
         Oct,
-        UserDefined
+        UserDefined,
+        Flat
     }
 }

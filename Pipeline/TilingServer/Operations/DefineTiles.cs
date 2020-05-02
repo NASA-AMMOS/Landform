@@ -128,13 +128,13 @@ namespace OPS.Pipeline.TilingServer
             SceneNode root = null;
 
             var tilingScheme = project.GetTilingScheme();
-            bool userDefined = tilingScheme == TilingScheme.UserDefined;
+            bool userSupplied = tilingScheme == TilingScheme.UserDefined || tilingScheme == TilingScheme.Flat;
 
             var idToSceneNode = new Dictionary<string, SceneNode>();
             var idToTilingNode = new ConcurrentDictionary<string, TilingNode>();
 
             int numUserTiles = 0;
-            if (userDefined) // build a tree based on user supplied leaf tiles
+            if (userSupplied) // build a tree based on user supplied leaf tiles
             {
                 // (user may or may not also have supplied some parent tiles)
 
@@ -151,7 +151,14 @@ namespace OPS.Pipeline.TilingServer
 
                 LogInfo("connecting {0} user defined nodes by name and adding missing parent nodes", numUserTiles);
 
-                root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
+                if (tilingScheme == TilingScheme.UserDefined)
+                {
+                    root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
+                }
+                else
+                {
+                    root = SceneNodeTilingExtensions.ConnectNodesToRoot(idToSceneNode.Values);
+                }
 
                 int n = 0;
                 LogInfo("converting {0} user defined tiles", numUserTiles);
@@ -306,6 +313,34 @@ namespace OPS.Pipeline.TilingServer
             return root;
         }
 
+        public static SceneNode BuildSingleLevelBoundsTree(List<Mesh> inputs)
+        {
+            if( inputs.Count < 1)
+            {
+                throw new InvalidDataException("expecting at least one mesh for node tree");
+            }
+
+            Mesh combined = Mesh.Merge(inputs.ToArray(),false,false);
+
+            //add root geometry so none will be created from children
+            SceneNode root = new SceneNode("");
+            root.Name = "";
+            root.AddComponent(new NodeBounds(combined.Bounds()));
+            root.AddComponent<MeshImagePair>(new MeshImagePair(inputs[0], null)); //TODO: use something lighter than first tile
+            root.AddComponent<NodeGeometricError>(new NodeGeometricError(100));
+
+            int counter = 1;
+            foreach(var input in inputs)
+            {
+                SceneNode leaf = CreateChildNode(root, ref counter, input.Bounds());
+                leaf.AddComponent<MeshImagePair>(new MeshImagePair(input, null));
+                leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
+            }
+
+            root.Name = "root";
+            return root;
+
+        }
         /// <summary>
         /// if you have pre-defined LODs this function creates a tiletree that has a fixed depth matching
         /// the number of LODs you are expecting. it does not use any mesh or texture based split criteria

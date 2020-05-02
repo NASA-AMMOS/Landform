@@ -264,6 +264,24 @@ namespace OPS.Pipeline
             return true;
         }
 
+        public static SceneNode ConnectNodesToRoot(IEnumerable<SceneNode> nodes)
+        {
+            Queue<SceneNode> nodesToConnect = new Queue<SceneNode>(nodes);
+            SceneNode root = nodes.Where(n => n.Name == "root").First();
+            while (nodesToConnect.Count != 0)
+            {
+                var node = nodesToConnect.Dequeue();
+                if (node.Name == "root")
+                {
+                    continue;
+                }
+
+                node.Transform.SetParent(root.Transform);
+            }
+            return root;
+        }
+
+
         /// <summary>
         /// Given a list of nodes, connect them in a tree based on name prefix convention and return the root
         ///
