@@ -670,7 +670,7 @@ namespace OPS.Landform
                 else
                 {
                     missingPixels = new List<PixelPoint>();
-                    backprojectResults = BackprojectRoverObservations(mesh, options.TextureResolution, missingPixels,
+                    backprojectResults = BackprojectRoverObservations(mesh, options.TextureResolution, missingPixels, backprojectStrategy, 
                                                                       debugSubdir: node.Name);
                 }
 
