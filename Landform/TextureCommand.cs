@@ -65,6 +65,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Number of inpaint pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
         public int BackprojectInpaintPixels { get; set; }
+
+        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 20)]
+        public double TextureFarClip { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -531,7 +534,7 @@ namespace OPS.Landform
         protected void BuildObsHulls()
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                     tcopts.OnlyAligned, imageObservations);
+                                                     tcopts.OnlyAligned, imageObservations, farClip: tcopts.TextureFarClip );
             if (tcopts.WriteDebug)
             {
                 foreach (var entry in obsToHull)

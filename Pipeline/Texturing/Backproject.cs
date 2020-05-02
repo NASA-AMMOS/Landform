@@ -736,7 +736,7 @@ namespace OPS.Pipeline
      
         static public IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
-                             bool onlyAligned, IEnumerable<Observation> imageObservations)
+                             bool onlyAligned, IEnumerable<Observation> imageObservations, double farClip = 20)
         {
             int no = imageObservations.Count();
 
@@ -752,7 +752,7 @@ namespace OPS.Pipeline
                 var meshObs = new WedgeObservations() { Texture = obs };
                 var opts = new WedgeObservations.MeshOptions()
                 { Frame = outputFrame, UsePriors = usePriors, OnlyAligned = onlyAligned };
-                var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false);
+                var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false, farClip:farClip);
                 if (hull != null)
                 {
                     obsToHull.AddOrUpdate(obs.Name, _ => hull, (_, __) => hull);
