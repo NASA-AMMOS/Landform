@@ -723,7 +723,7 @@ namespace OPS.Pipeline
             if (PointsImage != null)
             {
                 var mesh = OrganizedPointCloud.BuildPointCloudMesh(PointsImage, NormalsImage, MaskImage);
-                return FinishMesh(pipeline, frameCache, opts, Points, mesh, requireFaces: false);
+                return FinishMesh(pipeline, frameCache, opts, Points == null ? Range : Points, mesh, requireFaces: false);
             }
             else
             {
