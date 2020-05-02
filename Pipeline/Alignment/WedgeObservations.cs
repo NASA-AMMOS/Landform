@@ -830,8 +830,8 @@ namespace OPS.Pipeline
         /// build a frustum hull from the Texture image, or failing that the Points image  
         /// logs warning and returns null if the hull could not be built for any reason
         /// </summary>
-        public ConvexHull BuildFrustumHull(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts,
-                                           bool uncertaintyInflated = false)
+        public ConvexHull BuildFrustumHull(PipelineCore pipeline, FrameCache frameCache, MeshOptions opts, 
+                                           bool uncertaintyInflated = false, double farClip = 20)
         {
             Observation obs = Texture ?? Points;
             if (obs == null)
@@ -852,7 +852,7 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            ConvexHull ret = ConvexHull.FromImage(img);
+            ConvexHull ret = ConvexHull.FromImage(img, farClip: farClip);
 
             var xform = frameCache.GetObservationTransform(obs, opts.Frame, opts.UsePriors, opts.OnlyAligned);
             if (xform == null)
