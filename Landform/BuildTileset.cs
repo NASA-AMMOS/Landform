@@ -110,7 +110,7 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                RunPhase("create tiling project", CreateTilingProject);
+                RunPhase("create tiling project", () => CreateTilingProject(TilingScheme.UserDefined));
                 RunPhase("add tile meshes", AddTileMeshes);
                 RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
                 RunPhase("build parent tiles", BuildParentTiles);
@@ -208,7 +208,7 @@ namespace OPS.Landform
             }
         }
 
-        protected void CreateTilingProject()
+        protected void CreateTilingProject(TilingScheme tilingScheme)
         {
             var keepMeshes = new HashSet<string>();
             keepMeshes.UnionWith(tileList.LeafNames);
@@ -224,7 +224,10 @@ namespace OPS.Landform
                 //we'll automatically create any and all parent tiles which were not provided as input
                 //in practice for the local-build-leaves -> local-build-tileset workflow
                 //all and only the leaves of the tree are supplied as user defined tiles here
-                var tilingScheme = TilingScheme.UserDefined;
+                if((tilingScheme != TilingScheme.UserDefined) && (tilingScheme != TilingScheme.Flat))
+                {
+                    throw new NotImplementedException("Only expecting user defined or flat schemes in this function");
+                }
 
                 var projectType = PipelineStateMachine.ProjectType.ParentTiling;
 
