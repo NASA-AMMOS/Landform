@@ -167,12 +167,12 @@ namespace OPS.Landform
 
             if (tileList != null)
             {
-            if (options.WithIndexImages && !tileList.HasIndexImages)
-            {
-                throw new Exception("Tileset does not have index images. Consider disabling --withindeximages.");
-            }
+                if (options.WithIndexImages && !tileList.HasIndexImages)
+                {
+                    throw new Exception("Tileset does not have index images. Consider disabling --withindeximages.");
+                }
 
-            withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
+                withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
             }
 
             tilesetFolder = DecorateOutDir(TILESET_DIR);
@@ -282,7 +282,7 @@ namespace OPS.Landform
             }
         }
 
-        private void AddTileMeshes()
+        protected void AddTileMeshes()
         {
             List<string> tileNames = new List<string>(tileList.LeafNames);
             tileNames.AddRange(tileList.ParentNames);
@@ -317,7 +317,7 @@ namespace OPS.Landform
             pipeline.SaveDatabaseItem(tilingProject);
         }
 
-        private void BuildTilesAndDefineParents()
+        protected void BuildTilesAndDefineParents()
         {
             TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE,
                                            TILING_NODE_LRU_INDEX_CACHE_SIZE);
@@ -326,7 +326,7 @@ namespace OPS.Landform
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
         }
 
-        private void BuildParentTiles()
+        protected void BuildParentTiles()
         {
             PipelineExecutive executive = null;
             if (pipeline is LocalPipeline)
