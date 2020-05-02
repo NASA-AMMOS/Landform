@@ -357,7 +357,17 @@ namespace OPS.Pipeline
                 .ToList();
 
             info("building input mesh data structures");
-            ConvexHull meshHull = new ConvexHull(opts.mesh);
+            ConvexHull meshHull = null;
+
+            try
+            {
+                meshHull = new ConvexHull(opts.mesh);
+            }
+            catch
+            {
+                warn("failed to make hull for mesh");
+            }
+
             MeshOperator meshOp = new MeshOperator(opts.mesh);
             SceneCaster debugTileOcclusion = null;
             if (opts.writeDebug)
@@ -372,7 +382,7 @@ namespace OPS.Pipeline
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
 
-            if (imageObservations.Count() == 0)
+            if (imageObservations.Count() == 0 || meshHull == null)
             {
                 warn("no image observations found");
                 if (missingPixels != null)
