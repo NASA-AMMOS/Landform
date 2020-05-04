@@ -26,7 +26,7 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere radius (meters)", Default = 200)]
         public double SphereRadiusMeters { get; set; }
 
-        [Option(HelpText = "Sky sphere mesh resolution (degrees)", Default = 90)]
+        [Option(HelpText = "Sky sphere mesh resolution (degrees)", Default = 5)]
         public double SphereResolutionDegres { get; set; }
 
         [Option(HelpText = "Sky sphere background color Red (0-255)", Default = 100)]
