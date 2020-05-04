@@ -43,6 +43,10 @@ namespace OPS.Pipeline.Texturing
             {
                 scoresByObs.Clear();
             }
+            else
+            {
+                scoresByObs = new Dictionary<string, double>();
+            }
 
             //intersecting contexts
             var visibleContexts = contexts.Where(c => c.FrustumHull.Contains(forPoint));
@@ -83,10 +87,7 @@ namespace OPS.Pipeline.Texturing
                 //no valid measurement, ignore image
                 if (dist != double.MaxValue)
                 {
-                    if (scoresByObs != null)
-                    {
-                        scoresByObs.Add(ctx.Obs.Name, dist);
-                    }
+                    scoresByObs.Add(ctx.Obs.Name, dist);
                     sortedContexts.Add(ctx);
                 }
             };
