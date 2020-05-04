@@ -147,7 +147,7 @@ namespace OPS.Pipeline
                 {
                     pipeline.LogInfo("preloading observation cache for project {0}", projectName);
                     Func<Observation, bool> filter =
-                        obs => !options.OnlyLoadObservationsForAlignment || obs.UseForAlignment;
+                        obs => !obs.IsOrbital && (!options.OnlyLoadObservationsForAlignment || obs.UseForAlignment);
                     double start = UTCTime.Now();
                     int numPreloaded = observationCache.Preload(filter);
                     pipeline.LogInfo("preloaded {0} observations for project {1} in {2:F3}s",
@@ -172,7 +172,7 @@ namespace OPS.Pipeline
                         numFeatures++;
                     }
                     var img = node.AddComponent<NodeImage>();
-                    img.CameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                    img.CameraModel = obs.CameraModel;
                     img.Size = new Vector2(obs.Width, obs.Height);
                     img.Url = obs.Url;
                 }
@@ -226,6 +226,7 @@ namespace OPS.Pipeline
                 if (options.LoadObservations)
                 {
                     var obsForFrame = observationCache.GetAllObservationsForFrame(frame)
+                        .Where(o => o is RoverObservation)
                         .Where(o => options.IncludeObservation(o))
                         .Where(o => !options.OnlyLoadObservationsForAlignment || o.UseForAlignment)
                         .Where(o => !options.OnlyLoadImageObservations || IsImage(o))

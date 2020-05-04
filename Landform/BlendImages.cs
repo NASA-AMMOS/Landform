@@ -444,9 +444,14 @@ namespace OPS.Landform
 
                     var obs = obsIndex >= Observation.MIN_INDEX ? indexedImages[obsIndex] : null;
 
+                    if (obs != null && obs.IsOrbitalDEM)
+                    {
+                        obs = null; //no, this shouldn't happen...
+                    }
+
                     bool hasGray = obs != null;
                     bool hasColor = obs != null && obs.Bands == 3;
-                    bool orbital = obs != null && obsIndex == Observation.ORBITAL_INDEX;
+                    bool orbital = obs != null && obs.IsOrbitalImage;
 
                     byte lumaFlag = (byte)(hasGray ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
                     byte chromaFlag = (byte)(hasColor ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
@@ -573,14 +578,13 @@ namespace OPS.Landform
             CoreLimitedParallel.ForEach(indexedImages, entry => {
 
                     int obsIndex = entry.Key;
-
-                    if (obsIndex == Observation.ORBITAL_INDEX)
+                    Observation obs = entry.Value;
+                    
+                    if (obs.IsOrbital)
                     {
                         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1046
                         return;
                     }
-
-                    Observation obs = entry.Value;
 
                     if (!winners.ContainsKey(obsIndex))
                     {
@@ -792,11 +796,14 @@ namespace OPS.Landform
 
             backprojectIndex = new Image(3, resolution, resolution);
 
-            var opts = Rasterizer.BEVOptions.DirectToImage(backprojectIndex);
+            var opts = Rasterizer.Options.DirectToImage(backprojectIndex);
 
             double maxDim = Math.Max(boundsSize.X, boundsSize.Y);
             opts.MetersPerPixel = maxDim / resolution;
-            opts.MeshOffset = new Vector2(boundsSize.X, boundsSize.Y) * 0.5;
+
+            opts.CameraLocation = bounds.Value.Center();
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation,
+                                                            out opts.RightInImage, out opts.DownInImage);
             
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
                              resolution, tileList.LeafNames.Count, opts.MetersPerPixel);
@@ -828,7 +835,7 @@ namespace OPS.Landform
                     }
                 }
 
-                Rasterizer.RenderBirdsEyeView(leafMesh, leafIndex, opts);
+                Rasterizer.Rasterize(leafMesh, leafIndex, opts);
             });
 
             //fill small gaps along tile boundaries, should make LimberDMG happier

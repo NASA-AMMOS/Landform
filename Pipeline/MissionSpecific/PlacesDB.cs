@@ -9,9 +9,10 @@ using System.Net;
 using System.Threading.Tasks;
 using System.Xml;
 using Microsoft.Xna.Framework;
-using OPS.Util;
 using RestSharp;
 using RestSharp.Authenticators;
+using OPS.Util;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
@@ -86,8 +87,6 @@ namespace OPS.Pipeline
         private string view;
         private string cookieValue;
 
-        private double? ellipsoidRadius;
-
         //avoid hitting the upstream service too hard
         //important: this is explicitly *not* a ConcurrentDictionary
         //we lock on it to serialize requests
@@ -98,7 +97,7 @@ namespace OPS.Pipeline
         private ConcurrentDictionary<SiteDrive, Vector3> cachedOffsetFromStart =
             new ConcurrentDictionary<SiteDrive, Vector3>();
 
-        public PlacesDB(ILogger logger = null, bool requireOrbital = false)
+        public PlacesDB(ILogger logger = null)
         {
             this.logger = logger;
 
@@ -145,43 +144,27 @@ namespace OPS.Pipeline
             try
             {
                 view = config.View;
-                GetEstimatedOffsetToStart(new SiteDrive(1, 0)); //test query
+                GetOffsetToStart(new SiteDrive(1, 0)); //test query
             }
             catch
             {
                 if (logger != null)
                 {
-                    logger.LogWarn("PlacesDB test query for sitedrive (1, 0) failed, URL {0}, view {1}" +
-                                   " (check list at {0}/view/{1}/rmcs)", config.Url, view);
+                    logger.LogWarn("PlacesDB test query for sitedrive (1, 0) failed" +
+                                   ", check list at {0}/view/{1}/rmcs", config.Url, view);
                 }
                 view = FALLBACK_VIEW;
                 logger.LogWarn("trying fallback view {0}", view);
                 try
                 {
-                    GetEstimatedOffsetToStart(new SiteDrive(1, 0));
+                    GetOffsetToStart(new SiteDrive(1, 0));
                 }
                 catch
                 {
                     if (logger != null)
                     {
-                        logger.LogError("PlacesDB test query for sitedrive (1, 0) failed, URL {0}, view {1}",
-                                        " (check list at {0}/view/{1}/rmcs)", config.Url, view);
-                    }
-                    throw;
-                }
-            }
-
-            try
-            {
-                ellipsoidRadius = GetEllipsoidRadius();
-            }
-            catch (Exception ex)
-            {
-                if (requireOrbital)
-                {
-                    if (logger != null)
-                    {
-                        logger.LogError("error getting ellipsoid radius from PlacesDB: {0}", ex.Message);
+                        logger.LogError("PlacesDB test query for sitedrive (1, 0) failed" +
+                                        ", check list at {0}/view/{1}/rmcs", config.Url, view);
                     }
                     throw;
                 }
@@ -323,114 +306,328 @@ namespace OPS.Pipeline
             return offset;
         }
 
-        private double GetEllipsoidRadius()
+        private interface IExpectedValue
         {
-            string query = string.Format("rmc/orbital(0)/metadata");
+            bool Equals(string str);
+            string ToString();
+        }
+
+        private class ExpectedString : IExpectedValue
+        {
+            private string value;
+
+            public ExpectedString(string str)
+            {
+                value = str;
+            }
+
+            public bool Equals(string str)
+            {
+                return string.Equals(value, str, StringComparison.OrdinalIgnoreCase);
+            }
+
+            public override string ToString()
+            {
+                return value;
+            }
+        }
+
+        private class ExpectedNumber : IExpectedValue
+        {
+            private double value, tol;
+
+            public ExpectedNumber(double num, double eps = 1e-3)
+            {
+                value = num;
+                tol = eps;
+            }
+
+            public bool Equals(string str)
+            {
+                return double.TryParse(str, out double d) && Math.Abs(d - value) <= tol;
+            }
+
+            public override string ToString()
+            {
+                return value.ToString();
+            }
+        }
+
+        private string[] CheckXMLDocument(XmlDocument doc, Dictionary<string, IExpectedValue> expected)
+        {
+            var missing = new HashSet<string>();
+            missing.UnionWith(expected.Keys);
+            var variances = new List<string>();
+            foreach (XmlElement item in doc.GetElementsByTagName("item"))
+            {
+                XmlNodeList keyElts = item.GetElementsByTagName("key");
+                if (keyElts.Count == 1)
+                {
+                    string key = keyElts[0].InnerText.Trim().ToLower();
+                    if (expected.ContainsKey(key))
+                    {
+                        XmlNodeList valElts = item.GetElementsByTagName("value");
+                        if (valElts.Count == 1)
+                        {
+                            missing.Remove(key);
+                            string val = valElts[0].InnerText.Trim();
+                            if (!expected[key].Equals(val))
+                            {
+                                variances.Add($"expected {key} = {expected[key].ToString()}, got {val}");
+                            }
+                        }
+                    }
+                }
+            }
+            if (missing.Count > 0)
+            {
+                variances.Add("missing " + string.Join(", ", missing));
+            }
+            return variances.ToArray();
+        }
+
+        private Dictionary<string, double> GetOrbitalMetadata(int index, string[] keys)
+        {
+            string query = string.Format("rmc/orbital({0})/metadata", index);
             string response = Fetch(query);
-            double radius = 0;
+
             if (response.StartsWith("{"))
             {
                 //https://github.jpl.nasa.gov/OnSight/Landform/issues/752
                 throw new Exception("PlacesDB: orbital metadata Json TODO");
             }
-            else
+
+            var values = new Dictionary<string, double>();
+
+            var doc = ParseXml(query, response);
+            foreach (XmlElement item in doc.GetElementsByTagName("item"))
             {
-                XmlDocument doc = ParseXml(query, response);
-                bool ok = false;
-                foreach (XmlElement itemNode in doc.GetElementsByTagName("item"))
+                XmlNodeList keyElts = item.GetElementsByTagName("key");
+                if (keyElts.Count == 1)
                 {
-                    XmlNodeList elList = itemNode.GetElementsByTagName("key");
-                    if (elList.Count == 1 && elList[0].InnerText.Contains("ellipsoid_radius"))
+                    string key = keyElts[0].InnerText.Trim().ToLower();
+                    if (keys.Contains(key))
                     {
-                        radius = double.Parse(itemNode.GetElementsByTagName("value")[0].InnerText);
-                        ok = true;
-                        break;
+                        XmlNodeList valElts = item.GetElementsByTagName("value");
+                        if (valElts.Count == 1)
+                        {
+                            string val = valElts[0].InnerText.Trim();
+                            if (double.TryParse(val, out double d))
+                            {
+                                values[key] = d;
+                            }
+                        }
                     }
                 }
-                if (!ok)
+            }
+
+            return values;
+        }
+
+        private string[] CheckOrbitalMetadata(int index, double xyScale = -1, Vector2? ulcEastingNorthing = null,
+                                              string filename = null,
+                                              Dictionary<string, IExpectedValue> expected = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+
+            expected = expected ?? new Dictionary<string, IExpectedValue>();
+
+            if (xyScale > 0)
+            {
+                expected["x_scale"] = expected["y_scale"] = new ExpectedNumber(xyScale);
+            }
+
+            if (ulcEastingNorthing.HasValue)
+            {
+                expected["upper_left_easting_m"] = new ExpectedNumber(ulcEastingNorthing.Value.X);
+                expected["upper_left_northing_m"] = new ExpectedNumber(ulcEastingNorthing.Value.Y);
+            }
+
+            expected["projection"] = new ExpectedString("Equirectangular");
+
+            expected["ellipsoid_radius"] = new ExpectedNumber(PlanetaryBody.GetByName(cfg.BodyName).Radius);
+
+            expected["coord_sys_definition"] = new ExpectedString("+X is North, +Y is East, +Z is Down");
+
+            if (!string.IsNullOrEmpty(filename))
+            {
+                expected["filename"] = new ExpectedString(filename);
+            }
+
+            string query = string.Format("rmc/orbital({0})/metadata", index);
+            string response = Fetch(query);
+
+            if (response.StartsWith("{"))
+            {
+                //https://github.jpl.nasa.gov/OnSight/Landform/issues/752
+                throw new Exception("PlacesDB: orbital metadata Json TODO");
+            }
+
+            return CheckXMLDocument(ParseXml(query, response), expected);
+        }
+
+        public string[] CheckOrbitalDEMMetadata(int index, double xyScale = -1, Vector2? ulcEastingNorthing = null,
+                                                string filename = null)
+        {
+            var cfg = OrbitalConfig.Instance;
+
+            if (string.IsNullOrEmpty(filename))
+            {
+                filename = StringHelper.GetLastUrlPathSegment(cfg.DEMURL); //null/empty ok
+            }
+
+            var expected = new Dictionary<string, IExpectedValue>();
+
+            if (cfg.DEMElevationScale > 0)
+            {
+                expected["z_scale"] = new ExpectedNumber(cfg.DEMElevationScale);
+            }
+
+            return CheckOrbitalMetadata(index, xyScale, ulcEastingNorthing, filename, expected);
+        }
+
+        public string[] CheckOrbitalImageMetadata(int index, double xyScale = -1, Vector2? ulcEastingNorthing = null,
+                                                  string filename = null)
+        {
+            
+            var cfg = OrbitalConfig.Instance;
+
+            if (string.IsNullOrEmpty(filename))
+            {
+                filename = StringHelper.GetLastUrlPathSegment(cfg.ImageURL); //null/empty ok
+            }
+
+            return CheckOrbitalMetadata(index, xyScale, ulcEastingNorthing, filename);
+        }
+
+        /// <summary>
+        /// returns X = easting meters, Y = northing meters
+        /// easting is distance along equator east from prime meridian
+        /// northing is distance above equator along a meridian
+        /// requires both upper_left_{easting,northing}_m to be present in the metadata for orbitalIndex
+        /// </summary>
+        public Vector2? GetULCEastingNorthing(int orbitalIndex)
+        {
+            var keys = new string[] { "upper_left_easting_m", "upper_left_northing_m" };
+            var md = GetOrbitalMetadata(orbitalIndex, keys);
+            return md.Count == 2 ? new Vector2(md[keys[0]], md[keys[1]]) : (Vector2?)null;
+        }
+
+        /// <summary>
+        /// returns X = easting meters per pixel, Y = northing meters per pixel, both positive
+        /// requires both x_scale and y_scale to be present in the metadata for orbitalIndex
+        /// </summary>
+        public Vector2? GetOrbitalMetersPerPixel(int orbitalIndex)
+        {
+            var keys = new string[] { "x_scale", "y_scale" };
+            var md = GetOrbitalMetadata(orbitalIndex, keys);
+            return md.Count == 2 ? new Vector2(md[keys[0]], md[keys[1]]) : (Vector2?)null;
+        }
+
+        /// <summary>
+        /// returns X = col, Y = row pixel for sitedrive sd in orbitalIndex
+        /// </summary>
+        public Vector2 GetOrbitalPixel(SiteDrive sd, int orbitalIndex, double defMetersPerPixel = 0,
+                                       Vector2? defULCEastingNorthing = null)
+        {
+            var eastingNorthingElevation = GetEastingNorthingElevation(sd, orbitalIndex, false, defULCEastingNorthing);
+            var mpp = GetOrbitalMetersPerPixel(orbitalIndex);
+            if (!mpp.HasValue)
+            {
+                if (defMetersPerPixel > 0)
                 {
-                    throw new Exception("PlacesDB: ellipsoid_radius not found in orbital metadata");
+                    mpp = defMetersPerPixel * Vector2.One;
+                }
+                else
+                {
+                    throw new Exception($"cannot get orbital pixel for site drive {sd}: " +
+                                        "missing PlacesDB meters per pixel metadata {x,y}_scale " +
+                                        $"for index {orbitalIndex} and default meters per pixel not specified");
                 }
             }
+            double col = eastingNorthingElevation.X / mpp.Value.X;
+            double row = -1 * eastingNorthingElevation.Y / mpp.Value.Y;
+            return new Vector2(col, row);
+        }
 
-            Debug("PlacesDB request {0}, radius {1}", query, radius);
-
-            return radius;
+        private static string SDRef(SiteDrive sd)
+        {
+            return sd.Drive > 0 ? $"rover({sd.Site},{sd.Drive})" : $"site({sd.Site})";
         }
 
         /// <summary>
-        /// Finds the estimated mars lat and lon for a given site drive
-        /// returned X = longitude, Y = latitude
+        /// returns X = easting meters, Y = northing meters, Z = elevation meters
+        ///
+        /// easting is distance along equator east from prime meridian if absolute, else east from ULC for orbitalIndex
+        /// northing is distance along a meridian above equator if absolute, else north from ULC for orbitalIndex
+        ///
+        /// proper behavior with absolute=false requires both upper_left_{easting,northing}_m to be present
+        /// in the metadata for orbitalIndex or defULCEastingNorthing to be specified
         /// </summary>
-        public Vector2 GetEstimatedLatLon(SiteDrive sd, int orbitalIndex = 0, string orbitalFileName=null)
+        public Vector3 GetEastingNorthingElevation(SiteDrive sd, int orbitalIndex, bool absolute = true,
+                                                   Vector2? defULCEastingNorthing = null)
         {
-            if (!ellipsoidRadius.HasValue)
+            string query = string.Format("query/primary/{0}?from={1}&to=orbital({2})", view, SDRef(sd), orbitalIndex);
+
+            //offset is in standard mission local level frame: +X north, +Y east, +Z down
+            var v = GetOffset(query);
+            double easting = v.Y; // distance along surface on equator east of prime meridian
+            double northing = v.X; // distance along surface on prime meridian north of equator
+            double elevation = -v.Z;
+
+            var ulc = GetULCEastingNorthing(orbitalIndex);
+            if (absolute)
             {
-                throw new Exception("PlacesDB: ellipsoid radius not available");
+                if (ulc.HasValue)
+                {
+                    easting += ulc.Value.X;
+                    northing += ulc.Value.Y;
+                }
+                //ulc = null means either/both upper_left_{easting,northing}_m were missing
+                //in the metadata for orbitalIndex
+                //but in that case it appears that the PlacesDB easting/northing offset is already absolute
             }
-            string query = string.Format("query/primary/{0}?from=rover({1},{2})&to=orbital({3})",
-                                         view, sd.Site, sd.Drive, orbitalIndex);
-            Vector3 v = GetOffset(query);
-            // x is northing, y is easting for orbital image 0 MSL
-            double lat = MathHelper.ToDegrees(v.X / ellipsoidRadius.Value);
-            double lon = MathHelper.ToDegrees(v.Y / ellipsoidRadius.Value);
-            return new Vector2(lon, lat);
+            else if (!ulc.HasValue)
+            {
+                //upper_left_{easting,northing}_m were absent, but absolute=false: need to subtract off ULC
+                if (defULCEastingNorthing.HasValue)
+                {
+                    easting -= defULCEastingNorthing.Value.X;
+                    northing -= defULCEastingNorthing.Value.Y;
+                }
+                else
+                {
+                    throw new Exception($"cannot get relative easting/northing for site drive {sd}: " +
+                                        "missing PlacesDB ULC easting/northing metadata " +
+                                        $"upper_left_{{easting,northing}}_m for index {orbitalIndex} and " +
+                                        "default ULC easting/northing not specified");
+                }
+            }
+            return new Vector3(easting, northing, elevation);
         }
 
         /// <summary>
-        /// Returns the Local_level frame offset between the "from" sitedrive to the "to" site
+        /// Returns the LOCAL_LEVEL frame offset from fromSD to toSite.
         /// </summary>
-        public Vector3 GetEstimatedOffsetToSite(SiteDrive fromSD, int toSite)
+        public Vector3 GetOffsetToSite(SiteDrive fromSD, int toSite)
         {
-            string query = null;
-            if (fromSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})",
-                                      view, fromSD.Site, fromSD.Drive, toSite);
-            }
-            else
-            {
-                query = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSite);
-            }
-            return GetOffset(query);
+            return GetOffset(string.Format("query/primary/{0}?from={1}&to=site({2})", view, SDRef(fromSD), toSite));
         }
 
         /// <summary>
-        /// Finds the offset from the landing site to the current site drive
+        /// Returns the LOCAL_LEVEL frame offset from sd to site 1, drive 0 (landing).
         /// </summary>
-        /// <param name="sd"></param>
-        /// <returns></returns>
-        public Vector3 GetEstimatedOffsetToStart(SiteDrive sd)
+        public Vector3 GetOffsetToStart(SiteDrive sd)
         {
-            return cachedOffsetFromStart.GetOrAdd(sd, _ => GetEstimatedOffsetToSite(sd, 1));
+            return cachedOffsetFromStart.GetOrAdd(sd, _ => GetOffsetToSite(sd, 1));
         }
 
         /// <summary>
-        /// Returns the Local_level frame offset between the "from" sitedrive to the "to" sitedrive
+        /// Returns the LOCAL_LEVEL frame offset from fromSD to toSD.
         /// </summary>
-        public Vector3 GetEstimatedOffset(SiteDrive fromSD, SiteDrive toSD)
+        public Vector3 GetOffset(SiteDrive fromSD, SiteDrive toSD)
         {
-            string query = null;
-            if (fromSD.Drive > 0 && toSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=rover({3},{4})",
-                                      view, fromSD.Site, fromSD.Drive, toSD.Site, toSD.Drive);
-            }
-            else if (fromSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=rover({1},{2})&to=site({3})",
-                                      view, fromSD.Site, fromSD.Drive, toSD.Site);
-            }
-            else if (toSD.Drive > 0)
-            {
-                query = string.Format("query/primary/{0}?from=site({1})&to=rover({2},{3})",
-                                      view, fromSD.Site, toSD.Site, toSD.Drive);
-            }
-            else
-            {
-                query = string.Format("query/primary/{0}?from=site({1})&to=site({2})", view, fromSD.Site, toSD.Site);
-            }
-            return GetOffset(query);
+            return GetOffset(string.Format("query/primary/{0}?from={1}&to={2}", view, SDRef(fromSD), SDRef(toSD)));
         }
     }
 }

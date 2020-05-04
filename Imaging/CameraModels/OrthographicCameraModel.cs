@@ -1,50 +1,52 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Imaging
 {
     /// <summary>
     /// A basic orthographic camera model
     /// </summary>
-    public class OrthographicCameraModel : CameraModel
+    public class OrthographicCameraModel : ConformalCameraModel
     {
         public Vector3 Center { get; private set; }
         public Vector3 Forward { get; private set; }
         public Vector3 Right { get; private set; }
         public Vector3 Down { get; private set; }
 
+        public override int Width { get { return width; } }
+        public override int Height { get { return height; } }
+
+        [JsonIgnore]
         public Vector2 CenterPixel { get; private set; }
 
-        public int Width { get; private set; }
-        public int Height { get; private set; }
+        [JsonIgnore]
+        public override bool Linear { get { return true; } }
 
-        private double ff, rr, dd;
+        [JsonIgnore]
+        public override Vector3 ImagePlaneNormal { get { return normal; } }
 
-        public override bool Linear
-        {
-            get { return true; }
-        }
-
-        private Vector3 normal;
-        public override Vector3 ImagePlaneNormal
-        {
-            get
-            {
-                return normal;
-            }
-        }
-
-        public Vector2 MetersPerPixel
+        [JsonIgnore]
+        public override Vector2 MetersPerPixel
         {
             get
             {
                 return new Vector2(Right.Length(), Down.Length());
             }
+
+            set
+            {
+                Right = Vector3.Normalize(Right) * value.X;
+                Down = Vector3.Normalize(Down) * value.Y;
+                Init();
+            }
         }
+
+        private int width, height;
+        private Vector3 normal;
+        private double ff, rr, dd;
 
         /// <summary>
         /// Create an orthograpic camera model.
@@ -55,7 +57,7 @@ namespace OPS.Imaging
         /// The length of the down vector defines the vertical scale of the camera (i.e. the height of a pixel)
         /// The length of the forward vector defines the range scale of the camera.
         /// </summary>
-        /// <param name="center">3D point corresponding pixel location (c, r) = (width, height) * 0.5</param>
+        /// <param name="center">3D point corresponding pixel location (c, r) = (width - 1, height - 1) * 0.5</param>
         /// <param name="forward">3D vector pointing outward from the camera</param>
         /// <param name="right">3D vector pointing rightwards in the image plane</param>
         /// <param name="down">3D vector pointing downwards in the image plane</param>
@@ -63,6 +65,7 @@ namespace OPS.Imaging
         /// <param name="height">number of image rows</param>
         /// <param name="metersPerPixel">scale of image</param>
         /// <returns></returns>
+        [JsonConstructor]
         public OrthographicCameraModel(Vector3 center, Vector3 forward, Vector3 right, Vector3 down,
                                        int width, int height)
         {
@@ -70,8 +73,8 @@ namespace OPS.Imaging
             this.Forward = forward;
             this.Right = right;
             this.Down = down;
-            this.Width = width;
-            this.Height = height;
+            this.width = width;
+            this.height = height;
             Init();
         }
 
@@ -82,15 +85,15 @@ namespace OPS.Imaging
             Forward = new Vector3(0, 0, far - near);
             Right = new Vector3((r - l) / width, 0, 0);
             Down = new Vector3(0, (b - t) / height, 0);
-            this.Width = width;
-            this.Height = height;
+            this.width = width;
+            this.height = height;
             Init();
         }
 
         private void Init()
         {
             normal = Vector3.Normalize(Vector3.Cross(Right, Down)); //yes this is a right handed cross product
-            CenterPixel = new Vector2(Width, Height) * 0.5;
+            CenterPixel = new Vector2(Width - 1, Height - 1) * 0.5;
             ff = Vector3.Dot(Forward, Forward);
             rr = Vector3.Dot(Right, Right);
             dd = Vector3.Dot(Down, Down);
@@ -116,10 +119,7 @@ namespace OPS.Imaging
             return (OrthographicCameraModel) MemberwiseClone();
         }
 
-        /// <summary>
-        /// Goes with Image.Decimated() and DEM.Decimated()
-        /// </summary>
-        public OrthographicCameraModel Decimated(int blocksize)
+        public override ConformalCameraModel Decimated(int blocksize)
         {
             return new OrthographicCameraModel(Center, Forward, Right * blocksize, Down * blocksize,
                                                Width / blocksize, Height / blocksize);

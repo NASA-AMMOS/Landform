@@ -377,7 +377,7 @@ namespace OPS.Geometry
                 if (input.HasNormals)
                 {
                     vertex.Normal = trianglePoint.Normal;
-                    if (normalizeNormals)
+                    if (normalizeNormals && vertex.Normal.LengthSquared() > 1e-6)
                     {
                         vertex.Normal.Normalize(); //https://github.jpl.nasa.gov/OnSight/Landform/issues/110
                     }

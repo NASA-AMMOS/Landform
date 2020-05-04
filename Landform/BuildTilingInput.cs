@@ -76,9 +76,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
-
-        [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
-        public bool ListImageObservations { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
@@ -113,22 +110,15 @@ namespace OPS.Landform
                     return 0; //help
                 }
 
-                if (options.ListImageObservations)
-                {
-                    RunPhase("list image observations", ListImageObservations);
-                    return 0;
-                }
-
                 if (texGenMode == TextureGenMode.Clip || texGenMode == TextureGenMode.Bake)
                 {
                     RunPhase("load input image", () => { sceneTexture = pipeline.LoadImage(options.InputTexture); });
                 }
 
-
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: texGenMode == TextureGenMode.Clip ||
                                                                 texGenMode == TextureGenMode.Bake));
 
-                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject)
+                if (!options.NoSurface && texGenMode == TextureGenMode.Backproject)
                 {
                     RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                     RunPhase("build occlusion datastructures", BuildSceneCaster);
@@ -147,7 +137,7 @@ namespace OPS.Landform
                     RunPhase("build leaf meshes", BuildLeafMeshes);
                 }
 
-                if (!options.NoSurfaceObs && texGenMode == TextureGenMode.Backproject)
+                if (!options.NoSurface && texGenMode == TextureGenMode.Backproject)
                 {
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
                 }
@@ -166,31 +156,6 @@ namespace OPS.Landform
             return 0;
         }
 
-        private void ListImageObservations()
-        {
-            if (imageObservations != null)
-            {
-                var allImages = observationCache.GetAllObservations()
-                    .Where(obs => ((RoverObservation)obs).ObservationType == RoverProductType.Image)
-                    .OrderBy(obs => obs.Name)
-                    .ToList();
-                pipeline.LogInfo("{0} image observations:", allImages.Count);
-                foreach (var obs in allImages.OrderBy(obs => obs.Name))
-                {
-                    pipeline.LogInfo(obs.Name);
-                }
-                pipeline.LogInfo("{0} image observations selected for texturing:", imageObservations.Count);
-                foreach (var obs in imageObservations.OrderBy(obs => obs.Name))
-                {
-                    pipeline.LogInfo(obs.Name);
-                }
-            }
-            else
-            {
-                pipeline.LogInfo("no image observations selected for texturing");
-            }
-        }
-            
         protected override bool ParseArgumentsAndLoadCaches()
         {
             if (!base.ParseArgumentsAndLoadCaches())
@@ -336,7 +301,7 @@ namespace OPS.Landform
                         CameraInstance camInst = new CameraInstance();
                         camInst.cameraToMesh = xform.Mean;
                         camInst.meshToCamera = Matrix.Invert(camInst.cameraToMesh);
-                        camInst.cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                        camInst.cameraModel = obs.CameraModel;
                         camInst.hullInMesh = obsToHull?[obs.Name];
                         camInst.widthPixels = obs.Width;
                         camInst.heightPixels = obs.Height;
@@ -351,10 +316,7 @@ namespace OPS.Landform
                         useApproximateTileSplit = !options.NoApproxTileSplit,
                         tileResolution = resolution,
                         scInMesh = sceneCaster,
-                        cameraInstances =
-                        imageObservations
-                        .Select(obs => toCameraInstance((RoverObservation)obs))
-                        .ToArray(),
+                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray()
                     };
                 }
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
@@ -661,7 +623,7 @@ namespace OPS.Landform
             {
                 List<PixelPoint> missingPixels = null;
                 IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = null;
-                if (options.NoSurfaceObs)
+                if (options.NoSurface)
                 {
                     //if no surface imagery is used, all pixels will be textured by orbital
                     MeshOperator tileMeshOp = new MeshOperator(mesh);

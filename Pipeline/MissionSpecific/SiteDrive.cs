@@ -19,7 +19,7 @@ namespace OPS.Pipeline
 
         public static bool IsSiteDriveString(string sd)
         {
-            return sd != null && ((new Regex("\\d{10}")).IsMatch(sd) || (new Regex("\\d{7}")).IsMatch(sd));
+            return sd != null && ((new Regex("^\\d{10}$")).IsMatch(sd) || (new Regex("^\\d{7}$")).IsMatch(sd));
         }
 
         public static bool TryParse(string name, out SiteDrive sd)
@@ -77,7 +77,7 @@ namespace OPS.Pipeline
         {
             if (!TryParse(name, out SiteDrive sd))
             {
-                throw new ArgumentException("Unexpected sitedrive string length");
+                throw new ArgumentException($"not a sitedrive: \"{name}\"");
             }
             this.Site = sd.Site;
             this.Drive = sd.Drive;

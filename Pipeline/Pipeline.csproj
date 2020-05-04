@@ -84,8 +84,8 @@
     <Reference Include="MathNet.Numerics, Version=4.4.0.0, Culture=neutral, processorArchitecture=MSIL">
       <HintPath>..\packages\MathNet.Numerics.4.4.0\lib\net461\MathNet.Numerics.dll</HintPath>
     </Reference>
-    <Reference Include="Newtonsoft.Json, Version=11.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
-      <HintPath>..\packages\Newtonsoft.Json.11.0.2\lib\net45\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=12.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="ogr_csharp, Version=1.0.5387.28600, Culture=neutral, PublicKeyToken=db5a52b08dc5b321, processorArchitecture=MSIL">
       <HintPath>..\packages\GDAL.1.11.1\lib\net40\ogr_csharp.dll</HintPath>
@@ -159,14 +159,15 @@
   <ItemGroup>
     <Compile Include="AlignmentServer\DB\BirdsEyeView.cs" />
     <Compile Include="AlignmentServer\DB\BirdsEyeViewFeatures.cs" />
+    <Compile Include="AlignmentServer\DB\CameraModelConverter.cs" />
     <Compile Include="AlignmentServer\DB\FeatureMatches.cs" />
     <Compile Include="AlignmentServer\DB\Frame.cs" />
     <Compile Include="AlignmentServer\DB\FrameCache.cs" />
     <Compile Include="AlignmentServer\DB\FrameGeohash.cs" />
     <Compile Include="AlignmentServer\DB\FrameTransform.cs" />
+    <Compile Include="AlignmentServer\DB\XNAMatrixConverter.cs" />
     <Compile Include="AlignmentServer\DB\Observation.cs" />
     <Compile Include="AlignmentServer\DB\ObservationCache.cs" />
-    <Compile Include="AlignmentServer\DB\OrbitalObservation.cs" />
     <Compile Include="AlignmentServer\DB\Overlap.cs" />
     <Compile Include="AlignmentServer\DB\OverlapCache.cs" />
     <Compile Include="AlignmentServer\DB\Project.cs" />

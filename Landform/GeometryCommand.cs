@@ -16,7 +16,7 @@ namespace OPS.Landform
 {
     public class GeometryCommandOptions : WedgeCommandOptions
     {
-        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSSSDDDDD", Default = "auto")]
+        [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
         public virtual string MeshFrame { get; set; }
     }
 
@@ -115,30 +115,23 @@ namespace OPS.Landform
 
             if (meshFrame == "mission_root" || meshFrame == missionRoot)
             {
-                if (missionRoot == null)
-                {
-                    throw new Exception("mission root output requested but mission not specified");
-                }
-                if (string.IsNullOrEmpty(effectiveRootFrame))
-                {
-                    //this can happen if there were no frames to load or the frame cache was not loaded
-                    throw new Exception("mission root output requested but no frames or frame cache not loaded");
-                }
-                if (effectiveRootFrame != missionRoot)
-                {
-                    throw new Exception(string.Format("mission root output {0} requested but effective root is {1}",
-                                                      missionRoot, effectiveRootFrame));
-                }
-                meshFrame = missionRoot;
+                meshFrame = "root"; //recognized as a meta-name by FrameCache.GetObservationTransform()
             }
             else if (meshFrame == "project_root")
             {
-                if (string.IsNullOrEmpty(effectiveRootFrame))
+                if (rootSiteDrive == null)
                 {
                     //this can happen if there were no frames to load or the frame cache was not loaded
-                    throw new Exception("project root output requested but effective root unknown");
+                    throw new Exception("project root output requested but no root site drive");
                 }
-                meshFrame = effectiveRootFrame;
+                if (rootSiteDrive == mission.GetLandingSiteDrive())
+                {
+                    meshFrame = "root";
+                }
+                else
+                {
+                    meshFrame = rootSiteDrive.ToString();
+                }
             }
             else if (meshFrame == "newest" || meshFrame == "oldest")
             {
@@ -149,6 +142,7 @@ namespace OPS.Landform
                                               
                 var sds = observationCache
                     .GetAllObservations()
+                    .Where(obs => obs is RoverObservation)
                     .Select(obs => ((RoverObservation)obs).SiteDrive)
                     .Distinct()
                     .ToArray();

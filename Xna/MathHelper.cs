@@ -251,31 +251,31 @@ namespace Microsoft.Xna.Framework
         /// </summary>
         /// <param name="angle">The angle to reduce, in radians.</param>
         /// <returns>The new angle, in radians.</returns>
-	public static double WrapAngle(double angle)
-	{
+        public static double WrapAngle(double angle)
+        {
             angle = (double)Math.IEEERemainder((double)angle, 6.2831854820251465);
-	    if (angle <= -3.14159274f)
-	    {
-		angle += 6.28318548f;
-	    }
-	    else
-	    {
-		if (angle > 3.14159274f)
-		{
-		   angle -= 6.28318548f;
-		}
-	    }
-	    return angle;
-	}
+            if (angle <= -3.14159274f)
+            {
+                angle += 6.28318548f;
+            }
+            else
+            {
+                if (angle > 3.14159274f)
+                {
+                    angle -= 6.28318548f;
+                }
+            }
+            return angle;
+        }
 
- 	/// <summary>
+        /// <summary>
         /// Determines if value is powered by two.
         /// </summary>
         /// <param name="value">A value.</param>
         /// <returns><c>true</c> if <c>value</c> is powered by two; otherwise <c>false</c>.</returns>
-	public static bool IsPowerOfTwo(int value)
-	{
-	     return (value > 0) && ((value & (value - 1)) == 0);
-	}
+        public static bool IsPowerOfTwo(int value)
+        {
+            return (value > 0) && ((value & (value - 1)) == 0);
+        }
     }
 }

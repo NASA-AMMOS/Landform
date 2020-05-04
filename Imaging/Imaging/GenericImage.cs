@@ -132,7 +132,7 @@ namespace OPS.Imaging
         }
 
         /// <summary>
-        /// Performas a deep copy of the image
+        /// Performs a deep copy of the image
         /// </summary>
         /// <returns></returns>
         public virtual object Clone()

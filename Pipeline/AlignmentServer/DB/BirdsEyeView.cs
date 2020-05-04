@@ -21,7 +21,7 @@ namespace OPS.Pipeline.AlignmentServer
     {
         public enum ColorMode { Texture, Tilt, Elevation };
 
-        public class BEVOptions : Rasterizer.BEVOptions
+        public class BEVOptions : Rasterizer.Options
         {
             public WedgeObservations.CollectOptions WedgeCollectOptions;
             public WedgeObservations.MeshOptions WedgeMeshOptions;

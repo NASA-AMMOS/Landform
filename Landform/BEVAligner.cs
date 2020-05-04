@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
@@ -51,7 +52,7 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Example:
 ///
-/// Landform.exe heightmap-align windjana --orbitaldem out/windjana/orbital/out_deltaradii_smg_1m.tif --basesitedrive 0311472
+/// Landform.exe bev-align windjana --fixsitedrives 0311472
 ///
 /// </summary>
 namespace OPS.Landform
@@ -136,6 +137,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Spatial outlier number of mean absolute deviations", Default = 5)]
         public double SpatialOutlierMADs { get; set; }
+
+        [Option(HelpText = "Write RANSAC debug images", Default = false)]
+        public bool WriteRansacDebug { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = true)]
+        public override bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSurface { get; set; }
     }
 
     public class BEVAligner : BEVCommand
@@ -199,6 +209,11 @@ namespace OPS.Landform
         {
             try
             {
+                if (options.NoSurface)
+                {
+                    throw new Exception("--nosurface not supported for this command");
+                }
+
                 if (!ParseArgumentsAndLoadCaches(OUT_DIR))
                 {
                     return 0; //help
@@ -770,7 +785,7 @@ namespace OPS.Landform
                 }
             }
 
-            if (options.WriteDebug)
+            if (options.WriteRansacDebug)
             {
                 var mf = bestMatches
                     .Select(m => modelFeatures[matchArray[m].ModelIndex])
@@ -801,9 +816,9 @@ namespace OPS.Landform
                     SaveImage(img.ToOPSImage(), pair + "_BEV_RANSAC" + suffix);
                 }
                 
-                writeImage("_0_priors", pt => pt);
-                writeImage("_1_rotation", pt => bestTransform.Rotate(pt));
-                writeImage("_2_solved", pt => bestTransform.Transform(pt));
+                writeImage("_0_Priors", pt => pt);
+                writeImage("_1_Rotation", pt => bestTransform.Rotate(pt));
+                writeImage("_2_Solved", pt => bestTransform.Transform(pt));
             }
                         
             ransacMatches[pair] = bestMatches.Select(m => matchArray[m]).ToArray();
@@ -838,9 +853,13 @@ namespace OPS.Landform
             var modelDEM = dems[modelSiteDrive];
             var dataDEM = dems[dataSiteDrive];
 
+            mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation, out Vector3 right, out Vector3 down);
+
             //DEM elevations are relative to site drive origin
-            double modelSiteDriveOriginZElevation = -Vector3.Transform(Vector3.Zero, PriorTransform(modelSiteDrive)).Z;
-            double dataSiteDriveOriginZElevation = -Vector3.Transform(Vector3.Zero, PriorTransform(dataSiteDrive)).Z;
+            double modelSiteDriveOriginElevation =
+                Vector3.Dot(Vector3.Transform(Vector3.Zero, PriorTransform(modelSiteDrive)), elevation);
+            double dataSiteDriveOriginElevation =
+                Vector3.Dot(Vector3.Transform(Vector3.Zero, PriorTransform(dataSiteDrive)), elevation);
 
             var pair = modelSiteDrive + "-" + dataSiteDrive;
 
@@ -851,22 +870,15 @@ namespace OPS.Landform
                 var mf = modelFeatures[match.ModelIndex];
                 var df = dataFeatures[match.DataIndex];
 
-                var mxy = (mf.Location - modelOrigin) * BEVMetersPerPixel;
-                var dxy = (df.Location - dataOrigin) * BEVMetersPerPixel;
+                var mxy = mf.Location - modelOrigin;
+                var dxy = df.Location - dataOrigin;
 
-                //DEM elevations were computed as
-                //elevationInSiteDrive = -1 * zInRoot - siteDriveOriginZElevation
-                //where the -1 is because the default definition of "up" in Mesh.ColorByElevation() is (0, 0, -1)
-                //which matches mission standard coordinate frames (SITE, LOCAL_LEVEL)
-                //so doing some algebra to solve for zInRoot:
-                //elevationInSiteDrive = -1 * zInRoot - siteDriveOriginZElevation
-                //-zInRoot = elevationInSiteDrive + siteDriveOriginZElevation
-                //zInRoot = -(elevationInSiteDrive + siteDriveOriginZElevation)
-                var mz = -(modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X] + modelSiteDriveOriginZElevation);
-                var dz = -(dataDEM[0, (int)df.Location.Y, (int)df.Location.X] + dataSiteDriveOriginZElevation);
+                var me = modelDEM[0, (int)mf.Location.Y, (int)mf.Location.X] + modelSiteDriveOriginElevation;
+                var de = dataDEM[0, (int)df.Location.Y, (int)df.Location.X] + dataSiteDriveOriginElevation;
 
-                var mp = new Vector3(mxy.X, mxy.Y, mz);
-                var dp = new Vector3(dxy.X, dxy.Y, dz);
+                var mp = right * mxy.X * BEVMetersPerPixel + down * mxy.Y * BEVMetersPerPixel + elevation * me;
+                var dp = right * dxy.X * BEVMetersPerPixel + down * dxy.Y * BEVMetersPerPixel + elevation * de;
+
                 lengths.Add(Vector3.Distance(mp, dp));
                 pairs.Add(new SpatialMatch(mp, dp));
             }
@@ -1024,7 +1036,7 @@ namespace OPS.Landform
                         var data = pair.Item2;
                         var pairName = model + "-" + data;
 
-                        if (matches[pairName].Length > 0)
+                        if (options.WriteRansacDebug && matches[pairName].Length > 0)
                         {
                             SaveImage(AlignmentUtils
                                       .DrawMatches(bevs[model], bevs[data], features[model], features[data],
@@ -1032,7 +1044,7 @@ namespace OPS.Landform
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
                                                    .ToArray(),
                                                    model.ToString(), data.ToString(), stretch: false),
-                                      pairName + "_BEV_Matches");
+                                      pairName + "_BEV_Pre_RANSAC_Matches");
                         }
 
                         if (ransacMatches[pairName].Length > 0)
@@ -1043,7 +1055,7 @@ namespace OPS.Landform
                                                    .Select(m => new KeyValuePair<int, int>(m.DataIndex, m.ModelIndex))
                                                    .ToArray(),
                                                    model.ToString(), data.ToString(), stretch: false),
-                                      pairName + "_BEV_RANSAC_Matches");
+                                      pairName + "_BEV_Matches");
                         }
 
                         if (spatialMatches[pairName].Length > 0)
@@ -1246,44 +1258,37 @@ namespace OPS.Landform
         /// </summary>
         private void SaveTransforms(IEnumerable<Node> aligned, TransformSource transformSource)
         {
-            var unaligned = new HashSet<SiteDrive>(siteDrives);
-            foreach (var node in aligned)
+            var sds = aligned.Select(node => node.siteDrive).ToArray();
+            var xforms = aligned.Select(node => node.worldTransform.Value).ToArray();
+
+            SaveTransforms(sds, xforms, transformSource);
+
+            if (options.WriteDebug)
             {
-                unaligned.Remove(node.siteDrive);
-                var ut = new UncertainRigidTransform(node.worldTransform.Value);
-                var frame = frameCache.GetFrame(node.siteDrive.ToString());
-                var ft = FrameTransform.FindOrCreate(pipeline, frame, transformSource, ut);
-                ft.Transform = ut;
-                ft.Save(pipeline);
-                bool added = false;
-                lock (frame.Transforms)
+                string sfx = transformSource == TransformSource.LandformBEV ? "_Adj"
+                    : transformSource == TransformSource.LandformBEVCalf ? "_Calf" : null;
+                if (sfx != null)
                 {
-                    added = frame.Transforms.Add(ft.Source);
-                }
-                if (added)
-                {
-                    frame.Save(pipeline);
-                }
-                pipeline.LogInfo("saved {0} adjusted transform for site drive {1}", transformSource, node.siteDrive);
-            }
-            foreach (var sd in unaligned)
-            {
-                var frame = frameCache.GetFrame(sd.ToString());
-                bool removed = false;
-                lock (frame.Transforms)
-                {
-                    removed = frame.Transforms.Remove(transformSource);
-                }
-                if (removed)
-                {
-                    frame.Save(pipeline);
-                }
-                //can't use frameCache here because it was loaded with only priors
-                //but that's OK because FrameTransform.Find() doesn't scan
-                var ft = FrameTransform.Find(pipeline, frame, transformSource);
-                if (ft != null)
-                {
-                    ft.Delete(pipeline);
+                    var meshToRoot =
+                        dbgMeshTransform.HasValue ? Matrix.Invert(dbgMeshTransform.Value) : Matrix.Identity;
+                    CoreLimitedParallel.For(0, sds.Length, i =>
+                    {
+                        string bn = sds[i] + DEBUG_BEV_MESH_SUFFIX;
+                        string imgFile = bn + imageExt;
+                        if (!File.Exists(Path.Combine(localOutputPath, imgFile)))
+                        {
+                            imgFile = null;
+                        }
+                        string meshPath = Path.Combine(localOutputPath, bn + meshExt);
+                        if (File.Exists(meshPath))
+                        {
+                            var mesh = Mesh.Load(meshPath);
+                            string meshFile = bn + sfx;
+                            var rootToSD = Matrix.Invert(PriorTransform(sds[i]));
+                            var sdToRoot = xforms[i];
+                            SaveMesh(Mesh.Transformed(mesh, meshToRoot * rootToSD * sdToRoot), meshFile, imgFile);
+                        }
+                    });
                 }
             }
         }
@@ -1416,8 +1421,8 @@ namespace OPS.Landform
             {
                 case AlignmentMode.Simultaneous: return SimultaneousAlign();
                 case AlignmentMode.Pairwise: return PairwiseAlign();
+                default: return 0;
             }
-            return 0;
         }
 
         /// <summary>

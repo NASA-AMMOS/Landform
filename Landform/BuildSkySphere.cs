@@ -249,10 +249,10 @@ namespace OPS.Landform
             // skybox should be visible. this is not a perfect test. It is possible that looking 
             // throught a canyon would have all four corners report they hit the scene mesh and 
             // miss the fact skybox related data would be visible throught the middle of the image.
-            var skyRelatedObs = imageObservations.Where(obs =>
+            var skyRelatedObs = roverImages.Where(obs =>
             {
                 var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, tcopts.UsePriors, tcopts.OnlyAligned).Mean;
-                var cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+                var cameraModel = obs.CameraModel;
 
                 return (!Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, 0), sceneCaster).HasValue ||
                        !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, 0), sceneCaster).HasValue ||

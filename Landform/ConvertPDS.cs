@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using CommandLine;
 using log4net;
+using OPS.Util;
 using OPS.Imaging;
 
 /// <summary>
@@ -46,48 +47,56 @@ namespace OPS.Landform
 
         public int Run()
         {
-            string[] allowedFormats = new string[] { "jpg", "png", "tif" };
-
-            if (!allowedFormats.Any(f => f == options.OutputType))
+            try
             {
-                logger.ErrorFormat("unrecognized output type \"{0}\"", options.OutputType);
-                return 1;
-            }
-
-            string[] files = null;
-            string destDir = null;
-
-            if (Directory.Exists(options.Inputpath))
-            {
-                files = Directory.GetFiles(options.Inputpath, "*.IMG");
-                destDir = options.Inputpath;
-            }
-            else
-            {
-                files = new string[] {  options.Inputpath };
-                destDir = Path.GetDirectoryName(options.Inputpath); //destDir="" if Inputpath was a bare filename
-            }
-
-            if (options.OutputDir != null)
-            {
-                destDir = options.OutputDir;
-            }
-
-            if (files != null && files.Length > 0)
-            {
-
-                if (!string.IsNullOrEmpty(destDir))
+                string[] allowedFormats = new string[] { "jpg", "png", "tif" };
+                
+                if (!allowedFormats.Any(f => f == options.OutputType))
                 {
-                    Directory.CreateDirectory(destDir);
+                    logger.ErrorFormat("unrecognized output type \"{0}\"", options.OutputType);
+                    return 1;
                 }
-
-                string ext = "." + options.OutputType;
-                for (int i = 0; i < files.Length; i++)
+                
+                string[] files = null;
+                string destDir = null;
+                
+                if (Directory.Exists(options.Inputpath))
                 {
-                    logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
-                    string bn = Path.GetFileNameWithoutExtension(files[i]);
-                    Image.Load(files[i]).Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
-                }          
+                    files = Directory.GetFiles(options.Inputpath, "*.IMG");
+                    destDir = options.Inputpath;
+                }
+                else
+                {
+                    files = new string[] {  options.Inputpath };
+                    destDir = Path.GetDirectoryName(options.Inputpath); //destDir="" if Inputpath was a bare filename
+                }
+                
+                if (options.OutputDir != null)
+                {
+                    destDir = options.OutputDir;
+                }
+                
+                if (files != null && files.Length > 0)
+                {
+                    
+                    if (!string.IsNullOrEmpty(destDir))
+                    {
+                        Directory.CreateDirectory(destDir);
+                    }
+                    
+                    string ext = "." + options.OutputType;
+                    for (int i = 0; i < files.Length; i++)
+                    {
+                        logger.InfoFormat("converting {0} to {1} in {2}", files[i], ext, destDir);
+                        string bn = Path.GetFileNameWithoutExtension(files[i]);
+                        Image.Load(files[i]).Save<byte>(Path.Combine(destDir, bn + ext)); //destDir="" ok
+                    }          
+                }
+            }
+            catch (Exception ex)
+            {
+                Logging.LogException(logger, ex);
+                return 1;
             }
 
             return 0;

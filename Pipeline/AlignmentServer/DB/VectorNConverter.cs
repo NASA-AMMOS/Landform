@@ -8,15 +8,8 @@ namespace OPS.Pipeline.AlignmentServer
 {
     public class VectorNConverter : JsonConverter, IPropertyConverter
     {
-        public override bool CanRead
-        {
-            get { return true; }
-        }
-        
-        public override bool CanWrite
-        {
-            get { return true; }
-        }
+        public override bool CanRead { get { return true; } } 
+        public override bool CanWrite { get { return true; } } 
 
         public override bool CanConvert(Type objectType)
         {

@@ -147,7 +147,7 @@ namespace OPS.Alignment.BundleAdjusterStructures
                 if (c is CAHVORE)
                 {
                     E = ((CAHVORE)c).E;
-                    linearity = ((CAHVORE)c).linearityMode.Linearity;
+                    linearity = ((CAHVORE)c).Linearity;
                     Type = CameraModelType.CAHVORE;
                 }
 
@@ -200,7 +200,7 @@ namespace OPS.Alignment.BundleAdjusterStructures
 
                 Vector3 E = new Vector3(Parameters[18], Parameters[19], Parameters[20]);
                 double linearity = Parameters[21];
-                return new CAHVORE(C, A, H, V, O, R, E, new LinearityMode(linearity));
+                return new CAHVORE(C, A, H, V, O, R, E, linearity);
             }
         }
     }

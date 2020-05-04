@@ -79,6 +79,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Write out index images as seperate files", Default = false)]
         public bool NoEmbedIndexes { get; set; }
+
+        [Option(HelpText = "option disabled for this command", Default = false, Required = false)]
+        public override bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false, Required = false)]
+        public override bool NoSurface { get; set; }
     }
 
     public class BuildTileset : TilingCommand
@@ -133,6 +139,14 @@ namespace OPS.Landform
                 throw new Exception("--nosave not implemented for this command");
             }
 
+            if (options.NoSurface)
+            {
+                throw new Exception("--nosurface not implemented for this command");
+            }
+
+            //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available
+            options.NoOrbital = true;
+
             if (!base.ParseArgumentsAndLoadCaches())
             {
                 return false; //help
@@ -178,11 +192,6 @@ namespace OPS.Landform
             tilesetFolder = DecorateOutDir(TILESET_DIR);
 
             return true;
-        }
-
-        protected override void LoadOrbital()
-        {
-            //noop
         }
 
         protected override bool DeleteLocalProductsBeforeRedo()

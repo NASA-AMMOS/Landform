@@ -11,7 +11,7 @@ using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 
 /// <summary>
-/// Ingests observation RDRs and creates a Landform alignment project.
+/// Ingests observation RDRs and orbital assets and creates a Landform alignment project.
 ///
 /// This is the first stage of the Landform contextual mesh workflow.
 ///
@@ -22,7 +22,7 @@ using OPS.Pipeline.AlignmentServer;
 /// filtering to narrow down the set of available RDRs.
 ///
 /// In cloud workflows ingest can directly search S3 for existing RDRs, however, this functionality is no longer
-/// well-tested.
+/// well-tested.  Orbital assets are currently always ingested as local files.
 ///
 /// In either case, ingest applies further filtering with RoverObservationComparator.KeepBestRoverObservations().
 ///
@@ -43,6 +43,10 @@ using OPS.Pipeline.AlignmentServer;
 /// are related back to the earliest sitedrive in the project.  However, this is only possible if the ingested
 /// observations contain a contiguous sequence of sites.  See FrameCache.ChainPriors() for more details.
 ///
+/// Ingestion of orbital assets requires PlacesDB to map sitedrives to easting/northing/elevation and longitude/latitude
+/// on the planetary surface.  The orbital assets are loaded with ConformalCameraModels (i.e. either GISCameraModel or
+/// OrthographicCameraModel) centered at the origin of --orbitalframe, which must be a sitedrive.
+///
 /// If priors are loaded from multiple sources for a given frame their selection will generally be prioritized according
 /// to the order defined by the OPS.Pipeline.AlignmentServer.TransformSource enum in FrameTransform.cs.
 ///
@@ -59,7 +63,9 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// Example:
 ///
-/// Landform.exe ingest windjana --inputpath=out/windjana/rdrs/** --mission=MSL
+/// Landform.exe ingest windjana --inputpath=out/windjana/rdrs/** --mission=MSL --orbitalframe=0311472
+///    --orbitaldem=out/MSL/orbital/out_deltaradii_smg_1m.tif
+///    --orbitalimage=out/MSL/orbital/out_clean_25cm.iGrid.ClipToDEM.tif
 ///
 /// </summary>
 namespace OPS.Landform
@@ -82,7 +88,7 @@ namespace OPS.Landform
         [Option(HelpText = "Only use specific cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = null)]
         public string OnlyForCameras { get; set; }
 
-        [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
+        [Option(HelpText = "Only use observations from specific site drives SSSDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
         [Option(HelpText = "Whether to make LocationsDB priors (requires locations.xml and basemap DEM)", Default = false)]
@@ -114,6 +120,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
         public Mission Mission { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
+        public string OrbitalDEM { get; set; }
+
+        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
+        public string OrbitalImage { get; set; }
+
+        [Option(Required = false, Default = "root", HelpText = "Frame in which to ingest orbital assets, either a sitedrive SSSDDDD, \"root\", or \"project_root\"")]
+        public string OrbitalFrame { get; set; }
     }
 
     public class Ingest : LandformCommand
@@ -206,7 +221,8 @@ namespace OPS.Landform
                                                  options.RedoObservations, options.RedoPriors,
                                                  options.OnlyForObservations, options.OnlyForFrames,
                                                  options.OnlyForCameras, options.OnlyForSiteDrives,
-                                                 options.NoProgress);
+                                                 options.OrbitalDEM, options.OrbitalImage, options.OrbitalFrame,
+                                                 options.NoSurface, options.NoOrbital, options.NoProgress);
             baseUrls = ingester.BaseUrls.Select(b => b.Url).ToList();
         }
 

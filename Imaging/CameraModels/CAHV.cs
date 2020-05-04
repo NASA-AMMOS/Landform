@@ -1,38 +1,25 @@
 ﻿using System;
-using System.Xml;
 using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 
 namespace OPS.Imaging
 {
     public class CAHV : CameraModel 
     {
+        public const double EPSILON = 1e-15;
 
-        protected const double EPSILON = 1e-15;
-
-        public Vector3 C;   // Position of the camera
+        public Vector3 C;
         public Vector3 A;
         public Vector3 H;
         public Vector3 V;
 
+        [JsonIgnore]
+        public override bool Linear { get { return true; } }
 
-        //Default constructor for JSOn deserialization
+        [JsonIgnore]
+        public override Vector3 ImagePlaneNormal { get { return A; } }
+
         public CAHV() { }
-
-        public override bool Linear
-        {
-            get
-            {
-                return true;
-            }
-        }
-
-        public override Vector3 ImagePlaneNormal
-        {
-            get
-            {
-                return A;
-            }
-        }
 
         public CAHV(Vector3 c, Vector3 a, Vector3 h, Vector3 v)
         {

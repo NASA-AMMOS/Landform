@@ -73,6 +73,26 @@ namespace OPS.Imaging
             WriteOptions = options;
         }
 
+        public static int GetBitDepth(Dataset dataset, int bandNumber = 1)
+        {
+            using (var band = dataset.GetRasterBand(bandNumber))
+            {
+                return GetBitDepth(band);
+            }
+        }
+
+        public static int GetBitDepth(Band band)
+        {
+            switch (band.DataType)
+            {
+                case DataType.GDT_Byte: return 8;
+                case DataType.GDT_Int16: case DataType.GDT_UInt16: return 16;
+                case DataType.GDT_Int32: case DataType.GDT_UInt32: case DataType.GDT_Float32: return 32;
+                case DataType.GDT_Float64: return 64;
+                default: throw new Exception("unknown GDAL datatype: " + band.DataType);
+            }
+        }
+
         /// <summary>
         /// Read an image using the gdal library
         /// </summary>
