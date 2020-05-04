@@ -588,7 +588,7 @@ namespace OPS.Landform
             BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels, ObsSelectionStrategy backprojectStrat,
                                          string debugSubdir = "")
         {
-            if (backprojectStrategy == null)
+            if (backprojectStrat == null)
             {
                 throw new Exception("must initialize backproject strategy before backprojecting observations");
             }
