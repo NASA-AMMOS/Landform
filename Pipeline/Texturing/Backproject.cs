@@ -382,9 +382,13 @@ namespace OPS.Pipeline
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
 
-            if (imageObservations.Count() == 0 || meshHull == null)
+            if (imageObservations.Count() == 0)
             {
                 warn("no image observations found");
+            }
+
+            if (imageObservations.Count() == 0 || meshHull == null)
+            { 
                 if (missingPixels != null)
                 {
                     missingPixels.AddRange(samplePoints);
