@@ -26,8 +26,11 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere radius (meters)", Default = 200)]
         public double SphereRadiusMeters { get; set; }
 
-        [Option(HelpText = "Sky sphere mesh resolution (degrees)", Default = 5)]
-        public double SphereResolutionDegres { get; set; }
+        [Option(HelpText = "Sky sphere mesh resolution (degrees)", Default = 10)]
+        public double SphereResolutionDegrees { get; set; }
+
+        [Option(HelpText = "A quality/perf tradeoff spent caclulating which texture to use", Default = 4)]
+        public double BackprojectSamplesPerTile { get; set; }
 
         [Option(HelpText = "Sky sphere background color Red (0-255)", Default = 100)]
         public double SkyColorRed { get; set; }
@@ -60,6 +63,7 @@ namespace OPS.Landform
                 options.NoOrbital = true;        //orbital not useful in skysphere
                 options.ObsSelectionStrategy = ObsSelectionStrategyName.Exhaustive; //no whole scene mesh used, spatial caching not needed
                 options.TextureFarClip = options.SphereRadiusMeters * 2.0;
+                options.BackprojectQuality = options.BackprojectSamplesPerTile / (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees)));//bugbug: only works for small angles
 
                 if (!ParseArgumentsAndLoadCaches())
                 {
@@ -93,8 +97,16 @@ namespace OPS.Landform
 
         private void BuildSphereTiles()
         {
-            double sphereResRad = MathHelper.ToRadians(options.SphereResolutionDegres);
-            int rows = (int)(Math.PI / sphereResRad);
+            //only need tiles to cover the lowest point visible from rover height
+            //assume from center, angle would be different from the edge, but less savings
+            //assumes z down
+            BoundingBox sceneBounds = mesh.Bounds();
+            Vector3 roverMastLocation = new Vector3(0, 0, -2.0); //TODO: pull from a mastcam z-height in mission specific or expose viewer height
+            Vector3 lowestViewVector = Vector3.Normalize(sceneBounds.Max - roverMastLocation);    //z incresases down
+            double angleBelowHorizon = lowestViewVector.Z * Math.PI/2.0; // equivalent to Vector3.Dot(roverMastLocation, new Vector3(0,0,1)) * PI/2
+
+            double sphereResRad = MathHelper.ToRadians(options.SphereResolutionDegrees);
+            int rows = (int)((Math.PI/2.0 + angleBelowHorizon) / sphereResRad);
             int cols = (int)(2.0 * Math.PI / sphereResRad);
 
             //generate the verts to be shared by the tiles
@@ -103,7 +115,7 @@ namespace OPS.Landform
             {
                 for (int idxCol = 0; idxCol < cols; idxCol++)
                 {
-                    double el = Math.PI - idxRow * sphereResRad;
+                    double el = Math.PI - idxRow * sphereResRad; //work from top down (want total coverage above, partial below)
                     double az = idxCol * sphereResRad;
                     Vector3 pos = Vector3.Zero;
                     pos.X = options.SphereRadiusMeters * Math.Cos(az) * Math.Sin(el);
@@ -232,7 +244,23 @@ namespace OPS.Landform
                 Interlocked.Decrement(ref np);
             }
 
-            contexts = Backproject.BuildContexts(obsToHull, imageObservations, mission, frameCache,
+
+            // raycast the corners for a quick test to see if something that should be in
+            // skybox should be visible. this is not a perfect test. It is possible that looking 
+            // throught a canyon would have all four corners report they hit the scene mesh and 
+            // miss the fact skybox related data would be visible throught the middle of the image.
+            var skyRelatedObs = imageObservations.Where(obs =>
+            {
+                var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, tcopts.UsePriors, tcopts.OnlyAligned).Mean;
+                var cameraModel = (CameraModel)JsonHelper.FromJson(obs.CameraModel);
+
+                return (!Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, 0), sceneCaster).HasValue ||
+                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, 0), sceneCaster).HasValue ||
+                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, obs.Height), sceneCaster).HasValue ||
+                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, obs.Height), sceneCaster).HasValue);
+            }).ToList();
+                
+            contexts = Backproject.BuildContexts(obsToHull, skyRelatedObs, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
