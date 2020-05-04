@@ -78,7 +78,7 @@ namespace OPS.Pipeline.Texturing
             //exhaustively sort for each sample point
             var refSelect = new ObsSelectionExhaustive();
             refSelect.OrbitalMetersPerPixel = OrbitalMetersPerPixel;
-            refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality);
+            refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality); //TODO: sharing this quality is a problem
 
             //collect a sorted list of contexts (best to worst) for each sample point
             CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
