@@ -33,7 +33,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public struct Context
+        public class Context
         {
             public Observation Obs;                     //observation to backproject
             public Observation MaskObs;                 //mission rover mask obs corresponding to Obs if any
