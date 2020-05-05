@@ -176,6 +176,11 @@ namespace OPS.Landform
         [Option(HelpText = "Abort contextual mesh workflow on unexpected error in an alignment stage", Default = false)]
         public bool AbortOnAlignmentError { get; set; }
 
+        [Option(HelpText = "Surface geometry extent in meters", Default = BuildGeometry.DEF_SURFACE_EXTENT)]
+        public double SurfaceExtent { get; set; }
+
+        [Option(HelpText = "Combined surface and orbital geometry extent in meters", Default = BuildGeometry.DEF_EXTENT)]
+        public double Extent { get; set; }
         [Option(HelpText = "Run as contextual mesh master service", Default = false)]
         public bool Master { get; set; }
 
@@ -763,7 +768,8 @@ namespace OPS.Landform
 
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr);
                     
-                    RunCommand("build-geometry", project, "--meshframe", sdStr);
+                    RunCommand("build-geometry", project, "--meshframe", sdStr, "--extent", options.Extent.ToString(),
+                               "--surfaceextent", options.SurfaceExtent.ToString());
                     
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     

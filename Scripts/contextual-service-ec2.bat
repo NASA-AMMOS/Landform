@@ -67,12 +67,19 @@ if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest==
 set noorbital=
 if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set noorbital==--noorbital
 
+set extent=32
+if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent==%LANDFORM_CONTEXTUAL_EXTENT%
+
+set surfaceextent=64
+if not "%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%"=="" set surfaceextent==%LANDFORM_CONTEXTUAL_SURFACE_EXTENT%
+
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital%
+set contextualopts=%contextualopts% --extent %extent% --surfaceextent %surfaceextent%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

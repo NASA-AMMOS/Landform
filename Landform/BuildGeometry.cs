@@ -111,11 +111,11 @@ namespace OPS.Landform
         [Option(HelpText = "Pre-clip observation point clouds to XY box of this size in meters around mesh frame origin if positive", Default = 0)]
         public double PreClipPointCloudExtent { get; set; }
 
-        [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = 32)]
-        public double ClipSurfaceExtent { get; set; }
+        [Option(HelpText = "Clip reconstructed surface to XY box of this size in meters around mesh frame origin if positive", Default = BuildGeometry.DEF_SURFACE_EXTENT)]
+        public double SurfaceExtent { get; set; }
 
-        [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = 64)]
-        public double ClipExtent { get; set; }
+        [Option(HelpText = "Final clip box XY size in meters, 0 to clip to aggregate point cloud bounds", Default = BuildGeometry.DEF_EXTENT)]
+        public double Extent { get; set; }
 
         [Option(HelpText = "Surface density based trimmer octree level (higher means more aggressive, 0 disables)", Default = 7.5)]
         public double TrimmerLevel { get; set; }
@@ -176,6 +176,9 @@ namespace OPS.Landform
     {
         private const string OUT_DIR = "meshing/GeometryProducts";
 
+        public const double DEF_EXTENT = 64;
+        public const double DEF_SURFACE_EXTENT = 32;
+
         public const double DEF_BLEND_RADIUS = 3;
         public const double DEF_SEW_RADIUS = 0.2;
 
@@ -199,6 +202,7 @@ namespace OPS.Landform
         private Mesh orbitalMesh;
 
         private double blendRadius, sewRadius;
+        private double blendExtent;
         private double orbitalMetersPerPixel;
         private int blendSamplesPerPixel, orbitalSamplesPerPixel;
         private Matrix meshToOrbital, orbitalToMesh;
@@ -238,18 +242,18 @@ namespace OPS.Landform
                 if (options.NoOrbital)
                 {
                     //just clip surface mesh
-                    double extent = options.ClipExtent;
-                    if (extent <= 0 || (options.ClipSurfaceExtent > 0 && options.ClipSurfaceExtent < extent))
+                    double extent = options.Extent;
+                    if (extent <= 0 || (options.SurfaceExtent > 0 && options.SurfaceExtent < extent))
                     {
-                        extent = options.ClipSurfaceExtent;
+                        extent = options.SurfaceExtent;
                     }
                     RunPhase("clip mesh", () => ClipMesh(extent));
                 }
                 else
                 {
                     //surface mesh (if any) has already been clipped
-                    //and we've already verified that 0 < ClipSurfaceExtent < ClipExtent
-                    //now build orbital to ClipExtent
+                    //and we've already verified that 0 < SurfaceExtent < Extent
+                    //now build orbital to Extent
 
                     RunPhase("build orbital mesh", BuildOrbitalMesh);
 
@@ -273,7 +277,7 @@ namespace OPS.Landform
                     RunPhase("filter mesh", FilterMesh);
                 }
 
-                if (options.GenerateUVs)
+                if (options.GenerateUVs && !mesh.HasUVs)
                 {
                     RunPhase("atlas mesh", AtlasMesh);
                 }
@@ -327,6 +331,11 @@ namespace OPS.Landform
                 options.NoOrbital = true;
             }
 
+            if (options.SurfaceExtent == 0)
+            {
+                options.NoSurface = true;
+            }
+
             if (!options.NoOrbital)
             {
                 LoadOrbitalDEM(); //may overwrite options.NoOrbital
@@ -336,7 +345,19 @@ namespace OPS.Landform
                     throw new Exception("--nosurface but failed to load orbital");
                 }
             }
-            
+
+            if (!options.NoOrbital && options.Extent <= 0)
+            {
+                throw new Exception("outer clip {options.Extent} must be positive to use orbital");
+            }
+
+            if (!options.NoOrbital && !options.NoSurface &&
+                (options.SurfaceExtent <= 0 || options.Extent <= 0 || options.SurfaceExtent > options.Extent))
+            {
+                throw new Exception($"surface clip {options.SurfaceExtent} must be greater than 0 and less than " +
+                                    $"or equal to outer clip {options.Extent} to use surface and orbital");
+            }
+
             onlyForObs = observationCache.ParseList(options.OnlyFacesForObs)
                 .Where(obs => obs is RoverObservation)
                 .Cast<RoverObservation>()
@@ -380,27 +401,25 @@ namespace OPS.Landform
                     CheckOutputURL(options.OutputMesh, dbgMeshPrefix, OUT_DIR, MeshSerializers.Instance);
             }
 
-            sewRadius = options.OrbitalSewRadius;
-            if (sewRadius < 0)
+            if (!options.NoOrbital && !options.NoSurface)
             {
-                sewRadius = DEF_SEW_RADIUS;
-            }
+                sewRadius = options.OrbitalSewRadius;
+                if (sewRadius < 0)
+                {
+                    sewRadius = DEF_SEW_RADIUS;
+                }
+                
+                blendRadius = options.OrbitalBlendRadius;
+                if (blendRadius < 0)
+                {
+                    blendRadius = DEF_BLEND_RADIUS;
+                }
+                if (blendRadius < sewRadius)
+                {
+                    blendRadius = sewRadius;
+                }
 
-            blendRadius = options.OrbitalBlendRadius;
-            if (blendRadius < 0)
-            {
-                blendRadius = DEF_BLEND_RADIUS;
-            }
-            if (blendRadius < sewRadius)
-            {
-                blendRadius = sewRadius;
-            }
-
-            if (!options.NoOrbital && (options.ClipSurfaceExtent <= 0 || options.ClipExtent <= 0 ||
-                                       options.ClipSurfaceExtent > options.ClipExtent))
-            {
-                throw new Exception($"surface clip {options.ClipSurfaceExtent} must be greater than 0 " +
-                                    $"and less than or equal to outer clip {options.ClipExtent} to use orbital");
+                blendExtent = Math.Min(options.Extent, options.SurfaceExtent + Math.Max(blendRadius, 0));
             }
 
             orbitalMetersPerPixel = 1;
@@ -663,7 +682,7 @@ namespace OPS.Landform
 
         private void ClipSurfaceMesh()
         {
-            ClipMesh(options.ClipSurfaceExtent);
+            ClipMesh(options.SurfaceExtent);
             if (options.WriteDebug)
             {
                 SaveMesh(mesh, dbgMeshPrefix + "-clippedSurface");
@@ -810,15 +829,13 @@ namespace OPS.Landform
                 return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
             }
 
-            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.ClipExtent / orbitalMetersPerPixel);
-
-            double br = Math.Min(options.ClipExtent, options.ClipSurfaceExtent + Math.Max(blendRadius, 0));
-            int blendExtentPixels = (int)Math.Ceiling(0.5 * br / orbitalMetersPerPixel);
+            int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalMetersPerPixel);
+            int blendExtentPixels = (int)Math.Ceiling(0.5 * blendExtent / orbitalMetersPerPixel);
 
             Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
 
             Image.Subrect blendBounds = null;
-            if (blendSamplesPerPixel != orbitalSamplesPerPixel)
+            if (blendSamplesPerPixel != orbitalSamplesPerPixel && blendExtentPixels > 0)
             {
                 blendBounds = orbitalDEM.GetSubrectPixels(blendExtentPixels, meshOriginInOrbital);
             }
@@ -880,7 +897,7 @@ namespace OPS.Landform
                 return;
             }
 
-            double radius = this.blendRadius;
+            double radius = blendRadius;
 
             if (BLEND_GUTTER_SAMPLES > 0)
             {
@@ -896,7 +913,7 @@ namespace OPS.Landform
             double blendMin = options.OrbitalBlendMin;
             double smoothRadius = 0.1 * radius;
 
-            double boundsRadius = options.ClipSurfaceExtent > 0 ? options.ClipSurfaceExtent + radius : 0;
+            double boundsRadius = options.SurfaceExtent > 0 ? options.SurfaceExtent + radius : 0;
             double blendRadiusSq = radius * radius;
             double sewRadiusSq = sewRadius * sewRadius;
 
@@ -1118,9 +1135,9 @@ namespace OPS.Landform
             {
                 surfaceExtent = 0; //only orbital
             }
-            else if (options.ClipSurfaceExtent > 0)
+            else if (options.SurfaceExtent > 0)
             {
-                surfaceExtent = options.ClipSurfaceExtent;
+                surfaceExtent = options.SurfaceExtent;
             }
             
             var sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
