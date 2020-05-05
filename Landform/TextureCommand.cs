@@ -478,9 +478,12 @@ namespace OPS.Landform
                                  lod, Fmt.KMG(meshLOD[lod].Vertices.Count()), Fmt.KMG(meshLOD[lod].Faces.Count()));
             }
 
-            if (requireUVs && !mesh.HasUVs)
+            for (int i = 0; i < meshLOD.Count; i++)
             {
-                throw new Exception("input mesh needs UVs");
+                if (requireUVs && !meshLOD[i].HasUVs)
+                {
+                    AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                }
             }
         }
 

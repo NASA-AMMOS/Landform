@@ -170,12 +170,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
         public override int TextureResolution { get; set; }
-
-        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = 0)]
-        public int MaxTextureCharts { get; set; }
-
-        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = 0.1)]
-        public double MaxTextureStretch { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -198,7 +192,6 @@ namespace OPS.Landform
         private Mesh pointCloud;
         private BoundingBox pointCloudBounds;
         private Mesh mesh;
-        private SceneMesh sceneMesh;
 
         private Mesh shrinkwrapMesh;
         private MeshOperator maskUVMeshOp;
@@ -282,10 +275,16 @@ namespace OPS.Landform
 
                 if (options.GenerateUVs)
                 {
-                    RunPhase("atlas mesh", () => AtlasMesh(sceneTextureResolution));
+                    RunPhase("atlas mesh", AtlasMesh);
                 }
 
-                RunPhase("save mesh", SaveMesh);
+                if (!options.NoSave)
+                {
+                    RunPhase("save mesh", SaveSceneMesh);
+                }
+
+                var bounds = mesh.Bounds().Size();
+                pipeline.LogInfo("scene bounds (meters): {0:f3}x{1:f3}x{2:f3}", bounds.X, bounds.Y, bounds.Z);
             }
             catch (Exception ex)
             {
@@ -650,6 +649,8 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
+                SaveMesh(mesh, dbgMeshPrefix, "-reconstructed");
+
                 var colored = new Mesh(mesh);
                 var red = new Vector3(1, 0, 0);
                 var green = new Vector3(0, 1, 0);
@@ -983,6 +984,11 @@ namespace OPS.Landform
             mesh.Faces.AddRange(blendedOrbitalMesh.Faces.Select(f => new Face(f.P0 + nv, f.P1 + nv, f.P2 + nv)));
 
             mesh.Clean();
+
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, dbgMeshPrefix + "-combined");
+            }
         }
 
         private void ClipMesh(double extent, bool clipToPointCloudBounds = true)
@@ -1038,6 +1044,11 @@ namespace OPS.Landform
             {
                 throw new Exception("mesh is empty");
             }
+
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, dbgMeshPrefix + "-decimated");
+            }
         }
 
         private void FilterMesh()
@@ -1072,63 +1083,62 @@ namespace OPS.Landform
             }
 
             pipeline.LogInfo("kept {0} faces visible in specified observations", Fmt.KMG(mesh.Faces.Count));
+
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, dbgMeshPrefix + "-filtered");
+            }
         }
 
-        private void AtlasMesh(int textureResolution)
+        private void AtlasMesh()
         {
-            pipeline.LogInfo("atlasing {0} triangles with UVAtlas, texture resolution {1}",
-                             Fmt.KMG(mesh.Faces.Count), textureResolution);
-
-            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
-            pipeline.LogWarn("UVAtlas may not work well on large meshes");
-
-            mesh = UVAtlas.Atlas(mesh, textureResolution, textureResolution,
-                                 options.MaxTextureCharts, (float)options.MaxTextureStretch);
+            mesh = AtlasMesh(mesh, sceneTextureResolution);
 
             if (mesh == null)
             {
-                throw new Exception("unknown error atlasing mesh");
+                throw new Exception("atlasing failed");
+            }
+
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, dbgMeshPrefix + "-atlased");
             }
         }
 
-        private void SaveMesh()
+        private void SaveSceneMesh()
         {
-            if (!options.NoSave)
+            pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
+            
+            var variant = MeshVariant.Default;
+            
+            var obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
+            
+            double surfaceExtent = -1; //unlimited
+            if (options.NoSurface)
             {
-                pipeline.LogInfo("saving scene mesh in frame {0} to project storage", meshFrame);
-                double surfaceExtent = -1; //unlimited
-                if (options.NoSurface)
-                {
-                    surfaceExtent = 0; //only orbital
-                }
-                else if (options.ClipSurfaceExtent > 0)
-                {
-                    surfaceExtent = options.ClipSurfaceExtent;
-                }
-                string[] obsNames = onlyForObs.Select(obs => obs.Name).ToArray();
-                var variant = MeshVariant.Default;
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
-                if (sceneMesh != null)
-                {
-                    sceneMesh.SetBounds(mesh.Bounds());
-                    var meshProd = new PlyGZDataProduct(mesh);
-                    pipeline.SaveDataProduct(project, meshProd);
-                    sceneMesh.MeshGuid = meshProd.Guid;
-                    sceneMesh.SurfaceExtent = surfaceExtent;
-                    sceneMesh.Save(pipeline);
-                }
-                else
-                {
-                    sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames,
-                                                 mesh: mesh, surfaceExtent: surfaceExtent);
-                }
+                surfaceExtent = 0; //only orbital
             }
-                
-            if (options.WriteDebug)
+            else if (options.ClipSurfaceExtent > 0)
             {
-                SaveMesh(mesh, dbgMeshPrefix);
+                surfaceExtent = options.ClipSurfaceExtent;
             }
-
+            
+            var sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, variant, siteDrives, obsNames);
+            if (sceneMesh != null)
+            {
+                sceneMesh.SetBounds(mesh.Bounds());
+                var meshProd = new PlyGZDataProduct(mesh);
+                pipeline.SaveDataProduct(project, meshProd);
+                sceneMesh.MeshGuid = meshProd.Guid;
+                sceneMesh.SurfaceExtent = surfaceExtent;
+                sceneMesh.Save(pipeline);
+            }
+            else
+            {
+                SceneMesh.Create(pipeline, project, meshFrame, variant, siteDrives, obsNames, mesh: mesh,
+                                 surfaceExtent: surfaceExtent);
+            }
+        
             if (!string.IsNullOrEmpty(options.OutputMesh))
             {
                 TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(options.OutputMesh), tmpFile =>
@@ -1137,9 +1147,6 @@ namespace OPS.Landform
                     pipeline.SaveFile(tmpFile, options.OutputMesh, constrainToStorage: false);
                 });
             }
-
-            var bounds = mesh.Bounds().Size();
-            pipeline.LogInfo("scene bounds (meters): {0:f3}x{1:f3}x{2:f3}", bounds.X, bounds.Y, bounds.Z);
         }
     }
 }

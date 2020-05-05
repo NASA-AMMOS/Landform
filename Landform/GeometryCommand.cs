@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Xml;
 using System.Diagnostics;
 using CommandLine;
 using OPS.Util;
@@ -21,6 +18,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 4096)]
         public virtual int TextureResolution { get; set; }
+
+        [Option(HelpText = "Max texture charts, 0 for unlimited", Default = 0)]
+        public int MaxTextureCharts { get; set; }
+
+        [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = 0.1)]
+        public double MaxTextureStretch { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -209,6 +212,37 @@ namespace OPS.Landform
                 }
             }
             return url;
+        }
+
+        protected virtual Mesh AtlasMesh(Mesh mesh, int resolution, string name = null) 
+        {
+            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
+
+            pipeline.LogInfo("atlasing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
+                             name, Fmt.KMG(mesh.Faces.Count), resolution);
+
+            if (mesh.Faces.Count > 100000)
+            {
+                //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/902
+                pipeline.LogWarn("UVAtlas may not work well on large meshes");
+            }
+
+            try
+            {
+                mesh = UVAtlas.Atlas(mesh, resolution, resolution,
+                                     gcopts.MaxTextureCharts, (float)gcopts.MaxTextureStretch);
+                if (mesh == null)
+                {
+                    throw new Exception("unknown");
+                }
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogError("error atlasing {0} mesh with UVAtlas: {1}", name, ex.Message);
+                mesh = null;
+            }
+
+            return mesh;
         }
     }
 }
