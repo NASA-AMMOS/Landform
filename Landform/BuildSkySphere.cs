@@ -32,13 +32,13 @@ namespace OPS.Landform
         [Option(HelpText = "A quality/perf tradeoff spent caclulating which texture to use", Default = 4)]
         public double BackprojectSamplesPerTile { get; set; }
 
-        [Option(HelpText = "Sky sphere background color Red (0-255)", Default = 100)]
+        [Option(HelpText = "Sky sphere background color Red (0-255)", Default = 200)]
         public double SkyColorRed { get; set; }
 
-        [Option(HelpText = "Sky sphere background color Green (0-255)", Default = 91)]
+        [Option(HelpText = "Sky sphere background color Green (0-255)", Default = 180)]
         public double SkyColorGreen{ get; set; }
 
-        [Option(HelpText = "Sky sphere background color Red (0-255)", Default = 76)]
+        [Option(HelpText = "Sky sphere background color Blue (0-255)", Default = 140)]
         public double SkyColorBlue { get; set; }
     }
 
