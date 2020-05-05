@@ -8,6 +8,8 @@ using OPS.MathExtensions;
 
 namespace OPS.Geometry
 {
+   public enum BoxAxis { X, Y, Z };
+
     public static class BoundingBoxExtensions
     {
         public static BoundingBox CreateXY(Vector2 min, Vector2 max)
@@ -29,6 +31,18 @@ namespace OPS.Geometry
         {
             Vector3 size = box.Size();
             return size.X * size.Y * size.Z;
+        }
+
+        public static Vector2 GetFaceSizePerpendicularToAxis(this BoundingBox box, BoxAxis axis)
+        {
+            var sz = box.Size();
+            switch (axis)
+            {
+                case BoxAxis.X: return new Vector2(sz.Y, sz.Z);
+                case BoxAxis.Y: return new Vector2(sz.X, sz.Z);
+                case BoxAxis.Z: return new Vector2(sz.X, sz.Y);
+                default: throw new ArgumentException("unknown axis: " + axis);
+            }
         }
 
         /// <summary>
