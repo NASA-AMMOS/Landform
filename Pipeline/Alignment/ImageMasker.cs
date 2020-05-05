@@ -65,6 +65,7 @@ namespace OPS.Pipeline
             }
 
             //propagate invalid pixels from original image to mask
+            int borderPixels = DEF_MASK_BORDER;
             if (img.Metadata is PDSMetadata)
             {
                 var parser = new PDSParser((PDSMetadata)img.Metadata);
@@ -113,10 +114,12 @@ namespace OPS.Pipeline
                         }
                     }
                 }
+
+                borderPixels = masker.GetBorderPixels(parser);
             }
 
             //add borders to mask
-            int border = Math.Min(mask.Height / 2, Math.Min(mask.Width / 2, DEF_MASK_BORDER));
+            int border = Math.Min(mask.Height / 2, Math.Min(mask.Width / 2, borderPixels));
             for (int b = 0; b < border; b++)
             {
                 //whole row
