@@ -23,7 +23,7 @@ namespace OPS.Landform
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
     public class BuildSkySphereOptions : BuildTilesetOptions
     {
-        [Option(HelpText = "Sky sphere radius (meters)", Default = 200)]
+        [Option(HelpText = "Sky sphere radius (meters)", Default = 1000)]
         public double SphereRadiusMeters { get; set; }
 
         [Option(HelpText = "Sky sphere mesh resolution (degrees)", Default = 10)]
