@@ -11,6 +11,7 @@ using OPS.Pipeline.TilingServer;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Pipeline.Texturing;
+using OPS.RayTrace;
 
 /// <summary>
 /// creates a tileset containing a fixed sphere mesh to display
@@ -270,7 +271,7 @@ namespace OPS.Landform
                        !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, obs.Height), sceneCaster).HasValue);
             }).ToList();
                 
-            contexts = Backproject.BuildContexts(obsToHull, skyRelatedObs, mission, frameCache,
+            contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
@@ -296,9 +297,13 @@ namespace OPS.Landform
                 List<PixelPoint> missingPixels = null;
                 missingPixels = new List<PixelPoint>();
 
+                SceneCaster meshCaster = new SceneCaster();
+                meshCaster.AddMesh(mesh, null, Matrix.Identity);
+                meshCaster.Build();
+
                 ObsSelectionStrategy obsSelStrat = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                obsSelStrat.Initialize(mesh, new MeshOperator(mesh), sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
-                IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = BackprojectRoverObservations(mesh, options.TextureResolution, missingPixels,
+                obsSelStrat.Initialize(mesh, new MeshOperator(mesh), meshCaster, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
+                IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = BackprojectRoverObservations(mesh, meshCaster, options.TextureResolution, missingPixels,
                                                                     obsSelStrat, debugSubdir: node.Name);
 
                 Image image = new Image(3, resolution, resolution);
@@ -322,3 +327,4 @@ namespace OPS.Landform
         }
     }
 }
+ 
