@@ -111,7 +111,7 @@ namespace OPS.Landform
             //assume from center, angle would be different from the edge, but less savings
             //assumes z down
             BoundingBox sceneBounds = mesh.Bounds();
-            Vector3 roverMastLocation = new Vector3(0, 0, -2.0); //TODO: pull from a mastcam z-height in mission specific or expose viewer height
+            Vector3 roverMastLocation = new Vector3(0, 0, -5.0); //TODO: pull from a mastcam z-height in mission specific or expose viewer height
             Vector3 lowestViewVector = Vector3.Normalize(sceneBounds.Max - roverMastLocation);    //z incresases down
             double angleBelowHorizon = lowestViewVector.Z * Math.PI/2.0; // equivalent to Vector3.Dot(roverMastLocation, new Vector3(0,0,1)) * PI/2
 
