@@ -644,6 +644,13 @@ namespace OPS.Pipeline
                                 obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
                             }
                         }
+                        else
+                        {
+                            // couldn't check tint red
+                            var bandVals = obsCoverage.GetBandValues(idxRow, idxCol);
+                            bandVals[0] += 0.25f; //tint red
+                            obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
+                        }
                     }
                 }
             }
