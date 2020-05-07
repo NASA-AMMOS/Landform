@@ -22,7 +22,7 @@ using OPS.RayTrace;
 namespace OPS.Landform
 {
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
-    public class BuildSkySphereOptions : BuildTilesetOptions
+    public class BuildSkySphereOptions : TilingCommandOptions
     {
         [Option(HelpText = "Sky sphere radius (meters)", Default = 1000)]
         public double SphereRadiusMeters { get; set; }
@@ -41,11 +41,21 @@ namespace OPS.Landform
 
         [Option(HelpText = "Sky sphere background color Blue (0-255)", Default = 140)]
         public double SkyColorBlue { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoSave { get; set; }
+
+        [Option(HelpText = "option disabled for this command", Default = false, Required = false)]
+        public override bool NoOrbital { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = false, Required = false)]
+        public override bool NoSurface { get; set; }
     }
 
-    public class BuildSkySphere : BuildTileset
+    public class BuildSkySphere : TilingCommand
     {
-        //public const string TILESET_DIR = "tiling/Tileset/SkySphere";
+        public const string TILESET_DIR = "tiling/TileSet/Sky";
+
         private SceneNode tileTree;
         private BuildSkySphereOptions options;
         private List<Backproject.Context> contexts;
@@ -56,7 +66,7 @@ namespace OPS.Landform
             this.options = options;
         }
 
-        public override int Run()
+        public int Run()
         {
             try
             {
@@ -106,6 +116,33 @@ namespace OPS.Landform
             return 0;
         }
 
+        protected override bool ParseArgumentsAndLoadCaches()
+        {
+            if (options.NoSave)
+            {
+                throw new Exception("--nosave not implemented for this command");
+            }
+
+            if (options.NoSurface)
+            {
+                throw new Exception("--nosurface not implemented for this command");
+            }
+
+            //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available
+            options.NoOrbital = true;
+
+            if (!base.ParseArgumentsAndLoadCaches())
+            {
+                return false; //help
+            }
+
+            PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
+            PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
+
+            tilesetFolder = DecorateOutDir(TILESET_DIR);
+
+            return true;
+        }
         private void BuildSphereTiles()
         {
             //only need tiles to cover the lowest point visible from rover height

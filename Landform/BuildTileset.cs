@@ -59,27 +59,6 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
 
-        [Option(Required = false, Default = SkirtMode.None, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
-        public SkirtMode SkirtMode { get; set; }
-
-        [Option(Default = MeshReconstructionMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
-        public MeshReconstructionMethod ReconstructionMethod { get; set; }
-
-        [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
-        public double MaxTime { get; set; }
-
-        [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
-        public string ExportMeshFormat { get; set; }
-
-        [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
-        public string ExportImageFormat { get; set; }
-
-        [Option(HelpText = "Publish index images with tileset", Default = false)]
-        public bool WithIndexImages { get; set; }
-
-        [Option(HelpText = "Write out index images as seperate files", Default = false)]
-        public bool NoEmbedIndexes { get; set; }
-
         [Option(HelpText = "option disabled for this command", Default = false, Required = false)]
         public override bool NoOrbital { get; set; }
 
@@ -90,24 +69,14 @@ namespace OPS.Landform
     public class BuildTileset : TilingCommand
     {
         public const string TILESET_DIR = "tiling/TileSet";
-
-        private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
-        private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
-        private const int TILING_NODE_LRU_INDEX_CACHE_SIZE = 500;
-        private const int MAX_LEAF_GROUP_SIZE = 32;
-        private const int SLEEP_MS = 500;
-
         private BuildTilesetOptions options;
-
-        private TilingProject tilingProject;
-        private string tilesetFolder;
 
         public BuildTileset(BuildTilesetOptions options) : base(options)
         {
             this.options = options;
         }
 
-        public virtual int Run()
+        public int Run()
         {
             try
             {
@@ -152,220 +121,12 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            if (!string.IsNullOrEmpty(options.ExportMeshFormat) &&
-                MeshSerializers.Instance.CheckFormat(options.ExportMeshFormat, pipeline) == null)
-            {
-                return false; //help
-            }
-            
-            if (!string.IsNullOrEmpty(options.ExportImageFormat) &&
-                ImageSerializers.Instance.CheckFormat(options.ExportImageFormat, pipeline) == null)
-            {
-                return false; //help
-            }
-
             PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
-
-            if (sceneMesh == null) //might have already been loaded in GetProject()
-            {
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
-            }
-
-            if (sceneMesh == null)
-            {
-                throw new Exception(string.Format("no scene mesh for project {0} in frame {1}", project.Name, meshFrame));
-            }
-
-            LoadTileList();
-
-            if (tileList != null)
-            {
-                if (options.WithIndexImages && !tileList.HasIndexImages)
-                {
-                    throw new Exception("Tileset does not have index images. Consider disabling --withindeximages.");
-                }
-
-                withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
-            }
 
             tilesetFolder = DecorateOutDir(TILESET_DIR);
 
             return true;
-        }
-
-        protected override bool DeleteLocalProductsBeforeRedo()
-        {
-            return false;
-        }
-            
-        protected override bool PassthroughMeshFrameAllowed()
-        {
-            return true;
-        }
-
-        protected override void LoadFrameCache()
-        {
-            if (meshFrame != "passthrough")
-            {
-                base.LoadFrameCache();
-            }
-        }
-
-        protected override void LoadObservationCache()
-        {
-            if (meshFrame != "passthrough")
-            {
-                base.LoadObservationCache();
-            }
-        }
-
-        protected void CreateTilingProject(TilingScheme tilingScheme)
-        {
-            var keepMeshes = new HashSet<string>();
-            keepMeshes.UnionWith(tileList.LeafNames);
-            keepMeshes.UnionWith(tileList.ParentNames);
-            tilingProject = GetOrDeleteTilingProject(keepMeshes);
-
-            if (tilingProject == null)
-            {
-                //in a user defined tiling scheme the inputs give a subset of all the tiles
-                //including at least all the leaves
-                //the tree topology is encoded in the names of the given tiles
-                //such that all tiles with the same name prefix XXXX are parented to a tile named XXXX
-                //we'll automatically create any and all parent tiles which were not provided as input
-                //in practice for the local-build-leaves -> local-build-tileset workflow
-                //all and only the leaves of the tree are supplied as user defined tiles here
-                if((tilingScheme != TilingScheme.UserDefined) && (tilingScheme != TilingScheme.Flat))
-                {
-                    throw new NotImplementedException("Only expecting user defined or flat schemes in this function");
-                }
-
-                var projectType = PipelineStateMachine.ProjectType.ParentTiling;
-
-                int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
-
-                tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
-                                                     options.SkirtMode, options.ReconstructionMethod,
-                                                     options.FacesPerTile, resolution, projectType,
-                                                     options.ExportMeshFormat, options.ExportImageFormat,
-                                                     maxTileGroupSize);
-
-                tilingProject.ExportDir = null;
-                if (!string.IsNullOrEmpty(options.ExportMeshFormat) || !string.IsNullOrEmpty(options.ExportImageFormat))
-                {
-                    tilingProject.ExportDir = tilesetFolder;
-                }
-
-                //our own internal representation of the tile meshes are stored here
-                //typically in ply / png formats
-                //this must be the same folder and formats that build-tiling-input used to save the tile inputs
-                tilingProject.InternalTileDir = outputFolder;
-                tilingProject.InternalMeshFormat = options.MeshFormat;
-                tilingProject.InternalImageFormat = options.ImageFormat;
-
-                //actual output tileset is saved here
-                //typically in b3dm / jpg formats
-                tilingProject.TilesetDir = tilesetFolder;
-
-                tilingProject.StartedRunning = false;
-                tilingProject.FinishedRunning = false;
-
-                tilingProject.Save(pipeline);
-            }
-
-            tilingProject.EmbedIndexes = !options.NoEmbedIndexes;
-
-            var tilesetUrl = pipeline.GetStorageUrl(tilesetFolder, project.Name);
-            pipeline.LogInfo("{0} {1}/{2} tiles to {3}", pipeline is CloudPipeline ? "uploading" : "saving",
-                             tilingProject.TilesetMeshFormat, tilingProject.TilesetImageFormat, tilesetUrl);
-            if (!string.IsNullOrEmpty(options.ExportMeshFormat))
-            {
-                pipeline.LogInfo("also {0} {1} tile meshes to {2}", pipeline is CloudPipeline ? "uploading" : "saving",
-                                 tilingProject.ExportMeshFormat, tilesetUrl);
-            }
-            if (!string.IsNullOrEmpty(options.ExportImageFormat))
-            {
-                pipeline.LogInfo("also {0} {1} tile images to {2}", pipeline is CloudPipeline ? "uploading" : "saving",
-                                 tilingProject.ExportImageFormat, tilesetUrl);
-            }
-        }
-
-        protected void AddTileMeshes()
-        {
-            List<string> tileNames = new List<string>(tileList.LeafNames);
-            tileNames.AddRange(tileList.ParentNames);
-
-            pipeline.LogInfo("adding {0} tile meshes ({1} leaves, {2} parents){3}", tileNames.Count,
-                             tileList.LeafNames.Count(), tileList.ParentNames.Count(),
-                             withTextures ? " and textures" : "");
-
-            var inputs = new List<string>();
-            foreach (var tile in tileNames)
-            {
-                if (!options.NoProgress)
-                {
-                    pipeline.LogVerbose("adding/updating tile mesh {0}", tile);
-                }
-                string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
-                string imgUrl = null, indexUrl = null;
-                if (withTextures)
-                {
-                    imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt);
-                    if (options.WithIndexImages)
-                    {
-                        indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
-                                                          tile + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT);
-                    }
-                }
-                var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, indexUrl, tile);
-                inputs.Add(input.Name);
-            }
-
-            tilingProject.SaveInputNames(inputs, pipeline);
-            pipeline.SaveDatabaseItem(tilingProject);
-        }
-
-        protected void BuildTilesAndDefineParents()
-        {
-            TilingNode.SetLRUCacheCapacity(TILING_NODE_LRU_MESH_CACHE_SIZE, TILING_NODE_LRU_IMAGE_CACHE_SIZE,
-                                           TILING_NODE_LRU_INDEX_CACHE_SIZE);
-            var dt = new DefineTiles(pipeline, new DefineTilesMessage(project.Name));
-            dt.DownloadInputsAndBuildTree(tilingProject, !options.NoProgress,
-                                          skipSavingInternalTileMeshesForUserDefinedNodes: true);
-        }
-
-        protected void BuildParentTiles()
-        {
-            PipelineExecutive executive = null;
-            if (pipeline is LocalPipeline)
-            {
-                executive = PipelineExecutive.MakeExecutive(pipeline as LocalPipeline, ExecutionMode.Deferred);
-            }
-
-            pipeline.EnqueueToMaster(new RunProjectMessage(project.Name));
-
-            TilingProject tp = null;
-            do
-            {
-                if (stopwatch.ElapsedMilliseconds * 0.001 > options.MaxTime)
-                {
-                    throw new Exception("timed out waiting for parent tiles");
-                }
-
-                Thread.Sleep(SLEEP_MS);
-                
-                //re-fetch project record to ensure database synchronization
-                tp = TilingProject.Find(pipeline, project.Name);
-            }
-            while (tp != null && !tp.FinishedRunning);
-
-            if (executive != null)
-            {
-                (executive as DeferredExecutive).Quit();
-            }
-
-            TilingNode.DumpLRUCacheStats(pipeline);
         }
     }
 }
