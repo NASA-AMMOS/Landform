@@ -59,11 +59,21 @@ namespace OPS.Landform
         {
             try
             {
-                options.Redo = true;             //triggers delete of previous tiling project results
-                options.NoOrbital = true;        //orbital not useful in skysphere
-                options.ObsSelectionStrategy = ObsSelectionStrategyName.Exhaustive; //no whole scene mesh used, spatial caching not needed
-                options.TextureFarClip = options.SphereRadiusMeters * 2.0;
-                options.BackprojectQuality = options.BackprojectSamplesPerTile / (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees)));//bugbug: only works for small angles
+                options.Redo = true;                                        //triggers delete of previous tiling project results
+                //options.RedoObservationMasks = true;
+                options.NoOrbital = true;                                  //orbital not useful in skysphere
+                options.TextureFarClip = options.SphereRadiusMeters * 2.0; //need camera frustums to reach skybox
+
+                //options.ObsSelectionStrategy = ObsSelectionStrategyName.Exhaustive;
+                //options.BackprojectQuality = 0.01;
+                options.ObsSelectionStrategy = ObsSelectionStrategyName.Spatial; //no whole scene mesh used, spatial caching not needed
+                double lengthOfTile = (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees)));//bugbug: only works for small angles
+                options.BackprojectQuality = options.BackprojectSamplesPerTile/(lengthOfTile*lengthOfTile);
+                options.BackprojectQuality /= 100; //convert to expected units 'quality'
+                options.BackprojectInpaintPixels = -1; //fill all pixels, don't want any black pixels, but also don't want a double image of terrain we can see.
+
+                //options.OnlyForCameras = "Hazcam,FrontHazcam,FrontHazcamLeft,FrontHazcamRight,RearHazcam,RearHazcamLeft,RearHazcamRight,Mastcam,MastcamLeft,MastcamRight";
+                //options.WriteBackprojectDebug = true;
 
                 if (!ParseArgumentsAndLoadCaches())
                 {
