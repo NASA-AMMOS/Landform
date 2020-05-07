@@ -161,11 +161,9 @@ namespace OPS.Pipeline
         public override int GetBorderPixels(PDSParser parser)
         {
             var cam = base.mission.GetCamera(parser);
-            if (cam == RoverProductCamera.RearHazcam ||
-                cam == RoverProductCamera.RearHazcamLeft ||
-                cam == RoverProductCamera.RearHazcamRight)
+            if (base.mission.IsHazcam(cam))
             {
-                return 125; //enough to fix some errors in our homemade rover masks (RTG)
+                return 150; //enough to fix some errors in our homemade rover masks (rear: RTG, front: arm parts) ISSUE 1082 for example
             }
             else
             {
