@@ -616,21 +616,21 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
         }
 
         protected void BackprojectRoverObservations()
         {
             pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
 
-            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels, backprojectStrategy);
+            backprojectResults = BackprojectRoverObservations(mesh, sceneCaster, resolution, backprojectMissingPixels, backprojectStrategy);
 
             pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
                              Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels, ObsSelectionStrategy backprojectStrat,
+            BackprojectRoverObservations(Mesh mesh, SceneCaster meshCaster, int resolution, List<PixelPoint> missingPixels, ObsSelectionStrategy backprojectStrat,
                                          string debugSubdir = "")
         {
             if (backprojectStrat == null)
@@ -647,6 +647,7 @@ namespace OPS.Landform
                 observationCache = observationCache,
                 observations = roverImages,
                 mesh = mesh,
+                meshCaster = meshCaster,
                 meshFrame = meshFrame,
                 resolution = resolution,
                 sceneOcclusion = sceneCaster,

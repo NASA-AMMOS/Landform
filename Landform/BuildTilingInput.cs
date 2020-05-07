@@ -11,6 +11,7 @@ using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.Texturing;
 using OPS.Pipeline.TilingServer;
+using OPS.RayTrace;
 using OPS.Util;
 
 /// <summary>
@@ -631,8 +632,12 @@ namespace OPS.Landform
                 }
                 else
                 {
+                    SceneCaster meshCaster = new SceneCaster();
+                    meshCaster.AddMesh(mesh, null, Matrix.Identity);
+                    meshCaster.Build();
+
                     missingPixels = new List<PixelPoint>();
-                    backprojectResults = BackprojectRoverObservations(mesh, options.TextureResolution, missingPixels, backprojectStrategy, 
+                    backprojectResults = BackprojectRoverObservations(mesh, meshCaster, options.TextureResolution, missingPixels, backprojectStrategy, 
                                                                       debugSubdir: node.Name);
                 }
 

@@ -323,6 +323,7 @@ namespace OPS.Pipeline
             public Mesh mesh; //mesh from which to collect sample points to backproject
             public string meshFrame;
             public int resolution; //output texture resolution
+            public SceneCaster meshCaster;     //for ray casting the active mesh
             public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
             public bool usePriors;
             public bool onlyAligned;
@@ -460,11 +461,11 @@ namespace OPS.Pipeline
 
             var sortedContextBySample = new Dictionary<int, List<Context>>(samplePoints.Count);
 
-            int maxCandidateDepth = 0;
+            int maxCandidateDepth = 0;           
             for (int idx = 0; idx < samplePoints.Count; idx++)
             {               
                 //find the strategy specific ranking of contexts for this pixel
-                var sortedContexts = opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point,
+                var sortedContexts = opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, opts.meshCaster,
                                                                                      intersectingContexts);
                 sortedContextBySample.Add(idx, sortedContexts);
                 if (sortedContexts.Count > maxCandidateDepth)
@@ -520,7 +521,7 @@ namespace OPS.Pipeline
                     }
 
                     //backproject to see if any win
-                    Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
+                    Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);                  
                     var succeeded = Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask,
                                                                 pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height,
                                                                 opts.sceneOcclusion);
@@ -731,6 +732,33 @@ namespace OPS.Pipeline
                                        Vector3.TransformNormal(rayCamToMeshInObsFrame.Direction, obsToMesh));
 
             return rayCamToMesh;
+        }
+
+        // raycast the mesh with an occulusion check
+        public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster meshCaster, SceneCaster occluderCaster)
+        {            
+            //check if pixel ray hit the mesh
+            Vector3? meshPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, meshCaster);
+            if (!meshPos.HasValue)
+                return null;
+
+            //check if hit the mesh or was occluded by the scene
+            if (occluderCaster != meshCaster)
+            {
+                Vector3? occluderPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, occluderCaster);
+                if (occluderPos.HasValue)
+                {
+                    double distanceToOccluder = Vector3.DistanceSquared(occluderPos.Value, obsToMesh.Translation);
+                    double distanceToMesh = Vector3.DistanceSquared(meshPos.Value, obsToMesh.Translation);
+                    if ((distanceToOccluder - distanceToMesh) < float.Epsilon)
+                    {
+                        //occluded by other geometry
+                        return null;
+                    }
+                }
+            }
+
+            return meshPos;
         }
 
         public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster sc)

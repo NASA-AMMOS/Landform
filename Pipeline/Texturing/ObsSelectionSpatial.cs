@@ -26,7 +26,7 @@ namespace OPS.Pipeline.Texturing
 
         Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
 
-        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
                                         double quality = 1)
         {
@@ -42,7 +42,7 @@ namespace OPS.Pipeline.Texturing
             while (sampledMesh.Vertices.Count == 0)
             {
                 samplesPerMeter += 1;
-                sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
+                sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter); //TODO: pick center?
             }
 
             if (!string.IsNullOrEmpty(DebugOutputPath))
@@ -55,7 +55,7 @@ namespace OPS.Pipeline.Texturing
             foreach (var ctx in contexts)
             {
                 Vector2 pixel = new Vector2(ctx.Obs.Width / 2.0, ctx.Obs.Height / 2.0);
-                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, pixel, occlusionScene);
+                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, pixel, meshCaster, occlusionScene);
                 if (res.HasValue)
                 {
                     sampledMesh.Vertices.Add(new Vertex(res.Value));
@@ -78,14 +78,14 @@ namespace OPS.Pipeline.Texturing
             //exhaustively sort for each sample point
             var refSelect = new ObsSelectionExhaustive();
             refSelect.OrbitalMetersPerPixel = OrbitalMetersPerPixel;
-            refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality); //TODO: sharing this quality is a problem
+            refSelect.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts, outputTextureResolution, quality); //TODO: sharing this quality is a problem
 
             //collect a sorted list of contexts (best to worst) for each sample point
             CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
             {
                 Dictionary<string, double> ptScoresByObs = new Dictionary<string, double>();
 
-                var sortedContexts = refSelect.FilterAndSortContexts(pt, contexts, ptScoresByObs);
+                var sortedContexts = refSelect.FilterAndSortContexts(pt, meshCaster, contexts, ptScoresByObs);
 
                 foreach (var pair in ptScoresByObs)
                 {
@@ -114,7 +114,7 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
-        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
+        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, SceneCaster meshCaster,
                                                                         List<Backproject.Context> contexts,
                                                                         Dictionary<string, double> scoresByObs = null)
         {
