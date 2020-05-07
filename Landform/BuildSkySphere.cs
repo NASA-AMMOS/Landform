@@ -59,6 +59,7 @@ namespace OPS.Landform
         private SceneNode tileTree;
         private BuildSkySphereOptions options;
         private List<Backproject.Context> contexts;
+        private Mesh shrinkwrapMesh;
         private float[] skyColor = { 0.0f, 0.0f, 0.0f };
 
         public BuildSkySphere(BuildSkySphereOptions options) : base(options)
@@ -158,13 +159,24 @@ namespace OPS.Landform
             int cols = (int)(2.0 * Math.PI / sphereResRad);
 
             //generate the verts to be shared by the tiles
+            // simultaneously, build the shrinkwrapped mesh to be used for blend
             List<Vector3> positions = new List<Vector3>();
+            shrinkwrapMesh = new Mesh(hasNormals: false, hasUVs: true);
             for (int idxRow = 0; idxRow < rows; idxRow++)
             {
                 for (int idxCol = 0; idxCol < cols; idxCol++)
                 {
                     double el = Math.PI - idxRow * sphereResRad; //work from top down (want total coverage above, partial below)
                     double az = idxCol * sphereResRad;
+
+                    //cylinder verts
+                    Vector3 posCyl = Vector3.Zero;
+                    posCyl.X = options.SphereRadiusMeters * Math.Cos(az);
+                    posCyl.Y = options.SphereRadiusMeters * Math.Sin(az);
+                    posCyl.Z = options.SphereRadiusMeters * Math.Cos(el);
+                    shrinkwrapMesh.Vertices.Add(new Vertex(posCyl, Vector3.Zero, Vector4.Zero,
+                        new Vector2(idxCol / (float)(cols - 1), idxRow / (float)(rows - 1))));
+
                     Vector3 pos = Vector3.Zero;
                     pos.X = options.SphereRadiusMeters * Math.Cos(az) * Math.Sin(el);
                     pos.Y = options.SphereRadiusMeters * Math.Sin(az) * Math.Sin(el);
