@@ -209,7 +209,6 @@ namespace OPS.Landform
                 .ToList();
             int tileCount = tilesToTexture.Count;
 
-          
             var texMsg = string.Format("{0}x{0} {1} textures{2}",
                                        resolution, options.TextureVariant,
                                        options.TextureVariant != TextureVariant.Original ?
@@ -255,11 +254,12 @@ namespace OPS.Landform
             }
 
 
+            //TODO: move to be in load caches?
             // raycast the corners for a quick test to see if something that should be in
             // skybox should be visible. this is not a perfect test. It is possible that looking 
             // throught a canyon would have all four corners report they hit the scene mesh and 
             // miss the fact skybox related data would be visible throught the middle of the image.
-            var skyRelatedObs = roverImages.Where(obs =>
+            roverImages = roverImages.Where(obs =>
             {
                 var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, tcopts.UsePriors, tcopts.OnlyAligned).Mean;
                 var cameraModel = obs.CameraModel;
