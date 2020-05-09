@@ -1159,7 +1159,7 @@ namespace OPS.Geometry
                 {
                     if (box.Contains(v.Position) != ContainmentType.Disjoint)
                     {
-                        result.Vertices.Add(v);
+                        result.Vertices.Add((Vertex)v.Clone());
                     }
                 }
             }
@@ -1290,7 +1290,7 @@ namespace OPS.Geometry
                 {
                     if (box.Contains(v.Position) == ContainmentType.Disjoint)
                     {
-                        result.Vertices.Add(v);
+                        result.Vertices.Add((Vertex)v.Clone());
                     }
                 }
             }
