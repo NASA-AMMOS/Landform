@@ -25,19 +25,7 @@ namespace OPS.Pipeline.Texturing
 
         public string DebugOutputPath; //null disables debug output
 
-        public int MaxContexts = 10;
-
-        public struct ScoredPoint
-        {
-            public Vector3 Point;
-            public double Score;
-
-            public ScoredPoint(Vector3 point, double score)
-            {
-                Point = point;
-                Score = score;
-            }
-        }
+        public int MaxContexts = 10; //unlimited if non-positive
 
         public bool PreferLinearToNonlinear()
         {

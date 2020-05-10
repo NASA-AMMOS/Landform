@@ -22,8 +22,8 @@ namespace OPS.Pipeline.Texturing
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Exhaustive; } }
 
-        protected SceneCaster OcclusionScene;
-        protected MeshOperator MeshOp;
+        private SceneCaster OcclusionScene;
+        private MeshOperator MeshOp;
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
@@ -80,7 +80,6 @@ namespace OPS.Pipeline.Texturing
                     }
                 }
 
-                //no valid measurement, ignore image
                 if (dist != double.MaxValue)
                 {
                     if (scoresByObs != null)
@@ -96,7 +95,7 @@ namespace OPS.Pipeline.Texturing
             sortedContexts
                 .Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
 
-            return sortedContexts.Take(MaxContexts).ToList();
+            return MaxContexts > 0 ? sortedContexts.Take(MaxContexts).ToList() : sortedContexts.ToList();
         }
     }
 }

@@ -22,9 +22,21 @@ namespace OPS.Pipeline.Texturing
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
 
-        Dictionary<string, Backproject.Context> ObsToContext = new Dictionary<string, Backproject.Context>();
+        private double samplesPerMeter;
 
-        Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
+        private Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
+
+        private struct ScoredPoint
+        {
+            public Vector3 Point;
+            public double Score;
+
+            public ScoredPoint(Vector3 point, double score)
+            {
+                Point = point;
+                Score = score;
+            }
+        }
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
@@ -33,7 +45,7 @@ namespace OPS.Pipeline.Texturing
             // any sorts that would be better served by orbital will have their contexts filtered
 
             // collect points on the surface of the mesh
-            double samplesPerMeter = quality * 100.0;
+            samplesPerMeter = quality * 100.0;
 
             //TODO why can't this just be new SurfacePointSampler().Sample()?
             Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
@@ -68,11 +80,10 @@ namespace OPS.Pipeline.Texturing
             }
 
             //calculate the scores per reference point (grouped by observation)
-            var scoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>>();
+            var scoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ScoredPoint>>();
             foreach (var ctx in contexts)
             {
-                scoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ObsSelectionStrategy.ScoredPoint>());
-                ObsToContext.Add(ctx.Obs.Name, ctx);
+                scoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ScoredPoint>());
             }
 
             //exhaustively sort for each sample point
@@ -81,15 +92,15 @@ namespace OPS.Pipeline.Texturing
             refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality);
 
             //collect a sorted list of contexts (best to worst) for each sample point
-            CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
+            CoreLimitedParallel.ForEach(sampledMesh.Vertices, vertex =>
             {
-                Dictionary<string, double> ptScoresByObs = new Dictionary<string, double>();
-
+                var pt = vertex.Position;
+                var ptScoresByObs = new Dictionary<string, double>();
                 var sortedContexts = refSelect.FilterAndSortContexts(pt, contexts, ptScoresByObs);
 
-                foreach (var pair in ptScoresByObs)
+                foreach (var ctx in sortedContexts)
                 {
-                    scoredRefPtsByObs[pair.Key].Add(new ObsSelectionStrategy.ScoredPoint(pt, pair.Value));
+                    scoredRefPtsByObs[ctx.Obs.Name].Add(new ScoredPoint(pt, ptScoresByObs[ctx.Obs.Name]));
                 }
 
                 if (!string.IsNullOrEmpty(DebugOutputPath) && sortedContexts.Count() > 0)
@@ -110,7 +121,7 @@ namespace OPS.Pipeline.Texturing
             //flatten to list for later perf
             foreach (var ctx in contexts)
             {
-                ScoredRefPtsByObs.Add(ctx.Obs.Name, scoredRefPtsByObs[ctx.Obs.Name].ToList());
+                this.ScoredRefPtsByObs.Add(ctx.Obs.Name, scoredRefPtsByObs[ctx.Obs.Name].ToList());
             }
         }
 
@@ -118,60 +129,59 @@ namespace OPS.Pipeline.Texturing
                                                                         List<Backproject.Context> contexts,
                                                                         Dictionary<string, double> scoresByObs = null)
         {
-            var sortedContexts = new List<Backproject.Context>(contexts.Count);
-            var scoresByObsIndex = new Dictionary<int, double>(contexts.Count);
+            //indexed by score, sorted high to low (worst first)
+            //x=0, y=1 => sign(y - x) = sign(1 - 0) = 1 => x is greater than y
+            var bestContexts =
+                new SortedDictionary<double, Backproject.Context>(Comparer<double>.Create((x, y) => Math.Sign(y - x)));
+
+            double metersPerSample = 1 / samplesPerMeter;
+            double maxDistanceToRefPtSq = 4 * metersPerSample * metersPerSample;
 
             foreach (var ctx in contexts)
             {
-                if (!ObsToContext.ContainsKey(ctx.Obs.Name))
+                if (ctx.FrustumHull.Contains(forPoint) && ScoredRefPtsByObs.ContainsKey(ctx.Obs.Name))
                 {
-                    throw new Exception("Unexpected context as compared to init: " + ctx.Obs.Name);
-                }
-
-                //early out if context has no chance for pt
-                if (ctx.FrustumHull.Contains(forPoint))
-                {
-                    double minWeightedScore = double.MaxValue;
-                   
+                    double bestScoreForObs = double.MaxValue;
                     foreach (var pt in ScoredRefPtsByObs[ctx.Obs.Name])
                     {
-                        if (pt.Score == double.MaxValue)
-                        {
-                            throw new Exception("invalid score provided");
-                        }
-
                         //heuristic: makes a quality metric from the min pixel spread on the terrain
                         //and the squared distance to ther reference pt
+                        //offset by 1 so that if distance ~= 0 scores will still be compared
                         double distanceToRefPtSq = Vector3.DistanceSquared(pt.Point, forPoint);
-                        double weightedScore = distanceToRefPtSq * pt.Score;
-                        if (weightedScore < minWeightedScore)
+                        if (distanceToRefPtSq <= maxDistanceToRefPtSq)
                         {
-                            minWeightedScore = weightedScore;
+                            bestScoreForObs = Math.Min(bestScoreForObs, (1 + distanceToRefPtSq) * pt.Score);
                         }
                     }
-                    
-                    if (minWeightedScore != double.MaxValue)
+                    if (bestScoreForObs != double.MaxValue)
                     {
-                        scoresByObsIndex.Add(ctx.Obs.Index, minWeightedScore);
-                        sortedContexts.Add(ctx);
+                        if (bestContexts.Count == 0 || MaxContexts <= 0 || bestContexts.Count < MaxContexts)
+                        {
+                            bestContexts[bestScoreForObs] = ctx;
+                        }
+                        else
+                        {
+                            double worstScore = bestContexts.First().Key;
+                            if (bestScoreForObs < worstScore)
+                            {
+                                bestContexts.Remove(worstScore);
+                                bestContexts[bestScoreForObs] = ctx;
+                            }
+                        }
                     }
-                    
                 }
             }
 
-            sortedContexts
-                .Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
-
-            sortedContexts = sortedContexts.Take(MaxContexts).ToList();
+            var sortedContexts = bestContexts.OrderBy(pair => pair.Key).Select(pair => pair.Value).ToList();
 
             //optionally return scores
             if (scoresByObs != null)
             {
                 scoresByObs.Clear();
 
-                foreach (var ctx in sortedContexts)
+                foreach (var pair in bestContexts)
                 {
-                    scoresByObs.Add(ctx.Obs.Name, scoresByObsIndex[ctx.Obs.Index]);
+                    scoresByObs[pair.Value.Obs.Name] = pair.Key;
                 }
             }
 
