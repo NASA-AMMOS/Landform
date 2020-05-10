@@ -1577,6 +1577,102 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// Copy one or more vertex attributes from another mesh to matching vertices of this mesh.
+        /// By default matching includes all non-copied attributes which are present on both meshes.
+        /// </summary>
+        public int CopyVertexAttributes(Mesh src, bool matchPositions = true, bool matchNormals = true,
+                                        bool matchUVs = true, bool matchColors = true, bool copyPositions = false,
+                                        bool copyNormals = false, bool copyUVs = false, bool copyColors = false)
+        {
+            if (copyNormals && !src.HasNormals)
+            {
+                throw new ArgumentException("source mesh must have normals");
+            }
+
+            if (copyUVs && !src.HasUVs)
+            {
+                throw new ArgumentException("source mesh must have UVs");
+            }
+
+            if (copyColors && !src.HasColors)
+            {
+                throw new ArgumentException("source mesh must have Colors");
+            }
+
+            matchPositions &= !copyPositions;
+            matchNormals &= HasNormals && src.HasNormals && !copyNormals;
+            matchUVs &= HasUVs && src.HasUVs && !copyUVs;
+            matchColors &= HasColors && src.HasColors && !copyColors;
+
+            var comparer = new Vertex.Comparer(matchPositions, matchNormals, matchUVs, matchColors);
+
+            //save memory - only allocate lists when there are equivalencies
+            var verts = new Dictionary<Vertex, Vertex>(comparer);
+            var equivalentVerts = new Dictionary<Vertex, List<Vertex>>(comparer);
+
+            foreach (var v in Vertices)
+            {
+                if (!verts.ContainsKey(v))
+                {
+                    verts[v] = v;
+                }
+                else
+                {
+                    if (!equivalentVerts.ContainsKey(v))
+                    {
+                        equivalentVerts[v] = new List<Vertex>() { v };
+                    }
+                    else
+                    {
+                        equivalentVerts[v].Add(v);
+                    }
+                }
+            }
+
+            //don't mutate destination vertices while we're still using the dictionaries (they are the keys)
+            var pairs = new List<Tuple<Vertex, Vertex>>(src.Vertices.Count);
+
+            foreach (var v in src.Vertices)
+            {
+                if (verts.ContainsKey(v))
+                {
+                    pairs.Add(new Tuple<Vertex, Vertex>(v, verts[v]));
+                }
+                if (equivalentVerts.ContainsKey(v))
+                {
+                    foreach (var w in equivalentVerts[v])
+                    {
+                        pairs.Add(new Tuple<Vertex, Vertex>(v, w));
+                    }
+                }
+            }
+
+            foreach (var pair in pairs)
+            {
+                var srcVert = pair.Item1;
+                var dstVert = pair.Item2;
+                if (copyPositions)
+                {
+                    dstVert.Position = srcVert.Position;
+                }
+                if (copyNormals)
+                {
+                    dstVert.Normal = srcVert.Normal;
+                }
+                if (copyUVs)
+                {
+                    dstVert.UV = srcVert.UV;
+                }
+                if (copyColors)
+                {
+                    dstVert.Color = srcVert.Color;
+                }
+            }
+
+            return pairs.Count;
+        }
+
+        /// <summary>
         /// Compute Hausdorff difference between this mesh and 1 or more other meshes
         /// </summary>
         /// <param name="other"></param>

@@ -188,5 +188,60 @@ namespace OPS.Geometry
             var uv3 = new Vector3(UV.X, UV.Y, 0);
             return new BoundingBox(uv3, uv3);
         }
+
+        public class Comparer : IEqualityComparer<Vertex>
+        {
+            bool matchPositions, matchNormals, matchUVs, matchColors;
+
+            public Comparer(bool matchPositions = true, bool matchNormals = true, bool matchUVs = true,
+                            bool matchColors = true)
+            {
+                if (!matchPositions && !matchNormals && !matchUVs && !matchColors)
+                {
+                    throw new ArgumentException("nothing to compare");
+                }
+                this.matchPositions = matchPositions;
+                this.matchNormals = matchNormals;
+                this.matchUVs = matchUVs;
+                this.matchColors = matchColors;
+            }
+
+            public bool Equals(Vertex a, Vertex b)
+            {
+                return ((!matchPositions || a.Position == b.Position) &&
+                        (!matchNormals || a.Normal == b.Normal) &&
+                        (!matchUVs || a.UV == b.UV) &&
+                        (!matchColors || a.Color == b.Color));
+            }
+
+            public int GetHashCode(Vertex v)
+            {
+                int hash = 17;
+                if (matchPositions)
+                {
+                    hash = hash * 23 + v.Position.X.GetHashCode();
+                    hash = hash * 23 + v.Position.Y.GetHashCode();
+                    hash = hash * 23 + v.Position.Z.GetHashCode();
+                }
+                if (matchNormals)
+                {
+                    hash = hash * 23 + v.Normal.X.GetHashCode();
+                    hash = hash * 23 + v.Normal.Y.GetHashCode();
+                    hash = hash * 23 + v.Normal.Z.GetHashCode();
+                }
+                if (matchUVs)
+                {
+                    hash = hash * 23 + v.UV.X.GetHashCode();
+                    hash = hash * 23 + v.UV.Y.GetHashCode();
+                }
+                if (matchColors)
+                {
+                    hash = hash * 23 + v.Color.X.GetHashCode();
+                    hash = hash * 23 + v.Color.Y.GetHashCode();
+                    hash = hash * 23 + v.Color.Z.GetHashCode();
+                }
+                return hash;
+            }
+        }
     }
 }
