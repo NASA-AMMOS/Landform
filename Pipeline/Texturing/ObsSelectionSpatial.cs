@@ -22,9 +22,9 @@ namespace OPS.Pipeline.Texturing
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
 
+        private Dictionary<string, List<ScoredPoint>> scoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
         private double samplesPerMeter;
-
-        private Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
+        private bool preferColor;
 
         private struct ScoredPoint
         {
@@ -40,9 +40,9 @@ namespace OPS.Pipeline.Texturing
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1)
+                                        double quality = 1, bool preferColor = true)
         {
-            // any sorts that would be better served by orbital will have their contexts filtered
+            this.preferColor = preferColor;
 
             // collect points on the surface of the mesh
             samplesPerMeter = quality * 100.0;
@@ -80,18 +80,19 @@ namespace OPS.Pipeline.Texturing
             }
 
             //calculate the scores per reference point (grouped by observation)
-            var scoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ScoredPoint>>();
+            var scoredPts = new Dictionary<string, ConcurrentBag<ScoredPoint>>();
             foreach (var ctx in contexts)
             {
-                scoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ScoredPoint>());
+                scoredPts.Add(ctx.Obs.Name, new ConcurrentBag<ScoredPoint>());
             }
 
             //exhaustively sort for each sample point
             var refSelect = new ObsSelectionExhaustive();
             refSelect.OrbitalMetersPerPixel = OrbitalMetersPerPixel;
-            refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality);
+            refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality, preferColor);
 
             //collect a sorted list of contexts (best to worst) for each sample point
+            // any sorts that would be better served by orbital will have their contexts filtered
             CoreLimitedParallel.ForEach(sampledMesh.Vertices, vertex =>
             {
                 var pt = vertex.Position;
@@ -100,7 +101,7 @@ namespace OPS.Pipeline.Texturing
 
                 foreach (var ctx in sortedContexts)
                 {
-                    scoredRefPtsByObs[ctx.Obs.Name].Add(new ScoredPoint(pt, ptScoresByObs[ctx.Obs.Name]));
+                    scoredPts[ctx.Obs.Name].Add(new ScoredPoint(pt, ptScoresByObs[ctx.Obs.Name]));
                 }
 
                 if (!string.IsNullOrEmpty(DebugOutputPath) && sortedContexts.Count() > 0)
@@ -121,7 +122,7 @@ namespace OPS.Pipeline.Texturing
             //flatten to list for later perf
             foreach (var ctx in contexts)
             {
-                this.ScoredRefPtsByObs.Add(ctx.Obs.Name, scoredRefPtsByObs[ctx.Obs.Name].ToList());
+                scoredRefPtsByObs.Add(ctx.Obs.Name, scoredPts[ctx.Obs.Name].ToList());
             }
         }
 
@@ -139,10 +140,10 @@ namespace OPS.Pipeline.Texturing
 
             foreach (var ctx in contexts)
             {
-                if (ctx.FrustumHull.Contains(forPoint) && ScoredRefPtsByObs.ContainsKey(ctx.Obs.Name))
+                if (ctx.FrustumHull.Contains(forPoint) && scoredRefPtsByObs.ContainsKey(ctx.Obs.Name))
                 {
                     double bestScoreForObs = double.MaxValue;
-                    foreach (var pt in ScoredRefPtsByObs[ctx.Obs.Name])
+                    foreach (var pt in scoredRefPtsByObs[ctx.Obs.Name])
                     {
                         //heuristic: makes a quality metric from the min pixel spread on the terrain
                         //and the squared distance to ther reference pt
@@ -162,7 +163,12 @@ namespace OPS.Pipeline.Texturing
                         else
                         {
                             double worstScore = bestContexts.First().Key;
-                            if (bestScoreForObs < worstScore)
+                            bool replaceWorst = bestScoreForObs < worstScore;
+                            if (preferColor && ctx.Obs.Bands != bestContexts[worstScore].Obs.Bands)
+                            {
+                                replaceWorst = ctx.Obs.Bands > bestContexts[worstScore].Obs.Bands;
+                            }
+                            if (replaceWorst)
                             {
                                 bestContexts.Remove(worstScore);
                                 bestContexts[bestScoreForObs] = ctx;
@@ -173,6 +179,11 @@ namespace OPS.Pipeline.Texturing
             }
 
             var sortedContexts = bestContexts.OrderBy(pair => pair.Key).Select(pair => pair.Value).ToList();
+
+            if (preferColor)
+            {
+                sortedContexts = sortedContexts.OrderByDescending(ctx => ctx.Obs.Bands).ToList();
+            }
 
             //optionally return scores
             if (scoresByObs != null)

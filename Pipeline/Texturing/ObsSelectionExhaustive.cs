@@ -22,15 +22,17 @@ namespace OPS.Pipeline.Texturing
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Exhaustive; } }
 
-        private SceneCaster OcclusionScene;
-        private MeshOperator MeshOp;
+        private SceneCaster occlusionScene;
+        private MeshOperator meshOp;
+        private bool preferColor;
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1)
+                                        double quality = 1, bool preferColor = true)
         {
-            MeshOp = meshOp;
-            OcclusionScene = occlusionScene;
+            this.meshOp = meshOp;
+            this.occlusionScene = occlusionScene;
+            this.preferColor = preferColor;
         }
     
         public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
@@ -69,10 +71,10 @@ namespace OPS.Pipeline.Texturing
                         Point = forPoint
                     };
 
-                     dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene,
+                     dist = ProjectedPixelDistances.CalculateForObs(occlusionScene,
                                                                     new List<PixelPoint>() { forSrcPixelPt },
                                                                     ctx.Obs, ctx.CameraModel, ctx.FrustumHull,
-                                                                    ctx.ObsToMesh, MeshOp.Bounds);
+                                                                    ctx.ObsToMesh, meshOp.Bounds);
                      
                     if (OrbitalMetersPerPixel > 0 && dist > OrbitalMetersPerPixel)
                     {
@@ -92,8 +94,12 @@ namespace OPS.Pipeline.Texturing
             
             //sort contexts by decreasing quality
             //highest quality is min meters on mesh per pixel in obs, so sort in order low to high
-            sortedContexts
-                .Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
+            sortedContexts.Sort((ctx0, ctx1) => scoresByObs[ctx0.Obs.Name].CompareTo(scoresByObs[ctx1.Obs.Name]));
+
+            if (preferColor)
+            {
+                sortedContexts = sortedContexts.OrderByDescending(ctx => ctx.Obs.Bands).ToList();
+            }
 
             return MaxContexts > 0 ? sortedContexts.Take(MaxContexts).ToList() : sortedContexts.ToList();
         }

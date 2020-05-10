@@ -68,6 +68,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
+
+        [Option(HelpText = "Don't prefer color images", Default = false)]
+        public bool NoPreferColor { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -84,8 +87,6 @@ namespace OPS.Landform
         protected Image backprojectIndex;
 
         protected TileList tileList;
-
-        protected ObsSelectionStrategy obsSelStrat;
 
         protected List<Observation> imageObservations;
         protected List<Observation> orbitalImages;
@@ -136,7 +137,6 @@ namespace OPS.Landform
                 tcopts.NoOrbital = true;
             }
 
-            obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
             backprojectDebugDir = Path.Combine(localOutputPath, "Backproject");
 
             //some workflows do not load observations, for example tiling an M2020 tactical mesh
@@ -154,6 +154,7 @@ namespace OPS.Landform
                 //for linear or nonlinear images
                 var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
                 comparator.logger = pipeline.Verbose ? pipeline : null;
+                var obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
                 comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
                 roverImages = comparator
                     .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
@@ -589,7 +590,7 @@ namespace OPS.Landform
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
             backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, sceneTextureResolution,
-                                           tcopts.BackprojectQuality);
+                                           tcopts.BackprojectQuality, !tcopts.NoPreferColor);
         }
 
         protected void BackprojectObservations()

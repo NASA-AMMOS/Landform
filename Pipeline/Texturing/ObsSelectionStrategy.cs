@@ -38,15 +38,15 @@ namespace OPS.Pipeline.Texturing
         {
             switch (name)
             {
-                case Texturing.ObsSelectionStrategyName.Exhaustive: return new Texturing.ObsSelectionExhaustive();
-                case Texturing.ObsSelectionStrategyName.Spatial: return new Texturing.ObsSelectionSpatial();
+                case ObsSelectionStrategyName.Exhaustive: return new ObsSelectionExhaustive();
+                case ObsSelectionStrategyName.Spatial: return new ObsSelectionSpatial();
                 default: throw new Exception("Unknown ObsSelectionStrategy: " + name);
             }
         }
 
         public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1);
+                                        double quality = 1, bool preferColor = true);
 
         //sorts observations from best to worst
         //returns up to MaxContexts filtered and sorted contexts
