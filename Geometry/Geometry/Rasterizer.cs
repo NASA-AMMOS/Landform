@@ -58,6 +58,12 @@ namespace OPS.Geometry
             [JsonIgnore]
             public Func<Mesh, Face, bool> FaceFilter = null; //true = rasterize face
 
+            [JsonIgnore]
+            public bool ComputeAreaStats = false;
+
+            [JsonIgnore]
+            public Action<Stats> StatsCallback = null; //stats are computed before sparse block removal and decimation
+
             public Options Clone()
             {
                 return (Options) MemberwiseClone();
@@ -89,6 +95,19 @@ namespace OPS.Geometry
                     DepthBufferFactory = (w, h) => new Image(1, w, h), //otherwise would default to ImageFactory
                 };
             }
+        }
+
+        
+        public class Stats
+        {
+            public int FilteredTriangles, DegenerateTriangles, CulledTriangles;
+            public int DrawnFragments, OverdrawnFragments, OccludedFragments;
+            public int MaxTriangleFragments = -1;
+            public int MinTriangleFragments = -1;
+            public double MaxTriangleArea = -1;
+            public double MinTriangleArea = -1;
+            public double MaxFragmentsPerSquareMeter = -1;
+            public double MinFragmentsPerSquareMeter = -1;
         }
 
         /// <summary>
@@ -210,7 +229,7 @@ namespace OPS.Geometry
             }
 
             Vector2 zero = new Vector2(0, 0), one = new Vector2(1, 1);
-            void writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double alpha, double beta, double gamma)
+            bool writeFragment(int r, int c, Vertex v0, Vertex v1, Vertex v2, double alpha, double beta, double gamma)
             {
                 bool overdraw = ret.IsValid(r, c);
                 if (mesh.HasUVs && img != null)
@@ -239,6 +258,7 @@ namespace OPS.Geometry
                     }
                     ret.SetMaskValue(r, c, false);
                 }
+                return overdraw;
             }
 
             Func<Vector2, Vector2, double> crossZ = (a, b) => a.X * b.Y - a.Y * b.X;
@@ -301,10 +321,13 @@ namespace OPS.Geometry
                 return p.Dot(n) - a.Dot(n);
             }
 
+            var stats = new Stats();
+
             foreach (var t in mesh.Faces)
             {
                 if (!filter(mesh, t))
                 {
+                    stats.FilteredTriangles++;
                     continue;
                 }
 
@@ -336,6 +359,7 @@ namespace OPS.Geometry
                 double alpha, beta, gamma;
                 if (minR == maxR || minC == maxC) //degenerate
                 {
+                    stats.DegenerateTriangles++;
                     alpha = beta = gamma = 1.0 / 3;
                     for (int r =  minR; r <= maxR; r++)
                     {
@@ -343,13 +367,26 @@ namespace OPS.Geometry
                         { 
                             if (depthTestFragment(r, c, d0, d1, d2, alpha, beta, gamma))
                             {
-                                writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                                bool overdraw = writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                                if (overdraw)
+                                {
+                                    stats.OverdrawnFragments++;
+                                }
+                                else
+                                {
+                                    stats.DrawnFragments++;
+                                }
+                            }
+                            else
+                            {
+                                stats.OccludedFragments++;
                             }
                         }
                     }
                 }
                 else if (!cull(p0, p1, p2))
                 {
+                    int nf = 0;
                     for (int r =  minR; r <= maxR; r++)
                     {
                         for (int c = minC; c <= maxC; c++)
@@ -358,13 +395,61 @@ namespace OPS.Geometry
                             alpha = relDist(px, p1, p2) / relDist(p0, p1, p2);
                             beta  = relDist(px, p2, p0) / relDist(p1, p2, p0);
                             gamma = relDist(px, p0, p1) / relDist(p2, p0, p1);
-                            if ((alpha >= 0) && (beta >= 0) && (gamma >= 0) &&
-                                depthTestFragment(r, c, d0, d1, d2, alpha, beta, gamma))
+                            if ((alpha >= 0) && (beta >= 0) && (gamma >= 0))
                             {
-                                writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                                nf++;
+                                if (depthTestFragment(r, c, d0, d1, d2, alpha, beta, gamma))
+                                {
+                                    bool overdraw = writeFragment(r, c, v0, v1, v2, alpha, beta, gamma);
+                                    if (overdraw)
+                                    {
+                                        stats.OverdrawnFragments++;
+                                    }
+                                    else
+                                    {
+                                        stats.DrawnFragments++;
+                                    }
+                                }
+                                else
+                                {
+                                    stats.OccludedFragments++;
+                                }
                             }
                         }
                     }
+                    if (nf > stats.MaxTriangleFragments || stats.MaxTriangleFragments < 0)
+                    {
+                        stats.MaxTriangleFragments = nf;
+                    }
+                    if (nf < stats.MinTriangleFragments || stats.MinTriangleFragments < 0)
+                    {
+                        stats.MinTriangleFragments = nf;
+                    }
+                    if (options.ComputeAreaStats)
+                    {
+                        var area = new Triangle(v0, v1, v2).Area();
+                        if (area > stats.MaxTriangleArea || stats.MaxTriangleArea < 0)
+                        {
+                            stats.MaxTriangleArea = area;
+                        }
+                        if (area < stats.MinTriangleArea || stats.MinTriangleArea < 0)
+                        {
+                            stats.MinTriangleArea = area;
+                        }
+                        var fpm = nf / area;
+                        if (fpm > stats.MaxFragmentsPerSquareMeter || stats.MaxFragmentsPerSquareMeter < 0)
+                        {
+                            stats.MaxFragmentsPerSquareMeter = fpm;
+                        }
+                        if (fpm < stats.MinFragmentsPerSquareMeter || stats.MinFragmentsPerSquareMeter < 0)
+                        {
+                            stats.MinFragmentsPerSquareMeter = fpm;
+                        }
+                    }
+                }
+                else
+                {
+                    stats.CulledTriangles++;
                 }
             }
 
@@ -410,6 +495,11 @@ namespace OPS.Geometry
                 meshOrigin /= options.Decimate;
             }
 
+            if (options.StatsCallback != null)
+            {
+                options.StatsCallback(stats);
+            }
+                    
             return ret;
         }
 
