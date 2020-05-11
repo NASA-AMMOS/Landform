@@ -196,11 +196,9 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Clips this traingle to the provided plane.  Returns 0, 1, or 2 triangles
-        /// representing the clipped geometry
+        /// Clips this traingle to the provided plane.
+        /// Returns 0, 1, or 2 triangles representing the clipped geometry on or above the plane.
         /// </summary>
-        /// <param name="plane"></param>
-        /// <returns></returns>
         public IEnumerable<Triangle> Clip(Plane plane)
         {
             List<Vertex> vertices = new List<Vertex>();
@@ -213,15 +211,18 @@ namespace OPS.Geometry
             foreach (Vertex[] edge in edges)
             {
 
-                if (Vector3.Dot(edge[0].Position, plane.Normal) < plane.D &&
-                    Vector3.Dot(edge[1].Position, plane.Normal) < plane.D)
+                // Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+                double dist = -plane.D;
+
+                if (Vector3.Dot(edge[0].Position, plane.Normal) < dist &&
+                    Vector3.Dot(edge[1].Position, plane.Normal) < dist)
                 {
                     // Skip this edge if both points are below the plane
                     continue;
                 }
 
-                else if (Vector3.Dot(edge[0].Position, plane.Normal) >= plane.D &&
-                         Vector3.Dot(edge[1].Position, plane.Normal) >= plane.D)
+                else if (Vector3.Dot(edge[0].Position, plane.Normal) >= dist &&
+                         Vector3.Dot(edge[1].Position, plane.Normal) >= dist)
                 {
                     // Or above the plane
                     AddVertex(vertices, edge[0]);
@@ -238,7 +239,7 @@ namespace OPS.Geometry
                 }
                 else
                 {
-                    if (Vector3.Dot(edge[0].Position, plane.Normal) >= plane.D)
+                    if (Vector3.Dot(edge[0].Position, plane.Normal) >= dist)
                     {
                         // First point is above the plane
                         AddVertex(vertices, edge[0]);
@@ -506,14 +507,15 @@ namespace OPS.Geometry
             {
                 return new Triangle[] { };
             }
-            Vector3 size = box.Size();
             IEnumerable<Triangle> clipped = new Triangle[] { this };
-            clipped = clipped.SelectMany(tri => tri.Clip(new Plane(new Vector3(1, 0, 0), box.Min.X)))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(-1, 0, 0), -(box.Min.X + size.X))))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 1, 0), box.Min.Y)))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, -1, 0), -(box.Min.Y + size.Y))))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, 1), box.Min.Z)))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
+            // Note Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+            clipped = clipped
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(1, 0, 0), -box.Min.X)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(-1, 0, 0), box.Max.X)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 1, 0), -box.Min.Y)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, -1, 0), box.Max.Y)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, 1), -box.Min.Z)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), box.Max.Z)));
             return clipped;
         }
 
@@ -563,16 +565,17 @@ namespace OPS.Geometry
             {
                 return new Triangle[] { this };
             }
-            Vector3 size = box.Size();
             IEnumerable<Triangle> clipped = new Triangle[] { this };
             // Clip each triangle against each plane of the box, against both directions
             // This will garantee we generate triangles on both sides of the box boundary with edges along the box
-            clipped = clipped.SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(1, 0, 0), box.Min.X)))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(-1, 0, 0), -(box.Min.X + size.X))))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 1, 0), box.Min.Y)))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, -1, 0), -(box.Min.Y + size.Y))))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, 1), box.Min.Z)))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
+            // Note Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+            clipped = clipped
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(1, 0, 0), -box.Min.X)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(-1, 0, 0), box.Max.X)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 1, 0), -box.Min.Y)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, -1, 0), box.Max.Y)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, 1), -box.Min.Z)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, -1), box.Max.Z)));
             return clipped.Where(tri => !box.FuzzyContains(tri.Bounds()));
         }
 
