@@ -59,7 +59,9 @@ namespace OPS.Landform
         private SceneNode tileTree;
         private BuildSkySphereOptions options;
         private List<Backproject.Context> contexts;
-        private Mesh shrinkwrapMesh;
+        private Image bigIndexMap;
+        private Image bigBlurredImage;
+        private Image bigBlendedImage;
         private float[] skyColor = { 0.0f, 0.0f, 0.0f };
 
         public BuildSkySphere(BuildSkySphereOptions options) : base(options)
@@ -71,7 +73,7 @@ namespace OPS.Landform
         {
             try
             {
-                options.Redo = true;                                        //triggers delete of previous tiling project results
+                //options.Redo = true;                                        //triggers delete of previous tiling project results
                 //options.RedoObservationMasks = true;
                 options.NoOrbital = true;                                  //orbital not useful in skysphere
                 options.TextureFarClip = options.SphereRadiusMeters * 2.0; //need camera frustums to reach skybox
@@ -94,17 +96,31 @@ namespace OPS.Landform
 
                 skyColor = new float[] { (float)options.SkyColorRed/255.0f, (float)options.SkyColorGreen / 255.0f, (float)options.SkyColorBlue / 255.0f };
 
-                RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
+                //prep
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: false));
                 RunPhase("build occlusion datastructures", BuildSceneCaster);
+                RunPhase("filter images for sky images", FilterRoverImages);
+                RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                 RunPhase("build observation frustum hulls", BuildObsHulls);
+
+                //build geometry and tiling input
                 RunPhase("build sphere tile geometry", BuildSphereTiles);
                 RunPhase("build sphere tile textures", BuildTileTextures);
-                //RunPhase("blend tiles")
+
+                //blending
+                RunPhase("build big index", BuildBigIndex);
+                RunPhase("build blurred observations", BuildBlurredObservationImages);
+                RunPhase("build big blurred image", BuildBigBlurredImage);
+                RunPhase("build big blended image", BuildBigBlendedImage);
+                RunPhase("build blended observations", BuildBlendedObservationImages);
+                RunPhase("build blended leaf tiles observations", BuildBlendedLeafTextures);
+
+                //build tileset
                 RunPhase("create tiling project", () => CreateTilingProject(TilingScheme.Flat));
                 RunPhase("add tile meshes", AddTileMeshes);
                 RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
                 RunPhase("build parent tiles", BuildParentTiles);
+
             }
             catch (Exception ex)
             {
@@ -115,6 +131,116 @@ namespace OPS.Landform
             StopStopwatch();
 
             return 0;
+        }
+
+        private void BuildBlendedLeafTextures()
+        {
+            pipeline.LogInfo("blending leaf textures");
+            string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+            BlendImages.BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture, options.BackprojectInpaintPixels);
+        }
+
+        private BlendImagesOptions GetBlendOptions()
+        {
+            BlendImagesOptions blendOps = new BlendImagesOptions();
+            //TODO: copy texture command options from options before overriding blend specific values
+            blendOps.BlendStrategy = BlendStrategy.Inpaint;
+            blendOps.InpaintWinners = 20;
+            blendOps.NoBarycentricInterpolateWinners = true;
+            blendOps.InpaintDiff = 0;
+            blendOps.BlurDiff = 7;
+            blendOps.NoFillBlendWithAverageDiff = false;
+            blendOps.TextureVariant = TextureVariant.Blurred;
+            blendOps.ResidualEpsilon = LimberDMG.DEF_RESIDUAL_EPSILON;
+            blendOps.NumRelaxationSteps = LimberDMG.DEF_NUM_RELAXATION_STEPS;
+            blendOps.NumMultigridIterations = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS;
+            blendOps.Lambda = LimberDMG.DEF_LAMBDA;
+            return blendOps;
+        }
+
+        private void BuildBlendedObservationImages()
+        {
+            pipeline.LogInfo("collecting backprojected pixels for each observation");
+            BlendImages.BuildBlendedObservationImages(pipeline, project, GetBlendOptions(),
+                bigBlendedImage.Width, bigBlendedImage.Height,
+                bigIndexMap, bigBlendedImage, indexedImages);
+        }
+
+        private void BuildBigBlendedImage()
+        {
+            BlendImages.BlendImage(pipeline, GetBlendOptions(), bigBlurredImage.Width, bigBlurredImage.Height, 
+                bigIndexMap, bigBlurredImage, indexedImages, out bigBlendedImage);
+
+            bigBlurredImage = null; //free memory
+
+            bigBlendedImage.Save<byte>(@"D:\Scratch\rcrocco\skysphere\bigblended.png");
+        }
+
+        private void FilterRoverImages()
+        {
+
+            // raycast the corners for a quick test to see if something that should be in
+            // skybox should be visible. this is not a perfect test. It is possible that looking 
+            // throught a canyon would have all four corners report they hit the scene mesh and 
+            // miss the fact skybox related data would be visible throught the middle of the image.
+            roverImages = roverImages.Where(obs =>
+            {
+                var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, tcopts.UsePriors, tcopts.OnlyAligned).Mean;
+                var cameraModel = obs.CameraModel;
+
+                return (!Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, 0), sceneCaster).HasValue ||
+                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, 0), sceneCaster).HasValue ||
+                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, obs.Height), sceneCaster).HasValue ||
+                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, obs.Height), sceneCaster).HasValue);
+            }).ToList();
+        }
+
+        private void BuildBigBlurredImage()
+        {
+            pipeline.LogInfo("building big blurred image from big blurred index");
+            var backprojectResults = Backproject.BuildResultsFromIndex(bigIndexMap, indexedImages);
+            bigBlurredImage = new Image(3, bigIndexMap.Width, bigIndexMap.Height);
+            Backproject.FillOutputTexture(pipeline, backprojectResults, bigBlurredImage, TextureVariant.Blurred, 0, false);
+        }
+
+        //builds a large single image of the backproject results as an index map
+        private void BuildBigIndex()
+        {
+            GetNumSphereTiles(out int rows, out int cols);
+
+            int bigMapWidth = cols * resolution;
+            int bigMapHeight = rows * resolution;
+
+            bigIndexMap = new Image(3, bigMapWidth, bigMapHeight);
+
+            string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+            CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
+            {
+                string indexName = leaf.Name + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
+                var leafIndex = Backproject.LoadIndexMapWithMask(pipeline, indexUrl);
+
+                //fill small gaps along tile boundaries, should make LimberDMG happier
+                //TODO: see if inpaint after instead of here works better
+                leafIndex.Inpaint(2, useAnyNeighbor: true);
+
+                //blit into big map
+                int tileNum = int.Parse(leaf.Name) - 1; //one based
+                int tileRow = tileNum / cols;
+                int tileCol = tileNum % cols;
+                int dstPixelRow = tileRow * resolution;
+                int dstPixelCol = tileCol * resolution;
+
+                lock (bigIndexMap)
+                {
+                    bigIndexMap.Blit(leafIndex, dstPixelCol, dstPixelRow);
+                }
+            });
+
+            //TODO: replicate a column of the one side into the other to prevent a seam
+
+            //var preview = Backproject.GenerateIndexPreviewImage(bigIndexMap);
+            //preview.Save<byte>(@"D:\Scratch\rcrocco\skysphere\preview.png");
         }
 
         protected override bool ParseArgumentsAndLoadCaches()
@@ -141,10 +267,11 @@ namespace OPS.Landform
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
 
             tilesetFolder = DecorateOutDir(TILESET_DIR);
-
+            
             return true;
         }
-        private void BuildSphereTiles()
+
+        private void GetNumSphereTiles(out int rows, out int cols)
         {
             //only need tiles to cover the lowest point visible from rover height
             //assume from center, angle would be different from the edge, but less savings
@@ -152,30 +279,27 @@ namespace OPS.Landform
             BoundingBox sceneBounds = mesh.Bounds();
             Vector3 roverMastLocation = new Vector3(0, 0, -5.0); //TODO: pull from a mastcam z-height in mission specific or expose viewer height
             Vector3 lowestViewVector = Vector3.Normalize(sceneBounds.Max - roverMastLocation);    //z incresases down
-            double angleBelowHorizon = lowestViewVector.Z * Math.PI/2.0; // equivalent to Vector3.Dot(roverMastLocation, new Vector3(0,0,1)) * PI/2
+            double angleBelowHorizon = lowestViewVector.Z * Math.PI / 2.0; // equivalent to Vector3.Dot(roverMastLocation, new Vector3(0,0,1)) * PI/2
 
             double sphereResRad = MathHelper.ToRadians(options.SphereResolutionDegrees);
-            int rows = (int)((Math.PI/2.0 + angleBelowHorizon) / sphereResRad);
-            int cols = (int)(2.0 * Math.PI / sphereResRad);
+            rows = (int)((Math.PI / 2.0 + angleBelowHorizon) / sphereResRad);
+            cols = (int)(2.0 * Math.PI / sphereResRad);
+        }
+
+        private void BuildSphereTiles()
+        {
+            double sphereResRad = MathHelper.ToRadians(options.SphereResolutionDegrees);
+            GetNumSphereTiles(out int rows, out int cols);
 
             //generate the verts to be shared by the tiles
-            // simultaneously, build the shrinkwrapped mesh to be used for blend
+
             List<Vector3> positions = new List<Vector3>();
-            shrinkwrapMesh = new Mesh(hasNormals: false, hasUVs: true);
             for (int idxRow = 0; idxRow < rows; idxRow++)
             {
                 for (int idxCol = 0; idxCol < cols; idxCol++)
                 {
                     double el = Math.PI - idxRow * sphereResRad; //work from top down (want total coverage above, partial below)
                     double az = idxCol * sphereResRad;
-
-                    //cylinder verts
-                    Vector3 posCyl = Vector3.Zero;
-                    posCyl.X = options.SphereRadiusMeters * Math.Cos(az);
-                    posCyl.Y = options.SphereRadiusMeters * Math.Sin(az);
-                    posCyl.Z = options.SphereRadiusMeters * Math.Cos(el);
-                    shrinkwrapMesh.Vertices.Add(new Vertex(posCyl, Vector3.Zero, Vector4.Zero,
-                        new Vector2(idxCol / (float)(cols - 1), idxRow / (float)(rows - 1))));
 
                     Vector3 pos = Vector3.Zero;
                     pos.X = options.SphereRadiusMeters * Math.Cos(az) * Math.Sin(el);
@@ -208,10 +332,16 @@ namespace OPS.Landform
                         prevCol = cols - 1;
                     }
 
-                    Vector3 topLeft = positions[ToIndex(idxRow, prevCol, cols)];
-                    Vector3 topRight = positions[ToIndex(idxRow, curCol, cols)];
-                    Vector3 bottomLeft = positions[ToIndex(prevRow, prevCol, cols)];
-                    Vector3 bottomRight = positions[ToIndex(prevRow, curCol, cols)];
+                    //verts are added from the top of the sphere (-Z) first
+                    //Vector3 topLeft = positions[ToIndex(idxRow, prevCol, cols)];
+                    //Vector3 topRight = positions[ToIndex(idxRow, curCol, cols)];
+                    //Vector3 bottomLeft = positions[ToIndex(prevRow, prevCol, cols)];
+                    //Vector3 bottomRight = positions[ToIndex(prevRow, curCol, cols)];
+
+                    Vector3 topLeft = positions[ToIndex(prevRow, prevCol, cols)];
+                    Vector3 topRight = positions[ToIndex(prevRow, curCol, cols)];
+                    Vector3 bottomLeft = positions[ToIndex(idxRow, prevCol, cols)];
+                    Vector3 bottomRight = positions[ToIndex(idxRow, curCol, cols)];
                     tiles.Add(BuildSphereTile(topLeft, topRight, bottomLeft, bottomRight));
                 }
             }
@@ -229,9 +359,12 @@ namespace OPS.Landform
             tile.Vertices.Add(new Vertex(bottomLeft, -Vector3.Normalize(bottomLeft), Vector4.One, new Vector2(0.0, 0.0)));
             tile.Vertices.Add(new Vertex(bottomRight, -Vector3.Normalize(bottomRight), Vector4.One, new Vector2(1.0, 0.0)));
 
+            //right handed winding from interior
             tile.Faces = new List<Face>();
-            tile.Faces.Add(new Face(new int[] { 0, 1, 2 }));
-            tile.Faces.Add(new Face(new int[] { 2, 1, 3 }));
+            //tile.Faces.Add(new Face(new int[] { 0, 1, 2 }));
+            //tile.Faces.Add(new Face(new int[] { 2, 1, 3 }));
+            tile.Faces.Add(new Face(new int[] { 0, 2, 1 }));
+            tile.Faces.Add(new Face(new int[] { 1, 2, 3 }));
             return tile;
         }
 
@@ -302,23 +435,6 @@ namespace OPS.Landform
 
                 Interlocked.Decrement(ref np);
             }
-
-
-            //TODO: move to be in load caches?
-            // raycast the corners for a quick test to see if something that should be in
-            // skybox should be visible. this is not a perfect test. It is possible that looking 
-            // throught a canyon would have all four corners report they hit the scene mesh and 
-            // miss the fact skybox related data would be visible throught the middle of the image.
-            roverImages = roverImages.Where(obs =>
-            {
-                var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, tcopts.UsePriors, tcopts.OnlyAligned).Mean;
-                var cameraModel = obs.CameraModel;
-
-                return (!Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, 0), sceneCaster).HasValue ||
-                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, 0), sceneCaster).HasValue ||
-                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, obs.Height), sceneCaster).HasValue ||
-                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, obs.Height), sceneCaster).HasValue);
-            }).ToList();
                 
             contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
