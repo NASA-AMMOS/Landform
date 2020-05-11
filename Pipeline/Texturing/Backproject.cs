@@ -118,6 +118,26 @@ namespace OPS.Pipeline
 
             return previewImg;
         }
+   
+        static public Image LoadIndexMapWithMask(PipelineCore pipeline, string indexUrl)
+        {
+            var leafIndex = pipeline.LoadImage(indexUrl);
+
+            //recreate masks
+            leafIndex.CreateMask();
+            for (int r = 0; r < leafIndex.Height; r++)
+            {
+                for (int c = 0; c < leafIndex.Width; c++)
+                {
+                    if (leafIndex[0, r, c] < Observation.MIN_INDEX)
+                    {
+                        leafIndex.SetMaskValue(r, c, true);
+                    }
+                }
+            }
+
+            return leafIndex;
+        }
 
         //<DST, SRC>
         // SRC: col, row
@@ -350,7 +370,7 @@ namespace OPS.Pipeline
             var warn = opts.warn ?? (msg => { });
             var error = opts.error ?? (msg => { });
 
-            var imageObservations = opts.observations
+            var imgObservations = opts.observations
                 .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
@@ -380,12 +400,12 @@ namespace OPS.Pipeline
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
 
-            if (imageObservations.Count() == 0)
+            if (imgObservations.Count() == 0)
             {
                 warn("no image observations found");
             }
 
-            if (imageObservations.Count() == 0 || meshHull == null)
+            if (imgObservations.Count() == 0 || meshHull == null)
             { 
                 if (missingPixels != null)
                 {
@@ -399,13 +419,13 @@ namespace OPS.Pipeline
             if (obsToHull == null)
             {
                 obsToHull = BuildConvexHulls(opts.pipeline, opts.frameCache, opts.meshFrame, opts.usePriors,
-                                             opts.onlyAligned, imageObservations);
+                                             opts.onlyAligned, imgObservations);
             }
 
             //find the reduced set of observations that intersect the desired mesh
-            info(string.Format("testing {0} image observations for intersection", imageObservations.Count()));
+            info(string.Format("testing {0} image observations for intersection", imgObservations.Count()));
             var intersectingObservations = new List<RoverObservation>();
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            CoreLimitedParallel.ForEach(imgObservations, obs =>
             {
                 if (obsToHull.ContainsKey(obs.Name) && meshHull.Intersects(obsToHull[obs.Name]))
                 {
@@ -423,7 +443,7 @@ namespace OPS.Pipeline
             });
 
             info(string.Format("{0}/{1} image observations intersect mesh",
-                               intersectingObservations.Count, imageObservations.Count));
+                               intersectingObservations.Count, imgObservations.Count));
 
             if (intersectingObservations.Count() == 0)
             {
@@ -781,16 +801,16 @@ namespace OPS.Pipeline
      
         static public IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
-                             bool onlyAligned, IEnumerable<RoverObservation> imageObservations, double farClip = 20)
+                             bool onlyAligned, IEnumerable<RoverObservation> imgObservations, double farClip = 20)
         {
-            int no = imageObservations.Count();
+            int no = imgObservations.Count();
 
             pipeline.LogInfo("building convex hulls for {0} observations", no);
 
             var obsToHull = new ConcurrentDictionary<string, ConvexHull>();
 
             int nh = 0;
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            CoreLimitedParallel.ForEach(imgObservations, obs =>
             {
                 Interlocked.Increment(ref nh);
                 pipeline.LogDebug("building convex hull for observation {0}, {1}/{2}", obs.Name, nh, no);
