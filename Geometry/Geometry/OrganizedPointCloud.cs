@@ -308,7 +308,8 @@ namespace OPS.Geometry
                                               double maxTriangleAspect = 20,
                                               bool generateUV = true, bool generateNormals = true,
                                               Vector3? flipGeneratedNormalsToward = null,
-                                              double isolatedPointSize = 0, bool reverseWinding = false)
+                                              double isolatedPointSize = 0, bool reverseWinding = false,
+                                              bool quadsOnly = false)
         {
             if (points == null)
             {
@@ -351,7 +352,7 @@ namespace OPS.Geometry
                 return pixelToVert[r,c];
             }
 
-            bool addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
+            bool isFaceValid(int r0, int c0, int r1, int c1, int r2, int c2)
             {
                 if (!points.IsValid(r0, c0) || !points.IsValid(r1, c1) || !points.IsValid(r2, c2))
                 {
@@ -366,7 +367,21 @@ namespace OPS.Geometry
                 {
                     return false;
                 }
+                return true;
+            }
 
+            bool addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
+            {
+                if (!isFaceValid(r0, c0, r1, c1, r2, c2))
+                {
+                    return false;
+                }
+                addFace(r0, c0, r1, c1, r2, c2);
+                return true;
+            }
+
+            void addFace(int r0, int c0, int r1, int c1, int r2, int c2)
+            {
                 Vector3 v0 = new Vector3(points[0, r0, c0], points[1, r0, c0], points[2, r0, c0]);
                 Vector3 v1 = new Vector3(points[0, r1, c1], points[1, r1, c1], points[2, r1, c1]);
                 Vector3 v2 = new Vector3(points[0, r2, c2], points[1, r2, c2], points[2, r2, c2]);
@@ -384,7 +399,6 @@ namespace OPS.Geometry
                     int c = getOrAddVert(r2, c2);
                     ret.Faces.Add(reverseWinding ? new Face(a, c, b) : new Face(a, b, c));
                 }
-                return true;
             };
 
             List<int> tris = new List<int>();
@@ -408,17 +422,26 @@ namespace OPS.Geometry
                     //         |/    |           
                     //(r + 1, c)-----(r + 1, c + 1)
 
-                    if (addFaceMaybe(r, c, r + 1, c, r + 1, c + 1)) //A
+                    if (!quadsOnly)
                     {
-                        addFaceMaybe(r, c, r + 1, c + 1, r, c + 1); //B
+                        if (addFaceMaybe(r, c, r + 1, c, r + 1, c + 1)) //A
+                        {
+                            addFaceMaybe(r, c, r + 1, c + 1, r, c + 1); //B
+                        }
+                        else if (addFaceMaybe(r, c, r + 1, c, r, c + 1)) //C
+                        {
+                            addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
+                        }
+                        else if (!addFaceMaybe(r, c, r + 1, c + 1, r, c + 1)) //B
+                        {
+                            addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
+                        }
                     }
-                    else if (addFaceMaybe(r, c, r + 1, c, r, c + 1)) //C
+                    else if (isFaceValid(r, c, r + 1, c, r + 1, c + 1) && //A
+                             isFaceValid(r, c, r + 1, c + 1, r, c + 1)) //B
                     {
-                        addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
-                    }
-                    else if (!addFaceMaybe(r, c, r + 1, c + 1, r, c + 1)) //B
-                    {
-                        addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
+                        addFace(r, c, r + 1, c, r + 1, c + 1); //A
+                        addFace(r, c, r + 1, c + 1, r, c + 1); //B
                     }
                 }
             }

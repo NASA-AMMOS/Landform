@@ -826,7 +826,8 @@ namespace OPS.Landform
                         }
                     }
                 }
-                return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true);
+                return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true,
+                                                              quadsOnly: true);
             }
 
             int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalMetersPerPixel);
