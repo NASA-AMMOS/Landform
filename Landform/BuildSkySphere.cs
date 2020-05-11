@@ -137,7 +137,7 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("blending leaf textures");
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            BlendImages.BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture, options.BackprojectInpaintPixels);
+            BlendImages.BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture, options.BackprojectInpaintPixels, skyColor);
         }
 
         private BlendImagesOptions GetBlendOptions()
@@ -472,7 +472,6 @@ namespace OPS.Landform
                                                                     obsSelStrat, debugSubdir: node.Name);
 
                 Image image = new Image(3, resolution, resolution);
-                image.Fill(skyColor); //TODO: set to mars sky color
 
                 if (index != null)
                 {

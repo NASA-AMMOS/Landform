@@ -879,11 +879,11 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("blending leaf textures");
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture, options.BackprojectInpaintPixels);
+            BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture, options.BackprojectInpaintPixels, MISSING_COLOR);
         }
 
         static public void BuildBlendedLeafTextures(PipelineCore pipeline, Project project, string leafFolder,
-            TileList tileList, Dictionary<int, Observation> indexedImages, Image orbitalTexture, int backprojectInpaint)
+            TileList tileList, Dictionary<int, Observation> indexedImages, Image orbitalTexture, int backprojectInpaint, float[] emptyTileColor)
         {
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
             int numSurfacePixels = 0, numOrbitalPixels = 0;
@@ -897,11 +897,19 @@ namespace OPS.Landform
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages);
                 var texture = new Image(3, index.Width, index.Height);
-                var stats = Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
-                                                          backprojectInpaint, fallbackToOriginal: true,
-                                                          orbitalTexture: orbitalTexture);
-                Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
-                Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
+
+                if (results.Count() == 0)
+                {
+                    texture.Fill(emptyTileColor);
+                }
+                else
+                {
+                    var stats = Backproject.FillOutputTexture(pipeline, results, texture, TextureVariant.Blended,
+                                                              backprojectInpaint, fallbackToOriginal: true,
+                                                              orbitalTexture: orbitalTexture);
+                    Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
+                    Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
+                }
                 TemporaryFile.GetAndDelete(tileList.ImageExt, tmpFile =>
                 {
                     texture.Save<byte>(tmpFile);
