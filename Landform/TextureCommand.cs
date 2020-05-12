@@ -64,13 +64,13 @@ namespace OPS.Landform
         public bool RedoObservationMasks { get; set; }
 
         [Option(HelpText = "Number of inpaint pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
-        public int BackprojectInpaintPixels { get; set; }
+        public virtual int BackprojectInpaintPixels { get; set; }
 
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
         [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 20)]
-        public double TextureFarClip { get; set; }
+        public virtual double TextureFarClip { get; set; }
     }
 
     public class TextureCommand : GeometryCommand

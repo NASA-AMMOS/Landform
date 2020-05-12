@@ -50,6 +50,18 @@ namespace OPS.Landform
 
         [Option(HelpText = "Option disabled for this command", Default = false, Required = false)]
         public override bool NoSurface { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = 0)]
+        public override double TextureFarClip { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = ObsSelectionStrategyName.Spatial)]
+        public override ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
+
+        [Option(HelpText = "Option disabled for this command", Default = -1)]
+        public override int BackprojectInpaintPixels { get; set; }
+
+        [Option(HelpText = "Tiling project is deleted after run by default, enable this to preserve it for debugging or iteration", Default = false)]
+        public bool NoCleanup { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand
@@ -62,7 +74,6 @@ namespace OPS.Landform
         private Image bigIndexMap;
         private Image bigBlurredImage;
         private Image bigBlendedImage;
-        private float[] skyColor = { 0.0f, 0.0f, 0.0f };
 
         public BuildSkySphere(BuildSkySphereOptions options) : base(options)
         {
@@ -73,28 +84,10 @@ namespace OPS.Landform
         {
             try
             {
-                //options.Redo = true;                                        //triggers delete of previous tiling project results
-                //options.RedoObservationMasks = true;
-                options.NoOrbital = true;                                  //orbital not useful in skysphere
-                options.TextureFarClip = options.SphereRadiusMeters * 2.0; //need camera frustums to reach skybox
-
-                //options.ObsSelectionStrategy = ObsSelectionStrategyName.Exhaustive;
-                //options.BackprojectQuality = 0.01;
-                options.ObsSelectionStrategy = ObsSelectionStrategyName.Spatial; //no whole scene mesh used, spatial caching not needed
-                double lengthOfTile = (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees)));//bugbug: only works for small angles
-                options.BackprojectQuality = options.BackprojectSamplesPerTile/(lengthOfTile*lengthOfTile);
-                options.BackprojectQuality /= 100; //convert to expected units 'quality'
-                options.BackprojectInpaintPixels = -1; //fill all pixels, don't want any black pixels, but also don't want a double image of terrain we can see.
-
-                //options.OnlyForCameras = "Hazcam,FrontHazcam,FrontHazcamLeft,FrontHazcamRight,RearHazcam,RearHazcamLeft,RearHazcamRight,Mastcam,MastcamLeft,MastcamRight";
-                //options.WriteBackprojectDebug = true;
-
                 if (!ParseArgumentsAndLoadCaches())
                 {
                     return 0; //help
                 }
-
-                skyColor = new float[] { (float)options.SkyColorRed/255.0f, (float)options.SkyColorGreen / 255.0f, (float)options.SkyColorBlue / 255.0f };
 
                 //prep
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: false));
@@ -121,6 +114,10 @@ namespace OPS.Landform
                 RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
                 RunPhase("build parent tiles", BuildParentTiles);
 
+                if(!options.NoCleanup)
+                {
+                    RunPhase("delete tiling project", DeleteTilingProject);
+                }
             }
             catch (Exception ex)
             {
@@ -133,10 +130,18 @@ namespace OPS.Landform
             return 0;
         }
 
+        private void DeleteTilingProject()
+        {
+            pipeline.LogInfo("deleting tiling projcect");
+            tilingProject.Delete(pipeline,ignoreErrors:false, keepTileset:true);
+        }
+
         private void BuildBlendedLeafTextures()
         {
             pipeline.LogInfo("blending leaf textures");
             string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+            float [] skyColor = new float[] { (float)options.SkyColorRed / 255.0f, (float)options.SkyColorGreen / 255.0f, (float)options.SkyColorBlue / 255.0f };
+
             BlendImages.BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture, options.BackprojectInpaintPixels, skyColor);
         }
 
@@ -164,6 +169,9 @@ namespace OPS.Landform
             BlendImages.BuildBlendedObservationImages(pipeline, project, GetBlendOptions(),
                 bigBlendedImage.Width, bigBlendedImage.Height,
                 bigIndexMap, bigBlendedImage, indexedImages);
+
+            bigIndexMap = null;
+            bigBlendedImage = null;
         }
 
         private void BuildBigBlendedImage()
@@ -172,8 +180,6 @@ namespace OPS.Landform
                 bigIndexMap, bigBlurredImage, indexedImages, out bigBlendedImage);
 
             bigBlurredImage = null; //free memory
-
-            bigBlendedImage.Save<byte>(@"D:\Scratch\rcrocco\skysphere\bigblended.png");
         }
 
         private void FilterRoverImages()
@@ -239,8 +245,6 @@ namespace OPS.Landform
 
             //TODO: replicate a column of the one side into the other to prevent a seam
 
-            //var preview = Backproject.GenerateIndexPreviewImage(bigIndexMap);
-            //preview.Save<byte>(@"D:\Scratch\rcrocco\skysphere\preview.png");
         }
 
         protected override bool ParseArgumentsAndLoadCaches()
@@ -267,7 +271,15 @@ namespace OPS.Landform
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
 
             tilesetFolder = DecorateOutDir(TILESET_DIR);
-            
+
+            //need camera frustums to reach skybox
+            options.TextureFarClip = options.SphereRadiusMeters * 2.0;
+
+            //select a good spacing of backproject points per tile
+            double lengthOfTile = (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees)));//bugbug: only works for small angles
+            options.BackprojectQuality = options.BackprojectSamplesPerTile / (lengthOfTile * lengthOfTile);
+            options.BackprojectQuality /= 100; //convert to expected units 'quality'
+
             return true;
         }
 
