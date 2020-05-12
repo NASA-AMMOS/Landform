@@ -242,6 +242,7 @@ done
 proj=${sol}_${sd}${suffix}
 venue=contextual_${mission}_${proj}
 tilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best/$proj 
+skytilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best_sky/$proj
 log=$logdir/contextual_${proj}_log.txt
 outproj=$outdir/$proj
 cfgfolder=$venue
@@ -292,6 +293,10 @@ if [ "$generate" ]; then
         
         ${dry}rm -rf $outproj
         ${dry}cp -R $tilesetdir $outdir
+
+		${dry}mkdir $outdir/sky
+		${dry}cp -R $skytilesetdir $outdir/sky
+
         ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
         if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
 
