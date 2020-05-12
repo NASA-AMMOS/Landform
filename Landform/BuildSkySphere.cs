@@ -133,6 +133,18 @@ namespace OPS.Landform
 
         private void DeleteTilingProject()
         {
+            //remove all side effects from this command
+
+            CoreLimitedParallel.ForEach(indexedImages, entry =>
+            {
+                Observation obs = entry.Value;
+                if (obs.BlendedGuid != Guid.Empty)
+                {
+                    obs.BlendedGuid = Guid.Empty;
+                    obs.Save(pipeline);
+                }
+            });
+
             pipeline.LogInfo("deleting tiling projcect");
             tilingProject.Delete(pipeline,ignoreErrors:false, keepTileset:true);
         }
