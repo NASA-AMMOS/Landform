@@ -112,7 +112,8 @@ USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,...] [OUT_DIR]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"] [--ingestargs \"--arg val\"]
 [--bevargs \"--arg val\"] [--heightmapargs \"--arg val\"]
-[--geometryargs \"--arg val\"] [--blendargs \"--arg val\"]
+[--geometryargs \"--arg val\"] [--skyargs \"--arg val\"]
+[--blendargs \"--arg val\"]
 [--tilingargs \"--arg val\"] [--tilesetargs \"--arg val\"]
 [--manifestargs \"--arg val\"] [--nomanifest]
 [--combinedmanifestargs \"--arg val\"] [--nocombinedmanifest]
@@ -184,6 +185,7 @@ cfgargs=
 bevargs=
 heightmapargs=
 geometryargs=
+skyargs=
 tilingargs=
 blendargs=
 tilesetargs=
@@ -226,6 +228,7 @@ while (( "$#" )); do
         "--bevargs") shift; expect $# "BEV args"; bevargs="$1";;
         "--heightmapargs") shift; expect $# "heightmap args"; heightmapargs="$1";;
         "--geometryargs") shift; expect $# "geometry args"; geometryargs="$1";;
+		"--skyargs") shift; expect $# "sky args"; skyargs="$1";;
         "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
         "--blendargs") shift; expect $# "blend args"; blendargs="$1";;
         "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$1";;
@@ -282,6 +285,7 @@ if [ "$generate" ]; then
         ${dry}$landform bev-align $proj $stdopts --fixsitedrives $sd $bevargs | tee -a $log
         ${dry}$landform heightmap-align $proj $stdopts --basesitedrive $sd $heightmapargs | tee -a $log
         ${dry}$landform build-geometry $proj $stdopts --meshframe $sd $geometryargs | tee -a $log
+		${dry}$landform build-sky-sphere $proj $stdopts --meshframe $sd $skyargs | tee -a $log
         ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
         ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
         ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
