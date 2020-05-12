@@ -66,7 +66,8 @@ namespace OPS.Landform
 
     public class BuildSkySphere : TilingCommand
     {
-        public const string TILESET_DIR = "tiling/TileSet/Sky";
+        public const string TILESET_DIR = "tiling/TileSet";
+        public const string TILING_DIR_SUFFIX = "_sky";
 
         private SceneNode tileTree;
         private BuildSkySphereOptions options;
@@ -270,7 +271,7 @@ namespace OPS.Landform
             PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
 
-            tilesetFolder = DecorateOutDir(TILESET_DIR);
+            tilesetFolder = DecorateOutDir(TILESET_DIR) + TILING_DIR_SUFFIX;
 
             //need camera frustums to reach skybox
             options.TextureFarClip = options.SphereRadiusMeters * 2.0;
