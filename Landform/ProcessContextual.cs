@@ -764,7 +764,9 @@ namespace OPS.Landform
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr);
                     
                     RunCommand("build-geometry", project, "--meshframe", sdStr);
-                    
+
+                    RunCommand("build-sky-sphere", project, "--meshframe", sdStr);
+
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     
                     RunCommand("blend-images", project, "--meshframe", sdStr);
