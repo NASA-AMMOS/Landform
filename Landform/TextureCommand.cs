@@ -521,8 +521,7 @@ namespace OPS.Landform
         {
             if (sceneMesh.TileListGuid == Guid.Empty)
             {
-                pipeline.LogWarn(string.Format("scene mesh {0} has no tile list", sceneMesh.Name));
-                return;
+                throw new Exception(string.Format("scene mesh {0} has no tile list", sceneMesh.Name));
             }
 
             tileList = pipeline.GetDataProduct<TileList>(project, sceneMesh.TileListGuid);

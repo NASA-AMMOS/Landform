@@ -480,6 +480,11 @@ namespace OPS.Landform
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
         }
 
+        protected override void LoadTileList()
+        {
+            return; // sky sphere won't have tiles yet, even though it is a TextureCommand
+        }
+
         private Image BackprojectTile(SceneNode node, Mesh mesh, Image index)
         {
             try

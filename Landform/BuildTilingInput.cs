@@ -280,6 +280,11 @@ namespace OPS.Landform
             }
         }
 
+        protected override void LoadTileList()
+        {
+            return; // build tiling inputs won't have tiles yet, even though it is a TextureCommand
+        }
+
         private void BuildTileTree()
         {
             if (meshLOD.Count > 1)
