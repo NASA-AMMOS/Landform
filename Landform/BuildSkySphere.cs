@@ -256,7 +256,7 @@ namespace OPS.Landform
                 }
             });
 
-            //TODO: replicate a column of the one side into the other to prevent a seam
+            //ISSUE #1093 replicate data to avoid seam at the wrapping edge of texture data
 
         }
 
@@ -289,7 +289,7 @@ namespace OPS.Landform
             options.TextureFarClip = options.SphereRadiusMeters * 2.0;
 
             //select a good spacing of backproject points per tile
-            double lengthOfTile = (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees)));//bugbug: only works for small angles
+            double lengthOfTile = (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees))); //ISSUE #1094: only works for small angles, use distance on the surface of sphere
             options.BackprojectQuality = options.BackprojectSamplesPerTile / (lengthOfTile * lengthOfTile);
             options.BackprojectQuality /= 100; //convert to expected units 'quality'
 
