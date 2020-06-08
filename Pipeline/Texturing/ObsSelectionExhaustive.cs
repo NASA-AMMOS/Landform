@@ -24,13 +24,15 @@ namespace OPS.Pipeline.Texturing
 
         protected SceneCaster OcclusionScene;
         protected MeshOperator MeshOp;
+        protected double RaycastTolerance;
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1)
+                                        double raycastTolerance,  double quality = 1)
         {
             MeshOp = meshOp;
             OcclusionScene = occlusionScene;
+            RaycastTolerance = raycastTolerance;
         }
     
         public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, SceneCaster meshCaster,
@@ -76,7 +78,7 @@ namespace OPS.Pipeline.Texturing
                      dist = ProjectedPixelDistances.CalculateForObs(meshCaster, OcclusionScene,
                                                                     new List<PixelPoint>() { forSrcPixelPt },
                                                                     ctx.Obs, ctx.CameraModel, ctx.FrustumHull,
-                                                                    ctx.ObsToMesh);
+                                                                    ctx.ObsToMesh, RaycastTolerance);
                      
                     if (OrbitalMetersPerPixel > 0 && dist > OrbitalMetersPerPixel)
                     {

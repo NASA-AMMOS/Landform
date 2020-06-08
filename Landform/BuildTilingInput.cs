@@ -310,14 +310,15 @@ namespace OPS.Landform
                     }
                     texSplitOpts = new SplitByTextureOpts()
                     {
-                        
+
                         pctPixelsToTest = options.SplitByTexturePctToTest,
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
                         splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
                         useApproximateTileSplit = !options.NoApproxTileSplit,
                         tileResolution = resolution,
                         scInMesh = sceneCaster,
-                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray()
+                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray(),
+                        raycastTolerance = tcopts.RaycastTolerance
                     };
                 }
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;

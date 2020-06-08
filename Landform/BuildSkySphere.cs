@@ -492,7 +492,7 @@ namespace OPS.Landform
                 meshCaster.Build();
 
                 ObsSelectionStrategy obsSelStrat = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                obsSelStrat.Initialize(mesh, new MeshOperator(mesh), meshCaster, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
+                obsSelStrat.Initialize(mesh, new MeshOperator(mesh), meshCaster, sceneCaster, contexts, resolution, tcopts.RaycastTolerance, tcopts.BackprojectQuality);
                 IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = BackprojectRoverObservations(mesh, meshCaster, options.TextureResolution, missingPixels,
                                                                     obsSelStrat, debugSubdir: node.Name);
 

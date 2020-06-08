@@ -25,11 +25,14 @@ namespace OPS.Pipeline.Texturing
         Dictionary<string, Backproject.Context> ObsToContext = new Dictionary<string, Backproject.Context>();
 
         Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
+        protected double RaycastTolerance;
 
         public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1)
+                                        double raycastTolerance, double quality = 1)
         {
+            RaycastTolerance = raycastTolerance;
+
             // any sorts that would be better served by orbital will have their contexts filtered
 
             // collect points on the surface of the mesh
@@ -78,7 +81,7 @@ namespace OPS.Pipeline.Texturing
             //exhaustively sort for each sample point
             var refSelect = new ObsSelectionExhaustive();
             refSelect.OrbitalMetersPerPixel = OrbitalMetersPerPixel;
-            refSelect.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts, outputTextureResolution, quality); //TODO: sharing this quality is a problem
+            refSelect.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts, outputTextureResolution, RaycastTolerance, quality); //ISSUE 1091: should have an independent control for exhaustive quality
 
             //collect a sorted list of contexts (best to worst) for each sample point
             CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>

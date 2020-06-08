@@ -30,6 +30,7 @@ namespace OPS.Pipeline
         public int tileResolution;
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
+        public double raycastTolerance;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
@@ -248,7 +249,7 @@ namespace OPS.Pipeline
                 //want a term that looks for consistancy in spacing? implies dead on?
                 double curSpread = ProjectedPixelDistances.GetMinPixelSpreadInMeters(meshCaster, options.scInMesh, camInst.cameraModel,
                                                              camInst.cameraToMesh,
-                                                             srcPixel.Value, pxlPt.Point, camInst.widthPixels, camInst.heightPixels);
+                                                             srcPixel.Value, pxlPt.Point, camInst.widthPixels, camInst.heightPixels, options.raycastTolerance);
                 if (curSpread < minSpread)
                 {
                     minSpread = curSpread;

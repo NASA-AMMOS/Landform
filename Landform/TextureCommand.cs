@@ -48,6 +48,9 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
+        [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = 0.0001)]
+        public virtual double RaycastTolerance { get; set; }
+
         [Option(HelpText = "Write extended backproject debug info", Default = false)]
         public bool WriteBackprojectDebug { get; set; }
 
@@ -616,7 +619,7 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, contexts, resolution, tcopts.RaycastTolerance, tcopts.BackprojectQuality);
         }
 
         protected void BackprojectRoverObservations()

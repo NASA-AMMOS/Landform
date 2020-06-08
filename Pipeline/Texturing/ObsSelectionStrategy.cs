@@ -56,7 +56,7 @@ namespace OPS.Pipeline.Texturing
 
         public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1);
+                                        double raycastTolerance, double quality = 1);
 
         //sorts observations from best to worst
         //returns filtered and sorted contexts
