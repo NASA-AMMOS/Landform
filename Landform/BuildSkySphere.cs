@@ -189,8 +189,8 @@ namespace OPS.Landform
 
         private void BuildBigBlendedImage()
         {
-            BlendImages.BlendImage(pipeline, GetBlendOptions(), bigBlurredImage.Width, bigBlurredImage.Height, 
-                bigIndexMap, bigBlurredImage, indexedImages, out bigBlendedImage);
+            bigBlendedImage = BlendImages.BlendImage(pipeline, GetBlendOptions(), bigBlurredImage.Width, bigBlurredImage.Height, 
+                bigIndexMap, bigBlurredImage, indexedImages);
 
             bigBlurredImage = null; //free memory
         }

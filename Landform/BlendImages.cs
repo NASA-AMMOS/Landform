@@ -427,8 +427,7 @@ namespace OPS.Landform
                 return;
             }
 
-            BlendImage(pipeline, options, resolution, resolution, backprojectIndex, blurredTexture, indexedImages,
-                out Image newlyBlendedTexture);
+            Image newlyBlendedTexture = BlendImage(pipeline, options, resolution, resolution, backprojectIndex, blurredTexture, indexedImages);
 
             if (!options.NoSave)
             {
@@ -441,9 +440,8 @@ namespace OPS.Landform
             writeDebug();
         }
 
-        static public void BlendImage(PipelineCore pipeline, BlendImagesOptions options, int resolutionWidth, int resolutionHeight,
-            Image backprojectIndex, Image blurredTexture, Dictionary<int, Observation> indexedImages,
-            out Image blendedTexture)
+        static public Image BlendImage(PipelineCore pipeline, BlendImagesOptions options, int resolutionWidth, int resolutionHeight,
+            Image backprojectIndex, Image blurredTexture, Dictionary<int, Observation> indexedImages)
         {
             pipeline.LogInfo("stitching {0}x{1} image with LimberDMG, residual epsilon {2}, {3} relaxation steps, " +
                              "{4} multigrid iterations, lambda {5}",
@@ -491,9 +489,10 @@ namespace OPS.Landform
             var dmg = new LimberDMG(options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
                                     options.Lambda, LimberDMG.EdgeBehavior.Clamp, LimberDMG.ColorConversion.RGBToLAB,
                                     msg => pipeline.LogVerbose(msg));
-            blendedTexture = dmg.StitchImage(blurredTexture, index, flags);
+            Image blendedTexture = dmg.StitchImage(blurredTexture, index, flags);
 
             pipeline.LogInfo("created {0}x{1} blended texture", resolutionWidth, resolutionHeight);
+            return blendedTexture;
         }
 
         public delegate void WriteWinnersDebugFunc(Image img, Observation obs, string suffix,

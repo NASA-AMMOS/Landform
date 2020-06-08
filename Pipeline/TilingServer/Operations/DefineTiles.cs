@@ -320,7 +320,7 @@ namespace OPS.Pipeline.TilingServer
                 throw new InvalidDataException("expecting at least one mesh for node tree");
             }
 
-            Mesh combined = Mesh.Merge(inputs.ToArray(),false,false);
+            Mesh combined = Mesh.Merge(inputs.ToArray(),clean:false,normalize:false);
 
             //add root geometry so none will be created from children
             SceneNode root = new SceneNode("");
