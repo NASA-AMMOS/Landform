@@ -54,6 +54,8 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
+        //meshcaster: the raycasting target of the current mesh tile
+        //occlusionscene: the raycasting  target for the entire scene (current mesh tile + surrounding area)
         public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
                                         double raycastTolerance, double quality = 1);
