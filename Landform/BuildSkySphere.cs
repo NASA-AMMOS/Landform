@@ -16,6 +16,12 @@ using OPS.RayTrace;
 /// <summary>
 /// creates a tileset containing a fixed sphere mesh to display
 /// behind the terrain
+/// 
+/// this stage is intended to create a tiling project, populate it with tile geometry, texture the tiles, then destroy the project
+/// to leave a clean database for the surface scene's tiling.
+/// 
+/// Example:
+/// Landform.exe build-sky-sphere windjana --meshframe 0311472
 /// </summary>
 /// 
 
@@ -357,12 +363,6 @@ namespace OPS.Landform
                         prevCol = cols - 1;
                     }
 
-                    //verts are added from the top of the sphere (-Z) first
-                    //Vector3 topLeft = positions[ToIndex(idxRow, prevCol, cols)];
-                    //Vector3 topRight = positions[ToIndex(idxRow, curCol, cols)];
-                    //Vector3 bottomLeft = positions[ToIndex(prevRow, prevCol, cols)];
-                    //Vector3 bottomRight = positions[ToIndex(prevRow, curCol, cols)];
-
                     Vector3 topLeft = positions[ToIndex(prevRow, prevCol, cols)];
                     Vector3 topRight = positions[ToIndex(prevRow, curCol, cols)];
                     Vector3 bottomLeft = positions[ToIndex(idxRow, prevCol, cols)];
@@ -386,8 +386,6 @@ namespace OPS.Landform
 
             //right handed winding from interior
             tile.Faces = new List<Face>();
-            //tile.Faces.Add(new Face(new int[] { 0, 1, 2 }));
-            //tile.Faces.Add(new Face(new int[] { 2, 1, 3 }));
             tile.Faces.Add(new Face(new int[] { 0, 2, 1 }));
             tile.Faces.Add(new Face(new int[] { 1, 2, 3 }));
             return tile;

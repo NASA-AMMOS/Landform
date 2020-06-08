@@ -19,6 +19,8 @@ namespace OPS.Pipeline
     {
         const double FRUSTUMHULLTESTEPSILON = 0.00001;
 
+        //meshcaster: the area of interest you are measuring (usually a tile mesh)
+        //scenecaster: the entire scene's mesh
         static public IDictionary<string, double> //observation name => median pixel spread
             Calculate(FrameCache frameCache, SceneCaster meshCaster, SceneCaster occlusionScene,
                       IDictionary<string, ConvexHull> obsToHull, BoundingBox specificMeshBounds,
