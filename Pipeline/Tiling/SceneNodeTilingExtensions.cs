@@ -266,11 +266,9 @@ namespace OPS.Pipeline
 
         public static SceneNode ConnectNodesToRoot(IEnumerable<SceneNode> nodes)
         {
-            Queue<SceneNode> nodesToConnect = new Queue<SceneNode>(nodes);
             SceneNode root = nodes.Where(n => n.Name == "root").First();
-            while (nodesToConnect.Count != 0)
+            foreach(var node in nodes)
             {
-                var node = nodesToConnect.Dequeue();
                 if (node.Name == "root")
                 {
                     continue;
