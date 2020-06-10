@@ -1524,6 +1524,46 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// (re-)assign UVs assuming this mesh is a heightmap
+        /// </summary>
+        public void HeightmapAtlas(BoxAxis verticalAxis, bool flipU = false, bool flipV = false, bool swapUV = false)
+        {
+            Func<Vector3, Vector2> project = null;
+            switch (verticalAxis)
+            {
+                case BoxAxis.X: project = v => new Vector2(v.Y, v.Z); break;
+                case BoxAxis.Y: project = v => new Vector2(v.X, v.Z); break;
+                case BoxAxis.Z: project = v => new Vector2(v.X, v.Y); break;
+                default: throw new Exception("unknown axis " + verticalAxis);
+            }
+            var bounds = Bounds();
+            var min = project(bounds.Min);
+            var scale = project(bounds.Size());
+            double eps = MathE.EPSILON;
+            scale.X = scale.X > eps ? (1 / scale.X) : 1;
+            scale.Y = scale.Y > eps ? (1 / scale.Y) : 1;
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = (project(v.Position) - min) * scale;
+                if (flipU)
+                {
+                    v.UV.X = 1.0 - v.UV.X;
+                }
+                if (flipV)
+                {
+                    v.UV.Y = 1.0 - v.UV.Y;
+                }
+                if (swapUV)
+                {
+                    v.UV = v.UV.Swap();
+                }
+                v.UV.X = MathE.Clamp01(v.UV.X);
+                v.UV.Y = MathE.Clamp01(v.UV.Y);
+            }
+            HasUVs = true;
+        }
+
+        /// <summary>
         /// compute total texture area in pixels covered by this mesh
         /// </summary>
         public double ComputePixelArea(Image image)
