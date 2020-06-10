@@ -146,7 +146,57 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Returns true if the inner is totaly inside or equal to the outer
+        /// return 4 planes coincident to the box faces parallel to axis
+        /// the "top" side of the planes corresponds to the outside of the box
+        /// </summary>
+        public static Plane[] GetFacePlanesAroundAxis(this BoundingBox box, BoxAxis axis)
+        {
+            Vector3 up = new Vector3(0, 0, 1); //top (+z)
+            Vector3 dn = new Vector3(0, 0, -1); //bottom (-z)
+            Vector3 fw = new Vector3(0, 1, 0); //front (+y)
+            Vector3 bk = new Vector3(0, -1, 0); //back (-y)
+            Vector3 rt = new Vector3(1, 0, 0); //right (+x)
+            Vector3 lf = new Vector3(-1, 0, 0); //left (-x)
+
+            Vector3[] normals = null;
+            double w = 0, h = 0;
+
+            switch (axis)
+            {
+                case BoxAxis.X:
+                {
+                    normals = new Vector3[] { up, fw, dn, bk };
+                    w = box.Max.Z - box.Min.Z;
+                    h = box.Max.Y - box.Min.Y;
+                    break;
+                }
+                case BoxAxis.Y:
+                {
+                    normals = new Vector3[] { up, rt, dn, lf };
+                    w = box.Max.Z - box.Min.Z;
+                    h = box.Max.X - box.Min.X;
+                    break;
+                }
+                case BoxAxis.Z:
+                {
+                    normals = new Vector3[] { lf, fw, rt, bk };
+                    w = box.Max.X - box.Min.X;
+                    h = box.Max.Y - box.Min.Y;
+                    break;
+                }
+                default: throw new ArgumentException("unknown box axis: " + axis);
+            }
+
+            var ctr = box.Center();
+
+            return new Plane[] { PlaneExtensions.FromPointAndNormal(ctr + 0.5 * w * normals[0], normals[0]),
+                                 PlaneExtensions.FromPointAndNormal(ctr + 0.5 * h * normals[1], normals[1]),
+                                 PlaneExtensions.FromPointAndNormal(ctr + 0.5 * w * normals[2], normals[2]),
+                                 PlaneExtensions.FromPointAndNormal(ctr + 0.5 * h * normals[3], normals[3]) };
+        }
+
+        /// <summary>
+        /// Returns true if the inner is totally inside or equal to the outer
         /// Note that this method is similar to BoundingBox.Contains except that it allows for floating point
         /// error.
         /// </summary>
