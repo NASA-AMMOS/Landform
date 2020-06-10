@@ -80,7 +80,8 @@ namespace OPS.Geometry
         /// <param name="hasNormals"></param>
         /// <param name="hasUVs"></param>
         /// <param name="hasColors"></param>
-        public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false)
+        public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false,
+                    Action<string> warn = null)
         {
             Faces = new List<Face>(triangles.Count);
             Vertices = new List<Vertex>(triangles.Count * 3);
@@ -94,7 +95,7 @@ namespace OPS.Geometry
                 Vertices.Add((Vertex)t.V1.Clone());
                 Vertices.Add((Vertex)t.V2.Clone());
             }
-            Clean();
+            Clean(warn: warn);
         }
 
         /// <summary>
@@ -615,7 +616,8 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
         /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
-        public void AddSkirt(SkirtMode axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15, bool invert=false)
+        public void AddSkirt(SkirtMode axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15,
+                             bool invert = false, Action<string> warn = null)
         {
             // Calculate skirt offset height
             Vector3 size = Bounds().Size();
@@ -634,7 +636,7 @@ namespace OPS.Geometry
                 copy.ClearColors();
                 copy.ClearNormals();
                 copy.ClearUVs();
-                copy.Clean();
+                copy.Clean(warn: warn);
 
                 //Create node edge graph to find triangles on perimeter
                 EdgeGraph edgeGraph = new EdgeGraph(copy);
@@ -790,7 +792,7 @@ namespace OPS.Geometry
                 }
             }
             // Clean the mesh for good measure
-            Clean();
+            Clean(warn: warn);
         }
 
         public List<Vertex> EdgeVertices()
@@ -1028,7 +1030,8 @@ namespace OPS.Geometry
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
         /// <param name="otherMeshes"></param>
-        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true, bool removeDuplicateVerts = true)
+        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true,
+                              bool removeDuplicateVerts = true, Action<string> warn = null)
         {
             int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Vertices.Count);
             int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Faces.Count);
@@ -1061,13 +1064,18 @@ namespace OPS.Geometry
 
             if (clean)
             {
-                Clean(normalize, removeDuplicateVerts);
+                Clean(normalize, removeDuplicateVerts, warn: warn);
             }
         }
 
         public void MergeWith(params Mesh[] otherMeshes)
         {
-            MergeWith(otherMeshes, true, true); //specify params or this will be a self-call (infinite recursion)
+            MergeWith(otherMeshes, true, true, true); //specify params or will be a self-call (infinite recursion)
+        }
+
+        public void MergeWith(Action<string> warn, params Mesh[] otherMeshes)
+        {
+            MergeWith(otherMeshes, true, true, true, warn); //specify params or will be a self-call (infinite recursion)
         }
 
         /// <summary>
@@ -1077,34 +1085,48 @@ namespace OPS.Geometry
         /// </summary>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
+        public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
+                                 bool removeDuplicateVerts = true, Action<string> warn = null)
         {
             Mesh first = meshesToCombine[0];
-            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine, clean, normalize);
+            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine,
+                         clean, normalize, removeDuplicateVerts, warn);
+        }
+
+        public static Mesh Merge(Action<string> warn, params Mesh[] meshesToCombine)
+        {
+            return Merge(meshesToCombine, true, true, true, warn);
         }
 
         public static Mesh Merge(params Mesh[] meshesToCombine)
         {
-            return Merge(meshesToCombine, true, true); //specify params or this will be a self-call (infinite recursion)
+            return Merge(meshesToCombine, true, true, true, null);
         }
 
         /// <summary>
         /// Combines and returns one or more meshes
-        /// The combined mesh will have an attribute (normals, uvs, colors) only if all the input meshes have that attribute
+        /// The combined mesh will have an attribute (normals, uvs, colors)
+        /// only if all the input meshes have that attribute
         /// </summary>
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
-        public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
+        public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
+                                                     bool removeDuplicateVerts = true, Action<string> warn = null)
         {
             bool normals = meshesToCombine.All(m => m.HasNormals);
             bool uvs = meshesToCombine.All(m => m.HasUVs);
             bool colors = meshesToCombine.All(m => m.HasColors);
-            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize);
+            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize, removeDuplicateVerts, warn);
+        }
+
+        public static Mesh MergeWithCommonAttributes(Action<string> warn, params Mesh[] meshesToCombine)
+        {
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, warn);
         }
 
         public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
         {
-            return MergeWithCommonAttributes(meshesToCombine, true, true); //all params or this will be infinite recursion
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, null);
         }
 
         /// <summary>
@@ -1116,16 +1138,22 @@ namespace OPS.Geometry
         /// <param name="meshesToCombine"></param>
         /// <returns></returns>
         public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Mesh[] meshesToCombine,
-                                 bool clean = true, bool normalize = true)
+                                 bool clean = true, bool normalize = true, bool removeDuplicateVerts = true,
+                                 Action<string> warn = null)
         {
             Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
-            result.MergeWith(meshesToCombine, clean, normalize);
+            result.MergeWith(meshesToCombine, clean, normalize, removeDuplicateVerts, warn);
             return result;
         }
 
         public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
         {
-            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true); //all params or infinite recursion
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, null);
+        }
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Action<string> warn,
+                                 params Mesh[] meshesToCombine)
+        {
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, warn);
         }
 
         /// <summary>
@@ -1489,7 +1517,7 @@ namespace OPS.Geometry
             var rescale = new Vector2(Math.Abs(sz.X) > eps ? targetSz.X / sz.X : 1,
                                       Math.Abs(sz.Y) > eps ? targetSz.Y / sz.Y : 1);
             var targetMin = new Vector2(targetBounds.Min.X, targetBounds.Min.Y);
-            foreach (Vertex v in this.Vertices)
+            foreach (Vertex v in Vertices)
             {
                 v.UV = targetMin + (v.UV - uvMin) * rescale;
             }
