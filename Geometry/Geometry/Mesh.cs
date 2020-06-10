@@ -1003,21 +1003,17 @@ namespace OPS.Geometry
         /// <summary>
         /// Checks to see if this mesh has the same attributes as the other mesh (normal, uv, and texture)
         /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
         public bool AttributesEqual(Mesh other)
         {
-            return this.HasNormals == other.HasNormals && this.HasUVs == other.HasUVs && this.HasColors == other.HasColors;
+            return HasNormals == other.HasNormals && HasUVs == other.HasUVs && HasColors == other.HasColors;
         }
 
         /// <summary>
         /// Return true if all attributes that are true of this mesh are also true of other
         /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
         public bool AttributesSubsetOf(Mesh other)
         {
-            if ((this.HasNormals && !other.HasNormals) || (this.HasUVs && !other.HasUVs) || (this.HasColors && !other.HasColors))
+            if ((HasNormals && !other.HasNormals) || (HasUVs && !other.HasUVs) || (HasColors && !other.HasColors))
             {
                 return false;
             }
@@ -1025,28 +1021,83 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Combines one or more meshes with this one
-        /// The proprties of the input meshes must match this one
-        /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
+        /// Combine meshes together without merging duplicate vertices.
+        /// The latter meshes must have at least the vertex attributes (normals, UVs, colors) that the first one has.
         /// </summary>
-        /// <param name="otherMeshes"></param>
+        public static Mesh Join(Mesh[] meshes, bool clone = true)
+        {
+            var inputs = meshes.Where(m => m != null && m.Vertices.Count > 0).ToList();
+
+            if (inputs.Count == 0)
+            {
+                return new Mesh();
+            }
+
+            for (int i = 1; i < inputs.Count; i++)
+            {
+                if (!inputs[i].AttributesSubsetOf(inputs[0]))
+                {
+                    throw new MeshException("mesh to join missing one or more attributes required by aggregate mesh");
+                }
+            }
+
+            var ret = clone ? new Mesh(inputs[0]) : inputs[0];
+
+            //do it like this in part so that the degenerate case of meshes.Length=1 clone=false does not modify mesh
+            ret.Vertices.Capacity = Math.Max(ret.Vertices.Capacity, inputs.Sum(m => m.Vertices.Count));
+            ret.Faces.Capacity = Math.Max(ret.Faces.Capacity, inputs.Sum(m => m.Faces.Count));
+
+            int nv = ret.Vertices.Count;
+            for (int i = 1; i < inputs.Count; i++)
+            {
+                if (clone)
+                {
+                    foreach (var v in inputs[i].Vertices)
+                    {
+                        ret.Vertices.Add((Vertex)(v.Clone()));
+                    }
+                }
+                else
+                {
+                    ret.Vertices.AddRange(inputs[i].Vertices);
+                }
+
+                foreach (var f in inputs[i].Faces)
+                {
+                    ret.Faces.Add(new Face(f.P0 + nv, f.P1 + nv, f.P2 + nv));
+                }
+
+                nv += inputs[i].Vertices.Count;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Combines one or more meshes with this one.
+        /// The other meshes must have at least the vertex attributes (normals, UVs, colors) that this one has.
+        /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future.
+        /// </summary>
         public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true,
                               bool removeDuplicateVerts = true, Action<string> warn = null)
         {
             int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Vertices.Count);
             int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Faces.Count);
-            Vertices.Capacity = Math.Min(Vertices.Capacity, Vertices.Count + numNewVerts);
-            Faces.Capacity = Math.Min(Faces.Capacity, Faces.Count + numNewFaces);
+            Vertices.Capacity = Math.Max(Vertices.Capacity, Vertices.Count + numNewVerts);
+            Faces.Capacity = Math.Max(Faces.Capacity, Faces.Count + numNewFaces);
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
                 if (m == null)
+                {
                     continue;
+                }
 
                 if (!AttributesSubsetOf(m))
                 {
-                    throw new MeshException("Mesh to merge missing one or more attributes required by aggregate mesh");
+                    throw new MeshException("mesh to merge missing one or more attributes required by aggregate mesh");
                 }
+
                 int vertexBaseCount = this.Vertices.Count;
                 for (int j = 0; j < m.Vertices.Count; j++)
                 {
@@ -1083,8 +1134,6 @@ namespace OPS.Geometry
         /// The proprties of the input meshes must match this one
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
-        /// <param name="meshesToCombine"></param>
-        /// <returns></returns>
         public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
                                  bool removeDuplicateVerts = true, Action<string> warn = null)
         {
@@ -1108,8 +1157,6 @@ namespace OPS.Geometry
         /// The combined mesh will have an attribute (normals, uvs, colors)
         /// only if all the input meshes have that attribute
         /// </summary>
-        /// <param name="meshesToCombine"></param>
-        /// <returns></returns>
         public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
                                                      bool removeDuplicateVerts = true, Action<string> warn = null)
         {
@@ -1132,16 +1179,11 @@ namespace OPS.Geometry
         /// <summary>
         /// Combines several meshes and returnes a new mesh with the specified attributes
         /// </summary>
-        /// <param name="hasNormals"></param>
-        /// <param name="hasUvs"></param>
-        /// <param name="hasColors"></param>
-        /// <param name="meshesToCombine"></param>
-        /// <returns></returns>
-        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Mesh[] meshesToCombine,
+        public static Mesh Merge(bool hasNormals, bool hasUVs, bool hasColors, Mesh[] meshesToCombine,
                                  bool clean = true, bool normalize = true, bool removeDuplicateVerts = true,
                                  Action<string> warn = null)
         {
-            Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
+            Mesh result = new Mesh(hasNormals, hasUVs, hasColors);
             result.MergeWith(meshesToCombine, clean, normalize, removeDuplicateVerts, warn);
             return result;
         }
@@ -1150,6 +1192,7 @@ namespace OPS.Geometry
         {
             return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, null);
         }
+            
         public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Action<string> warn,
                                  params Mesh[] meshesToCombine)
         {
@@ -1158,10 +1201,8 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Clips the mesh to fit within the given bounding box
+        /// Always returns a new mesh that does not share any data with the passed mesh.
         /// </summary>
-        /// <param name="m"></param>
-        /// <param name="box"></param>
-        /// <returns></returns>
         public static Mesh Clip(Mesh m, BoundingBox box)
         {
             Mesh result;
@@ -1195,6 +1236,103 @@ namespace OPS.Geometry
                 throw new Exception("Clipped mesh exceeds bounding box");
             }
             return result;
+        }
+
+        /// <summary>
+        /// Slice any triangles that intersect plane, keeping all parts.
+        /// No vertices are shared between parts on opposite sides of the plane.
+        /// The 0th returned mesh is "below" the plane and the 1st returned mesh is "on or above" the plane.
+        /// If checkBounds=true and one of the returned meshes would be empty then just returns this mesh.
+        /// Otherwise returns two new meshes that do not share any data with this mesh.
+        /// </summary>
+        public Mesh[] SplitOnPlane(Plane plane, bool checkBounds = true)
+        {
+            if (checkBounds && Bounds().Intersects(plane) != PlaneIntersectionType.Intersecting)
+            {
+                return new Mesh[] { this };
+            }
+
+            var ret = new Mesh[2];
+
+            if (Faces.Count == 0)
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    ret[i] = new Mesh(capacity: 0);
+                    ret[i].Vertices.Capacity = Vertices.Count;
+                    ret[i].SetProperties(this);
+                }
+                // Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+                double dist = -plane.D;
+                foreach (var v in Vertices)
+                {
+                    ret[Vector3.Dot(v.Position, plane.Normal) < dist ? 0 : 1].Vertices.Add((Vertex)(v.Clone()));
+                }
+                for (int i = 0; i < 2; i++)
+                {
+                    ret[i].Vertices.Capacity = ret[i].Vertices.Count;
+                }
+            }
+            else
+            {
+                var flippedPlane = new Plane(-plane.Normal, -plane.D);
+                var tris = new List<Triangle>[2];
+                for (int i = 0; i < 2; i++)
+                {
+                    tris[i] = new List<Triangle>(Faces.Count);
+                }
+                foreach (Face f in Faces)
+                {
+                    var t = new Triangle(Vertices[f.P0], Vertices[f.P1], Vertices[f.P2]);
+                    tris[0].AddRange(t.Clip(flippedPlane));
+                    tris[1].AddRange(t.Clip(plane));
+                }
+                for (int i = 0; i < 2; i++)
+                {
+                    ret[i] = new Mesh(tris[i], HasNormals, HasUVs, HasColors);
+                }
+            }
+
+            return ret;
+        }
+
+        public Mesh SplitAndJoinOnPlane(Plane plane, bool checkBounds = true)
+        {
+            if (checkBounds && Bounds().Intersects(plane) != PlaneIntersectionType.Intersecting)
+            {
+                return this;
+            }
+            return Join(SplitOnPlane(plane, checkBounds: false), clone: false);
+        }
+
+        public Mesh[] SplitOnPlanes(bool checkBounds, params Plane[] planes)
+        {
+            var ret = new Mesh[] { this };
+            if (checkBounds)
+            {
+                var bounds = Bounds();
+                planes = planes.Where(p => bounds.Intersects(p) == PlaneIntersectionType.Intersecting).ToArray();
+            }
+            foreach (var plane in planes)
+            {
+                ret = ret.SelectMany(m => m.SplitOnPlane(plane, checkBounds: false)).ToArray();
+            }
+            return ret;
+        }
+
+        public Mesh[] SplitOnPlanes(params Plane[] planes)
+        {
+            return SplitOnPlanes(true, planes);
+        }
+
+        public Mesh SplitAndJoinOnPlanes(bool checkBounds, params Plane[] planes)
+        {
+            return Join(SplitOnPlanes(checkBounds, planes), clone: false);
+        }
+
+        public Mesh SplitAndJoinOnPlanes(params Plane[] planes)
+        {
+            return SplitAndJoinOnPlanes(true, planes);
         }
 
         /// <summary>
