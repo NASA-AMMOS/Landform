@@ -121,8 +121,7 @@ namespace OPS.Pipeline
         public static List<SceneNode> FindNodesRequiredForParent(this SceneNode node, SceneNode root, out BoundingBox searchBounds, double childBoundSearchRatio = DEFAULT_SEARCH_RATIO)
         {
             int childDepth = node.Children.First().Transform.Depth();
-            searchBounds = node.ChildBounds();
-            searchBounds = BoundingBoxExtensions.Scale(searchBounds, childBoundSearchRatio);
+            searchBounds = node.ChildBounds().CreateScaled(childBoundSearchRatio);
             var childNodes = root.FindOverlapingNodes(childDepth, searchBounds);
             return childNodes;
 
@@ -163,7 +162,7 @@ namespace OPS.Pipeline
             // Note that we compute an enlargedMinBounds instead of just using searchBounds because in the tiling server "BuildParent" routine we
             // construct a flat tree with just the parent node and all of its dependence as children.  As a result "ChildBounds" is no longer a reliable
             // measure.  This is pretty nuanced and could potentially benefit from a refactor in the future
-            BoundingBox enlargedMinBounds = BoundingBoxExtensions.Scale(minimumBounds, childBoundSearchRatio);
+            BoundingBox enlargedMinBounds = minimumBounds.CreateScaled(childBoundSearchRatio);
             combinedFull = Mesh.Clip(combinedFull, enlargedMinBounds);
             combinedFull.NormalizeNormals();
 

@@ -160,16 +160,16 @@ namespace OPS.Geometry
         /// <summary>
         /// Keeps the same center but enlarges or shrinks the extents by ratio
         /// </summary>
-        /// <param name="box"></param>
-        /// <param name="precent"></param>
-        public static BoundingBox Scale(BoundingBox box, double ratio)
+        public static BoundingBox CreateScaled(this BoundingBox box, Vector3 ratio)
         {
             var center = box.Center();
-            var size = box.Size();
-            size *= ratio;
-            box.Min = center - (size / 2);
-            box.Max = center + (size / 2);
-            return box;
+            var size = box.Size() * ratio;
+            return new BoundingBox(center - (0.5 * size), center + (0.5 * size));
+        }
+
+        public static BoundingBox CreateScaled(this BoundingBox box, double ratio)
+        {
+            return box.CreateScaled(Vector3.One * ratio);
         }
 
         /// <summary>
