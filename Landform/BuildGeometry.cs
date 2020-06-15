@@ -661,7 +661,7 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, dbgMeshPrefix, "-reconstructed");
+                SaveMesh(mesh, dbgMeshPrefix + "-reconstructed");
 
                 var colored = new Mesh(mesh);
                 var red = new Vector3(1, 0, 0);
@@ -1112,7 +1112,7 @@ namespace OPS.Landform
 
             if (options.WriteDebug)
             {
-                SaveMesh(mesh, dbgMeshPrefix + "-atlased");
+                SaveMesh(mesh, dbgMeshPrefix + "-atlassed");
             }
         }
 

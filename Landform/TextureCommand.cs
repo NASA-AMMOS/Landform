@@ -1,3 +1,5 @@
+//#define DBG_BLURRED
+//#define DBG_FRUSTA
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -66,7 +68,7 @@ namespace OPS.Landform
         [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = -1)]
         public int BackprojectInpaintGutter { get; set; }
 
-        [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
+        [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
         [Option(HelpText = "Don't prefer color images", Default = false)]
@@ -287,11 +289,14 @@ namespace OPS.Landform
             {
                 if (!tcopts.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
                 {
+#if DBG_BLURRED
                     if (tcopts.WriteDebug)
                     {
                         SaveDebugWedgeImage(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image,
                                             obs, "_blurred");
                     }
+
+#endif
                     Interlocked.Increment(ref nc);
                     return;
                 }
@@ -313,10 +318,12 @@ namespace OPS.Landform
                     //the current code is: img.SmoothBlur(13, 13)
                     Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
                     
+#if DBG_BLURRED
                     if (tcopts.WriteDebug)
                     {
                         SaveDebugWedgeImage(blurredImage, obs, "_blurred");
                     }
+#endif
                     
                     if (!tcopts.NoSave)
                     {
@@ -474,7 +481,7 @@ namespace OPS.Landform
             {
                 if (requireUVs && !meshLOD[i].HasUVs)
                 {
-                    AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                    UVAtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
                 }
             }
         }
@@ -543,6 +550,7 @@ namespace OPS.Landform
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, roverImages);
+#if DBG_FRUSTA
             if (tcopts.WriteDebug)
             {
                 foreach (var entry in obsToHull)
@@ -550,6 +558,7 @@ namespace OPS.Landform
                     SaveMesh(entry.Value.Mesh, "Frusta/" + entry.Key);
                 }
             }
+#endif
         }
 
         protected void InitBackprojectStrategy()
@@ -769,15 +778,15 @@ namespace OPS.Landform
             return texture;
         }
 
-        protected void SaveBackprojectIndexDebug(Image index)
+        protected void SaveBackprojectIndexDebug(Image index, bool withMesh = true, string suffix = "")
         {
-            string name = sceneMesh.Name + "_backprojectIndex";
+            string name = sceneMesh.Name + "_backprojectIndex" + suffix;
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
             name += "FalseColor";
             pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
-            if (mesh != null)
+            if (withMesh && mesh != null)
             {
                 pipeline.LogInfo("saving backproject index false color textured debug mesh");
                 SaveMesh(mesh, name, name + imageExt);
@@ -786,7 +795,11 @@ namespace OPS.Landform
 
         protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
         {
-            string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
+            string name = sceneMesh.Name + "_backprojectTexture";
+            if (textureVariant != TextureVariant.Original)
+            {
+                name += "_" + textureVariant.ToString();
+            }
             pipeline.LogInfo("saving backproject {0} texture debug image", textureVariant);
             SaveImage(texture, name);
             if (mesh != null)
