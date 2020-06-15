@@ -27,9 +27,9 @@ namespace OPS.Geometry
     /// </summary>
     public class Triangle
     {
-        public Vertex V0;
-        public Vertex V1;
-        public Vertex V2;
+        public readonly Vertex V0;
+        public readonly Vertex V1;
+        public readonly Vertex V2;
 
         public Triangle()
         {
@@ -434,36 +434,31 @@ namespace OPS.Geometry
             Vector2 uv1 = V1.UV;
             Vector2 uv2 = V2.UV;
 
-            Vector3 v0 = V0.Position;
-            Vector3 v1 = V1.Position;
-            Vector3 v2 = V2.Position;
+            double u0 = uv0.X;
+            double u1 = uv1.X;
+            double u2 = uv2.X;
 
-            double lowLimit = 0;
-            double highLimit = 1;
+            double v0 = uv0.Y;
+            double v1 = uv1.Y;
+            double v2 = uv2.Y;
 
-            double x1 = uv0.X;
-            double x2 = uv1.X;
-            double x3 = uv2.X;
-            double y1 = uv0.Y;
-            double y2 = uv1.Y;
-            double y3 = uv2.Y;
-            double xf = uv.X;
-            double yf = uv.Y;
+            double u = uv.X;
+            double v = uv.Y;
+            
+            double b0 = (((v1 - v2) * (u  - u2) + (u2 - u1) * (v  - v2)) /
+                         ((v1 - v2) * (u0 - u2) + (u2 - u1) * (v0 - v2)));
 
-            double b0 = (((y2 - y3) * (xf - x3) + (x3 - x2) * (yf - y3)) /
-                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
-            double b1 = (((y3 - y1) * (xf - x3) + (x1 - x3) * (yf - y3)) /
-                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
+            double b1 = (((v2 - v0) * (u  - u2) + (u0 - u2) * (v  - v2)) /
+                         ((v1 - v2) * (u0 - u2) + (u2 - u1) * (v0 - v2)));
+
             double b2 = 1.0f - b0 - b1;
 
-            BarycentricPoint r = null;
-            if (b0 >= lowLimit && b0 <= highLimit &&
-                b1 >= lowLimit && b1 <= highLimit &&
-                b2 >= lowLimit && b2 <= highLimit)
+            if (b0 >= 0 && b0 <= 1 && b1 >= 0 && b1 <= 1 && b2 >= 0 && b2 <= 1)
             {
-                r = new BarycentricPoint(b0, b1, b2, this);
+                return new BarycentricPoint(b0, b1, b2, this);
             }
-            return r;
+
+            return null;
         }
 
         /// <summary>
@@ -583,7 +578,43 @@ namespace OPS.Geometry
 
         public override int GetHashCode()
         {
-            return V0.Position.X.GetHashCode() ^ V1.Position.Y.GetHashCode() ^ V2.Position.Z.GetHashCode();
+            int hash = 17;
+            hash = hash * 23 + V0.GetHashCode();
+            hash = hash * 23 + V1.GetHashCode();
+            hash = hash * 23 + V2.GetHashCode();
+            return hash;
         }        
+
+        public override bool Equals(System.Object obj)
+        {
+            return Equals(obj as Triangle);
+        }
+
+        public bool Equals(Triangle  t)
+        {
+            // For Equals implementation see https://msdn.microsoft.com/en-us/library/dd183755.aspx 
+            // If parameter is null, return false.
+            if (Object.ReferenceEquals(t, null))
+            {
+                return false;
+            }
+
+            // Optimization for a common success case.
+            if (Object.ReferenceEquals(this, t))
+            {
+                return true;
+            }
+
+            // If run-time types are not exactly the same, return false.
+            if (this.GetType() != t.GetType())
+            {
+                return false;
+            }
+
+            // Return true if the fields match.
+            // Note that the base class is not invoked because it is
+            // System.Object, which defines Equals as reference equality.
+            return (V0 == t.V0) && (V1 == t.V1) && (V2 == t.V2);
+        }
     }
 }

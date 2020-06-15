@@ -28,7 +28,6 @@ namespace OPS.Geometry
     /// are optional.  Properties are defined on a per mesh basis, either a property is defined for all of 
     /// a mesh's vertices or none of them.  The flags controlled by SetProperties determine what properties
     /// a mesh has and undefined properties are ingored by meshing operations.
-    /// 
     /// </summary>
     public class Mesh
     {

@@ -130,7 +130,6 @@ namespace OPS.Geometry
             return (Position == v.Position) && (Normal == v.Normal) && (Color == v.Color) && (UV == v.UV);
         }
 
-
         public override int GetHashCode()
         {
             int hash = 17;
@@ -145,6 +144,7 @@ namespace OPS.Geometry
             hash = hash * 23 + Color.X.GetHashCode();
             hash = hash * 23 + Color.Y.GetHashCode();
             hash = hash * 23 + Color.Z.GetHashCode();
+            hash = hash * 23 + Color.W.GetHashCode();
             return hash;
         }
 
