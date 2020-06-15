@@ -64,6 +64,9 @@ namespace OPS.Geometry
             [JsonIgnore]
             public Action<Stats> StatsCallback = null; //stats are computed before sparse block removal and decimation
 
+            [JsonIgnore]
+            public Func<Vector2, Vector2> Warp = null; //applied to projected points
+
             public Options Clone()
             {
                 return (Options) MemberwiseClone();
@@ -149,9 +152,16 @@ namespace OPS.Geometry
             Vector3 project(Vector3 pt)
             {
                 var camToPt = pt - options.CameraLocation;
-                return new Vector3(Vector3.Dot(camToPt, right) * pixelsPerMeter + ctrPixel.X,
-                                   Vector3.Dot(camToPt, down) * pixelsPerMeter + ctrPixel.Y,
-                                   Vector3.Dot(camToPt, forward));
+                pt = new Vector3(Vector3.Dot(camToPt, right) * pixelsPerMeter + ctrPixel.X,
+                                 Vector3.Dot(camToPt, down) * pixelsPerMeter + ctrPixel.Y,
+                                 Vector3.Dot(camToPt, forward));
+                if (options.Warp != null)
+                {
+                    var warped = options.Warp(pt.XY());
+                    pt.X = warped.X;
+                    pt.Y = warped.Y;
+                }
+                return pt;
             }
 
             if (widthPixels <= 0 || heightPixels <= 0)
