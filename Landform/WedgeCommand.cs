@@ -68,8 +68,12 @@ namespace OPS.Landform
 
         protected SiteDrive? rootSiteDrive;
 
-        protected DEM orbitalDEM;
         protected Matrix orbitalDEMToRoot; //unprojected point in orbitalDEM camera model -> project root frame
+        protected Matrix orbitalTextureToRoot; //unprojected point in orbitalTexture camera model -> project root frame
+
+        protected double orbitalDEMMetersPerPixel, orbitalTextureMetersPerPixel;
+
+        protected DEM orbitalDEM;
 
         protected WedgeCommand(WedgeCommandOptions wcopts) : base(wcopts)
         {
@@ -170,6 +174,27 @@ namespace OPS.Landform
             wcopts.NoOrbital |= numOrbital == 0;
             wcopts.NoSurface |= numSurface == 0;
 
+            if (!wcopts.NoOrbital)
+            {
+                var cfg = OrbitalConfig.Instance;
+
+                orbitalDEMMetersPerPixel = cfg.DEMMetersPerPixel;
+                if (observationCache.ContainsObservation(Observation.ORBITAL_DEM_INDEX))
+                {
+                    var obs = observationCache.GetObservation(Observation.ORBITAL_DEM_INDEX);
+                    orbitalDEMToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
+                    orbitalDEMMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                }
+
+                orbitalTextureMetersPerPixel = cfg.ImageMetersPerPixel;
+                if (observationCache.ContainsObservation(Observation.ORBITAL_IMAGE_INDEX))
+                {
+                    var obs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
+                    orbitalTextureToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
+                    orbitalTextureMetersPerPixel = (obs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                }
+            }
+
             pipeline.LogInfo("loaded {0}{1} surface observations{2} in project {3}{4}{5}",
                              numSurface, DescribeObservationFilter(),
                              numOrbital > 0 ? $" and {numOrbital} orbital observations" : "",
@@ -182,14 +207,11 @@ namespace OPS.Landform
         {
             try
             {
-                int idx = Observation.ORBITAL_DEM_INDEX;
-                var heightmap = LoadOrbitalAsset(idx);
+                var heightmap = LoadOrbitalAsset(Observation.ORBITAL_DEM_INDEX);
                 if (heightmap != null)
                 {
                     var cfg = OrbitalConfig.Instance;
                     orbitalDEM = new DEM(heightmap, cfg.DEMMetersPerPixel, cfg.DEMMinFilter, cfg.DEMMaxFilter);
-                    var obs = observationCache.GetObservation(idx);
-                    orbitalDEMToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
                 }
             }
             catch (Exception ex)

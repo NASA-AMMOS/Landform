@@ -102,7 +102,6 @@ namespace OPS.Landform
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
         protected Image orbitalTexture;
-        protected Matrix orbitalTextureToRoot; //unprojected point in orbitalTexture camera model -> project root frame
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -226,15 +225,7 @@ namespace OPS.Landform
         {
             try
             {
-                int idx = Observation.ORBITAL_IMAGE_INDEX;
-                orbitalTexture = LoadOrbitalAsset(idx);
-                if (orbitalTexture != null)
-                {
-                    var obs = observationCache.GetObservation(idx);
-                    orbitalTextureToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
-                    indexedImages[idx] = obs;
-                    orbitalImages.Add(obs);
-                }
+                orbitalTexture = LoadOrbitalAsset(Observation.ORBITAL_IMAGE_INDEX);
             }
             catch (Exception ex)
             {
