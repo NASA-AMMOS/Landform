@@ -12,9 +12,36 @@ namespace OPS.Geometry
 
     public static class BoundingBoxExtensions
     {
+        public static BoundingBox CreateXY(double size)
+        {
+            return CreateXY(size, size);
+        }
+
+        public static BoundingBox CreateXY(double width, double height)
+        {
+            var diag = new Vector2(width, height);
+            return CreateXY(-0.5 * diag, 0.5 * diag);
+        }
+
+        public static BoundingBox CreateXY(Vector2 center, double size)
+        {
+            return CreateXY(center, size, size);
+        }
+
+        public static BoundingBox CreateXY(Vector2 center, double width, double height)
+        {
+            var diag = new Vector2(width, height);
+            return CreateXY(-0.5 * diag + center, 0.5 * diag + center);
+        }
+
         public static BoundingBox CreateXY(Vector2 min, Vector2 max)
         {
-            return new BoundingBox(min: new Vector3(min.X, min.Y, 0), max: new Vector3(max.X, max.Y, 0));
+            return new BoundingBox(new Vector3(min.X, min.Y, 0), new Vector3(max.X, max.Y, 0));
+        }
+
+        public static BoundingBox CreateXY(BoundingBox box)
+        {
+            return new BoundingBox(new Vector3(box.Min.X, box.Min.Y, 0), new Vector3(box.Max.X, box.Max.Y, 0));
         }
 
         /// <summary>
