@@ -451,8 +451,8 @@ namespace OPS.Landform
         private void BuildObservationPointClouds()
         {
             var collectOpts = new WedgeObservations.CollectOptions(null, null, options.OnlyForCameras, mission)
-                {
-                    RequirePoints = false, //just range is not enough if this is true
+            {
+                    RequireReconstructable = true,
                     RequireNormals = true,
                     RequireTextures = false,
                     IncludeForAlignment = false,

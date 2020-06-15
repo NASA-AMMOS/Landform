@@ -63,6 +63,7 @@ namespace OPS.Landform
         private const int TILING_NODE_LRU_INDEX_CACHE_SIZE = 500;
 
         public const string OUT_DIR = "tiling/Tile";
+        public const string TILESET_DIR = "tiling/TileSet";
 
         protected TilingCommandOptions tilingOpts;
 

@@ -76,6 +76,13 @@ namespace OPS.TilingServer
                 return 1;
             }
 
+            if(options.TilingScheme == TilingScheme.Flat)
+            {
+                pipeline.LogError("unsupported tiling scheme: {0}",
+                                  TilingScheme.Flat);
+                return 1;
+            }
+
             string exMeshFmt = null;
             if (!string.IsNullOrEmpty(options.ExportMeshFormat))
             {

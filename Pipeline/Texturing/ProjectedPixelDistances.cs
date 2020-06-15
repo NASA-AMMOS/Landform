@@ -168,28 +168,11 @@ namespace OPS.Pipeline
 
             foreach (var curPixel in srcPixels)
             {
-                //check if pixel ray hit the mesh
-                Vector3? meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, meshCaster);
-                if (!meshPos.HasValue)
-                    continue;
-
-                //check if hit the mesh or was occluded by the scene
-                if (sceneCaster != null)
+                var meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, meshCaster, sceneCaster, raycastTolerance);
+                if(meshPos.HasValue)
                 {
-                    Vector3? scenePos = Backproject.RaycastMesh(camera, camToMesh, curPixel, sceneCaster);
-                    if (scenePos.HasValue)
-                    {
-                        double distanceToOccluder = Vector3.DistanceSquared(scenePos.Value, camToMesh.Translation);
-                        double distanceToMesh = Vector3.DistanceSquared(meshPos.Value, camToMesh.Translation);
-                        if ((distanceToOccluder - distanceToMesh) < raycastTolerance)
-                        {
-                            //occluded by other geometry
-                            continue;
-                        }
-                    }
+                    result.Add(meshPos.Value);
                 }
-
-                result.Add(meshPos.Value);
             }
 
             return result;

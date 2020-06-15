@@ -527,7 +527,7 @@ namespace OPS.Landform
 
         private void BuildBlendedObservationImages()
         {
-            pipeline.LogInfo("collecting backprojected pixels for each observation");
+            pipeline.LogInfo("building blended observation images");
             BuildBlendedObservationImages(pipeline, project, options, resolution, resolution,
                 backprojectIndex, blendedTexture, indexedImages, WriteWinnersDebug);
         }

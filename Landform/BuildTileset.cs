@@ -68,7 +68,6 @@ namespace OPS.Landform
 
     public class BuildTileset : TilingCommand
     {
-        public const string TILESET_DIR = "tiling/TileSet";
         private BuildTilesetOptions options;
 
         public BuildTileset(BuildTilesetOptions options) : base(options)

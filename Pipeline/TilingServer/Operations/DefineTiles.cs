@@ -326,7 +326,7 @@ namespace OPS.Pipeline.TilingServer
             SceneNode root = new SceneNode("");
             root.Name = "";
             root.AddComponent(new NodeBounds(combined.Bounds()));
-            root.AddComponent<MeshImagePair>(new MeshImagePair(inputs[0], null)); //TODO: use something lighter than first tile
+            root.AddComponent<MeshImagePair>(new MeshImagePair(inputs[0], null)); //TODO: ISSUE #1096 support empty nodes
             root.AddComponent<NodeGeometricError>(new NodeGeometricError(100));
 
             int counter = 1;

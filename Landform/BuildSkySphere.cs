@@ -72,7 +72,6 @@ namespace OPS.Landform
 
     public class BuildSkySphere : TilingCommand
     {
-        public const string TILESET_DIR = "tiling/TileSet";
         public const string TILING_DIR_SUFFIX = "_sky";
 
         private SceneNode tileTree;
@@ -289,7 +288,7 @@ namespace OPS.Landform
             PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
 
-            tilesetFolder = DecorateOutDir(TILESET_DIR) + TILING_DIR_SUFFIX;
+            tilesetFolder = DecorateOutDir(TilingCommand.TILESET_DIR) + TILING_DIR_SUFFIX;
 
             //need camera frustums to reach skybox
             options.TextureFarClip = options.SphereRadiusMeters * 2.0;
@@ -375,7 +374,7 @@ namespace OPS.Landform
             tileTree = DefineTiles.BuildSingleLevelBoundsTree(tiles);
         }
 
-        Mesh BuildSphereTile(Vector3 topLeft, Vector3 topRight, Vector3 bottomLeft, Vector3 bottomRight)
+        private Mesh BuildSphereTile(Vector3 topLeft, Vector3 topRight, Vector3 bottomLeft, Vector3 bottomRight)
         {
             Mesh tile = new Mesh(hasNormals: true, hasUVs: true);
             tile.Vertices = new List<Vertex>();
@@ -410,7 +409,7 @@ namespace OPS.Landform
                                                   sceneMesh.Frame, tileList.MeshFrame));
             }
 
-            var tilesToTexture = tileTree.DepthFirstTraverse()
+            var tilesToTexture = tileTree.DepthFirstTraverse() //TODO: #1096 skip root
                 .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
                 .ToList();
             int tileCount = tilesToTexture.Count;

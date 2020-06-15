@@ -762,7 +762,7 @@ namespace OPS.Pipeline
         }
 
         // raycast the mesh with an occulusion check
-        public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster meshCaster, SceneCaster occluderCaster)
+        public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster meshCaster, SceneCaster occluderCaster, double raycastTolerance = float.Epsilon)
         {            
             //check if pixel ray hit the mesh
             Vector3? meshPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, meshCaster);
@@ -770,14 +770,14 @@ namespace OPS.Pipeline
                 return null;
 
             //check if hit the mesh or was occluded by the scene
-            if (occluderCaster != meshCaster)
+            if (occluderCaster != null && occluderCaster != meshCaster)
             {
                 Vector3? occluderPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, occluderCaster);
                 if (occluderPos.HasValue)
                 {
                     double distanceToOccluder = Vector3.DistanceSquared(occluderPos.Value, obsToMesh.Translation);
                     double distanceToMesh = Vector3.DistanceSquared(meshPos.Value, obsToMesh.Translation);
-                    if ((distanceToOccluder - distanceToMesh) < float.Epsilon)
+                    if ((distanceToOccluder - distanceToMesh) < raycastTolerance)
                     {
                         //occluded by other geometry
                         return null;
