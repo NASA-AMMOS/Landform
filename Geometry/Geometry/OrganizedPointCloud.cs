@@ -299,6 +299,21 @@ namespace OPS.Geometry
             return ret;
         }
 
+        private struct TriFace
+        {
+            public int r0, c0, r1, c1, r2, c2;
+
+            public TriFace(int r0, int c0, int r1, int c1, int r2, int c2)
+            {
+                this.r0 = r0;
+                this.c0 = c0;
+                this.r1 = r1;
+                this.c1 = c1;
+                this.r2 = r2;
+                this.c2 = c2;
+            }
+        }
+
         /// <summary>
         /// build a mesh from the given points and optional normals and mask images
         /// if mask image is provided then any pixels which are 0 there are ignored
@@ -352,39 +367,39 @@ namespace OPS.Geometry
                 return pixelToVert[r,c];
             }
 
-            bool isFaceValid(int r0, int c0, int r1, int c1, int r2, int c2)
+            bool isFaceValid(TriFace f)
             {
-                if (!points.IsValid(r0, c0) || !points.IsValid(r1, c1) || !points.IsValid(r2, c2))
+                if (!points.IsValid(f.r0, f.c0) || !points.IsValid(f.r1, f.c1) || !points.IsValid(f.r2, f.c2))
                 {
                     return false;
                 }
                 if (normals != null &&
-                    (!normals.IsValid(r0, c0) || !normals.IsValid(r1, c1) || !normals.IsValid(r2, c2)))
+                    (!normals.IsValid(f.r0, f.c0) || !normals.IsValid(f.r1, f.c1) || !normals.IsValid(f.r2, f.c2)))
                 {
                     return false;
                 }
-                if (mask != null && (mask[0, r0, c0] == 0 || mask[0, r1, c1] == 0 || mask[0, r2, c2] == 0))
+                if (mask != null && (mask[0, f.r0, f.c0] == 0 || mask[0, f.r1, f.c1] == 0 || mask[0, f.r2, f.c2] == 0))
                 {
                     return false;
                 }
                 return true;
             }
 
-            bool addFaceMaybe(int r0, int c0, int r1, int c1, int r2, int c2)
+            bool addFaceMaybe(TriFace f)
             {
-                if (!isFaceValid(r0, c0, r1, c1, r2, c2))
+                if (!isFaceValid(f))
                 {
                     return false;
                 }
-                addFace(r0, c0, r1, c1, r2, c2);
+                addFace(f);
                 return true;
             }
 
-            void addFace(int r0, int c0, int r1, int c1, int r2, int c2)
+            void addFace(TriFace f)
             {
-                Vector3 v0 = new Vector3(points[0, r0, c0], points[1, r0, c0], points[2, r0, c0]);
-                Vector3 v1 = new Vector3(points[0, r1, c1], points[1, r1, c1], points[2, r1, c1]);
-                Vector3 v2 = new Vector3(points[0, r2, c2], points[1, r2, c2], points[2, r2, c2]);
+                Vector3 v0 = new Vector3(points[0, f.r0, f.c0], points[1, f.r0, f.c0], points[2, f.r0, f.c0]);
+                Vector3 v1 = new Vector3(points[0, f.r1, f.c1], points[1, f.r1, f.c1], points[2, f.r1, f.c1]);
+                Vector3 v2 = new Vector3(points[0, f.r2, f.c2], points[1, f.r2, f.c2], points[2, f.r2, f.c2]);
 
                 double s0 = Vector3.Distance(v0, v1);
                 double s1 = Vector3.Distance(v1, v2);
@@ -394,12 +409,14 @@ namespace OPS.Geometry
                 double u = Math.Max(s0, Math.Max(s1, s2));
                 if (l > 0 && u / l <= maxTriangleAspect)
                 {
-                    int a = getOrAddVert(r0, c0);
-                    int b = getOrAddVert(r1, c1);
-                    int c = getOrAddVert(r2, c2);
+                    int a = getOrAddVert(f.r0, f.c0);
+                    int b = getOrAddVert(f.r1, f.c1);
+                    int c = getOrAddVert(f.r2, f.c2);
                     ret.Faces.Add(reverseWinding ? new Face(a, c, b) : new Face(a, b, c));
                 }
             };
+
+            int ctrRow = points.Height / 2, ctrCol = points.Width / 2;
 
             List<int> tris = new List<int>();
             for (int r = 0; r < points.Height - 1; r++)
@@ -422,26 +439,65 @@ namespace OPS.Geometry
                     //         |/    |           
                     //(r + 1, c)-----(r + 1, c + 1)
 
-                    if (!quadsOnly)
+                    TriFace fa = new TriFace(r, c, r + 1, c, r + 1, c + 1);
+                    TriFace fb = new TriFace(r, c, r + 1, c + 1, r, c + 1);
+                    TriFace fc = new TriFace(r, c, r + 1, c, r, c + 1);
+                    TriFace fd = new TriFace(r, c + 1, r + 1, c, r + 1, c + 1);
+
+                    //if all four corners are valid points then in most cases it doesn't matter
+                    //whether we triangulate the quad as AB or CD
+                    //however when we heightmap atlas the peripheral orbital mesh
+                    //and then warp its texture coordinates radially
+                    //there can be artifacts near the global mesh diagonal opposite the local triangle diagonals
+                    //unless we prefer AB in the upper left and lower right quadrants
+                    //and CD in the lower left and upper right quadrants
+                    bool preferAB = (r < ctrRow && c < ctrCol) || (r >= ctrRow && c >= ctrCol);
+
+                    if (quadsOnly)
                     {
-                        if (addFaceMaybe(r, c, r + 1, c, r + 1, c + 1)) //A
+                        if (preferAB)
                         {
-                            addFaceMaybe(r, c, r + 1, c + 1, r, c + 1); //B
+                            if (isFaceValid(fa) && isFaceValid(fb))
+                            {
+                                addFace(fa);
+                                addFace(fb);
+                            }
                         }
-                        else if (addFaceMaybe(r, c, r + 1, c, r, c + 1)) //C
+                        else if (isFaceValid(fc) && isFaceValid(fd))
                         {
-                            addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
-                        }
-                        else if (!addFaceMaybe(r, c, r + 1, c + 1, r, c + 1)) //B
-                        {
-                            addFaceMaybe(r, c + 1, r + 1, c, r + 1, c + 1); //D
+                            addFace(fc);
+                            addFace(fd);
                         }
                     }
-                    else if (isFaceValid(r, c, r + 1, c, r + 1, c + 1) && //A
-                             isFaceValid(r, c, r + 1, c + 1, r, c + 1)) //B
+                    else if (preferAB)
                     {
-                        addFace(r, c, r + 1, c, r + 1, c + 1); //A
-                        addFace(r, c, r + 1, c + 1, r, c + 1); //B
+                        if (addFaceMaybe(fa))
+                        {
+                            addFaceMaybe(fb);
+                        }
+                        else if (addFaceMaybe(fc))
+                        {
+                            addFaceMaybe(fd);
+                        }
+                        else if (!addFaceMaybe(fb))
+                        {
+                            addFaceMaybe(fd);
+                        }
+                    }
+                    else
+                    {
+                        if (addFaceMaybe(fc))
+                        {
+                            addFaceMaybe(fd);
+                        }
+                        else if (addFaceMaybe(fa))
+                        {
+                            addFaceMaybe(fb);
+                        }
+                        else if (!addFaceMaybe(fd))
+                        {
+                            addFaceMaybe(fb);
+                        }
                     }
                 }
             }

@@ -75,12 +75,43 @@ namespace OPS.Geometry
             }
 
             //Build faces
+            int ctrRow = height / 2, ctrCol = width / 2;
             for(int r = 0; r < height - 1; r++)
             {
                 for(int c = 0; c < width - 1; c++)
                 {
-                    outMesh.Faces.Add(new Face(r * width + c, (r + 1) * width + c, r * width + c + 1));
-                    outMesh.Faces.Add(new Face((r + 1) * width + c, (r + 1) * width + c + 1, r * width + c + 1));
+                    //    (r, c)-----(r, c + 1)
+                    //         |\    |       
+                    //         | \ B |        
+                    //         |  \  |         
+                    //         | A \ |          
+                    //         |    \|           
+                    //(r + 1, c)-----(r + 1, c + 1)
+
+                    //    (r, c)-----(r, c + 1)
+                    //         |    /|       
+                    //         | C / |        
+                    //         |  /  |         
+                    //         | / D |          
+                    //         |/    |           
+                    //(r + 1, c)-----(r + 1, c + 1)
+
+                    //for most cases it doesn't matter whether we use AB or CD
+                    //but if we try to keep the local triangle diagonals in roughly the same direction
+                    //as the global mesh diagonals then we avoid some artifacts when warping texture coordinates
+                    //also see OrganizedPointCloud.BuildOrganizedMesh()
+                    bool preferCD = (r < ctrRow && c < ctrCol) || (r >= ctrRow && c >= ctrCol);
+
+                    if (preferCD)
+                    {
+                        outMesh.Faces.Add(new Face(r * width + c, (r + 1) * width + c, r * width + c + 1));
+                        outMesh.Faces.Add(new Face((r + 1) * width + c, (r + 1) * width + c + 1, r * width + c + 1));
+                    }
+                    else
+                    {
+                        outMesh.Faces.Add(new Face(r * width + c, (r + 1) * width + c, (r + 1) * width + c + 1));
+                        outMesh.Faces.Add(new Face(r * width + c, (r + 1) * width + c + 1, r * width + c + 1));
+                    }
                 }
             }
             outMesh.HasUVs = true;
