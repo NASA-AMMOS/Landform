@@ -1,4 +1,5 @@
-﻿using System;
+﻿//#define DBG_UV
+using System;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
@@ -1213,13 +1214,27 @@ namespace OPS.Landform
                 mesh = Mesh.Merge(msg => pipeline.LogWarn(msg), centralMesh, peripheralMesh);
             }
 
-            if (dstSurfaceFrac > srcSurfaceFrac && !options.NoTextureWarp)
+            void saveDbgMeshes(string name)
             {
                 if (options.WriteDebug)
                 {
-                    SaveMesh(mesh, dbgMeshPrefix + "-prewarpAtlassed");
+                    SaveMesh(mesh, dbgMeshPrefix + "-" + name);
+#if DBG_UV
+                    var tmp = new Mesh(mesh);
+                    tmp.ColorByUV();
+                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "UV");
+                    tmp.ColorByUV(vChannel: -1);
+                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "U");
+                    tmp.ColorByUV(uChannel: -1);
+                    SaveMesh(tmp, dbgMeshPrefix + "-" + name + "V");
+#endif
+                }
             }
 
+            if (dstSurfaceFrac > srcSurfaceFrac && !options.NoTextureWarp)
+            {
+                saveDbgMeshes("prewarpAtlassed");
+                
                 pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}", srcSurfaceFrac, dstSurfaceFrac);
                 
                 pipeline.LogInfo("central meters per pixel: {0:F3}", blendExtent / (dstSurfaceFrac * res));
@@ -1234,10 +1249,7 @@ namespace OPS.Landform
                 mesh.WarpUVs(src, dst);
             }
 
-            if (options.WriteDebug)
-            {
-                SaveMesh(mesh, dbgMeshPrefix + "-atlassed");
-            }
+            saveDbgMeshes("atlassed");
         }
 
         private void SaveSceneMesh()

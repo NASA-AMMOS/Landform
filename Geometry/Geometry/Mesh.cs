@@ -17,7 +17,7 @@ namespace OPS.Geometry
     /// </summary>
     public enum SkirtMode { X, Y, Z, Normal, None }
 
-    public enum MeshColor { None, Texture, Normals, NormalMagnitude, Elevation, Curvature };
+    public enum MeshColor { None, Texture, Normals, NormalMagnitude, Elevation, Curvature, TexCoord, TexU, TexV };
     
     /// <summary>
     /// A class representing a 3D mesh
@@ -2273,6 +2273,27 @@ namespace OPS.Geometry
             ColorByCurvature(out double min, out double max);
         }
 
+        public void ColorByUV(int uChannel = 0, int vChannel = 1)
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("no texture coordinates");
+            }
+            foreach (var v in Vertices)
+            {
+                v.Color.X = v.Color.Y = v.Color.Z = 0;
+                if (uChannel >= 0 && uChannel < 3)
+                {
+                    v.Color[uChannel] = v.UV.X;
+                }
+                if (vChannel >= 0 && vChannel < 3)
+                {
+                    v.Color[vChannel] = v.UV.Y;
+                }
+            }
+            HasColors = true;
+        }
+
         /// <summary>
         /// set the colors of this mesh according to the specified mode 
         /// does nothing if mode=Texture or mode=None
@@ -2316,6 +2337,24 @@ namespace OPS.Geometry
                 {
                     ColorByElevation(out min, out max);
                     adjustColors = greyscale = true;
+                    break;
+                }
+                case MeshColor.TexCoord:
+                {
+                    ColorByUV();
+                    adjustColors = false;
+                    break;
+                }
+                case MeshColor.TexU:
+                {
+                    ColorByUV(vChannel: -1);
+                    adjustColors = false;
+                    break;
+                }
+                case MeshColor.TexV:
+                {
+                    ColorByUV(uChannel: -1);
+                    adjustColors = false;
                     break;
                 }
             }
