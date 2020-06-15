@@ -223,6 +223,173 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// A vertical AA trapezoid has vertical left and right sides (llc, ulc) and (lrc, urc):
+        ///
+        /// ulc
+        /// |  \
+        /// |   \
+        /// |    urc
+        /// |    |
+        /// |    |
+        /// |    lrc
+        /// |   /
+        /// |  /
+        /// llc
+        ///
+        /// A horizontal AA trapezoid has horizontal top and bottom sides (llc, lrc) and (ulc, urc):
+        ///
+        ///  
+        ///    ulc--------urc
+        ///   /              \
+        /// llc---------------lrc
+        /// </summary>
+        private class AxisAlignedTrapezoid
+        {
+            private bool vertical;
+
+            private Vector2 llc, lrc, urc, ulc;
+
+            private double span, invSpan;
+
+            private const double eps = 1e-12;
+
+            public AxisAlignedTrapezoid(Vector2 llc, Vector2 lrc, Vector2 urc, Vector2 ulc)
+            {
+                vertical = llc.X == ulc.X && lrc.X == urc.X;
+                bool horizontal = llc.Y == lrc.Y && urc.Y == ulc.Y;
+                if (!vertical && !horizontal)
+                {
+                    throw new ArgumentException("not axis aligned");
+                }
+                this.llc = llc;
+                this.lrc = lrc;
+                this.urc = urc;
+                this.ulc = ulc;
+                span = vertical ? (lrc.X - llc.X) : (ulc.Y - llc.Y);
+                invSpan = 1.0 / span;
+            }
+
+            public Vector2 AbsoluteToRelative(Vector2 p)
+            {
+                if (vertical)
+                {
+                    double x = p.X - llc.X;
+                    //if x ~= 0 then let leave it even if trapezoid is degenerate (span ~= 0)
+                    //if !(x ~= 0) then let x go nuts if trapezoid is degenerate, because p is outside it
+                    if (Math.Abs(x) > eps)
+                    { 
+                        x *= invSpan;
+                    }
+                    double y0 = (1.0 - x) * llc.Y + x * lrc.Y;
+                    double y1 = (1.0 - x) * ulc.Y + x * urc.Y;
+                    double dy = y1 - y0;
+                    double y = p.Y - y0;
+                    if (Math.Abs(y) > eps) // similar logic as above
+                    {
+                        y /= dy;
+                    }
+                    return new Vector2(x, y);
+                }
+                else
+                {
+                    double y = p.Y - llc.Y;
+                    if (Math.Abs(y) > eps)
+                    {
+                        y *= invSpan;
+                    }
+                    double x0 = (1.0 - y) * llc.X + y * ulc.X;
+                    double x1 = (1.0 - y) * lrc.X + y * urc.X;
+                    double dx = x1 - x0;
+                    double x = p.X - x0;
+                    if (Math.Abs(x) > eps)
+                    {
+                        x /= dx;
+                    }
+                    return new Vector2(x, y);
+                }
+            }
+
+            public Vector2 RelativeToAbsolute(Vector2 p)
+            {
+                if (vertical)
+                {
+                    double y0 = (1.0 - p.X) * llc.Y + p.X * lrc.Y;
+                    double y1 = (1.0 - p.X) * ulc.Y + p.X * urc.Y;
+                    return new Vector2(llc.X + p.X * span, y0 + p.Y * (y1 - y0));
+                }
+                else
+                {
+                    double x0 = (1.0 - p.Y) * llc.X + p.Y * ulc.X;
+                    double x1 = (1.0 - p.Y) * lrc.X + p.Y * urc.X;
+                    return new Vector2(x0 + p.X * (x1 - x0), llc.Y + p.Y * span);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Create a function to warp src to dst relative to box, ignoring Z coordinates.
+        ///
+        /// The box is split into 5 regions, a central rectangle surrounded by four trapezoids, for src and dst:
+        ///
+        /// \|||||||||||||||||/      \|||||||||||||||||/
+        /// -\|||||||||||||||/-      -\|||||||A|||||||/-
+        /// --\||||||a||||||/--      --\|||||||||||||/--
+        /// ---\|||||||||||/---      ---xxxxxxxxxxxxx---
+        /// ----\|||||||||/----      ---xxxxxxxxxxxxx---
+        /// -----xxxxxxxxx-----      ---xxxxxxxxxxxxx---
+        /// -----xxxxxxxxx-----      ---xxxxxxxxxxxxx---
+        /// -----xxxxxxxxx-----      ---xxxxxxxxxxxxx---
+        /// --b--xxxSRCxxx--c-- ---> -B-xxxxxDSTxxxxx-C-
+        /// -----xxxxxxxxx-----      ---xxxxxxxxxxxxx---
+        /// -----xxxxxxxxx-----      ---xxxxxxxxxxxxx---
+        /// -----xxxxxxxxx-----      ---xxxxxxxxxxxxx---
+        /// ----/|||||||||\----      ---xxxxxxxxxxxxx---
+        /// ---/|||||||||||\---      ---xxxxxxxxxxxxx---
+        /// --/||||||d||||||\--      --/|||||||||||||\--
+        /// -/|||||||||||||||\-      -/|||||||D|||||||\-
+        /// /|||||||||||||||||\      /|||||||||||||||||\
+        ///
+        /// Points are bilinearly mapped from SRC to DST and from {a-d} to {A-D}.
+        /// </summary>
+        public static Func<Vector2, Vector2> Create2DWarpFunction(this BoundingBox box,
+                                                                  BoundingBox src, BoundingBox dst)
+        {
+            Func<BoundingBox, Vector2> llc = b => b.Min.XY();
+            Func<BoundingBox, Vector2> lrc = b => new Vector2(b.Max.X, b.Min.Y);
+            Func<BoundingBox, Vector2> urc = b => b.Max.XY();
+            Func<BoundingBox, Vector2> ulc = b => new Vector2(b.Min.X, b.Max.Y);
+
+            var mappings = new List<Tuple<AxisAlignedTrapezoid, AxisAlignedTrapezoid>>();
+
+            void addPair(Vector2 srcLLC, Vector2 srcLRC, Vector2 srcURC, Vector2 srcULC,
+                         Vector2 dstLLC, Vector2 dstLRC, Vector2 dstURC, Vector2 dstULC)
+            {
+                var s = new AxisAlignedTrapezoid(srcLLC, srcLRC, srcURC, srcULC);
+                var d = new AxisAlignedTrapezoid(dstLLC, dstLRC, dstURC, dstULC);
+                mappings.Add(new Tuple<AxisAlignedTrapezoid, AxisAlignedTrapezoid>(s, d));
+            }
+
+            addPair(llc(src), lrc(src), urc(src), ulc(src), llc(dst), lrc(dst), urc(dst), ulc(dst)); //src -> dst
+            addPair(ulc(src), urc(src), urc(box), ulc(box), ulc(dst), urc(dst), urc(box), ulc(box)); //a -> A
+            addPair(llc(box), llc(src), ulc(src), ulc(box), llc(box), llc(dst), ulc(dst), ulc(box)); //b -> B
+            addPair(lrc(src), lrc(box), urc(box), urc(src), lrc(dst), lrc(box), urc(box), urc(dst)); //c -> C
+            addPair(llc(box), lrc(box), lrc(src), llc(src), llc(box), lrc(box), lrc(dst), llc(dst)); //d -> D
+                        
+            return v =>
+            {
+                foreach (var pair in mappings)
+                {
+                    var r = pair.Item1.AbsoluteToRelative(v);
+                    if (r.X >= 0 && r.X <= 1 && r.Y >= 0 && r.Y <= 1)
+                    {
+                        return pair.Item2.RelativeToAbsolute(r);
+                    }
+                }
+                return v;
+            };
+        }
+
+        /// <summary>
         /// Returns true if the inner is totally inside or equal to the outer
         /// Note that this method is similar to BoundingBox.Contains except that it allows for floating point
         /// error.
