@@ -1702,6 +1702,35 @@ namespace OPS.Geometry
         }
 
         /// <summary>
+        /// remap UVs from src to dst, squishing those outside of src  
+        /// </summary>
+        public void WarpUVs(BoundingBox src, BoundingBox dst)
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
+            var box = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, 1);
+            var warp = box.Create2DWarpFunction(src, dst);
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = warp(v.UV);
+            }
+        }
+
+        public void SwapUVs()
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = v.UV.Swap();
+            }
+        }
+
+        /// <summary>
         /// compute total texture area in pixels covered by this mesh
         /// </summary>
         public double ComputePixelArea(Image image)
