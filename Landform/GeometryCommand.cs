@@ -4,7 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Diagnostics;
 using CommandLine;
+using Microsoft.Xna.Framework;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline;
@@ -24,6 +26,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Max texture stretch, 0 for none, 1 for unlimited", Default = 0.1)]
         public double MaxTextureStretch { get; set; }
+
+        [Option(HelpText = "Min fraction of texture space to use for surface data", Default = 0.5)]
+        public double MinSurfaceTextureFraction { get; set; }
+
+        [Option(HelpText = "Disable texture space warp", Default = false)]
+        public bool NoTextureWarp { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -214,7 +222,7 @@ namespace OPS.Landform
             return url;
         }
 
-        protected virtual Mesh AtlasMesh(Mesh mesh, int resolution, string name = null) 
+        protected virtual Mesh UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
 
@@ -243,6 +251,22 @@ namespace OPS.Landform
             }
 
             return mesh;
+        }
+
+        protected virtual Mesh HeightmapAtlasMesh(Mesh mesh)
+        {
+            //swap U and V because mission surface frames are typically X north, Y east
+            //this doesn't really matter here except that backproject texture images created to match these flipped UVs
+            //will have north up and east right in image viewers, matching the orientation of other debug images
+            mesh.HeightmapAtlas(BoxAxis.Z, swapUV: true);
+            return mesh;
+        }
+
+        protected Vector2 PointToUV(BoundingBox meshBounds, Vector3 pt)
+        {
+            //regarding the Swap() see comments in HeightmapAtlasMesh()
+            var uvScale = meshBounds.Size().XY().Invert();
+            return ((pt.XY() - meshBounds.Min.XY()) * uvScale).Swap();
         }
     }
 }

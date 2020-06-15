@@ -1,3 +1,4 @@
+//#define DBG_DIFF
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -63,10 +64,14 @@ using OPS.Pipeline.TilingServer;
 ///
 /// We then interpolate these adjustments across the original observation images and save those new images as a
 /// "Blended" variant of the observation images.  Several strategies to perform this interopolation are implemented
-/// using various combinations of inpaint, barycentric interpolation, and blurring.  A default strategy is
-/// automatically selected depending on where in the workflow blend-images is run.
+/// using various combinations of inpaint, barycentric interpolation, and blurring.  A default strategy is automatically
+/// selected depending on where in the workflow blend-images is run.  Typically the strategy includes a full inpainting
+/// of the adjustment values across the entire observation images, because the sampled pixel locations used for blending
+/// may differ significantly from those ultimately used for backprojecting the scene texture.  For example, this can be
+/// due to using a coarser resolution (e.g. 4k) for the blend texture vs the final scene texture which could be e.g. 8k
+/// if making a monolithic output mesh, or variable if making a tileset.
 ///
-/// If run before build-tiling-input, that stage will detect that Blended variants of (at least some) observation images
+/// If run before build-tiling-input, that stage will detect that blended variants of (at least some) observation images
 /// are available, and use them to build the leaf tile textures.
 ///
 /// If run after build-tiling-input the existing leaf tile textures are directly replaced with blended versions.
@@ -78,7 +83,7 @@ using OPS.Pipeline.TilingServer;
 /// A textured scene mesh is also optionally saved to the location given by the second positional command line
 /// parameter, which has similar semantics to the --outputmesh option in build-geometry. The blended texture is saved as
 /// its sibling.  When run after build-geometry this will be the shrinkwrap mesh textured with the coherent blended
-/// scene texture.  When run after build-texture this will be the original scene mesh textured with a different version
+/// scene texture.  When run after build-texture this will be the original scene mesh textured with a version
 /// of the blended scene texture that is generated to match the existing scene texture resolution and UV atlas.  Saving
 /// the mesh is not supported when run after build-tiling-input, except in the unusual case that build-texture has also
 /// already been run.
@@ -110,16 +115,13 @@ namespace OPS.Landform
         [Option(HelpText = "Canned blend strategy (Default, Barycentric, Inpaint)", Default = BlendStrategy.Auto)]
         public BlendStrategy BlendStrategy { get; set; }
 
-        [Option(HelpText = "Inpaint backprojected pixels in diff images by this many pixels, 0 to disable, negative for unlimited", Default = 0)]
-        public int InpaintWinners { get; set; }
-
-        [Option(HelpText = "Don't barycentric interpolate backprojected pixels in diff images", Default = false)]
-        public bool NoBarycentricInterpolateWinners { get; set; }
+        [Option(HelpText = "Barycentric interpolate backprojected pixels in diff images", Default = false)]
+        public bool BarycentricInterpolateWinners { get; set; }
 
         [Option(HelpText = "Barycentric interpolate max triangle side length in pixels", Default = 100)]
         public double BarycentricInterpolateMaxTriangleSideLengthPixels { get; set; }
 
-        [Option(HelpText = "Inpaint final diff images by this many pixels, 0 to disable, negative for unlimited", Default = 20)]
+        [Option(HelpText = "Inpaint diff images by this many pixels (after Barycentric interpolation, if any), 0 to disable, negative for unlimited", Default = -1)]
         public int InpaintDiff { get; set; }
 
         [Option(Required = false, HelpText = "Diff image blur radius, 0 to disable", Default = 7)]
@@ -182,7 +184,7 @@ namespace OPS.Landform
         {
             this.options = options;
 
-            if (options.Redo) 
+            if (options.Redo)
             {
                 options.RedoShrinkwrapMesh = true;
                 options.RedoBlurredTexture = true;
@@ -307,23 +309,21 @@ namespace OPS.Landform
             {
                 case BlendStrategy.None: break;
                 case BlendStrategy.Barycentric:
-                    {
-                        options.InpaintWinners = 0;
-                        options.NoBarycentricInterpolateWinners = false;
-                        options.InpaintDiff = 20;
-                        options.BlurDiff = 7;
-                        options.NoFillBlendWithAverageDiff = false;
-                        break;
-                    }
+                {
+                    options.BarycentricInterpolateWinners = true;
+                    options.InpaintDiff = -1;
+                    options.BlurDiff = 7;
+                    options.NoFillBlendWithAverageDiff = false;
+                    break;
+                }
                 case BlendStrategy.Inpaint:
-                    {
-                        options.InpaintWinners = 20;
-                        options.NoBarycentricInterpolateWinners = true;
-                        options.InpaintDiff = 0;
-                        options.BlurDiff = 7;
-                        options.NoFillBlendWithAverageDiff = false;
-                        break;
-                    }
+                {
+                    options.BarycentricInterpolateWinners = false;
+                    options.InpaintDiff = -1;
+                    options.BlurDiff = 7;
+                    options.NoFillBlendWithAverageDiff = false;
+                    break;
+                }
                 default: throw new Exception("unknown blend strategy: " + options.BlendStrategy);
             }
 
@@ -347,61 +347,103 @@ namespace OPS.Landform
 
         private void LoadOrBuildShrinkwrapMesh()
         {
-            void writeDebug()
-            {
-                if (options.WriteDebug)
-                {
-                    SaveMesh(mesh, sceneMesh.Name);
-                }
-            }
-
             if (sceneMesh.MeshGuid != Guid.Empty && !options.RedoShrinkwrapMesh)
             {
                 pipeline.LogInfo("loading existing shrinkwrap mesh from database");
                 mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                meshLOD = new List<Mesh>() { mesh };
-                writeDebug();
-                return;
-            }
-
-            Mesh inputMesh = null;
-            if (!string.IsNullOrEmpty(options.InputMesh))
-            {
-                pipeline.LogInfo("loading input mesh from {0}", options.InputMesh);
-                inputMesh = Mesh.Load(pipeline.GetFileCached(options.InputMesh, "meshes"));
             }
             else
             {
-                SceneMesh dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
-                if (dsm != null && dsm.MeshGuid != Guid.Empty)
+                double surfaceExtent = 0;
+                Mesh inputMesh = null;
+                if (!string.IsNullOrEmpty(options.InputMesh))
                 {
-                    pipeline.LogInfo("loading scene mesh from database");
-                    inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, dsm.MeshGuid).Mesh;
+                    pipeline.LogInfo("loading input mesh from {0}", options.InputMesh);
+                    inputMesh = Mesh.Load(pipeline.GetFileCached(options.InputMesh, "meshes"));
                 }
                 else
                 {
-                    throw new Exception("no input mesh specified and no scene mesh in database");
+                    SceneMesh dsm = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Default, siteDrives);
+                    if (dsm != null && dsm.MeshGuid != Guid.Empty)
+                    {
+                        pipeline.LogInfo("loading scene mesh from database");
+                        inputMesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, dsm.MeshGuid).Mesh;
+                        surfaceExtent = dsm.SurfaceExtent;
+                    }
+                    else
+                    {
+                        throw new Exception("no input mesh specified and no scene mesh in database");
+                    }
+                }
+
+                if (inputMesh == null || inputMesh.Faces.Count == 0)
+                {
+                    throw new Exception("failed to load input mesh or input mesh empty");
+                }
+
+                pipeline.LogInfo("generating shrinkwrap mesh in frame {0} from input mesh with {1} faces" +
+                                 ": grid resolution {2}, projection axis {3}, mode {4}, miss behavior {5}",
+                                 meshFrame, Fmt.KMG(inputMesh.Faces.Count), options.GridResolution,
+                                 options.ProjectionAxis, options.ShrinkwrapMode, options.ShrinkwrapMiss);
+
+                Mesh gridMesh = Shrinkwrap.BuildGrid(inputMesh, options.GridResolution, options.GridResolution,
+                                                     options.ProjectionAxis);
+
+                mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis,
+                                       options.ShrinkwrapMiss);
+
+                mesh.SwapUVs(); //see comments in GeometryCommand.HeightmapAtlasMesh()
+
+                pipeline.LogInfo("built shrinkwrap mesh with {0} faces", Fmt.KMG(mesh.Faces.Count));
+
+                if (surfaceExtent > 0 && orbitalTextureMetersPerPixel > 0 && !options.NoTextureWarp)
+                {
+                    double res = sceneTextureResolution;
+
+                    var meshBounds = mesh.Bounds();
+                    var bs = meshBounds.Size();
+                    double xyExtent = 0.5 * (bs.X + bs.Y);
+
+                    double srcSurfaceFrac = surfaceExtent / xyExtent;
+
+                    double orbitalPixels = (xyExtent - surfaceExtent) / orbitalTextureMetersPerPixel;
+                    double dstSurfaceFrac = Math.Max(options.MinSurfaceTextureFraction, (res - orbitalPixels) / res);
+
+                    if (dstSurfaceFrac > srcSurfaceFrac)
+                    {
+                        if (options.WriteDebug)
+                        {
+                            SaveMesh(mesh, sceneMesh.Name + "-prewarp");
+                        }
+
+                        pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}",
+                                         srcSurfaceFrac, dstSurfaceFrac);
+
+                        pipeline.LogInfo("central meters per pixel: {0:F3}", surfaceExtent / (dstSurfaceFrac * res));
+
+                        pipeline.LogInfo("orbital meters per pixel: {0:F3}",
+                                         (xyExtent - surfaceExtent) / ((1 - dstSurfaceFrac) * res));
+
+                        var surfaceBounds = BoundingBoxExtensions.CreateXY(srcSurfaceFrac * xyExtent);
+
+                        var src = BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, surfaceBounds.Min),
+                                                                 PointToUV(meshBounds, surfaceBounds.Max));
+                        var dst = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, dstSurfaceFrac);
+
+                        mesh.WarpUVs(src, dst);
+                    }
+                }
+
+                if (!options.NoSave && mesh.Faces.Count > 0)
+                {
+                    pipeline.LogInfo("saving shrinkwrap mesh");
+                    sceneMesh.SetBounds(mesh.Bounds());
+                    var meshProd = new PlyGZDataProduct(mesh);
+                    pipeline.SaveDataProduct(project, meshProd);
+                    sceneMesh.MeshGuid = meshProd.Guid;
+                    sceneMesh.Save(pipeline);
                 }
             }
-
-            if (inputMesh == null || inputMesh.Faces.Count == 0)
-            {
-                throw new Exception("failed to load input mesh or input mesh empty");
-            }
-
-            pipeline.LogInfo("generating shrinkwrap mesh in frame {0} from input mesh with {1} faces" +
-                             ": grid resolution {2}, projection axis {3}, mode {4}, miss behavior {5}",
-                             meshFrame, Fmt.KMG(inputMesh.Faces.Count), options.GridResolution, options.ProjectionAxis,
-                             options.ShrinkwrapMode, options.ShrinkwrapMiss);
-
-            Mesh gridMesh = Shrinkwrap.BuildGrid(inputMesh, options.GridResolution, options.GridResolution,
-                                                 options.ProjectionAxis);
-
-            mesh = Shrinkwrap.Wrap(gridMesh, inputMesh, options.ShrinkwrapMode, options.ProjectionAxis,
-                                   options.ShrinkwrapMiss);
-            meshLOD = new List<Mesh>() { mesh };
-
-            pipeline.LogInfo("built shrinkwrap mesh with {0} faces", Fmt.KMG(mesh.Faces.Count));
 
             if (mesh.Faces.Count == 0)
             {
@@ -413,17 +455,12 @@ namespace OPS.Landform
                 throw new Exception("shrinkwrap mesh needs UVs");
             }
 
-            if (!options.NoSave)
-            {
-                pipeline.LogInfo("saving shrinkwrap mesh");
-                sceneMesh.SetBounds(mesh.Bounds());
-                var meshProd = new PlyGZDataProduct(mesh);
-                pipeline.SaveDataProduct(project, meshProd);
-                sceneMesh.MeshGuid = meshProd.Guid;
-                sceneMesh.Save(pipeline);
-            }
+            meshLOD = new List<Mesh>() { mesh };
 
-            writeDebug();
+            if (options.WriteDebug)
+            {
+                SaveMesh(mesh, sceneMesh.Name);
+            }
         }
 
         private void LoadOrBuildBlurredTexture()
@@ -573,7 +610,7 @@ namespace OPS.Landform
 
             //obs index => (obsCol, obsRow) => (sumBlendedR, sumBlendedG, sumBlendedB, num)
             var winners = new Dictionary<int, Dictionary<Vector2, Vector4>>();
-            
+
             for (int r = 0; r < sceneTextureResolution; r++)
             {
                 for (int c = 0; c < sceneTextureResolution; c++)
@@ -636,16 +673,16 @@ namespace OPS.Landform
                     SaveDebugWedgeImage(img, obs, suffix);
                 }
             }
-            
+
             int no = indexedImages.Count;
             var strat = options.BlendStrategy;
             pipeline.LogInfo("creating blended images for {0} observations{1}",
                              no, strat != BlendStrategy.None ? (", strategy " + strat) : "");
-            pipeline.LogInfo("inpaint winners: {0}, barycentric interp: {1}, inpaint diff: {2}, blur diff: {3}, " +
-                             "fill avg: {4}", options.InpaintWinners, !options.NoBarycentricInterpolateWinners,
-                             options.InpaintDiff, options.BlurDiff, !options.NoFillBlendWithAverageDiff);
+            pipeline.LogInfo("barycentric interp: {0}, inpaint diff: {1}, blur diff: {2}, fill avg: {3}",
+                             options.BarycentricInterpolateWinners, options.InpaintDiff, options.BlurDiff,
+                             !options.NoFillBlendWithAverageDiff);
 
-            if (!options.NoBarycentricInterpolateWinners &&
+            if (options.BarycentricInterpolateWinners &&
                 options.BarycentricInterpolateMaxTriangleSideLengthPixels > 0)
             {
                 pipeline.LogInfo("barycentric interpolate max triangle side {0}px",
@@ -655,212 +692,252 @@ namespace OPS.Landform
             double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
 
             int np = 0, nc = 0, nf = 0;
-            CoreLimitedParallel.ForEach(indexedImages, entry => {
+            CoreLimitedParallel.ForEach(indexedImages, entry =>
+            {
+                int obsIndex = entry.Key;
+                Observation obs = entry.Value;
+                
+                if (obs.IsOrbital)
+                {
+                    //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1046
+                    Interlocked.Increment(ref nc);
+                    return;
+                }
+                
+                if (!options.RedoBlendedObservationTextures && obs.BlendedGuid != Guid.Empty)
+                {
+                    writeDebug(pipeline.LoadImage(obs.Url), obs, "");
+                    writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlendedGuid).Image,
+                               obs, "_blended");
+                    Interlocked.Increment(ref nc);
+                    return;
+                }
 
-                    int obsIndex = entry.Key;
-                    Observation obs = entry.Value;
-                    
-                    if (obs.IsOrbital)
+                if (!winners.ContainsKey(obsIndex))
+                {
+                    pipeline.LogVerbose("cannot blend image for observation {0}, no points backprojected to it",
+                                        obs.Name);
+                    Interlocked.Increment(ref nf);
+                    if (!options.NoSave)
                     {
-                        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1046
-                        Interlocked.Increment(ref nc);
-                        return;
+                        obs.BlendedGuid = Guid.Empty;
+                        obs.Save(pipeline);
+                    }
+                    Interlocked.Increment(ref nc);
+                    return;
+                }
+
+                if (obs.Bands != 3 && obs.Bands != 1)
+                {
+                    pipeline.LogWarn("blending observation image {0} with {1} bands not supported",
+                                     obs.Name, obs.Bands);
+                    if (!options.NoSave)
+                    {
+                        obs.BlendedGuid = Guid.Empty;
+                        obs.Save(pipeline);
+                    }
+                    Interlocked.Increment(ref nc);
+                    return;
+                }
+
+                Interlocked.Increment(ref np);
+
+                if (!options.NoProgress)
+                {
+                    pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
+                                     "completed {2}/{3}", obs.Name, np, nc, no);
+                }
+
+                Image img = pipeline.LoadImage(obs.Url);
+                writeDebug(img, obs, "");
+
+                Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image;
+
+                var diffImage = new Image(img.Bands, img.Width, img.Height);
+                diffImage.CreateMask(true); //all pixels initially masked
+
+                var avgDiff = new float[obs.Bands];
+                int numWinners = 0;
+                foreach (var winner in winners[obsIndex])
+                {
+                    Vector2 obsPixel = winner.Key;
+                    Vector4 blendedSum = winner.Value;
+                    Vector3 blendedRGB = new Vector3(blendedSum.X, blendedSum.Y, blendedSum.Z) / blendedSum.W;
+
+                    int or = (int)obsPixel.Y;
+                    int oc = (int)obsPixel.X;
+                    if (or < 0 || or >= img.Height || oc < 0 || oc >= img.Width)
+                    {
+                        pipeline.LogWarn("backprojected pixel out of bounds in observation {0}", obs.Name);
+                        continue;
                     }
 
-                    if (!options.RedoBlendedObservationTextures && obs.BlendedGuid != Guid.Empty)
+                    float[] diff = null;
+                    if (obs.Bands == 3)
                     {
-                        writeDebug(pipeline.LoadImage(obs.Url), obs, "");
-                        writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlendedGuid).Image,
-                                   obs, "_blended");
-                        Interlocked.Increment(ref nc);
-                        return;
-                    }
-
-                    if (!winners.ContainsKey(obsIndex))
-                    {
-                        pipeline.LogVerbose("cannot blend image for observation {0}, no points backprojected to it",
-                                            obs.Name);
-                        Interlocked.Increment(ref nf);
-                        if (!options.NoSave)
-                        {
-                            obs.BlendedGuid = Guid.Empty;
-                            obs.Save(pipeline);
-                        }
-                        Interlocked.Increment(ref nc);
-                        return;
-                    }
-
-                    if (obs.Bands != 3 && obs.Bands != 1)
-                    {
-                        pipeline.LogWarn("blending observation image {0} with {1} bands not supported",
-                                         obs.Name, obs.Bands);
-                        if (!options.NoSave)
-                        {
-                            obs.BlendedGuid = Guid.Empty;
-                            obs.Save(pipeline);
-                        }
-                        Interlocked.Increment(ref nc);
-                        return;
-                    }
-                    
-                    Interlocked.Increment(ref np);
-
-                    if (!options.NoProgress)
-                    {
-                        pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
-                                         "completed {2}/{3}", obs.Name, np, nc, no);
-                    }
-
-                    Image img = pipeline.LoadImage(obs.Url);
-                    writeDebug(img, obs, "");
-                    
-                    Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image;
-
-                    var diffImage = new Image(img.Bands, img.Width, img.Height);
-                    diffImage.CreateMask(true); //all pixels initially masked
-
-                    var avgDiff = new float[obs.Bands];;
-                    int numWinners = 0;
-                    foreach (var winner in winners[obsIndex])
-                    {
-                        Vector2 obsPixel = winner.Key;
-                        Vector4 blendedSum = winner.Value;
-                        Vector3 blendedRGB = new Vector3(blendedSum.X, blendedSum.Y, blendedSum.Z) / blendedSum.W;
-                        
-                        int or = (int)obsPixel.Y;
-                        int oc = (int)obsPixel.X;
-                        if (or < 0 || or >= img.Height || oc < 0 || oc >= img.Width)
-                        {
-                            pipeline.LogWarn("backprojected pixel out of bounds in observation {0}", obs.Name);
-                            continue;
-                        }
-
-                        float[] diff = null;
-                        if (obs.Bands == 3)
-                        {
-                            Vector3 d = blendedRGB - new Vector3(blr[0, or, oc], blr[1, or, oc], blr[2, or, oc]);
-                            diff = new float[] { (float)d.X, (float)d.Y, (float)d.Z };
-                        }
-                        else
-                        {
-                            float br = (float)blendedRGB.X;
-                            float bg = (float)blendedRGB.Y;
-                            float bb = (float)blendedRGB.Z;
-                            double luminance = (new Rgb() { R = 255 * br, G = 255 * bg, B = 255 * bb }).To<Lab>().L;
-                            diff = new float[] { (float)(luminance / maxLuminance) - blr[0, or, oc] };
-                        }
-
-                        for (int i = 0; i < obs.Bands; i++)
-                        {
-                            avgDiff[i] += diff[i];
-                        }
-                        
-                        diffImage.SetBandValues(or, oc, diff);
-                        diffImage.SetMaskValue(or, oc, false);
-
-                        numWinners++;
-                    }
-
-                    if (numWinners > 0)
-                    {
-                        for (int i = 0; i < obs.Bands; i++)
-                        {
-                            avgDiff[i] /= numWinners;
-                        }
-                        
-                        if (options.InpaintWinners != 0)
-                        {
-                            diffImage.Inpaint(options.InpaintWinners);
-                        }
-                        
-                        if (!options.NoBarycentricInterpolateWinners && numWinners >= 3)
-                        {
-                            Func<Mesh, Face, bool> filter = null;
-                            double ms = options.BarycentricInterpolateMaxTriangleSideLengthPixels;
-                            if (ms > 0)
-                            {
-                                double ms2 = ms * ms;
-                                filter = (mesh, tri) =>
-                                {
-                                    var v0 = mesh.Vertices[tri.P0];
-                                    var v1 = mesh.Vertices[tri.P1];
-                                    var v2 = mesh.Vertices[tri.P2];
-                                    var d0 = Vector3.DistanceSquared(v0.Position, v1.Position);
-                                    if (d0 > ms2) return false;
-                                    var d1 = Vector3.DistanceSquared(v1.Position, v2.Position);
-                                    if (d1 > ms2) return false;
-                                    var d2 = Vector3.DistanceSquared(v2.Position, v0.Position);
-                                    if (d2 > ms2) return false;
-                                    return true;
-                                };
-                            }
-                            Rasterizer.BarycentricInterpolate(diffImage, filter);
-                        }
-                        
-                        if (options.InpaintDiff != 0)
-                        {
-                            diffImage.Inpaint(options.InpaintDiff);
-                        }
-
-                        if (options.BlurDiff > 0)
-                        {
-                            diffImage.GaussianBoxBlur(options.BlurDiff, blendMasked: true);
-                        }
-
-                        writeDebug(diffImage, obs, "_diff");
-                        
-                        Image blendedImage = diffImage; //yes, alias
-                        for (int b = 0; b < img.Bands; b++)
-                        {
-                            for (int r = 0; r < img.Height; r++)
-                            {
-                                for (int c = 0; c < img.Width; c++)
-                                {
-                                    if (diffImage.IsValid(r, c))
-                                    {
-                                        blendedImage[b, r, c] = MathE.Clamp01(diffImage[b, r, c] + img[b, r, c]);
-                                    }
-                                    else if (!options.NoFillBlendWithAverageDiff)
-                                    {
-                                        blendedImage[b, r, c] = MathE.Clamp01(avgDiff[b] + img[b, r, c]);
-                                    }
-                                    else
-                                    {
-                                        blendedImage[b, r, c] = img[b, r, c];
-                                    }
-                                }
-                            }
-                        }
-                        
-                        blendedImage.DeleteMask();
-                        
-                        writeDebug(blendedImage, obs, "_blended");
-                        writeDebug(blendedImage, obs, "_blended_winners", obsIndex);
-                        
-                        if (!options.NoSave)
-                        {
-                            var imgProd = new PngDataProduct(blendedImage);
-                            pipeline.SaveDataProduct(project, imgProd);
-                            obs.BlendedGuid = imgProd.Guid;
-                            obs.Save(pipeline);
-                        }
+                        Vector3 d = blendedRGB - new Vector3(blr[0, or, oc], blr[1, or, oc], blr[2, or, oc]);
+                        diff = new float[] { (float)d.X, (float)d.Y, (float)d.Z };
                     }
                     else
                     {
-                        pipeline.LogWarn("cannot blend image for observation {0}, no valid backprojections", obs.Name);
-                        Interlocked.Increment(ref nf);
-                        if (!options.NoSave)
+                        float br = (float)blendedRGB.X;
+                        float bg = (float)blendedRGB.Y;
+                        float bb = (float)blendedRGB.Z;
+                        double luminance = (new Rgb() { R = 255 * br, G = 255 * bg, B = 255 * bb }).To<Lab>().L;
+                        diff = new float[] { (float)(luminance / maxLuminance) - blr[0, or, oc] };
+                    }
+
+                    for (int i = 0; i < obs.Bands; i++)
+                    {
+                        avgDiff[i] += diff[i];
+                    }
+
+                    diffImage.SetBandValues(or, oc, diff);
+                    diffImage.SetMaskValue(or, oc, false);
+
+                    numWinners++;
+                }
+
+                if (numWinners > 0)
+                {
+                    for (int i = 0; i < obs.Bands; i++)
+                    {
+                        avgDiff[i] /= numWinners;
+                    }
+
+                    if (options.BarycentricInterpolateWinners && numWinners >= 3)
+                    {
+                        Func<Mesh, Face, bool> filter = null;
+                        double ms = options.BarycentricInterpolateMaxTriangleSideLengthPixels;
+                        if (ms > 0)
                         {
-                            obs.BlendedGuid = Guid.Empty;
-                            obs.Save(pipeline);
+                            double ms2 = ms * ms;
+                            filter = (mesh, tri) =>
+                            {
+                                var v0 = mesh.Vertices[tri.P0];
+                                var v1 = mesh.Vertices[tri.P1];
+                                var v2 = mesh.Vertices[tri.P2];
+                                var d0 = Vector3.DistanceSquared(v0.Position, v1.Position);
+                                if (d0 > ms2) return false;
+                                var d1 = Vector3.DistanceSquared(v1.Position, v2.Position);
+                                if (d1 > ms2) return false;
+                                var d2 = Vector3.DistanceSquared(v2.Position, v0.Position);
+                                if (d2 > ms2) return false;
+                                return true;
+                            };
+                        }
+                        Rasterizer.BarycentricInterpolate(diffImage, filter);
+                    }
+
+                    if (options.InpaintDiff != 0)
+                    {
+                        diffImage.Inpaint(options.InpaintDiff);
+                    }
+
+                    if (options.BlurDiff > 0)
+                    {
+                        diffImage.GaussianBoxBlur(options.BlurDiff, blendMasked: true);
+                    }
+
+#if DBG_DIFF
+                    writeDebug(diffImage, obs, "_diff");
+#endif
+
+                    Image blendedImage = diffImage; //yes, alias
+                    for (int b = 0; b < img.Bands; b++)
+                    {
+                        for (int r = 0; r < img.Height; r++)
+                        {
+                            for (int c = 0; c < img.Width; c++)
+                            {
+                                if (diffImage.IsValid(r, c))
+                                {
+                                    blendedImage[b, r, c] = MathE.Clamp01(diffImage[b, r, c] + img[b, r, c]);
+                                }
+                                else if (!options.NoFillBlendWithAverageDiff)
+                                {
+                                    blendedImage[b, r, c] = MathE.Clamp01(avgDiff[b] + img[b, r, c]);
+                                }
+                                else
+                                {
+                                    blendedImage[b, r, c] = img[b, r, c];
+                                }
+                            }
                         }
                     }
 
-                    Interlocked.Decrement(ref np);
-                    Interlocked.Increment(ref nc);
-                });
+                    blendedImage.DeleteMask();
+
+                    writeDebug(blendedImage, obs, "_blended");
+                    writeDebug(blendedImage, obs, "_blended_winners", obsIndex);
+
+                    if (!options.NoSave)
+                    {
+                        var imgProd = new PngDataProduct(blendedImage);
+                        pipeline.SaveDataProduct(project, imgProd);
+                        obs.BlendedGuid = imgProd.Guid;
+                        obs.Save(pipeline);
+                    }
+                }
+                else
+                {
+                    pipeline.LogWarn("cannot blend image for observation {0}, no valid backprojections", obs.Name);
+                    Interlocked.Increment(ref nf);
+                    if (!options.NoSave)
+                    {
+                        obs.BlendedGuid = Guid.Empty;
+                        obs.Save(pipeline);
+                    }
+                }
+
+                Interlocked.Decrement(ref np);
+                Interlocked.Increment(ref nc);
+            });
             pipeline.LogInfo("created blended images for {0}/{1} observations, skipped {2} with no backprojections",
                              nc, no, nf);
+        }
+
+        private Func<Vector2, Vector2> CreatePixelWarpFunction()
+        {
+            if (sceneMesh.SurfaceExtent > 0 && orbitalTextureMetersPerPixel > 0 && !options.NoTextureWarp)
+            {
+                double res = sceneTextureResolution;
+
+                var boundsSize = sceneMesh.GetBounds().Value.Size();
+
+                double xyExtent = 0.5 * (boundsSize.X + boundsSize.Y);
+
+                int srcSurfacePixels = (int)Math.Ceiling(res * (sceneMesh.SurfaceExtent / xyExtent));
+
+                double orbitalPixelsPerMeter = 1 / orbitalTextureMetersPerPixel;
+                int orbitalPixels = (int)((xyExtent - sceneMesh.SurfaceExtent) * orbitalPixelsPerMeter);
+
+                int dstSurfacePixels = (int)Math.Ceiling(res - orbitalPixels);
+
+                if (options.MinSurfaceTextureFraction > dstSurfacePixels / res)
+                {
+                    dstSurfacePixels = (int)Math.Ceiling(options.MinSurfaceTextureFraction * res);
+                }
+
+                if (dstSurfacePixels > srcSurfacePixels)
+                {
+                    var textureBounds = BoundingBoxExtensions.CreateXY(Vector2.Zero, res * Vector2.One);
+
+                    pipeline.LogInfo("warping {0}x{0} central texture sub-image to {1}x{1}, " +
+                                     "total size {2}x{2}", srcSurfacePixels, dstSurfacePixels, res);
+
+                    pipeline.LogInfo("central meters per pixel: {0:F3}",
+                                     sceneMesh.SurfaceExtent / dstSurfacePixels);
+
+                    pipeline.LogInfo("orbital meters per pixel: {0:F3}",
+                                     (xyExtent - sceneMesh.SurfaceExtent) / (res - dstSurfacePixels));
+
+                    var src = BoundingBoxExtensions.CreateXY(textureBounds.Center().XY(), srcSurfacePixels);
+                    var dst = BoundingBoxExtensions.CreateXY(textureBounds.Center().XY(), dstSurfacePixels);
+                    return textureBounds.Create2DWarpFunction(src, dst);
+                }
+            }
+            return null;
         }
 
         private void BuildBackprojectIndexFromLeaves()
@@ -894,7 +971,9 @@ namespace OPS.Landform
             opts.CameraLocation = bounds.Value.Center();
             mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation,
                                                             out opts.RightInImage, out opts.DownInImage);
-            
+
+            opts.Warp = CreatePixelWarpFunction();
+
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
                              sceneTextureResolution, tileList.LeafNames.Count, opts.MetersPerPixel);
 
@@ -946,6 +1025,8 @@ namespace OPS.Landform
             mission.GetOrthonormalGISBasisInLocalLevelFrame(out Vector3 elevation,
                                                             out opts.RightInImage, out opts.DownInImage);
             
+            opts.Warp = CreatePixelWarpFunction();
+
             pipeline.LogInfo("reprojecting {0}x{1} backproject index to {2}x{2}, {3:F5} meters/pixel",
                              backprojectIndex.Width, backprojectIndex.Height, sceneTextureResolution,
                              opts.MetersPerPixel);
@@ -962,7 +1043,8 @@ namespace OPS.Landform
 
             if (tcopts.WriteDebug)
             {
-                SaveBackprojectIndexDebug(backprojectIndex);
+                SaveBackprojectIndexDebug(originalBackprojectIndex, withMesh: false, suffix: "_orig");
+                SaveBackprojectIndexDebug(backprojectIndex, withMesh: false);
             }
         }
 

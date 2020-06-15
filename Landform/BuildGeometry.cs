@@ -6,6 +6,7 @@ using System.Threading;
 using CommandLine;
 using Microsoft.Xna.Framework;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Pipeline;
@@ -87,6 +88,8 @@ using System.IO;
 /// </summary>
 namespace OPS.Landform
 {
+    public enum AtlasMode { UVAtlas, Heightmap };
+
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
     public class BuildGeometryOptions : GeometryCommandOptions
     {
@@ -167,6 +170,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
+
+        [Option(HelpText = "UV generation mode for central surface and blended orbital mesh (UVAtlas, Heightmap)", Default = AtlasMode.UVAtlas)]
+        public AtlasMode SurfaceUVMode { get; set; }
 
         [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
         public override int TextureResolution { get; set; }
@@ -1103,11 +1109,129 @@ namespace OPS.Landform
 
         private void AtlasMesh()
         {
-            mesh = AtlasMesh(mesh, sceneTextureResolution);
-
-            if (mesh == null)
+            if (options.NoOrbital || blendExtent == options.Extent || orbitalTextureMetersPerPixel <= 0)
             {
-                throw new Exception("atlasing failed");
+                pipeline.LogInfo("no peripheral orbital, {0} atlassing full scene mesh", options.SurfaceUVMode);
+                switch (options.SurfaceUVMode)
+                {
+                    case AtlasMode.UVAtlas: mesh = UVAtlasMesh(mesh, sceneTextureResolution); break;
+                    case AtlasMode.Heightmap: HeightmapAtlasMesh(mesh); break;
+                    default: throw new ArgumentException("unknown atlas mode: " + options.SurfaceUVMode);
+                }
+                if (mesh == null)
+                {
+                    throw new Exception("atlasing failed");
+                }
+                if (options.WriteDebug)
+                {
+                    SaveMesh(mesh, dbgMeshPrefix + "-atlassed");
+                }
+                return;
+            }
+
+            double srcSurfaceFrac =  0, dstSurfaceFrac = 0;
+            double res = sceneTextureResolution;
+
+            var meshBounds = mesh.Bounds();
+            var centralBounds = new BoundingBox();
+
+            if (blendExtent == 0) //mesh is orbital only
+            {
+                pipeline.LogInfo("no surface data, heightmap atlassing full scene mesh");
+                HeightmapAtlasMesh(mesh);
+                //still do a warp if we can to allow workflow with only orbital geometry but surface + orbital texture
+                if (options.SurfaceExtent > 0 && options.Extent > options.SurfaceExtent)
+                {
+                    srcSurfaceFrac = options.SurfaceExtent / options.Extent;
+                    dstSurfaceFrac = options.MinSurfaceTextureFraction;
+                    centralBounds = BoundsFromXYExtent(Vector3.Zero, options.SurfaceExtent,
+                                                       meshBounds.Min.Z, meshBounds.Max.Z);
+                }
+            }
+            else
+            {
+                //uvatlas or heightmap atlas central portion consisting of surface + orbital blend mesh
+                //always heightmap atlas outer orbital periphery
+                //we clip and then re-merge those two parts here rather than atlassing them before they are merged
+                //in BlendOrbitalToSurface() to handle workflows involving DecimateMesh() and/or FilterMesh()
+
+                double orbitalPixels = (options.Extent - blendExtent) / orbitalTextureMetersPerPixel;
+
+                srcSurfaceFrac = blendExtent / options.Extent;
+
+                dstSurfaceFrac = Math.Max(options.MinSurfaceTextureFraction, (res - orbitalPixels) / res);
+
+                int surfacePixels = (int)Math.Ceiling(dstSurfaceFrac * res);
+
+                pipeline.LogInfo("{0} atlassing {1}x{1}m central submesh, resolution {2}x{2}",
+                                 options.SurfaceUVMode, blendExtent, surfacePixels);
+
+                centralBounds = BoundsFromXYExtent(Vector3.Zero, blendExtent, meshBounds.Min.Z, meshBounds.Max.Z);
+
+                var centralMesh = Mesh.Clip(mesh, centralBounds);
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(centralMesh, dbgMeshPrefix + "-central");
+                }
+
+                switch (options.SurfaceUVMode)
+                {
+                    case AtlasMode.UVAtlas: centralMesh = UVAtlasMesh(centralMesh, surfacePixels); break;
+                    case AtlasMode.Heightmap: HeightmapAtlasMesh(centralMesh); break;
+                    default: throw new ArgumentException("unknown atlas mode: " + options.SurfaceUVMode);
+                }
+
+                if (centralMesh == null)
+                {
+                    throw new Exception("atlasing failed");
+                }
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(centralMesh, dbgMeshPrefix + "-centralAtlassed");
+                }
+
+                centralMesh.RescaleUVs(BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, centralBounds.Min),
+                                                                      PointToUV(meshBounds, centralBounds.Max)));
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(centralMesh, dbgMeshPrefix + "-centralAtlassedRescaled");
+                }
+
+                var peripheralMesh = Mesh.Cut(mesh, centralBounds);
+                pipeline.LogInfo("heightmap atlassing {0}m orbital periphery ({1} tris)",
+                                 0.5 * (options.Extent - blendExtent), Fmt.KMG(peripheralMesh.Faces.Count));
+                HeightmapAtlasMesh(peripheralMesh);
+
+                if (options.WriteDebug)
+                {
+                    SaveMesh(peripheralMesh, dbgMeshPrefix + "-peripheralAtlassed");
+                }
+
+                mesh = Mesh.Merge(msg => pipeline.LogWarn(msg), centralMesh, peripheralMesh);
+            }
+
+            if (dstSurfaceFrac > srcSurfaceFrac && !options.NoTextureWarp)
+            {
+                if (options.WriteDebug)
+                {
+                    SaveMesh(mesh, dbgMeshPrefix + "-prewarpAtlassed");
+            }
+
+                pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}", srcSurfaceFrac, dstSurfaceFrac);
+                
+                pipeline.LogInfo("central meters per pixel: {0:F3}", blendExtent / (dstSurfaceFrac * res));
+                
+                pipeline.LogInfo("orbital meters per pixel: {0:F3}",
+                                 (options.Extent - blendExtent) / ((1 - dstSurfaceFrac) * res));
+
+                var src = BoundingBoxExtensions.CreateXY(PointToUV(meshBounds, centralBounds.Min),
+                                                         PointToUV(meshBounds, centralBounds.Max));
+                var dst = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, dstSurfaceFrac);
+
+                mesh.WarpUVs(src, dst);
             }
 
             if (options.WriteDebug)
