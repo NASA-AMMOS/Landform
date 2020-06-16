@@ -608,6 +608,11 @@ namespace OPS.Landform
         {
             pipeline.LogInfo("collecting backprojected pixels for each observation");
 
+            //TODO: when a source observation has higher effective resolution than the scene texture
+            //really there is a whole neighborhood of source pixels that should contribute to each texel
+            //(minification).  We don't handle that properly yet.
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/932
+
             //obs index => (obsCol, obsRow) => (sumBlendedR, sumBlendedG, sumBlendedB, num)
             var winners = new Dictionary<int, Dictionary<Vector2, Vector4>>();
 
