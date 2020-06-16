@@ -1235,7 +1235,8 @@ namespace OPS.Landform
             {
                 saveDbgMeshes("prewarpAtlassed");
                 
-                pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}", srcSurfaceFrac, dstSurfaceFrac);
+                pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}, ease {2:F3}",
+                                 srcSurfaceFrac, dstSurfaceFrac, options.EaseTextureWarp);
                 
                 pipeline.LogInfo("central meters per pixel: {0:F3}", blendExtent / (dstSurfaceFrac * res));
                 
@@ -1246,7 +1247,7 @@ namespace OPS.Landform
                                                          PointToUV(meshBounds, centralBounds.Max));
                 var dst = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, dstSurfaceFrac);
 
-                mesh.WarpUVs(src, dst);
+                mesh.WarpUVs(src, dst, options.EaseTextureWarp);
             }
 
             saveDbgMeshes("atlassed");

@@ -245,12 +245,11 @@ namespace OPS.Geometry
         /// </summary>
         private class AxisAlignedTrapezoid
         {
-            private bool vertical;
+            public readonly bool vertical;
+            public readonly double span;
 
             private Vector2 llc, lrc, urc, ulc;
-
-            private double span, invSpan;
-
+            private double invSpan;
             private const double eps = 1e-12;
 
             public AxisAlignedTrapezoid(Vector2 llc, Vector2 lrc, Vector2 urc, Vector2 ulc)
@@ -349,24 +348,29 @@ namespace OPS.Geometry
         /// -/|||||||||||||||\-      -/|||||||D|||||||\-
         /// /|||||||||||||||||\      /|||||||||||||||||\
         ///
-        /// Points are bilinearly mapped from SRC to DST and from {a-d} to {A-D}.
+        /// Points are mapped from SRC to DST and from {a-d} to {A-D}.
+        ///
+        /// If ease < 0 or ease > 1 then the mapping is piecewise bilinear.
+        /// Otherwise an approximate cubic spline easing function is used
+        /// to avoid the tangent discontinuity at the boundaries of the inner region.
         /// </summary>
         public static Func<Vector2, Vector2> Create2DWarpFunction(this BoundingBox box,
-                                                                  BoundingBox src, BoundingBox dst)
+                                                                  BoundingBox src, BoundingBox dst,
+                                                                  double ease = 0)
         {
             Func<BoundingBox, Vector2> llc = b => b.Min.XY();
             Func<BoundingBox, Vector2> lrc = b => new Vector2(b.Max.X, b.Min.Y);
             Func<BoundingBox, Vector2> urc = b => b.Max.XY();
             Func<BoundingBox, Vector2> ulc = b => new Vector2(b.Min.X, b.Max.Y);
 
-            var mappings = new List<Tuple<AxisAlignedTrapezoid, AxisAlignedTrapezoid>>();
+            var srcs = new List<AxisAlignedTrapezoid>();
+            var dsts = new List<AxisAlignedTrapezoid>();
 
             void addPair(Vector2 srcLLC, Vector2 srcLRC, Vector2 srcURC, Vector2 srcULC,
                          Vector2 dstLLC, Vector2 dstLRC, Vector2 dstURC, Vector2 dstULC)
             {
-                var s = new AxisAlignedTrapezoid(srcLLC, srcLRC, srcURC, srcULC);
-                var d = new AxisAlignedTrapezoid(dstLLC, dstLRC, dstURC, dstULC);
-                mappings.Add(new Tuple<AxisAlignedTrapezoid, AxisAlignedTrapezoid>(s, d));
+                srcs.Add(new AxisAlignedTrapezoid(srcLLC, srcLRC, srcURC, srcULC));
+                dsts.Add(new AxisAlignedTrapezoid(dstLLC, dstLRC, dstURC, dstULC));
             }
 
             addPair(llc(src), lrc(src), urc(src), ulc(src), llc(dst), lrc(dst), urc(dst), ulc(dst)); //src -> dst
@@ -374,15 +378,106 @@ namespace OPS.Geometry
             addPair(llc(box), llc(src), ulc(src), ulc(box), llc(box), llc(dst), ulc(dst), ulc(box)); //b -> B
             addPair(lrc(src), lrc(box), urc(box), urc(src), lrc(dst), lrc(box), urc(box), urc(dst)); //c -> C
             addPair(llc(box), lrc(box), lrc(src), llc(src), llc(box), lrc(box), lrc(dst), llc(dst)); //d -> D
-                        
+
+            //de Casteljau algorithm: point on cubic bezier curve given control polygon p0-p3 and parameter t in [0, 1]
+            Vector2 cubicBezier(Vector2 p0, Vector2 p1, Vector2 p2, Vector2 p3, double t)
+            {
+                double w = 1 - t;
+                var q0 = w * p0 + t * p1;
+                var q1 = w * p1 + t * p2;
+                var q2 = w * p2 + t * p3;
+                var r0 = w * q0 + t * q1;
+                var r1 = w * q1 + t * q2;
+                return w * r0 + t * r1;
+            }
+
+            //bake an easing function
+            //without easing the remap is a linear function taking x in [0,1] to y in [0,1] with unit slope
+            //with ease in the initial slope is as given, otherwise the final slope is as given
+            //the easing function is a piecewise linear approximation to a cubic bezier
+            //we use cubic bezier because
+            //(a) the curve is always contained in the convex hull of the control polygon
+            //(b) any line intersects the curve no more times than it intersects the control polygon
+            //(c) the curve interpolates its end points
+            //(d) the start and end tangents are controlled by the second and second-from-last control points
+            //property (a) lets us ensure that the curve stays inside [0,1]x[0,1] and not too far from the diagonal
+            //property (b) lets us construct a curve that is a function of x
+            //property (c) lets us ensure that the curve starts at (0, 0) and ends at (1, 1)
+            //property (d) lets us control the easing slope
+            Func<double, double> remap(double slope, bool easeIn)
+            {
+                var p0 = Vector2.Zero;
+                var p3 = Vector2.One;
+
+                //we keep the inner two control points coincident to construct a singly curved monotonic function
+                double angle = Math.Atan2(slope, 1);
+                var p12 = new Vector2(Math.Cos(angle), Math.Sin(angle)) * ease;
+                if (!easeIn)
+                {
+                    p12 = Vector2.One - p12;
+                }
+
+                //it's not trivial to compute y as a function of x for the cubic bezier
+                //rather, we bake a piecewise linear approximation of it
+                //and then binary search that
+                int segs = 32;
+                var pts = new Vector2[segs + 1];
+                pts[0] = p0;
+                pts[segs] = p3;
+                for (int i = 1; i < segs; i++)
+                {
+                    pts[i] = cubicBezier(p0, p12, p12, p3, ((double)i) / segs);
+                }
+
+                return x =>
+                {
+                    int l = 0, u = segs;
+                    while (u - l > 1)
+                    {
+                        int m = (l + u) / 2;
+                        if (x < pts[m].X)
+                        {
+                            u = m;
+                        }
+                        else
+                        {
+                            l = m;
+                        }
+                    }
+                    double t = (x - pts[l].X) / (pts[u].X - pts[l].X);
+                    return pts[l].Y + t * (pts[u].Y - pts[l].Y);
+                };
+            }
+
+            var remaps = new Func<double, double>[5]; //entries initialized to null
+            if (ease > 0 && ease < 1)
+            {
+                remaps[1] = remap(srcs[1].span / dsts[1].span, easeIn: true);  //a -> A
+                remaps[2] = remap(srcs[2].span / dsts[2].span, easeIn: false); //b -> B
+                remaps[3] = remap(srcs[3].span / dsts[3].span, easeIn: true);  //c -> C
+                remaps[4] = remap(srcs[4].span / dsts[4].span, easeIn: false); //d -> D
+            }
+
             return v =>
             {
-                foreach (var pair in mappings)
+                for (int i = 0; i < srcs.Count; i++)
                 {
-                    var r = pair.Item1.AbsoluteToRelative(v);
+                    var r = srcs[i].AbsoluteToRelative(v);
                     if (r.X >= 0 && r.X <= 1 && r.Y >= 0 && r.Y <= 1)
                     {
-                        return pair.Item2.RelativeToAbsolute(r);
+                        if (remaps[i] != null)
+                        {
+                            var was = r;
+                            if (srcs[i].vertical)
+                            {
+                                r.X = remaps[i](r.X);
+                            }
+                            else
+                            {
+                                r.Y = remaps[i](r.Y);
+                            }
+                        }
+                        return dsts[i].RelativeToAbsolute(r);
                     }
                 }
                 return v;

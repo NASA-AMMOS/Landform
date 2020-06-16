@@ -32,6 +32,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Disable texture space warp", Default = false)]
         public bool NoTextureWarp { get; set; }
+
+        [Option(HelpText = "Ease texture space warp in range [0, 1], otherwise no easing", Default = 0.5)]
+        public double EaseTextureWarp { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand

@@ -1704,14 +1704,14 @@ namespace OPS.Geometry
         /// <summary>
         /// remap UVs from src to dst, squishing those outside of src  
         /// </summary>
-        public void WarpUVs(BoundingBox src, BoundingBox dst)
+        public void WarpUVs(BoundingBox src, BoundingBox dst, double ease = 0)
         {
             if (!HasUVs)
             {
                 throw new Exception("mesh does not have UVs");
             }
             var box = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, 1);
-            var warp = box.Create2DWarpFunction(src, dst);
+            var warp = box.Create2DWarpFunction(src, dst, ease);
             foreach (Vertex v in Vertices)
             {
                 v.UV = warp(v.UV);

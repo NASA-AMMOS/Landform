@@ -416,8 +416,8 @@ namespace OPS.Landform
                             SaveMesh(mesh, sceneMesh.Name + "-prewarp");
                         }
 
-                        pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}",
-                                         srcSurfaceFrac, dstSurfaceFrac);
+                        pipeline.LogInfo("warping {0:F3}x{0:F3} central UVs to {1:F3}x{1:F3}, ease {2:F3}",
+                                         srcSurfaceFrac, dstSurfaceFrac, options.EaseTextureWarp);
 
                         pipeline.LogInfo("central meters per pixel: {0:F3}", surfaceExtent / (dstSurfaceFrac * res));
 
@@ -430,7 +430,7 @@ namespace OPS.Landform
                                                                  PointToUV(meshBounds, surfaceBounds.Max));
                         var dst = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, dstSurfaceFrac);
 
-                        mesh.WarpUVs(src, dst);
+                        mesh.WarpUVs(src, dst, options.EaseTextureWarp);
                     }
                 }
 
@@ -924,7 +924,8 @@ namespace OPS.Landform
                     var textureBounds = BoundingBoxExtensions.CreateXY(Vector2.Zero, res * Vector2.One);
 
                     pipeline.LogInfo("warping {0}x{0} central texture sub-image to {1}x{1}, " +
-                                     "total size {2}x{2}", srcSurfacePixels, dstSurfacePixels, res);
+                                     "total size {2}x{2}, ease {3:F3}",
+                                     srcSurfacePixels, dstSurfacePixels, res, options.EaseTextureWarp);
 
                     pipeline.LogInfo("central meters per pixel: {0:F3}",
                                      sceneMesh.SurfaceExtent / dstSurfacePixels);
@@ -934,7 +935,7 @@ namespace OPS.Landform
 
                     var src = BoundingBoxExtensions.CreateXY(textureBounds.Center().XY(), srcSurfacePixels);
                     var dst = BoundingBoxExtensions.CreateXY(textureBounds.Center().XY(), dstSurfacePixels);
-                    return textureBounds.Create2DWarpFunction(src, dst);
+                    return textureBounds.Create2DWarpFunction(src, dst, options.EaseTextureWarp);
                 }
             }
             return null;
