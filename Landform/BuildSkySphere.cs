@@ -71,7 +71,9 @@ namespace OPS.Landform
     }
 
     public class BuildSkySphere : TilingCommand
-    { 
+    {
+        public const string TILING_DIR_SUFFIX = "_sky";
+
         private SceneNode tileTree;
         private BuildSkySphereOptions options;
         private List<Backproject.Context> contexts;
@@ -113,7 +115,7 @@ namespace OPS.Landform
                 RunPhase("build blended leaf tiles observations", BuildBlendedLeafTextures);
 
                 //build tileset
-                RunPhase("create tiling project", () => CreateTilingProject(TilingScheme.Flat,nameSuffix:"_sky"));
+                RunPhase("create tiling project", () => CreateTilingProject(TilingScheme.Flat));
                 RunPhase("add tile meshes", AddTileMeshes);
                 RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
                 RunPhase("build parent tiles", BuildParentTiles);
@@ -286,7 +288,7 @@ namespace OPS.Landform
             PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
             PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
 
-            tilesetFolder = DecorateOutDir(TilingCommand.TILESET_DIR);
+            tilesetFolder = DecorateOutDir(TilingCommand.TILESET_DIR) + TILING_DIR_SUFFIX;
 
             //need camera frustums to reach skybox
             options.TextureFarClip = options.SphereRadiusMeters * 2.0;

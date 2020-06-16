@@ -280,7 +280,7 @@ namespace OPS.Landform
             }
         }
 
-        protected void CreateTilingProject(TilingScheme tilingScheme, string nameSuffix="")
+        protected void CreateTilingProject(TilingScheme tilingScheme)
         {
             var keepMeshes = new HashSet<string>();
             keepMeshes.UnionWith(tileList.LeafNames);
@@ -305,9 +305,7 @@ namespace OPS.Landform
 
                 int maxTileGroupSize = MAX_LEAF_GROUP_SIZE;
 
-                string tpName = project.Name + nameSuffix;
-                
-                tilingProject = TilingProject.Create(pipeline, tpName, tilingScheme,
+                tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      tilingOpts.SkirtMode, tilingOpts.ReconstructionMethod,
                                                      tilingOpts.FacesPerTile, resolution, projectType,
                                                      tilingOpts.ExportMeshFormat, tilingOpts.ExportImageFormat,
