@@ -18,7 +18,7 @@ namespace OPS.Landform
         [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
         public virtual string MeshFrame { get; set; }
 
-        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 4096)]
+        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 8192)]
         public virtual int TextureResolution { get; set; }
 
         [Option(HelpText = "Max texture charts, 0 for unlimited", Default = 0)]

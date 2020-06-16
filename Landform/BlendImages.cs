@@ -109,6 +109,9 @@ namespace OPS.Landform
         [Option(HelpText = "Don't use existing backproject index", Default = false)]
         public bool NoUseExistingIndex { get; set; }
 
+        [Option(HelpText = "Scene mesh texture resolution, should be power of two", Default = 4096)]
+        public override int TextureResolution { get; set; }
+
         [Option(HelpText = "Option disabled for this command - always uses blurred observation textures", Default = TextureVariant.Blurred)]
         public override TextureVariant TextureVariant { get; set; }
 

@@ -174,9 +174,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "UV generation mode for central surface and blended orbital mesh (UVAtlas, Heightmap)", Default = AtlasMode.UVAtlas)]
         public AtlasMode SurfaceUVMode { get; set; }
-
-        [Option(HelpText = "Texture resolution, used if generating UVs, should be power of two", Default = 4096)]
-        public override int TextureResolution { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
