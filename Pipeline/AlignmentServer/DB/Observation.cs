@@ -28,10 +28,18 @@ namespace OPS.Pipeline.AlignmentServer
         //for that see NO_OBSERVATION_INDEX
         public const int GUTTER_INDEX = 0;
 
+        //used to mark pixels in the backproject index that do correspond to points on the mesh
+        //(i.e. not pixels in the texture atlas gutter, for that see GUTTER_INDEX)
+        //but that did not successfully backproject to any observation
+        //for example this can occur for hole-filled portions of the mesh that are occluded in all observations
+        //mainly this can happen when orbital texturing is not available
+        //but it can happen inside "caves" even when orbital is available
+        public const int NO_OBSERVATION_INDEX = 1;
+
         //minimum valid observation index
         //(in legacy TerrainTools index 65535 and 0 are equivalently treated as "no observation"
         //and those values can get serialized out to the index image for pixels where backprojection failed)
-        public const int MIN_INDEX = 1;
+        public const int MIN_INDEX = 2;
 
         //limit indices to 16 bit
         //because we use 16 bit PPM for overlay index products
@@ -45,14 +53,6 @@ namespace OPS.Pipeline.AlignmentServer
 
         public const int ORBITAL_IMAGE_INDEX = MAX_INDEX - 1; 
         public const int ORBITAL_DEM_INDEX = ORBITAL_IMAGE_INDEX - 1;
-
-        //used to mark pixels in the backproject index that do correspond to points on the mesh
-        //(i.e. not pixels in the texture atlas gutter, for that see GUTTER_INDEX)
-        //but that did not successfully backproject to any observation
-        //for example this can occur for hole-filled portions of the mesh that are occluded in all observations
-        //mainly this can happen when orbital texturing is not available
-        //but it can happen inside "caves" even when orbital is available
-        public const int NO_OBSERVATION_INDEX = ORBITAL_DEM_INDEX - 1;
 
         [DynamoDBRangeKey]
         public string ProjectName;
