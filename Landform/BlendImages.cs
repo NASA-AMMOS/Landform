@@ -407,10 +407,7 @@ namespace OPS.Landform
                     var bs = meshBounds.Size();
                     double xyExtent = 0.5 * (bs.X + bs.Y);
 
-                    double srcSurfaceFrac = surfaceExtent / xyExtent;
-
-                    double orbitalPixels = (xyExtent - surfaceExtent) / orbitalTextureMetersPerPixel;
-                    double dstSurfaceFrac = Math.Max(options.MinSurfaceTextureFraction, (res - orbitalPixels) / res);
+                    ComputeTextureWarp(xyExtent, surfaceExtent, out double srcSurfaceFrac, out double dstSurfaceFrac);
 
                     if (dstSurfaceFrac > srcSurfaceFrac)
                     {
@@ -915,17 +912,11 @@ namespace OPS.Landform
 
                 double xyExtent = 0.5 * (boundsSize.X + boundsSize.Y);
 
-                int srcSurfacePixels = (int)Math.Ceiling(res * (sceneMesh.SurfaceExtent / xyExtent));
+                ComputeTextureWarp(xyExtent, sceneMesh.SurfaceExtent,
+                                   out double srcSurfaceFrac, out double dstSurfaceFrac);
 
-                double orbitalPixelsPerMeter = 1 / orbitalTextureMetersPerPixel;
-                int orbitalPixels = (int)((xyExtent - sceneMesh.SurfaceExtent) * orbitalPixelsPerMeter);
-
-                int dstSurfacePixels = (int)Math.Ceiling(res - orbitalPixels);
-
-                if (options.MinSurfaceTextureFraction > dstSurfacePixels / res)
-                {
-                    dstSurfacePixels = (int)Math.Ceiling(options.MinSurfaceTextureFraction * res);
-                }
+                int srcSurfacePixels = (int)Math.Ceiling(res * srcSurfaceFrac);
+                int dstSurfacePixels = (int)Math.Ceiling(res * dstSurfaceFrac);
 
                 if (dstSurfacePixels > srcSurfacePixels)
                 {

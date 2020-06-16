@@ -1153,11 +1153,7 @@ namespace OPS.Landform
                 //we clip and then re-merge those two parts here rather than atlassing them before they are merged
                 //in BlendOrbitalToSurface() to handle workflows involving DecimateMesh() and/or FilterMesh()
 
-                double orbitalPixels = (options.Extent - blendExtent) / orbitalTextureMetersPerPixel;
-
-                srcSurfaceFrac = blendExtent / options.Extent;
-
-                dstSurfaceFrac = Math.Max(options.MinSurfaceTextureFraction, (res - orbitalPixels) / res);
+                ComputeTextureWarp(options.Extent, blendExtent, out srcSurfaceFrac, out dstSurfaceFrac);
 
                 int surfacePixels = (int)Math.Ceiling(dstSurfaceFrac * res);
 

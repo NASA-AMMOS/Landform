@@ -35,6 +35,8 @@ namespace OPS.Landform
 
         [Option(HelpText = "Ease texture space warp in range [0, 1], otherwise no easing", Default = 0.5)]
         public double EaseTextureWarp { get; set; }
+        [Option(HelpText = "Ease surface pixels per meter factor", Default = 0.2)]
+        public double EaseSurfacePPMFactor { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -270,6 +272,62 @@ namespace OPS.Landform
             //regarding the Swap() see comments in HeightmapAtlasMesh()
             var uvScale = meshBounds.Size().XY().Invert();
             return ((pt.XY() - meshBounds.Min.XY()) * uvScale).Swap();
+        }
+
+        protected void ComputeTextureWarp(double extent, double centralExtent, out double srcFrac, out double dstFrac)
+        {
+            int res = sceneTextureResolution;
+
+            double orbitalExtent = extent - centralExtent;
+
+            double orbitalPPM = 1 / orbitalTextureMetersPerPixel;
+            
+            int orbitalPixels = (int)(orbitalExtent * orbitalPPM);
+            
+            int surfacePixels = res - orbitalPixels;
+
+            double ease = gcopts.EaseTextureWarp;
+            
+            if (ease > 0 && ease < 1)
+            {
+                //afford more pixels to the orbital periphery to support easing
+                //this math is a heruistic
+                int opWas = orbitalPixels, spWas = surfacePixels;
+                double surfacePPM = surfacePixels / centralExtent;
+                double ppmFactor = gcopts.EaseSurfacePPMFactor;
+                double ppm = ppmFactor * surfacePPM + (1 - ppmFactor) * orbitalPPM;
+                double extentFactor = ease * ease;
+                orbitalPixels = (int)(extentFactor * orbitalExtent * ppm + (1 - extentFactor) * orbitalPixels);
+                surfacePixels = res - orbitalPixels;
+                pipeline.LogInfo("increased orbital pixels from {0} to {1} ({2:F3}->{3:F3}m/px) for ease {4:F3}, " +
+                                 "surface pixels {5}->{6} ({7:F3}->{8:F3}m/px)",
+                                 opWas, orbitalPixels, 1 / orbitalPPM, orbitalExtent / orbitalPixels,
+                                 ease, spWas, surfacePixels, 1 / surfacePPM, centralExtent / surfacePixels);
+            }
+            
+            srcFrac = centralExtent / extent;
+
+            dstFrac = ((double)surfacePixels) / res;
+
+            double min = gcopts.MinSurfaceTextureFraction;
+            if (dstFrac < min)
+            {
+                pipeline.LogInfo("increasing surface texture fraction from {0:F3} to min limit {1:F3}", dstFrac, min);
+                dstFrac = min;
+            }
+
+            int srcSurfacePixels = (int)(srcFrac * res);
+            int dstSurfacePixels = (int)(dstFrac * res);
+            int srcOrbitalPixels = res - srcSurfacePixels;
+            int dstOrbitalPixels = res - dstSurfacePixels;
+
+            pipeline.LogInfo("warping central {0:F3}m of {1:F3}m (ease {2:F3}), {3}->{4} surface pixels " +
+                             "({5:F3}->{6:F3}m/px), {7}->{8} orbital pixels ({9:F3}->{10:F3}m/px)",
+                             centralExtent, extent, ease,
+                             srcSurfacePixels, dstSurfacePixels,
+                             centralExtent / srcSurfacePixels, centralExtent / dstSurfacePixels,
+                             srcOrbitalPixels, dstOrbitalPixels,
+                             orbitalExtent / srcOrbitalPixels, orbitalExtent / dstOrbitalPixels);
         }
     }
 }
