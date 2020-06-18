@@ -18,8 +18,16 @@ using OPS.RayTrace;
 /// behind the terrain
 /// 
 /// this stage is intended to create a tiling project, populate it with tile geometry, texture the tiles, then destroy the project
-/// to leave a clean database for the surface scene's tiling.
+/// to leave a clean database for the surface scene's tiling. This stage runs after the build-geometry stage so that it has a scene
+/// mesh to use for occlusion (prevents a double image of near geometry in the distant skysphere).
 /// 
+/// The outputs match the build-tileset command:
+/// * one B3DM file for each tile
+/// * one tileset.json file defining the tile hierarchy and a bounds and geometric error for every tile
+/// * one stats.txt file containing statistics of the tileset
+/// * optionally an additonal mesh and texture file per tile if "export" formats are defined.
+///
+/// They are written to project storage in the /sky subdirectory of the tiling folder
 /// Example:
 /// Landform.exe build-sky-sphere windjana --meshframe 0311472
 /// </summary>
@@ -72,7 +80,7 @@ namespace OPS.Landform
 
     public class BuildSkySphere : TilingCommand
     {
-        public const string TILING_DIR_SUFFIX = "_sky";
+        public const string TILING_DIR_SUFFIX = "/sky";
 
         private SceneNode tileTree;
         private BuildSkySphereOptions options;
@@ -94,7 +102,7 @@ namespace OPS.Landform
                 {
                     return 0; //help
                 }
-
+                 
                 //prep
                 RunPhase("load input mesh", () => LoadInputMesh(requireUVs: false));
                 RunPhase("build occlusion datastructures", BuildSceneCaster);
@@ -150,7 +158,7 @@ namespace OPS.Landform
                 }
             });
 
-            pipeline.LogInfo("deleting tiling projcect");
+            pipeline.LogInfo("deleting tiling project");
             tilingProject.Delete(pipeline,ignoreErrors:false, keepTileset:true);
         }
 

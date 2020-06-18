@@ -242,7 +242,7 @@ done
 proj=${sol}_${sd}${suffix}
 venue=contextual_${mission}_${proj}
 tilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best/$proj 
-skytilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best_sky/$proj
+skytilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best/sky/$proj
 log=$logdir/contextual_${proj}_log.txt
 outproj=$outdir/$proj
 cfgfolder=$venue
