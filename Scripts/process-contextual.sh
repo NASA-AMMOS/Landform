@@ -296,6 +296,7 @@ if [ "$generate" ]; then
 
         ${dry}mkdir $outdir/sky
         ${dry}cp -R $skytilesetdir $outdir/sky
+		${dry}mv $outdir/sky/tileset.json $outproj/${proj}_sky_tileset.json
 
         ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
         if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
