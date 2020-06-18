@@ -260,12 +260,20 @@ namespace OPS.Pipeline.TilingServer
         private List<string> LoadStringArray(string url, PipelineCore pipeline)
         {
             List<string> ret = new List<string>();
-            if (!string.IsNullOrEmpty(url) && pipeline.FileExists(url))
+            if (!string.IsNullOrEmpty(url))
             {
-                pipeline.GetFile(url, f =>
+                if (pipeline.FileExists(url))
                 {
-                    ret = ((JArray)JsonHelper.FromJson(File.ReadAllText(f), autoTypes: false)).ToObject<List<string>>();
-                });
+                    pipeline.GetFile(url, f =>
+                    {
+                        var txt = File.ReadAllText(f);
+                        ret = ((JArray)JsonHelper.FromJson(txt, autoTypes: false)).ToObject<List<string>>();
+                    });
+                }
+                else
+                {
+                    pipeline.LogWarn("{0} not found", url);
+                }
             }
             return ret;
         }

@@ -191,13 +191,21 @@ namespace OPS.Landform
         {
             outputFolder = outDir;
             localOutputPath = pipeline.GetLocalFolder(lcopts.OutputFolder, outDir, project != null ? project.Name : "");
-            if (lcopts.Redo && Directory.Exists(localOutputPath) && DeleteLocalProductsBeforeRedo())
+            if (lcopts.Redo && DeleteLocalProductsBeforeRedo())
+            {
+                DeleteLocalProducts();
+            }
+        }
+
+        protected virtual void DeleteLocalProducts()
+        {
+            if (Directory.Exists(localOutputPath))
             {
                 pipeline.LogInfo("deleting any prior results under {0}", localOutputPath);
                 Directory.Delete(localOutputPath, true);
             }
         }
-         
+
         protected virtual bool ParseArguments(string outDir)
         {
             if (lcopts.NoOrbital && lcopts.NoSurface)

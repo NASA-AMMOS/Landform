@@ -90,11 +90,27 @@ namespace OPS.Landform
             throw new NotImplementedException();
         }
 
-        protected TilingProject GetOrDeleteTilingProject(ISet<string> keepMeshes = null)
+        protected override void DeleteLocalProducts()
+        {
+            //delete <LocalPipelineConfig.StorageDir>/<venue>/<outputFolder>/<project.Name>/tiling/Tile/<decorations>/*
+            //there are two kinds of things saved there:
+            //1) individual tile meshes and textures stored in our internal formats (typically ply and png)
+            //2) inputnames.json and nodeids.json referenced by the TilingProject, if BuildTileset has already run
+            //because of (1), BuildTileset overrides DeleteLocalProductsBeforeRedo() to return false
+            //but BuildTileset --redo will still delete any existing TilingProject including those json files
+            //because of (2), when called from BuildTilingInput, we always delete any existing TilingProject here first
+            //otherwise the json files will get deleted by the call to base.DeleteLocalProducts()
+            //and then later attempts to delete the tiling project will not work completely
+            //because existing TilingInput and TilingNode DB entries will not be found
+            GetOrDeleteTilingProject(force: true);
+            base.DeleteLocalProducts();
+        }
+
+        protected TilingProject GetOrDeleteTilingProject(ISet<string> keepMeshes = null, bool force = false)
         {
             var tilingProject = TilingProject.Find(pipeline, project.Name);
 
-            if (!tilingOpts.UseExistingTilingProject && tilingProject != null)
+            if ((force || !tilingOpts.UseExistingTilingProject) && tilingProject != null)
             {
                 pipeline.LogInfo("deleting existing tiling project {0}", project.Name);
                 //deletes all db and storage entries - this can take a while
