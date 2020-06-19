@@ -244,7 +244,6 @@
     <Compile Include="TilingServer\Operations\ChunkInput.cs" />
     <Compile Include="TilingServer\Operations\DefineTiles.cs" />
     <Compile Include="TilingServer\DB\TilingInputChunk.cs" />
-    <Compile Include="TilingServer\TilingScheme.cs" />
     <Compile Include="DataProducts\ComputedCorrespondence.cs" />
     <Compile Include="DataProducts\DetectedFeatures.cs" />
     <Compile Include="GdalConfiguration.cs" />
@@ -257,7 +256,6 @@
     <Compile Include="Tiling\SceneManifest.cs" />
     <Compile Include="Tiling\TextureBaker.cs" />
     <Compile Include="MissionSpecific\SiteDrive.cs" />
-    <Compile Include="Tiling\BinaryTreeTilingScheme.cs" />
     <Compile Include="Tiling\FaceSplitCriteria.cs" />
     <Compile Include="Tiling\ITileSplitCriteria.cs" />
     <Compile Include="Tiling\LegacyScene.cs" />
@@ -270,9 +268,7 @@
     <Compile Include="MissionSpecific\RoverProductEnum.cs" />
     <Compile Include="Tiling\MultiMeshClipper.cs" />
     <Compile Include="Tiling\MultiMeshClipperInput.cs" />
-    <Compile Include="Tiling\OctreeTilingScheme.cs" />
-    <Compile Include="Tiling\QuadTreeTilingScheme.cs" />
-    <Compile Include="Tiling\ITilingScheme.cs" />
+    <Compile Include="Tiling\TilingScheme.cs" />
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
     <Compile Include="Tiling\SparsePipelineImage.cs" />
     <Compile Include="Tiling\TexturedMeshClipper.cs" />

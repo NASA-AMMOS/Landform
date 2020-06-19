@@ -56,7 +56,7 @@ namespace OPS.Landform
         [Option(HelpText = "Ratio of source pixels to destination pixels that would trigger a split", Default = 16)]
         public double SplitByTextureSamplingRatio { get; set; }
 
-        [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
+        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct)", Default = TilingScheme.QuadAuto)]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = TextureVariant.Blended)]
@@ -305,8 +305,9 @@ namespace OPS.Landform
         {
             if (meshLOD.Count > 1)
             {
-                //use decimated versions of the mesh provided to generate a tile tree with a fixed number of levels
-                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLOD);
+                pipeline.LogInfo("building tile tree from {0} existing LODs, tiling scheme {1}",
+                                 meshLOD.Count, options.TilingScheme);
+                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshOpForLOD);
             }
             else
             {
@@ -344,7 +345,7 @@ namespace OPS.Landform
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
                 tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               texSplitOpts, null, surfaceExtent);
+                                                               texSplitOpts, surfaceExtent);
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));

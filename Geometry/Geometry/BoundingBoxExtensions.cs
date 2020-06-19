@@ -46,12 +46,16 @@ namespace OPS.Geometry
 
         /// <summary>
         /// Returns the size of the bounding box (max-min)
+        /// same as box.Extent()
         /// </summary>
-        /// <param name="box"></param>
-        /// <returns></returns>
         public static Vector3 Size(this BoundingBox box)
         {
             return box.Max - box.Min;
+        }
+
+        public static Vector3 Center(this BoundingBox box)
+        {
+            return 0.5 * (box.Max + box.Min);
         }
 
         public static double Volume(this BoundingBox box)
@@ -70,6 +74,163 @@ namespace OPS.Geometry
                 case BoxAxis.Z: return new Vector2(sz.X, sz.Y);
                 default: throw new ArgumentException("unknown axis: " + axis);
             }
+        }
+
+        public static double MaxDimension(this BoundingBox box)
+        {
+            Vector3 size = box.Size();
+            return Math.Max(size.X, Math.Max(size.Y, size.Z));
+        }
+
+        public static BoxAxis MaxAxis(this BoundingBox box, out double maxDim)
+        {
+            Vector3 size = box.Size();
+            maxDim = box.MaxDimension();
+            if (maxDim == size.X)
+            {
+                return BoxAxis.X;
+            }
+            if (maxDim == size.Y)
+            {
+                return BoxAxis.Y;
+            }
+            if (maxDim == size.Z)
+            {
+                return BoxAxis.Z;
+            }
+            throw new Exception("possible NaN in BoundingBox");
+        }
+
+        public static BoxAxis MaxAxis(this BoundingBox box)
+        {
+            return box.MaxAxis(out double maxDim);
+        }
+
+        public static double MinDimension(this BoundingBox box)
+        {
+            Vector3 size = box.Size();
+            return Math.Min(size.X, Math.Min(size.Y, size.Z));
+        }
+
+        public static BoxAxis MinAxis(this BoundingBox box, out double minDim)
+        {
+            minDim = box.MinDimension();
+            Vector3 size = box.Size();
+            if (minDim == size.X)
+            {
+                return BoxAxis.X;
+            }
+            if (minDim == size.Y)
+            {
+                return BoxAxis.Y;
+            }
+            if (minDim == size.Z)
+            {
+                return BoxAxis.Z;
+            }
+            throw new Exception("possible NaN in BoundingBox");
+        }
+
+        public static BoxAxis MinAxis(this BoundingBox box)
+        {
+            return box.MinAxis(out double minDim);
+        }
+
+        /// <summary>
+        /// split a box into two halves along the given axis at the given breakpoint
+        /// </summary>
+        public static List<BoundingBox> Halves(this BoundingBox box, BoxAxis axis, double breakpoint = 0.5)
+        {
+            var ret = new List<BoundingBox>();
+            Vector3 min = box.Min;
+            Vector3 max = box.Max;
+            Vector3 ctr = Vector3.Lerp(min, max, breakpoint);
+            switch (axis)
+            {
+                case BoxAxis.X:
+                {
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, min.Z), new Vector3(ctr.X, max.Y, max.Z)));
+                    ret.Add(new BoundingBox(new Vector3(ctr.X, min.Y, min.Z), new Vector3(max.X, max.Y, max.Z)));
+                    break;
+                }
+                case BoxAxis.Y:
+                {
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, min.Z), new Vector3(max.X, ctr.Y, max.Z)));
+                    ret.Add(new BoundingBox(new Vector3(min.X, ctr.Y, min.Z), new Vector3(max.X, max.Y, max.Z)));
+                    break;
+                }
+                case BoxAxis.Z:
+                {
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, min.Z), new Vector3(max.X, max.Y, ctr.Z)));
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, ctr.Z), new Vector3(max.X, max.Y, max.Z)));
+                    break;
+                }
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// split a box into four quarters in the plane perpendicular to the given axis at the given breakpoint
+        /// if no breakpoint is given the box center is used
+        /// </summary>
+        public static List<BoundingBox> Quarters(this BoundingBox box, BoxAxis axis, Vector3? breakpoint = null)
+        {
+            var ret = new List<BoundingBox>();
+            Vector3 min = box.Min;
+            Vector3 max = box.Max;
+            Vector3 ctr = breakpoint.HasValue ? breakpoint.Value : box.Center();
+            switch (axis)
+            {
+                case BoxAxis.X: // split in YZ plane
+                {
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, min.Z), new Vector3(max.X, ctr.Y, ctr.Z)));
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, ctr.Z), new Vector3(max.X, ctr.Y, max.Z)));
+                    ret.Add(new BoundingBox(new Vector3(min.X, ctr.Y, min.Z), new Vector3(max.X, max.Y, ctr.Z)));
+                    ret.Add(new BoundingBox(new Vector3(min.X, ctr.Y, ctr.Z), new Vector3(max.X, max.Y, max.Z)));
+                    break;
+                }
+                case BoxAxis.Y: // split in XZ plane
+                {
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, min.Z), new Vector3(ctr.X, max.Y, ctr.Z)));
+                    ret.Add(new BoundingBox(new Vector3(ctr.X, min.Y, min.Z), new Vector3(max.X, max.Y, ctr.Z)));
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, ctr.Z), new Vector3(ctr.X, max.Y, max.Z)));
+                    ret.Add(new BoundingBox(new Vector3(ctr.X, min.Y, ctr.Z), new Vector3(max.X, max.Y, max.Z)));
+                    break;
+                }
+                case BoxAxis.Z: // split in XY plane
+                {
+                    ret.Add(new BoundingBox(new Vector3(min.X, min.Y, min.Z), new Vector3(ctr.X, ctr.Y, max.Z)));
+                    ret.Add(new BoundingBox(new Vector3(ctr.X, min.Y, min.Z), new Vector3(max.X, ctr.Y, max.Z)));
+                    ret.Add(new BoundingBox(new Vector3(min.X, ctr.Y, min.Z), new Vector3(ctr.X, max.Y, max.Z)));
+                    ret.Add(new BoundingBox(new Vector3(ctr.X, ctr.Y, min.Z), new Vector3(max.X, max.Y, max.Z)));
+                    break;
+                }
+            }
+            return ret;
+        }
+
+        /// <summary>
+        /// split a box into octants at the given breakpoint
+        /// if no breakpoint is given the box center is used
+        /// </summary>
+        public static List<BoundingBox> Octants(this BoundingBox box, Vector3? breakpoint = null)
+        {
+            var ret = new List<BoundingBox>();
+            Vector3 min = box.Min;
+            Vector3 max = box.Max;
+            Vector3 ctr = breakpoint.HasValue ? breakpoint.Value : box.Center();
+
+            ret.Add(new BoundingBox(new Vector3(min.X, min.Y, min.Z), new Vector3(ctr.X, ctr.Y, ctr.Z)));
+            ret.Add(new BoundingBox(new Vector3(ctr.X, min.Y, min.Z), new Vector3(max.X, ctr.Y, ctr.Z)));
+            ret.Add(new BoundingBox(new Vector3(min.X, ctr.Y, min.Z), new Vector3(ctr.X, max.Y, ctr.Z)));
+            ret.Add(new BoundingBox(new Vector3(ctr.X, ctr.Y, min.Z), new Vector3(max.X, max.Y, ctr.Z)));
+
+            ret.Add(new BoundingBox(new Vector3(min.X, min.Y, ctr.Z), new Vector3(ctr.X, ctr.Y, max.Z)));
+            ret.Add(new BoundingBox(new Vector3(ctr.X, min.Y, ctr.Z), new Vector3(max.X, ctr.Y, max.Z)));
+            ret.Add(new BoundingBox(new Vector3(min.X, ctr.Y, ctr.Z), new Vector3(ctr.X, max.Y, max.Z)));
+            ret.Add(new BoundingBox(new Vector3(ctr.X, ctr.Y, ctr.Z), new Vector3(max.X, max.Y, max.Z)));
+
+            return ret;
         }
 
         /// <summary>
@@ -145,16 +306,6 @@ namespace OPS.Geometry
             }
 
             return new BoundingBox(new Vector3(minX, minY, minZ), new Vector3(maxX, maxY, maxZ));
-        }
-
-        public static double MaxDimension(this BoundingBox box)
-        {
-            return MathE.Max(box.Size().ToDoubleArray());
-        }
-
-        public static Vector3 Center(this BoundingBox box)
-        {
-            return (box.Max + box.Min) / 2;
         }
 
         /// <summary>
