@@ -87,7 +87,8 @@ namespace OPS.Pipeline.TilingServer
             LogLess("building bounds tree to chunk input {0}", message.InputName);
             var tilingScheme = (TilingScheme)Enum.Parse(typeof(TilingScheme), project.TilingScheme);
             var root = DefineTiles.BuildBoundsTree(multiClipper, tilingScheme,
-                                                   new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) });
+                                                   new ITileSplitCriteria[] { new FaceSplitCriteria(FACES_PER_CHUNK) },
+                                                   info: msg => LogLess(msg), verbose: msg => LogVerbose(msg));
 
             LogLess("building mesh chunks for input {0}", message.InputName);
             ConcurrentBag<string> chunkIds = new ConcurrentBag<string>();

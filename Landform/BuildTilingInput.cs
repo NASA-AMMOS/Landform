@@ -345,7 +345,9 @@ namespace OPS.Landform
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
                 tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               texSplitOpts, surfaceExtent);
+                                                               texSplitOpts, surfaceExtent,
+                                                               info: msg => pipeline.LogInfo(msg),
+                                                               verbose: msg => pipeline.LogVerbose(msg));
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));

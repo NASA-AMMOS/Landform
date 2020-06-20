@@ -13,7 +13,7 @@ namespace OPS.Pipeline
     /// </summary>
     public class FaceSplitCriteria : ITileSplitCriteria
     {
-        int targetFacesPerTile;
+        public readonly int targetFacesPerTile;
 
         /// <summary>
         /// 

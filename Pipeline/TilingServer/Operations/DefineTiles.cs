@@ -206,7 +206,8 @@ namespace OPS.Pipeline.TilingServer
                     pairs.Add(DownloadInput(input));
                 }
                 LogInfo("loaded {0} input meshes, building tree", inputs.Count);
-                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, pairs);
+                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, pairs,
+                                               info: msg => LogInfo(msg), verbose: msg => LogVerbose(msg));
             }
 
             LogInfo("computing tiling node dependencies");
@@ -331,7 +332,8 @@ namespace OPS.Pipeline.TilingServer
 
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
                                                         int maxFacesPerTile, List<MeshImagePair> pairs,
-                                                        SplitByTextureOpts texOpts = null, double surfaceExtent = -1)
+                                                        SplitByTextureOpts texOpts = null, double surfaceExtent = -1,
+                                                        Action<string> info = null, Action<string> verbose = null)
         {
             //TODO when merge branch dev/texture-utilization
             //var multiClipper = new MultiMeshClipper(powerOfTwoTextures: powerOfTwoTextures, logger: pipeline);
@@ -341,9 +343,9 @@ namespace OPS.Pipeline.TilingServer
                 multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
             }
 
+            //lower cost split criteria come before higher cost
             var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(maxFacesPerTile) };
 
-            Action<string> info = null;
             if (texOpts != null)
             {
                 if (texOpts.useApproximateTileSplit)
@@ -353,17 +355,11 @@ namespace OPS.Pipeline.TilingServer
                 else
                 {
                     splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
-                    info = msg => pipeline.LogInfo(msg);
                 }
                
             }
 
-            pipeline.LogInfo("build tile tree: building bounds tree, max {0} faces per tile, {1} split criteria, " +
-                             "texture split {2}", Fmt.KMG(maxFacesPerTile), splitCriteria.Count,
-                             splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled");
-
-            return BuildBoundsTree(multiClipper, tilingScheme, splitCriteria.ToArray(), surfaceExtent,
-                                   msg => pipeline.LogInfo(msg));
+            return BuildBoundsTree(multiClipper, tilingScheme, splitCriteria.ToArray(), surfaceExtent, info, verbose);
         }
 
         //each node name is of the form ABCDE... where
@@ -373,9 +369,20 @@ namespace OPS.Pipeline.TilingServer
         //and the collection of all leaf names encodes the full tree topology
         public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, TilingScheme tilingScheme,
                                                 ITileSplitCriteria[] splitCriteria, double surfaceExtent = -1,
-                                                Action<string> infoAction = null)
+                                                Action<string> info = null, Action<string> verbose = null)
         {
-            var info = infoAction ?? (msg => { });
+            info = info ?? (msg => { });
+            verbose = verbose ?? (msg => { });
+
+            string fsStatus = "unlimited";
+            var fs = splitCriteria.Where(sc => sc is FaceSplitCriteria).Cast<FaceSplitCriteria>().FirstOrDefault();
+            if (fs != null)
+            {
+                fsStatus = Fmt.KMG(fs.targetFacesPerTile);
+            }
+            string tsStatus = splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled";
+            info($"building bounds tree, {splitCriteria.Length} split criteria: " +
+                 $"{fsStatus} max faces per tile, texture split {tsStatus}");
 
             var totalBounds = multiClipper.TotalBounds;
 
@@ -399,7 +406,6 @@ namespace OPS.Pipeline.TilingServer
 
             var scheme = TilingSchemeBase.Create(tilingScheme);
 
-            int tilesComplete = 0;
             int surfaceTiles = 0, orbitalTiles = 0, surfaceSplits = 0, orbitalSplits = 0;
             while (queue.Count > 0)
             {
@@ -422,7 +428,17 @@ namespace OPS.Pipeline.TilingServer
                     {
                         Interlocked.Increment(ref surfaceTiles);
                     }
-                    if (sc.Length > 0 && sc.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
+                    bool shouldSplit = false;
+                    foreach (var crit in sc)
+                    {
+                        if (multiClipper.ShouldSplit(crit, curBounds))
+                        {
+                            shouldSplit = true;
+                            verbose($"splitting tile {cur.Name} due to {crit.GetType().Name}");
+                            break;
+                        }
+                    }
+                    if (shouldSplit)
                     {
                         if (sc == orbitalSplitCriteria)
                         {
@@ -433,27 +449,32 @@ namespace OPS.Pipeline.TilingServer
                             Interlocked.Increment(ref surfaceSplits);
                         }
 
-                        var childBounds = scheme.Split(curBounds);
-                        childBounds = multiClipper.FilterEmptyBounds(childBounds);
+                        var childrenBounds = scheme.Split(curBounds);
+                        verbose($"split tile {cur.Name} ({tilingScheme}, min axis {curBounds.MinAxis()}): " +
+                                curBounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
+                        childrenBounds = multiClipper.FilterEmptyBounds(childrenBounds);
+                        verbose($"filtered child bounds: " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
                         
                         int counter = 0; //note this is always exactly one decimal digit
-                        foreach (var childBound in childBounds)
+                        foreach (var childBounds in childrenBounds)
                         {
-                            SceneNode child = CreateChildNode(cur, ref counter, childBound);
+                            SceneNode child = CreateChildNode(cur, ref counter, childBounds);
                             lock (queue)
                             {
                                 queue.Enqueue(child);
                             }
+                            verbose($"made child {child.Name} ({childBounds.Fmt()}) of {cur.Name} ({curBounds.Fmt()})");
                         }
                     }
                     else
                     {
-                        info(string.Format("not Splitting tile: {0} ({1})",
-                                           cur.Name, Interlocked.Increment(ref tilesComplete)));
+                        verbose($"not splitting {cur.Name}");
                     }
                 });
             }
+
             info($"split {surfaceSplits}/{surfaceTiles} surface tiles, {orbitalSplits}/{orbitalTiles} orbital");
+
             root.Name = "root";
             return root;
         }

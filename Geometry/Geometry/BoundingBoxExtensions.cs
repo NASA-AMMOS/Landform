@@ -778,7 +778,14 @@ namespace OPS.Geometry
             return new BoundingBox(new Vector3(-h, -h, -h), new Vector3(h, h, h));
         }
 
-        public static string SizeToString(this BoundingBox box, int decimalPlaces = 3)
+        public static string Fmt(this BoundingBox box, int decimalPlaces = 3)
+        {
+            string fmt = string.Format("({{0:f{0}}}, {{1:f{0}}}, {{2:f{0}}})-({{3:f{0}}}, {{4:f{0}}}, {{5:f{0}}})",
+                                       decimalPlaces);
+            return string.Format(fmt, box.Min.X, box.Min.Y, box.Min.Z, box.Max.X, box.Max.Y, box.Max.Z);
+        }
+
+        public static string FmtSize(this BoundingBox box, int decimalPlaces = 3)
         {
             Vector3 sz = box.Size();
             string fmt = string.Format("{{0:f{0}}}x{{1:f{0}}}x{{2:f{0}}}", decimalPlaces);
