@@ -431,7 +431,8 @@ namespace OPS.Landform
                 if (!options.NoTileset)
                 {
                     RunCommand("build-tiling-input", project, "--mission", missionStr,
-                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
+                               "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods",
+                               "--tileresolution", "-1");
                     
                     BuildTileset(project, "--notextureerror");
                     

@@ -266,6 +266,7 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Rotate an image 90 degrees clockwise
+        /// pixel at (row, col) in original goes to newRow=col, newCol=(Height - row - 1)
         /// </summary>
         /// <returns></returns>
         public Image Rotate90Clockwise()
@@ -424,14 +425,12 @@ namespace OPS.Imaging
             return result;
         }
 
-        /// blit another image or a subframe thereof onto this image in place  
+        // blit another image or a subframe thereof onto this image in place  
+        // if srcImg has a different number of bands than this one then only the shared bands will be copied
         public Image Blit(Image srcImg, int dstCol, int dstRow, int srcCol = 0, int srcRow = 0,
-                          int srcWidth = -1, int srcHeight = -1)
+                          int srcWidth = -1, int srcHeight = -1, bool unmask = false)
         {
-            if (srcImg.Bands != Bands)
-            {
-                throw new ArgumentException("cannot blit images with different numbers of bands");
-            }
+            int minBands = Math.Min(Bands, srcImg.Bands);
             int nr = srcHeight >= 0 ? srcHeight : srcImg.Height;
             int nc = srcWidth >= 0 ? srcWidth : srcImg.Width;
             if (srcCol < 0 || srcRow < 0 || srcCol + nc > srcImg.Width || srcRow + nr > srcImg.Height)
@@ -442,13 +441,17 @@ namespace OPS.Imaging
             {
                 throw new ArgumentException("target region out of bounds");
             }
-            for (int band = 0; band < Bands; band++)
+            for (int band = 0; band < minBands; band++)
             {
                 for (int r = 0; r < nr; r++)
                 {
                     for (int c = 0; c < nc; c++)
                     {
                         this[band, dstRow + r, dstCol + c] = srcImg[band, srcRow + r, srcCol + c];
+                        if (unmask && HasMask)
+                        {
+                            SetMaskValue(dstRow + r, dstCol + c, false);
+                        }
                     }
                 }
             }

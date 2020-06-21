@@ -83,9 +83,14 @@ namespace OPS.Geometry
         public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false,
                     Action<string> warn = null)
         {
-            Faces = new List<Face>(triangles.Count);
-            Vertices = new List<Vertex>(triangles.Count * 3);
             SetProperties(hasNormals, hasUVs, hasColors);
+            SetTriangles(triangles);
+        }
+
+        public void SetTriangles(IEnumerable<Triangle> triangles, bool normalize = true, Action<string> warn = null)
+        {
+            Faces = new List<Face>(triangles.Count());
+            Vertices = new List<Vertex>(triangles.Count() * 3);
             int idx = 0;
             foreach (Triangle t in triangles)
             {
@@ -95,7 +100,7 @@ namespace OPS.Geometry
                 Vertices.Add((Vertex)t.V1.Clone());
                 Vertices.Add((Vertex)t.V2.Clone());
             }
-            Clean(warn: warn);
+            Clean(normalize: normalize, removeDuplicateVerts: true, warn: warn);
         }
 
         /// <summary>
@@ -227,7 +232,7 @@ namespace OPS.Geometry
             }
         }
 
-        bool CheckUV(Vector2 uv)
+        public static bool CheckUV(Vector2 uv)
         {
             return 0 <= uv.X && uv.X <= 1 && 0 <= uv.Y && uv.Y <= 1;
         }

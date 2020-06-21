@@ -74,6 +74,20 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Resize so that both width and height are less than or equal to maxSize.
+        /// Does nothing if maxSize is non-positive.
+        /// </summary>
+        public static Image ResizeMax(this Image img, int maxSize)
+        {
+            if (maxSize <= 0 || (img.Width <= maxSize && img.Height <= maxSize))
+            {
+                return img;
+            }
+            double f = img.Width < img.Height ? maxSize / ((double)img.Height) : maxSize / ((double)img.Width);
+            return Resize(img, (int)(f * img.Width), (int)(f * img.Height));
+        }
+
+        /// <summary>
         /// Helper class containing data for each mapping between input and output pixels
         /// </summary>
         private class Weight

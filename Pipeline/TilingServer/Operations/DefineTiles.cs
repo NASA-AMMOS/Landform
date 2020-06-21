@@ -127,7 +127,7 @@ namespace OPS.Pipeline.TilingServer
 
             SceneNode root = null;
 
-            var tilingScheme = project.GetTilingScheme();
+            var tilingScheme = project.TilingScheme;
 
             var idToSceneNode = new Dictionary<string, SceneNode>();
             var idToTilingNode = new ConcurrentDictionary<string, TilingNode>();

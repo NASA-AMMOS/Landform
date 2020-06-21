@@ -144,7 +144,7 @@ suffix=
 export=
 
 cfgargs=
-tilingargs=
+tilingargs="--tileresolution=-1"
 tilesetargs="--notextureerror"
 manifestargs=
 syncargs=
@@ -175,7 +175,7 @@ while (( "$#" )); do
         "--nomanifest") manifest=;;
         "--nolods") lods=;;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
-        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
+        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$tilingargs $1";;
         "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$tilesetargs $1";;
         "--manifestargs") shift; expect $# "manifest args"; manifestargs="$1";;
         "--syncargs") shift; expect $# "sync args"; syncargs="$1";;

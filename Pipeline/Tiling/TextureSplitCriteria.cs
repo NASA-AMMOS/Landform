@@ -134,6 +134,10 @@ namespace OPS.Pipeline
                     return false;
                 }
             }
+            else
+            {
+                clippedMesh.RescaleUVsForTexture(options.tileResolution, options.tileResolution);
+            }
 
             //choose a sub-set of points (for perf) from the output atlas texture to test
             MeshOperator clippedOp =

@@ -67,8 +67,17 @@ namespace OPS.Pipeline
             return result;
         }
 
-        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
+        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds,
+                                                      int maxTextureSize = int.MaxValue)
         {
+            if (maxTextureSize == 0)
+            {
+                return 0; //texturing disabled
+            }
+            if (maxTextureSize < 0)
+            {
+                maxTextureSize = int.MaxValue;
+            }
             // Read all overlapping meshes, crop each to the extent of the leaf tile
             // and calculate the area the triangles occupy in units of pixels.  Sum all
             // the areas and round up to nearest power of two to decide size of the new tile
@@ -213,13 +222,13 @@ namespace OPS.Pipeline
             info("computing parent tile resolution");
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
 
-            Image img = null;
-            Image index = null;
+            //we always bake parent tile textures, regardless of project.TextureMode
+            Image img = null, index = null;
             if (size != 0)
             {
                 info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
-                if(combinedDecimated == null)
+                if (combinedDecimated == null)
                 {
                     error("failed to atlas combined children meshes");
                     return false;
@@ -553,6 +562,12 @@ namespace OPS.Pipeline
                                             minImg.ImageWidth, minImg.ImageHeight,
                                             maxImg.ImageWidth, maxImg.ImageHeight,
                                             Fmt.KMG(imgStats.Sum(s => s.NumPixels)));
+                    }
+
+                    int numIndices = mipStats.Count(s => s.HasIndex);
+                    if (numIndices > 0)
+                    {
+                        msg += string.Format("{0}{1} indices", (msg != "") ? ", " : "", numIndices);
                     }
 
                     var vertStats = mipStats.Where(s => s.NumVerts > 0).OrderBy(s => s.NumVerts).ToList();

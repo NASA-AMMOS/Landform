@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
@@ -23,6 +23,8 @@ namespace OPS.Pipeline.TilingServer
 
     public class BuildLeaves : PipelineOperation
     {
+        public const int DEF_MAX_TEXTURE_RESOLUTION = 256;
+
         private readonly BuildLeavesMessage message;
 
         public BuildLeaves(PipelineCore pipeline, BuildLeavesMessage message) : base(pipeline, message)
@@ -100,16 +102,12 @@ namespace OPS.Pipeline.TilingServer
             // Reconstruct a mesh for each input using only the chunks that overlap with leaves that we are building
             LogLess("building acceleration datastructures");
             bool hasImages = false;
-            var bakeClipper = new MultiMeshClipper();
+            bool hasUVs = true;
+            var clipper = new MultiMeshClipper();
             foreach (var group in inputGroups)
             {
-                var meshes = group.Chunks.Select(c =>
-                {
-                    Mesh m = null;
-                    pipeline.GetFile(c.MeshUrl, f => m = Mesh.Load(f));
-                    return m;
-                });
-                var mergedMesh = Mesh.Merge(meshes.ToArray());
+                var meshes = group.Chunks.Select(c => Mesh.Load(pipeline.GetFileCached(c.MeshUrl, "meshes"))).ToArray();
+                var mergedMesh = Mesh.Merge(meshes);
                 mergedMesh.Clean();
                 SparsePipelineImage image = null;
                 string chunkBaseUrl = group.Chunks[0].ImageUrl;
@@ -120,36 +118,89 @@ namespace OPS.Pipeline.TilingServer
                     image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
                                                     chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
                 }
-                bakeClipper.AddInput(mergedMesh, image);
+                clipper.AddInput(mergedMesh, image);
+                hasUVs = hasUVs && mergedMesh.HasUVs;
             }
-            bakeClipper.InitTextureBaker();
 
-            LogLess("baking leaves");
-            int nl = 0;
-            Serial.ForEach(leaves, leaf =>
-            {              
-                LogLess("baking leaf {0} from {1} chunks ({2}/{3})",
-                        leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), ++nl, leaves.Count);
-
-                var m = bakeClipper.Clip(leaf.GetBoundsChecked()); //these bounds may just partition space
-
-                leaf.SetBounds(m.Bounds()); //recompute bounds tight to actual leaf geometry
-
-                var pair = new MeshImagePair(m, null);
-                if (hasImages)
+            int maxTexRes = project.TextureResolution;
+            if (hasImages && maxTexRes != 0)
+            {
+                switch (project.TextureMode)
                 {
-                    pair = bakeClipper.BakeTexture(m, project.TileResolution, msg => LogLess(msg));
+                    case TextureMode.None: maxTexRes = 0; break;
+                    case TextureMode.Bake: 
+                    {
+                        if (maxTexRes < 0)
+                        {
+                            maxTexRes = DEF_MAX_TEXTURE_RESOLUTION;
+                        }
+                        clipper.InitTextureBaker();
+                        break;
+                    }
+                    case TextureMode.Clip:
+                    {
+                        if (!hasUVs)
+                        {
+                            LogWarn("cannot clip leaf textures: input mesh(es) missing UVs");
+                            maxTexRes = 0;
+                        }
+                        break;
+                    }
+                    case TextureMode.Backproject:
+                    {
+                        LogWarn("unsupported texture mode, not generating leaf textures: {0}", project.TextureMode);
+                        maxTexRes = 0;
+                        break;
+                    }
+                }
+            }
+
+            LogLess("building {0} leaves", leaves.Count);
+            int nc = inputGroups.SelectMany(g => g.Chunks).Count();
+            int nl = 0;
+            CoreLimitedParallel.ForEach(leaves, leaf =>
+            {              
+                Interlocked.Increment(ref nl);
+                LogLess("building leaf {0} from {1} chunks ({2}/{3})", leaf.Id, nc, nl, leaves.Count);
+
+                BoundingBox bounds = leaf.GetBoundsChecked(); //these bounds may just partition space
+                MeshImagePair pair = null;
+                if (hasImages && maxTexRes != 0)
+                {
+                    if (project.TextureMode == TextureMode.Bake)
+                    {
+                        var mesh = clipper.Clip(bounds);
+                        LogLess("baking {0}x{0} leaf texture, {1}", maxTexRes, maxTexRes,
+                                mesh.HasUVs ? "using exising UVs" : "assigning new UVs with UVAtlas");
+                        if (mesh.HasUVs)
+                        {
+                            mesh.RescaleUVsForTexture(maxTexRes, maxTexRes);
+                        }
+                        pair = clipper.BakeTexture(mesh, maxTexRes, msg => LogLess(msg));
+                    }
+                    else if (project.TextureMode == TextureMode.Clip)
+                    {
+                        LogLess("clipping leaf texture");
+                        pair = clipper.ClipWithTexture(bounds, maxTexRes);
+                    }
+                }
+                else
+                {
+                    pair = new MeshImagePair(clipper.Clip(bounds), null);
                 }
 
-                if (pair.Mesh != null)
+                if (pair != null && pair.Mesh != null)
                 {
-                    LogLess("saving leaf tile mesh");
+                    var img = pair.Image;
+                    LogLess("saving leaf tile mesh with {0} triangles{1}", Fmt.KMG(pair.Mesh.Faces.Count),
+                            img != null ? string.Format(" and {0}x{1} image", img.Width, img.Height) : " (no image)");
+                    leaf.SetBounds(pair.Mesh.Bounds()); //reset bounds tight to actual leaf geometry
                     leaf.SaveMesh(pair, pipeline, project);
                     leaf.Save(pipeline);
                 }
                 else
                 {
-                    LogError("failed to bake leaf");
+                    LogError("failed to build leaf");
                 }
 
                 pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = leaf.Id });
