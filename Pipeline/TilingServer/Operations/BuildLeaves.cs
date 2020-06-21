@@ -120,7 +120,7 @@ namespace OPS.Pipeline.TilingServer
                     image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
                                                     chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
                 }
-                bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
+                bakeClipper.AddInput(mergedMesh, image);
             }
             bakeClipper.InitTextureBaker();
 

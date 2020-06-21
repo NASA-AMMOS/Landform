@@ -14,11 +14,10 @@ namespace OPS.Pipeline
     public interface ITileSplitCriteria
     {
         /// <summary>
-        /// 
         /// </summary>
-        /// <param name="meshOperator">Operator with source mesh to consider splitting</param>
+        /// <param name="meshOps">source mesh operators to consider splitting</param>
         /// <param name="bounds">Bounding area to consider splitting</param>
-        /// <returns>True if this boudnding area should be subdevided</returns>
-        bool ShouldSplit(MeshOperator meshOperator, BoundingBox bounds);
+        /// <returns>True if bounds should be subdevided</returns>
+        bool ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps);
     }
 }

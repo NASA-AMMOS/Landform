@@ -13,31 +13,16 @@ namespace OPS.Pipeline
     /// </summary>
     public class FaceSplitCriteria : ITileSplitCriteria
     {
-        public readonly int targetFacesPerTile;
+        public readonly int maxFaces;
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="targetFacesPerTile">Faces allowed in a bouding region before we should split</param>
-        public FaceSplitCriteria(int targetFacesPerTile)
+        public FaceSplitCriteria(int maxFaces)
         {
-            this.targetFacesPerTile = targetFacesPerTile;
+            this.maxFaces = maxFaces;
         }
 
-        /// <summary>
-        /// Should we split this area 
-        /// </summary>
-        /// <param name="meshOperator">Operator of mesh to consider splitting</param>
-        /// <param name="bounds">Area to consider splitting</param>
-        /// <returns>True if we should split the area</returns>
-        public bool ShouldSplit(MeshOperator meshOperator, BoundingBox bounds)
+        public bool ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
         {
-            int curPolyCount = meshOperator.CountFaces(bounds);
-            if (curPolyCount <= this.targetFacesPerTile)
-            {
-                return false;
-            }
-            return true;
+            return meshOps.Sum(meshOp => meshOp.CountFaces(bounds)) > maxFaces;
         }
     }
 }

@@ -50,9 +50,15 @@ namespace OPS.Pipeline
                 throw new Exception("invalid subsamplingTriggeringSplit option");
         }
 
-        public bool ShouldSplit(MeshOperator meshOperator, BoundingBox areaOfInterest)
-        { 
+        public bool ShouldSplit(BoundingBox areaOfInterest, params MeshOperator[] meshOps)
+        {
             //#ISSUE 1038:  add the resolution of orbital to this decision
+
+            if (meshOps.Length != 1)
+            {
+                throw new ArgumentException("TextureSplitCriteria can only operate on a single mesh");
+            }
+            var meshOperator = meshOps[0];
 
             // coarse frustum test against the bounding box
             List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh != null && ci.hullInMesh.Intersects(areaOfInterest)).ToList();

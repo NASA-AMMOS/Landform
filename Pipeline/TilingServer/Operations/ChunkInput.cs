@@ -81,8 +81,7 @@ namespace OPS.Pipeline.TilingServer
             }
             LogLess("building acceleration structures to chunk input {0}", message.InputName);
             var multiClipper = new MultiMeshClipper();
-            var dataset = new MultiMeshClipperInput(mesh, sparseImage);
-            multiClipper.AddInput(dataset);
+            multiClipper.AddInput(mesh, sparseImage);
 
             LogLess("building bounds tree to chunk input {0}", message.InputName);
             var tilingScheme = (TilingScheme)Enum.Parse(typeof(TilingScheme), project.TilingScheme);

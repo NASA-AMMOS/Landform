@@ -340,7 +340,7 @@ namespace OPS.Pipeline.TilingServer
             var multiClipper = new MultiMeshClipper();
             foreach (var pair in pairs)
             {
-                multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
+                multiClipper.AddInput(pair.Mesh, pair.Image);
             }
 
             //lower cost split criteria come before higher cost
@@ -378,7 +378,7 @@ namespace OPS.Pipeline.TilingServer
             var fs = splitCriteria.Where(sc => sc is FaceSplitCriteria).Cast<FaceSplitCriteria>().FirstOrDefault();
             if (fs != null)
             {
-                fsStatus = Fmt.KMG(fs.targetFacesPerTile);
+                fsStatus = Fmt.KMG(fs.maxFaces);
             }
             string tsStatus = splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled";
             info($"building bounds tree, {splitCriteria.Length} split criteria: " +
@@ -400,6 +400,7 @@ namespace OPS.Pipeline.TilingServer
             //child node names are created by adding onto parent name
             //so root name will be set to "root" after creating all descendants
             SceneNode root = new SceneNode("");
+            var meshOps = multiClipper.GetMeshOps();
             root.AddComponent(new NodeBounds(totalBounds));
             Queue<SceneNode> queue = new Queue<SceneNode>();
             queue.Enqueue(root);
@@ -429,12 +430,12 @@ namespace OPS.Pipeline.TilingServer
                         Interlocked.Increment(ref surfaceTiles);
                     }
                     bool shouldSplit = false;
-                    foreach (var crit in sc)
+                    foreach (var criteria in sc)
                     {
-                        if (multiClipper.ShouldSplit(crit, curBounds))
+                        if (criteria.ShouldSplit(curBounds, meshOps))
                         {
                             shouldSplit = true;
-                            verbose($"splitting tile {cur.Name} due to {crit.GetType().Name}");
+                            verbose($"splitting tile {cur.Name} due to {criteria.GetType().Name}");
                             break;
                         }
                     }

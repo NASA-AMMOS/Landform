@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="..\packages\EmguCV.3.1.0.1\build\EmguCV.props" Condition="Exists('..\packages\EmguCV.3.1.0.1\build\EmguCV.props')" />
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
@@ -267,7 +267,6 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="MissionSpecific\RoverProductEnum.cs" />
     <Compile Include="Tiling\MultiMeshClipper.cs" />
-    <Compile Include="Tiling\MultiMeshClipperInput.cs" />
     <Compile Include="Tiling\TilingScheme.cs" />
     <Compile Include="Tiling\SceneNodeTilingExtensions.cs" />
     <Compile Include="Tiling\SparsePipelineImage.cs" />
@@ -275,7 +274,6 @@
     <Compile Include="Tiling\TextureSplitCriteria.cs" />
     <Compile Include="Tiling\Tile3DBuilder.cs" />
     <Compile Include="Tiling\TilesetSchema.cs" />
-    <Compile Include="Tiling\VertexSplitCriteria.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />

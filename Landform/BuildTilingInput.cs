@@ -490,7 +490,7 @@ namespace OPS.Landform
             if (texGenMode == TextureGenMode.Bake)
             {
                 bakeClipper = new MultiMeshClipper();
-                bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
+                bakeClipper.AddInput(mesh, sceneTexture);
                 bakeClipper.InitTextureBaker();
             }
 
