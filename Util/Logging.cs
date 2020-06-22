@@ -143,7 +143,7 @@ namespace OPS.Util
 
         public static void LogException(ILog logger, Exception ex)
         {
-            logger.ErrorFormat("({0}} {1}\n{2}", ex.GetType().Name, ex.Message, GetStackTrace(ex));
+            logger.ErrorFormat("({0}) {1}\n{2}", ex.GetType().Name, ex.Message, GetStackTrace(ex));
             var innerExceptions = Logging.GetInnerExceptions(ex);
             if (innerExceptions != null)
             {
