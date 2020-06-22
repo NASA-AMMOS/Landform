@@ -1,21 +1,27 @@
-﻿using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.MathExtensions;
-using OPS.Util;
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
+using System.Collections.Generic;
+using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
+using OPS.Util;
+using OPS.MathExtensions;
+using OPS.Imaging;
 
 namespace OPS.Geometry.GLTF
 {
     /// <summary>
-    /// Structure classes for serializing gltf files as json
+    /// Structures for serializing gltf files as JSON.
     /// </summary>
     public class GLTFFile
     {
+        public const string JPG_MIME = "image/jpeg";
+        public const string PNG_MIME = "image/png";
+        public const string PPMZ_MIME = "image/x-portable-pixmap+gzip";
+        public const string PPM_MIME = "image/x-portable-pixmap";
+        public const string BIN_MIME = "application/octet-stream";
+
         public int scene;
         public List<string> extensionsUsed = new List<string>();
         public GLTFAsset asset = new GLTFAsset();
@@ -30,42 +36,136 @@ namespace OPS.Geometry.GLTF
         public List<GLTFTexture> textures = new List<GLTFTexture>();
         public List<GLTFMaterial> materials = new List<GLTFMaterial>();
 
-        [Newtonsoft.Json.JsonIgnore]
-        public byte[] Data { get; set; }
+        [JsonIgnore]
+        public byte[] Data;
 
         /// <summary>
         /// Create a GLTF file.  
         /// </summary>
         /// <param name="m"></param>
         /// <param name="imageFilename"></param>
-        /// <param name="embedData">If true mesh and image data will be base64 encoded and included in the json segment.  Otherwise they will be stored as a byte array in this.Data.  Set to false when writing binary gltf files (glb)</param>
+        /// <param name="embedData">If true mesh and image data will be base64 encoded and included in the json
+        /// segment.  Otherwise they will be stored as a byte array in this.Data.  Set to false when writing binary
+        /// gltf files (glb).</param>
         public GLTFFile(Mesh m, string imageFilename, string indexFilename = null, bool embedData = true)
         {
             extensionsUsed.Add("KHR_materials_unlit");
 
-            // Add a single node pointing at the first mesh
-            GLTFNode n = new GLTFNode();
-            n.mesh = 0;
-            nodes.Add(n);
+            // single node pointing at the first mesh
+            var node  = new GLTFNode();
+            node.mesh = 0;
+            nodes.Add(node);
 
-            // Add a single scene pointing at the first node
-            GLTFScene s = new GLTFScene();
-            s.name = "scene";
-            s.nodes.Add(0);
-            scenes.Add(s);
+            // single scene pointing at the first node
+            var scene = new GLTFScene();
+            scene.name = "scene";
+            scene.nodes.Add(0);
+            scenes.Add(scene);
 
-            // Specify the first and only scene id
-            scene = 0;
+            // first and only scene id
+            this.scene = 0;
 
-            int accessorCount = 0;
-            List<byte> bytes = new List<byte>();
-            GLTFPrimitive primitive = new GLTFPrimitive();
-            // Vertices
+            // single primitive
+            var primitive = new GLTFPrimitive();
+
+            // single mesh
+            var mesh = new GLTFMesh();
+            mesh.primitives.Add(primitive);
+            meshes.Add(mesh);
+
+            if (imageFilename == null && indexFilename != null)
             {
-                var bounds = m.Bounds();
-                GLTFAccessor accessor = new GLTFAccessor()
+                throw new MeshSerializerException("glTF file cannot have index without texture");
+            }
+
+            if (imageFilename != null)
+            {
+                //single sampler
+                samplers.Add(new GLTFSampler());
+
+                //single material
+                var material = new GLTFMaterial();
+                material.extensions = new Dictionary<string, object>();
+                material.extensions.Add("KHR_materials_unlit", new Dictionary<string, object>());
+                materials.Add(material);
+
+                primitive.material = 0;
+
+                textures.Add(new GLTFTexture() { sampler = 0, source = 0 });
+
+                if (indexFilename != null)
                 {
-                    bufferView = accessorCount++,
+                    textures.Add(new GLTFTexture() { sampler = 0, source = 1 });
+                }
+            }
+            else
+            {
+                images = null;
+                samplers = null;
+                textures = null;
+                materials = null;
+            }
+
+            //from here down we fill a big buffer with all the binary data
+            //we also add bufferViews, accessors, and images
+
+            //load binary image data first, we'll deal with it later
+            //but we can pre-allocate the big byte buffer now if we know its total size
+            var imageFiles = new List<string>();
+            var imageBufs = new List<byte[]>();
+            if (imageFilename != null)
+            {
+                imageFiles.Add(imageFilename);
+                imageBufs.Add(File.ReadAllBytes(imageFilename));
+            }
+            if (indexFilename != null)
+            {
+                imageFiles.Add(indexFilename);
+                imageBufs.Add(File.ReadAllBytes(indexFilename));
+            }
+
+            int numBytes = 3 * 4 * m.Vertices.Count; //positions
+            if (m.HasNormals)
+            {
+                numBytes += 3 * 4 * m.Vertices.Count;
+            }
+            if (m.HasUVs)
+            {
+                numBytes += 2 * 4 * m.Vertices.Count;
+            }
+            if (m.HasFaces)
+            {
+                numBytes += Pad(3 * 2 * m.Faces.Count);
+            }
+            foreach (var buf in imageBufs)
+            {
+                numBytes += Pad(buf.Length);
+            }
+
+            //the big buffer
+            var bytes = new List<byte>(numBytes);
+
+            //vertex positions
+            {
+                var bufferView = new GLTFBufferView()
+                {
+                    buffer = 0,
+                    byteLength = m.Vertices.Count * 3 * 4,
+                    byteOffset = 0,
+                };
+                bufferViews.Add(bufferView);
+
+                for (int i = 0; i < m.Vertices.Count; i++)
+                {
+                    bytes.AddRange(FloatBytes(m.Vertices[i].Position.X));
+                    bytes.AddRange(FloatBytes(m.Vertices[i].Position.Y));
+                    bytes.AddRange(FloatBytes(m.Vertices[i].Position.Z));
+                }
+
+                var bounds = m.Bounds();
+                var accessor = new GLTFAccessor()
+                {
+                    bufferView = bufferViews.Count - 1,
                     byteOffset = 0,
                     componentType = GLTFAccessor.FLOAT_COMPONENT,
                     count = m.Vertices.Count,
@@ -75,34 +175,31 @@ namespace OPS.Geometry.GLTF
                     max = bounds.Max.ToFloatArray(),
                 };
                 accessors.Add(accessor);
-                List<byte> curBytes = new List<byte>();
-                for (int i = 0; i < m.Vertices.Count; i++)
-                {
-                    curBytes.AddRange(FloatBytes(m.Vertices[i].Position.X));
-                    curBytes.AddRange(FloatBytes(m.Vertices[i].Position.Y));
-                    curBytes.AddRange(FloatBytes(m.Vertices[i].Position.Z));
-                }
-                bytes.AddRange(curBytes);
-                primitive.attributes.Add("POSITION", primitive.attributes.Count);
-                GLTFBufferView bufferView = new GLTFBufferView()
-                {
-                    buffer = 0,
-                    byteLength = curBytes.Count,
-                    byteOffset = 0,
-                };
-                bufferViews.Add(bufferView);
+
+                primitive.attributes.Add("POSITION", accessors.Count - 1);
             }
-            if (bytes.Count % 4 != 0)
-            {
-                throw new Exception("Unexpected alignment");
-            }
-            // Normals
+
             if (m.HasNormals)
             {
-                var bounds = m.NormalBounds();
-                GLTFAccessor accessor = new GLTFAccessor()
+                var bufferView = new GLTFBufferView()
                 {
-                    bufferView = accessorCount++,
+                    buffer = 0,
+                    byteLength = m.Vertices.Count * 3 * 4,
+                    byteOffset = bytes.Count
+                };
+                bufferViews.Add(bufferView);
+
+                for (int i = 0; i < m.Vertices.Count; i++)
+                {
+                    bytes.AddRange(FloatBytes(m.Vertices[i].Normal.X));
+                    bytes.AddRange(FloatBytes(m.Vertices[i].Normal.Y));
+                    bytes.AddRange(FloatBytes(m.Vertices[i].Normal.Z));
+                }
+
+                var bounds = m.NormalBounds();
+                var accessor = new GLTFAccessor()
+                {
+                    bufferView = bufferViews.Count - 1,
                     byteOffset = 0,
                     componentType = GLTFAccessor.FLOAT_COMPONENT,
                     count = m.Vertices.Count,
@@ -112,104 +209,81 @@ namespace OPS.Geometry.GLTF
                     max = bounds.Max.ToFloatArray(),
                 };
                 accessors.Add(accessor);
-                List<byte> curBytes = new List<byte>();
-                for (int i = 0; i < m.Vertices.Count; i++)
-                {
-                    curBytes.AddRange(FloatBytes(m.Vertices[i].Normal.X));
-                    curBytes.AddRange(FloatBytes(m.Vertices[i].Normal.Y));
-                    curBytes.AddRange(FloatBytes(m.Vertices[i].Normal.Z));
-                }
-                bytes.AddRange(curBytes);
-                primitive.attributes.Add("NORMAL", primitive.attributes.Count);
-                GLTFBufferView bufferView = new GLTFBufferView()
-                {
-                    buffer = 0,
-                    byteLength = curBytes.Count,
-                    byteOffset = bufferViews.Last().byteOffset + bufferViews.Last().byteLength,
-                };
-                bufferViews.Add(bufferView);
+
+                primitive.attributes.Add("NORMAL", accessors.Count - 1);
             }
-            if (bytes.Count % 4 != 0)
-            {
-                throw new Exception("Unexpected alignment");
-            }
-            // UVs
+
             if (m.HasUVs)
             {
-                GLTFAccessor accessor = new GLTFAccessor()
+                var bufferView = new GLTFBufferView()
                 {
-                    bufferView = accessorCount++,
+                    buffer = 0,
+                    byteLength = m.Vertices.Count * 2 * 4,
+                    byteOffset = bytes.Count
+                };
+                bufferViews.Add(bufferView);
+
+                //GLTF texture coordinates are Y down, Landform texture coordinates are Y up
+                //https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#images
+
+                for (int i = 0; i < m.Vertices.Count; i++)
+                {
+                    bytes.AddRange(FloatBytes(m.Vertices[i].UV.X));
+                    bytes.AddRange(FloatBytes(1 - m.Vertices[i].UV.Y));
+                }
+
+                var bounds = m.UVBounds(flipY: true);
+                var accessor = new GLTFAccessor()
+                {
+                    bufferView = bufferViews.Count - 1,
                     byteOffset = 0,
                     componentType = GLTFAccessor.FLOAT_COMPONENT,
                     count = m.Vertices.Count,
                     type = GLTFAccessor.VEC2_TYPE,
-                    name = "uvs"
+                    name = "uvs",
+                    min = bounds.Min.XY().ToFloatArray(),
+                    max = bounds.Max.XY().ToFloatArray()
                 };
-                Vector2 firstUV = m.Vertices[0].UV;
-                firstUV.Y = 1 - firstUV.Y;
-                Vector2 uvMin = firstUV;
-                Vector2 uvMax = firstUV;
                 accessors.Add(accessor);
-                List<byte> curBytes = new List<byte>();
-                for (int i = 0; i < m.Vertices.Count; i++)
-                {
-                    var uv = m.Vertices[i].UV;
-                    uv.Y = 1 - uv.Y;
-                    uvMin = Vector2.Min(uv, uvMin);
-                    uvMax = Vector2.Max(uv, uvMax);
-                    curBytes.AddRange(FloatBytes(uv.X));
-                    curBytes.AddRange(FloatBytes(uv.Y));
-                }
-                bytes.AddRange(curBytes);
-                accessor.min = uvMin.ToFloatArray();
-                accessor.max = uvMax.ToFloatArray();
-                primitive.attributes.Add("TEXCOORD_0", primitive.attributes.Count);
-                GLTFBufferView bufferView = new GLTFBufferView()
-                {
-                    buffer = 0,
-                    byteLength = curBytes.Count,
-                    byteOffset = bufferViews.Last().byteOffset + bufferViews.Last().byteLength,
-                };
-                bufferViews.Add(bufferView);
-            }
-            if (bytes.Count % 4 != 0)
-            {
-                throw new Exception("Unexpected alignment");
-            }            
 
-            // indices
+                primitive.attributes.Add("TEXCOORD_0", accessors.Count - 1);
+            }
+
             if (m.HasFaces)
             {
-                GLTFAccessor accessor = new GLTFAccessor()
+                var bufferView = new GLTFBufferView()
                 {
-                    bufferView = accessorCount++,
+                    buffer = 0,
+                    byteLength = m.Faces.Count * 3 * 2,
+                    byteOffset = bytes.Count
+                };                
+                bufferViews.Add(bufferView);
+
+                ushort minIndex = ushort.MaxValue, maxIndex = ushort.MinValue;
+                for (int i = 0; i < m.Faces.Count; i++)
+                {
+                    var face = m.Faces[i];
+                    minIndex = (ushort)MathE.Min(minIndex, face.P0, face.P1, face.P2);
+                    maxIndex = (ushort)MathE.Max(maxIndex, face.P0, face.P1, face.P2);
+                    bytes.AddRange(UShortBytes(face.P0));
+                    bytes.AddRange(UShortBytes(face.P1));
+                    bytes.AddRange(UShortBytes(face.P2));
+                }
+                PadBytes(bytes);
+
+                var accessor = new GLTFAccessor()
+                {
+                    bufferView = bufferViews.Count - 1,
                     byteOffset = 0,
                     componentType = GLTFAccessor.USHORT_COMPONENT,
                     count = m.Faces.Count * 3,
                     type = GLTFAccessor.SCALAR_TYPE,
                     name = "indices",
-                    min = new float[] {ushort.MaxValue},
-                    max = new float[] {ushort.MinValue}
+                    min = new float[] { minIndex },
+                    max = new float[] { maxIndex }
                 };
                 accessors.Add(accessor);
-                List<byte> curBytes = new List<byte>();
-                for (int i = 0; i < m.Faces.Count; i++)
-                {
-                    var face = m.Faces[i];
-                    accessor.min[0] = MathE.Min(face.P0, face.P1, face.P2, accessor.min[0]);
-                    accessor.max[0] = MathE.Max(face.P0, face.P1, face.P2, accessor.max[0]);
-                    curBytes.AddRange(UShortBytes(face.P0));
-                    curBytes.AddRange(UShortBytes(face.P1));
-                    curBytes.AddRange(UShortBytes(face.P2));
-                }
-                bytes.AddRange(curBytes);   
-                GLTFBufferView bufferView = new GLTFBufferView()
-                {
-                    buffer = 0,
-                    byteLength = curBytes.Count,
-                    byteOffset = bufferViews.Last().byteOffset + bufferViews.Last().byteLength,
-                };                
-                bufferViews.Add(bufferView);
+
                 primitive.indices = accessors.Count - 1;
                 primitive.mode = GLTFPrimitive.TRIANGLES;
             }
@@ -217,148 +291,50 @@ namespace OPS.Geometry.GLTF
             {
                 primitive.mode = GLTFPrimitive.POINTS;
             }
-            int paddingAdded = 0;
-            // Add padding to ensure 4 byte alignment
-            while (bytes.Count % 4 != 0)
+
+            for (int i = 0; i < imageFiles.Count; i++)
             {
-                bytes.Add((byte)0);
-                paddingAdded++;
-            }
-            StringBuilder builder = new StringBuilder();
-            builder.Append(GLTFBuffer.OCTET_HEADER);
-            builder.Append(System.Convert.ToBase64String(bytes.ToArray()));
-
-           
-            GLTFMesh gm = new GLTFMesh();
-            gm.primitives.Add(primitive);
-            meshes.Add(gm);
-
-            if (imageFilename != null)
-            {
-                var imgs = new List<string>(){ imageFilename };
-                if(indexFilename != null)
+                var image = new GLTFImage();
+                images.Add(image);
+                image.mimeType = ExtToMime(imageFiles[i]);
+                if (embedData)
                 {
-                    imgs.Add(indexFilename);
+                    image.uri = Base64Encode(image.mimeType, imageBufs[i]);
                 }
-                foreach (string fn in imgs)
+                else
                 {
-                    byte[] imageData = File.ReadAllBytes(fn);
-
-                    GLTFImage img = new GLTFImage();
-                    string ext = Path.GetExtension(fn).ToLower();
-                    if (embedData)
+                    var bufferView = new GLTFBufferView()
                     {
-                        StringBuilder sb = new StringBuilder();
-                        if (ext == ".jpg")
-                        {
-                            sb.Append(GLTFImage.JPG_HEADER);
-                        }
-                        else if (ext == ".png")
-                        {
-                            sb.Append(GLTFImage.PNG_HEADER);
-                        }
-                        else if (ext == ".ppmz")
-                        {
-                            sb.Append(GLTFImage.PPMZ_HEADER);
-                        }
-                        else if (ext == ".ppm")
-                        {
-                            sb.Append(GLTFImage.PPM_HEADER);
-                        }
-                        else
-                        {
-                            throw new MeshSerializerException("Unsupported image format for gltf export");
-                        }
-                        sb.Append(System.Convert.ToBase64String(imageData));
-                        img.uri = sb.ToString();
-                    }
-                    else
-                    {
-                        var prevView = bufferViews[bufferViews.Count - 1];
-                        var imgView = new GLTFBufferView()
-                        {
-                            buffer = 0,
-                            byteLength = imageData.Length,
-                            byteOffset = bufferViews.Last().byteOffset + bufferViews.Last().byteLength + paddingAdded
-                        };
-                        bytes.AddRange(imageData);
-                        bufferViews.Add(imgView);
-                        img.bufferView = bufferViews.Count - 1;
-                        if (ext == ".jpg")
-                        {
-                            img.mimeType = GLTFImage.JPG_MIME;
-                        }
-                        else if (ext == ".png")
-                        {
-                            img.mimeType = GLTFImage.PNG_MIME;
-                        }
-                        else if (ext == ".ppmz")
-                        {
-                            img.mimeType = GLTFImage.PPMZ_MIME;
-                        }
-                        else if (ext == ".ppm")
-                        {
-                            img.mimeType = GLTFImage.PPM_MIME;
-                        }
-                        else
-                        {
-                            throw new MeshSerializerException("Unsupported image format for gltf export");
-                        }
-                    }
-                    // Add padding to ensure 4 byte alignment
-                    paddingAdded = 0;
-                    while (bytes.Count % 4 != 0)
-                    {
-                        bytes.Add((byte)0);
-                        paddingAdded++;
-                    }
-                    images.Add(img);
-                }
-                samplers.Add(new GLTFSampler());
-                GLTFTexture texture = new GLTFTexture()
-                {
-                    sampler = 0,
-                    source = 0
-                };
-                textures.Add(texture);
-
-                if (indexFilename != null)
-                {
-                    GLTFTexture indexTexture = new GLTFTexture()
-                    {
-                        sampler = 0,
-                        source = 1
+                        buffer = 0,
+                        byteLength = imageBufs[i].Length,
+                        byteOffset = bytes.Count
                     };
-                    textures.Add(indexTexture);
-                }
+                    bufferViews.Add(bufferView);
 
-                GLTFMaterial material = new GLTFMaterial();
-                material.extensions = new Dictionary<string, object>();
-                material.extensions.Add("KHR_materials_unlit", new Dictionary<string, object>());
-                materials.Add(material);
-                primitive.material = 0;
-            } else
-            {
-                images = null;
-                samplers = null;
-                textures = null;
-                materials = null;
+                    bytes.AddRange(imageBufs[i]);
+                    PadBytes(bytes);
+
+                    image.bufferView = bufferViews.Count - 1;
+                }
             }
 
-
-            GLTFBuffer buffer = new GLTFBuffer()
-            {
-                byteLength = bytes.Count
-            };
+            var buffer = new GLTFBuffer() { byteLength = bytes.Count };
+            buffers.Add(buffer);
             if (embedData)
             {
-                buffer.uri = builder.ToString();
+                buffer.uri = Base64Encode(BIN_MIME, bytes.ToArray());
             }
             else
             {
-                this.Data = bytes.ToArray();
+                Data = bytes.ToArray();
             }
-            buffers.Add(buffer);
+        }
+
+        public string ToJson(bool indent = false)
+        {
+            var ignoreNulls = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore };
+            var formatting = indent ? Formatting.Indented : Formatting.None;
+            return JsonConvert.SerializeObject(this, formatting, ignoreNulls);
         }
 
         public static byte[] FloatBytes(double value)
@@ -372,15 +348,75 @@ namespace OPS.Geometry.GLTF
             return bytes;
         }
 
-        public static byte[] UShortBytes(int value)
+        public static byte[] UIntBytes(int value)
         {
-            ushort f = (ushort) value;
-            byte[] bytes = BitConverter.GetBytes(f);
+            return UIntBytes((UInt32)value);
+        }
+
+        public static byte[] UIntBytes(UInt32 value)
+        {
+            UInt32 i = (UInt32) value;
+            byte[] bytes = BitConverter.GetBytes(i);
             if (!BitConverter.IsLittleEndian)
             {
                 Array.Reverse(bytes);
             }
             return bytes;
+        }
+
+        public static byte[] UShortBytes(int value)
+        {
+            ushort s = (ushort) value;
+            byte[] bytes = BitConverter.GetBytes(s);
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Reverse(bytes);
+            }
+            return bytes;
+        }
+
+        public static string Base64Encode(string mimeType, byte[] bytes)
+        {
+            var sb = new StringBuilder();
+            sb.Append($"data:{mimeType};base64,");
+            sb.Append(System.Convert.ToBase64String(bytes));
+            return sb.ToString();
+        }
+
+        public static string ExtToMime(string fileOrExt)
+        {
+            if (fileOrExt.IndexOf('.') > 0)
+            {
+                fileOrExt = Path.GetExtension(fileOrExt);
+            }
+            switch (fileOrExt.ToLower().TrimStart('.'))
+            {
+                case "jpg": return JPG_MIME;
+                case "png": return PNG_MIME;
+                case "ppmz": return PPMZ_MIME;
+                case "ppm": return PPM_MIME;
+                default: throw new MeshSerializerException("unsupported format for gltf: " + fileOrExt);
+            }
+        }
+
+        public static int Pad(int i)
+        {
+            int padding = 4 - (i % 4);
+            return i + padding;
+        }
+
+        public static void PadBytes(List<byte> bytes)
+        {
+            while (bytes.Count % 4 != 0)
+            {
+                bytes.Add((byte)0);
+            }
+        }
+
+        public static string PadString(string str)
+        {
+            int padding = 4 - (str.Length % 4);
+            return padding > 0 ? (str + new string(' ', padding)) : str;
         }
     }
 
@@ -421,11 +457,8 @@ namespace OPS.Geometry.GLTF
 
     public class GLTFBuffer
     {
-        public const string OCTET_HEADER = "data:application/octet-stream;base64,";
         public int byteLength;
         public string uri;
-
-
     }
 
     public class GLTFBufferView
@@ -454,19 +487,9 @@ namespace OPS.Geometry.GLTF
 
     public class GLTFImage
     {
-        public const string JPG_HEADER = "data:image/jpeg;base64,";
-        public const string PNG_HEADER = "data:image/png;base64,";
-        public const string PPMZ_HEADER = "data:image/x-portable-pixmap+gzip;base64,";
-        public const string PPM_HEADER = "data:image/x-portable-pixmap;base64,";
-        public const string JPG_MIME = "image/jpeg";
-        public const string PNG_MIME = "image/png";
-        public const string PPMZ_MIME = "image/x-portable-pixmap+gzip";
-        public const string PPM_MIME = "image/x-portable-pixmap";
-
         public string uri;
         public string mimeType;
         public int? bufferView;
-
     }
 
     public class GLTFSampler

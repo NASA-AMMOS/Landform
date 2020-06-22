@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Text;
-using Newtonsoft.Json;
+using System.Linq;
 using OPS.Geometry.GLTF;
 
 namespace OPS.Geometry
@@ -24,48 +24,46 @@ namespace OPS.Geometry
 
         public override void Save(Mesh m, string filename, string imageFilename)
         {
-            using (FileStream fs = new FileStream(filename, FileMode.Create))
+            Save(m, filename, imageFilename, null);
+        }
+
+        public static void Save(Mesh m, string filename, string imageFilename, string indexFilename)
+        {
+            using (var fs = new FileStream(filename, FileMode.Create))
             {
-                WriteToStream(fs, m, imageFilename, null);
+                WriteToStream(fs, m, imageFilename, indexFilename);
             }
         }
 
         public static void WriteToStream(Stream s, Mesh m, string imageFilename, string indexFilename)
         {
-            using (BinaryWriter bw = new BinaryWriter(s))
+            using (var bw = new BinaryWriter(s))
             {
-                GLTFFile f = new GLTFFile(m, imageFilename, indexFilename, false);
-                JsonSerializerSettings settings = new JsonSerializerSettings()
-                {
-                    NullValueHandling = NullValueHandling.Ignore
-                };
-                string jsonContent = JsonConvert.SerializeObject(f, Formatting.None, settings);
-                // Must be 4 byte aligned so pad with spaces
-                if(jsonContent.Length % 4 != 0)
-                {
-                    jsonContent += new string(' ', 4 - (jsonContent.Length % 4));
-                }
-                byte[] jsonBytes = Encoding.ASCII.GetBytes(jsonContent);
+                var gltf = new GLTFFile(m, imageFilename, indexFilename, embedData: false);
+                string json = GLTFFile.PadString(gltf.ToJson());
+                byte[] jsonBytes = Encoding.ASCII.GetBytes(json);
 
-                // 7 UInt32's used in the header
-                UInt32 length = (UInt32) (sizeof(UInt32) * 7 + jsonBytes.Length + f.Data.Length);
+                // header
+                //bw.Write(GLTFFile.UIntBytes(0x46546C67)); // gltf magic number
+                bw.Write(Encoding.ASCII.GetBytes("glTF"));
+                bw.Write(GLTFFile.UIntBytes(2)); // version 2
 
-                // Header
-                bw.Write((UInt32) 0x46546C67); // gltf
-                bw.Write((UInt32) 2); // version 2
-                bw.Write((UInt32) length); // total length of file
+                int headerBytes = 3 * 4 + 2 * 4 + 2 * 4;
+                UInt32 totalLength = (UInt32) (headerBytes + jsonBytes.Length + gltf.Data.Length);
+                bw.Write(GLTFFile.UIntBytes(totalLength)); // total length of file
 
-                // Json Chunk
-                bw.Write((UInt32) jsonBytes.Length); // Length of json in bytes
-                bw.Write((UInt32) 0x4E4F534A); // JSON chunk type
+                // json chunk
+                bw.Write(GLTFFile.UIntBytes(jsonBytes.Length)); // length of json in bytes
+                //bw.Write(GLTFFile.UIntBytes(0x4E4F534A)); // json chunk type
+                bw.Write(Encoding.ASCII.GetBytes("JSON"));
                 bw.Write(jsonBytes); // json data
 
                 // binary chunk                     
-                bw.Write((UInt32) f.Data.Length); // Length of binary data in bytes
-                bw.Write((UInt32) 0x004E4942); // Binary chunk type
-                bw.Write(f.Data); // Write binary data
+                bw.Write(GLTFFile.UIntBytes(gltf.Data.Length)); // length of binary data in bytes
+                //bw.Write(GLTFFile.UIntBytes(0x004E4942)); // binary chunk type
+                bw.Write(Encoding.ASCII.GetBytes("BIN").Concat(new byte[] { 0 }).ToArray());
+                bw.Write(gltf.Data); // binary data
             }
         }
-
     }
 }

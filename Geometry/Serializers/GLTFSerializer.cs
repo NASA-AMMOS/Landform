@@ -1,13 +1,12 @@
 ﻿using System;
 using System.IO;
 using System.Text;
-using Newtonsoft.Json;
 using OPS.Geometry.GLTF;
 
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Class for writing gltf files that consit of a single mesh and texture with default material
+    /// Class for writing gltf files that consist of a single mesh and texture with default material
     /// </summary>
     public class GLTFSerializer : MeshSerializer
     {
@@ -15,7 +14,13 @@ namespace OPS.Geometry
 
         public override void Save(Mesh m, string filename, string imageFilename)
         {
-            GLTFSerializer.Write(m, filename, imageFilename);
+            Save(m, filename, imageFilename, null);
+        }
+
+        public static void Save(Mesh m, string filename, string imageFilename, string indexFilename)
+        {
+            var gltf = new GLTFFile(m, imageFilename, indexFilename, embedData: true);
+            File.WriteAllText(filename, gltf.ToJson(indent: true), new UTF8Encoding());
         }
 
         public override Mesh Load(string filename)
@@ -27,18 +32,5 @@ namespace OPS.Geometry
         {
             return ".gltf";
         }
-
-        public static void Write(Mesh m, string filename, string imageFilename = null)
-        {
-            GLTFFile f = new GLTFFile(m, imageFilename);
-            JsonSerializerSettings settings = new JsonSerializerSettings()
-            {
-                NullValueHandling = NullValueHandling.Ignore
-            };
-            File.WriteAllText(filename, JsonConvert.SerializeObject(f, Formatting.Indented, settings),new UTF8Encoding(false));
-        }
     }
-
-    
-
 }

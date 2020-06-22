@@ -1575,7 +1575,7 @@ namespace OPS.Geometry
         /// Since min and max are 3D vectors the z components are set to 0
         /// </summary>
         /// <returns></returns>
-        public BoundingBox UVBounds()
+        public BoundingBox UVBounds(bool flipY = false)
         {
             if (!HasUVs)
             {
@@ -1584,8 +1584,9 @@ namespace OPS.Geometry
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
             foreach (Vertex v in this.Vertices)
             {
-                b.Min = Vector3.Min(b.Min, new Vector3(v.UV, 0));
-                b.Max = Vector3.Max(b.Max, new Vector3(v.UV, 0));
+                var uv = new Vector3(v.UV.X, flipY ? (1 - v.UV.Y) : v.UV.Y, 0);
+                b.Min = Vector3.Min(b.Min, uv);
+                b.Max = Vector3.Max(b.Max, uv);
             }
             return b;
         }
@@ -2028,7 +2029,7 @@ namespace OPS.Geometry
             {
                 if (isB3dm)
                 {
-                    ((B3DMSerializer)s).Save(this, filename, textureFilename, indexFilename);
+                    B3DMSerializer.Save(this, filename, textureFilename, indexFilename);
                 }
                 else
                 {
