@@ -2,6 +2,7 @@
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Newtonsoft.Json;
@@ -22,6 +23,8 @@ namespace OPS.Geometry.GLTF
         public const string PPM_MIME = "image/x-portable-pixmap";
         public const string BIN_MIME = "application/octet-stream";
 
+        public delegate void ImageHandler(string mimeType, byte[] data);
+
         public int scene;
         public List<string> extensionsUsed = new List<string>();
         public GLTFAsset asset = new GLTFAsset();
@@ -38,6 +41,11 @@ namespace OPS.Geometry.GLTF
 
         [JsonIgnore]
         public byte[] Data;
+
+        /// <summary>
+        /// Default constructor for JSON deserialization.
+        /// </summary>
+        public GLTFFile() { }
 
         /// <summary>
         /// Create a GLTF file.  
@@ -337,6 +345,223 @@ namespace OPS.Geometry.GLTF
             return JsonConvert.SerializeObject(this, formatting, ignoreNulls);
         }
 
+        public static GLTFFile FromJson(string json)
+        {
+            var ignoreNulls = new JsonSerializerSettings() { NullValueHandling = NullValueHandling.Ignore };
+            var gltf = JsonConvert.DeserializeObject<GLTFFile>(json, ignoreNulls);
+            if (gltf.buffers.Count > 0 && !string.IsNullOrEmpty(gltf.buffers[0].uri) &&
+                gltf.buffers[0].uri.StartsWith("data:" + BIN_MIME))
+            {
+                gltf.Data = Base64Decode(gltf.buffers[0].uri, out string mimeType);
+                gltf.buffers[0].uri = null;
+            }
+            return gltf;
+        }
+
+        public Mesh Decode(ImageHandler imageHandler = null, ImageHandler indexHandler = null)
+        {
+            if (meshes.Count < 1)
+            {
+                throw new MeshSerializerException("glTF has no meshes");
+            }
+            if (imageHandler != null && images.Count > 0)
+            {
+                DecodeImage(0, imageHandler);
+            }
+            if (indexHandler != null && images.Count > 1)
+            {
+                DecodeImage(1, indexHandler);
+            }
+            return DecodeMesh(0);
+        }
+
+        public Mesh DecodeMesh(int index)
+        {
+            if (index >= meshes.Count)
+            {
+                throw new MeshSerializerException("no glTF mesh at index " + index);
+            }
+            var mesh = meshes[index];
+            if (mesh.primitives.Count != 1)
+            {
+                throw new MeshSerializerException("unsupported number of glTF mesh primitives: " +
+                                                  mesh.primitives.Count);
+            }
+            var primitive = mesh.primitives[0];
+            if (primitive.mode != GLTFPrimitive.POINTS && primitive.mode != GLTFPrimitive.TRIANGLES)
+            {
+                throw new MeshSerializerException("unsupported glTF primitive mode: " + primitive.mode);
+            }
+            if (!primitive.indices.HasValue)
+            {
+                throw new MeshSerializerException("glTF primitive without indices not supported");
+            }
+
+            var vertices = new List<Vertex>();
+
+            {
+                if (!primitive.attributes.ContainsKey("POSITION"))
+                {
+                    throw new MeshSerializerException("glTF primitive without POSITION attribute not supported");
+                }
+                var accessor = GetAccessor(primitive.attributes["POSITION"], a =>
+                                           (a.componentType == GLTFAccessor.FLOAT_COMPONENT &&
+                                            a.type == GLTFAccessor.VEC3_TYPE));
+                var bufferView = GetBufferView(accessor.bufferView, accessor.byteOffset, accessor.count * 3 * 4);
+                vertices.Capacity = accessor.count;
+                int pos = bufferView.byteOffset + accessor.byteOffset;
+                for (int i = 0; i < accessor.count; i++)
+                {
+                    vertices.Add(new Vertex(DecodeFloat(ref pos), DecodeFloat(ref pos), DecodeFloat(ref pos)));
+                }
+            }
+
+            bool hasNormals = primitive.attributes.ContainsKey("NORMAL");
+            if (hasNormals)
+            {
+                var accessor = GetAccessor(primitive.attributes["NORMAL"], a =>
+                                           (a.componentType == GLTFAccessor.FLOAT_COMPONENT &&
+                                            a.type == GLTFAccessor.VEC3_TYPE &&
+                                            a.count == vertices.Count));
+                var bufferView = GetBufferView(accessor.bufferView, accessor.byteOffset, accessor.count * 3 * 4);
+                int pos = bufferView.byteOffset + accessor.byteOffset;
+                for (int i = 0; i < accessor.count; i++)
+                {
+                    vertices[i].Normal =
+                        new Vector3(DecodeFloat(ref pos), DecodeFloat(ref pos), DecodeFloat(ref pos));
+                }
+            }
+
+            bool hasUVs = primitive.attributes.ContainsKey("TEXCOORD_0");
+            if (hasUVs)
+            {
+                var accessor = GetAccessor(primitive.attributes["TEXCOORD_0"], a =>
+                                           (a.componentType == GLTFAccessor.FLOAT_COMPONENT &&
+                                            a.type == GLTFAccessor.VEC2_TYPE &&
+                                            a.count == vertices.Count));
+                var bufferView = GetBufferView(accessor.bufferView, accessor.byteOffset, accessor.count * 2 * 4);
+                int pos = bufferView.byteOffset + accessor.byteOffset;
+                for (int i = 0; i < accessor.count; i++)
+                {
+                    //GLTF texture coordinates are Y down, Landform texture coordinates are Y up
+                    //https://github.com/KhronosGroup/glTF/tree/master/specification/2.0#images
+                    vertices[i].UV = new Vector2(DecodeFloat(ref pos), 1 - DecodeFloat(ref pos));
+                }
+            }
+
+            var faces = new List<Face>();
+            if (primitive.mode == GLTFPrimitive.TRIANGLES)
+            {
+                int accessorIndex = primitive.indices.Value;
+                if (accessorIndex < accessors.Count)
+                {
+                    var accessor = accessors[accessorIndex];
+                    if (accessor.componentType != GLTFAccessor.USHORT_COMPONENT ||
+                        accessor.type != GLTFAccessor.SCALAR_TYPE ||
+                        accessor.count % 3 != 0)
+                    {
+                        throw new MeshSerializerException("invalid glTF indices accessor");
+                    }
+                    int numFaces = accessor.count / 3;
+                    faces.Capacity = numFaces;
+                    var bufferView = GetBufferView(accessor.bufferView, accessor.byteOffset, numFaces * 3 * 2);
+                    int pos = bufferView.byteOffset + accessor.byteOffset;
+                    for (int i = 0; i < numFaces; i++)
+                    {
+                        faces.Add(new Face(DecodeUShort(ref pos), DecodeUShort(ref pos), DecodeUShort(ref pos)));
+                    }
+                }
+                else
+                {
+                    throw new MeshSerializerException("no glTF accessor at index: " + accessorIndex);
+                }
+            }
+
+            var ret = new Mesh(hasNormals, hasUVs);
+            ret.Vertices = vertices;
+            ret.Faces = faces;
+            return ret;
+        }
+
+        public void DecodeImage(int index, ImageHandler handler)
+        {
+            if (index >= images.Count)
+            {
+                throw new MeshSerializerException("no glTF image at index " + index);
+            }
+            var image = images[index];
+            if (image.bufferView.HasValue && !string.IsNullOrEmpty(image.mimeType))
+            {
+                handler(image.mimeType, GetDataSlice(image.bufferView.Value));
+            }
+            else if (image.uri.StartsWith("data:"))
+            {
+                var bytes = Base64Decode(image.uri, out string mimeType);
+                handler(mimeType, bytes);
+            }
+            else
+            {
+                throw new MeshSerializerException("unhandled glTF image URI: " + StringHelper.Abbreviate(image.uri));
+            }
+        }
+
+        public GLTFAccessor GetAccessor(int index, Func<GLTFAccessor, bool> validator = null)
+        {
+            if (index >= accessors.Count)
+            {
+                throw new MeshSerializerException("no glTF accessor at index: " + index);
+            }
+            var accessor = accessors[index];
+            if (validator != null && !validator(accessor))
+            {
+                throw new MeshSerializerException("invalid glTF accessor");
+            }
+            return accessor;
+        }
+
+        public GLTFBufferView GetBufferView(int index, int extraOffset = 0, int minBytes = 0)
+        {
+            if (index >= bufferViews.Count)
+            {
+                throw new MeshSerializerException("no glTF buffer view at index " + index);
+            }
+            var bufferView = bufferViews[index];
+            if (bufferView.buffer >= buffers.Count)
+            {
+                throw new MeshSerializerException("no glTF buffer at index " + bufferView.buffer);
+            }
+            if (!string.IsNullOrEmpty(buffers[bufferView.buffer].uri))
+            {
+                throw new MeshSerializerException("glTF buffer uri not supported " +
+                                                  StringHelper.Abbreviate(buffers[bufferView.buffer].uri));
+            }
+            if (bufferView.buffer > 0)
+            {
+                throw new MeshSerializerException("glTF buffer index not supported " + bufferView.buffer);
+            }
+            if (bufferView.byteLength < minBytes)
+            {
+                throw new MeshSerializerException("glTF buffer view too small");
+            }
+            if (Data == null || Data.Length < extraOffset + bufferView.byteOffset + bufferView.byteLength)
+            {
+                throw new MeshSerializerException("glTF buffer view exceeds available data");
+            }
+            if (bufferView.byteStride.HasValue && bufferView.byteStride > 1)
+            {
+                throw new MeshSerializerException("glTF byte stride not supported: " + bufferView.byteStride.Value);
+            }
+            return bufferView;
+        }
+
+        public byte[] GetDataSlice(int index)
+        {
+            var bufferView = GetBufferView(index);
+            byte[] slice = new byte[bufferView.byteLength];
+            Array.Copy(Data, bufferView.byteOffset, slice, 0, bufferView.byteLength);
+            return slice;
+        }
+
         public static byte[] FloatBytes(double value)
         {
             float f = (float) value;
@@ -346,6 +571,38 @@ namespace OPS.Geometry.GLTF
                 Array.Reverse(bytes);
             }
             return bytes;
+        }
+
+        private ThreadLocal<byte[]> tmp3 = new ThreadLocal<byte[]>(() => (new byte[3]));
+        public float DecodeFloat(ref int pos)
+        {
+            byte[] bytes = Data;
+            int index = pos;
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Copy(bytes, pos, tmp3.Value, 0, 4);
+                Array.Reverse(tmp3.Value);
+                bytes = tmp3.Value;
+                index = 0;
+            }
+            pos += 4;
+            return BitConverter.ToSingle(bytes, index);
+        }
+
+        private ThreadLocal<byte[]> tmp2 = new ThreadLocal<byte[]>(() => (new byte[2]));
+        public ushort DecodeUShort(ref int pos)
+        {
+            byte[] bytes = Data;
+            int index = pos;
+            if (!BitConverter.IsLittleEndian)
+            {
+                Array.Copy(bytes, pos, tmp2.Value, 0, 2);
+                Array.Reverse(tmp2.Value);
+                bytes = tmp2.Value;
+                index = 0;
+            }
+            pos += 2;
+            return BitConverter.ToUInt16(bytes, index);
         }
 
         public static byte[] UIntBytes(int value)
@@ -383,6 +640,25 @@ namespace OPS.Geometry.GLTF
             return sb.ToString();
         }
 
+        public static byte[] Base64Decode(string str, out string mimeType)
+        {
+            mimeType = null;
+            foreach (var mt in new string[] { BIN_MIME, JPG_MIME, PNG_MIME, PPMZ_MIME, PPM_MIME })
+            {
+                string pfx = $"data:{mt};base64,";
+                if (str.StartsWith(pfx))
+                {
+                    mimeType = mt;
+                    str = str.Substring(pfx.Length);
+                }
+            }
+            if (mimeType == null)
+            {
+                throw new MeshSerializerException("unsupported format for gltf: " + StringHelper.Abbreviate(str));
+            }
+            return System.Convert.FromBase64String(str);
+        }
+
         public static string ExtToMime(string fileOrExt)
         {
             if (fileOrExt.IndexOf('.') > 0)
@@ -396,6 +672,18 @@ namespace OPS.Geometry.GLTF
                 case "ppmz": return PPMZ_MIME;
                 case "ppm": return PPM_MIME;
                 default: throw new MeshSerializerException("unsupported format for gltf: " + fileOrExt);
+            }
+        }
+
+        public static string MimeToExt(string mimeType)
+        {
+            switch (mimeType.ToLower().Trim())
+            {
+                case JPG_MIME: return "jpg";
+                case PNG_MIME: return "png";
+                case PPMZ_MIME: return "ppmz";
+                case PPM_MIME: return "ppm";
+                default: throw new MeshSerializerException("unsupported format for gltf: " + mimeType);
             }
         }
 

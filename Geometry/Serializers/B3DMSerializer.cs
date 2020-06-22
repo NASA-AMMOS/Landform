@@ -1,12 +1,15 @@
 ﻿using System;
 using System.IO;
 using System.Text;
+using System.Collections.Generic;
+using Newtonsoft.Json;
 using OPS.Geometry.GLTF;
 
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Writes b3dm files for use with 3D Tiles specification
+    /// Reads and writes 3DTiles batched 3D model files, version 1.
+    /// Only supports b3dm files containing a single binary GLTF (GLB) file in the subset supported by GLBSerializer.
     /// https://github.com/AnalyticalGraphicsInc/3d-tiles/tree/master/specification/TileFormats/Batched3DModel
     /// </summary>
     public class B3DMSerializer : MeshSerializer
@@ -14,11 +17,6 @@ namespace OPS.Geometry
         public override string GetExtension()
         {
             return ".b3dm";
-        }
-
-        public override Mesh Load(string filename)
-        {
-            throw new NotImplementedException();
         }
 
         public override void Save(Mesh m, string filename, string imageFilename)
@@ -75,6 +73,52 @@ namespace OPS.Geometry
 
                     // binary gltf data
                     bw.Write(glbData);
+                }
+            }
+        }
+
+        public override Mesh Load(string filename)
+        {
+            return Load(filename, null);
+        }
+
+        public static Mesh Load(string filename, GLTFFile.ImageHandler imageHandler,
+                                GLTFFile.ImageHandler indexHandler = null)
+        {
+            using (var fs = new FileStream(filename, FileMode.Open))
+            {
+                using (var br = new BinaryReader(fs)) //always reads little endian
+                {
+                    if (br.ReadByte() != 'b' || br.ReadByte() != '3' || br.ReadByte() != 'd' || br.ReadByte() != 'm')
+                    {
+                        throw new MeshSerializerException("invalid b3dm magic");
+                    }
+                    UInt32 ver = br.ReadUInt32();
+                    if (ver != 1)
+                    {
+                        throw new MeshSerializerException("invalid b3dm version: " + ver);
+                    }
+                    UInt32 totalLength = br.ReadUInt32();
+                    UInt32 featureTableJsonLength = br.ReadUInt32();
+                    UInt32 featureTableBinaryLength = br.ReadUInt32();
+                    UInt32 batchTableJsonLength = br.ReadUInt32();
+                    UInt32 batchTableBinaryLength = br.ReadUInt32();
+                    if (featureTableBinaryLength > 0 || batchTableJsonLength > 0 || batchTableBinaryLength > 0)
+                    {
+                        throw new MeshSerializerException("unsupported b3dm file");
+                    }
+                    if (featureTableJsonLength > int.MaxValue || totalLength < 3 * 4 + featureTableJsonLength)
+                    {
+                        throw new MeshSerializerException("invalid b3dm length");
+                    }
+                    string featureTableJson = Encoding.ASCII.GetString(br.ReadBytes((int)featureTableJsonLength));
+                    var featureTable = JsonConvert.DeserializeObject<Dictionary<string, string>>(featureTableJson);
+                    if (featureTable.Count != 1 || !featureTable.ContainsKey("BATCH_LENGTH") ||
+                        !int.TryParse(featureTable["BATCH_LENGTH"], out int bl) || bl != 0)
+                    {
+                        throw new MeshSerializerException("invalid b3dm batch table");
+                    }
+                    return GLBSerializer.ReadFromStream(fs, imageHandler, indexHandler);
                 }
             }
         }

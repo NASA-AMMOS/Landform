@@ -6,7 +6,9 @@ using OPS.Geometry.GLTF;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Class for writing gltf files that consist of a single mesh and texture with default material
+    /// Writes and reads glTF files that consist of a single embedded mesh and optional texture with default material.
+    /// Also supports an optional index image in addition to the texture image.
+    /// https://github.com/KhronosGroup/glTF/tree/master/specification/2.0
     /// </summary>
     public class GLTFSerializer : MeshSerializer
     {
@@ -25,7 +27,13 @@ namespace OPS.Geometry
 
         public override Mesh Load(string filename)
         {
-            throw new NotImplementedException();
+            return Load(filename, null);
+        }
+
+        public static Mesh Load(string filename, GLTFFile.ImageHandler imageHandler,
+                                GLTFFile.ImageHandler indexHandler = null)
+        {
+            return GLTFFile.FromJson(File.ReadAllText(filename)).Decode(imageHandler, indexHandler);
         }
 
         public override string GetExtension()
