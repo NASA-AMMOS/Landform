@@ -10,6 +10,7 @@ using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Util;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TilingServer
 {
@@ -324,13 +325,52 @@ namespace OPS.Pipeline.TilingServer
                     var serializer = new GDALSerializer(opts);
                     serializer.Write<float>(path, img);
                 }
-                else if (ext == ".ppm" || ext == ".ppmz")
+                else if (ext == ".ppm" || ext == ".ppmz" || ext == ".png")
                 {
+                    //these formats support 16 bit color components
+                    //we can generally save surface observation image indices
+                    //but not orbital which can easily have larger dimensions than 65535
+                    int numBad = 0;
+                    img = new Image(img);
+                    for (int r = 0; r < img.Height; r++)
+                    {
+                        for (int c = 0; c < img.Width; c++)
+                        {
+                            bool orbital = img[0, r, c] == Observation.ORBITAL_IMAGE_INDEX;
+                            bool bad = false;
+                            if (!orbital)
+                            {
+                                for (int b = 0; b < img.Bands; b++)
+                                {
+                                    if (img[b, r, c] < 0 || img[b, r, c] > 65535)
+                                    {
+                                        bad = true;
+                                        ++numBad;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (bad || orbital)
+                            {
+                                img[0, r, c] = Observation.NO_OBSERVATION_INDEX;
+                                for (int b = 1; b < img.Bands; b++)
+                                {
+                                    img[b, r, c] = 0;
+                                }
+                            }
+                        }
+                    }
+                    if (numBad > 0)
+                    {
+                        pipeline.LogWarn("cleared {0} invalid pixels saving index image for tile {1} to 16 bit {2}",
+                                         numBad, Id, ext);
+                    }
                     img.Save<ushort>(path);
                 }
                 else
                 {
-                    img.Save<byte>(path);
+                    pipeline.LogWarn("not saving index image for tile {0}, {1} format does not support 16 bit",
+                                     Id, ext);
                 }
             };
 

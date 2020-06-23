@@ -67,7 +67,7 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
 
-        public string TilesetIndexFormat = "ppmz"; //e.g. tiff, ppm, ppmz, only used if InternalIndexFormat is also set
+        public string TilesetIndexFormat = "ppmz"; //e.g. tiff, png, ppm[z], only used if InternalIndexFormat is set
 
         public bool EmbedIndexes = true; //embed tileset indexes in b3dm
 

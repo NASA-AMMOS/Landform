@@ -53,7 +53,8 @@ namespace OPS.Imaging
             return s;
         }
 
-        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null, bool useFillValueFromFile = false)
+        public override Image Read(string filename, IImageConverter converter, float[] fillValue = null,
+                                   bool useFillValueFromFile = false)
         {
             Image img;
             var sr = new StreamReader(OpenReadStream(filename));
@@ -76,10 +77,9 @@ namespace OPS.Imaging
                 }
             }
             
-            if(header[0] != "P6")
+            if (header[0] != "P6")
             {
-                throw new ImageSerializationException(
-                    String.Format("Unexpected file format signifier {0}", header[0]));
+                throw new ImageSerializationException("unexpected file format " + header[0]);
             }
 
             var split = header[1].Split(' ');
@@ -88,18 +88,18 @@ namespace OPS.Imaging
                !Int32.TryParse(split[1], out int height))
             {
                 throw new ImageSerializationException(
-                    String.Format("Unexpected [width height]: {0}", header[1]));
+                    String.Format("unexpected [width height]: {0}", header[1]));
             }
 
             if(!Int32.TryParse(header[2].Replace(" ", ""), out int maxVal))
             {
                 throw new ImageSerializationException(
-                    String.Format("Unexpected max pixel value {0}", header[2]));
+                    String.Format("unexpected max pixel value {0}", header[2]));
             }
             if(maxVal <= 0 || maxVal > 65535)
             {
                 throw new ImageSerializationException(
-                    String.Format("Maximum pixel value {0} must be in range 1-65535", maxVal));
+                    String.Format("maximum pixel value {0} must be in range 1-65535", maxVal));
             }
 
             sr.Close();
@@ -127,7 +127,7 @@ namespace OPS.Imaging
 
         public override void Write<T>(string filename, Image image, IImageConverter converter, float[] fillValue = null)
         {
-            if(typeof(T) != typeof(UInt16))
+            if (typeof(T) != typeof(UInt16))
             {
                 throw new NotImplementedException();
             }
@@ -166,7 +166,9 @@ namespace OPS.Imaging
                             float val = image[b, r, c];
                             if (val < 0 || val > 65535)
                             {
-                                throw new NotImplementedException(".ppm serializer only supports values 0-65535");
+                                var bv = string.Join(", ", image.GetBandValues(r, c).Select(v => v.ToString("F3")));
+                                throw new NotImplementedException(".ppm serializer only supports 0-65535, " +
+                                                                  $"got ({bv}) at r={r}, c={c} in {filename}");
                             }
                             bw.Write((UInt16)val);
                         }
