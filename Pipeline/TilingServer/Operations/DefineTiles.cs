@@ -193,6 +193,7 @@ namespace OPS.Pipeline.TilingServer
                     Interlocked.Increment(ref n);
                     spew("converted", n, 50);
                 });
+
                 LogInfo("computing tile tree bounds");
                 SceneNodeTilingExtensions.ComputeBounds(root, useExistingLeafBounds: true);
             }
@@ -510,9 +511,23 @@ namespace OPS.Pipeline.TilingServer
             string childName = parent.Name + counter++;
             string parentName = !string.IsNullOrEmpty(parent.Name) ? parent.Name : "root";
 
-            //for a leaf tile these will be its bounds forever
-            //but for a parent tile the bounds will be updated when the parent tile mesh is created
-            //to ensure the parent bounds includes both its children and its own mesh
+            //For user-defined nodes, which are typically leaves, the bounds will be recomputed as the predefined mesh's
+            //bounds in DownloadInputsAndBuildTree(), but the result should be pretty much the same as we compute here.
+            //For bounds computed in BuildLeaves, same story.
+            //
+            //For (non-user-defined) parent tiles the bounds will be updated when the parent tile mesh is created in
+            //BuildParent to ensure the parent bounds includes both its children and its own mesh, which may exceed
+            //these bounds a bit due to effects of mesh geometry decimation.
+            //
+            //Another thing to keep in mind here is that the bounds that were passed in to CreateChildNode() are
+            //generally just any subregion of the parent's bounds.  They are not necessarily tight to the child
+            //geometry, though it should have already been ensured that they contain at least some child geometry, not
+            //totally empty.  That is actually OK for most codepaths, because these bounds will generally be replaced by
+            //the actual child mesh bounds as explained above.  However, it is not good when using QuadAuto tiling
+            //scheme, because that needs to be able to reason correctly about which bounding box dimension is smallest
+            //(and correspondingly which face is largest).  So that is why we incur the extra cost of unioning the
+            //ClippedMeshBounds() here.
+
             bounds = BoundingBoxExtensions.Union(meshOps.Select(op => op.ClippedMeshBounds(bounds)).ToArray());
             if (bounds.IsEmpty())
             {

@@ -226,7 +226,8 @@ namespace OPS.Pipeline.TilingServer
 
         /// <summary>
         /// Assigns a mesh and possibly a corresponding texture image to this node.
-        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, but up to caller to save this node itself back to database.
+        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, and creates/enlarges Bounds to contain mesh.
+        /// It is up to the caller to save this node itself back to database.
         /// Also uploads the mesh and image (if any) to S3.
         /// Up to three copies of each are uploaded:
         /// 1. in the tile folder for our internal use, in our internal formats (ply, png)
@@ -463,6 +464,20 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
+            //ensure that bounds are set and contain mesh, if any
+            if (pair.Mesh != null)
+            {
+                var bounds = GetBounds();
+                if (!bounds.HasValue)
+                {
+                    SetBounds(pair.Mesh.Bounds());
+                }
+                else
+                {
+                    SetBounds(BoundingBoxExtensions.Union(bounds.Value, pair.Mesh.Bounds()));
+                }
+            }
+
             //save combined mesh and image as a 3D Tiles b3dm (batched 3D model) file for runtime visualization
             //or, if the mesh is not triangulated, then just save the point cloud as a pnts file
             //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
@@ -516,21 +531,9 @@ namespace OPS.Pipeline.TilingServer
                         Mesh tilesetMesh = pair.Mesh;
                         if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
                         {
-                            var bounds = GetBounds();
-                            if (!bounds.HasValue)
-                            {
-                                bounds = tilesetMesh.Bounds();
-                                SetBounds(bounds.Value);
-                            }
-                            else
-                            {
-                                SetBounds(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
-                            }
-                            
                             tilesetMesh = new Mesh(tilesetMesh);
                             tilesetMesh.AddSkirt(project.GetSkirtMode());
-                            
-                            SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
+                            SetBoundsWithSkirt(BoundingBoxExtensions.Union(GetBounds().Value, tilesetMesh.Bounds()));
                         }
                         else
                         {

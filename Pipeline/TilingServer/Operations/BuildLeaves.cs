@@ -131,7 +131,9 @@ namespace OPS.Pipeline.TilingServer
                 LogLess("baking leaf {0} from {1} chunks ({2}/{3})",
                         leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), ++nl, leaves.Count);
 
-                var m = bakeClipper.Clip(leaf.GetBoundsChecked());
+                var m = bakeClipper.Clip(leaf.GetBoundsChecked()); //these bounds may just partition space
+
+                leaf.SetBounds(m.Bounds()); //recompute bounds tight to actual leaf geometry
 
                 var pair = new MeshImagePair(m, null);
                 if (hasImages)
