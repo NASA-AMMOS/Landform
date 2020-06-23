@@ -11,7 +11,7 @@ Create the named project.  Implements the [task API](#task-api).
 Accepts the following arugments:
 
 * *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `QuadAuto`, `Oct`, or `UserDefined`; default `QuadAuto`
-* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `None`
+* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Normal`
 * *reconmethod*: reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256

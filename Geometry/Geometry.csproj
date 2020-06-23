@@ -88,7 +88,6 @@
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableEdge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableEdgeGraph.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\CollapsableVertexNode.cs" />
-    <Compile Include="Geometry\SimpleEdge.cs" />
     <Compile Include="Geometry\VertexProjection.cs" />
     <Compile Include="Geometry\MeshToHeightMap.cs" />
     <Compile Include="Geometry\OctreeTriangle.cs" />

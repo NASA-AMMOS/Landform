@@ -38,7 +38,10 @@ namespace OPS.Geometry
             this.Position = new Vector3(x, y, z);
         }
 
-        public Vertex(double x, double y, double z, double nx, double ny, double nz, double u, double v, double r, double g, double b, double a)
+        public Vertex(double x, double y, double z,
+                      double nx, double ny, double nz,
+                      double u, double v,
+                      double r, double g, double b, double a)
         {
             this.Position = new Vector3(x, y, z);
             this.Normal = new Vector3(nx, ny, nz);

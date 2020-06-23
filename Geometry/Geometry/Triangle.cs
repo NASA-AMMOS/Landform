@@ -472,6 +472,11 @@ namespace OPS.Geometry
             }
         }
 
+        public bool TryComputeNormal(out Vector3 norm)
+        {
+            return ComputeNormal(V0.Position, V1.Position, V2.Position, out norm);
+        }
+
         public static Vector3 ComputeNormal(Vector3 v0, Vector3 v1, Vector3 v2)
         {
             Vector3 norm;

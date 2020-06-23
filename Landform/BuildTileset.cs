@@ -59,7 +59,7 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
 
-        [Option(Required = false, Default = SkirtMode.None, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
+        [Option(Required = false, Default = SkirtMode.Normal, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
         public SkirtMode SkirtMode { get; set; }
 
         [Option(Default = MeshReconstructionMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]

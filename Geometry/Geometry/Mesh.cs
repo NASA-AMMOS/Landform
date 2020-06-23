@@ -526,333 +526,146 @@ namespace OPS.Geometry
             RemoveIdenticalFaces();
         }
 
-        Dictionary<Vector3, List<Vertex>> GetPositionToVertexMap()
-        {
-            Dictionary<Vector3, List<Vertex>> map = new Dictionary<Vector3, List<Vertex>>();
-            foreach (Vertex v in this.Vertices)
-            {
-                if (map.ContainsKey(v.Position))
-                {
-                    map[v.Position].Add(v);
-                }
-                else
-                {
-                    map.Add(v.Position, new List<Vertex> { v });
-                }
-            }
-            return map;
-        }
-
-        /// <summary>
-        /// Remove the skirt along the specified axis
-        /// The skirt's edge vertex must share the normals, UVs, and color of the connected skirt vertex on the mesh
-        /// The edge and its connected corresponding one on the mesh must be aligned on the axis specified
-        /// </summary>
-        /// <param name="axis">The axis which the skirt is extruded along, where the other two axes must be equal between the two skirt vertices</param>
-        public void RemoveSkirt(SkirtMode axis)
-        {
-            if(axis == SkirtMode.Normal)
-            {
-                throw new Exception("Mesh.RemoveSkirt not implemented for normals...");
-            }
-
-            // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
-            // Vertices that are part of the skirt that need to be removed at the end
-            List<Vertex> edgeVertices = EdgeVertices();
-            List<Vertex> verticesToRemove = new List<Vertex>();
-            // Run through each unique vertex on the edge and remove it if it qualifies as part of a skirt
-            foreach (Vertex edgeVertex in edgeVertices)
-            {
-                // Find index of the current edge vertex
-                int vertexIndexInMesh = Vertices.IndexOf(edgeVertex);
-
-                // Find the connected faces to the edge vertex
-                Face[] facesUsingEdgeVertex = Faces.Where(face => Vertices[face.P0] == edgeVertex || Vertices[face.P1] == edgeVertex || Vertices[face.P2] == edgeVertex).ToArray();
-
-                // All vertices connected to this vertex
-                HashSet<Vertex> otherVertices = new HashSet<Vertex>();
-
-                // Add the other two vertices to the set
-                foreach (Face face in facesUsingEdgeVertex)
-                {
-                    int[] vertexIndices = face.ToArray();
-                    int vertexIndexInFace = Array.IndexOf(vertexIndices, vertexIndexInMesh);
-                    otherVertices.Add(Vertices[vertexIndices[(vertexIndexInFace + 1) % 3]]);
-                    otherVertices.Add(Vertices[vertexIndices[(vertexIndexInFace + 2) % 3]]);
-                }
-
-                // Go through each vertex and attempt to find one that matches this one's normals/UVs/color/position
-                foreach (Vertex candidateVertex in otherVertices)
-                {
-                    // Skip this point because it doesn't qualify if it has a mismatched normal or UV or color
-                    if ((HasNormals && !edgeVertex.Normal.AlmostEqual(candidateVertex.Normal)) ||
-                        (HasUVs && !edgeVertex.UV.AlmostEqual(candidateVertex.UV)) ||
-                        (HasColors && !edgeVertex.Color.AlmostEqual(candidateVertex.Color))
-                    )
-                    {
-                        continue;
-                    }
-
-                    // Check if the other two axes are almost equal between the edge vertex and candidate vertex
-                    if ((axis == SkirtMode.X && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
-                        (axis == SkirtMode.Y && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
-                        (axis == SkirtMode.Z && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y))
-                    )
-                    {
-                        // Include the edge vertex in the list to be deleted
-                        verticesToRemove.Add(edgeVertex);
-                    }
-                }
-            }
-            // Remove the vertices selected on the edge that are part of the skirt
-            RemoveVertices(verticesToRemove);
-        }
-
         /// <summary>
         /// Adds a skirt to all open edges (edges which are connected on only one side) in the direction specified
         /// If SkirtMode.Normal used, then skirt position will be based on average of 2-ring face normals.
         /// Because skirt points can be projected in different directions (and create bad looking skirts),
         /// skirtpoints will be merged if the distance between them divided by the skirt height falls below threshold
         /// </summary>
-        /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
-        /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
-        public void AddSkirt(SkirtMode axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15,
-                             bool invert = false, Action<string> warn = null)
+        public void AddSkirt(SkirtMode axis, double relHeight = 0.02, double threshold = 0.15, bool invert = false)
         {
-            // Calculate skirt offset height
             Vector3 size = Bounds().Size();
+            double height = relHeight * Math.Max(Math.Max(size.X, size.Y), size.Z);
+            threshold *= height;
 
-            if (axis == SkirtMode.Normal)
+            //make a position-only copy, then clean it
+            //this has the effect of merging coincident verts
+            Mesh copy = new Mesh(this);
+            copy.ClearColors();
+            copy.ClearNormals();
+            copy.ClearUVs();
+            copy.Clean();
+
+            //now copy uvs, and colors back to the remaining verts by matching positions
+            //attributes of groups of coincident verts will be averaged
+            //this is important because the color and UV of added skirt verts will be copied from their adjacent verts
+            //(skirt vert normals are computed from adjacent skirt face tris)
+            copy.CopyVertexAttributes(this, copyNormals: false, copyUVs: true, copyColors: true);
+
+            var edgeGraph = new EdgeGraph(copy);
+
+            var skirtMap = new Dictionary<VertexNode, VertexNode>(); //perimeter vert -> corresponding skirt vert
+
+            //add skirt vertices and populate skirtMap
+            foreach (var pv in edgeGraph.GetVertNodes().Where(v => v.IsOnPerimeter))
             {
-                double height = heightAsPercentOfWidth * Math.Max(Math.Max(size.X, size.Y), size.Z); //Always within factor ( * or / ) sqrt 2
-                height = invert ? height * -1 : height;
-                Dictionary<Vertex, Vertex> skirtMap = new Dictionary<Vertex, Vertex>();
-
-                //Store mapping from positions to vertexes
-                Dictionary<Vector3, List<Vertex>> posToVert = this.GetPositionToVertexMap();
-
-                //Work only with positions
-                Mesh copy = new Mesh(this);
-                copy.ClearColors();
-                copy.ClearNormals();
-                copy.ClearUVs();
-                copy.Clean(warn: warn);
-
-                //Create node edge graph to find triangles on perimeter
-                EdgeGraph edgeGraph = new EdgeGraph(copy);
-
-                //Compute a skirt location for each perimeter vertex based on the normals of surrounding triangles. If a previous skirt vertex is "good enough" based on `threshold', it may be used instead of creating a new one
-                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
+                Vector3 offset = Vector3.Zero;
+                switch (axis)
                 {
-                    if (vNode.IsOnPerimeter)
+                    case SkirtMode.Normal:
                     {
-                        List<Vertex> candidates = new List<Vertex>();
-                        Vector3 averageNormal = new Vector3(0, 0, 0);
-                        foreach (Edge e1 in vNode.GetAdjacentEdges())
+                        var averageNormal = Vector3.Zero;
+                        foreach (var e1 in pv.GetAdjacentEdges())
                         {
-                            if (e1.IsPerimeterEdge)
-                            {
-                                candidates.Add(e1.Dst);
-                            }
-                            foreach (Edge e2 in e1.Dst.GetAdjacentEdges())
+                            foreach (var e2 in e1.Dst.GetAdjacentEdges())
                             {
                                 if (e2.Left != null)
                                 {
-                                    Triangle t = new Triangle(e2.Src.Position, e2.Dst.Position, e2.Left.Position);
-                                    averageNormal += t.Normal * t.Area();
+                                    var t = new Triangle(e2.Src.Position, e2.Dst.Position, e2.Left.Position);
+                                    if (t.TryComputeNormal(out Vector3 tn))
+                                    {
+                                        averageNormal += tn * t.Area();
+                                    }
                                 }
                             }
                         }
-                        averageNormal.Normalize();
-                        Vector3 offset = averageNormal * -1 * height;
-
-                        Vertex vSkirt = new Vertex(vNode.Position + offset, vNode.Normal, vNode.Color, vNode.UV);
-
-                        bool shouldAddSkirtVertex = true;
-
-                        foreach (Vertex candidate in skirtMap.Keys)
+                        if (averageNormal.Length() > MathHelper.Epsilon)
                         {
-                            Vertex skirtCandidate = skirtMap[candidate];
-                            if ((vSkirt.Position - vNode.Position).LengthSquared() > (skirtCandidate.Position - vNode.Position).LengthSquared() || (skirtCandidate.Position - vSkirt.Position).Length() < threshold * offset.Length())
-                            {
-                                skirtMap.Add(vNode, skirtCandidate);
-                                shouldAddSkirtVertex = false;
-                                break;
-                            }
+                            averageNormal.Normalize();
                         }
-
-                        if (shouldAddSkirtVertex)
-                        {
-                            this.Vertices.Add(vSkirt);
-                            posToVert.Add(vSkirt.Position, new List<Vertex> { vSkirt });
-                            skirtMap.Add(vNode, vSkirt);
-                        }
+                        offset = (invert ? 1 : -1) * averageNormal * height; //*opposite* normal unless inverted
+                        break;
                     }
-
-                }
-
-                //Add in the faces for the new skirt vertices
-                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
-                {
-                    if (vNode.IsOnPerimeter)
+                    case SkirtMode.X:
                     {
-                        foreach (Edge e in vNode.GetAdjacentEdges())
+                        offset.X = (invert ? -1 : 1) * height; //in +X direction unless inverted
+                        break;
+                    }
+                    case SkirtMode.Y:
+                    {
+                        offset.Y = (invert ? -1 : 1) * height; //in +Y direction unless inverted
+                        break;
+                    }
+                    case SkirtMode.Z:
+                    {
+                        offset.Z = (invert ? -1 : 1) * height; //in +Z direction unless inverted
+                        break;
+                    }
+                }
+                if (offset.Length() > MathHelper.Epsilon)
+                {
+                    //normals and ids for skirt verts are computed below
+                    var sv = new VertexNode(new Vertex(pv.Position + offset, Vector3.Zero, pv.Color, pv.UV), -1);
+                    bool shouldAdd = true;
+                    foreach (var existing in skirtMap.Values)
+                    {
+                        if ((existing.Position - pv.Position).Length() < height ||
+                            (existing.Position - sv.Position).Length() < threshold)
                         {
-                            if (e.IsPerimeterEdge && e.Left != null)
-                            {
-                                Vertex v1 = skirtMap[e.Src];
-                                Vertex v2 = skirtMap[e.Dst];
-
-                                int v1Index = Vertices.IndexOf(posToVert[v1.Position][0]);
-                                int v2Index = Vertices.IndexOf(posToVert[v2.Position][0]);
-                                int srcIndex = Vertices.IndexOf(posToVert[e.Src.Position][0]);
-                                int dstIndex = Vertices.IndexOf(posToVert[e.Dst.Position][0]);
-                                this.Faces.Add(new Face(srcIndex, v1Index, dstIndex));
-                                this.Faces.Add(new Face(v1Index, v2Index, dstIndex));
-                            }
+                            skirtMap.Add(pv, existing);
+                            shouldAdd = false;
+                            break;
                         }
                     }
-                }
-            }
-            else
-            {
-
-                // Finds the maximum extent of either of the other two axes that the skirt is not being created along
-                double maxDimension;
-                if (axis == SkirtMode.X)
-                {
-                    maxDimension = Math.Max(size.Y, size.Z);
-                }
-                else if (axis == SkirtMode.Y)
-                {
-                    maxDimension = Math.Max(size.X, size.Z);
-                }
-                else
-                {
-                    maxDimension = Math.Max(size.X, size.Y);
-                }
-
-                // Determines the actual number of model units to extrude the skirt along
-                double actualHeight = maxDimension * -heightAsPercentOfWidth / 100;
-                actualHeight = invert ? actualHeight * -1 : actualHeight;
-
-                // Set the offset in the correct axis
-                Vector3 offset = Vector3.Zero;
-                if (axis == SkirtMode.X)
-                {
-                    offset = new Vector3(actualHeight, 0, 0);
-                }
-                else if (axis == SkirtMode.Y)
-                {
-                    offset = new Vector3(0, actualHeight, 0);
-                }
-                else if (axis == SkirtMode.Z)
-                {
-                    offset = new Vector3(0, 0, actualHeight);
-                }
-
-                // List of resulting exterior edges that are connected by only one face
-                List<SimpleEdge> edges = GetExteriorEdges();
-
-                // Pairing between points at the edge and the corresponding skirt point on the mesh
-                Dictionary<Vertex, Vertex> edgeToSkirtPoints = new Dictionary<Vertex, Vertex>();
-
-                // Copy each vertex down from the edge of the mesh to the skirt and form two triangles along the edge
-                foreach (SimpleEdge edge in edges)
-                {
-                    // Copy edge vertex A to the skirt position
-                    if (!edgeToSkirtPoints.ContainsKey(edge.Src))
+                    if (shouldAdd)
                     {
-                        Vertex newVertex = new Vertex(edge.Src.Position + offset, edge.Src.Normal, edge.Src.Color, edge.Src.UV);
-                        Vertices.Add(newVertex);
-                        edgeToSkirtPoints.Add(edge.Src, newVertex);
+                        sv.ID = Vertices.Count;
+                        Vertices.Add(sv);
+                        skirtMap.Add(pv, sv);
                     }
-                    Vertex aSkirt = edgeToSkirtPoints[edge.Src];
+                }
+            }
 
-                    // Get the indexes of the new point and skirt point in the list of mesh vertices
-                    int aIndex = Vertices.IndexOf(edge.Src);
-                    int aSkirtIndex = Vertices.IndexOf(aSkirt);
-
-                    // Copy edge vertex B to the skirt position
-                    if (!edgeToSkirtPoints.ContainsKey(edge.Dst))
+            //add skirt faces and compute skirt vertex normals
+            var posToIndex = new Dictionary<Vector3, int>();
+            for (int i = 0; i < Vertices.Count; i++)
+            {
+                posToIndex[Vertices[i].Position] = i;
+            }
+            foreach (var pv in edgeGraph.GetVertNodes().Where(v => v.IsOnPerimeter))
+            {
+                foreach (var e in pv.GetAdjacentEdges().Where(e => e.IsPerimeterEdge && e.Left != null &&
+                                                              skirtMap.ContainsKey(e.Src) &&
+                                                              skirtMap.ContainsKey(e.Dst) &&
+                                                              posToIndex.ContainsKey(e.Src.Position) &&
+                                                              posToIndex.ContainsKey(e.Dst.Position)))
+                {
+                    var sv1 = skirtMap[e.Src];
+                    var sv2 = skirtMap[e.Dst];
+                    
+                    var st1 = new Triangle(e.Src, sv1, e.Dst);
+                    var st2 = new Triangle(sv1, sv2, e.Dst);
+                    
+                    if (st1.TryComputeNormal(out Vector3 n1) && st2.TryComputeNormal(out Vector3 n2))
                     {
-                        Vertex newVertex = new Vertex(edge.Dst.Position + offset, edge.Dst.Normal, edge.Dst.Color, edge.Dst.UV);
-                        Vertices.Add(newVertex);
-                        edgeToSkirtPoints.Add(edge.Dst, newVertex);
+                        n1 *= st1.Area();
+                        n2 *= st2.Area();
+                        sv1.Normal += n1 + n2;
+                        sv2.Normal += n2;
+                        int srcID = posToIndex[e.Src.Position];
+                        int dstID = posToIndex[e.Dst.Position];
+                        Faces.Add(new Face(srcID, sv1.ID, dstID));
+                        Faces.Add(new Face(sv1.ID, sv2.ID, dstID));
                     }
-                    Vertex bSkirt = edgeToSkirtPoints[edge.Dst];
-
-                    // Get the indexes of the new point and skirt point in the list of mesh vertices
-                    int bIndex = Vertices.IndexOf(edge.Dst);
-                    int bSkirtIndex = Vertices.IndexOf(bSkirt);
-
-                    // Construct both triangles for the face
-                    Faces.Add(new Face(aIndex, aSkirtIndex, bIndex));
-                    Faces.Add(new Face(bIndex, aSkirtIndex, bSkirtIndex));
                 }
             }
-            // Clean the mesh for good measure
-            Clean(warn: warn);
-        }
-
-        public List<Vertex> EdgeVertices()
-        {
-            // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
-            List<SimpleEdge> edges = GetExteriorEdges();
-            // Put each vertex in another hashset from all the edges
-            HashSet<Vertex> edgeVertices = new HashSet<Vertex>();
-            foreach (SimpleEdge edge in edges)
+            foreach (var sv in skirtMap.Values)
             {
-                edgeVertices.Add(edge.Src);
-                edgeVertices.Add(edge.Dst);
-            }
-            return edgeVertices.ToList();
-        }
-
-        /// <summary>
-        /// Returns a list of edge structs holding the two vertices forming the edges wherever the mesh has only one face using the edge
-        /// </summary>
-        /// <returns></returns>
-        private List<SimpleEdge> GetExteriorEdges()
-        {
-            // Unordered set of edges
-            HashSet<SimpleEdge> edges = new HashSet<SimpleEdge>();
-
-            // Put each edge in the hashset and remove it if it already exists
-            foreach (Face face in Faces)
-            {
-                SimpleEdge edge0 = new SimpleEdge(Vertices[face.P0], Vertices[face.P1]);
-                if (edges.Contains(edge0))
+                if (sv.Normal.Length() > MathHelper.Epsilon)
                 {
-                    edges.Remove(edge0);
-                }
-                else
-                {
-                    edges.Add(edge0);
-                }
-
-                SimpleEdge edge1 = new SimpleEdge(Vertices[face.P1], Vertices[face.P2]);
-                if (edges.Contains(edge1))
-                {
-                    edges.Remove(edge1);
-                }
-                else
-                {
-                    edges.Add(edge1);
-                }
-
-                SimpleEdge edge2 = new SimpleEdge(Vertices[face.P2], Vertices[face.P0]);
-                if (edges.Contains(edge2))
-                {
-                    edges.Remove(edge2);
-                }
-                else
-                {
-                    edges.Add(edge2);
+                    sv.Normal.Normalize();
                 }
             }
-
-            return edges.ToList();
         }
 
         /// <summary>
@@ -1805,25 +1618,15 @@ namespace OPS.Geometry
         /// <summary>
         /// Copy one or more vertex attributes from another mesh to matching vertices of this mesh.
         /// By default matching includes all non-copied attributes which are present on both meshes.
+        /// Where multiple src vertices match a destionation vertex the attributes of the source vertices are averaged.
         /// </summary>
-        public int CopyVertexAttributes(Mesh src, bool matchPositions = true, bool matchNormals = true,
-                                        bool matchUVs = true, bool matchColors = true, bool copyPositions = false,
-                                        bool copyNormals = false, bool copyUVs = false, bool copyColors = false)
+        public void CopyVertexAttributes(Mesh src, bool matchPositions = true, bool matchNormals = true,
+                                         bool matchUVs = true, bool matchColors = true, bool copyPositions = false,
+                                         bool copyNormals = false, bool copyUVs = false, bool copyColors = false)
         {
-            if (copyNormals && !src.HasNormals)
-            {
-                throw new ArgumentException("source mesh must have normals");
-            }
-
-            if (copyUVs && !src.HasUVs)
-            {
-                throw new ArgumentException("source mesh must have UVs");
-            }
-
-            if (copyColors && !src.HasColors)
-            {
-                throw new ArgumentException("source mesh must have Colors");
-            }
+            copyNormals &= src.HasNormals;
+            copyUVs &= src.HasUVs;
+            copyColors &= src.HasColors;
 
             matchPositions &= !copyPositions;
             matchNormals &= HasNormals && src.HasNormals && !copyNormals;
@@ -1832,70 +1635,50 @@ namespace OPS.Geometry
 
             var comparer = new Vertex.Comparer(matchPositions, matchNormals, matchUVs, matchColors);
 
-            //save memory - only allocate lists when there are equivalencies
-            var verts = new Dictionary<Vertex, Vertex>(comparer);
-            var equivalentVerts = new Dictionary<Vertex, List<Vertex>>(comparer);
+            //unique vertex of this mesh -> list of equivalent vertices of src
+            var map = new Dictionary<Vertex, List<Vertex>>(comparer);
 
             foreach (var v in Vertices)
             {
-                if (!verts.ContainsKey(v))
-                {
-                    verts[v] = v;
-                }
-                else
-                {
-                    if (!equivalentVerts.ContainsKey(v))
-                    {
-                        equivalentVerts[v] = new List<Vertex>() { v };
-                    }
-                    else
-                    {
-                        equivalentVerts[v].Add(v);
-                    }
-                }
+                map[v] = null;
             }
-
-            //don't mutate destination vertices while we're still using the dictionaries (they are the keys)
-            var pairs = new List<Tuple<Vertex, Vertex>>(src.Vertices.Count);
 
             foreach (var v in src.Vertices)
             {
-                if (verts.ContainsKey(v))
+                if (map.ContainsKey(v))
                 {
-                    pairs.Add(new Tuple<Vertex, Vertex>(v, verts[v]));
-                }
-                if (equivalentVerts.ContainsKey(v))
-                {
-                    foreach (var w in equivalentVerts[v])
+                    var srcs = map[v];
+                    if (srcs == null)
                     {
-                        pairs.Add(new Tuple<Vertex, Vertex>(v, w));
+                        map[v] = srcs = new List<Vertex>();
+                    }
+                    srcs.Add(v);
+                }
+            }
+
+            foreach (var dst in Vertices)
+            {
+                var srcs = map[dst];
+                if (srcs != null)
+                {
+                    if (copyPositions)
+                    {
+                        dst.Position = srcs.Aggregate(Vector3.Zero, (s, v) => (s + v.Position)) / srcs.Count;
+                    }
+                    if (copyNormals)
+                    {
+                        dst.Normal = srcs.Aggregate(Vector3.Zero, (s, v) => (s + v.Normal)) / srcs.Count;
+                    }
+                    if (copyUVs)
+                    {
+                        dst.UV = srcs.Aggregate(Vector2.Zero, (s, v) => (s + v.UV)) / srcs.Count;
+                    }
+                    if (copyColors)
+                    {
+                        dst.Color = srcs.Aggregate(Vector4.Zero, (s, v) => (s + v.Color)) / srcs.Count;
                     }
                 }
             }
-
-            foreach (var pair in pairs)
-            {
-                var srcVert = pair.Item1;
-                var dstVert = pair.Item2;
-                if (copyPositions)
-                {
-                    dstVert.Position = srcVert.Position;
-                }
-                if (copyNormals)
-                {
-                    dstVert.Normal = srcVert.Normal;
-                }
-                if (copyUVs)
-                {
-                    dstVert.UV = srcVert.UV;
-                }
-                if (copyColors)
-                {
-                    dstVert.Color = srcVert.Color;
-                }
-            }
-
-            return pairs.Count;
         }
 
         /// <summary>

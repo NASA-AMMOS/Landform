@@ -77,7 +77,6 @@ namespace OPS.Geometry
                         other.IsOnPerimeter = true;
                         e.IsPerimeterEdge = true;
                         v.IsOnPerimeter = true;
-                        other.IsOnPerimeter = true;
                     }
                 }
             }

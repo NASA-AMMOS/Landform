@@ -21,7 +21,7 @@ namespace OPS.TilingServer
         [Option(Default = TilingScheme.QuadAuto, HelpText = "tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, UserDefined)")]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(Default = SkirtMode.None, HelpText = "skirt mode")]
+        [Option(Default = SkirtMode.Normal, HelpText = "skirt mode")]
         public SkirtMode SkirtMode { get; set; }
 
         [Option(Default = MeshReconstructionMethod.Poisson, HelpText = "mesh reconstruction method")]

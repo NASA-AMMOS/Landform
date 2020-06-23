@@ -11,7 +11,7 @@ using Priority_Queue;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Stores two VertexNodes, the third VertexNode of its left face (for winding order), and the location of the collapsed vertex
+    /// Stores two VertexNodes, the third VertexNode of its left face (for winding order).
     /// </summary>
     public class Edge
     {
@@ -89,7 +89,7 @@ namespace OPS.Geometry
             return Vector3.Cross(a, b).Z > 0 - eps;
         }
 
-        public static bool IsColinear(Edge e1, Edge e2, double eps = 1E-8)
+        public static bool IsCollinear(Edge e1, Edge e2, double eps = 1E-8)
         {
             Vector3 a = e2.Dst.Position - e2.Src.Position;
             a.Z = 0;
