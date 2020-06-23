@@ -124,7 +124,8 @@ USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,...] [OUT_DIR]
 [--noingest] [--onlyingest] [--onlyforcameras Mastcam,Navcam]
 [--orbitaldem path/to/dem.tif] [--orbitalimage path/to/ortho.tif]
 [--noorbital] [--nosurface]
-[--noalign] [--nogeometry] [--notexture] [--noblend] [--notileset]
+[--noalign] [--nogeometry] [--notexture] [--noblend]
+[--notilinginput] [--notileset]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"] [--ingestargs \"--arg val\"]
 [--bevargs \"--arg val\"] [--heightmapargs \"--arg val\"]
@@ -190,6 +191,7 @@ no_align=
 no_geometry=
 no_texture=
 no_blend=
+no_tiling_input=
 no_tileset=
 
 manifest=true
@@ -254,6 +256,7 @@ while (( "$#" )); do
         "--noblend") no_blend=true;;
         "--nogeometry") no_geometry=true;;
         "--notexture") no_texture=true;;
+        "--notilinginput") no_tiling_input=true; manifest=; upload=;;
         "--notileset") no_tileset=true; manifest=; upload=;;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
         "--ingestargs") shift; expect $# "ingest args"; ingestargs="$1";;
@@ -339,10 +342,14 @@ if [ "$generate" ]; then
 
         if [ ! "$no_tileset" ]; then
 
-            ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
+            if [ ! "$no_tiling_input" ]; then
+                ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
+            fi
+
             if [ ! "$no_blend" ]; then
                 ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
             fi
+
             ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
         
             ${dry}rm -rf $outproj
