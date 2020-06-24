@@ -25,8 +25,9 @@ namespace OPS.Geometry
         /// <param name="meshA">The first model</param>
         /// <param name="meshB">The second model</param>
         /// <param name="maxErrorEpsilon">Maximum allowed uncertainty in the answer, where accuracy comes at the cost of speed</param>
+        /// <param name="symmetric">if false then compute unidirectional Hausdorff distance from meshA to meshB</param>
         /// <returns></returns>
-        public static double Calculate(Mesh meshA, Mesh meshB, double maxErrorEpsilon)
+        public static double Calculate(Mesh meshA, Mesh meshB, double maxErrorEpsilon, bool symmetric = true)
         {
             // The square of the Hausdorff distance, which starts at 0 and grows until the algorithm ends, when it returns its square root
             double hausdorffDistanceSquared = 0;
@@ -109,7 +110,12 @@ namespace OPS.Geometry
 
             // Enqueue the root cell of both octrees
             queue.Enqueue(octreeA.Root, (float)ComputeMaxGeometricDistanceToClosestCellSquared(octreeA.Root, octreeB));
-            queue.Enqueue(octreeB.Root, (float)ComputeMaxGeometricDistanceToClosestCellSquared(octreeB.Root, octreeA));
+
+            if (symmetric)
+            {
+                queue.Enqueue(octreeB.Root,
+                              (float)ComputeMaxGeometricDistanceToClosestCellSquared(octreeB.Root, octreeA));
+            }
 
             // Process each cell or triangle
             while (queue.Count > 0)
@@ -400,6 +406,46 @@ namespace OPS.Geometry
         {
             Position = position;
             TriangleContent = triangleContent;
+        }
+    }
+
+    /// <summary>
+    /// Structure to facilitate storing triangles in an OctTree
+    /// </summary>
+    class HausdorffTriangle : OctreeNodeContents
+    {
+        public Triangle Triangle { get; internal set; }
+        public BasePoint[] BasePoints = null;
+        public List<int> TraversalPath;
+
+        public HausdorffTriangle(Triangle tri)
+        {
+            Triangle = tri;
+        }
+
+        public BoundingBox Bounds()
+        {
+            return Triangle.Bounds();
+        }
+
+        /// <summary>
+        /// Returns true if the triangle in this voxel intersects the given bounding box
+        /// </summary>
+        /// <param name="other"></param>
+        /// <returns></returns>
+        public bool Intersects(BoundingBox other)
+        {
+            return Triangle.Intersects(other);
+        }
+
+        /// <summary>
+        /// Returns the shortest distance between the xyz point and triangle squared
+        /// </summary>
+        /// <param name="xyz"></param>
+        /// <returns></returns>
+        public double SquaredDistance(Vector3 xyz)
+        {
+            return Triangle.SquaredDistance(xyz);
         }
     }
 }

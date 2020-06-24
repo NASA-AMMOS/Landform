@@ -437,7 +437,10 @@ namespace OPS.Pipeline
                 {
                     accuracy = bounds.Bounds.MaxDimension() * HAUSDORFF_RELATIVE_ACCURACY;
                 }
-                meshError = maxDepError + mip.Mesh.HausdorffDistance(accuracy, dependencyMeshes.ToArray());
+                //the merged dependency meshes can be a significant superset of this node's mesh
+                //just compute the unidirectional Hausdorff distance from this node's mesh to the merged dep meshes
+                bool symmetric = false;
+                meshError = maxDepError + mip.Mesh.HausdorffDistance(accuracy, symmetric, dependencyMeshes.ToArray());
             }
 
             info($"{node.Name} mesh error {meshError:F3} (incl max {maxDepError:F3} of {nd} dependencies)");

@@ -1682,28 +1682,25 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Compute Hausdorff difference between this mesh and 1 or more other meshes
+        /// Compute Hausdorff difference between this mesh and 1 or more other meshes.
+        /// If symmetric = true then computes the bidirectional Hausdorff distance.
+        /// Otherwise computes the unidirectional Hausdorff distance from this mesh to the merged others.
         /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
-        public double HausdorffDistance(double maxErrorEpsilon, params Mesh[] other)
+        public double HausdorffDistance(double maxErrorEpsilon, bool symmetric, params Mesh[] other)
         {
             Mesh merged = Mesh.Merge(this.HasNormals, this.HasUVs, this.HasColors, other);
-            if (!this.Bounds().Intersects(merged.Bounds()))
-            {
-                return merged.Bounds().MaxDimension();
-            }
-            return OPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon);
-        }
 
-        /// <summary>
-        ///  Compute Hausdorff difference between this mesh and 1 or more other meshes using default maxErrorEpsilon
-        /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
-        public double HausdorffDistance(params Mesh[] other)
-        {
-            return HausdorffDistance(0.001, other);
+            //this isn't right
+            //just because the two bounds don't intersect
+            //doesn't mean the Hausdorff distance is related to the size of either bounds
+            //for example consider two parallel planar meshes, so by construction their bounds never intersect
+            //but their Hausdorff distance is the distance between them which can be arbitrarily small
+            //if (!this.Bounds().Intersects(merged.Bounds()))
+            //{
+            //    return merged.Bounds().MaxDimension();
+            //}
+
+            return OPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon, symmetric);
         }
 
         /// <summary>
