@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -316,7 +316,10 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("building tile tree from {0} existing LODs, tiling scheme {1}",
                                  meshLOD.Count, options.TilingScheme);
-                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshOpForLOD);
+                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshOpForLOD,
+                                                             options.FacesPerTile,
+                                                             msg => pipeline.LogInfo(msg),
+                                                             msg => pipeline.LogVerbose(msg));
             }
             else
             {
@@ -362,6 +365,11 @@ namespace OPS.Landform
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
         }
 
+        public class NodeLOD : NodeComponent
+        {
+            public int Lod; //0 = finest
+        }
+
         private void BuildLODTileMeshes()
         {
             if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
@@ -370,42 +378,56 @@ namespace OPS.Landform
                 throw new NotImplementedException("only for tile not implemented for LODs yet");
             }
 
-            int numFailed = 0;
-            List<SceneNode> curLevelNodes = new List<SceneNode> { tileTree };
-            for (int idxTreeLevel = 0; idxTreeLevel < meshLOD.Count; idxTreeLevel++)
+            //it is possible that a tiling scheme may choose not to split a node
+            //which means there can be leaf nodes at any depth in the tree
+            //the approach to map tiling nodes to pre-existing LODs is as follows
+            //leaf nodes always clip from the highest LOD mesh
+            //parent nodes clip from the next-coarser LOD mesh than the coarsest mesh used by any of their children
+            var nodes = new List<SceneNode>();
+            int assignLODsAndCollectNodes(SceneNode node)
             {
-                if (!options.NoProgress)
+                int lod = 0;
+                if (!node.IsLeaf)
                 {
-                    pipeline.LogInfo("building LOD tile meshes for tree level {0}/{1} ({2:F2}%)", (idxTreeLevel + 1),
-                                     meshLOD.Count, 100 * (idxTreeLevel + 1) / (float)meshLOD.Count);
-                }
-
-                // clip meshes for each tile              
-                int idxLOD = meshLOD.Count - idxTreeLevel - 1;
-                CoreLimitedParallel.ForEach(curLevelNodes, curNode =>
-                {
-                    Mesh nodeMesh = MakeTileMesh(curNode, meshOpForLOD[idxLOD]);
-                    if (nodeMesh != null)
+                    foreach (var child in node.Children)
                     {
-                        nodeMesh.Clean(); //copying behavior from TextureMeshClipper
-                        curNode.AddComponent<MeshImagePair>(new MeshImagePair(nodeMesh));
+                        lod = Math.Max(assignLODsAndCollectNodes(child), lod);
                     }
-                    else
-                    {
-                        Interlocked.Increment(ref numFailed);
-                    }
-                });
-
-                // collect next level nodes
-                List<SceneNode> nextLevelNodes = new List<SceneNode>();
-                foreach (var curNode in curLevelNodes)
-                {
-                    nextLevelNodes.AddRange(curNode.Children);
+                    lod++;
                 }
-
-                // setup next iteration
-                curLevelNodes = nextLevelNodes.Distinct().ToList();
+                node.AddComponent<NodeLOD>().Lod = lod;
+                nodes.Add(node); //add parent after children - meshes will be created leaves first and root last
+                return lod;
             }
+
+            int rootLOD = assignLODsAndCollectNodes(tileTree);
+
+            pipeline.LogInfo("using {0}/{1} existing LODs", rootLOD + 1, meshLOD.Count);
+
+            int numFailed = 0, curNode = 0, numNodes = nodes.Count, np = 0;
+            CoreLimitedParallel.ForEach(nodes, node =>
+            {
+                Interlocked.Increment(ref curNode);
+                Interlocked.Increment(ref np);
+
+                int lod = node.GetComponent<NodeLOD>().Lod;
+
+                pipeline.LogVerbose("building tile mesh {0}/{1} ({2:F2}%){3}: tile {4}, clipping from LOD {5}",
+                                    curNode, numNodes, 100 * curNode / (float)numNodes,
+                                    np > 1 ? ", processing " + np + " in parallel" : "", node.Name, lod);
+
+                Mesh nodeMesh = MakeTileMesh(node, meshOpForLOD[lod]);
+                if (nodeMesh != null)
+                {
+                    node.AddComponent(new MeshImagePair(nodeMesh));
+                }
+                else
+                {
+                    Interlocked.Increment(ref numFailed);
+                }
+
+                Interlocked.Decrement(ref np);
+            });
 
             if (numFailed > 0)
             {
@@ -416,7 +438,7 @@ namespace OPS.Landform
 
         private void BuildLeafMeshes()
         {
-            int curLeafNum = 0, numFailed = 0, leafCount = tileTree.Leaves().Count();
+            int curNode = 0, numFailed = 0, numNodes = tileTree.Leaves().Count(), np = 0;
 
             string[] onlyTilesNamed = null;
             if (!string.IsNullOrEmpty(options.OnlyTilesNamed))
@@ -425,15 +447,17 @@ namespace OPS.Landform
             }
             CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
             {
-                Interlocked.Increment(ref curLeafNum);
+                Interlocked.Increment(ref curNode);
+                Interlocked.Increment(ref np);
 
                 if (onlyTilesNamed != null && !onlyTilesNamed.Contains(leaf.Name))
                 {
                     return;
                 }
 
-                pipeline.LogVerbose("building leaf mesh {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
-                                    100 * curLeafNum / (float)leafCount, leaf.Name);
+                pipeline.LogVerbose("building leaf mesh {0}/{1} ({2:F2}%){3}: {4}",
+                                    curNode, numNodes, 100 * curNode / (float)numNodes,
+                                    np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
 
                 Mesh leafMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 
@@ -446,6 +470,8 @@ namespace OPS.Landform
                 {
                     Interlocked.Increment(ref numFailed);
                 }
+
+                Interlocked.Decrement(ref np);
             });
 
             if (numFailed > 0)

@@ -13,7 +13,7 @@ namespace OPS.Pipeline
     /// </summary>
     public class FaceSplitCriteria : ITileSplitCriteria
     {
-        public readonly int maxFaces;
+        public readonly int maxFaces; //unlimited if non-positive
 
         public FaceSplitCriteria(int maxFaces)
         {
@@ -22,7 +22,7 @@ namespace OPS.Pipeline
 
         public bool ShouldSplit(BoundingBox bounds, params MeshOperator[] meshOps)
         {
-            return meshOps.Sum(meshOp => meshOp.CountFaces(bounds)) > maxFaces;
+            return maxFaces > 0 && meshOps.Sum(meshOp => meshOp.CountFaces(bounds)) > maxFaces;
         }
     }
 }

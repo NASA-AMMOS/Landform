@@ -59,6 +59,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
         public double MaxTime { get; set; }
+
+        [Option(HelpText = "Don't include texture in tile error computation", Default = false)]
+        public bool NoTextureError { get; set; }
     }
 
     public class TilingCommand : TextureCommand
@@ -431,6 +434,8 @@ namespace OPS.Landform
             {
                 executive = PipelineExecutive.MakeExecutive(pipeline as LocalPipeline, ExecutionMode.Deferred);
             }
+
+            SceneNodeTilingExtensions.useTextureError = !tilingOpts.NoTextureError;
 
             pipeline.EnqueueToMaster(new RunProjectMessage(project.Name));
 

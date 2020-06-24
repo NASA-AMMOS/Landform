@@ -433,7 +433,7 @@ namespace OPS.Landform
                     RunCommand("build-tiling-input", project, "--mission", missionStr,
                                "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods");
                     
-                    BuildTileset(project);
+                    BuildTileset(project, "--notextureerror");
                     
                     RunCommand("update-scene-manifest", "--mission", missionStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion,

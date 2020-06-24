@@ -145,7 +145,7 @@ export=
 
 cfgargs=
 tilingargs=
-tilesetargs=
+tilesetargs="--notextureerror"
 manifestargs=
 syncargs=
 
@@ -176,7 +176,7 @@ while (( "$#" )); do
         "--nolods") lods=;;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
         "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
-        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$1";;
+        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$tilesetargs $1";;
         "--manifestargs") shift; expect $# "manifest args"; manifestargs="$1";;
         "--syncargs") shift; expect $# "sync args"; syncargs="$1";;
     esac

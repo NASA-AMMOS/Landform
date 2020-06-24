@@ -59,10 +59,10 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSave { get; set; }
 
-        [Option(HelpText = "option disabled for this command", Default = false, Required = false)]
+        [Option(HelpText = "option disabled for this command", Default = false)]
         public override bool NoOrbital { get; set; }
 
-        [Option(HelpText = "Option disabled for this command", Default = false, Required = false)]
+        [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSurface { get; set; }
     }
 
