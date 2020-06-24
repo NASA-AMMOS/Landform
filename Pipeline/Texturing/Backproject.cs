@@ -33,7 +33,7 @@ namespace OPS.Pipeline
             }
         }
 
-        public struct Context
+        public class Context
         {
             public Observation Obs;                     //observation to backproject
             public Observation MaskObs;                 //mission rover mask obs corresponding to Obs if any
@@ -117,6 +117,26 @@ namespace OPS.Pipeline
             }
 
             return previewImg;
+        }
+   
+        static public Image LoadIndexMapWithMask(PipelineCore pipeline, string indexUrl)
+        {
+            var leafIndex = pipeline.LoadImage(indexUrl);
+
+            //recreate masks
+            leafIndex.CreateMask();
+            for (int r = 0; r < leafIndex.Height; r++)
+            {
+                for (int c = 0; c < leafIndex.Width; c++)
+                {
+                    if (leafIndex[0, r, c] < Observation.MIN_INDEX)
+                    {
+                        leafIndex.SetMaskValue(r, c, true);
+                    }
+                }
+            }
+
+            return leafIndex;
         }
 
         //<DST, SRC>
@@ -323,6 +343,7 @@ namespace OPS.Pipeline
             public Mesh mesh; //mesh from which to collect sample points to backproject
             public string meshFrame;
             public int resolution; //output texture resolution
+            public SceneCaster meshCaster;     //for ray casting the active mesh
             public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
             public bool usePriors;
             public bool onlyAligned;
@@ -349,12 +370,22 @@ namespace OPS.Pipeline
             var warn = opts.warn ?? (msg => { });
             var error = opts.error ?? (msg => { });
 
-            var imageObservations = opts.observations
+            var imgObservations = opts.observations
                 .Where(obs => obs.ObservationType == RoverProductType.Image)
                 .ToList();
 
             info("building input mesh data structures");
-            ConvexHull meshHull = new ConvexHull(opts.mesh);
+            ConvexHull meshHull = null;
+
+            try
+            {
+                meshHull = new ConvexHull(opts.mesh);
+            }
+            catch
+            {
+                warn("failed to make hull for mesh");
+            }
+
             MeshOperator meshOp = new MeshOperator(opts.mesh);
             SceneCaster debugTileOcclusion = null;
             if (opts.writeDebug)
@@ -369,9 +400,13 @@ namespace OPS.Pipeline
             int np = samplePoints.Count;
             info(string.Format("collected {0} sample points", Fmt.KMG(np)));
 
-            if (imageObservations.Count() == 0)
+            if (imgObservations.Count() == 0)
             {
                 warn("no image observations found");
+            }
+
+            if (imgObservations.Count() == 0 || meshHull == null)
+            { 
                 if (missingPixels != null)
                 {
                     missingPixels.AddRange(samplePoints);
@@ -384,13 +419,13 @@ namespace OPS.Pipeline
             if (obsToHull == null)
             {
                 obsToHull = BuildConvexHulls(opts.pipeline, opts.frameCache, opts.meshFrame, opts.usePriors,
-                                             opts.onlyAligned, imageObservations);
+                                             opts.onlyAligned, imgObservations);
             }
 
             //find the reduced set of observations that intersect the desired mesh
-            info(string.Format("testing {0} image observations for intersection", imageObservations.Count()));
+            info(string.Format("testing {0} image observations for intersection", imgObservations.Count()));
             var intersectingObservations = new List<RoverObservation>();
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            CoreLimitedParallel.ForEach(imgObservations, obs =>
             {
                 if (obsToHull.ContainsKey(obs.Name) && meshHull.Intersects(obsToHull[obs.Name]))
                 {
@@ -408,7 +443,7 @@ namespace OPS.Pipeline
             });
 
             info(string.Format("{0}/{1} image observations intersect mesh",
-                               intersectingObservations.Count, imageObservations.Count));
+                               intersectingObservations.Count, imgObservations.Count));
 
             if (intersectingObservations.Count() == 0)
             {
@@ -446,11 +481,11 @@ namespace OPS.Pipeline
 
             var sortedContextBySample = new Dictionary<int, List<Context>>(samplePoints.Count);
 
-            int maxCandidateDepth = 0;
+            int maxCandidateDepth = 0;           
             for (int idx = 0; idx < samplePoints.Count; idx++)
             {               
                 //find the strategy specific ranking of contexts for this pixel
-                var sortedContexts = opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point,
+                var sortedContexts = opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, opts.meshCaster,
                                                                                      intersectingContexts);
                 sortedContextBySample.Add(idx, sortedContexts);
                 if (sortedContexts.Count > maxCandidateDepth)
@@ -506,7 +541,7 @@ namespace OPS.Pipeline
                     }
 
                     //backproject to see if any win
-                    Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);
+                    Image mask = ImageMasker.GetOrCreateMask(opts.pipeline, opts.project, ctx.Obs, masker, ctx.MaskObs);                  
                     var succeeded = Backproject.CoreBackproject(ctx.ObsToMesh, ctx.FrustumHull, ctx.CameraModel, mask,
                                                                 pointsWithCtx.ToList(), ctx.Obs.Width, ctx.Obs.Height,
                                                                 opts.sceneOcclusion);
@@ -629,6 +664,13 @@ namespace OPS.Pipeline
                                 obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
                             }
                         }
+                        else
+                        {
+                            // couldn't check tint red
+                            var bandVals = obsCoverage.GetBandValues(idxRow, idxCol);
+                            bandVals[0] += 0.25f; //tint red
+                            obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
+                        }
                     }
                 }
             }
@@ -719,6 +761,33 @@ namespace OPS.Pipeline
             return rayCamToMesh;
         }
 
+        // raycast the mesh with an occulusion check
+        public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster meshCaster, SceneCaster occluderCaster, double raycastTolerance = float.Epsilon)
+        {            
+            //check if pixel ray hit the mesh
+            Vector3? meshPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, meshCaster);
+            if (!meshPos.HasValue)
+                return null;
+
+            //check if hit the mesh or was occluded by the scene
+            if (occluderCaster != null && occluderCaster != meshCaster)
+            {
+                Vector3? occluderPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, occluderCaster);
+                if (occluderPos.HasValue)
+                {
+                    double distanceToOccluder = Vector3.DistanceSquared(occluderPos.Value, obsToMesh.Translation);
+                    double distanceToMesh = Vector3.DistanceSquared(meshPos.Value, obsToMesh.Translation);
+                    if ((distanceToOccluder - distanceToMesh) < raycastTolerance)
+                    {
+                        //occluded by other geometry
+                        return null;
+                    }
+                }
+            }
+
+            return meshPos;
+        }
+
         public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster sc)
         {
             Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
@@ -732,23 +801,23 @@ namespace OPS.Pipeline
      
         static public IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
-                             bool onlyAligned, IEnumerable<RoverObservation> imageObservations)
+                             bool onlyAligned, IEnumerable<RoverObservation> imgObservations, double farClip = 20)
         {
-            int no = imageObservations.Count();
+            int no = imgObservations.Count();
 
             pipeline.LogInfo("building convex hulls for {0} observations", no);
 
             var obsToHull = new ConcurrentDictionary<string, ConvexHull>();
 
             int nh = 0;
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            CoreLimitedParallel.ForEach(imgObservations, obs =>
             {
                 Interlocked.Increment(ref nh);
                 pipeline.LogDebug("building convex hull for observation {0}, {1}/{2}", obs.Name, nh, no);
                 var meshObs = new WedgeObservations() { Texture = obs };
                 var opts = new WedgeObservations.MeshOptions()
                 { Frame = outputFrame, UsePriors = usePriors, OnlyAligned = onlyAligned };
-                var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false);
+                var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false, farClip:farClip);
                 if (hull != null)
                 {
                     obsToHull.AddOrUpdate(obs.Name, _ => hull, (_, __) => hull);

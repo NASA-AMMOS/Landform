@@ -73,7 +73,9 @@ using OPS.Pipeline.AlignmentServer;
 /// * a tilest file TTTT_SSSDDDD/TTTT_SSSDDDD_tileset.json
 /// * a manifest file TTTT_SSSDDDD/TTTT_SSSDDDD_scene.json with relative URLs
 /// * a stats file TTTT_SSSDDDD/TTTT_SSSDDDD_stats.txt.
-///
+/// 
+/// The output also includes a skysphere tileset, named TTTT_SSSDDD_sky_tileset.json
+/// 
 /// A combined scene manifest with absolute URLs can also be optionally created or updated as a sibling of the output
 /// tileset directory.  In that case the update-scene-manifest tool will also include any sibling tactical mesh tilesets
 /// in the manifest.
@@ -693,7 +695,9 @@ namespace OPS.Landform
             string ingestDir = solDir;
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
             string tilesetDir = GetTilesetDir(venue, sdStr, project);
+            string skyTilesetDir = GetTilesetDir(venue, sdStr, project, isSky: true);
             string destDir = GetDestDir(solDir);
+            string skyDestDir = destDir + "/sky/";
 
             var orbitalCfg = OrbitalConfig.Instance;
             var orbitalDir = fetchDir + "/orbital/";
@@ -764,7 +768,11 @@ namespace OPS.Landform
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr);
                     
                     RunCommand("build-geometry", project, "--meshframe", sdStr);
-                    
+
+                    RunCommand("build-sky-sphere", project, "--meshframe", sdStr);
+
+                    SaveTileset(skyTilesetDir, project, destDir);
+
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     
                     RunCommand("blend-images", project, "--meshframe", sdStr);

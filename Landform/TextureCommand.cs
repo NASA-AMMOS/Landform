@@ -48,6 +48,9 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
+        [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = 0.0001)]
+        public virtual double RaycastTolerance { get; set; }
+
         [Option(HelpText = "Write extended backproject debug info", Default = false)]
         public bool WriteBackprojectDebug { get; set; }
 
@@ -64,10 +67,13 @@ namespace OPS.Landform
         public bool RedoObservationMasks { get; set; }
 
         [Option(HelpText = "Number of inpaint pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
-        public int BackprojectInpaintPixels { get; set; }
+        public virtual int BackprojectInpaintPixels { get; set; }
 
         [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
+
+        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 20)]
+        public virtual double TextureFarClip { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -574,7 +580,7 @@ namespace OPS.Landform
         protected void BuildObsHulls()
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                     tcopts.OnlyAligned, roverImages);
+                                                     tcopts.OnlyAligned, roverImages, farClip: tcopts.TextureFarClip );
             if (tcopts.WriteDebug)
             {
                 foreach (var entry in obsToHull)
@@ -612,24 +618,24 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, resolution, tcopts.BackprojectQuality);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, contexts, resolution, tcopts.RaycastTolerance, tcopts.BackprojectQuality);
         }
 
         protected void BackprojectRoverObservations()
         {
             pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
 
-            backprojectResults = BackprojectRoverObservations(mesh, resolution, backprojectMissingPixels);
+            backprojectResults = BackprojectRoverObservations(mesh, sceneCaster, resolution, backprojectMissingPixels, backprojectStrategy);
 
             pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
                              Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectRoverObservations(Mesh mesh, int resolution, List<PixelPoint> missingPixels,
+            BackprojectRoverObservations(Mesh mesh, SceneCaster meshCaster, int resolution, List<PixelPoint> missingPixels, ObsSelectionStrategy backprojectStrat,
                                          string debugSubdir = "")
         {
-            if (backprojectStrategy == null)
+            if (backprojectStrat == null)
             {
                 throw new Exception("must initialize backproject strategy before backprojecting observations");
             }
@@ -643,6 +649,7 @@ namespace OPS.Landform
                 observationCache = observationCache,
                 observations = roverImages,
                 mesh = mesh,
+                meshCaster = meshCaster,
                 meshFrame = meshFrame,
                 resolution = resolution,
                 sceneOcclusion = sceneCaster,
@@ -651,7 +658,7 @@ namespace OPS.Landform
                 quality = tcopts.BackprojectQuality,
                 writeDebug = tcopts.WriteBackprojectDebug,
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
-                obsSelectionStrategy = backprojectStrategy,
+                obsSelectionStrategy = backprojectStrat,
                 obsToHull = obsToHull,
                 info = msg => { if (logging) pipeline.LogInfo(msg); },
                 progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },

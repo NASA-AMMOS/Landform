@@ -41,7 +41,8 @@ namespace OPS.Pipeline
 
     public abstract class RoverMasker
     {
-        private readonly MissionSpecific mission;
+        protected readonly MissionSpecific mission;
+        private const int DEF_MASK_BORDER = 10;
 
         public RoverMasker(MissionSpecific mission)
         {
@@ -142,6 +143,11 @@ namespace OPS.Pipeline
                 return Build(metadata);
             }
         }
+
+        virtual public int GetBorderPixels(PDSParser parser)
+        {
+            return DEF_MASK_BORDER;
+        }
     }
 
     public class MSLRoverMasker : RoverMasker
@@ -152,6 +158,19 @@ namespace OPS.Pipeline
 
         public override RoverModel GetRoverModel() { return roverModel; }
 
+        public override int GetBorderPixels(PDSParser parser)
+        {
+            var cam = mission.GetCamera(parser);
+            if (mission.IsHazcam(cam))
+            {
+                return 150; //enough to fix some errors in our homemade rover masks (rear: RTG, front: arm parts) ISSUE 1082 for example
+            }
+            else
+            {
+                return base.GetBorderPixels(parser);
+            }
+        }
+      
         public override PDSRoverArticulationParser GetParser(PDSMetadata metadata)
         {
             return new MSLRoverArticulationParser(metadata);

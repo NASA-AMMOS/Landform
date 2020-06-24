@@ -467,10 +467,11 @@ namespace OPS.Landform
             }
         }
 
-        protected string GetTilesetDir(string venue, string meshFrame, string project)
+        protected string GetTilesetDir(string venue, string meshFrame, string project, bool isSky=false)
         {
-            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}",
-                                 storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, project);
+            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}{5}",
+                                 storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, 
+                                 isSky ? "sky/" : "", project);
         }
 
         protected string GetDestDir(string inputFolder)

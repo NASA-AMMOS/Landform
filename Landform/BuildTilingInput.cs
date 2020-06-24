@@ -11,6 +11,7 @@ using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.Texturing;
 using OPS.Pipeline.TilingServer;
+using OPS.RayTrace;
 using OPS.Util;
 
 /// <summary>
@@ -279,6 +280,11 @@ namespace OPS.Landform
             }
         }
 
+        protected override void LoadTileList()
+        {
+            return; // build tiling inputs won't have tiles yet, even though it is a TextureCommand
+        }
+
         private void BuildTileTree()
         {
             if (meshLOD.Count > 1)
@@ -309,14 +315,15 @@ namespace OPS.Landform
                     }
                     texSplitOpts = new SplitByTextureOpts()
                     {
-                        
+
                         pctPixelsToTest = options.SplitByTexturePctToTest,
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
                         splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
                         useApproximateTileSplit = !options.NoApproxTileSplit,
                         tileResolution = resolution,
                         scInMesh = sceneCaster,
-                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray()
+                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray(),
+                        raycastTolerance = tcopts.RaycastTolerance
                     };
                 }
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
@@ -513,6 +520,12 @@ namespace OPS.Landform
                 if (mp.Mesh != null && (!withTextures || mp.Image != null))
                 {
                     SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave, tile.IsLeaf);
+                    if (options.WriteBackprojectDebug && localSave)
+                    {
+                        Image preview = Backproject.GenerateIndexPreviewImage(index);
+                        string indexImageName = IndexName(tile.Name);
+                        SaveImage(preview, indexImageName + "_preview");
+                    }
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -560,101 +573,6 @@ namespace OPS.Landform
                 pipeline.SaveDataProduct(project, tileList);
                 sceneMesh.TileListGuid = tileList.Guid;
                 sceneMesh.Save(pipeline);
-            }
-        }
-
-        private string IndexName(string tileName)
-        {
-            return tileName + TileList.INDEX_FILE_SUFFIX;
-        }
-
-        private void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
-        {
-            string imgName = image != null ? name + imageExt : null;
-
-            if (local)
-            {
-                if (image != null)
-                {
-                    SaveImage(image, name);
-                }
-                if (index != null)
-                {
-                    string indexImageName = IndexName(name);
-                    SaveFloatTIFF(index, indexImageName);
-                    if (options.WriteBackprojectDebug)
-                    {
-                        Image preview = Backproject.GenerateIndexPreviewImage(index);
-                        SaveImage(preview, indexImageName + "_preview");
-                    }
-                }
-                SaveMesh(mesh, name, imgName);
-            }
-
-            if (cloud)
-            {
-                if (image != null)
-                {
-                    TemporaryFile.GetAndDelete(imageExt, tmpFile =>
-                    {
-                        image.Save<byte>(tmpFile);
-                        string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
-                        pipeline.SaveFile(tmpFile, imgUrl);
-                    });
-                }
-
-                if (index != null)
-                {
-                    TemporaryFile.GetAndDelete(".tif", tmpFile =>
-                    {
-                        var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
-                        var serializer = new GDALSerializer(opts);
-                        serializer.Write<float>(tmpFile, index);
-                        string indexName = name + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
-                        string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
-                        pipeline.SaveFile(tmpFile, indexUrl);
-                    });
-                }
-
-                TemporaryFile.GetAndDelete(meshExt, tmpFile =>
-                {
-                    mesh.Save(tmpFile, imgName);
-                    string meshName = name + meshExt;
-                    string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
-                    pipeline.SaveFile(tmpFile, meshUrl);
-
-                    if (image != null)
-                    {
-                        string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
-                        if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
-                        {
-                            string mtlName = name + ".mtl";
-                            string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
-                            pipeline.SaveFile(mtlFile, mtlUrl);
-                            PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
-                        }
-                    }
-                });
-            }
-
-            //each tile name is of the form ABCDE... where
-            //A is the index of a child of the root
-            //B is the index of a child of the node corresponding to A, etc
-            //thus each tile name encodes a full path from the root to the tile
-            //and the collection of all tile names encodes the full tree topology
-            if (isLeaf)
-            {
-                lock (tileList.LeafNames)
-                {
-                    tileList.LeafNames.Add(name);
-                }
-            }
-            else
-            {               
-                lock (tileList.ParentNames)
-                {
-                    tileList.ParentNames.Add(name);
-                }
             }
         }
 
@@ -720,8 +638,12 @@ namespace OPS.Landform
                 }
                 else
                 {
+                    SceneCaster meshCaster = new SceneCaster();
+                    meshCaster.AddMesh(mesh, null, Matrix.Identity);
+                    meshCaster.Build();
+
                     missingPixels = new List<PixelPoint>();
-                    backprojectResults = BackprojectRoverObservations(mesh, options.TextureResolution, missingPixels,
+                    backprojectResults = BackprojectRoverObservations(mesh, meshCaster, options.TextureResolution, missingPixels, backprojectStrategy, 
                                                                       debugSubdir: node.Name);
                 }
 

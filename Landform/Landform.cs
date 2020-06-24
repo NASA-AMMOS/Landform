@@ -45,6 +45,7 @@ namespace OPS.Landform
                     { typeof(BuildTextureOptions), typeof(BuildTexture) },
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BuildTilesetOptions), typeof(BuildTileset) },
+                    { typeof(BuildSkySphereOptions), typeof(BuildSkySphere) },
 
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
                     { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },

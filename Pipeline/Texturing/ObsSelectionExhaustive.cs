@@ -24,16 +24,18 @@ namespace OPS.Pipeline.Texturing
 
         protected SceneCaster OcclusionScene;
         protected MeshOperator MeshOp;
+        protected double RaycastTolerance;
 
-        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1)
+                                        double raycastTolerance,  double quality = 1)
         {
             MeshOp = meshOp;
             OcclusionScene = occlusionScene;
+            RaycastTolerance = raycastTolerance;
         }
     
-        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
+        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, SceneCaster meshCaster,
                                                                         List<Backproject.Context> contexts,
                                                                         Dictionary<string, double> scoresByObs = null)
         {
@@ -42,6 +44,10 @@ namespace OPS.Pipeline.Texturing
             if (scoresByObs != null)
             {
                 scoresByObs.Clear();
+            }
+            else
+            {
+                scoresByObs = new Dictionary<string, double>();
             }
 
             //intersecting contexts
@@ -69,10 +75,10 @@ namespace OPS.Pipeline.Texturing
                         Point = forPoint
                     };
 
-                     dist = ProjectedPixelDistances.CalculateForObs(OcclusionScene,
+                     dist = ProjectedPixelDistances.CalculateForObs(meshCaster, OcclusionScene,
                                                                     new List<PixelPoint>() { forSrcPixelPt },
                                                                     ctx.Obs, ctx.CameraModel, ctx.FrustumHull,
-                                                                    ctx.ObsToMesh, MeshOp.Bounds);
+                                                                    ctx.ObsToMesh, RaycastTolerance);
                      
                     if (OrbitalMetersPerPixel > 0 && dist > OrbitalMetersPerPixel)
                     {
@@ -83,10 +89,7 @@ namespace OPS.Pipeline.Texturing
                 //no valid measurement, ignore image
                 if (dist != double.MaxValue)
                 {
-                    if (scoresByObs != null)
-                    {
-                        scoresByObs.Add(ctx.Obs.Name, dist);
-                    }
+                    scoresByObs.Add(ctx.Obs.Name, dist);
                     sortedContexts.Add(ctx);
                 }
             };

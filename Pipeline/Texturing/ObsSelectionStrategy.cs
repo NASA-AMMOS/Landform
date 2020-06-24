@@ -54,14 +54,16 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
-        public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
+        //meshcaster: the raycasting target of the current mesh tile
+        //occlusionscene: the raycasting  target for the entire scene (current mesh tile + surrounding area)
+        public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double quality = 1);
+                                        double raycastTolerance, double quality = 1);
 
         //sorts observations from best to worst
         //returns filtered and sorted contexts
         //optionally returns scores for each observation
-        public abstract List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
+        public abstract List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, SceneCaster meshCaster,
                                                                         List<Backproject.Context> contexts,
                                                                         Dictionary<string, double> scoresByObs = null);
     }
