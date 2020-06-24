@@ -126,8 +126,8 @@ namespace OPS.Landform
                     RunPhase("build observation frustum hulls", BuildObsHulls);
                 }
 
-                RunPhase("build tile tree", BuildTileTree);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
+                RunPhase("build tile tree", BuildTileTree);
 
                 if (meshLOD.Count > 1)
                 {
