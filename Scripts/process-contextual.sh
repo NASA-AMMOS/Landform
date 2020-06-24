@@ -510,6 +510,8 @@ if [[ ! ( "$dry" || "$only_cleanup" || "$only_upload" || "$only_ingest" ) ]]; th
 
             printf "moved output to ${outproj}\r\n" | tee -a $log
 
+            realpath $outproj/${proj}_tileset.json
+
             logbn=${log##*/}
             logbn=${logbn%.txt}
             logver=
@@ -518,20 +520,23 @@ if [[ ! ( "$dry" || "$only_cleanup" || "$only_upload" || "$only_ingest" ) ]]; th
             done
             mv $log $outproj/${logbn}${logver}.txt
             
-            # . => out=. outsfx=
-            # ./out/foo => out=out, outsfx=/foo
-            # out/foo => out=out, outsfx=/foo
-            # out/ => out=out, outsfx=
+            # outdir=.         => out=.    outpath=
+            # outdir=./out/foo => out=out, outpath=/foo
+            # outdir=out/foo   => out=out, outpath=/foo
+            # outdir=out/      => out=out, outpath=
             out=$outdir
-            outsfx=
+            outpath=
             if [[ "$out" == *\/* ]]; then
                 if [[ "$out" == .\/* ]]; then out=${out#./}; fi
-                outsfx=/${out#*/}
-                outsfx=${outsfx%/}
+                outpath=/${out#*/}
+                outpath=${outpath%/}
                 out=${out%%/*}
             fi
             
-            url=http://localhost:8000/Unity3DTilesWeb/index.html?Tileset=..$outsfx/$proj/${proj}_tileset.json
+            if [ -f $outdir/${proj}_scene.json ]; then realpath $outdir/${proj}_scene.json; fi
+
+            baseurl=http://localhost:8000/Unity3DTilesWeb/index.html
+            url=${baseurl}?Tileset=..$outpath/$proj/${proj}_tileset.json
             
             echo "commands you could run to view tileset in Unity3DTiles:"
             echo $landform fetch s3://$lfbucket/Unity3DTilesWeb.zip $out --raw --nosubdirs --mission M2020
@@ -540,6 +545,7 @@ if [[ ! ( "$dry" || "$only_cleanup" || "$only_upload" || "$only_ingest" ) ]]; th
             echo cd $out \&\& python -m SimpleHTTPServer 8000 \# Python 2.7
             echo start \"$url\"
             echo start \"${url}\&TilesetOptions=zero_sse_tileset_options.json\"
+            if [ -f $outdir/${proj}_scene.json ]; then echo start \"${baseurl}?Scene=..$outpath/${proj}_scene.json\"; fi
             echo "tip: run python last to avoid opening another terminal"
         fi
 
