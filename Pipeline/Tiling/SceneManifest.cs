@@ -541,5 +541,23 @@ namespace OPS.Pipeline
             tileset.sols.Clear();
             tileset.sols.AddRange(sols);
         }
+
+        public void AddOrUpdateSkyTileset(string tilesetId, string tilesetUrl, string siteDrive, ILogger logger = null)
+        {
+            if (logger != null)
+            {
+                logger.LogInfo("{0} manifest for sky tileset {1}",
+                               Tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId);
+            }
+            var sdFrame = GetOrAddSiteDriveFrame(siteDrive);
+            var tileset = GetOrAddTileset(tilesetId);
+            tileset.uri = tilesetUrl;
+            tileset.frame_id = sdFrame.id; //contextual mesh is always in sitedrive frame
+            tileset.groups.Clear();
+            tileset.groups.Add("contextual");
+            tileset.groups.Add("sky");
+            tileset.image_ids.Clear();
+            tileset.sols.Clear();
+        }
     }
 }

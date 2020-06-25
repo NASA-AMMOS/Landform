@@ -802,6 +802,14 @@ namespace OPS.Landform
             sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
                                                        frameCache, options.UsePriors, options.OnlyAligned,
                                                        images, backprojectedPixels, pipeline);
+
+            string skyTilesetId = tilesetId + "_" + BuildSkySphere.SKY_DIR;
+            string skyTilesetUrl = GetExistingTileset(skyTilesetId);
+            if (skyTilesetUrl != null)
+            {
+                sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
+                                                    options.SiteDrive, pipeline);
+            }
         }
 
         private void UpdateTacticalMeshManifests()

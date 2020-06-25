@@ -796,7 +796,7 @@ namespace OPS.Landform
                     if (!options.NoSky)
                     {
                         SaveTileset(GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_DIR),
-                                    project, destDir, "_sky");
+                                    project, destDir, "_" + BuildSkySphere.SKY_DIR);
                     }
                 }
 
