@@ -6,10 +6,15 @@ using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
-    public enum TilingScheme { Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, UserDefined } 
+    public enum TilingScheme { Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, UserDefined, Flat } 
 
     public abstract class TilingSchemeBase
     {
+        public static bool IsUserProvided(TilingScheme scheme)
+        {
+            return scheme == TilingScheme.UserDefined || scheme == TilingScheme.Flat;
+        }
+
         public static TilingSchemeBase Create(TilingScheme scheme)
         {
             switch (scheme)

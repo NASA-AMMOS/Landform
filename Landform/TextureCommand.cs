@@ -15,9 +15,9 @@ using OPS.Imaging;
 using OPS.RayTrace;
 using OPS.Geometry;
 using OPS.Pipeline;
+using OPS.Pipeline.Texturing;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
-using OPS.Pipeline.Texturing;
 
 namespace OPS.Landform
 {
@@ -47,6 +47,9 @@ namespace OPS.Landform
         [Option(HelpText = "A tunable parameter for the Observation Selection Strategy used in backproject (range 0-1)", Default = 0.05)]
         public virtual double BackprojectQuality { get; set; }
 
+        [Option(HelpText = "The smallest distance (meters) for a raycast determined to be significant, prevents self intersections", Default = 0.0001)]
+        public virtual double RaycastTolerance { get; set; }
+
         [Option(HelpText = "Write extended backproject debug info", Default = false)]
         public bool WriteBackprojectDebug { get; set; }
 
@@ -70,6 +73,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
+
+        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 20)]
+        public virtual double TextureFarClip { get; set; }
 
         [Option(HelpText = "Don't prefer color images", Default = false)]
         public bool NoPreferColor { get; set; }
@@ -549,7 +555,7 @@ namespace OPS.Landform
         protected void BuildObsHulls()
         {
             obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                     tcopts.OnlyAligned, roverImages);
+                                                     tcopts.OnlyAligned, roverImages, farClip: tcopts.TextureFarClip );
 #if DBG_FRUSTA
             if (tcopts.WriteDebug)
             {
@@ -589,8 +595,9 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, contexts, sceneTextureResolution,
-                                           tcopts.BackprojectQuality, !tcopts.NoPreferColor);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, tcopts.RaycastTolerance, 
+                                           contexts, sceneTextureResolution, tcopts.BackprojectQuality,
+                                           !tcopts.NoPreferColor);
         }
 
         protected void BackprojectObservations()
@@ -599,9 +606,12 @@ namespace OPS.Landform
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, int resolution, string debugSubdir = "", bool quiet = false)
+            BackprojectObservations(Mesh mesh, int resolution, SceneCaster meshCaster = null,
+                                    ObsSelectionStrategy strategy = null, string debugSubdir = "",
+                                    bool quiet = false)
         {
-            if (backprojectStrategy == null)
+            strategy = strategy ?? backprojectStrategy;
+            if (strategy == null)
             {
                 throw new Exception("must initialize backproject strategy before backprojecting observations");
             }
@@ -619,10 +629,10 @@ namespace OPS.Landform
                 obsToHull = obsToHull,
 
                 mesh = mesh,
-                meshHull = new ConvexHull(mesh),
                 meshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true),
                 meshFrame = meshFrame,
 
+                meshCaster = meshCaster ?? sceneCaster,
                 sceneOcclusion = sceneCaster,
 
                 usePriors = tcopts.UsePriors,
@@ -632,11 +642,21 @@ namespace OPS.Landform
                 localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
 
                 outputResolution = resolution,
+
                 quality = tcopts.BackprojectQuality,
-                obsSelectionStrategy = backprojectStrategy,
+                obsSelectionStrategy = strategy,
 
                 quiet = quiet
             };
+
+            try
+            {
+                opts.meshHull = new ConvexHull(mesh);
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogWarn("failed to make convex hull for mesh: {0}", ex.Message);
+            }
 
             if (!tcopts.NoOrbital)
             {
@@ -684,7 +704,7 @@ namespace OPS.Landform
             }
         }
 
-        protected void MaskBackprojectIndex(Image index)
+        protected Image MaskBackprojectIndex(Image index)
         {
             index.CreateMask();
             for (int r = 0; r < index.Height; r++)
@@ -697,6 +717,7 @@ namespace OPS.Landform
                     }
                 }
             }
+            return index;
         }
 
         protected void MaskBackprojectIndex()

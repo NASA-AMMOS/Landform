@@ -128,13 +128,12 @@ namespace OPS.Pipeline.TilingServer
             SceneNode root = null;
 
             var tilingScheme = project.GetTilingScheme();
-            bool userDefined = tilingScheme == TilingScheme.UserDefined;
 
             var idToSceneNode = new Dictionary<string, SceneNode>();
             var idToTilingNode = new ConcurrentDictionary<string, TilingNode>();
 
             int numUserTiles = 0;
-            if (userDefined) // build a tree based on user supplied leaf tiles
+            if (TilingSchemeBase.IsUserProvided(tilingScheme)) // build a tree based on user supplied leaf tiles
             {
                 // (user may or may not also have supplied some parent tiles)
 
@@ -151,7 +150,20 @@ namespace OPS.Pipeline.TilingServer
 
                 LogInfo("connecting {0} user defined nodes by name and adding missing parent nodes", numUserTiles);
 
-                root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
+                switch (tilingScheme)
+                {
+                    case TilingScheme.UserDefined:
+                    {
+                        root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
+                        break;
+                    }
+                    case TilingScheme.Flat:
+                    {
+                        root = SceneNodeTilingExtensions.ConnectNodesToRoot(idToSceneNode.Values);
+                        break;
+                    }
+                    default: throw new Exception("unexpected tiling scheme: " + tilingScheme);
+                }
 
                 int n = 0;
                 LogInfo("converting {0} user defined tiles", numUserTiles);
@@ -277,6 +289,35 @@ namespace OPS.Pipeline.TilingServer
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);
+        }
+
+        public static SceneNode BuildSingleLevelBoundsTree(List<Mesh> tileMeshes)
+        {
+            if (tileMeshes.Count < 1)
+            {
+                throw new InvalidDataException("expecting at least one mesh for node tree");
+            }
+
+            Mesh combined = Mesh.Merge(tileMeshes.ToArray(), clean: false, normalize: false);
+
+            //add root geometry so none will be created from children
+            SceneNode root = new SceneNode("");
+            root.Name = "";
+            root.AddComponent(new NodeBounds(combined.Bounds()));
+            root.AddComponent<MeshImagePair>(new MeshImagePair(tileMeshes[0], null)); //TODO: #1096 support empty nodes
+            root.AddComponent<NodeGeometricError>(new NodeGeometricError(100));
+
+            int counter = 1;
+            foreach(var mesh in tileMeshes)
+            {
+                SceneNode leaf = CreateChildNode(root, mesh.Bounds(), ref counter);
+                leaf.AddComponent<MeshImagePair>(new MeshImagePair(mesh, null));
+                leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
+            }
+
+            root.Name = "root";
+            return root;
+
         }
 
         /// <summary>
@@ -528,7 +569,11 @@ namespace OPS.Pipeline.TilingServer
             //(and correspondingly which face is largest).  So that is why we incur the extra cost of unioning the
             //ClippedMeshBounds() here.
 
-            bounds = BoundingBoxExtensions.Union(meshOps.Select(op => op.ClippedMeshBounds(bounds)).ToArray());
+            if (meshOps != null && meshOps.Length > 0)
+            {
+                bounds = BoundingBoxExtensions.Union(meshOps.Select(op => op.ClippedMeshBounds(bounds)).ToArray());
+            }
+
             if (bounds.IsEmpty())
             {
                 throw new Exception($"can't create empty child {childName} of {parentName}");

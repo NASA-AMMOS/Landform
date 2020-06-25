@@ -238,6 +238,13 @@ namespace OPS.Pipeline
                     reason = "mastcam with short focal distance";
                     return false;
                 }
+
+                if(parser.ExposureDuration > 50)
+                {
+                    //images with these long exposures seem to be too dark for use in context mesh
+                    reason = "mastcam with long exposure";
+                    return false;
+                }
             }
 
             if (IsNavcam(cam) && parser.IsDownsampled)

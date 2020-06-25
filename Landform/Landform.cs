@@ -42,6 +42,7 @@ namespace OPS.Landform
                     { typeof(AgisoftAlignerOptions), typeof(AgisoftAligner) },
 
                     { typeof(BuildGeometryOptions), typeof(BuildGeometry) },
+                    { typeof(BuildSkySphereOptions), typeof(BuildSkySphere) },
                     { typeof(BuildTextureOptions), typeof(BuildTexture) },
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BuildTilesetOptions), typeof(BuildTileset) },

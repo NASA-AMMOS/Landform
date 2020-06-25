@@ -473,7 +473,7 @@ namespace OPS.Landform
         {
             var collectOpts = new WedgeObservations.CollectOptions(null, null, options.OnlyForCameras, mission)
                 {
-                    RequirePoints = true,
+                    RequireReconstructable = true,
                     RequireNormals = true,
                     RequireTextures = false,
                     IncludeForAlignment = false,
@@ -507,7 +507,7 @@ namespace OPS.Landform
                 Interlocked.Increment(ref np);
 
                 //bookeep name of the points observation so that we can recover its observation transform later
-                string ptsName = obs.Points.Name;
+                string ptsName = obs.Points == null ? obs.Range.Name : obs.Points.Name;
 
                 if (!options.NoProgress)
                 {

@@ -467,10 +467,14 @@ namespace OPS.Landform
             }
         }
 
-        protected string GetTilesetDir(string venue, string meshFrame, string project)
+        protected string GetTilesetDir(string venue, string meshFrame, string project, string subdir = "")
         {
-            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}",
-                                 storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, project);
+            if (!string.IsNullOrEmpty(subdir) && !subdir.EndsWith("/"))
+            {
+                subdir += "/";
+            }
+            return string.Format("{0}/{1}/{2}/{3}Frame/best/{4}{5}",
+                                 storageDir, venue, OPS.Landform.BuildTileset.TILESET_DIR, meshFrame, subdir, project);
         }
 
         protected string GetDestDir(string inputFolder)
@@ -507,9 +511,9 @@ namespace OPS.Landform
         //if the tileset already exists this will overwrite it
         //however, it will orphan existing files that will not end up getting overwritten
         //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1026
-        protected void SaveTileset(string tilesetDir, string project, string destDir)
+        protected void SaveTileset(string tilesetDir, string project, string destDir, string suffix = "")
         {
-            destDir = string.Format("{0}/{1}", destDir, project);
+            destDir = string.Format("{0}/{1}{2}", destDir, project, suffix);
             
             pipeline.LogInfo("{0}saving tileset from {1} to {2}", lsopts.DryRun ? "dry " : "", tilesetDir, destDir);
             
@@ -530,7 +534,7 @@ namespace OPS.Landform
                 {
                     if (f.Name == TILESET_JSON || f.Name == SCENE_JSON || f.Name == STATS_TXT)
                     {
-                        SaveFile(f.FullName, string.Format("{0}/{1}_{2}", destDir, project, f.Name));
+                        SaveFile(f.FullName, string.Format("{0}/{1}{2}_{3}", destDir, project, suffix, f.Name));
                     }
                     else
                     {

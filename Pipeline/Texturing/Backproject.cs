@@ -122,7 +122,7 @@ namespace OPS.Pipeline
             });
             return previewImg;
         }
-
+   
         /// <summary>
         /// reconstitute backproject results from an index image
         /// </summary>
@@ -172,8 +172,11 @@ namespace OPS.Pipeline
                                               IDictionary<Pixel, ObsPixel> backprojectResults,
                                               Image outputImage, TextureVariant textureVariant,
                                               int inpaintMissing = 4, int inpaintGutter = -1,
-                                              bool fallbackToOriginal = true, Image orbitalTexture = null)
+                                              bool fallbackToOriginal = true, Image orbitalTexture = null,
+                                              float[] missingColor = null)
         {
+            missingColor = missingColor ?? NO_OBSERVATION_COLOR;
+
             var stats = new Stats();
 
             if (outputImage.Bands != 3)
@@ -193,6 +196,7 @@ namespace OPS.Pipeline
 
             if (backprojectResults == null || backprojectResults.Count == 0)
             {
+                outputImage.Fill(missingColor);
                 return stats;
             }
 
@@ -341,7 +345,7 @@ namespace OPS.Pipeline
                                      px.Col, px.Row, outputImage.Width, outputImage.Height);
                     return;
                 }
-                outputImage.SetAsColor(NO_OBSERVATION_COLOR, px.Row, px.Col);
+                outputImage.SetAsColor(missingColor, px.Row, px.Col);
                 outputImage.SetMaskValue(px.Row, px.Col, false);
                 Interlocked.Increment(ref stats.BackprojectMissingPixels);
             });
@@ -373,6 +377,7 @@ namespace OPS.Pipeline
             public MeshOperator meshOp; //only uv face tree required
             public string meshFrame;
 
+            public SceneCaster meshCaster;     //for ray casting the active mesh, may be same as sceneOcclusion
             public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
 
             public bool usePriors;
@@ -382,6 +387,7 @@ namespace OPS.Pipeline
             public string localDebugOutputPath;
 
             public int outputResolution;
+
             public double quality; //0 < quality <= 1 (best, slowest)
             public ObsSelectionStrategy obsSelectionStrategy;  //the approach used to pick the best source data
 
@@ -537,7 +543,8 @@ namespace OPS.Pipeline
                 CoreLimitedParallel.For(startIdx, startIdx + batchSize, idx =>
                 {
                     sortedContexts[idx] =
-                        opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts);
+                    opts.obsSelectionStrategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts,
+                                                                    opts.meshCaster);
                 });
                 int maxContextDepth = sortedContexts.Values.Max(contexts => contexts.Count);
                 
@@ -708,6 +715,13 @@ namespace OPS.Pipeline
                                 obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
                             }
                         }
+                        else
+                        {
+                            // couldn't check tint red
+                            var bandVals = obsCoverage.GetBandValues(idxRow, idxCol);
+                            bandVals[0] += 0.25f; //tint red
+                            obsCoverage.SetBandValues(idxRow, idxCol, bandVals);
+                        }
                     }
                 }
             }
@@ -839,6 +853,41 @@ namespace OPS.Pipeline
             return rayCamToMesh;
         }
 
+        // raycast the mesh with an occulusion check
+        public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel,
+                                           BoundingBox meshBounds, SceneCaster meshCaster,
+                                           SceneCaster occlusionScene, double raycastTolerance = float.Epsilon)
+        {            
+            //check if pixel ray hit the mesh
+            Vector3? meshPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, meshCaster);
+            if (!meshPos.HasValue)
+            {
+                return null;
+            }
+
+            //check if hit the mesh or was occluded by the scene
+            if (!meshBounds.ContainsPoint(meshPos.Value))
+            {
+                return null;
+            }
+            if (occlusionScene != null && occlusionScene != meshCaster)
+            {
+                Vector3? occluderPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, occlusionScene);
+                if (occluderPos.HasValue)
+                {
+                    double distanceToOccluder = Vector3.DistanceSquared(occluderPos.Value, obsToMesh.Translation);
+                    double distanceToMesh = Vector3.DistanceSquared(meshPos.Value, obsToMesh.Translation);
+                    if ((distanceToOccluder - distanceToMesh) < raycastTolerance)
+                    {
+                        //occluded by other geometry
+                        return null;
+                    }
+                }
+            }
+
+            return meshPos;
+        }
+
         public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster sc)
         {
             Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
@@ -852,23 +901,24 @@ namespace OPS.Pipeline
      
         public static IDictionary<string, ConvexHull> //indexed by observation name
             BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
-                             bool onlyAligned, IEnumerable<RoverObservation> imageObservations)
+                             bool onlyAligned, IEnumerable<RoverObservation> imgObservations, double farClip = 20)
         {
-            int no = imageObservations.Count();
+            int no = imgObservations.Count();
 
             pipeline.LogInfo("building convex hulls for {0} observations", no);
 
             var obsToHull = new ConcurrentDictionary<string, ConvexHull>();
 
             int nh = 0;
-            CoreLimitedParallel.ForEach(imageObservations, obs =>
+            CoreLimitedParallel.ForEach(imgObservations, obs =>
             {
                 Interlocked.Increment(ref nh);
                 pipeline.LogDebug("building convex hull for observation {0}, {1}/{2}", obs.Name, nh, no);
                 var meshObs = new WedgeObservations() { Texture = obs };
                 var opts = new WedgeObservations.MeshOptions()
                 { Frame = outputFrame, UsePriors = usePriors, OnlyAligned = onlyAligned };
-                var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false);
+                var hull = meshObs.BuildFrustumHull(pipeline, frameCache, opts, uncertaintyInflated: false,
+                                                    farClip: farClip);
                 if (hull != null)
                 {
                     obsToHull.AddOrUpdate(obs.Name, _ => hull, (_, __) => hull);

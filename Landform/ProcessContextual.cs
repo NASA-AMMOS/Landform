@@ -26,11 +26,12 @@ using OPS.Pipeline.AlignmentServer;
 /// 2. bev-align
 /// 3. heightmap-align
 /// 4. build-geometry
-/// 5. build-tiling-input
-/// 6. blend-images
-/// 7. build-tileset
-/// 8. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
-/// 9. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
+/// 5. build-skysphere
+/// 6. build-tiling-input
+/// 7. blend-images
+/// 8. build-tileset
+/// 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
+/// 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
 ///
 /// As a service, process-contextual is designed to run over a long period of time, receiving messages on an SQS queue,
 /// creating contextual meshes, and uploading them back to S3.
@@ -62,7 +63,7 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// The output tileset is named TTTT_SSSDDDD where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  It is
 /// written to rdrDir/tileset/TTTT_SSSDDDD (*), unless --outputfolder is specified, in which case it is written to a
-/// subdirectory TTTT_SSSDDDD there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is
+/// subdirectory TTTT_SSSDDDD there. (*) Actually if rdrDir contains a prefix ending /rdr then the output directory is
 /// that prefix but with rdr replaced with rdr/tileset/TTTT_SSSDDDD.
 ///
 /// When run as a service the RDR directory is also given as part of each SQS message.  Thus, the service will write the
@@ -73,7 +74,9 @@ using OPS.Pipeline.AlignmentServer;
 /// * a tilest file TTTT_SSSDDDD/TTTT_SSSDDDD_tileset.json
 /// * a manifest file TTTT_SSSDDDD/TTTT_SSSDDDD_scene.json with relative URLs
 /// * a stats file TTTT_SSSDDDD/TTTT_SSSDDDD_stats.txt.
-///
+/// 
+/// Unless --nosky is specified all of the above also holds for a sky tileset named TTTT_SSSDDD_sky.
+/// 
 /// A combined scene manifest with absolute URLs can also be optionally created or updated as a sibling of the output
 /// tileset directory.  In that case the update-scene-manifest tool will also include any sibling tactical mesh tilesets
 /// in the manifest.
@@ -139,6 +142,9 @@ namespace OPS.Landform
 
         [Option(Required = false, Default = false, HelpText = "Don't generate tileset")]
         public bool NoTileset { get; set; }
+
+        [Option(Required = false, Default = false, HelpText = "Don't generate sky sphere tileset")]
+        public bool NoSky { get; set; }
 
         [Option(Required = false, Default = false, HelpText = "Don't write/update combined scene manifest on s3")]
         public bool NoCombinedManifest { get; set; }
@@ -770,7 +776,12 @@ namespace OPS.Landform
                     
                     RunCommand("build-geometry", project, "--meshframe", sdStr, "--extent", options.Extent.ToString(),
                                "--surfaceextent", options.SurfaceExtent.ToString());
-                    
+
+                    if (!options.NoSky)
+                    { 
+                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr);
+                    }
+
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     
                     RunCommand("blend-images", project, "--meshframe", sdStr);
@@ -781,6 +792,12 @@ namespace OPS.Landform
                                "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
                     SaveTileset(tilesetDir, project, destDir);
+
+                    if (!options.NoSky)
+                    {
+                        SaveTileset(GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_DIR),
+                                    project, destDir, "_sky");
+                    }
                 }
 
                 if (!options.NoCombinedManifest)

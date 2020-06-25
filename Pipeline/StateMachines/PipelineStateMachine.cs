@@ -306,7 +306,7 @@ namespace OPS.Pipeline
         {
             LogInfo("tiles defined");
             var project = TilingProject.Find(pipeline, projectName);
-            if (project.TilingScheme == TilingScheme.UserDefined.ToString())
+            if (TilingSchemeBase.IsUserProvided(project.GetTilingScheme()))
             {
                 LogInfo("input chunking skipped");
                 BuildNodes(project);

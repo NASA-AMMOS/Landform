@@ -67,6 +67,9 @@ if not "%LANDFORM_CONTEXTUAL_NO_COMBINED_MANIFEST%"=="" set nocombinedmanifest==
 set noorbital=
 if not "%LANDFORM_CONTEXTUAL_NO_ORBITAL%"=="" set noorbital==--noorbital
 
+set nosky=
+if not "%LANDFORM_CONTEXTUAL_NO_SKY%"=="" set nosky==--nosky
+
 set extent=32
 if not "%LANDFORM_CONTEXTUAL_EXTENT%"=="" set extent==%LANDFORM_CONTEXTUAL_EXTENT%
 
@@ -78,7 +81,7 @@ set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
 
-set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital%
+set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky%
 set contextualopts=%contextualopts% --extent %extent% --surfaceextent %surfaceextent%
 
 set appsdir=%bindir%\ExternalApps

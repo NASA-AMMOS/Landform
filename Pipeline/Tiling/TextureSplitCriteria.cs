@@ -30,6 +30,7 @@ namespace OPS.Pipeline
         public int tileResolution;
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
+        public double raycastTolerance;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
@@ -140,6 +141,10 @@ namespace OPS.Pipeline
             List<PixelPoint> ptsToTest =
                 clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.tileResolution, options.tileResolution);
 
+            var clippedCaster = new SceneCaster();
+            clippedCaster.AddMesh(clippedMesh, null, Matrix.Identity);
+            clippedCaster.Build();
+
             //record the pixel area of the image that would be used to texture the mesh for each output atlas pixel
             Dictionary<CameraInstance, List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();
             foreach (var destPixelPt in ptsToTest)
@@ -154,7 +159,7 @@ namespace OPS.Pipeline
 
                 //find the camera that provides the best pixel density for this sample
                 //(would be the texture we would use at this location)
-                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedHull, clippedOp.Bounds, destPixelPt,
+                if (!GetBestCameraByPixelDensity(intersectingCameras, clippedCaster, clippedHull, clippedOp.Bounds, destPixelPt,
                                                  out CameraInstance bestCamera))
                 {
                     continue;
@@ -230,7 +235,7 @@ namespace OPS.Pipeline
             return maxPixelsTested != double.MinValue;
         }
 
-        private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, ConvexHull meshHull,
+        private bool GetBestCameraByPixelDensity(List<CameraInstance> candidateCameras, SceneCaster meshCaster, ConvexHull meshHull,
                                                     BoundingBox meshBounds, PixelPoint pxlPt, out CameraInstance bestCamera)
         {
             bestCamera = null;
@@ -248,10 +253,9 @@ namespace OPS.Pipeline
 
                 //Issue #523: want median or average in case glancing angle?
                 //want a term that looks for consistancy in spacing? implies dead on?
-                double curSpread = ProjectedPixelDistances.GetMinPixelSpreadInMeters(options.scInMesh, camInst.cameraModel,
+                double curSpread = ProjectedPixelDistances.GetMinPixelSpreadInMeters(meshBounds, meshCaster, options.scInMesh, camInst.cameraModel,
                                                              camInst.cameraToMesh,
-                                                             srcPixel.Value, pxlPt.Point, meshBounds,
-                                                             camInst.widthPixels, camInst.heightPixels);
+                                                             srcPixel.Value, pxlPt.Point, camInst.widthPixels, camInst.heightPixels, options.raycastTolerance);
                 if (curSpread < minSpread)
                 {
                     minSpread = curSpread;

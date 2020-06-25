@@ -22,9 +22,9 @@ namespace OPS.Pipeline.Texturing
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
 
-        private Dictionary<string, List<ScoredPoint>> scoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
-        private double samplesPerMeter;
+        private double raycastTolerance;
         private bool preferColor;
+        private double samplesPerMeter;
 
         private struct ScoredPoint
         {
@@ -37,11 +37,14 @@ namespace OPS.Pipeline.Texturing
                 Score = score;
             }
         }
+        private Dictionary<string, List<ScoredPoint>> scoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
 
-        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
+                                        SceneCaster occlusionScene, double raycastTolerance,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
                                         double quality = 1, bool preferColor = true)
         {
+            this.raycastTolerance = raycastTolerance;
             this.preferColor = preferColor;
 
             // collect points on the surface of the mesh
@@ -54,7 +57,7 @@ namespace OPS.Pipeline.Texturing
             while (sampledMesh.Vertices.Count == 0)
             {
                 samplesPerMeter += 1;
-                sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
+                sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter); //TODO: pick center?
             }
 
             if (!string.IsNullOrEmpty(DebugOutputPath))
@@ -67,7 +70,8 @@ namespace OPS.Pipeline.Texturing
             foreach (var ctx in contexts)
             {
                 Vector2 pixel = new Vector2(ctx.Obs.Width / 2.0, ctx.Obs.Height / 2.0);
-                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, pixel, occlusionScene);
+                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, pixel, meshOp.Bounds, meshCaster,
+                                                       occlusionScene);
                 if (res.HasValue)
                 {
                     sampledMesh.Vertices.Add(new Vertex(res.Value));
@@ -89,7 +93,10 @@ namespace OPS.Pipeline.Texturing
             //exhaustively sort for each sample point
             var refSelect = new ObsSelectionExhaustive();
             refSelect.OrbitalMetersPerPixel = OrbitalMetersPerPixel;
-            refSelect.Initialize(mesh, meshOp, occlusionScene, contexts, outputTextureResolution, quality, preferColor);
+
+            //ISSUE 1091: should have an independent control for exhaustive quality
+            refSelect.Initialize(mesh, meshOp, meshCaster, occlusionScene, raycastTolerance, contexts,
+                                 outputTextureResolution, quality, preferColor);
 
             //collect a sorted list of contexts (best to worst) for each sample point
             // any sorts that would be better served by orbital will have their contexts filtered
@@ -97,7 +104,7 @@ namespace OPS.Pipeline.Texturing
             {
                 var pt = vertex.Position;
                 var ptScoresByObs = new Dictionary<string, double>();
-                var sortedContexts = refSelect.FilterAndSortContexts(pt, contexts, ptScoresByObs);
+                var sortedContexts = refSelect.FilterAndSortContexts(pt, contexts, meshCaster, ptScoresByObs);
 
                 foreach (var ctx in sortedContexts)
                 {
@@ -128,6 +135,7 @@ namespace OPS.Pipeline.Texturing
 
         public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
                                                                         List<Backproject.Context> contexts,
+                                                                        SceneCaster meshCaster = null,
                                                                         Dictionary<string, double> scoresByObs = null)
         {
             //indexed by score, sorted high to low (worst first)

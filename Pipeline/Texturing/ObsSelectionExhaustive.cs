@@ -22,21 +22,27 @@ namespace OPS.Pipeline.Texturing
     {
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Exhaustive; } }
 
-        private SceneCaster occlusionScene;
         private MeshOperator meshOp;
+        private SceneCaster meshCaster;
+        private SceneCaster occlusionScene;
+        private double raycastTolerance;
         private bool preferColor;
 
-        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
+                                        SceneCaster occlusionScene, double raycastTolerance,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
                                         double quality = 1, bool preferColor = true)
         {
             this.meshOp = meshOp;
+            this.meshCaster = meshCaster;
             this.occlusionScene = occlusionScene;
+            this.raycastTolerance = raycastTolerance;
             this.preferColor = preferColor;
         }
     
         public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
                                                                         List<Backproject.Context> contexts,
+                                                                        SceneCaster meshCaster = null,
                                                                         Dictionary<string, double> scoresByObs = null)
         {
             var sortedContexts = new List<Backproject.Context>();
@@ -71,10 +77,10 @@ namespace OPS.Pipeline.Texturing
                         Point = forPoint
                     };
 
-                     dist = ProjectedPixelDistances.CalculateForObs(occlusionScene,
-                                                                    new List<PixelPoint>() { forSrcPixelPt },
-                                                                    ctx.Obs, ctx.CameraModel, ctx.FrustumHull,
-                                                                    ctx.ObsToMesh, meshOp.Bounds);
+                    dist = ProjectedPixelDistances
+                        .CalculateForObs(meshOp.Bounds, meshCaster ?? this.meshCaster, occlusionScene,
+                                         new List<PixelPoint>() { forSrcPixelPt },
+                                         ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, raycastTolerance);
                      
                     if (OrbitalMetersPerPixel > 0 && dist > OrbitalMetersPerPixel)
                     {

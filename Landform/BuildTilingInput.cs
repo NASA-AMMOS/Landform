@@ -11,6 +11,7 @@ using OPS.Pipeline;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.Texturing;
 using OPS.Pipeline.TilingServer;
+using OPS.RayTrace;
 using OPS.Util;
 
 /// <summary>
@@ -71,9 +72,6 @@ namespace OPS.Landform
         [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
         public Mission Mission { get; set; }
 
-        [Option(HelpText = "Don't save tile backproject index images", Default = false)]
-        public bool NoIndexImages { get; set; }
-
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
     }
@@ -93,10 +91,6 @@ namespace OPS.Landform
         };
         private TextureGenMode texGenMode = TextureGenMode.None;
 
-        private SceneNode tileTree;
-
-        private int numBackprojectedSurfacePixels, numBackprojectedOrbitalPixels, numBackprojectFailedPixels;
-      
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
             this.options = options;
@@ -301,6 +295,11 @@ namespace OPS.Landform
             }
         }
 
+        protected override void LoadTileList()
+        {
+            return; // LoadTileList() is called from TilingCommand.ParseArgumentsAndLoadCaches()
+        }
+
         private void BuildTileTree()
         {
             if (meshLOD.Count > 1)
@@ -332,14 +331,14 @@ namespace OPS.Landform
                     }
                     texSplitOpts = new SplitByTextureOpts()
                     {
-                        
                         pctPixelsToTest = options.SplitByTexturePctToTest,
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
                         splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
                         useApproximateTileSplit = !options.NoApproxTileSplit,
                         tileResolution = tileResolution,
                         scInMesh = sceneCaster,
-                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray()
+                        cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray(),
+                        raycastTolerance = tcopts.RaycastTolerance
                     };
                 }
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
@@ -540,6 +539,10 @@ namespace OPS.Landform
                 if (mp.Mesh != null && (!withTextures || mp.Image != null))
                 {
                     SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave, tile.IsLeaf);
+                    if (options.WriteBackprojectDebug)
+                    {
+                        SaveImage(Backproject.GenerateIndexPreviewImage(index), tile.Name + "_index_preview");
+                    }
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -590,101 +593,6 @@ namespace OPS.Landform
             }
         }
 
-        private string IndexName(string tileName)
-        {
-            return tileName + TileList.INDEX_FILE_SUFFIX;
-        }
-
-        private void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
-        {
-            string imgName = image != null ? name + imageExt : null;
-
-            if (local)
-            {
-                if (image != null)
-                {
-                    SaveImage(image, name);
-                }
-                if (index != null)
-                {
-                    string indexImageName = IndexName(name);
-                    SaveFloatTIFF(index, indexImageName);
-                    if (options.WriteBackprojectDebug)
-                    {
-                        Image preview = Backproject.GenerateIndexPreviewImage(index);
-                        SaveImage(preview, indexImageName + "_preview");
-                    }
-                }
-                SaveMesh(mesh, name, imgName);
-            }
-
-            if (cloud)
-            {
-                if (image != null)
-                {
-                    TemporaryFile.GetAndDelete(imageExt, tmpFile =>
-                    {
-                        image.Save<byte>(tmpFile);
-                        string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
-                        pipeline.SaveFile(tmpFile, imgUrl);
-                    });
-                }
-
-                if (index != null)
-                {
-                    TemporaryFile.GetAndDelete(".tif", tmpFile =>
-                    {
-                        var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
-                        var serializer = new GDALSerializer(opts);
-                        serializer.Write<float>(tmpFile, index);
-                        string indexName = name + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
-                        string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
-                        pipeline.SaveFile(tmpFile, indexUrl);
-                    });
-                }
-
-                TemporaryFile.GetAndDelete(meshExt, tmpFile =>
-                {
-                    mesh.Save(tmpFile, imgName);
-                    string meshName = name + meshExt;
-                    string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
-                    pipeline.SaveFile(tmpFile, meshUrl);
-
-                    if (image != null)
-                    {
-                        string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
-                        if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
-                        {
-                            string mtlName = name + ".mtl";
-                            string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
-                            pipeline.SaveFile(mtlFile, mtlUrl);
-                            PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
-                        }
-                    }
-                });
-            }
-
-            //each tile name is of the form ABCDE... where
-            //A is the index of a child of the root
-            //B is the index of a child of the node corresponding to A, etc
-            //thus each tile name encodes a full path from the root to the tile
-            //and the collection of all tile names encodes the full tree topology
-            if (isLeaf)
-            {
-                lock (tileList.LeafNames)
-                {
-                    tileList.LeafNames.Add(name);
-                }
-            }
-            else
-            {               
-                lock (tileList.ParentNames)
-                {
-                    tileList.ParentNames.Add(name);
-                }
-            }
-        }
-
         private Mesh MakeTileMesh(SceneNode tile, MeshOperator meshOp)
         {
             Mesh tileMesh = null;
@@ -731,37 +639,6 @@ namespace OPS.Landform
             }
 
             return tileMesh;
-        }
-
-        private Image BackprojectTile(SceneNode node, Mesh mesh, Image index = null)
-        {
-            try
-            {
-                var backprojectResults =
-                    BackprojectObservations(mesh, tileResolution, debugSubdir: node.Name, quiet: true);
-                
-                Image image = new Image(3, tileResolution, tileResolution);
-                var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, image,
-                                                          options.TextureVariant, options.BackprojectInpaintMissing,
-                                                          options.BackprojectInpaintGutter,
-                                                          fallbackToOriginal: true, orbitalTexture: orbitalTexture);
-
-                Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
-                Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
-                Interlocked.Add(ref numBackprojectFailedPixels, stats.BackprojectMissingPixels);
-
-                if (index != null)
-                {
-                    Backproject.FillIndexImage(backprojectResults, index);
-                }
-
-                return image;
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogException(ex, $"error backprojecting tile {node.Name}");
-                return null;
-            }
         }
     }
 }

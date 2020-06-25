@@ -8,11 +8,12 @@
 # 2. bev-align
 # 3. heightmap-align
 # 4. build-geometry
-# 5. build-tiling-input
-# 6. blend-images
-# 7. build-tileset
-# 8. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
-# 9. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
+# 5. build-sky-sphere
+# 6. build-tiling-input
+# 7. blend-images
+# 8. build-tileset
+# 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
+# 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
 #
 # Also see Landform/ProcessContextual.cs, which is intended for production.  This script intended for use by developers
 # only, and has additional options for development and debugging workflows.
@@ -30,19 +31,28 @@
 # --onlyforcameras, which selects which instrument types are ingested (eponymous ingest input option). Additional
 # custom options can also be specified for each stage with the --STAGEargs options.
 #
-# The tileset will contain
+# The tileset directory will contain
 # * one .b3dm per tile
-# * one image per tile, if --exportimgext is specified
-# * one mesh per tile, if --exportmeshext is specified
-# * a tilest file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_tileset.json
-# * a manifest file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_scene.json with relative URLs
-# * a stats file PRODUCT_ID[_SUFFIX]/PRODUCT_ID[_SUFFIX]_stats.txt
-# * a combined log file PRODUCT_ID[_SUFFIX]/tactical_PRODUCT_ID[_SUFFIX]_log.txt
-# * debug products in PRODUCT_ID[_SUFFIX]/{bev,heightmap,geometry,blend}-products if --writedebug is specified.
-# 
+# * a tilest file TTTT_SSSDDDD[_SUFFIX]/TTTT_SSSDDDD[_SUFFIX]_tileset.json
+# * a manifest file TTTT_SSSDDDD[_SUFFIX]/TTTT_SSSDDDD[_SUFFIX]_scene.json with relative URLs
+# * a stats file TTTT_SSSDDDD[_SUFFIX]/TTTT_SSSDDDD[_SUFFIX]_stats.txt
+#
+# There will also be a sky tileset directory TTTT_SSSDDDD[_SUFFIX]_sky for a sky sphere tileset.
+#
+# The contextual mesh tileset directory will also contain one image per tile if --exportimgext is specified and one
+# mesh per tile if --exportmeshext is specified.
+#
+# A combined log file will be written to TTTT_SSSDDDD[_SUFFIX]/contextual_TTTT_SSSDDDD[_SUFFIX]_log.txt.
+#
+# Debug products will be copied to TTTT_SSSDDDD[_SUFFIX]/{bev,heightmap,geometry,blend}-products if --writedebug is
+# specified.
+#
 # The combined log file, stats file, and per-tile exported meshes and images should be useful for analysis.  The
 # full script command line will be at the beginning of the log file and the total runtime will be at the end.  The
 # --verbose and --debug options can be used to get more spew.
+#
+# A combined manifest file TTTT_SSSDDDD[_SUFFIX]_scene.json will also be created as a sibling of the tileset directory.
+# It will contain any sibling tactical mesh tilesets that already exist and use file:// URLs.
 #
 # The script will create a clean config, storage area, and temp dir.  These will be in subdirectories of the working
 # directory, and will be deleted when the tileset is complete.  Thus it is acceptable to run multiple script
@@ -68,16 +78,16 @@
 # dem=out_deltaradii_smg_1m.tif
 # ortho=out_clean_25cm.iGrid.ClipToDEM.tif
 # fetchargs=
-# 
+#
 # ./Scripts/m20-credss.sh
-# 
+#
 # ./Landform/bin/Release/Landform.exe fetch $sols out/$run/rdrs \
 #     s3://$bucket/$mission/ods/surface/sol/#####/opgs/rdr --mission $mission --summary $fetchargs
 #
 # ./Landform/bin/Release/Landform.exe fetch \
 #     s3://$bucket/$mission/orbital/$dem,s3://$bucket/$mission/orbital/$ortho out/$mission/orbital --mission $mission \
 #     --raw --nosubdirs
-# 
+#
 # ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run/tilesets \
 #     --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho
 #
@@ -124,13 +134,13 @@ USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,...] [OUT_DIR]
 [--noingest] [--onlyingest] [--onlyforcameras Mastcam,Navcam]
 [--orbitaldem path/to/dem.tif] [--orbitalimage path/to/ortho.tif]
 [--noorbital] [--nosurface]
-[--noalign] [--nogeometry] [--notexture] [--noblend]
+[--noalign] [--nogeometry] [--nosky] [--notexture] [--noblend]
 [--notilinginput] [--notileset]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"] [--ingestargs \"--arg val\"]
 [--bevargs \"--arg val\"] [--heightmapargs \"--arg val\"]
-[--geometryargs \"--arg val\"] [--blendargs \"--arg val\"]
-[--textureargs \"--arg val\"]
+[--geometryargs \"--arg val\"] [--skyargs \"--arg val\"]
+[--textureargs \"--arg val\"] [--blendargs \"--arg val\"]
 [--tilingargs \"--arg val\"] [--tilesetargs \"--arg val\"]
 [--manifestargs \"--arg val\"] [--nomanifest]
 [--combinedmanifestargs \"--arg val\"] [--nocombinedmanifest]
@@ -155,7 +165,7 @@ sol=$1
 shift
 
 if ! [[ $sol =~ ^[0-9]{4}$ ]]; then
-    echo "sol must be 4 digits" 
+    echo "sol must be 4 digits"
     exit 1
 fi
 
@@ -168,7 +178,7 @@ sds=$1
 shift
 
 if ! [[ $sd =~ ^[0-9]{7}$ ]]; then
-    echo "sitedrive must be 7 digits" 
+    echo "sitedrive must be 7 digits"
     exit 1
 fi
 
@@ -189,6 +199,7 @@ orbitalopts="--orbitalframe $sd"
 no_ingest=
 no_align=
 no_geometry=
+no_sky=
 no_texture=
 no_blend=
 no_tiling_input=
@@ -212,6 +223,7 @@ cfgargs=
 bevargs=
 heightmapargs=
 geometryargs=
+skyargs=
 tilingargs=
 blendargs=
 textureargs=
@@ -255,6 +267,7 @@ while (( "$#" )); do
         "--noalign") no_align=true;;
         "--noblend") no_blend=true;;
         "--nogeometry") no_geometry=true;;
+        "--nosky") no_sky=true;;
         "--notexture") no_texture=true;;
         "--notilinginput") no_tiling_input=true; manifest=; upload=;;
         "--notileset") no_tileset=true; manifest=; upload=;;
@@ -263,6 +276,7 @@ while (( "$#" )); do
         "--bevargs") shift; expect $# "BEV args"; bevargs="$1";;
         "--heightmapargs") shift; expect $# "heightmap args"; heightmapargs="$1";;
         "--geometryargs") shift; expect $# "geometry args"; geometryargs="$1";;
+        "--skyargs") shift; expect $# "sky args"; skyargs="$1";;
         "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
         "--blendargs") shift; expect $# "blend args"; blendargs="$1";;
         "--textureargs") shift; expect $# "texture args"; textureargs="$1";;
@@ -276,7 +290,9 @@ done
 
 proj=${sol}_${sd}${suffix}
 venue=contextual_${mission}_${proj}
-tilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best/$proj 
+tilesetstoragedir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best
+tilesetdir=$tilesetstoragedir/$proj
+skytilesetdir=$tilesetstoragedir/sky/$proj
 log=$logdir/contextual_${proj}_log.txt
 outproj=$outdir/$proj
 cfgfolder=$venue
@@ -310,17 +326,17 @@ if [ "$cleanup" -a -d $storagedir/$venue ]; then
     ${dry}rm -rf $storagedir/$venue
 fi
 
-if [ "$only_cleanup" ]; then exit 0; fi 
+if [ "$only_cleanup" ]; then exit 0; fi
 
 if [ "$generate" ]; then
-    
+
     for f in $indir/*masks.zip; do
         if [ -f $f ]; then
           ${dry}mkdir -p $storagedir/$venue/masks
           ${dry}unzip $f -d $storagedir/$venue/masks
         fi
     done
-    
+
     ${dry}$landform configure-local $cfgopts $cfgargs
 
     if [ ! "$no_ingest" ]; then
@@ -342,6 +358,10 @@ if [ "$generate" ]; then
 
         if [ ! "$no_tileset" ]; then
 
+            if [ ! "$no_sky" ]; then
+                ${dry}$landform build-sky-sphere $proj $stdopts --meshframe $sd $skyargs | tee -a $log
+            fi
+
             if [ ! "$no_tiling_input" ]; then
                 ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
             fi
@@ -351,11 +371,25 @@ if [ "$generate" ]; then
             fi
 
             ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
-        
+
             ${dry}rm -rf $outproj
-            ${dry}cp -R $tilesetdir $outdir
-            ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
-            if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
+
+            if [ -d $tilesetdir ]; then
+                ${dry}cp -R $tilesetdir $outdir
+                ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
+                if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
+            fi
+
+            if [ ! "$no_sky" ]; then
+                ${dry}rm -rf ${outproj}_sky
+                if [ -d $skytilesetdir ]; then
+                    ${dry}cp -R $skytilesetdir ${outproj}_sky
+                    ${dry}mv ${outproj}_sky/tileset.json ${outproj}_sky/${proj}_sky_tileset.json
+                    if [ -f ${outproj}_sky/stats.txt ]; then
+                        ${dry}mv ${outproj}_sky/stats.txt ${outproj}_sky/${proj}_sky_stats.txt
+                    fi
+                fi
+            fi
 
         else
             if [ ! "$no_texture" ]; then
@@ -370,7 +404,7 @@ if [ "$generate" ]; then
             ${dry}mkdir -p $outproj/bev-products
             ${dry}cp -R $bevdir $outproj/bev-products
         fi
-        
+
         if [ -d $heightmapdir ]; then
             ${dry}mkdir -p $outproj/heightmap-products
             ${dry}cp -R $heightmapdir $outproj/heightmap-products
@@ -396,7 +430,7 @@ if [ "$generate" ]; then
             # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
             ${dry}$landform update-scene-manifest $proj $stdopts --manifestfile $outproj/${proj}_scene.json \
                   --notactical --nourls --sol=$sol --sitedrive=$sd $manifestargs | tee -a $log
-            
+
             if [ "$combined_manifest" ]; then
                 # this scene manifest contains both the contextual mesh tileset
                 # as well as any sibling tactical mesh tilesets that already exist

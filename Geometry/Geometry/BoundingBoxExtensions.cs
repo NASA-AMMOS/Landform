@@ -698,6 +698,18 @@ namespace OPS.Geometry
             return ret;
         }
 
+        //because it's annoying to have to say bounds.Contains(pt) != ContainmentType.Disjoint
+        //and also there were subtle bugs where ppl were instead saying
+        //bounds.Contains(pt) == ContainmentType.Contains
+        //which is not quite the same thing (misses points that are on the surface of the box)
+        public static bool ContainsPoint(this BoundingBox box, Vector3 pt)
+        {
+            return
+                pt.X >= box.Min.X && pt.X <= box.Max.X &&
+                pt.Y >= box.Min.Y && pt.Y <= box.Max.Y &&
+                pt.Z >= box.Min.Z && pt.Z <= box.Max.Z;
+        }
+
         public static bool Contains(this BoundingBox box, Triangle tri)
         {
             return

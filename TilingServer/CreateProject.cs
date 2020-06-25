@@ -18,7 +18,7 @@ namespace OPS.TilingServer
     [Verb("createproject", HelpText = "creates a project")]
     public class CreateProjectOptions : TilingServerCommandOptions
     {
-        [Option(Default = TilingScheme.QuadAuto, HelpText = "tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, UserDefined)")]
+        [Option(Default = TilingScheme.QuadAuto, HelpText = "tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, UserDefined, Flat)")]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(Default = SkirtMode.Normal, HelpText = "skirt mode")]

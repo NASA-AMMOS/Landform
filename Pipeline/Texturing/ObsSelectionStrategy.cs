@@ -11,11 +11,7 @@ using Microsoft.Xna.Framework;
 
 namespace OPS.Pipeline.Texturing
 {
-    public enum ObsSelectionStrategyName
-    {
-        Exhaustive,
-        Spatial
-    };
+    public enum ObsSelectionStrategyName { Exhaustive, Spatial }; 
 
     public abstract class ObsSelectionStrategy
     {
@@ -44,15 +40,20 @@ namespace OPS.Pipeline.Texturing
             }
         }
 
-        public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster occlusionScene,
+        //meshcaster: the raycasting target of the mesh
+        //occlusionscene: the raycasting  target for occlusion checking, may be same as meshCaster
+        public abstract void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
+                                        SceneCaster occlusionScene, double raycastTolerance,
                                         List<Backproject.Context> contexts, int outputTextureResolution,
                                         double quality = 1, bool preferColor = true);
 
         //sorts observations from best to worst
         //returns up to MaxContexts filtered and sorted contexts
         //optionally returns scores for each observation
+        //if meshCaster is specified it overrides the one that was passed to Initialize
         public abstract List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint,
                                                                         List<Backproject.Context> contexts,
+                                                                        SceneCaster meshCaster = null,
                                                                         Dictionary<string, double> scoresByObs = null);
     }
 }
