@@ -46,13 +46,13 @@ To use Postman
 
     Or if you are running an instance of the server on your local machine:
 
-        set SERVER_URL=https://localhost:8081
+        set SERVER_URL=http://localhost:8081
 
     Otherwise substitute the end-user DNS name of your Landform master server.
 
 3.  Determine a unique name for a test project.  For example, each time you run this procedure use a project name like `testN` where `N` is an integer that you increment.
 
-        set PROJECT_NAME=testN
+        set PROJECT_NAME=test0
 
 4. Select a mesh and texture file for the test project.  Several test datasets are available at <https://landlords-dev.s3.amazonaws.com/landformweb-test-data/landform-test-data-shared.zip>.  Download and unzip it and then choose one of the included datasets, e.g.:
 
@@ -69,15 +69,21 @@ To use Postman
                  --url "%SERVER_URL%/api/projects/%PROJECT_NAME%"
                  --header "x-landform-token: %API_TOKEN%"
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
+   Validation: check that the response contains `"success":true`.  Example response:
 
+        {"id":1,"running":false,"success":true,"exitCode":0,"error":null,"started":1593190323668,"ended":1593190326124}
+   
 1. List projects:
 
         curl -sS --request GET
                  --url "%SERVER_URL%/api/projects"
                  --header "x-landform-token: %API_TOKEN%"
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON array of strings containing `%PROJECT_NAME%`.
+   Validation: check that the response contains PROJECT_NAME.  Example response:
+
+        [
+          "test0"
+        ]
 
 1. Upload input files:
 
@@ -87,9 +93,11 @@ To use Postman
                  --form "mesh=@%MESH_FILE%"
                  --form "texture=@%TEXTURE_FILE%"
 
-   If using Postman select the "upload data" request, then click Body, then Choose Files.
+   (If using Postman instead of curl select the "upload data" request, then click Body, then Choose Files.)
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
+   Validation: check that the response contains `"success":true`.  Example response:
+   
+       {"id":3,"running":false,"success":true,"exitCode":0,"error":null,"started":1593190654817,"ended":1593190658155}
 
 1. Run project:
 
@@ -97,7 +105,9 @@ To use Postman
                  --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/run"
                  --header "x-landform-token: %API_TOKEN%"
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
+   Validation: check that the response contains `"success":true`.  Example response:
+
+        {"id":4,"running":false,"success":true,"exitCode":0,"error":null,"started":1593190740442,"ended":1593190742395}
 
 1. Get project metadata:
 
@@ -105,9 +115,48 @@ To use Postman
                  --url "%SERVER_URL%/api/projects/%PROJECT_NAME%"
                  --header "x-landform-token: %API_TOKEN%"
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object.
+   Validation: check that the response contains `"StartedRunning": true`.  Example response:
 
-1. Poll project metadata about every 10 seconds until `Project.FinishedRunning` is `true`.
+        {
+          "Project": {
+            "Name": "test0",
+            "TilingScheme": "Bin",
+            "SkirtMode": "None",
+            "ReconMethod": "Poisson",
+            "FacesPerTile": 2000,
+            "TileResolution": 256,
+            "TilesDefined": true,
+            "ProjectType": "GenericTiling",
+            "StartedRunning": true,
+            "FinishedRunning": false,
+            "MaxLeafGroupSize": 32,
+            "ExportDir": "www",
+            "ExportMeshFormat": null,
+            "ExportImageFormat": null,
+            "InternalTileDir": "tiles",
+            "InternalMeshFormat": "ply",
+            "InternalImageFormat": "png",
+            "TilesetDir": "www",
+            "TilesetMeshFormat": "b3dm",
+            "TilesetImageFormat": "jpg"
+          },
+          "Inputs": [
+            {
+              "Name": "stick",
+              "MeshUrl": "https://mipl-dev-landform.s3.amazonaws.com/landform-web/landform-dev-vona-quarth/input/test0/stick.ply",
+              "ImageUrl": "https://mipl-dev-landform.s3.amazonaws.com/landform-web/landform-dev-vona-quarth/input/test0/stick.jpg",
+              "Processed": true,
+              "ImageBands": 3,
+              "ImageWidth": 4096,
+              "ImageHeight": 4096
+            }
+          ],
+          "NumNodes": 49,
+          "NumProcessedNodes": 0,
+          "OutputUrl": "https://mipl-dev-landform.s3.amazonaws.com/landform-web/landform-dev-vona-quarth/www/test0/tileset.json"
+        }
+
+1. Poll project metadata about every 30 seconds until the response contains `"FinishedRunning": true`.  This should take 5 minutes for the "stick" dataset.
 
 1. Get project result URL:
 
@@ -115,7 +164,9 @@ To use Postman
                  --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false"
                  --header "x-landform-token: %API_TOKEN%"
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid URL.
+   Validation: check that the response is a URL ending in "tileset.json".  Example response:
+
+        "https://mipl-dev-landform.s3-us-gov-west-1.amazonaws.com/landform-web/landform-dev-vona-quarth/www/test0/tileset.json"
 
 1. Get project viewer URL:
 
@@ -123,9 +174,11 @@ To use Postman
                  --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false"
                  --header "x-landform-token: %API_TOKEN%"
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid URL.
+   Validation: check that the response is a URL ending in "tileset.json".  Example response:
 
-1. Load the project viewer URL in a Chrome browser to visually inspect the result.
+        "http://localhost:8081/viewer/index.html?Tileset=https%3A%2F%2Fmipl-dev-landform.s3-us-gov-west-1.amazonaws.com%2Flandform-web%2Flandform-dev-vona-quarth%2Fwww%2Ftest0%2Ftileset.json"
+
+1. Copy and paste the project viewer URL from the last step in a Chrome browser window to visually inspect the result.  Note: don't copy the double quotes which surround the URL.  The "stick" test dataset may initially appear very small in teh center of the viewer.  Hit the "f" key on the keyboard to fit the view to the dataset, which will zoom it in.
 
 1. Delete project:
 
@@ -133,4 +186,6 @@ To use Postman
                  --url "%SERVER_URL%/api/projects/%PROJECT_NAME%"
                  --header "x-landform-token: %API_TOKEN%"
 
-   Validation: check that the response code is HTTP 200 (ok), the content type is `application/json`, and the response body is a valid JSON object with `success=true`.
+   Validation: check that the response contains `"success":true`.  Example response:
+   
+       {"id":7,"running":false,"success":true,"exitCode":0,"error":null,"started":1593191585989,"ended":1593191599176}

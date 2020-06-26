@@ -1,0 +1,324 @@
+TEST PLATFORM
+
+This test requires a machine running Windows 10 with a 64 bit Intel or AMD CPU architecture.
+
+
+VPN
+
+If you are performing this test over VPN, you must use "full tunnel", not "split tunnel".
+
+
+INSTALL NODE.JS
+
+This test requires you to have installed node.js version 12.x.x.  These instructions were tested with version 12.16.1, but later versions in the 12.x.x series should also work.  If you have not already installed node.js 12.x.x, go to https://nodejs.org, download the latest 12.x.x release, and install it.
+
+Verify you can run node.js by opening a windows command prompt and entering the command
+
+node --version
+
+It should return a string like "v12.16.1" corresponding to the version you installed.
+
+
+DOWNLOADS
+
+Create a temporary directory on a local disk with at least 2GB of free space.  All files related to the test will be located here, and the directory can be deleted after completing the test.  Download the following files into the directory:
+
+https://github.jpl.nasa.gov/OnSight/Landform/releases/download/Version1.8.1/landform-gss-1_8_1.zip
+
+https://github.jpl.nasa.gov/OnSight/Landform/releases/download/Version1.8.1/landform-test-data-shared.zip
+
+https://github.jpl.nasa.gov/OnSight/Landform/releases/download/Version1.8.1/credss.exe
+
+https://github.jpl.nasa.gov/OnSight/Landform/releases/download/Version1.8.1/unzip.ps1
+
+For example, copy and paste each of those URLs in to Chrome to start the downloads.
+
+Open a windows command prompt and change to the temp directory.  Run the following two commands to unzip the zip files:
+
+powershell -ExecutionPolicy Unrestricted ./unzip.ps1 landform-gss-1_8_1.zip .
+
+powershell -ExecutionPolicy Unrestricted ./unzip.ps1 landform-test-data-shared.zip .
+
+Be sure to include the final "." in each of those commands.  You will be prompted with a "Security warning", select "[R] Run once".  You should then have two subdirectories and two files in your temp directory, e.g.
+
+tmpdir/landform-gss-1_8_1/
+tmpdir/landform-test-data-shared/
+tmpdir/credss.exe
+tmpdir/unzip.ps1
+
+
+AWS CREDENTIALS
+
+This test will use some AWS resources including DynamoDB and S3.  It will require access to the AWS account "mipl-dev/power_user".  One way to check if you have access is (after connecting "full tunnel" VPN, if working remotely) is to go to the URL "http://goto/govcloudconsole" in Chrome, and make sure you see "Account: mipl-dev (105249944904) with a checkbox for "power_user" under it.  If you do not, or if you get an error when logging in with that account, contact Adrian Tinio or Jeff Liu to get access.
+
+Open a Windows command prompt, change to the temp directory you created above, and copy and paste the following lines:
+
+set LANDFORM_AWS_REGION=us-gov-west-1
+set LANDFORM_AWS_ACCOUNT=105249944904
+set LANDFORM_AWS_ROLE=power_user
+set LANDFORM_AWS_ENV=gov
+set LANDFORM_AWS_PROFILE=credss-mipl-dev
+set LANDFORM_AWS_DURATION=14400
+
+credss.exe --region %LANDFORM_AWS_REGION% --account %LANDFORM_AWS_ACCOUNT% --role %LANDFORM_AWS_ROLE% --env %LANDFORM_AWS_ENV% --section %LANDFORM_AWS_PROFILE% --aws-only --duration %LANDFORM_AWS_DURATION%
+
+You will be prompted for your JPL username and password.  This will acquire a temporary AWS authentication token with a 4 hour duration.  If you need more time to complete the test, run the credss.exe command again.
+
+Note: you don't need to manually substitute text for variables like %LANDFORM_AWS_REGION%.  Just copy and paste the "set" commands followed by the credss.exe command line.  The set commands will set values as environment variables.  Windows will automatically replace e.g. %LANDFORM_AWS_REGION% with us-gov-west-1 in the command line.
+
+
+RUN GSS MASTER
+
+Open a new Windows command prompt, change to the temp directory you created above, and copy and paste the following lines:
+
+cd landform-gss-1_8_1
+set LANDFORM_AWS_REGION=us-gov-west-1
+set LANDFORM_AWS_PROFILE=credss-mipl-dev
+set LANDFORM_S3_URL=s3://mipl-dev-landform/landform-web
+set BIN_DIR=%CD%\bin
+node server.js
+
+The GSS master server should start running.  You must leave it running with that command prompt window open until the test is complete.  The server will normally print out some lines like the following:
+
+info: NODE_ENV: development
+info: LDAP group: landform
+info: Landform venue: landform-dev-vona-quarth
+info: AWS profile: credss-mipl-dev
+info: AWS region: us-gov-west-1
+info: S3 URL: s3://mipl-dev-landform/landform-web
+info: MSLICE AWS profile: mslice
+info: MSLICE AWS region: us-west-1
+info: MSLICE S3 URL: s3://red-product
+info: master: c:\cygwin64\home\vona\src\mine\Landform\release\tmp\landform-gss-1_8_1\bin\TilingServer.exe
+verbose: task 0 'c:\cygwin64\home\vona\src\mine\Landform\release\tmp\landform-gss-1_8_1\bin\TilingServer.exe master' started at 1593198914099
+info: launched TilingServer master
+info: Landform listening on port 8081
+debug: logging to c:\cygwin64\home\vona\src\mine\Landform\release\tmp\landform-gss-1_8_1\bin\log\log-TilingServer-master-20200626121514Z-07-23444.txt
+debug: logging to c:\cygwin64\home\vona\src\mine\Landform\release\tmp\landform-gss-1_8_1\bin\log\log-TilingServer-master-20200626121514Z-07-23444.txt
+debug: 2020-06-26 12:15:14,571 master INFO: Architecture: x64
+debug: 2020-06-26 12:15:14,584 master INFO: Venue: landform-dev-vona-quarth
+debug: 2020-06-26 12:15:14,584 master INFO: Storage URL: s3://mipl-dev-landform/landform-web
+debug: 2020-06-26 12:15:14,584 master INFO: using 36 of 36 CPU cores
+debug: 2020-06-26 12:15:14,584 master INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+debug: 2020-06-26 12:15:14,584 master INFO: AWS profile: credss-mipl-dev
+debug: 2020-06-26 12:15:14,584 master INFO: AWS region: us-gov-west-1
+debug: 2020-06-26 12:15:14,584 master INFO: MSLICE AWS profile: mslice
+debug: 2020-06-26 12:15:14,585 master INFO: MSLICE AWS region: us-west-1
+debug: 2020-06-26 12:15:14,585 master INFO: MSLICE S3 URL: s3://red-product
+debug: 2020-06-26 12:15:14,743 master INFO: initialize database
+debug: 2020-06-26 12:15:14,745 master INFO: initializing 4 database tables for tiling...
+debug: 2020-06-26 12:15:15,140 master INFO: table "landform-dev-vona-quarth-TilingProjects" exists, 0 items, 0 bytes (updated every ~6h)
+debug: 2020-06-26 12:15:15,176 master INFO: table "landform-dev-vona-quarth-TilingInput" exists, 0 items, 0 bytes (updated every ~6h)
+debug: 2020-06-26 12:15:15,208 master INFO: table "landform-dev-vona-quarth-TilingNode" exists, 0 items, 0 bytes (updated every ~6h)
+debug: 2020-06-26 12:15:15,241 master INFO: table "landform-dev-vona-quarth-TilingInputChunk" exists, 0 items, 0 bytes (updated every ~6h)
+debug: 2020-06-26 12:15:15,376 master INFO: initialized 4 database tables
+debug: 2020-06-26 12:15:15,376 master INFO: initialize database: 0.632s, total 0.632s
+debug: 2020-06-26 12:15:15,376 master INFO: initialize message queues
+debug: 2020-06-26 12:15:15,731 master INFO: queue "landform-dev-vona-quarth-tiling-master" exists, approx 0 messages (0 in flight)
+debug: 2020-06-26 12:15:15,801 master INFO: queue "landform-dev-vona-quarth-tiling-worker" exists, approx 0 messages (0 in flight)
+debug: 2020-06-26 12:15:15,801 master INFO: queues initialized
+debug: 2020-06-26 12:15:15,801 master INFO: initialize message queues: 0.424s, total 0.424s
+debug: 2020-06-26 12:15:15,804 master INFO: Architecture: x64
+debug: 2020-06-26 12:15:15,804 master INFO: Venue: landform-dev-vona-quarth
+debug: 2020-06-26 12:15:15,804 master INFO: Storage URL: s3://mipl-dev-landform/landform-web
+debug: 2020-06-26 12:15:15,804 master INFO: using 36 of 36 CPU cores
+debug: 2020-06-26 12:15:15,804 master INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+debug: 2020-06-26 12:15:15,804 master INFO: AWS profile: credss-mipl-dev
+debug: 2020-06-26 12:15:15,804 master INFO: AWS region: us-gov-west-1
+debug: 2020-06-26 12:15:15,804 master INFO: MSLICE AWS profile: mslice
+debug: 2020-06-26 12:15:15,804 master INFO: MSLICE AWS region: us-west-1
+debug: 2020-06-26 12:15:15,804 master INFO: MSLICE S3 URL: s3://red-product
+
+
+RUN GSS WORKER
+
+Open a new Windows command prompt, change to the temp directory you created above, and copy and paste the following lines:
+
+cd landform-gss-1_8_1
+set LANDFORM_AWS_REGION=us-gov-west-1
+set LANDFORM_AWS_PROFILE=credss-mipl-dev
+set LANDFORM_S3_URL=s3://mipl-dev-landform/landform-web
+.\bin\TilingServer.exe worker
+
+The GSS worker should start running.  You must leave it running with that command prompt window open until the test is complete.  The worker will normally print out some lines like the following:
+
+logging to c:\cygwin64\home\vona\src\mine\Landform\release\tmp\landform-gss-1_8_1\bin\log\log-TilingServer-worker-20200626124906Z-07-11388.txt
+logging to c:\cygwin64\home\vona\src\mine\Landform\release\tmp\landform-gss-1_8_1\bin\log\log-TilingServer-worker-20200626124906Z-07-11388.txt
+2020-06-26 12:49:06,275 worker INFO: Architecture: x64
+2020-06-26 12:49:06,284 worker INFO: Venue: landform-dev-vona-quarth
+2020-06-26 12:49:06,286 worker INFO: Storage URL: s3://mipl-dev-landform/landform-web
+2020-06-26 12:49:06,288 worker INFO: using 36 of 36 CPU cores
+2020-06-26 12:49:06,289 worker INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+2020-06-26 12:49:06,290 worker INFO: AWS profile: credss-mipl-dev
+2020-06-26 12:49:06,292 worker INFO: AWS region: us-gov-west-1
+2020-06-26 12:49:06,293 worker INFO: MSLICE AWS profile: credss-default
+2020-06-26 12:49:06,307 worker INFO: MSLICE AWS region: us-gov-west-1
+2020-06-26 12:49:06,308 worker INFO: MSLICE S3 URL: s3://landform
+2020-06-26 12:49:06,499 worker INFO: initialize database
+2020-06-26 12:49:06,501 worker INFO: initializing 4 database tables for tiling...
+2020-06-26 12:49:06,896 worker INFO: table "landform-dev-vona-quarth-TilingProjects" exists, 0 items, 0 bytes (updated every ~6h)
+2020-06-26 12:49:06,932 worker INFO: table "landform-dev-vona-quarth-TilingInput" exists, 0 items, 0 bytes (updated every ~6h)
+2020-06-26 12:49:06,964 worker INFO: table "landform-dev-vona-quarth-TilingNode" exists, 0 items, 0 bytes (updated every ~6h)
+2020-06-26 12:49:06,999 worker INFO: table "landform-dev-vona-quarth-TilingInputChunk" exists, 0 items, 0 bytes (updated every ~6h)
+2020-06-26 12:49:07,133 worker INFO: initialized 4 database tables
+2020-06-26 12:49:07,134 worker INFO: initialize database: 0.634s, total 0.634s
+2020-06-26 12:49:07,137 worker INFO: initialize message queues
+2020-06-26 12:49:07,392 worker INFO: queue "landform-dev-vona-quarth-tiling-master" exists, approx 0 messages (0 in flight)
+2020-06-26 12:49:07,462 worker INFO: queue "landform-dev-vona-quarth-tiling-worker" exists, approx 0 messages (0 in flight)
+2020-06-26 12:49:07,463 worker INFO: queues initialized
+2020-06-26 12:49:07,466 worker INFO: initialize message queues: 0.327s, total 0.327s
+2020-06-26 12:49:07,478 worker INFO: Architecture: x64
+2020-06-26 12:49:07,478 worker INFO: Venue: landform-dev-vona-quarth
+2020-06-26 12:49:07,480 worker INFO: Storage URL: s3://mipl-dev-landform/landform-web
+2020-06-26 12:49:07,481 worker INFO: using 36 of 36 CPU cores
+2020-06-26 12:49:07,482 worker INFO: LRU image cache capacity 100, LRU data product cache capacity 100
+2020-06-26 12:49:07,486 worker INFO: AWS profile: credss-mipl-dev
+2020-06-26 12:49:07,487 worker INFO: AWS region: us-gov-west-1
+2020-06-26 12:49:07,488 worker INFO: MSLICE AWS profile: credss-default
+2020-06-26 12:49:07,490 worker INFO: MSLICE AWS region: us-gov-west-1
+2020-06-26 12:49:07,491 worker INFO: MSLICE S3 URL: s3://landform
+2020-06-26 12:49:07,492 worker INFO: starting 36 workers
+2020-06-26 12:49:07,536 worker INFO: initialize database
+2020-06-26 12:49:07,856 worker INFO: initialize database: 0.286s, total 0.286s
+2020-06-26 12:49:07,856 worker INFO: initialize message queues
+2020-06-26 12:49:08,107 worker INFO: initialize message queues: 0.126s, total 0.126s
+
+(The last lines may be repeated many times.)
+
+** TAKE NOTE OF THE VALUE SPECIFIED FOR "Venue" ** in the example above this is "landform-dev-vona-quarth".  Generally it will be in the form landform-dev-USER-MACHINE.  You will use it below during cleanup.
+
+
+GSS TEST PROJECT
+
+Open a new Windows command prompt, change to the temp directory you created above, and copy and paste the following lines:
+
+set API_TOKEN=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1aWQiOiJ2b25hIiwiaWF0IjoxNTkzMjAxMzcyLCJleHAiOjE4MTM5NTMzNzJ9.ZDw3NYlqWaU1KKNBdZxNZa00eCBufBKXb0ZxBX9zhKY
+set SERVER_URL=http://localhost:8081
+set PROJECT_NAME=test0
+set MESH_FILE=landform-test-data-shared/stick/stick.ply
+set TEXTURE_FILE=landform-test-data-shared/stick/stick.jpg
+
+Then use that command prompt to follow the next 10 steps.
+
+1. Create project:
+
+curl -sS --request POST --url "%SERVER_URL%/api/projects/%PROJECT_NAME%" --header "x-landform-token: %API_TOKEN%"
+
+Validation: check that the response contains `"success":true`.  Example response:
+
+{"id":1,"running":false,"success":true,"exitCode":0,"error":null,"started":1593190323668,"ended":1593190326124}
+   
+2. List projects:
+
+curl -sS --request GET --url "%SERVER_URL%/api/projects" --header "x-landform-token: %API_TOKEN%"
+
+Validation: check that the response contains PROJECT_NAME.  Example response:
+
+[
+    "test0"
+]
+
+3. Upload input files:
+
+curl -sS --request POST --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/upload" --header "x-landform-token: %API_TOKEN%" --form "mesh=@%MESH_FILE%" --form "texture=@%TEXTURE_FILE%"
+
+Validation: check that the response contains `"success":true`.  Example response:
+   
+{"id":3,"running":false,"success":true,"exitCode":0,"error":null,"started":1593190654817,"ended":1593190658155}
+
+4. Run project:
+
+curl -sS --request POST --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/run" --header "x-landform-token: %API_TOKEN%"
+
+Validation: check that the response contains `"success":true`.  Example response:
+
+{"id":4,"running":false,"success":true,"exitCode":0,"error":null,"started":1593190740442,"ended":1593190742395}
+
+5. Get project metadata:
+
+curl -sS --request GET --url "%SERVER_URL%/api/projects/%PROJECT_NAME%" --header "x-landform-token: %API_TOKEN%"
+
+Validation: check that the response contains `"StartedRunning": true`.  Example response:
+
+{
+  "Project": {
+    "Name": "test0",
+    "TilingScheme": "Bin",
+    "SkirtMode": "None",
+    "ReconMethod": "Poisson",
+    "FacesPerTile": 2000,
+    "TileResolution": 256,
+    "TilesDefined": true,
+    "ProjectType": "GenericTiling",
+    "StartedRunning": true,
+    "FinishedRunning": false,
+    "MaxLeafGroupSize": 32,
+    "ExportDir": "www",
+    "ExportMeshFormat": null,
+    "ExportImageFormat": null,
+    "InternalTileDir": "tiles",
+    "InternalMeshFormat": "ply",
+    "InternalImageFormat": "png",
+    "TilesetDir": "www",
+    "TilesetMeshFormat": "b3dm",
+    "TilesetImageFormat": "jpg"
+  },
+  "Inputs": [
+    {
+      "Name": "stick",
+      "MeshUrl": "https://mipl-dev-landform.s3.amazonaws.com/landform-web/landform-dev-vona-quarth/input/test0/stick.ply",
+      "ImageUrl": "https://mipl-dev-landform.s3.amazonaws.com/landform-web/landform-dev-vona-quarth/input/test0/stick.jpg",
+      "Processed": true,
+      "ImageBands": 3,
+      "ImageWidth": 4096,
+      "ImageHeight": 4096
+    }
+  ],
+  "NumNodes": 49,
+  "NumProcessedNodes": 0,
+  "OutputUrl": "https://mipl-dev-landform.s3.amazonaws.com/landform-web/landform-dev-vona-quarth/www/test0/tileset.json"
+}
+
+6. Poll project metadata about every 30 seconds until the response contains `"FinishedRunning": true`.  This should take about 5 minutes for the "stick" dataset.
+
+7. Get project result URL:
+
+curl -sS --request GET --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/result?redirect=false" --header "x-landform-token: %API_TOKEN%"
+
+Validation: check that the response is a URL ending in "tileset.json".  Example response:
+
+"https://mipl-dev-landform.s3-us-gov-west-1.amazonaws.com/landform-web/landform-dev-vona-quarth/www/test0/tileset.json"
+
+8. Get project viewer URL:
+
+curl -sS --request GET --url "%SERVER_URL%/api/projects/%PROJECT_NAME%/view?redirect=false" --header "x-landform-token: %API_TOKEN%"
+
+Validation: check that the response is a URL ending in "tileset.json".  Example response:
+
+"http://localhost:8081/viewer/index.html?Tileset=https%3A%2F%2Fmipl-dev-landform.s3-us-gov-west-1.amazonaws.com%2Flandform-web%2Flandform-dev-vona-quarth%2Fwww%2Ftest0%2Ftileset.json"
+
+9. Copy and paste the project viewer URL from the last step in a Chrome browser window to visually inspect the result.  Note: don't copy the double quotes which surround the URL.  The "stick" test dataset may initially appear very small in the center of the viewer.  Hit the "f" key on the keyboard to fit the view to the dataset, which will zoom it in.
+
+10. Delete project:
+
+curl -sS --request DELETE --url "%SERVER_URL%/api/projects/%PROJECT_NAME%" --header "x-landform-token: %API_TOKEN%"
+
+Validation: check that the response contains `"success":true`.  Example response:
+   
+{"id":7,"running":false,"success":true,"exitCode":0,"error":null,"started":1593191585989,"ended":1593191599176}
+
+CLEANUP
+
+Hit CTRL-C in the command prompt windows running the GSS master and worker to kill them.  Then close all command prompts.
+
+Delete the local temp directory containing all the files used for the test.
+
+Go to http://goto/govcloudconsole, select account mipl-dev/power_user, click Sign In.  Under Database click DynamoDB, then dlick Tables under DynamoDB in the left hand pane.  In "filter by table name" enter the Venue name you noted above.  Generally it will be in the form landform-dev-USER-MACHINE (e.g. landform-dev-vona-quarth).  Four tables should be found, e.g.
+
+landform-dev-USER-MACHINE-TilingInput
+landform-dev-USER-MACHINE-TilingInputChunk
+landform-dev-USER-MACHINE-TilingNode
+landform-dev-USER-MACHINE-TilingProjects
+
+For each table, click the circle next to the table name to select it, then click Delete Table.  Follow the instructions to delete the table and any associated CloudWatch alarms.  Do not make a backup.
+
