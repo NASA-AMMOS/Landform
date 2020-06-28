@@ -72,6 +72,9 @@ namespace OPS.Pipeline
             {
                 this.Tileset.Root.Transform = MatrixToList(Matrix.Identity);
             }
+
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/769
+            this.Tileset.Asset.GLTFUpAxis = "z";
         }
 
         public static List<double> MatrixToList(Matrix m)
