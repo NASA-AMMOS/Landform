@@ -377,8 +377,8 @@ namespace OPS.Pipeline
             public MeshOperator meshOp; //only uv face tree required
             public string meshFrame;
 
-            public SceneCaster meshCaster;     //for ray casting the active mesh, may be same as sceneOcclusion
-            public SceneCaster sceneOcclusion; //for checking occlusion of backproject rays
+            public SceneCaster meshCaster;     //for ray casting the active mesh, may be same as occlusionScene
+            public SceneCaster occlusionScene; //for checking occlusion of backproject rays
 
             public bool usePriors;
             public bool onlyAligned;
@@ -508,7 +508,7 @@ namespace OPS.Pipeline
             if (opts.writeDebug)
             {
                 info("building debug coverage images");
-                //opts.sceneOcclusion may be built for a full scene mesh
+                //opts.occlusionScene may be built for a full scene mesh
                 //of which opts.mesh is only a potententially small subset
                 var debugTileOcclusion = new SceneCaster();
                 debugTileOcclusion.AddMesh(opts.mesh, null, Matrix.Identity);
@@ -583,7 +583,7 @@ namespace OPS.Pipeline
                     int no = 0, ns = 0;
                     foreach (var group in groups)
                     {
-                        var succeeded = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.sceneOcclusion, masker,
+                        var succeeded = BackprojectSurfaceObs(opts.pipeline, opts.project, opts.occlusionScene, masker,
                                                               sortedContexts[group.First()][contextDepth],
                                                               samplePoints, group, results);
                         if (succeeded.Count > 0)
@@ -612,7 +612,7 @@ namespace OPS.Pipeline
                 {
                     info("backprojecting into orbital image");
                     var indices = failed ?? Enumerable.Range(0, samplePoints.Count);
-                    var succeeded = BackprojectOrbitalObs(orbitalImage, opts.sceneOcclusion, samplePoints,
+                    var succeeded = BackprojectOrbitalObs(orbitalImage, opts.occlusionScene, samplePoints,
                                                           indices, opts.meshToOrbital, opts.skyDirInMesh, results);
                     stats.BackprojectedOrbitalPixels = succeeded.Count;
                     foreach (var idx in indices.Where(idx => !succeeded.Contains(idx)))
@@ -709,7 +709,7 @@ namespace OPS.Pipeline
                     if (ptMesh.HasValue)
                     {
                         Vector3? ptScene = RaycastMesh(cam, obsToMeshMat, new Vector2(idxCol, idxRow),
-                                                       opts.sceneOcclusion);
+                                                       opts.occlusionScene);
                         if (ptScene.HasValue)
                         {
                             //check to tell if the points are likely the same
@@ -737,9 +737,9 @@ namespace OPS.Pipeline
         //and attempts to backproject them into an observation image context
         //returns set of winners
         private static HashSet<int>
-            BackprojectSurfaceObs(PipelineCore pipeline, Project project, SceneCaster sc, RoverMasker masker,
-                                  Context ctx, List<PixelPoint> samplePoints, IEnumerable<int> indices,
-                                  IDictionary<Pixel, ObsPixel> results)
+            BackprojectSurfaceObs(PipelineCore pipeline, Project project, SceneCaster occlusionScene,
+                                  RoverMasker masker, Context ctx, List<PixelPoint> samplePoints,
+                                  IEnumerable<int> indices, IDictionary<Pixel, ObsPixel> results)
         {
             Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
 
@@ -775,7 +775,8 @@ namespace OPS.Pipeline
                     if (mask == null || mask.BilinearSample(0, (float)obsPixel.Y, (float)obsPixel.X) >= 1)
                     {
                         //raycast the scene to test if the desired position is occluded by terrain
-                        if (!IsOccluded(ctx.CameraModel, obsPixel, meshPos, sc, range, ctx.ObsToMesh))
+                        if (occlusionScene == null ||
+                            !IsOccluded(ctx.CameraModel, obsPixel, meshPos, occlusionScene, range, ctx.ObsToMesh))
                         {
                             results[SubpixelToPixel(pixelPoint.Pixel)] = new ObsPixel(ctx.Obs, obsPixel);
                             winners.Add(index);
@@ -792,7 +793,7 @@ namespace OPS.Pipeline
 #endif
         }
 
-        private static HashSet<int> BackprojectOrbitalObs(Observation orbitalObs, SceneCaster sc,
+        private static HashSet<int> BackprojectOrbitalObs(Observation orbitalObs, SceneCaster occlusionScene,
                                                           List<PixelPoint> samplePoints, IEnumerable<int> indices,
                                                           Matrix meshToOrbital, Vector3 skyDirInMesh,
                                                           IDictionary<Pixel, ObsPixel> results)
@@ -808,7 +809,7 @@ namespace OPS.Pipeline
             {
                 var sample = samplePoints[index];
                 var rayMeshToSky = new Ray(sample.Point, skyDirInMesh);
-                if (sc.RaycastDistance(rayMeshToSky, RAYCAST_NEAR_METERS) == null)
+                if (occlusionScene == null || occlusionScene.RaycastDistance(rayMeshToSky, RAYCAST_NEAR_METERS) == null)
                 {
                     var srcPx = orbitalObs.CameraModel.Project(Vector3.Transform(sample.Point, meshToOrbital));
                     if (srcPx.X >= 0 && srcPx.X < orbitalObs.Width && srcPx.Y >= 0 && srcPx.Y < orbitalObs.Height)
@@ -830,7 +831,7 @@ namespace OPS.Pipeline
         /// <summary>
         /// helper function to test if there is another part of the mesh between the camera and the test point
         /// </summary>
-        public static bool IsOccluded(CameraModel camera, Vector2 pixel, Vector3 meshPos, SceneCaster sc,
+        public static bool IsOccluded(CameraModel camera, Vector2 pixel, Vector3 meshPos, SceneCaster occlusionScene,
                                       double rangeMeshToImage, Matrix obsToMesh)
         {
             Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
@@ -840,7 +841,7 @@ namespace OPS.Pipeline
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            double? dist = sc.RaycastDistance(rayMeshToCam, RAYCAST_NEAR_METERS);
+            double? dist = occlusionScene.RaycastDistance(rayMeshToCam, RAYCAST_NEAR_METERS);
 
             //if hit something else before camera, occluded
             return (dist != null) && (dist < rangeMeshToImage);

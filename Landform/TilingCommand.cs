@@ -453,13 +453,14 @@ namespace OPS.Landform
             TilingNode.DumpLRUCacheStats(pipeline);
         }
 
-        protected Image BackprojectTile(SceneNode node, Mesh mesh, Image index = null, SceneCaster meshCaster = null,
+        protected Image BackprojectTile(SceneNode node, Mesh mesh, Image index,
+                                        SceneCaster meshCaster, SceneCaster occlusionScene,
                                         ObsSelectionStrategy strategy = null)
         {
             try
             {
-                var backprojectResults = BackprojectObservations(mesh, tileResolution, meshCaster, strategy,
-                                                                 meshName: node.Name,
+                var backprojectResults = BackprojectObservations(mesh, tileResolution, meshCaster, occlusionScene,
+                                                                 strategy, meshName: node.Name,
                                                                  quiet: !(pipeline.Verbose || pipeline.Debug));
                 
                 var image = new Image(3, tileResolution, tileResolution);

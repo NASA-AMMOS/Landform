@@ -607,13 +607,12 @@ namespace OPS.Landform
 
         protected void BackprojectObservations()
         {
-            backprojectResults = BackprojectObservations(mesh, sceneTextureResolution);
+            backprojectResults = BackprojectObservations(mesh, sceneTextureResolution, sceneCaster, sceneCaster);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectObservations(Mesh mesh, int resolution, SceneCaster meshCaster = null,
-                                    ObsSelectionStrategy strategy = null, string meshName = "",
-                                    bool quiet = false)
+            BackprojectObservations(Mesh mesh, int resolution, SceneCaster meshCaster, SceneCaster occlusionScene,
+                                    ObsSelectionStrategy strategy = null, string meshName = "", bool quiet = false)
         {
             if (mesh.Vertices.Count < 3 || mesh.Faces.Count < 1)
             {
@@ -642,8 +641,8 @@ namespace OPS.Landform
                 meshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true),
                 meshFrame = meshFrame,
 
-                meshCaster = meshCaster ?? sceneCaster,
-                sceneOcclusion = sceneCaster,
+                meshCaster = meshCaster,
+                occlusionScene = occlusionScene,
 
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,

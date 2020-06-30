@@ -522,7 +522,7 @@ namespace OPS.Landform
                 }
                 else if (texGenMode == TextureGenMode.Backproject)
                 {                
-                    mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index);
+                    mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, sceneCaster, sceneCaster);
                 }
                 else if (texGenMode == TextureGenMode.Clip)
                 {

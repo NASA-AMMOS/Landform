@@ -71,6 +71,9 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere background color Blue (0-255)", Default = 140)]
         public double SkyColorBlue { get; set; }
 
+        [Option(HelpText = "Occlude sky texture by scene geometry", Default = false)]
+        public bool SceneOccludesSky { get; set; }
+
         [Option(HelpText = "Disable image blending", Default = false)]
         public bool NoBlend { get; set; }
 
@@ -201,6 +204,11 @@ namespace OPS.Landform
             if (!options.NoMatchSceneBounds && (sceneMesh == null || !sceneMesh.GetBounds().HasValue))
             {
                 throw new Exception("must run after build-geometry without --nomatchscenebounds");
+            }
+
+            if (options.SceneOccludesSky && sceneCaster == null)
+            {
+                throw new Exception("must run after build-geometry with --sceneoccludessky");
             }
 
             if (options.SphereRadiusMeters.ToLower() == "auto")
@@ -477,13 +485,15 @@ namespace OPS.Landform
                 meshCaster.AddMesh(mip.Mesh, null, Matrix.Identity);
                 meshCaster.Build();
 
+                var occlusionScene = options.SceneOccludesSky ? sceneCaster : null;
+
                 var strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                strategy.Initialize(mip.Mesh, new MeshOperator(mip.Mesh), meshCaster, sceneCaster,
+                strategy.Initialize(mip.Mesh, new MeshOperator(mip.Mesh), meshCaster, occlusionScene,
                                     options.RaycastTolerance, backprojectContexts, tileResolution,
                                     options.BackprojectQuality);
 
                 mip.Index = new Image(3, tileResolution, tileResolution);
-                mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, meshCaster, strategy);
+                mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, meshCaster, occlusionScene, strategy);
 
                 if (mip.Image != null)
                 {
