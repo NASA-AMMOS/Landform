@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using CommandLine;
 using OPS.Imaging;
 using OPS.Geometry;
+using OPS.Pipeline.AlignmentServer;
 
 /// <summary>
 /// Utility to run LimberDMG on an image.
@@ -33,7 +34,7 @@ namespace OPS.Landform
         [Value(0, Required = true, HelpText = "image to blend")]
         public string InputImage { get; set; }
 
-        [Value(1, Required = true, HelpText = "index image, should have either one band or same number as input image; valid indices are in 1 - 65534; 0 and 65535 are treated as flags = NO_DATA | HOLD_CONSTANT")]
+        [Value(1, Required = true, HelpText = "index image, should have either one band or same number as input image; valid indices are in 2 - 65534, else treated as flags = NO_DATA | HOLD_CONSTANT")]
         public string IndexImage { get; set; }
 
         [Option(Required = false, HelpText = "flags image (optional), should have either one band or same number as input image; NONE = 0, HOLD_CONSTANT = 1, GRADIENT_ONLY = 2, NO_DATA = 4")]
@@ -60,10 +61,10 @@ namespace OPS.Landform
         [Option(Required = false, HelpText = "higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
 
-        [Option(Required = false, HelpText = "boundary handling: Clamp, WrapSphere, WrapCylinder, WrapTorus", Default = LimberDMG.DEF_EDGE_BEHAVIOUR)]
+        [Option(Required = false, HelpText = "boundary handling: Clamp, WrapSphere, WrapCylinder, WrapTorus", Default = LimberDMG.DEF_EDGE_BEHAVIOR)]
         public LimberDMG.EdgeBehavior EdgeMode { get; set; }
 
-        [Option(Required = false, HelpText = "include 65535 as an invalid index", Default = false)]
+        [Option(Required = false, HelpText = "include 1 as valid and 65535 as an invalid index", Default = false)]
         public bool LegacyInvalidIndices { get; set; }
     }
 
@@ -123,6 +124,14 @@ namespace OPS.Landform
                 Log("no flags image");
             }
 
+            Func<int, int, bool> valid =
+                (r, c) => index[0, r, c] >= Observation.MIN_INDEX && index[0, r, c] <= Observation.MAX_INDEX;
+
+            if (options.LegacyInvalidIndices)
+            {
+                valid = (r, c) => index[0, r, c] > 0 && index[0, r, c] < 65535;
+            }
+            
             Log("stitching image with LimberDMG, " +
                 "residual epsilon {0}, {1} relaxation steps, {2} multigrid iterations, lambda {3}, edge mode {4}...",
                 options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
@@ -130,7 +139,7 @@ namespace OPS.Landform
             var dmg = new LimberDMG(options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
                                     options.Lambda, options.EdgeMode, options.ColorConversion,
                                     msg => Log(msg));
-            var output = dmg.StitchImage(composite, index, flags, options.LegacyInvalidIndices);
+            var output = dmg.StitchImage(composite, index, flags, valid);
 
             var outFile = basename + "_dmg" + ext;
             var outPath = Path.Combine(dir, outFile);
