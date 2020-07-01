@@ -277,23 +277,26 @@ namespace OPS.Landform
                 LoadTileList();
             }
 
-            if (!options.NoUseExistingIndex && sceneMesh != null && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+            if (!useExistingLeaves)
             {
-                useExistingIndex = true;
-                pipeline.LogInfo("reprojecting existing backproject index");
-            }
-            else if (!useExistingLeaves)
-            {
-                sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
-                if (sceneMesh == null)
-                {
-                    sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
-                                                 noSave: options.NoSave);
-                }
-                else if (!options.NoUseExistingIndex && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+                if (!options.NoUseExistingIndex && sceneMesh != null && sceneMesh.BackprojectIndexGuid != Guid.Empty)
                 {
                     useExistingIndex = true;
-                    pipeline.LogInfo("using existing shrinkwrap mesh backproject index");
+                    pipeline.LogInfo("reprojecting existing backproject index");
+                }
+                else
+                {
+                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame, MeshVariant.Shrinkwrap, siteDrives);
+                    if (sceneMesh == null)
+                    {
+                        sceneMesh = SceneMesh.Create(pipeline, project, meshFrame, MeshVariant.Shrinkwrap, siteDrives,
+                                                     noSave: options.NoSave);
+                    }
+                    else if (!options.NoUseExistingIndex && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+                    {
+                        useExistingIndex = true;
+                        pipeline.LogInfo("using existing shrinkwrap mesh backproject index");
+                    }
                 }
             }
 
