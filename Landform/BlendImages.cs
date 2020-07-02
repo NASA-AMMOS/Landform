@@ -781,11 +781,8 @@ namespace OPS.Landform
 
                 Interlocked.Increment(ref np);
 
-                if (!options.NoProgress)
-                {
-                    pipeline.LogInfo("blending image for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}", obs.Name, np, nc, no);
-                }
+                pipeline.LogVerbose("blending image for observation {0}, processing {1} in parallel, " +
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
 
                 Image img = pipeline.LoadImage(obs.Url);
                 writeDebug(img, obs, "");
@@ -1100,8 +1097,8 @@ namespace OPS.Landform
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
-                pipeline.LogInfo("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
-                                 textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
+                pipeline.LogVerbose("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
+                                    textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
                 string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);

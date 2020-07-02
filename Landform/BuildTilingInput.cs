@@ -416,11 +416,9 @@ namespace OPS.Landform
                 {
                     return;
                 }
-                else if (!options.NoProgress)
-                {
-                    pipeline.LogInfo("building leaf mesh {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
-                                     100 * curLeafNum / (float)leafCount, leaf.Name);
-                }
+
+                pipeline.LogVerbose("building leaf mesh {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
+                                    100 * curLeafNum / (float)leafCount, leaf.Name);
 
                 Mesh leafMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 

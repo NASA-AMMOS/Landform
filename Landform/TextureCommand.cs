@@ -314,11 +314,8 @@ namespace OPS.Landform
                 
                 Interlocked.Increment(ref np);
 
-                if (!tcopts.NoProgress)
-                {
-                    pipeline.LogInfo("creating blurred image for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}", obs.Name, np, nc, no);
-                }
+                pipeline.LogVerbose("creating blurred image for observation {0}, processing {1} in parallel, " +
+                                        "completed {2}/{3}", obs.Name, np, nc, no);
 
                 try
                 {
@@ -371,11 +368,8 @@ namespace OPS.Landform
                 
                 Interlocked.Increment(ref np);
                 
-                if (!tcopts.NoProgress)
-                {
-                    pipeline.LogInfo("creating mask for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}", obs.Name, np, nc, no);
-                }
+                pipeline.LogVerbose("creating mask for observation {0}, processing {1} in parallel, " +
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
 
                 try
                 {

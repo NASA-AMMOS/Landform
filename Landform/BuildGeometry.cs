@@ -509,11 +509,8 @@ namespace OPS.Landform
                 //bookeep name of the points observation so that we can recover its observation transform later
                 string ptsName = obs.Points == null ? obs.Range.Name : obs.Points.Name;
 
-                if (!options.NoProgress)
-                {
-                    pipeline.LogInfo("building {0} wedge point clouds in parallel, completed {1}/{2}, {3} failed",
-                                     np, nc, no, nf);
-                }
+                pipeline.LogVerbose("building {0} wedge point clouds in parallel, completed {1}/{2}, {3} failed",
+                                    np, nc, no, nf);
 
                 var mo = meshOpts.Clone();
                 mo.Decimate = WedgeObservations.AutoDecimate(obs.Points, options.DecimateWedgeMeshes,
