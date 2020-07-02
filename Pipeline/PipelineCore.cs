@@ -689,8 +689,7 @@ namespace OPS.Pipeline
             Logger.ErrorFormat(msg, args);
         }
 
-        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                                 bool aggregateStackTrace = true)
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false)
         {
             msg = string.Format("{0}({1}) {2}", !string.IsNullOrEmpty(msg) ? (msg + ": ") : "",
                                 ex.GetType().Name, ex.Message);
@@ -710,12 +709,7 @@ namespace OPS.Pipeline
                 int i = 0;
                 foreach (var ex2 in innerExceptions)
                 {
-                    LogError(ex2.Message);
-                    if (aggregateStackTrace || Debug || StackTraces)
-                    {
-                        LogError("{0}: {1}{2}{3}",
-                                 ex2.GetType().Name, ex2.Message, Environment.NewLine, Logging.GetStackTrace(ex2));
-                    }
+                    LogException(ex2, null, maxAggregateSpew, stackTrace);
                     if (!(Debug || StackTraces) && ++i >= maxAggregateSpew)
                     {
                         break;

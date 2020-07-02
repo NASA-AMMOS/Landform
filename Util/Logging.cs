@@ -24,18 +24,17 @@ namespace OPS.Util
         /// for an aggregate we spew the message and stack trace of the first inner exception
         /// because that is most likely an unexpected error that needs to be debugged
         /// </summary>
-        void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                          bool aggregateStackTrace = true);
+        void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false);
     }
 
     public class ThunkLogger : ILogger
     {
         public Action<string> Info, Verbose, Debug, Warn, Error;
-        public Action<Exception, string, int, bool, bool> Exception;
+        public Action<Exception, string, int, bool> Exception;
 
         public ThunkLogger(Action<string> info = null, Action<string> verbose = null, Action<string> debug = null,
                            Action<string> warn = null, Action<string> error = null,
-                           Action<Exception, string, int, bool, bool> exception = null)
+                           Action<Exception, string, int, bool> exception = null)
         {
             this.Info = info;
             this.Verbose = verbose;
@@ -92,12 +91,11 @@ namespace OPS.Util
             }
         }
 
-        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                                 bool aggregateStackTrace = true)
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false)
         {
             if (Exception != null)
             {
-                Exception(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+                Exception(ex, msg, maxAggregateSpew, stackTrace);
             }
             else
             {
@@ -108,7 +106,7 @@ namespace OPS.Util
                 {
                     foreach (var ex2 in innerExceptions)
                     {
-                        LogError($"{ex2.Message}\n{Logging.GetStackTrace(ex2)}");
+                        LogException(ex2, null, maxAggregateSpew, stackTrace);
                     }
                 }
             }

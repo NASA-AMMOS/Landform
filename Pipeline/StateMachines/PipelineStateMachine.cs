@@ -111,11 +111,10 @@ namespace OPS.Pipeline
             pipeline.LogError(logPrefix + string.Format(msg, args));
         }
 
-        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                                 bool aggregateStackTrace = true)
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false)
         {
             msg = logPrefix + (msg ?? "");
-            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace);
         }
 
         public PipelineStateMachine(PipelineCore pipeline, string projectName)

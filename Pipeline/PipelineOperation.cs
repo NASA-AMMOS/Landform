@@ -73,11 +73,10 @@ namespace OPS.Pipeline
             SendStatusToMaster("error: " + msg);
         }
 
-        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                                 bool aggregateStackTrace = true)
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false)
         {
             msg = logPrefix + (msg ?? "");
-            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace);
             msg = string.Format("{0}{1}", !string.IsNullOrEmpty(msg) ? (msg + ": ") : "", ex.Message);
             SendStatusToMaster("error: " + msg);
         }
