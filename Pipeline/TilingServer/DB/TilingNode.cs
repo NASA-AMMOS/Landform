@@ -317,64 +317,6 @@ namespace OPS.Pipeline.TilingServer
                 }
             };
 
-            Action<string, Image> saveIndex = (path, img) =>
-            {
-                string ext = Path.GetExtension(path).ToLower();
-                if (ext == ".tif" || ext == ".tiff")
-                {
-                    var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
-                    var serializer = new GDALSerializer(opts);
-                    serializer.Write<float>(path, img);
-                }
-                else if (ext == ".ppm" || ext == ".ppmz" || ext == ".png")
-                {
-                    //these formats support 16 bit color components
-                    //we can generally save surface observation image indices
-                    //but not orbital which can easily have larger dimensions than 65535
-                    int numBad = 0;
-                    img = new Image(img);
-                    for (int r = 0; r < img.Height; r++)
-                    {
-                        for (int c = 0; c < img.Width; c++)
-                        {
-                            bool orbital = img[0, r, c] == Observation.ORBITAL_IMAGE_INDEX;
-                            bool bad = false;
-                            if (!orbital)
-                            {
-                                for (int b = 0; b < img.Bands; b++)
-                                {
-                                    if (img[b, r, c] < 0 || img[b, r, c] > 65535)
-                                    {
-                                        bad = true;
-                                        ++numBad;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (bad || orbital)
-                            {
-                                img[0, r, c] = Observation.NO_OBSERVATION_INDEX;
-                                for (int b = 1; b < img.Bands; b++)
-                                {
-                                    img[b, r, c] = 0;
-                                }
-                            }
-                        }
-                    }
-                    if (numBad > 0)
-                    {
-                        pipeline.LogWarn("cleared {0} invalid pixels saving index image for tile {1} to 16 bit {2}",
-                                         numBad, Id, ext);
-                    }
-                    img.Save<ushort>(path);
-                }
-                else
-                {
-                    pipeline.LogWarn("not saving index image for tile {0}, {1} format does not support 16 bit",
-                                     Id, ext);
-                }
-            };
-
             if (enableInternal)
             {
                 //save node image to S3 for our internal use
@@ -408,7 +350,8 @@ namespace OPS.Pipeline.TilingServer
                         {
                             TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
                             {
-                                saveIndex(tmpIndex, pair.Index);
+                                Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
+                                                            msg => pipeline.LogWarn($"{msg} for tile {Id}"));
                                 upload(tmpIndex, IndexUrl);
                                 if(exIndexUrl != null && exIndexExt == indexExt)
                                 {
@@ -514,7 +457,8 @@ namespace OPS.Pipeline.TilingServer
                     
                     if (pair.Index != null && tmpIndex != null)
                     {
-                        saveIndex(tmpIndex, pair.Index);
+                        Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
+                                                    msg => pipeline.LogWarn($"{msg} for tile {Id}"));
                         if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
                         {
                             upload(tmpIndex, exIndexUrl);
@@ -584,7 +528,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
                 {
-                    saveIndex(tmpIndex, pair.Index);
+                    Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex, msg => pipeline.LogWarn($"{msg} for tile {Id}"));
                     upload(tmpIndex, exImageUrl);
                     uploadedExIndex = true;
                 });

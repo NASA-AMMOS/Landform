@@ -18,6 +18,10 @@ namespace OPS.Pipeline.TilingServer
     [DynamoDBWriteCapacity(5, 50)]
     public class TilingProject
     {
+        public const string DEF_TILESET_MESH_FORMAT = "b3dm";
+        public const string DEF_TILESET_IMAGE_FORMAT = "jpg";
+        public const string DEF_TILESET_INDEX_FORMAT = "ppmz";
+
         [DynamoDBHashKey]
         public string Name;
 
@@ -63,11 +67,11 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
 
-        public string TilesetMeshFormat = "b3dm"; //but pointclouds will be saved as pnts
+        public string TilesetMeshFormat = DEF_TILESET_MESH_FORMAT; //but pointclouds will be saved as pnts
 
-        public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
+        public string TilesetImageFormat = DEF_TILESET_IMAGE_FORMAT; //jpg or png, will be embedded in b3dm
 
-        public string TilesetIndexFormat = "ppmz"; //e.g. tiff, png, ppm[z], only used if InternalIndexFormat is set
+        public string TilesetIndexFormat = DEF_TILESET_INDEX_FORMAT; //e.g. tiff, png, ppm[z]
 
         public bool EmbedIndexes = true; //embed tileset indexes in b3dm
 

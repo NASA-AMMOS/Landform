@@ -85,9 +85,9 @@ namespace OPS.Landform
                 }
 
                 RunPhase("create tiling project", CreateTilingProject);
-                RunPhase("add tile meshes", AddTileMeshes);
+                RunPhase("add tiling inputs", AddTilingInputs);
                 RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
-                RunPhase("build parent tiles", BuildParentTiles);
+                RunPhase("build parent tiles and save tileset", BuildParentTilesAndSaveTileset);
             }
             catch (Exception ex)
             {
@@ -100,7 +100,7 @@ namespace OPS.Landform
             return 0;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches()
+        protected bool ParseArgumentsAndLoadCaches()
         {
             if (options.NoSave)
             {
@@ -115,7 +115,7 @@ namespace OPS.Landform
             //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available
             options.NoOrbital = true;
 
-            if (!base.ParseArgumentsAndLoadCaches())
+            if (!base.ParseArgumentsAndLoadCaches(TILING_DIR))
             {
                 return false; //help
             }
@@ -125,6 +125,15 @@ namespace OPS.Landform
 
             tilesetFolder = DecorateOutDir(TILESET_DIR);
 
+            LoadTileList();
+
+            withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
+
+            if (withTextures && options.PublishIndexImages && !tileList.HasIndexImages)
+            {
+                throw new Exception("index images not available, consider disabling --publishindeximages");
+            }
+            
             return true;
         }
 

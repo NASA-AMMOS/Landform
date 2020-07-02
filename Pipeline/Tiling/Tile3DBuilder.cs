@@ -2,10 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.IO;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using Newtonsoft.Json;
 using OPS.Geometry;
 using OPS.Util;
-using Microsoft.Xna.Framework;
+using OPS.Imaging;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
@@ -14,11 +18,10 @@ namespace OPS.Pipeline
     /// </summary>
     public class Tile3DBuilder
     {
-        public delegate string NodeToRelativeUrl(SceneNode node);
-
         public Tile3D.Tileset Tileset { get; private set; }
-        SceneNode Root;
-        Dictionary<SceneNode, Tile3D.Tile> nodesToTiles = new Dictionary<SceneNode, Tile3D.Tile>();
+
+        private SceneNode Root;
+        private Dictionary<SceneNode, Tile3D.Tile> nodesToTiles = new Dictionary<SceneNode, Tile3D.Tile>();
 
         /// <summary>
         /// 
@@ -33,7 +36,7 @@ namespace OPS.Pipeline
         /// Build the tileset
         /// </summary>
         /// <param name="nodeToUrl">Method that returns the asset url to use for a given node</param>
-        public void BuildTileset(NodeToRelativeUrl nodeToUrl, bool useCesiumHackTransform = false)
+        public void BuildTileset(Func<SceneNode, string> nodeToUrl, bool useCesiumHackTransform = false)
         {
             foreach(SceneNode curNode in Root.DepthFirstTraverse())
             {
@@ -50,7 +53,7 @@ namespace OPS.Pipeline
             }
             this.Tileset = new Tile3D.Tileset();
             this.Tileset.Root = nodesToTiles[Root];
-            this.Tileset.GeometricError = this.Root.GetOrAddComponent<NodeBounds>().Bounds.MaxDimension();
+            this.Tileset.GeometricError = this.Root.GetOrAddComponent<NodeBounds>().Bounds.MaxDimension(); //default 0
 
             if (useCesiumHackTransform)
             {
@@ -75,6 +78,224 @@ namespace OPS.Pipeline
 
             //https://github.jpl.nasa.gov/OnSight/Landform/issues/769
             this.Tileset.Asset.GLTFUpAxis = "z";
+        }
+
+        public static void BuildAndSaveTileset(PipelineCore pipeline, SceneNode root, string tilesetDir,
+                                               string tilesetName, Func<SceneNode, string> nodeToUrl,
+                                               bool useCesiumHackTransform = false, Action<string> info = null)
+        {
+            info = info ?? (msg => pipeline.LogInfo(msg));
+
+            info("building tileset json");
+            var builder = new Tile3DBuilder(root);
+            builder.BuildTileset(nodeToUrl, useCesiumHackTransform);
+
+            string tilesetUrl = pipeline.GetStorageUrl(tilesetDir, tilesetName, "tileset.json");
+            info($"saving tileset json to {tilesetUrl}");
+            TemporaryFile.GetAndDelete(".json", f =>
+            {
+                File.WriteAllText(f, JsonConvert.SerializeObject(builder.Tileset, Formatting.None));
+                pipeline.SaveFile(f, tilesetUrl);
+            });
+
+            //some GDS testcases are based on seeing tileset bounds size in log spew
+            var rootSize = root.GetComponent<NodeBounds>().Bounds.Size(); //BuildTileset() ensures root has bounds
+            info($"tileset bounds (meters): {rootSize.X:F3}x{rootSize.Y:F3}x{rootSize.Z:F3}");
+
+            var sb = new StringBuilder();
+            root.DumpStats(msg =>
+            {
+                sb.Append(msg);
+                sb.Append("\n");
+                info(msg);
+            });
+
+            var statsUrl = pipeline.GetStorageUrl(tilesetDir, tilesetName, "stats.txt");
+            info($"saving tileset stats to {statsUrl}");
+            TemporaryFile.GetAndDelete(".txt", f =>
+            {
+                File.WriteAllText(f, sb.ToString());
+                pipeline.SaveFile(f, statsUrl);
+            });
+        }
+
+        //convert existing tile meshes, images, and indices to 3DTiles format
+        //input data is read from MeshImagePair node components where available (in core workflow)
+        //or from project storage in folder <inputDir> otherwise (out of core workflow)
+        //nodes with content are marked with MeshImagePair or MeshImagePairStats (for out of core workflow)
+        //output is written to project storage in folder <tilesetDir>/<tilesetName>/
+        public static void ConvertTiles(PipelineCore pipeline, SceneNode root, string inputDir, string tilesetDir,
+                                        string tilesetName, bool withTextures = true, bool withIndices = false,
+                                        bool embedIndices = true, string inMeshExt = "ply", string inImgExt = "png",
+                                        string inIdxExt = "tiff", string tsMeshExt = "b3dm", string tsImgExt = "jpg",
+                                        string tsIdxExt = "ppmz", Action<string> info = null)
+        {
+            info = info ?? (msg => pipeline.LogInfo(msg));
+
+            Func<string, string> toExt = str => !string.IsNullOrEmpty(str) ? "." + str.ToLower().TrimStart('.') : null;
+
+            inMeshExt = toExt(inMeshExt);
+            inImgExt = toExt(inImgExt);
+            inIdxExt = toExt(inIdxExt);
+
+            tsMeshExt = toExt(tsMeshExt);
+            tsImgExt = toExt(tsImgExt);
+            tsIdxExt = toExt(tsIdxExt);
+
+            bool embedImgs = tsMeshExt == ".b3dm";
+
+            string idxSfx = TileList.INDEX_FILE_SUFFIX;
+
+            var tsExts = new List<string>() { tsMeshExt, tsImgExt };
+            if (withIndices)
+            {
+                tsExts.Add(tsIdxExt);
+            }
+
+            string inputUrl(SceneNode tile, string ext, string sfx = "")
+            {
+                var url = pipeline.GetStorageUrl(inputDir, tile.Name + sfx + ext);
+                return pipeline.FileExists(url) ? url : null;
+            }
+
+            string outputUrl(SceneNode tile, string ext, string sfx = "")
+            {
+                return pipeline.GetStorageUrl(tilesetDir, tilesetName, tile.Name + sfx + ext);
+            }
+
+            Image loadImage(SceneNode tile, string ext, string sfx = "", string what = "image")
+            {
+                var url = inputUrl(tile, ext, sfx);
+                if (url == null)
+                {
+                    pipeline.LogWarn("no {0} found for tile {1}", what, tile.Name);
+                    return null;
+                }
+                return pipeline.LoadImage(url);
+            }
+
+            //MeshImagePair may have been replaced with MeshImagePairStats to save memory
+            var meshNodes = root.DepthFirstTraverse()
+                .Where(l => l.HasComponent<MeshImagePair>() || l.HasComponent<MeshImagePairStats>())
+                .ToList();
+
+            info($"saving {meshNodes.Count} {tsMeshExt} tiles" + (withTextures ? $" with {tsImgExt} textures" : "") +
+                 (withIndices ? $" and {tsIdxExt} indices" : ""));
+
+            CoreLimitedParallel.ForEach(meshNodes, tile =>
+            {
+                TemporaryFile.GetAndDeleteMultiple(tsExts.ToArray(), tmpFiles =>
+                {
+                    string tmpMesh = tmpFiles[0], tmpImg = tmpFiles[1], tmpIdx = withIndices ? tmpFiles[2] : null;
+
+                    var mip = tile.GetComponent<MeshImagePair>();
+
+                    //load mesh first to make sure it exists, but save it last after image and index are converted
+                    Mesh mesh = mip?.Mesh;
+                    if (mesh == null)
+                    {
+                        var meshUrl = inputUrl(tile, inMeshExt);
+                        if (meshUrl != null)
+                        {
+                            mesh = Mesh.Load(pipeline.GetFileCached(meshUrl, "meshes"));
+                        }
+                    }
+                    if (mesh == null)
+                    {
+                        pipeline.LogWarn("skipping tile {0}, no mesh found", tile.Name);
+                        return;
+                    }
+
+                    Image image = withTextures ? (mip?.Image ?? loadImage(tile, inImgExt)) : null;
+                    if (image != null)
+                    {
+                        image.Save<byte>(tmpImg); //convert to tileset image format
+                        if (!embedImgs)
+                        {
+                            pipeline.SaveFile(tmpImg, outputUrl(tile, tsImgExt));
+                        }
+                    }
+
+                    Image index = withIndices ? (mip?.Index ?? loadImage(tile, inIdxExt, idxSfx, "index")) : null;
+                    if (index != null)
+                    {
+                        SaveTileIndex(index, tmpIdx, msg => pipeline.LogWarn($"{msg} for tile {tile.Name}"));
+                        if (!embedImgs || !embedIndices)
+                        {
+                            pipeline.SaveFile(tmpIdx, outputUrl(tile, tsIdxExt));
+                            tmpIdx = null; //don't also try to save index with mesh in this case
+                        }
+                    }
+
+                    //for b3dm the image and index files will be read and embedded
+                    //for other mesh formats they might be referenced by name
+                    mesh.Save(tmpMesh, image != null ? tmpImg : null, index != null ? tmpIdx : null);
+                    pipeline.SaveFile(tmpMesh, outputUrl(tile, tsMeshExt));
+                });
+            });
+        }
+
+        //save a tile index image
+        //implies storage format from the file extension
+        //if the format supports float (currently only tiff) then the index is saved directly
+        //if the format supports 16 bit (currently ppm, ppmz, and png) then orbital and invalid indices are removed
+        //if the format only supports less than 16 bit, only issues a warning and skips storing index
+        public static void SaveTileIndex(Image index, string file, Action<string> warn = null)
+        {
+            warn = warn ?? (msg => {});
+
+            string ext = Path.GetExtension(file).ToLower();
+            if (ext == ".tif" || ext == ".tiff")
+            {
+                var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                var serializer = new GDALSerializer(opts);
+                serializer.Write<float>(file, index);
+            }
+            else if (ext == ".ppm" || ext == ".ppmz" || ext == ".png")
+            {
+                //these formats support 16 bit color components
+                //we can generally save surface observation image indices
+                //but not orbital which can easily have larger dimensions than 65535
+                int numBad = 0;
+                index = new Image(index);
+                for (int r = 0; r < index.Height; r++)
+                {
+                    for (int c = 0; c < index.Width; c++)
+                    {
+                        bool orbital = index[0, r, c] == Observation.ORBITAL_IMAGE_INDEX;
+                        bool bad = false;
+                        if (!orbital)
+                        {
+                            for (int b = 0; b < index.Bands; b++)
+                            {
+                                if (index[b, r, c] < 0 || index[b, r, c] > 65535)
+                                {
+                                    bad = true;
+                                    ++numBad;
+                                    break;
+                                }
+                            }
+                        }
+                        if (bad || orbital)
+                        {
+                            index[0, r, c] = Observation.NO_OBSERVATION_INDEX;
+                            for (int b = 1; b < index.Bands; b++)
+                            {
+                                index[b, r, c] = 0;
+                            }
+                        }
+                    }
+                }
+                if (numBad > 0)
+                {
+                    warn($"cleared {numBad} invalid pixels saving index image to 16 bit {ext}");
+                }
+                index.Save<ushort>(file);
+            }
+            else
+            {
+                warn($"not saving index image, {ext} does not support 16 bit");
+            }
         }
 
         public static List<double> MatrixToList(Matrix m)
@@ -133,17 +354,17 @@ namespace OPS.Pipeline
         /// <param name="node"></param>
         /// <param name="nodeToUrl"></param>
         /// <returns></returns>
-        Tile3D.Tile SceneNodeToTile(SceneNode node, NodeToRelativeUrl nodeToUrl)
+        Tile3D.Tile SceneNodeToTile(SceneNode node, Func<SceneNode, string> nodeToUrl)
         {
             Tile3D.Tile tile = new Tile3D.Tile();
             tile.BoundingVolume.Box = BoundsToBox(node.GetOrAddComponent<NodeBounds>().Bounds);
             tile.Refine = Tile3D.TileRefine.REPLACE;
-            if(node.GetComponent<MeshImagePair>() != null)
+            if (node.HasComponent<MeshImagePair>() || node.HasComponent<MeshImagePairStats>())
             {
                 tile.Content = new Tile3D.TileContent();
                 tile.Content.Uri = nodeToUrl(node);
             }
-            if(node.HasComponent<NodeGeometricError>())
+            if (node.HasComponent<NodeGeometricError>())
             {
                 tile.GeometricError = node.GetComponent<NodeGeometricError>().Error;
             }

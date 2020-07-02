@@ -546,8 +546,9 @@ namespace OPS.Landform
                 return;
             }
 
-            blendedTexture = BlendImage(pipeline, options, sceneTextureResolution, sceneTextureResolution,
-                                        backprojectIndex, blurredTexture, indexedImages);
+            blendedTexture = BlendImage(pipeline, backprojectIndex, blurredTexture, indexedImages,
+                                        options.ResidualEpsilon, options.NumRelaxationSteps,
+                                        options.NumMultigridIterations, options.Lambda);
 
             if (!options.NoSave)
             {
@@ -560,14 +561,23 @@ namespace OPS.Landform
             writeDebug();
         }
 
-        static public Image BlendImage(PipelineCore pipeline, BlendImagesOptions options, int width, int height,
-                                       Image backprojectIndex, Image blurredTexture,
-                                       Dictionary<int, Observation> indexedImages)
+        static public Image BlendImage(PipelineCore pipeline, Image backprojectIndex, Image blurredTexture,
+                                       Dictionary<int, Observation> indexedImages,
+                                       double residualEpsilon = LimberDMG.DEF_RESIDUAL_EPSILON,
+                                       int numRelaxationSteps = LimberDMG.DEF_NUM_RELAXATION_STEPS,
+                                       int numMultigridIterations = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS,
+                                       double lambda = LimberDMG.DEF_LAMBDA)
         {
+            int width = backprojectIndex.Width, height = backprojectIndex.Height;
+
+            if (blurredTexture.Height != height || blurredTexture.Width != width)
+            {
+                throw new ArgumentException("backproject index and blurred texture must be same size");
+            }
+
             pipeline.LogInfo("stitching {0}x{1} image with LimberDMG, residual epsilon {2}, {3} relaxation steps, " +
                              "{4} multigrid iterations, lambda {5}",
-                             width, height, options.ResidualEpsilon, options.NumRelaxationSteps,
-                             options.NumMultigridIterations, options.Lambda);
+                             width, height, residualEpsilon, numRelaxationSteps, numMultigridIterations, lambda);
 
             Image index = new Image(1, width, height);
             Image flags = new Image(3, width, height);
@@ -607,26 +617,25 @@ namespace OPS.Landform
                 }
             }
 
-            var dmg = new LimberDMG(options.ResidualEpsilon, options.NumRelaxationSteps, options.NumMultigridIterations,
-                                    options.Lambda, LimberDMG.EdgeBehavior.Clamp, LimberDMG.ColorConversion.RGBToLAB,
+            var dmg = new LimberDMG(residualEpsilon, numRelaxationSteps, numMultigridIterations, lambda,
+                                    LimberDMG.EdgeBehavior.Clamp, LimberDMG.ColorConversion.RGBToLAB,
                                     msg => pipeline.LogVerbose(msg));
-            Image blendedTexture = dmg.StitchImage(blurredTexture, index, flags);
 
-            pipeline.LogInfo("created {0}x{1} blended texture", width, height);
-            return blendedTexture;
+            return dmg.StitchImage(blurredTexture, index, flags);
         }
 
         private void BuildBlendedObservationImages()
         {
-            BuildBlendedObservationImages(pipeline, project, options, sceneTextureResolution, sceneTextureResolution,
-                                          backprojectIndex, blendedTexture, indexedImages, SaveDebugWedgeImage);
+            BuildBlendedObservationImages(pipeline, project, options, backprojectIndex, blendedTexture, indexedImages,
+                                          TextureVariant.Blended, SaveDebugWedgeImage);
         }
-
-       static public void BuildBlendedObservationImages(PipelineCore pipeline, Project project,
-                                                        BlendImagesOptions options, int width, int height,
-                                                        Image backprojectIndex, Image blendedTexture,
-                                                        Dictionary<int, Observation> indexedImages,
-                                                        Action<Image, Observation, string> saveDebugImg = null)
+        
+        static public void BuildBlendedObservationImages(PipelineCore pipeline, Project project,
+                                                         BlendImagesOptions options,
+                                                         Image backprojectIndex, Image blendedTexture,
+                                                         Dictionary<int, Observation> indexedImages,
+                                                         TextureVariant textureVariant = TextureVariant.Blended,
+                                                         Action<Image, Observation, string> saveDebugImg = null)
         {
             pipeline.LogInfo("building blended observation images");
 
@@ -638,9 +647,14 @@ namespace OPS.Landform
             //obs index => (obsCol, obsRow) => (sumBlendedR, sumBlendedG, sumBlendedB, num)
             var winners = new Dictionary<int, Dictionary<Vector2, Vector4>>();
 
-            for (int r = 0; r < height; r++)
+            if (blendedTexture.Height != backprojectIndex.Height || blendedTexture.Width != backprojectIndex.Width)
             {
-                for (int c = 0; c < width; c++)
+                throw new ArgumentException("backproject index and blended texture must be same size");
+            }
+
+            for (int r = 0; r < blendedTexture.Height; r++)
+            {
+                for (int c = 0; c < blendedTexture.Width; c++)
                 {
                     int obsIndex = (int)backprojectIndex[0, r, c];
 
@@ -678,7 +692,6 @@ namespace OPS.Landform
             {
                 if (options.WriteDebug && saveDebugImg != null)
                 {
-
                     if (markWinnersForObs >= Observation.MIN_INDEX)
                     {
                         img = new Image(img);
@@ -696,15 +709,14 @@ namespace OPS.Landform
                             img.SetBandValues((int)pixel.Y, (int)pixel.X, winnerColor);
                         }
                     }
-
                     saveDebugImg(img, obs, suffix);
                 }
             }
 
             int no = indexedImages.Count;
             var strat = options.BlendStrategy;
-            pipeline.LogInfo("creating blended images for {0} observations{1}",
-                             no, strat != BlendStrategy.None ? (", strategy " + strat) : "");
+            pipeline.LogInfo("creating {0} images for {1} observations{2}",
+                             textureVariant, no, strat != BlendStrategy.None ? (", strategy " + strat) : "");
             pipeline.LogInfo("barycentric interp: {0}, inpaint diff: {1}, blur diff: {2}, fill avg: {3}",
                              options.BarycentricInterpolateWinners, options.InpaintDiff, options.BlurDiff,
                              !options.NoFillBlendWithAverageDiff);
@@ -731,11 +743,11 @@ namespace OPS.Landform
                     return;
                 }
                 
-                if (!options.RedoBlendedObservationTextures && obs.BlendedGuid != Guid.Empty)
+                if (!options.RedoBlendedObservationTextures && obs.GetTextureVariantGuid(textureVariant) != Guid.Empty)
                 {
                     writeDebug(pipeline.LoadImage(obs.Url), obs, "");
-                    writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlendedGuid).Image,
-                               obs, "_blended");
+                    var guid = obs.GetTextureVariantGuid(textureVariant);
+                    writeDebug(pipeline.GetDataProduct<PngDataProduct>(project, guid).Image, obs, "_blended");
                     Interlocked.Increment(ref nc);
                     return;
                 }
@@ -747,7 +759,7 @@ namespace OPS.Landform
                     Interlocked.Increment(ref nf);
                     if (!options.NoSave)
                     {
-                        obs.BlendedGuid = Guid.Empty;
+                        obs.SetTextureVariantGuid(textureVariant, Guid.Empty);
                         obs.Save(pipeline);
                     }
                     Interlocked.Increment(ref nc);
@@ -760,7 +772,7 @@ namespace OPS.Landform
                                      obs.Name, obs.Bands);
                     if (!options.NoSave)
                     {
-                        obs.BlendedGuid = Guid.Empty;
+                        obs.SetTextureVariantGuid(textureVariant, Guid.Empty);
                         obs.Save(pipeline);
                     }
                     Interlocked.Increment(ref nc);
@@ -902,7 +914,7 @@ namespace OPS.Landform
                     {
                         var imgProd = new PngDataProduct(blendedImage);
                         pipeline.SaveDataProduct(project, imgProd);
-                        obs.BlendedGuid = imgProd.Guid;
+                        obs.SetTextureVariantGuid(textureVariant, imgProd.Guid);
                         obs.Save(pipeline);
                     }
                 }
@@ -912,7 +924,7 @@ namespace OPS.Landform
                     Interlocked.Increment(ref nf);
                     if (!options.NoSave)
                     {
-                        obs.BlendedGuid = Guid.Empty;
+                        obs.SetTextureVariantGuid(textureVariant, Guid.Empty);
                         obs.Save(pipeline);
                     }
                 }
@@ -998,7 +1010,7 @@ namespace OPS.Landform
             pipeline.LogInfo("rasterizing {0}x{0} backproject index from {1} leaves, {2:F5} meters/pixel",
                              sceneTextureResolution, tileList.LeafNames.Count, opts.MetersPerPixel);
 
-            string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+            string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 string meshUrl = pipeline.GetStorageUrl(leafFolder, project.Name, leaf + tileList.MeshExt);
@@ -1071,7 +1083,7 @@ namespace OPS.Landform
 
         private void BuildBlendedLeafTextures()
         {
-            string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+            string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
             BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture,
                                      options.BackprojectInpaintMissing, options.BackprojectInpaintGutter);
         }
@@ -1079,26 +1091,29 @@ namespace OPS.Landform
         static public void BuildBlendedLeafTextures(PipelineCore pipeline, Project project, string leafFolder,
                                                     TileList tileList, Dictionary<int, Observation> indexedImages,
                                                     Image orbitalTexture, int inpaintMissing, int inpaintGutter,
-                                                    float[] missingColor = null)
+                                                    TextureVariant textureVariant = TextureVariant.Blended)
         {
-            pipeline.LogInfo("blending leaf textures");
+            pipeline.LogInfo("replacing leaf textures in {0} with {1} variant",
+                             pipeline.GetStorageUrl(leafFolder, project.Name), textureVariant);
             int curLeafNum = 0, leafCount = tileList.LeafNames.Count;
-            int numSurfacePixels = 0, numOrbitalPixels = 0;
+            int numSurfacePixels = 0, numOrbitalPixels = 0, numMissingPixels = 0, numFallbacks = 0;
             CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
             {
                 Interlocked.Increment(ref curLeafNum);
-                pipeline.LogInfo("blending leaf texture {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
-                                 100 * curLeafNum / (float)leafCount, leaf);
+                pipeline.LogInfo("building {0} leaf texture {1}/{2} ({3:F2}%): {4}",
+                                 textureVariant, curLeafNum, leafCount, 100 * curLeafNum / (float)leafCount, leaf);
                 string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
                 var index = pipeline.LoadImage(indexUrl);
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages, msg => pipeline.LogWarn(msg));
                 var texture = new Image(3, index.Width, index.Height);
-                var stats = Backproject.FillOutputTexture(pipeline, project, results, texture, TextureVariant.Blended,
+                var stats = Backproject.FillOutputTexture(pipeline, project, results, texture, textureVariant,
                                                           inpaintMissing, inpaintGutter,
                                                           fallbackToOriginal: true, orbitalTexture: orbitalTexture);
                 Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
                 Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
+                Interlocked.Add(ref numMissingPixels, stats.BackprojectMissingPixels);
+                Interlocked.Add(ref numFallbacks, stats.NumFallbacks);
                 TemporaryFile.GetAndDelete(tileList.ImageExt, tmpFile =>
                 {
                     texture.Save<byte>(tmpFile);
@@ -1106,8 +1121,10 @@ namespace OPS.Landform
                     pipeline.SaveFile(tmpFile, textureUrl);
                 });
             });
-            pipeline.LogInfo("blended {0} pixels from surface observations, {1} pixels from orbital",
-                             Fmt.KMG(numSurfacePixels), Fmt.KMG(numOrbitalPixels));
+            pipeline.LogInfo("built {0} leaf textures using {1} surface pixels, {2} orbital pixels, " +
+                             "{3} missing pixels, {4} fallbacks to original observation textures",
+                             textureVariant, Fmt.KMG(numSurfacePixels), Fmt.KMG(numOrbitalPixels),
+                             Fmt.KMG(numMissingPixels), numFallbacks);
         }
 
         private void BuildBlendedSceneTexture()

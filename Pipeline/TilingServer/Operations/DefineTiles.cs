@@ -145,6 +145,7 @@ namespace OPS.Pipeline.TilingServer
                     var id = input.TileId;
                     idToSceneNode[id] = new SceneNode(id);
                 }
+                var sceneNodes = idToSceneNode.Values;
 
                 numUserTiles = idToSceneNode.Count;
 
@@ -154,12 +155,16 @@ namespace OPS.Pipeline.TilingServer
                 {
                     case TilingScheme.UserDefined:
                     {
-                        root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
+                        root = SceneNodeTilingExtensions.ConnectNodesByName(sceneNodes);
                         break;
                     }
                     case TilingScheme.Flat:
                     {
-                        root = SceneNodeTilingExtensions.ConnectNodesToRoot(idToSceneNode.Values);
+                        root = sceneNodes.Where(sn => sn.Name == "root").First();
+                        foreach (var child in sceneNodes.Where(sn => sn.Name != "root"))
+                        {
+                            child.Transform.SetParent(root.Transform);
+                        }
                         break;
                     }
                     default: throw new Exception("unexpected tiling scheme: " + tilingScheme);
@@ -289,35 +294,6 @@ namespace OPS.Pipeline.TilingServer
             project.SaveNodeIds(ids, pipeline);
             project.TilesDefined = true;
             project.Save(pipeline);
-        }
-
-        public static SceneNode BuildSingleLevelBoundsTree(List<Mesh> tileMeshes)
-        {
-            if (tileMeshes.Count < 1)
-            {
-                throw new InvalidDataException("expecting at least one mesh for node tree");
-            }
-
-            Mesh combined = Mesh.Merge(tileMeshes.ToArray(), clean: false, normalize: false);
-
-            //add root geometry so none will be created from children
-            SceneNode root = new SceneNode("");
-            root.Name = "";
-            root.AddComponent(new NodeBounds(combined.Bounds()));
-            root.AddComponent<MeshImagePair>(new MeshImagePair(tileMeshes[0], null)); //TODO: #1096 support empty nodes
-            root.AddComponent<NodeGeometricError>(new NodeGeometricError(100));
-
-            int counter = 1;
-            foreach(var mesh in tileMeshes)
-            {
-                SceneNode leaf = CreateChildNode(root, mesh.Bounds(), ref counter);
-                leaf.AddComponent<MeshImagePair>(new MeshImagePair(mesh, null));
-                leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
-            }
-
-            root.Name = "root";
-            return root;
-
         }
 
         /// <summary>

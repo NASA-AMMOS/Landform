@@ -725,6 +725,14 @@ namespace OPS.Geometry
                 pt.Z >= box.Min.Z && pt.Z <= box.Max.Z;
         }
 
+        public static bool FuzzyContainsPoint(this BoundingBox box, Vector3 pt, double epsilon = MathE.EPSILON)
+        {
+            return
+                pt.X >= box.Min.X - epsilon && pt.X <= box.Max.X + epsilon &&
+                pt.Y >= box.Min.Y - epsilon && pt.Y <= box.Max.Y + epsilon &&
+                pt.Z >= box.Min.Z - epsilon && pt.Z <= box.Max.Z + epsilon ;
+        }
+
         public static bool Contains(this BoundingBox box, Triangle tri)
         {
             return

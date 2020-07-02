@@ -394,6 +394,8 @@ namespace OPS.Pipeline
             public Vector3 skyDirInMesh; //for checking orbital occlusion
             public Matrix meshToOrbital;
 
+            public string meshName;
+
             public bool quiet;
         }
 
@@ -418,15 +420,17 @@ namespace OPS.Pipeline
             BackprojectObservations(Options opts, IEnumerable<Observation> observations, out Stats stats)
         {
             stats = new Stats();
+
 #if NO_PARALLEL_RAYCASTS
             var results = new Dictionary<Pixel, ObsPixel>();
 #else
             var results = new ConcurrentDictionary<Pixel, ObsPixel>();
 #endif
 
-            Action<string> info = msg => { if (!opts.quiet) opts.pipeline.LogInfo(msg); };
-            Action<string> verbose = msg => { if (!opts.quiet) opts.pipeline.LogVerbose(msg); };
-            Action<string> warn = msg => opts.pipeline.LogWarn(msg);
+            string meshMsg = !string.IsNullOrEmpty(opts.meshName) ? $" for mesh {opts.meshName}" : "";
+            Action<string> info = msg => { if (!opts.quiet) opts.pipeline.LogInfo(msg + meshMsg); };
+            Action<string> verbose = msg => { if (!opts.quiet) opts.pipeline.LogVerbose(msg + meshMsg); };
+            Action<string> warn = msg => opts.pipeline.LogWarn(msg + meshMsg);
 
             var surfaceImages = observations
                 .Where(obs => obs is RoverObservation)
@@ -547,8 +551,9 @@ namespace OPS.Pipeline
                                                                     opts.meshCaster);
                 });
                 int maxContextDepth = sortedContexts.Values.Max(contexts => contexts.Count);
+                int minContextDepth = sortedContexts.Values.Min(contexts => contexts.Count);
                 
-                verbose($"collected up to {maxContextDepth} contexts per pixel");
+                verbose($"collected from {minContextDepth} to {maxContextDepth} contexts per pixel");
                 verbose($"attempting to backproject {Fmt.KMG(batchSize)} pixels");
 
                 var remainingIndices = Enumerable.Range(startIdx, batchSize).ToList();
@@ -592,11 +597,11 @@ namespace OPS.Pipeline
                     verbose($"backprojected {Fmt.KMG(ns)} pixels into {no} priority {contextDepth} observations");
                     stats.BackprojectedSurfacePixels += ns;
                 }
+
+                failed.AddRange(remainingIndices);
                 
                 info($"backprojected {Fmt.KMG(batchSize - remainingIndices.Count)} pixels, " +
-                     $"{Fmt.KMG(remainingIndices.Count)} failed");
-                
-                failed.AddRange(remainingIndices);
+                     $"{Fmt.KMG(failed.Count)} failed");
             }
 
             int nf = failed != null ? failed.Count : samplePoints.Count;
@@ -865,11 +870,21 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            //check if hit the mesh or was occluded by the scene
-            if (!meshBounds.ContainsPoint(meshPos.Value))
+            //check if occluded by the scene
+
+            //meshBounds may be a subset of the bounds of meshCaster
+            //which is one way to ask for raycasts only on a subset of a big mesh
+            //fuzzy is important for meshes with degnerate bounds, e.g. all vertices coplanar on an axis aligned plane
+            if (!meshBounds.FuzzyContainsPoint(meshPos.Value, 1e-6))
             {
-                return null;
+                return null; //ray was occluded by some other part of meshCaster than the part we're interested in
             }
+
+            //another way to ask for raycasts on a subset of a big mesh
+            //is to have meshCaster represent a subset of occlusionScene
+            //
+            //this can also be used to just raycast against one mesh and occlude with a different one entirely
+            //e.g. for sky sphere meshCaster is a tile on the skysphere and occlusionScene represents the terrain mesh
             if (occlusionScene != null && occlusionScene != meshCaster)
             {
                 Vector3? occluderPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, occlusionScene);
@@ -879,8 +894,7 @@ namespace OPS.Pipeline
                     double distanceToMesh = Vector3.DistanceSquared(meshPos.Value, obsToMesh.Translation);
                     if ((distanceToOccluder - distanceToMesh) < raycastTolerance)
                     {
-                        //occluded by other geometry
-                        return null;
+                        return null; //occluded by other geometry
                     }
                 }
             }

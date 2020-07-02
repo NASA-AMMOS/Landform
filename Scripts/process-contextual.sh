@@ -8,10 +8,10 @@
 # 2. bev-align
 # 3. heightmap-align
 # 4. build-geometry
-# 5. build-sky-sphere
-# 6. build-tiling-input
-# 7. blend-images
-# 8. build-tileset
+# 5. build-tiling-input
+# 6. blend-images
+# 7. build-tileset
+# 8. build-sky-sphere
 # 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
 # 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
 #
@@ -105,6 +105,22 @@
 #
 # ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run --notileset \
 #     --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho
+#
+# leave project storage in place for faster iteration during dev:
+#
+# ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run --nocleanup \
+#     --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho
+#
+# just rebuild tileset after a previous full run with --nocleanup:
+#
+# ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run --nocleanup \
+#     --noingest --noalign --nogeometry --nosky \
+#     --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho
+#
+# just rebuild skysphere after a previous full run with --nocleanup:
+#
+# ./Scripts/process-contextual.sh out/$run/rdrs $mission $sol $sds out/$run --nocleanup --onlysky \
+#     --orbitaldem out/$mission/orbital/$dem --orbitalimage out/$mission/orbital/$ortho
 
 # exit script on ctrl-c
 ctrlc() { exit 1; }
@@ -134,8 +150,8 @@ USAGE: process-contextual.sh IN_DIR MISSION TTTT SSSDDDD[,...] [OUT_DIR]
 [--noingest] [--onlyingest] [--onlyforcameras Mastcam,Navcam]
 [--orbitaldem path/to/dem.tif] [--orbitalimage path/to/ortho.tif]
 [--noorbital] [--nosurface]
-[--noalign] [--nogeometry] [--nosky] [--notexture] [--noblend]
-[--notilinginput] [--notileset]
+[--noalign] [--nogeometry] [--notexture] [--noblend]
+[--notilinginput] [--notileset] [--nosky] [--onlysky]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"] [--ingestargs \"--arg val\"]
 [--bevargs \"--arg val\"] [--heightmapargs \"--arg val\"]
@@ -199,11 +215,12 @@ orbitalopts="--orbitalframe $sd"
 no_ingest=
 no_align=
 no_geometry=
-no_sky=
 no_texture=
 no_blend=
 no_tiling_input=
 no_tileset=
+no_sky=
+only_sky=
 
 manifest=true
 dry=
@@ -267,10 +284,11 @@ while (( "$#" )); do
         "--noalign") no_align=true;;
         "--noblend") no_blend=true;;
         "--nogeometry") no_geometry=true;;
-        "--nosky") no_sky=true;;
         "--notexture") no_texture=true;;
         "--notilinginput") no_tiling_input=true; manifest=; upload=;;
         "--notileset") no_tileset=true; manifest=; upload=;;
+        "--nosky") no_sky=true;;
+        "--onlysky") no_ingest=true; no_align=true; no_geometry=true; only_sky=true;;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
         "--ingestargs") shift; expect $# "ingest args"; ingestargs="$1";;
         "--bevargs") shift; expect $# "BEV args"; bevargs="$1";;
@@ -290,9 +308,8 @@ done
 
 proj=${sol}_${sd}${suffix}
 venue=contextual_${mission}_${proj}
-tilesetstoragedir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best
-tilesetdir=$tilesetstoragedir/$proj
-skytilesetdir=$tilesetstoragedir/sky/$proj
+tilesetdir=$storagedir/$venue/tiling/TileSet/${sd}Frame/best/$proj
+skytilesetdir=$storagedir/$venue/tiling/SkyTileSet/${sd}Frame/best/$proj
 log=$logdir/contextual_${proj}_log.txt
 outproj=$outdir/$proj
 cfgfolder=$venue
@@ -358,29 +375,28 @@ if [ "$generate" ]; then
 
         if [ ! "$no_tileset" ]; then
 
+            if [ ! "$only_sky" ]; then
+
+                if [ ! "$no_tiling_input" ]; then
+                    ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
+                fi
+                
+                if [ ! "$no_blend" ]; then
+                    ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
+                fi
+                
+                ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
+
+                ${dry}rm -rf $outproj
+                if [ -d $tilesetdir ]; then
+                    ${dry}cp -R $tilesetdir $outdir
+                    ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
+                    if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
+                fi
+            fi
+
             if [ ! "$no_sky" ]; then
                 ${dry}$landform build-sky-sphere $proj $stdopts --meshframe $sd $skyargs | tee -a $log
-            fi
-
-            if [ ! "$no_tiling_input" ]; then
-                ${dry}$landform build-tiling-input $proj $stdopts --meshframe $sd $tilingargs | tee -a $log
-            fi
-
-            if [ ! "$no_blend" ]; then
-                ${dry}$landform blend-images $proj $stdopts --meshframe $sd $blendargs | tee -a $log
-            fi
-
-            ${dry}$landform build-tileset $proj $stdopts $export --meshframe $sd $tilesetargs | tee -a $log
-
-            ${dry}rm -rf $outproj
-
-            if [ -d $tilesetdir ]; then
-                ${dry}cp -R $tilesetdir $outdir
-                ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
-                if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
-            fi
-
-            if [ ! "$no_sky" ]; then
                 ${dry}rm -rf ${outproj}_sky
                 if [ -d $skytilesetdir ]; then
                     ${dry}cp -R $skytilesetdir ${outproj}_sky
@@ -390,12 +406,12 @@ if [ "$generate" ]; then
                     fi
                 fi
             fi
-
         else
             if [ ! "$no_texture" ]; then
                 ${dry}$landform build-texture $proj $meshopts $stdopts --meshframe $sd $textureargs | tee -a $log
             fi
             if [ ! "$no_blend" ]; then
+                blendargs="$blendargs --nouseexistingleaves"
                 ${dry}$landform blend-images $proj $meshopts $stdopts --meshframe $sd $blendargs | tee -a $log
             fi
         fi
@@ -426,14 +442,18 @@ if [ "$generate" ]; then
         fi
 
         if [ "$manifest" ]; then
+            
             # create/update scene manifests here where we have access to the contextual mesh alignment project database
-            # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
-            ${dry}$landform update-scene-manifest $proj $stdopts --manifestfile $outproj/${proj}_scene.json \
-                  --notactical --nourls --sol=$sol --sitedrive=$sd $manifestargs | tee -a $log
+
+            if [ ! "$only_sky" ]; then
+                # this scene manifest contains only the contextual mesh tileset and doesn't have URLs
+                ${dry}$landform update-scene-manifest $proj $stdopts --manifestfile $outproj/${proj}_scene.json \
+                      --notactical --nourls --sol=$sol --sitedrive=$sd $manifestargs | tee -a $log
+            fi
 
             if [ "$combined_manifest" ]; then
                 # this scene manifest contains both the contextual mesh tileset
-                # as well as any sibling tactical mesh tilesets that already exist
+                # as well as any sibling tactical mesh and sky sphere tilesets that already exist
                 # and it has local file:// URLs
                 ${dry}$landform update-scene-manifest $proj $stdopts --tilesetdir=$outdir --rdrdir=$indir \
                       --sol=$sol --sitedrive=$sd $combinedmanifestargs | tee -a $log
@@ -460,34 +480,49 @@ if [[ ! ( "$dry" || "$only_cleanup" || "$only_upload" || "$only_ingest" ) ]]; th
 
     printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
 
-    if [ ! "$no_tileset" -a -d $outproj ]; then
+    if [ ! "$no_tileset" ]; then
 
-        printf "moved output to ${outproj}\r\n" | tee -a $log
-        mv $log $outproj
-
-        # . => out=. outsfx=
-        # ./out/foo => out=out, outsfx=/foo
-        # out/foo => out=out, outsfx=/foo
-        # out/ => out=out, outsfx=
-        out=$outdir
-        outsfx=
-        if [[ "$out" == *\/* ]]; then
-            if [[ "$out" == .\/* ]]; then out=${out#./}; fi
-            outsfx=/${out#*/}
-            outsfx=${outsfx%/}
-            out=${out%%/*}
+        if [ "$only_sky" ]; then
+            proj=${proj}_sky
+            outproj=$outdir/$proj
         fi
 
-        url=http://localhost:8000/Unity3DTilesWeb/index.html?Tileset=..$outsfx/$proj/${proj}_tileset.json
+        if [ -d $outproj ]; then
 
-        echo "commands you could run to view tileset in Unity3DTiles:"
-        echo $landform fetch s3://$lfbucket/Unity3DTilesWeb.zip $out --raw --nosubdirs --mission M2020
-        echo powershell $scriptdir/unzip.ps1 ./$out/Unity3DTilesWeb.zip ./$out
-        echo python -m http.server 8000 --directory $out \# Python 3.7
-        echo cd $out \&\& python -m SimpleHTTPServer 8000 \# Python 2.7
-        echo start \"$url\"
-        echo start \"${url}\&TilesetOptions=zero_sse_tileset_options.json\"
-        echo "tip: run python last to avoid opening another terminal"
+            printf "moved output to ${outproj}\r\n" | tee -a $log
+
+            logbn=${log##*/}
+            logbn=${logbn%.txt}
+            logver=
+            while [ -f $outproj/${logbn}${logver}.txt ]; do
+                ver=$(($ver + 1))
+            done
+            mv $log $outproj/${logbn}${logver}.txt
+            
+            # . => out=. outsfx=
+            # ./out/foo => out=out, outsfx=/foo
+            # out/foo => out=out, outsfx=/foo
+            # out/ => out=out, outsfx=
+            out=$outdir
+            outsfx=
+            if [[ "$out" == *\/* ]]; then
+                if [[ "$out" == .\/* ]]; then out=${out#./}; fi
+                outsfx=/${out#*/}
+                outsfx=${outsfx%/}
+                out=${out%%/*}
+            fi
+            
+            url=http://localhost:8000/Unity3DTilesWeb/index.html?Tileset=..$outsfx/$proj/${proj}_tileset.json
+            
+            echo "commands you could run to view tileset in Unity3DTiles:"
+            echo $landform fetch s3://$lfbucket/Unity3DTilesWeb.zip $out --raw --nosubdirs --mission M2020
+            echo powershell $scriptdir/unzip.ps1 ./$out/Unity3DTilesWeb.zip ./$out
+            echo python -m http.server 8000 --directory $out \# Python 3.7
+            echo cd $out \&\& python -m SimpleHTTPServer 8000 \# Python 2.7
+            echo start \"$url\"
+            echo start \"${url}\&TilesetOptions=zero_sse_tileset_options.json\"
+            echo "tip: run python last to avoid opening another terminal"
+        fi
 
     elif [ -f $outmesh ]; then
         printf "output mesh ${outmesh}\r\n" | tee -a $log

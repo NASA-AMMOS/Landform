@@ -203,5 +203,21 @@ namespace OPS.MathExtensions
             var average = Average(values);
             return values.Select(v => (v - average) * (v - average)).Sum() / (values.Length - 1);                
         }
+
+        /// <summary>
+        /// Normalize an angle in radians to the range [0, 2 * PI)
+        /// </summary>
+        public static double NormalizeAngle(double radians)
+        {
+            while (radians < 0)
+            {
+                radians += 2 * Math.PI;
+            }
+            while (radians >= 2 * Math.PI)
+            {
+                radians -= 2 * Math.PI;
+            }
+            return Clamp(radians, 0, 2 * Math.PI); //clamp accounts for small numerical error
+        }
     }
 }

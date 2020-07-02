@@ -26,10 +26,10 @@ using OPS.Pipeline.AlignmentServer;
 /// 2. bev-align
 /// 3. heightmap-align
 /// 4. build-geometry
-/// 5. build-skysphere
-/// 6. build-tiling-input
-/// 7. blend-images
-/// 8. build-tileset
+/// 5. build-tiling-input
+/// 6. blend-images
+/// 7. build-tileset
+/// 8. build-sky-sphere
 /// 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
 /// 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
 ///
@@ -777,11 +777,6 @@ namespace OPS.Landform
                     RunCommand("build-geometry", project, "--meshframe", sdStr, "--extent", options.Extent.ToString(),
                                "--surfaceextent", options.SurfaceExtent.ToString());
 
-                    if (!options.NoSky)
-                    { 
-                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr);
-                    }
-
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     
                     RunCommand("blend-images", project, "--meshframe", sdStr);
@@ -795,8 +790,9 @@ namespace OPS.Landform
 
                     if (!options.NoSky)
                     {
-                        SaveTileset(GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_DIR),
-                                    project, destDir, "_" + BuildSkySphere.SKY_DIR);
+                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr);
+                        string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
+                        SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }
                 }
 

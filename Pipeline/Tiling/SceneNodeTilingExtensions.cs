@@ -258,22 +258,6 @@ namespace OPS.Pipeline
             return true;
         }
 
-        public static SceneNode ConnectNodesToRoot(IEnumerable<SceneNode> nodes)
-        {
-            SceneNode root = nodes.Where(n => n.Name == "root").First();
-            foreach(var node in nodes)
-            {
-                if (node.Name == "root")
-                {
-                    continue;
-                }
-
-                node.Transform.SetParent(root.Transform);
-            }
-            return root;
-        }
-
-
         /// <summary>
         /// Given a list of nodes, connect them in a tree based on name prefix convention and return the root
         ///

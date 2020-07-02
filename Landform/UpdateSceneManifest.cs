@@ -724,7 +724,7 @@ namespace OPS.Landform
 
                         pipeline.LogInfo("counting backprojected pixels from {0} leaves", tileList.LeafNames.Count);
 
-                        string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+                        string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
                         CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
                         {
                             string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
@@ -803,7 +803,7 @@ namespace OPS.Landform
                                                        frameCache, options.UsePriors, options.OnlyAligned,
                                                        images, backprojectedPixels, pipeline);
 
-            string skyTilesetId = tilesetId + "_" + BuildSkySphere.SKY_DIR;
+            string skyTilesetId = tilesetId + "_sky";
             string skyTilesetUrl = GetExistingTileset(skyTilesetId);
             if (skyTilesetUrl != null)
             {

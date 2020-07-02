@@ -97,7 +97,7 @@ namespace OPS.Landform
             return true;
         }
 
-        private void HandleSpecialMeshFrames()
+        protected void HandleSpecialMeshFrames()
         {
             meshFrame = GetMeshFrame();
 

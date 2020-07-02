@@ -151,9 +151,9 @@ namespace OPS.Landform
             return 0;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches()
+        protected bool ParseArgumentsAndLoadCaches()
         {
-            if (!base.ParseArgumentsAndLoadCaches())
+            if (!base.ParseArgumentsAndLoadCaches(TILING_DIR))
             {
                 return false; //help
             }
@@ -293,11 +293,6 @@ namespace OPS.Landform
             {
                 base.LoadObservationCache();
             }
-        }
-
-        protected override void LoadTileList()
-        {
-            return; // LoadTileList() is called from TilingCommand.ParseArgumentsAndLoadCaches()
         }
 
         private void BuildTileTree()
@@ -512,36 +507,37 @@ namespace OPS.Landform
                                      np > 1 ? ", processing " + np + " in parallel" : "", tile.Name);
                 }
 
-                MeshImagePair mp = tile.GetComponent<MeshImagePair>();
+                var mip = tile.GetComponent<MeshImagePair>();
 
-                Image index = !options.NoIndexImages ? new Image(3, tileResolution, tileResolution) : null;
+                mip.Index = !options.NoIndexImages ? new Image(3, tileResolution, tileResolution) : null;
+
                 if (texGenMode == TextureGenMode.Bake)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
-                    if (newMP != null)
+                    var tmp = bakeClipper.BakeTexture(mip.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
+                    if (tmp != null)
                     {
-                        mp.Mesh = newMP.Mesh;
-                        mp.Image = newMP.Image;
+                        mip.Mesh = tmp.Mesh;
+                        mip.Image = tmp.Image;
                     }
                 }
                 else if (texGenMode == TextureGenMode.Backproject)
                 {                
-                    mp.Image = BackprojectTile(tile, mp.Mesh, index);
+                    mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index);
                 }
                 else if (texGenMode == TextureGenMode.Clip)
                 {
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture);
-                    //var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture, tileResolution);
-                    mp.Mesh = newMP.Mesh;
-                    mp.Image = newMP.Image;
+                    var tmp = TexturedMeshClipper.RemapMeshClipImage(mip.Mesh, sceneTexture);
+                    //var tmp = TexturedMeshClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, tileResolution);
+                    mip.Mesh = tmp.Mesh;
+                    mip.Image = tmp.Image;
                 }
 
-                if (mp.Mesh != null && (!withTextures || mp.Image != null))
+                if (mip.Mesh != null && (!withTextures || mip.Image != null))
                 {
-                    SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave, tile.IsLeaf);
+                    SaveTile(tile.Name, mip.Mesh, mip.Image, mip.Index, localSave, cloudSave, tile.IsLeaf);
                     if (options.WriteBackprojectDebug)
                     {
-                        SaveImage(Backproject.GenerateIndexPreviewImage(index), tile.Name + "_index_preview");
+                        SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tile.Name + "_index_preview");
                     }
                     Interlocked.Increment(ref numSucceded);
                 }

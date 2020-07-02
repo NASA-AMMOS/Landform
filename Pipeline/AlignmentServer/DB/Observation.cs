@@ -9,7 +9,7 @@ using OPS.Util;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    public enum TextureVariant { Original, Blurred, Blended };
+    public enum TextureVariant { Original, Blurred, Blended, SkyBlended };
 
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
@@ -72,6 +72,8 @@ namespace OPS.Pipeline.AlignmentServer
         public Guid BlurredGuid;
 
         public Guid BlendedGuid;
+
+        public Guid SkyBlendedGuid;
 
         public string FrameName;
 
@@ -140,6 +142,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.FeaturesGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
+            this.SkyBlendedGuid = Guid.Empty;
             this.CameraModel = cameraModel;
             this.UseForAlignment = useForAlignment;
             this.UseForMeshing = useForMeshing;
@@ -267,6 +270,7 @@ namespace OPS.Pipeline.AlignmentServer
                 case TextureVariant.Original: return variant;
                 case TextureVariant.Blurred: return BlurredGuid != Guid.Empty ? variant : fallback;
                 case TextureVariant.Blended: return BlendedGuid != Guid.Empty ? variant : fallback;
+                case TextureVariant.SkyBlended: return SkyBlendedGuid != Guid.Empty ? variant : fallback;
                 default: throw new Exception("unknown texture variant: " + variant);
             }
         }
@@ -277,6 +281,18 @@ namespace OPS.Pipeline.AlignmentServer
             {
                 case TextureVariant.Blurred: return BlurredGuid;
                 case TextureVariant.Blended: return BlendedGuid;
+                case TextureVariant.SkyBlended: return SkyBlendedGuid;
+                default: throw new Exception("unsupported texture variant: " + variant); //including Original
+            }
+        }
+
+        public void SetTextureVariantGuid(TextureVariant variant, Guid guid)
+        {
+            switch (variant)
+            {
+                case TextureVariant.Blurred: BlurredGuid = guid; break;
+                case TextureVariant.Blended: BlendedGuid = guid; break;
+                case TextureVariant.SkyBlended: SkyBlendedGuid = guid; break;
                 default: throw new Exception("unsupported texture variant: " + variant); //including Original
             }
         }

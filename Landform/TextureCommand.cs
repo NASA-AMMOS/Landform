@@ -157,16 +157,7 @@ namespace OPS.Landform
                     .Cast<RoverObservation>()
                     .ToList();
 
-                //the observation selection strategy has an opportunity to independently define its preference
-                //for linear or nonlinear images
-                var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
-                comparator.logger = pipeline.Verbose ? pipeline : null;
-                var obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
-                comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
-                roverImages = comparator
-                    .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
-                                               RoverProductType.Image)
-                    .ToList();
+                FilterRoverImages();
 
                 imageObservations = roverImages.Cast<Observation>().ToList();
                 imageObservations.AddRange(orbitalImages);
@@ -198,6 +189,20 @@ namespace OPS.Landform
             }
 
             return true;
+        }
+
+        protected virtual void FilterRoverImages()
+        {
+            //the observation selection strategy has an opportunity to independently define its preference
+            //for linear or nonlinear images
+            var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
+            comparator.logger = pipeline.Verbose ? pipeline : null;
+            var obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
+            comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
+            roverImages = comparator
+                .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
+                                           RoverProductType.Image)
+                .ToList();
         }
 
         private void ListImageObservations()
@@ -607,9 +612,14 @@ namespace OPS.Landform
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
             BackprojectObservations(Mesh mesh, int resolution, SceneCaster meshCaster = null,
-                                    ObsSelectionStrategy strategy = null, string debugSubdir = "",
+                                    ObsSelectionStrategy strategy = null, string meshName = "",
                                     bool quiet = false)
         {
+            if (mesh.Vertices.Count < 3 || mesh.Faces.Count < 1)
+            {
+                throw new Exception("cannot backproject mesh with no triangles");
+            }
+
             strategy = strategy ?? backprojectStrategy;
             if (strategy == null)
             {
@@ -639,23 +649,27 @@ namespace OPS.Landform
                 onlyAligned = tcopts.OnlyAligned,
 
                 writeDebug = tcopts.WriteBackprojectDebug,
-                localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
+                localDebugOutputPath = Path.Combine(backprojectDebugDir, meshName), //ignores empty strings
 
                 outputResolution = resolution,
 
                 quality = tcopts.BackprojectQuality,
                 obsSelectionStrategy = strategy,
 
+                meshName = meshName,
                 quiet = quiet
             };
 
             try
             {
-                opts.meshHull = new ConvexHull(mesh);
+                opts.meshHull = ConvexHull.CreateWithFallback(mesh);
             }
             catch (Exception ex)
             {
-                pipeline.LogWarn("failed to make convex hull for mesh: {0}", ex.Message);
+                if (!quiet)
+                {
+                    pipeline.LogWarn("failed to make convex hull for mesh: {0}", ex.Message);
+                }
             }
 
             if (!tcopts.NoOrbital)
@@ -804,7 +818,7 @@ namespace OPS.Landform
             string name = sceneMesh.Name + "_backprojectIndex" + suffix;
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
-            name += "FalseColor";
+            name = sceneMesh.Name + "_backprojectIndexFalseColor" + suffix;
             pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
             if (withMesh && mesh != null)
@@ -814,16 +828,19 @@ namespace OPS.Landform
             }
         }
 
-        protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
+        protected void SaveBackprojectTextureDebug(Image texture,
+                                                   TextureVariant textureVariant = TextureVariant.Original,
+                                                   bool withMesh = true, string suffix = "")
         {
             string name = sceneMesh.Name + "_backprojectTexture";
             if (textureVariant != TextureVariant.Original)
             {
                 name += "_" + textureVariant.ToString();
             }
+            name += suffix;
             pipeline.LogInfo("saving backproject {0} texture debug image", textureVariant);
             SaveImage(texture, name);
-            if (mesh != null)
+            if (withMesh && mesh != null)
             {
                 pipeline.LogInfo("saving backproject {0} textured debug mesh", textureVariant);
                 SaveMesh(mesh, name, name + imageExt);
