@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Threading;
 
 namespace OPS.Util
 {
@@ -45,6 +46,26 @@ namespace OPS.Util
         {
             value = Math.Abs(value);
             return (value & (value - 1)) == 0;
+        }
+
+        //thread safe update of location to newValue only if comparison > location
+        //https://stackoverflow.com/a/13056904
+        public static bool InterlockedExchangeIfGreaterThan(ref int location, int comparison, int newValue)
+        {
+            int initialValue;
+            do
+            {
+                initialValue = location;
+                if (initialValue >= comparison) return false;
+            }
+            while (Interlocked.CompareExchange(ref location, newValue, initialValue) != initialValue);
+            return true;
+        }
+
+        //thread safe update of location to newValue only if newValue > location
+        public static bool InterlockedExchangeIfGreaterThan(ref int location, int newValue)
+        {
+            return InterlockedExchangeIfGreaterThan(ref location, newValue, newValue);
         }
     }
 }

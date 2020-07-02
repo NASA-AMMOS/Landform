@@ -82,6 +82,7 @@ namespace OPS.Landform
         protected SceneNode tileTree;
 
         protected int numBackprojectedSurfacePixels, numBackprojectedOrbitalPixels, numBackprojectFailedPixels;
+        protected int numBackprojectFallbacks;
       
         protected TilingCommand(TilingCommandOptions tilingOpts) : base(tilingOpts)
         {
@@ -453,29 +454,28 @@ namespace OPS.Landform
             TilingNode.DumpLRUCacheStats(pipeline);
         }
 
-        protected Image BackprojectTile(SceneNode node, Mesh mesh, Image index,
-                                        SceneCaster meshCaster, SceneCaster occlusionScene,
-                                        ObsSelectionStrategy strategy = null)
+        protected Image BackprojectTile(SceneNode node, Mesh mesh, Image index, SceneCaster meshCaster,
+                                        SceneCaster occlusionScene, ObsSelectionStrategy strategy = null)
         {
             try
             {
-                var backprojectResults = BackprojectObservations(mesh, tileResolution, meshCaster, occlusionScene,
-                                                                 strategy, meshName: node.Name,
-                                                                 quiet: !(pipeline.Verbose || pipeline.Debug));
+                bool quiet = !(pipeline.Verbose || pipeline.Debug || tilingOpts.VerboseBackproject);
+                var results = BackprojectObservations(mesh, tileResolution, meshCaster, occlusionScene,
+                                                      out Backproject.Stats stats, strategy, node.Name, quiet);
                 
-                var image = new Image(3, tileResolution, tileResolution);
-                var stats = Backproject.FillOutputTexture
-                    (pipeline, project, backprojectResults, image, tilingOpts.TextureVariant,
-                     tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
-                     fallbackToOriginal: true, orbitalTexture: orbitalTexture);
-
                 Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
                 Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 Interlocked.Add(ref numBackprojectFailedPixels, stats.BackprojectMissingPixels);
+                NumberHelper.InterlockedExchangeIfGreaterThan(ref numBackprojectFallbacks, stats.NumFallbacks);
+
+                var image = new Image(3, tileResolution, tileResolution);
+                Backproject.FillOutputTexture(pipeline, project, results, image, tilingOpts.TextureVariant,
+                                              tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
+                                              fallbackToOriginal: true, orbitalTexture: orbitalTexture);
 
                 if (index != null)
                 {
-                    Backproject.FillIndexImage(backprojectResults, index);
+                    Backproject.FillIndexImage(results, index);
                 }
 
                 return image;

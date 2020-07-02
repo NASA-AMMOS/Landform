@@ -100,6 +100,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Image resolution for output texture for each tile, should be power of 2", Default = 512)]
         public override int TileResolution { get; set; }
+
+        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = PreferColorMode.Always)]
+        public override PreferColorMode PreferColor { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand
@@ -460,7 +463,10 @@ namespace OPS.Landform
         {
             var leaves = tileTree.Leaves().ToList();
 
-            pipeline.LogInfo("backprojecting {0} tiles, texture resolution {1}", leaves.Count, tileResolution);
+            pipeline.LogInfo("backprojecting {0} tiles, texture resolution {1}, quality {2}, prefer color {3}, " +
+                             "texture far clip {4:f3}",
+                             leaves.Count, tileResolution, options.BackprojectQuality, options.PreferColor,
+                             options.TextureFarClip);
 
             var backprojectContexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
                                                                 observationCache, meshFrame, tcopts.UsePriors,
@@ -481,6 +487,8 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
+                var meshOp = new MeshOperator(mip.Mesh);
+
                 var meshCaster = new SceneCaster();
                 meshCaster.AddMesh(mip.Mesh, null, Matrix.Identity);
                 meshCaster.Build();
@@ -488,9 +496,14 @@ namespace OPS.Landform
                 var occlusionScene = options.SceneOccludesSky ? sceneCaster : null;
 
                 var strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                strategy.Initialize(mip.Mesh, new MeshOperator(mip.Mesh), meshCaster, occlusionScene,
-                                    options.RaycastTolerance, backprojectContexts, tileResolution,
-                                    options.BackprojectQuality);
+                strategy.Quality = options.BackprojectQuality;
+                strategy.PreferColor = options.PreferColor;
+                strategy.RaycastTolerance = options.RaycastTolerance;
+                strategy.PreferNonlinear = !tcopts.PreferLinearToNonlinear;
+                strategy.DebugOutputPath = options.WriteBackprojectDebug ? backprojectDebugDir : null;
+
+                strategy.Initialize(mip.Mesh, meshOp, meshCaster, occlusionScene, backprojectContexts);
+
 
                 mip.Index = new Image(3, tileResolution, tileResolution);
                 mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, meshCaster, occlusionScene, strategy);
@@ -512,9 +525,10 @@ namespace OPS.Landform
                 Interlocked.Decrement(ref np);
             });                           
 
-            pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed",
+            pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed, " +
+                             "tried up to {3} observations per pixel",
                              Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectedOrbitalPixels),
-                             Fmt.KMG(numBackprojectFailedPixels));
+                             Fmt.KMG(numBackprojectFailedPixels), numBackprojectFallbacks + 1);
 
             if (numFailed > 0)
             {

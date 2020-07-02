@@ -472,6 +472,12 @@ namespace OPS.Landform
                              options.TextureVariant, options.TextureVariant != TextureVariant.Original ?
                              " (falling back to " + TextureVariant.Original + ")" : "");
 
+            if (texGenMode == TextureGenMode.Backproject)
+            {
+                pipeline.LogInfo("backproject quality {0}, prefer color {1}, texture far clip {2:f3}",
+                                 options.BackprojectQuality, options.PreferColor, options.TextureFarClip);
+            }
+
             if (meshLOD.Count == 1 && texGenMode == TextureGenMode.Clip)
             {
                 //TODO for now if the input mesh has only one LOD behave same as if --loadlods was not specified
@@ -565,9 +571,10 @@ namespace OPS.Landform
 
             if (texGenMode == TextureGenMode.Backproject)
             {
-                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed",
+                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed, " +
+                                 "tried up to {3} observations per pixel",
                                  Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectedOrbitalPixels),
-                                 Fmt.KMG(numBackprojectFailedPixels));
+                                 Fmt.KMG(numBackprojectFailedPixels), numBackprojectFallbacks + 1);
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));

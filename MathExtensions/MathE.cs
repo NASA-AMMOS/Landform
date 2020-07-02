@@ -8,6 +8,7 @@ namespace OPS.MathExtensions
     public class MathE
     {
         public const double EPSILON = 1e-7;
+        public const double SQRT_3 = 1.73205080757;
 
         public static byte Clamp(byte v, byte min, byte max)
         {

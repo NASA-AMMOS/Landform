@@ -53,7 +53,10 @@ namespace OPS.Landform
         [Option(HelpText = "Write extended backproject debug info", Default = false)]
         public bool WriteBackprojectDebug { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Greedy, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
+        [Option(HelpText = "Verbose backproject spew", Default = false)]
+        public bool VerboseBackproject { get; set; }
+
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
         public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
@@ -77,8 +80,11 @@ namespace OPS.Landform
         [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 20)]
         public virtual double TextureFarClip { get; set; }
 
-        [Option(HelpText = "Don't prefer color images", Default = false)]
-        public bool NoPreferColor { get; set; }
+        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = PreferColorMode.EquivalentScores)]
+        public virtual PreferColorMode PreferColor { get; set; }
+
+        [Option(HelpText = "Prefer linearized version of images for texturing", Default = false)]
+        public bool PreferLinearToNonlinear { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -197,8 +203,7 @@ namespace OPS.Landform
             //for linear or nonlinear images
             var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
             comparator.logger = pipeline.Verbose ? pipeline : null;
-            var obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
-            comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
+            comparator.SetPreferLinearToNonlinear(tcopts.PreferLinearToNonlinear);
             roverImages = comparator
                 .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
                                            RoverProductType.Image)
@@ -578,10 +583,11 @@ namespace OPS.Landform
 
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
-            if (tcopts.WriteBackprojectDebug)
-            {
-                backprojectStrategy.DebugOutputPath = backprojectDebugDir;
-            }
+            backprojectStrategy.Quality = tcopts.BackprojectQuality;
+            backprojectStrategy.PreferColor = tcopts.PreferColor;
+            backprojectStrategy.RaycastTolerance = tcopts.RaycastTolerance;
+            backprojectStrategy.PreferNonlinear = !tcopts.PreferLinearToNonlinear;
+            backprojectStrategy.DebugOutputPath = tcopts.WriteBackprojectDebug ? backprojectDebugDir : null;
 
             if (!tcopts.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_IMAGE_INDEX))
             {
@@ -594,29 +600,31 @@ namespace OPS.Landform
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, tcopts.RaycastTolerance, 
-                                           contexts, sceneTextureResolution, tcopts.BackprojectQuality,
-                                           !tcopts.NoPreferColor);
+            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, contexts);
         }
 
         protected void BackprojectObservations()
         {
-            backprojectResults = BackprojectObservations(mesh, sceneTextureResolution, sceneCaster, sceneCaster);
+            backprojectResults = BackprojectObservations(mesh, sceneTextureResolution, sceneCaster, sceneCaster,
+                                                         out Backproject.Stats stats);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
             BackprojectObservations(Mesh mesh, int resolution, SceneCaster meshCaster, SceneCaster occlusionScene,
-                                    ObsSelectionStrategy strategy = null, string meshName = "", bool quiet = false)
+                                    out Backproject.Stats stats, ObsSelectionStrategy strategy = null,
+                                    string meshName = "", bool quiet = false)
         {
+            string forMesh = !string.IsNullOrEmpty(meshName) ? $" for mesh {meshName}" : "";
+
             if (mesh.Vertices.Count < 3 || mesh.Faces.Count < 1)
             {
-                throw new Exception("cannot backproject mesh with no triangles");
+                throw new Exception($"cannot backproject: no triangles{forMesh}");
             }
 
             strategy = strategy ?? backprojectStrategy;
             if (strategy == null)
             {
-                throw new Exception("must initialize backproject strategy before backprojecting observations");
+                throw new Exception($"must initialize backproject strategy before backprojecting{forMesh}");
             }
 
             var opts = new Backproject.Options()
@@ -650,7 +658,8 @@ namespace OPS.Landform
                 obsSelectionStrategy = strategy,
 
                 meshName = meshName,
-                quiet = quiet
+                quiet = quiet,
+                verbose = tcopts.VerboseBackproject
             };
 
             try
@@ -661,7 +670,7 @@ namespace OPS.Landform
             {
                 if (!quiet)
                 {
-                    pipeline.LogWarn("failed to make convex hull for mesh: {0}", ex.Message);
+                    pipeline.LogWarn("failed to make convex hull{0}: {1}", forMesh, ex.Message);
                 }
             }
 
@@ -675,16 +684,21 @@ namespace OPS.Landform
 
             if (!quiet)
             {
-                pipeline.LogInfo("backprojecting {0} observations", imageObservations.Count);
+                pipeline.LogInfo("backprojecting {0} observations{1}, resolution {2}, quality {3}, prefer color {4}, " +
+                                 "texture far clip {5:f3}",
+                                 imageObservations.Count, forMesh, resolution, tcopts.BackprojectQuality,
+                                 tcopts.PreferColor, tcopts.TextureFarClip);
             }
 
-            var results = Backproject.BackprojectObservations(opts, imageObservations, out Backproject.Stats stats);
+            var results = Backproject.BackprojectObservations(opts, imageObservations, out stats);
 
             if (!quiet)
             {
-                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed",
-                                 Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels),
-                                 Fmt.KMG(stats.BackprojectMissingPixels));
+                pipeline.LogInfo("backprojected {0} pixels from surface{1}, {2} from orbital, {3} failed, " +
+                                 "tried up to {4} observations per pixel",
+                                 Fmt.KMG(stats.BackprojectedSurfacePixels), forMesh,
+                                 Fmt.KMG(stats.BackprojectedOrbitalPixels), Fmt.KMG(stats.BackprojectMissingPixels),
+                                 stats.NumFallbacks + 1);
             }
 
             return results;
@@ -768,9 +782,11 @@ namespace OPS.Landform
                                                       tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
                                                       orbitalTexture: orbitalTexture);
 
-            pipeline.LogInfo("filled {0} pixels from surface observations, {1} from orbital, {2} failed",
-                             Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels),
-                             Fmt.KMG(stats.BackprojectMissingPixels));
+            pipeline.LogInfo("filled {0} pixels from {1} surface observations, {2} from orbital, {3} failed, " +
+                             "{4} fallbacks to original texture",
+                             Fmt.KMG(stats.BackprojectedSurfacePixels), srcTextureVariant,
+                             Fmt.KMG(stats.BackprojectedOrbitalPixels), Fmt.KMG(stats.BackprojectMissingPixels),
+                             stats.NumFallbacks);
 
             if (stats.NumFallbacks > 0)
             {
