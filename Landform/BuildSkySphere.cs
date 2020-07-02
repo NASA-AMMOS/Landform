@@ -618,14 +618,9 @@ namespace OPS.Landform
                 SaveBackprojectTextureDebug(bigBlurredImage, TextureVariant.Blurred, withMesh: false);
             }
 
-            double residualEpsilon = 0.1 * LimberDMG.DEF_RESIDUAL_EPSILON;
-            int numRelaxationSteps = 2 * LimberDMG.DEF_NUM_RELAXATION_STEPS;
-            int numMultigridIterations = 2 * LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS;
-            double lambda = 0.1 * LimberDMG.DEF_LAMBDA;
             var edgeMode = wrappable ? LimberDMG.EdgeBehavior.WrapCylinder : LimberDMG.DEF_EDGE_BEHAVIOR;
             Image bigBlendedImage = BlendImages.BlendImage(pipeline, bigIndexMap, bigBlurredImage, indexedImages,
-                                                           residualEpsilon, numRelaxationSteps, numMultigridIterations,
-                                                           lambda, edgeMode);
+                                                           edgeMode: edgeMode);
             bigBlurredImage = null; //free memory
 
             if (options.WriteDebug)

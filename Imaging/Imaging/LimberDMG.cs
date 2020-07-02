@@ -1,4 +1,5 @@
 ﻿//#define LEGACY_TUNING
+//#define PRE_G65_TUNING
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -44,16 +45,20 @@ namespace OPS.Imaging
         public const int DEF_NUM_RELAXATION_STEPS = 15;
         public const int DEF_NUM_MULTIGRID_ITERATIONS = 5;
         public const double DEF_LAMBDA = 0.003;
-        public const EdgeBehavior DEF_EDGE_BEHAVIOR = EdgeBehavior.Clamp;
-        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLogLAB;
-#else
+#elif PRE_G65_TUNING
         public const double DEF_RESIDUAL_EPSILON = 0.01;
         public const int DEF_NUM_RELAXATION_STEPS = 500;
         public const int DEF_NUM_MULTIGRID_ITERATIONS = 5;
         public const double DEF_LAMBDA = 0.0001;
-        public const EdgeBehavior DEF_EDGE_BEHAVIOR = EdgeBehavior.Clamp;
-        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLAB;
+#else
+        public const double DEF_RESIDUAL_EPSILON = 0.001;
+        public const int DEF_NUM_RELAXATION_STEPS = 1000;
+        public const int DEF_NUM_MULTIGRID_ITERATIONS = 10;
+        public const double DEF_LAMBDA = 0.00001;
 #endif
+
+        public const EdgeBehavior DEF_EDGE_BEHAVIOR = EdgeBehavior.Clamp;
+        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLogLAB;
 
         public enum Flags { NONE = 0, HOLD_CONSTANT = 1, GRADIENT_ONLY = 2, NO_DATA = 4 }
 
