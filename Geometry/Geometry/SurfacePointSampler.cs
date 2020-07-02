@@ -70,8 +70,14 @@ namespace OPS.Geometry
             // Make the random generator deterministic upon sampling each model independent of one another
             random = new Random(samplingSeed);
 
+            double area = input.SurfaceArea();
+            if (area < 1e-6)
+            {
+                throw new Exception("cannot sample zero area mesh");
+            }
+
             // Calculate the quantity of points to presample randomly across the surface which are later pruned
-            int presampleQuantity = (int)(density * presampleFactor * input.SurfaceArea());
+            int presampleQuantity = (int)(density * presampleFactor * area);
 
             // Calculate the minimum allowed radius between points after pruning
             // Four circles packed into a grid with their overlapping radiuses separating them form a square defined at its edges by the circle centers
