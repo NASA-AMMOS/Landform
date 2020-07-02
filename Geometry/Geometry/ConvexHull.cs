@@ -1,11 +1,12 @@
-﻿using Microsoft.Xna.Framework;
-using OPS.Imaging;
-using OPS.MathExtensions;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Microsoft.Xna.Framework;
+using MIConvexHull;
+using OPS.MathExtensions;
+using OPS.Imaging;
 
 namespace OPS.Geometry
 {
@@ -55,8 +56,12 @@ namespace OPS.Geometry
             }
             else
             {
-                var hull = MIConvexHull.ConvexHull.Create(points);
-                var faces = hull.Faces.ToArray();
+                var result = MIConvexHull.ConvexHull.Create(points);
+                if (result.Outcome != ConvexHullCreationResultOutcome.Success)
+                {
+                    throw new Exception($"MIConvexHull failed ({result.Outcome}): {result.ErrorMessage}");
+                }
+                var faces = result.Result.Faces.ToArray();
                 Mesh = new Mesh(true, false, false, faces.Length * 3);
                 Planes = new List<Plane>(faces.Length);
                 for (int i = 0; i < faces.Length; i++)
@@ -99,9 +104,52 @@ namespace OPS.Geometry
             Planes = new List<Plane>();
         }
 
+        public ConvexHull(BoundingBox box)
+        {
+            Mesh = box.ToMesh();
+            Planes = box.FacePlanes();
+        }
+
+        /// <summary>
+        /// MIConvexHull throws exception if we ask it to create a 3D hull but the input points are degenerate.
+        /// Degeneracies include: all input points coplanar, or fewer than 3 input points.
+        /// We handle the specific case of exactly 3 non-coincident input points above.
+        /// But we don't currently have a nice implementation to handle the following cases:
+        /// * fewer than 3 input points
+        /// * 3 input points with any 2 points coincident
+        /// * more than 3 input points but all points coplanar (including 3 or fewer unique points due to coincidences)
+        /// For now this function gets a hull for all cases by falling back to a mesh bounding box with a min size.
+        /// That's conservative and probably good enough for what we're doing right now.
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/559
+        /// </summary>
+        public static ConvexHull CreateWithFallback(Mesh mesh)
+        {
+            try
+            {
+                return mesh.Vertices.Count > 0 ? new ConvexHull(mesh) : new ConvexHull();
+            }
+            catch
+            {
+                return new ConvexHull(BoundingBoxExtensions.CreateFromPoints(mesh.Vertices.Select(v => v.Position),
+                                                                             minSize: 1e-6));
+            }
+        }
+
+        public static ConvexHull CreateWithFallback(IEnumerable<Vector3> pts)
+        {
+            try
+            {
+                return pts.Count() > 0 ? new ConvexHull(pts) : new ConvexHull();
+            }
+            catch
+            {
+                return new ConvexHull(BoundingBoxExtensions.CreateFromPoints(pts, minSize: 1e-6));
+            }
+        }
+
         public static ConvexHull Union(params ConvexHull[] hulls)
         {
-            return new ConvexHull(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
+            return ConvexHull.CreateWithFallback(hulls.SelectMany(h => h.Vertices.Select(vtx => vtx.Position)));
         }
 
         public static ConvexHull FromImage(Image image, double nearClip = 0.1, double farClip = 20)
@@ -133,7 +181,7 @@ namespace OPS.Geometry
                 }
             }
 
-            return new ConvexHull(pts);
+            return ConvexHull.CreateWithFallback(pts);
         }
 
         /// <summary>

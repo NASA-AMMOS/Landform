@@ -900,12 +900,12 @@ namespace OPS.Pipeline
         }
      
         public static IDictionary<string, ConvexHull> //indexed by observation name
-            BuildConvexHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
-                             bool onlyAligned, IEnumerable<RoverObservation> imgObservations, double farClip = 20)
+            BuildFrustumHulls(PipelineCore pipeline, FrameCache frameCache, string outputFrame, bool usePriors,
+                              bool onlyAligned, IEnumerable<RoverObservation> imgObservations, double farClip = 20)
         {
             int no = imgObservations.Count();
 
-            pipeline.LogInfo("building convex hulls for {0} observations", no);
+            pipeline.LogInfo("building frustum hulls for {0} observations", no);
 
             var obsToHull = new ConcurrentDictionary<string, ConvexHull>();
 
@@ -913,7 +913,7 @@ namespace OPS.Pipeline
             CoreLimitedParallel.ForEach(imgObservations, obs =>
             {
                 Interlocked.Increment(ref nh);
-                pipeline.LogDebug("building convex hull for observation {0}, {1}/{2}", obs.Name, nh, no);
+                pipeline.LogDebug("building frustum hull for observation {0}, {1}/{2}", obs.Name, nh, no);
                 var meshObs = new WedgeObservations() { Texture = obs };
                 var opts = new WedgeObservations.MeshOptions()
                 { Frame = outputFrame, UsePriors = usePriors, OnlyAligned = onlyAligned };
@@ -922,6 +922,10 @@ namespace OPS.Pipeline
                 if (hull != null)
                 {
                     obsToHull.AddOrUpdate(obs.Name, _ => hull, (_, __) => hull);
+                }
+                else
+                {
+                    pipeline.LogWarn("failed to build convex hull for observation {0}", obs.Name);
                 }
             });
 

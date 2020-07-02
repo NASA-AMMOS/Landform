@@ -501,7 +501,7 @@ namespace OPS.Geometry
         ///
         /// Points are mapped from SRC to DST and from {a-d} to {A-D}.
         ///
-        /// If ease < 0 or ease > 1 then the mapping is piecewise bilinear.
+        /// If ease <= 0 or ease >= 1 then the mapping is piecewise bilinear.
         /// Otherwise an approximate cubic spline easing function is used
         /// to avoid the tangent discontinuity at the boundaries of the inner region.
         /// </summary>
@@ -544,7 +544,7 @@ namespace OPS.Geometry
 
             //bake an easing function
             //without easing the remap is a linear function taking x in [0,1] to y in [0,1] with unit slope
-            //with ease in the initial slope is as given, otherwise the final slope is as given
+            //with ease-in the initial slope is as given, otherwise the final slope is as given
             //the easing function is a piecewise linear approximation to a cubic bezier
             //we use cubic bezier because
             //(a) the curve is always contained in the convex hull of the control polygon
@@ -685,9 +685,24 @@ namespace OPS.Geometry
             return box.Min.X > box.Max.X || box.Min.Y > box.Max.Y || box.Min.Z > box.Max.Z;
         }
 
-        public static BoundingBox CreateFromPoint(Vector3 pt)
+        public static BoundingBox CreateFromPoint(Vector3 pt, double minSize = 0)
         {
-            return new BoundingBox(pt, pt);
+            Vector3 offset = Vector3.One * 0.5 * minSize;
+            return new BoundingBox(pt - offset, pt + offset);
+        }
+
+        public static BoundingBox CreateFromPoints(IEnumerable<Vector3> pts, double minSize = 0)
+        {
+            if (pts.Count() == 0)
+            {
+                return CreateEmpty();
+            }
+            var box = CreateFromPoint(pts.First(), minSize);
+            foreach (var pt in pts.Skip(1))
+            {
+                Extend(ref box, pt);
+            }
+            return box;
         }
 
         public static BoundingBox CreateFromTriangle(Triangle tri)
@@ -732,6 +747,15 @@ namespace OPS.Geometry
             box.Max.X = Math.Max(box.Max.X, pt.X);
             box.Max.Y = Math.Max(box.Max.Y, pt.Y);
             box.Max.Z = Math.Max(box.Max.Z, pt.Z);
+            return box;
+        }
+
+        public static BoundingBox Extend(ref BoundingBox box, params Vector3[] pts)
+        {
+            foreach (var pt in pts)
+            {
+                Extend(ref box, pt);
+            }
             return box;
         }
 
@@ -821,6 +845,18 @@ namespace OPS.Geometry
             tt.Add(new Triangle(new Vertex(c[7], lf, color), new Vertex(c[3], lf, color), new Vertex(c[0], lf, color)));
 
             return new Mesh(tt, hasNormals: true, hasColors: color.HasValue);
+        }
+
+        public static List<Plane> FacePlanes(this BoundingBox box)
+        {
+            var ret = new List<Plane>();
+            ret.Add(PlaneExtensions.FromPointAndNormal(box.Min, new Vector3(-1, 0, 0)));
+            ret.Add(PlaneExtensions.FromPointAndNormal(box.Min, new Vector3(0, -1, 0)));
+            ret.Add(PlaneExtensions.FromPointAndNormal(box.Min, new Vector3(0, 0, -1)));
+            ret.Add(PlaneExtensions.FromPointAndNormal(box.Max, new Vector3(1, 0, 0)));
+            ret.Add(PlaneExtensions.FromPointAndNormal(box.Max, new Vector3(0, 1, 0)));
+            ret.Add(PlaneExtensions.FromPointAndNormal(box.Max, new Vector3(0, 0, 1)));
+            return ret;
         }
 
         public static Matrix StretchCubeAlongLineSegment(Vector3 a, Vector3 b, double size = 1)

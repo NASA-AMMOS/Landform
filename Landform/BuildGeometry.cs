@@ -1071,8 +1071,8 @@ namespace OPS.Landform
             pipeline.LogInfo("only keeping triangles visible in observations: {0}",
                              string.Join(", ", onlyForObs.Select(obs => obs.Name)));
 
-            var hulls = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, options.UsePriors,
-                                                     options.OnlyAligned, onlyForObs).Values;
+            var hulls = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, options.UsePriors,
+                                                      options.OnlyAligned, onlyForObs).Values;
 
             Mesh filtered = new Mesh();
             filtered.SetProperties(mesh);

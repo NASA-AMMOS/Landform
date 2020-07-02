@@ -554,8 +554,8 @@ namespace OPS.Landform
 
         protected void BuildObsHulls()
         {
-            obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                     tcopts.OnlyAligned, roverImages, farClip: tcopts.TextureFarClip );
+            obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
+                                                      tcopts.OnlyAligned, roverImages, farClip: tcopts.TextureFarClip );
 #if DBG_FRUSTA
             if (tcopts.WriteDebug)
             {

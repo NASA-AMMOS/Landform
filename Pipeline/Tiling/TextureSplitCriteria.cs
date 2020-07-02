@@ -74,7 +74,7 @@ namespace OPS.Pipeline
                 return false;
 
             // finer frustum test: get all observations that intersect mesh hull
-            ConvexHull clippedHull = new ConvexHull(clippedMesh);
+            ConvexHull clippedHull = ConvexHull.CreateWithFallback(clippedMesh);
             intersectingCameras = intersectingCameras.Where(ci => clippedHull.Intersects(ci.hullInMesh)).ToList();
 
             //no textures would be used on this mesh, no need to split

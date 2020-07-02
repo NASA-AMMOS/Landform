@@ -772,11 +772,11 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("loading scene mesh from database to filter images");
                     var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                    var meshHull = new ConvexHull(mesh);
+                    var meshHull = ConvexHull.CreateWithFallback(mesh);
                     
                     pipeline.LogInfo("testing {0} image frusta for intersection with scene mesh hull", images.Count);
-                    var obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, options.SiteDrive,
-                                                                 options.UsePriors, options.OnlyAligned, images);
+                    var obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, options.SiteDrive,
+                                                                  options.UsePriors, options.OnlyAligned, images);
                     var tmp = new ConcurrentBag<string>();
                     CoreLimitedParallel.ForEach(images, obs =>
                     {
