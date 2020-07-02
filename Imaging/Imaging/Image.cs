@@ -88,12 +88,12 @@ namespace OPS.Imaging
         }
 
         private static readonly Vector2[] NeighborPixelsOffsets4Centered =
-    {
-                new Vector2( -1.0,  0.0),
-                new Vector2(  0.0, -1.0),
-                new Vector2(  0.0,  1.0),
-                new Vector2(  1.0,  0.0)
-            };
+        {
+            new Vector2( -1.0,  0.0),
+            new Vector2(  0.0, -1.0),
+            new Vector2(  0.0,  1.0),
+            new Vector2(  1.0,  0.0)
+        };
 
         public static List<Vector2> GetOffsetPixels(Vector2 srcPixel, double offset)
         {

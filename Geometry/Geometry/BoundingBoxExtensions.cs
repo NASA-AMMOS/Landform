@@ -661,8 +661,8 @@ namespace OPS.Geometry
         public static RTree.Rectangle ToRectangle(this BoundingBox box)
         {
             return new RTree.Rectangle((float)box.Min.X, (float)box.Min.Y,
-                                 (float)box.Max.X, (float)box.Max.Y,
-                                 (float)box.Min.Z, (float)box.Max.Z);
+                                       (float)box.Max.X, (float)box.Max.Y,
+                                       (float)box.Min.Z, (float)box.Max.Z);
         }
 
         public static BoundingBox ToBoundingBox(this RTree.Rectangle rect)

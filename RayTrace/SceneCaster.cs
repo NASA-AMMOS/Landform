@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
 using Embree;
-using System.Collections.Concurrent;
-using OPS.Imaging;
 using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.RayTrace
 {
@@ -42,7 +43,7 @@ namespace OPS.RayTrace
         {
             if (sceneBuilt)
             {
-                throw new Exception("Cannot add mesh to a renderer after it its scene has been built");
+                throw new Exception("cannot add mesh after scene has been built");
             }
             var model = new Model(device, mesh, texture, transform, SCENE_FLAGS, TRAVERSAL_FLAGS);
             scene.Add(model);

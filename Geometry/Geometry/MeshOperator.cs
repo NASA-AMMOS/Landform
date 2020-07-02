@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using RTree;
-using Supercluster.KDTree;
 using OPS.Util;
 using OPS.Imaging;
 
@@ -93,7 +92,7 @@ namespace OPS.Geometry
                     vertexTree.Add(vertices[i].Bounds().ToRectangle(), i);
                 }
             }
-            if(HasUVs && buildUVFaceTree)
+            if (HasUVs && buildUVFaceTree)
             {
                 uvFaceTree = new RTree<int>(10, 5);
                 for(int i = 0; i < triangles.Count; i++)
