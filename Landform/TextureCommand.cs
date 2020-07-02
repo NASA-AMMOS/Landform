@@ -77,7 +77,7 @@ namespace OPS.Landform
         [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
-        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 20)]
+        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 100)]
         public virtual double TextureFarClip { get; set; }
 
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = PreferColorMode.EquivalentScores)]
