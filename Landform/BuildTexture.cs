@@ -38,6 +38,9 @@ namespace OPS.Landform
         [Value(1, Required = false, HelpText = "URL, file, or file type (extension starting with \".\") to which to save textured scene mesh", Default = null)]
         public string OutputMesh { get; set; }
 
+        [Option(HelpText = "Force redo backproject", Default = false)]
+        public bool RedoBackproject { get; set; }
+
         [Option(HelpText = "Only generate index image", Default = false)]
         public bool OnlyIndex { get; set; }
 
@@ -57,6 +60,7 @@ namespace OPS.Landform
         public BuildTexture(BuildTextureOptions options) : base(options)
         {
             this.options = options;
+            options.RedoBackproject |= options.Redo;
         }
 
         public int Run()
@@ -70,7 +74,7 @@ namespace OPS.Landform
 
                 RunPhase("loading input mesh", () => LoadInputMesh(requireUVs: true));
 
-                if (!options.Redo && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+                if (!options.RedoBackproject && sceneMesh.BackprojectIndexGuid != Guid.Empty)
                 {
                     RunPhase("build backproject results from existing index", BuildBackprojectResultsFromIndex);
                 }
