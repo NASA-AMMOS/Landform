@@ -364,7 +364,7 @@ namespace OPS.Imaging
         /// This method does not retain metadata or camera model.
         /// If the image has a CalibratedCameraModel then you could use CalibratedCameraModel.Decimated().
         /// </summary>
-        public Image Decimated(int blocksize)
+        public Image Decimated(int blocksize, bool average = true)
         {
             if (blocksize == 1)
             {
@@ -399,7 +399,15 @@ namespace OPS.Imaging
                                             n++;
                                         }
                                     }
+                                    if (!average && n > 0)
+                                    {
+                                        break;
+                                    }
                                 }
+                            }
+                            if (!average && n > 0)
+                            {
+                                break;
                             }
                         }
                         if (n > 0)

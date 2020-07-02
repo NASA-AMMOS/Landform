@@ -22,7 +22,7 @@ namespace OPS.Landform
     public class TilingCommandOptions : TextureCommandOptions
     {
         [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 256)]
-        public int TileResolution { get; set; }
+        public virtual int TileResolution { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
         public virtual bool NoTextures { get; set; }

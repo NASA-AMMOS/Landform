@@ -548,7 +548,7 @@ namespace OPS.Landform
 
             blendedTexture = BlendImage(pipeline, backprojectIndex, blurredTexture, indexedImages,
                                         options.ResidualEpsilon, options.NumRelaxationSteps,
-                                        options.NumMultigridIterations, options.Lambda);
+                                        options.NumMultigridIterations, options.Lambda, LimberDMG.EdgeBehavior.Clamp);
 
             if (!options.NoSave)
             {
@@ -566,7 +566,8 @@ namespace OPS.Landform
                                        double residualEpsilon = LimberDMG.DEF_RESIDUAL_EPSILON,
                                        int numRelaxationSteps = LimberDMG.DEF_NUM_RELAXATION_STEPS,
                                        int numMultigridIterations = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS,
-                                       double lambda = LimberDMG.DEF_LAMBDA)
+                                       double lambda = LimberDMG.DEF_LAMBDA,
+                                       LimberDMG.EdgeBehavior edgeMode = LimberDMG.DEF_EDGE_BEHAVIOR)
         {
             int width = backprojectIndex.Width, height = backprojectIndex.Height;
 
@@ -618,8 +619,7 @@ namespace OPS.Landform
             }
 
             var dmg = new LimberDMG(residualEpsilon, numRelaxationSteps, numMultigridIterations, lambda,
-                                    LimberDMG.EdgeBehavior.Clamp, LimberDMG.ColorConversion.RGBToLAB,
-                                    msg => pipeline.LogVerbose(msg));
+                                    edgeMode, LimberDMG.ColorConversion.RGBToLAB, msg => pipeline.LogVerbose(msg));
 
             return dmg.StitchImage(blurredTexture, index, flags);
         }

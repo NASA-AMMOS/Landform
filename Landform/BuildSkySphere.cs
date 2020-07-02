@@ -50,7 +50,7 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere radius (meters), or auto to fit scene bounds", Default = "auto")]
         public string SphereRadiusMeters { get; set; }
 
-        [Option(HelpText = "Sky sphere mesh tile size (degrees)", Default = 10)]
+        [Option(HelpText = "Sky sphere mesh tile size (degrees), should divide 360 by a power of 2", Default = 11.25)]
         public double SphereResolutionDegrees { get; set; }
 
         [Option(HelpText = "Sky sphere mesh max degrees above / below horizon", Default = 40)]
@@ -94,10 +94,15 @@ namespace OPS.Landform
 
         [Option(HelpText = "Option disabled for this command", Default = ObsSelectionStrategyName.Spatial)]
         public override ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
+
+        [Option(HelpText = "Image resolution for output texture for each tile, should be power of 2", Default = 512)]
+        public override int TileResolution { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand
     {
+        public const int MAX_BLEND_SIZE = 8192;
+
         public const string SKY_TILING_DIR = "tiling/SkyTile";
         public const string SKY_TILESET_DIR = "tiling/SkyTileSet";
 
@@ -248,6 +253,12 @@ namespace OPS.Landform
                              "min elevation {4:f3} deg below horizon, max elevation {5:f3} deg above horizon",
                              numTiles, options.SphereResolutionDegrees, sphereTileRows, sphereTileCols,
                              MathHelper.ToDegrees(angleBelowHorizon), MathHelper.ToDegrees(angleAboveHorizon));
+
+            int totalWidth = sphereTileCols * tileResolution;
+            if (!MathHelper.IsPowerOfTwo(totalWidth))
+            {
+                pipeline.LogWarn("total width {0} pixels not a power of two, LimberDMG wrap mode disabled", totalWidth);
+            }
 
             //length of circular arc = circumference * (angle of arc in radians) / (2 * PI)
             //                       = (2 * PI * radius) * (angle of arc in radians) / (2 * PI)
@@ -506,8 +517,26 @@ namespace OPS.Landform
 
         private void BlendTileTextures()
         {
-            int bigImgWidth = sphereTileCols * tileResolution;
-            int bigImgHeight = sphereTileRows * tileResolution;
+            int tileRes = tileResolution;
+            int tileDecimation = 1;
+            int bigImgWidth = sphereTileCols * tileRes, bigImgHeight = sphereTileRows * tileRes;
+
+            while (Math.Max(bigImgWidth, bigImgHeight) > MAX_BLEND_SIZE)
+            {
+                tileDecimation++;
+                tileRes = tileResolution / tileDecimation; //integer math
+                bigImgWidth = sphereTileCols * tileRes;
+                bigImgHeight = sphereTileRows * tileRes;
+            }
+
+            bool wrappable = MathHelper.IsPowerOfTwo(bigImgWidth);
+            if (!wrappable)
+            {
+                bigImgWidth += 2 * tileRes;
+            }
+
+            pipeline.LogInfo("building {0}x{1} backproject index for blending, decimation {2}, {3}wrappable",
+                             bigImgWidth, bigImgHeight, tileDecimation, wrappable ? "" : "not ");
 
             Image bigIndexMap = new Image(3, bigImgWidth, bigImgHeight);
             CoreLimitedParallel.ForEach(tileList.LeafNames, leafName =>
@@ -515,6 +544,11 @@ namespace OPS.Landform
                 string indexName = leafName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                 string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
                 var leafIndex = MaskBackprojectIndex(pipeline.LoadImage(indexUrl));
+
+                if (tileDecimation > 1)
+                {
+                    leafIndex = leafIndex.Decimated(tileDecimation, average: false);
+                }
 
                 //fill small gaps along tile boundaries, should make LimberDMG happier
                 //TODO: see if inpaint after instead of here works better
@@ -524,12 +558,22 @@ namespace OPS.Landform
                 int tileNum = int.Parse(leafName);
                 int tileRow = tileNum / sphereTileCols;
                 int tileCol = tileNum % sphereTileCols;
-                int dstPixelRow = tileRow * tileResolution;
-                int dstPixelCol = tileCol * tileResolution;
+                int dstPixelRow = tileRow * tileRes;
+                int dstPixelCol = (tileCol + (wrappable ? 0 : 1)) * tileRes;
 
                 lock (bigIndexMap)
                 {
                     bigIndexMap.Blit(leafIndex, dstPixelCol, dstPixelRow);
+
+                    //replicate data to minimize seam (not as good as wrappable)
+                    if (!wrappable && tileCol == 0)
+                    {
+                        bigIndexMap.Blit(leafIndex, bigImgWidth - tileRes, dstPixelRow);
+                    }
+                    if (!wrappable && tileCol == sphereTileCols - 1)
+                    {
+                        bigIndexMap.Blit(leafIndex, 0, dstPixelRow);
+                    }
                 }
             });
 
@@ -537,8 +581,6 @@ namespace OPS.Landform
             {
                 SaveBackprojectIndexDebug(bigIndexMap, withMesh: false);
             }
-
-            //ISSUE #1093 replicate data to avoid seam at the wrapping edge of texture data
 
             var backprojectResults = Backproject.BuildResultsFromIndex(bigIndexMap, indexedImages);
 
@@ -552,7 +594,14 @@ namespace OPS.Landform
                 SaveBackprojectTextureDebug(bigBlurredImage, TextureVariant.Blurred, withMesh: false);
             }
 
-            Image bigBlendedImage = BlendImages.BlendImage(pipeline, bigIndexMap, bigBlurredImage, indexedImages);
+            double residualEpsilon = 0.1 * LimberDMG.DEF_RESIDUAL_EPSILON;
+            int numRelaxationSteps = 2 * LimberDMG.DEF_NUM_RELAXATION_STEPS;
+            int numMultigridIterations = 2 * LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS;
+            double lambda = 0.1 * LimberDMG.DEF_LAMBDA;
+            var edgeMode = wrappable ? LimberDMG.EdgeBehavior.WrapCylinder : LimberDMG.DEF_EDGE_BEHAVIOR;
+            Image bigBlendedImage = BlendImages.BlendImage(pipeline, bigIndexMap, bigBlurredImage, indexedImages,
+                                                           residualEpsilon, numRelaxationSteps, numMultigridIterations,
+                                                           lambda, edgeMode);
             bigBlurredImage = null; //free memory
 
             if (options.WriteDebug)
