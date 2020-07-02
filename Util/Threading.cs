@@ -109,6 +109,14 @@ namespace OPS.Util
             Parallel.ForEach<T>(list, options, action);
         }
 
+        //parallel foreach with thread local data
+        public static void ForEach<T,TLocal>(IEnumerable<T> list, Func<TLocal> localInit,
+                                             Func<T,TLocal,TLocal> action, Action<TLocal> localFinally)
+        {            
+            Parallel.ForEach(list, new ParallelOptions() { MaxDegreeOfParallelism = maxParallelism }, localInit,
+                             (i, opts, local) => action(i, local), localFinally);
+        }
+
         public static void For(int fromInclusive, int toExclusive, Action<int> action)
         {            
             Parallel.For(fromInclusive, toExclusive,
