@@ -74,6 +74,7 @@ namespace OPS.Landform
         protected double orbitalDEMMetersPerPixel, orbitalTextureMetersPerPixel;
 
         protected DEM orbitalDEM;
+        protected Image orbitalTexture;
 
         protected WedgeCommand(WedgeCommandOptions wcopts) : base(wcopts)
         {
@@ -203,21 +204,55 @@ namespace OPS.Landform
                              cams.Length > 0 ? (" for cameras " + string.Join(", ", cams)) : "");
         }
 
-        protected void LoadOrbitalDEM()
+        protected bool LoadOrbitalDEM(bool required = false)
         {
             try
             {
                 var heightmap = LoadOrbitalAsset(Observation.ORBITAL_DEM_INDEX);
-                if (heightmap != null)
+                if (heightmap == null)
                 {
-                    var cfg = OrbitalConfig.Instance;
-                    orbitalDEM = new DEM(heightmap, cfg.DEMMetersPerPixel, cfg.DEMMinFilter, cfg.DEMMaxFilter);
+                    throw new Exception("failed to load orbital DEM");
                 }
+                var cfg = OrbitalConfig.Instance;
+                orbitalDEM = new DEM(heightmap, cfg.DEMMetersPerPixel, cfg.DEMMinFilter, cfg.DEMMaxFilter);
+                return true;
             }
             catch (Exception ex)
             {
-                pipeline.LogWarn("failed to load orbital DEM, running without it: {0}", ex.Message);
-                wcopts.NoOrbital = true;
+                if (!required)
+                {
+                    pipeline.LogWarn(ex.Message);
+                    return false;
+                }
+                else
+                {
+                    throw;
+                }
+            }
+        }
+
+        protected bool LoadOrbitalTexture(bool required = false)
+        {
+            try
+            {
+                orbitalTexture = LoadOrbitalAsset(Observation.ORBITAL_IMAGE_INDEX);
+                if (orbitalTexture == null)
+                {
+                    throw new Exception("failed to load orbital image");
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                if (!required)
+                {
+                    pipeline.LogWarn(ex.Message);
+                    return false;
+                }
+                else
+                {
+                    throw;
+                }
             }
         }
 

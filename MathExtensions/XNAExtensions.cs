@@ -152,6 +152,16 @@ namespace OPS.MathExtensions
         {
             return new Vector2(v.Y, v.X);
         }
+
+        public static bool IsFinite(this Vector3 v)
+        {
+            return MathE.IsFinite(v.X) && MathE.IsFinite(v.Y) && MathE.IsFinite(v.Z);
+        }
+
+        public static bool IsFinite(this Vector2 v)
+        {
+            return MathE.IsFinite(v.X) && MathE.IsFinite(v.Y);
+        }
     }
 
     public class XNAMatrixJsonConverter : JsonConverter

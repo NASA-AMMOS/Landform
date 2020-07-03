@@ -12,11 +12,18 @@ using OPS.Imaging;
 
 namespace OPS.Geometry
 {
-    public struct PixelPoint
+    //potentially huge lists of these things are thrown around in backproject
+    //let's keep memory usage down by making it a class (reference type) not a struct (value type)
+    public class PixelPoint
     {
         public Vector2 Pixel;
         public Vector3 Point;
-    };
+        public PixelPoint(Vector2 pixel, Vector3 point)
+        {
+            this.Pixel = pixel;
+            this.Point = point;
+        }
+    }
 
     /// <summary>
     /// A class for performing optimized operations on a mesh
@@ -402,7 +409,7 @@ namespace OPS.Geometry
                     }
                 });
 
-            var results = pixelToPoint.Select(entry => new PixelPoint() { Pixel = entry.Key, Point = entry.Value }).ToList();
+            var results = pixelToPoint.Select(entry => new PixelPoint(entry.Key, entry.Value)).ToList();
 
             if(sorted)
             {

@@ -38,6 +38,10 @@ namespace OPS.Pipeline.Texturing
         public override List<ScoredContext> FilterAndSortContexts(Vector3 meshPoint, List<Backproject.Context> contexts,
                                                                   SceneCaster meshCaster = null)
         {
+            if (!meshPoint.IsFinite())
+            {
+                return null; //backproject options sampleTransform (used e.g. by BuildSkySphere) can kill points
+            }
             var bestContexts = new BestContexts(this);
             //testing the frustum hull can be a bit expensive
             //InFrame() uses the (possibly nonlinear) camera model and gives a better answer with reasonable perf
@@ -49,7 +53,7 @@ namespace OPS.Pipeline.Texturing
                     //estimate of min meters on mesh per pixel in obs, smaller distance means better texture resolution
                     double dist = ProjectedPixelDistances
                         .CalculateForObs(meshOp.Bounds, meshCaster ?? this.meshCaster, occlusionScene,
-                                         new List<PixelPoint>() { new PixelPoint { Pixel = pixel, Point = meshPoint } },
+                                         new List<PixelPoint>() { new PixelPoint(pixel, meshPoint) },
                                          ctx.Obs, ctx.CameraModel, ctx.FrustumHull, ctx.ObsToMesh, RaycastTolerance);
 
                     if (dist < double.MaxValue && (OrbitalMetersPerPixel <= 0 || dist < OrbitalMetersPerPixel))

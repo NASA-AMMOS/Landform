@@ -35,8 +35,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Ease texture space warp in range [0, 1], otherwise no easing", Default = 0.5)]
         public double EaseTextureWarp { get; set; }
+
         [Option(HelpText = "Ease surface pixels per meter factor", Default = 0.2)]
         public double EaseSurfacePPMFactor { get; set; }
+
+        [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
+        public double OrbitalPointsPerMeter { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -45,6 +49,8 @@ namespace OPS.Landform
 
         protected string meshFrame;
         protected int sceneTextureResolution;
+
+        protected double orbitalSamplesPerPixel;
 
         public GeometryCommand(GeometryCommandOptions gcopts) : base(gcopts)
         {
@@ -69,6 +75,12 @@ namespace OPS.Landform
                 pipeline.LogWarn("scene texture resolution {0} not a power of two", sceneTextureResolution);
             }
 
+            orbitalSamplesPerPixel = 1;
+            if (gcopts.OrbitalPointsPerMeter > 0 && orbitalDEMMetersPerPixel > 0)
+            {
+                orbitalSamplesPerPixel = gcopts.OrbitalPointsPerMeter * orbitalDEMMetersPerPixel;
+            }
+            
             return true;
         }
 

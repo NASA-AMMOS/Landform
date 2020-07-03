@@ -115,8 +115,6 @@ namespace OPS.Landform
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
-        protected Image orbitalTexture;
-
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
             this.tcopts = tcopts;
@@ -179,8 +177,11 @@ namespace OPS.Landform
 
                 if (!tcopts.NoOrbital)
                 {
-                    LoadOrbitalTexture(); //may overwrite tcopts.NoOrbital
-
+                    bool ok = LoadOrbitalTexture();
+                    if (!ok && DisableOrbitalIfNoOrbitalTexture())
+                    {
+                        tcopts.NoOrbital = true;
+                    }
                     if (tcopts.NoOrbital && tcopts.NoSurface)
                     {
                         throw new Exception("--nosurface but failed to load orbital");
@@ -194,6 +195,11 @@ namespace OPS.Landform
                 return false;
             }
 
+            return true;
+        }
+
+        protected virtual bool DisableOrbitalIfNoOrbitalTexture()
+        {
             return true;
         }
 
@@ -239,19 +245,6 @@ namespace OPS.Landform
             }
         }
             
-        protected void LoadOrbitalTexture()
-        {
-            try
-            {
-                orbitalTexture = LoadOrbitalAsset(Observation.ORBITAL_IMAGE_INDEX);
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogWarn("failed to load orbital image, running without it: {0}", ex.Message);
-                tcopts.NoOrbital = true;
-            }
-        }
-
         protected override bool ObservationFilter(RoverObservation obs)
         {
             return obs.UseForTexturing && (obs.ObservationType == RoverProductType.Image ||
@@ -682,6 +675,8 @@ namespace OPS.Landform
                 opts.skyDirInMesh = -nadir;
             }
 
+            opts = CustomizeBackprojectOptions(opts);
+
             if (!quiet)
             {
                 pipeline.LogInfo("backprojecting {0} observations{1}, resolution {2}, quality {3}, prefer color {4}, " +
@@ -702,6 +697,11 @@ namespace OPS.Landform
             }
 
             return results;
+        }
+
+        protected virtual Backproject.Options CustomizeBackprojectOptions(Backproject.Options opts)
+        {
+            return opts;
         }
 
         protected void BuildBackprojectIndex()

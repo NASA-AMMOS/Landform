@@ -220,5 +220,12 @@ namespace OPS.MathExtensions
             }
             return Clamp(radians, 0, 2 * Math.PI); //clamp accounts for small numerical error
         }
+
+        public static bool IsFinite(double v)
+        {
+            //for some reason double.IsFinite() won't compile
+            //also I'm not sure if it checks for NaN
+            return !double.IsNaN(v) && v > double.NegativeInfinity && v < double.PositiveInfinity;
+        }
     }
 }

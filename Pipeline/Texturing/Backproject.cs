@@ -11,6 +11,7 @@ using System.IO;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using OPS.Util;
+using OPS.MathExtensions;
 using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
@@ -405,6 +406,8 @@ namespace OPS.Pipeline
             public Vector3 skyDirInMesh; //for checking orbital occlusion
             public Matrix meshToOrbital;
 
+            public Func<List<PixelPoint>, List<PixelPoint>> sampleTransform;  //used e.g. by BuildSkySphere
+
             public string meshName;
 
             public bool quiet, verbose;
@@ -459,6 +462,12 @@ namespace OPS.Pipeline
             List<PixelPoint> samplePoints = opts.meshOp.SampleUVSpace(resolution, resolution);
             int np = samplePoints.Count;
             info($"collected {Fmt.KMG(np)} sample points");
+
+            if (opts.sampleTransform != null)
+            {
+                info($"applying custom transform to {Fmt.KMG(np)} sample points");
+                samplePoints = opts.sampleTransform(samplePoints);
+            }
 
             if (surfaceImages.Count() == 0 && orbitalImage == null)
             {
@@ -573,8 +582,8 @@ namespace OPS.Pipeline
                     sortedContexts[idx] = strategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts,
                                                                          opts.meshCaster);
                 });
-                int maxNumLevels = sortedContexts.Values.Max(contexts => contexts.Count);
-                int minNumLevels = sortedContexts.Values.Min(contexts => contexts.Count);
+                int maxNumLevels = sortedContexts.Values.Max(contexts => contexts != null ? contexts.Count : 0);
+                int minNumLevels = sortedContexts.Values.Min(contexts => contexts != null ? contexts.Count : 0);
                 info($"collected from {minNumLevels} to {maxNumLevels} contexts per pixel ({pt.HMSR})");
 
                 int maxUsedLevel = 0, numFailed = 0;
@@ -588,16 +597,20 @@ namespace OPS.Pipeline
                     verbose($"starting backproject into preference {level} observations");
 
                     // remove pixels that had all contexts fail (or which had no contexts)
-                    int prevFailed = failed.Count;
-                    failed.AddRange(remaining.Where(idx => sortedContexts[idx].Count <= level));
-                    if (failed.Count > prevFailed)
+                    var newFailed = remaining
+                        .Where(idx => sortedContexts[idx] == null || sortedContexts[idx].Count <= level)
+                        .ToList();
+                    if (newFailed.Count > 0)
                     {
-                        numFailed += failed.Count - prevFailed;
-                        verbose($"gave up on {Fmt.KMG(failed.Count - prevFailed)} pixels with no preference " +
+                        failed.AddRange(newFailed);
+                        numFailed += newFailed.Count;
+                        verbose($"gave up on {Fmt.KMG(newFailed.Count)} pixels with no preference " +
                                 $"{level} observation");
                     }
                     
-                    remaining = remaining.Where(idx => sortedContexts[idx].Count > level).ToList();
+                    remaining = remaining
+                        .Where(idx => sortedContexts[idx] != null && sortedContexts[idx].Count > level)
+                        .ToList();
                     if (remaining.Count == 0)
                     {
                         break;
@@ -838,7 +851,9 @@ namespace OPS.Pipeline
                 //testing the frustum hull can be a bit expensive
                 //camera.Project() gives a better answer with reasonable perf
                 //in the nonlin case the hull can be poorly fitting
-                if (obsHullInMesh.Contains(sample.Point))
+                if (sample.Point.IsFinite() && obsHullInMesh.Contains(sample.Point))
+#else
+                if (sample.Point.IsFinite()) //sampleTransform (used e.g. by BuildSkySphere) can kill points
 #endif
                 {
                     Vector2 px = camera.Project(Vector3.Transform(sample.Point, meshToObs), out double range);
@@ -907,14 +922,17 @@ namespace OPS.Pipeline
             {
                 var sample = samplePoints[index];
                 bool winner = false;
-                var rayMeshToSky = new Ray(sample.Point, skyDirInMesh);
-                if (occlusionScene == null || occlusionScene.RaycastDistance(rayMeshToSky, RAYCAST_NEAR_METERS) == null)
+                if (sample.Point.IsFinite()) //sampleTransform (used e.g. by BuildSkySphere) can kill points
                 {
-                    var px = orbitalObs.CameraModel.Project(Vector3.Transform(sample.Point, meshToOrbital));
-                    if (px.X >= 0 && px.X < orbitalObs.Width && px.Y >= 0 && px.Y < orbitalObs.Height)
+                    var rayToSky = new Ray(sample.Point, skyDirInMesh);
+                    if (occlusionScene == null || occlusionScene.RaycastDistance(rayToSky, RAYCAST_NEAR_METERS) == null)
                     {
-                        results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(orbitalObs, px);
-                        winner = true;
+                        var px = orbitalObs.CameraModel.Project(Vector3.Transform(sample.Point, meshToOrbital));
+                        if (px.X >= 0 && px.X < orbitalObs.Width && px.Y >= 0 && px.Y < orbitalObs.Height)
+                        {
+                            results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(orbitalObs, px);
+                            winner = true;
+                        }
                     }
                 }
 #if NO_PARALLEL_RAYCASTS

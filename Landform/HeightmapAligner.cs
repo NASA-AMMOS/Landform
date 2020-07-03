@@ -199,7 +199,7 @@ namespace OPS.Landform
 
             if (!options.NoOrbital)
             {
-                LoadOrbitalDEM(); //may overwrite options.NoOrbital
+                options.NoOrbital |= !LoadOrbitalDEM();
             }
 
             return true;

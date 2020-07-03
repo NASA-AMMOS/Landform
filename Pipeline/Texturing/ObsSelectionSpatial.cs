@@ -154,6 +154,11 @@ namespace OPS.Pipeline.Texturing
         public override List<ScoredContext> FilterAndSortContexts(Vector3 meshPoint, List<Backproject.Context> contexts,
                                                                   SceneCaster meshCaster = null)
         {
+            if (!meshPoint.IsFinite())
+            {
+                return null; //backproject options sampleTransform (used e.g. by BuildSkySphere) can kill points
+            }
+
             double searchRadius = SEARCH_RADIUS_SAMPLES * sampleSpacing;
             var searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
             var neighborIndices = rTree.Intersects(searchBounds).ToList();
@@ -225,7 +230,7 @@ namespace OPS.Pipeline.Texturing
                             bestContexts = scoredContexts[sampleIndex];
                         }
                     }
-                    return bestContexts != null ? bestContexts : new List<ScoredContext>();
+                    return bestContexts;
                 }
 
                 case SpatialSelectionMode.FattestNeighbor:
@@ -238,7 +243,7 @@ namespace OPS.Pipeline.Texturing
                             bestContexts = scoredContexts[sampleIndex];
                         }
                     }
-                    return bestContexts != null ? bestContexts : new List<ScoredContext>();
+                    return bestContexts;
                 }
 
                 case SpatialSelectionMode.BestNeighbor:
@@ -258,7 +263,7 @@ namespace OPS.Pipeline.Texturing
                             }
                         }
                     }
-                    return bestContexts != null ? bestContexts : new List<ScoredContext>();
+                    return bestContexts;
                 }
 
                 default: throw new Exception("unknown selection mode: " + SelectionMode);

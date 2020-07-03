@@ -68,6 +68,7 @@ namespace OPS.RayTrace
         /// <summary>
         /// Raycast a single ray
         /// Returns null if no intersection
+        /// NOTE: this will return both frontface and backface hits
         /// </summary>
         /// <param name="ray"></param>
         /// <param name="near"></param>
@@ -84,6 +85,7 @@ namespace OPS.RayTrace
             return HitToHitData(ray, hit);
         }
 
+        /// NOTE: this will return both frontface and backface hits
         public Vector3? RaycastPosition(Ray ray, float near = 0, float far = float.PositiveInfinity)
         {
             if (!sceneBuilt)
@@ -103,6 +105,7 @@ namespace OPS.RayTrace
             }
         }
 
+        /// NOTE: this will return both frontface and backface hits
         public double? RaycastDistance(Ray ray, float near = 0, float far = float.PositiveInfinity)
         {
             if (!sceneBuilt)
@@ -121,6 +124,8 @@ namespace OPS.RayTrace
                 return null;
             }
         }
+
+        /// NOTE: this will return both frontface and backface hits
         public HitData[] Raycast4(Ray[] rays, float near = 0, float far = float.PositiveInfinity)
         {
             if (!sceneBuilt)

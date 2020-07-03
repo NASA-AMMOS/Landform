@@ -130,9 +130,6 @@ namespace OPS.Landform
         [Option(HelpText = "Island removal based on percentage of total surface area (higher means more aggressive, 0 disables)", Default = 0.001)]
         public double TrimmerIslandPct { get; set; }
 
-        [Option(HelpText = "Orbital sampling rate outside blend radius, non-positive to use DEM resolution", Default = -1)]
-        public double OrbitalPointsPerMeter { get; set; }
-
         [Option(HelpText = "Orbital sampling rate inside blend radius, non-positive to use DEM resolution", Default = 15)]
         public double OrbitalBlendPointsPerMeter { get; set; }
 
@@ -207,7 +204,7 @@ namespace OPS.Landform
 
         private double blendRadius, sewRadius;
         private double blendExtent;
-        private int blendSamplesPerPixel, orbitalSamplesPerPixel;
+        private int blendSamplesPerPixel;
         private Matrix meshToOrbital, orbitalToMesh;
 
         public BuildGeometry(BuildGeometryOptions options) : base(options)
@@ -341,8 +338,7 @@ namespace OPS.Landform
 
             if (!options.NoOrbital)
             {
-                LoadOrbitalDEM(); //may overwrite options.NoOrbital
-                
+                options.NoOrbital |= !LoadOrbitalDEM();
                 if (options.NoOrbital && options.NoSurface)
                 {
                     throw new Exception("--nosurface but failed to load orbital");
@@ -426,12 +422,6 @@ namespace OPS.Landform
                 blendExtent = Math.Min(options.Extent, options.SurfaceExtent + Math.Max(blendRadius, 0));
             }
 
-            orbitalSamplesPerPixel = 1;
-            if (options.OrbitalPointsPerMeter > 0)
-            {
-                orbitalSamplesPerPixel = (int)Math.Ceiling(options.OrbitalPointsPerMeter * orbitalDEMMetersPerPixel);
-            }
-            
             blendSamplesPerPixel = 1;
             if (options.OrbitalBlendPointsPerMeter > 0)
             {
@@ -786,42 +776,15 @@ namespace OPS.Landform
                 maskOp = new MeshOperator(tmp, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             }
 
-            Mesh makeMesh(int subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
+            Mesh makeMesh(double subsample, Image.Subrect outerBounds, Image.Subrect innerBounds = null)
             {
-                int w = (outerBounds.Width - 1) * subsample + 1;
-                int h = (outerBounds.Height - 1) * subsample + 1;
-                double eps = 0.1;
-                var points = new Image(3, w, h);
-                points.CreateMask();
-                for (int r = 0; r < h; r++)
+                Func<Vector3, bool> filter = pt => 
                 {
-                    for (int c = 0; c < w; c++)
-                    {
-                        Vector2 px = outerBounds.Linterp(((double)c) / (w - 1), ((double)r) / (h - 1));
-                        bool mask = true;
-                        if (innerBounds == null || !innerBounds.ContainsProper(px, eps))
-                        {
-                            var pt = orbitalDEM.GetInterpolatedXYZ(px);
-                            if (pt.HasValue)
-                            {
-                                pt = Vector3.Transform(pt.Value, orbitalToMesh);
-                                if (maskOp.UVToBarycentric(new Vector2(pt.Value.X, pt.Value.Y)) == null)
-                                {
-                                    points[0, r, c] = (float)pt.Value.X;
-                                    points[1, r, c] = (float)pt.Value.Y;
-                                    points[2, r, c] = (float)pt.Value.Z;
-                                    mask = false;
-                                }
-                            }
-                        }
-                        if (mask)
-                        {
-                            points.SetMaskValue(r, c, true);
-                        }
-                    }
-                }
-                return OrganizedPointCloud.BuildOrganizedMesh(points, generateUV: false, generateNormals: true,
-                                                              quadsOnly: true);
+                    pt = Vector3.Transform(pt, orbitalToMesh);
+                    return maskOp.UVToBarycentric(new Vector2(pt.X, pt.Y)) == null; //outside surface mesh
+                };
+                return orbitalDEM.OrganizedMesh(outerBounds, innerBounds, subsample, filter, withNormals: true,
+                                                quadsOnly: true);
             }
 
             int orbitalExtentPixels = (int)Math.Ceiling(0.5 * options.Extent / orbitalDEMMetersPerPixel);
