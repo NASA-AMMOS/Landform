@@ -15,8 +15,8 @@ using OPS.Pipeline;
 ///
 /// This is not a required part of the normal tactical or contextual mesh workflows.
 ///
-/// Also, it is not well tested and is known to be problematic because it requires the full scene mesh to be atlased in
-/// build-geometry (https://github.jpl.nasa.gov/OnSight/Landform/issues/902).
+/// Also, it is known to be problematic because it requires the full scene mesh to be atlased in build-geometry
+/// (https://github.jpl.nasa.gov/OnSight/Landform/issues/902).
 ///    
 /// The generated full-scene texture and backproject index images are saved to project storage and referenced from the
 /// SceneMesh database object.
