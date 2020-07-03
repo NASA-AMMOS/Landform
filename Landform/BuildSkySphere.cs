@@ -23,7 +23,7 @@ using OPS.Pipeline.TilingServer;
 /// box which approximately match the scene bounds.
 /// 
 /// Typically runs anytime after build-geometry so that a surface scene exists.  Can be run anytime after ingest without
-/// --sceneoccludessky and with --nomatchscenebounds.
+/// --skysphereradius=auto, --nomatchscenebounds, or --sceneoccludessky=Always.
 ///
 /// Typical resolution is 5 rows and 32 columns of tiles, each with a 512x512 image
 ///
@@ -44,6 +44,8 @@ using OPS.Pipeline.TilingServer;
 /// </summary>
 namespace OPS.Landform
 {
+    public enum SkyOcclusionMode { Never, Always, Auto };
+
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
     public class BuildSkySphereOptions : TilingCommandOptions
     {
@@ -71,14 +73,17 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere background color Blue (0-255)", Default = 140)]
         public double SkyColorBlue { get; set; }
 
-        [Option(HelpText = "Occlude sky texture by scene geometry", Default = false)]
-        public bool SceneOccludesSky { get; set; }
+        [Option(HelpText = "Occlude sky texture by scene geometry (Never, Always, Auto)", Default = SkyOcclusionMode.Auto)]
+        public SkyOcclusionMode SceneOccludesSky { get; set; }
 
         [Option(HelpText = "Disable image blending", Default = false)]
         public bool NoBlend { get; set; }
 
         [Option(HelpText = "Don't attempt to match the sphere geometry to the scene bounds", Default = false)]
         public bool NoMatchSceneBounds { get; set; }
+
+        [Option(HelpText = "Only use specific surface cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc)", Default = "Mastcam,Navcam")]
+        public override string OnlyForCameras { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoTextures { get; set; }
@@ -107,6 +112,7 @@ namespace OPS.Landform
 
     public class BuildSkySphere : TilingCommand
     {
+        public const double AUTO_OCCLUDE_SKY_RADIUS = 50;
         public const int MAX_BLEND_SIZE = 8192;
 
         public const string SKY_TILING_DIR = "tiling/SkyTile";
@@ -118,6 +124,8 @@ namespace OPS.Landform
         private double angleAboveHorizon, angleBelowHorizon;
 
         private int sphereTileRows, sphereTileCols;
+
+        private bool sceneOccludesSky;
 
         private float[] skyColor;
 
@@ -204,26 +212,43 @@ namespace OPS.Landform
                 throw new Exception("--notextures not implemented for this command");
             }
 
-            if (!options.NoMatchSceneBounds && (sceneMesh == null || !sceneMesh.GetBounds().HasValue))
+            BoundingBox? sceneBounds = sceneMesh != null ? sceneMesh.GetBounds() : null;
+
+            if (!options.NoMatchSceneBounds && !sceneBounds.HasValue)
             {
                 throw new Exception("must run after build-geometry without --nomatchscenebounds");
             }
 
-            if (options.SceneOccludesSky && sceneCaster == null)
-            {
-                throw new Exception("must run after build-geometry with --sceneoccludessky");
-            }
-
             if (options.SphereRadiusMeters.ToLower() == "auto")
             {
-                var sceneBounds = sceneMesh.GetBounds().Value;
-                sphereRadius = Math.Max(sceneBounds.Min.XY().Length(), sceneBounds.Max.XY().Length());
+                if (!sceneBounds.HasValue)
+                {
+                    throw new Exception("must run after build-geometry with --sphereradiusmeters=auto");
+                }
+                sphereRadius = Math.Max(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
             }
             else
             {
                 sphereRadius = double.Parse(options.SphereRadiusMeters);
             }
             pipeline.LogInfo("sky sphere radius {0:f3}m", sphereRadius);
+
+            switch (options.SceneOccludesSky)
+            {
+                case SkyOcclusionMode.Always:
+                {
+                    if (sceneCaster == null)
+                    {
+                        throw new Exception("must run after build-geometry with --sceneoccludessky=Always");
+                    }
+                    sceneOccludesSky = true;
+                    break;
+                }
+                case SkyOcclusionMode.Never: sceneOccludesSky = false; break;
+                case SkyOcclusionMode.Auto: sceneOccludesSky = sphereRadius > AUTO_OCCLUDE_SKY_RADIUS; break;
+                default: throw new Exception("unknown sky occlusion mode: " + options.SceneOccludesSky);
+            }
+            pipeline.LogInfo("scene {0} sky", sceneOccludesSky ? "occludes" : "does not occlude");
 
             //need camera frustums to reach sky sphere
             options.TextureFarClip = sphereRadius * 2;
@@ -493,7 +518,7 @@ namespace OPS.Landform
                 meshCaster.AddMesh(mip.Mesh, null, Matrix.Identity);
                 meshCaster.Build();
 
-                var occlusionScene = options.SceneOccludesSky ? sceneCaster : null;
+                var occlusionScene = sceneOccludesSky ? sceneCaster : null;
 
                 var strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
                 strategy.Quality = options.BackprojectQuality;
