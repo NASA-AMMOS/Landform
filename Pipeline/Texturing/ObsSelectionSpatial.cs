@@ -55,7 +55,7 @@ namespace OPS.Pipeline.Texturing
         {
             // collect points on the surface of the mesh
             double samplesPerSquareMeter = Quality * QUALITY_TO_SAMPLES_PER_SQUARE_METER;
-            sampleSpacing = 1 / Math.Sqrt(samplesPerSquareMeter);
+            sampleSpacing = 1 / Math.Sqrt(2 * samplesPerSquareMeter); //https://mathoverflow.net/a/124740
 
             samples = new SurfacePointSampler()
                 .Sample(mesh, samplesPerSquareMeter)
@@ -78,7 +78,7 @@ namespace OPS.Pipeline.Texturing
             //with no noticeable change in result
             double area = mesh.SurfaceArea();
             double actualDensity = samples.Count / area;
-            double actualSampleSpacing = 1 / Math.Sqrt(actualDensity);
+            double actualSampleSpacing = 1 / Math.Sqrt(2 * actualDensity);
             //Console.WriteLine("generated {0} samples for {1}m^2 mesh (density {2} samples / m^2), requested {3}, " +
             //                  "correcting sample spacing from {4} to {5}", samples.Count, area, actualDensity,
             //                  samplesPerSquareMeter, sampleSpacing, actualSampleSpacing);
@@ -163,6 +163,14 @@ namespace OPS.Pipeline.Texturing
             var searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
             var neighborIndices = rTree.Intersects(searchBounds).ToList();
 
+            while (neighborIndices.Count == 0 && searchRadius < 10 * sampleSpacing)
+            {
+                //shouldn't get here often, but there is randomness in this world
+                searchRadius += 0.5 * sampleSpacing;
+                searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
+                neighborIndices = rTree.Intersects(searchBounds).ToList();
+            }
+
             switch (SelectionMode)
             {
                 case SpatialSelectionMode.CombinedNeighbors:
@@ -208,6 +216,7 @@ namespace OPS.Pipeline.Texturing
                         double factor = furthest - nearest;
                         factor = factor > 1e-6 ? (1 / factor) : 1;
                         double weight = 1 + MathE.Clamp01(factor * (dist - nearest));
+                        //weight = weight * weight; //could make it quadratic drop off
                         foreach (var ctx in scoredContexts[sampleIndex]
                                  .Where(c => !filter || Backproject.InFrame(meshPoint, c.Context)))
                         {
