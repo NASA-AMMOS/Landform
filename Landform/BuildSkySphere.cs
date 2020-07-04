@@ -1,5 +1,3 @@
-//https://github.jpl.nasa.gov/OnSight/Landform/issues/1095
-#define HACK_ROOT
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -127,6 +125,10 @@ namespace OPS.Landform
 
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores, auto)", Default = "auto")]
         public string SkyPreferColor { get; set; }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1095
+        [Option(HelpText = "Add dummy content to tileset root", Default = false)]
+        public bool HackRoot { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand
@@ -820,10 +822,11 @@ namespace OPS.Landform
         {
             string tsMeshExt = TilingProject.ToExt(TilingProject.DEF_TILESET_MESH_FORMAT);
             Func<SceneNode, string> nodeToUrl = node => node.Name + tsMeshExt;
-#if HACK_ROOT
-            nodeToUrl = node => (node.Name == "root" ? "0" : node.Name) + tsMeshExt;
-            tileTree.AddComponent(new MeshImagePair());
-#endif
+            if (options.HackRoot)
+            {
+                nodeToUrl = node => (node.Name == "root" ? "0" : node.Name) + tsMeshExt;
+                tileTree.AddComponent(new MeshImagePair());
+            }
             SaveTileset(project.Name, nodeToUrl);
         }
     }
