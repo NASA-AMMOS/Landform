@@ -588,19 +588,18 @@ namespace OPS.Pipeline
                 int minNumLevels = sortedContexts.Values.Min(contexts => contexts != null ? contexts.Count : 0);
                 info($"collected from {minNumLevels} to {maxNumLevels} contexts per pixel ({pt.HMSR})");
 
-                int maxUsedLevel = 0, numFailed = 0;
-
                 //indices of pixels that we're still trying to backproject to surface observations in this batch
                 var remaining = Enumerable.Range(startIdx, batchSize).ToList();
 
                 // remove which had no contexts
+                int numFailed = 0;
                 var invisible = remaining
                     .GroupBy(i => sortedContexts[i] == null || sortedContexts[i].Count == 0)
                     .ToDictionary(group => group.Key, group => group.ToList());
                 if (invisible.ContainsKey(true))
                 {
                     failed.AddRange(invisible[true]);
-                    numFailed += invisible.Count;
+                    numFailed += invisible[true].Count;
                     verbose($"{Fmt.KMG(invisible.Count)} pixels visible in no observation");
                     remaining = invisible.ContainsKey(false) ? invisible[false] : new List<int>();
                 }
@@ -614,13 +613,14 @@ namespace OPS.Pipeline
                     if (obstructed.ContainsKey(true))
                     {
                         failed.AddRange(obstructed[true]);
-                        numFailed += obstructed.Count;
+                        numFailed += obstructed[true].Count;
                         verbose($"{Fmt.KMG(obstructed.Count)} pixels in frame but occluded in some observation");
                     }
                     remaining = obstructed.ContainsKey(false) ? obstructed[false] : new List<int>();
                 }
                 
                 //try to backproject into best scoring observations first
+                int maxUsedLevel = 0, numWinners = 0;
                 for (int level = 0; remaining.Count > 0 && level < maxNumLevels; level++)
                 {
                     verbose($"starting backproject into preference {level} observations");
@@ -632,7 +632,7 @@ namespace OPS.Pipeline
                     if (dead.ContainsKey(true))
                     {
                         failed.AddRange(dead[true]);
-                        numFailed += dead.Count;
+                        numFailed += dead[true].Count;
                         verbose($"{Fmt.KMG(dead.Count)} pixels with no preference {level} observation");
                         remaining = dead.ContainsKey(false) ? dead[false] : new List<int>();
                     }
@@ -661,6 +661,7 @@ namespace OPS.Pipeline
                         losers.AddRange(wl.losers);
                     }
                     remaining = losers;
+                    numWinners += nw;
 
                     verbose($"backprojected {Fmt.KMG(nw)} pixels into {no} preference {level} observations, " +
                             $"{Fmt.KMG(remaining.Count)} remaining pixels");
@@ -672,7 +673,7 @@ namespace OPS.Pipeline
                 numFailed += remaining.Count;
                 failed.AddRange(remaining);
 
-                info($"backprojected {Fmt.KMG(batchSize - numFailed)} pixels from preference 0 to " +
+                info($"backprojected {Fmt.KMG(numWinners)} pixels from preference 0 to " +
                      $"{maxUsedLevel} observations, {Fmt.KMG(numFailed)} failed ({pt.HMSR})");
 
                 stats.NumFallbacks = Math.Max(stats.NumFallbacks, maxUsedLevel);
