@@ -531,10 +531,7 @@ namespace OPS.Landform
                 occlusionMesh = mesh;
             }
 
-            pipeline.LogInfo("building occlusion data structures");
-            sceneCaster = new SceneCaster();
-            sceneCaster.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after this
-            sceneCaster.Build();
+            sceneCaster = new SceneCaster(occlusionMesh); //NOTE: can't change mesh after this
         }
 
         protected void BuildMeshOperator()
@@ -564,16 +561,22 @@ namespace OPS.Landform
 #endif
         }
 
-        protected void InitBackprojectStrategy()
+        protected virtual void InitBackprojectStrategy()
         {
             if (meshOp == null)
             {
                 throw new Exception("must build mesh operator before initializing backproject strategy");
             }
+            if (sceneCaster == null)
+            {
+                throw new Exception("must build scene cater before initializing backproject strategy");
+            }
+            InitBackprojectStrategy(mesh, meshOp, sceneCaster, sceneCaster);
+        }
 
-            pipeline.LogInfo("initializing backproject observation selection strategy {0} for {1} observations",
-                             tcopts.ObsSelectionStrategy, imageObservations.Count);
-
+        protected void InitBackprojectStrategy(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
+                                               SceneCaster occlusionScene)
+        {
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
             backprojectStrategy.Quality = tcopts.BackprojectQuality;
@@ -582,18 +585,23 @@ namespace OPS.Landform
             backprojectStrategy.PreferNonlinear = !tcopts.PreferLinearToNonlinear;
             backprojectStrategy.DebugOutputPath = tcopts.WriteBackprojectDebug ? backprojectDebugDir : null;
 
+            int numOrbital = 0;
             if (!tcopts.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_IMAGE_INDEX))
             {
                 var texObs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
                 backprojectStrategy.OrbitalMetersPerPixel =
                     (texObs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                numOrbital = 1;
             }
+
+            pipeline.LogInfo("initializing observation selection strategy {0} for {1} rover observations, {2} orbital",
+                             tcopts.ObsSelectionStrategy, roverImages.Count, numOrbital);
 
             var contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, contexts);
+            backprojectStrategy.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts);
         }
 
         protected void BackprojectObservations()

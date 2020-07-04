@@ -17,11 +17,12 @@ namespace OPS.RayTrace
     /// </summary>
     public class SceneCaster
     {
-        private readonly Scene<Model> scene;
         const SceneFlags SCENE_FLAGS = SceneFlags.Static | SceneFlags.Coherent | SceneFlags.Incoherent | SceneFlags.Robust;
         const TraversalFlags TRAVERSAL_FLAGS = TraversalFlags.Single;
-        bool sceneBuilt = false;
-        Device device;
+
+        private readonly Device device;
+        private readonly Scene<Model> scene;
+        private bool sceneBuilt = false;
 
         /// <summary>
         /// Create a new scene
@@ -33,12 +34,27 @@ namespace OPS.RayTrace
         }
 
         /// <summary>
-        /// Add a mesh to the scene.  Note that meshes are stored by reference and any modification to the mesh between this call
-        /// and calls to Raycast will result in undetermined behaviour.  You should finish making all raycasts before mutating the mesh.
+        /// Create and build a new scene for one mesh.
         /// </summary>
-        /// <param name="mesh">Mesh to add.  If this mesh has UVs then so will HitData objects retured by collisions</param>
-        /// <param name="texture">Optional texture, if null hit objects returned by collisions with this mesh will not have a texture</param>
-        /// <param name="transform">This meshes transform in the scene</param>
+        public SceneCaster(OPS.Geometry.Mesh mesh, Image texture, Matrix transform) : this()
+        {
+            AddMesh(mesh, texture, transform);
+            Build();
+        }
+
+        /// <summary>
+        /// Create and build a new scene for one mesh.
+        /// </summary>
+        public SceneCaster(OPS.Geometry.Mesh mesh, Image texture = null) : this(mesh, texture, Matrix.Identity) { }
+
+        /// <summary>
+        /// Add a mesh to the scene.  Note that meshes are stored by reference and any modification to the mesh between
+        /// this call and calls to Raycast will result in undetermined behaviour.  You should finish making all raycasts
+        /// before mutating the mesh.
+        /// </summary>
+        /// <param name="mesh">Mesh to add.  If this mesh has UVs then so will HitData objects.</param>
+        /// <param name="texture">Optional texture, if null HitData objects will not have a texture.</param>
+        /// <param name="transform">This mesh's transform in the scene</param>
         public void AddMesh(OPS.Geometry.Mesh mesh, Image texture, Matrix transform)
         {
             if (sceneBuilt)
@@ -47,6 +63,11 @@ namespace OPS.RayTrace
             }
             var model = new Model(device, mesh, texture, transform, SCENE_FLAGS, TRAVERSAL_FLAGS);
             scene.Add(model);
+        }
+
+        public void AddMesh(OPS.Geometry.Mesh mesh, Image texture = null)
+        {
+            AddMesh(mesh, texture, Matrix.Identity);
         }
 
         /// <summary>

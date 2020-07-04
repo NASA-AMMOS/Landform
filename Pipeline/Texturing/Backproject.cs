@@ -408,6 +408,8 @@ namespace OPS.Pipeline
 
             public Func<List<PixelPoint>, List<PixelPoint>> sampleTransform;  //used e.g. by BuildSkySphere
 
+            public bool onlyCompletelyUnobstructed; //skip pts in frame but occluded in *any* obs (other than orbital)
+
             public string meshName;
 
             public bool quiet, verbose;
@@ -577,10 +579,10 @@ namespace OPS.Pipeline
                 //trying each observation in order of preference until we find one that can be used
                 var sortedContexts = new ConcurrentDictionary<int, List<ObsSelectionStrategy.ScoredContext>>();
                 var pt = new PerfTimer();
-                CoreLimitedParallel.For(startIdx, startIdx + batchSize, idx =>
+                CoreLimitedParallel.For(startIdx, startIdx + batchSize, i =>
                 {
-                    sortedContexts[idx] = strategy.FilterAndSortContexts(samplePoints[idx].Point, intersectingContexts,
-                                                                         opts.meshCaster);
+                    sortedContexts[i] = strategy.FilterAndSortContexts(samplePoints[i].Point, intersectingContexts,
+                                                                       opts.meshCaster);
                 });
                 int maxNumLevels = sortedContexts.Values.Max(contexts => contexts != null ? contexts.Count : 0);
                 int minNumLevels = sortedContexts.Values.Min(contexts => contexts != null ? contexts.Count : 0);
@@ -591,35 +593,59 @@ namespace OPS.Pipeline
                 //indices of pixels that we're still trying to backproject to surface observations in this batch
                 var remaining = Enumerable.Range(startIdx, batchSize).ToList();
 
+                // remove which had no contexts
+                var invisible = remaining
+                    .GroupBy(i => sortedContexts[i] == null || sortedContexts[i].Count == 0)
+                    .ToDictionary(group => group.Key, group => group.ToList());
+                if (invisible.ContainsKey(true))
+                {
+                    failed.AddRange(invisible[true]);
+                    numFailed += invisible.Count;
+                    verbose($"{Fmt.KMG(invisible.Count)} pixels visible in no observation");
+                    remaining = invisible.ContainsKey(false) ? invisible[false] : new List<int>();
+                }
+
+                if (opts.onlyCompletelyUnobstructed && opts.occlusionScene != null)
+                {
+                    var contexts = intersectingContexts;
+                    var obstructed = remaining
+                        .GroupBy(i => contexts.Any(c => IsObstructed(samplePoints[i].Point, opts.occlusionScene, c)))
+                        .ToDictionary(group => group.Key, group => group.ToList());
+                    if (obstructed.ContainsKey(true))
+                    {
+                        failed.AddRange(obstructed[true]);
+                        numFailed += obstructed.Count;
+                        verbose($"{Fmt.KMG(obstructed.Count)} pixels in frame but occluded in some observation");
+                    }
+                    remaining = obstructed.ContainsKey(false) ? obstructed[false] : new List<int>();
+                }
+                
                 //try to backproject into best scoring observations first
                 for (int level = 0; remaining.Count > 0 && level < maxNumLevels; level++)
                 {
                     verbose($"starting backproject into preference {level} observations");
 
                     // remove pixels that had all contexts fail (or which had no contexts)
-                    var newFailed = remaining
-                        .Where(idx => sortedContexts[idx] == null || sortedContexts[idx].Count <= level)
-                        .ToList();
-                    if (newFailed.Count > 0)
+                    var dead = remaining
+                        .GroupBy(i => sortedContexts[i].Count <= level)
+                        .ToDictionary(group => group.Key, group => group.ToList());
+                    if (dead.ContainsKey(true))
                     {
-                        failed.AddRange(newFailed);
-                        numFailed += newFailed.Count;
-                        verbose($"gave up on {Fmt.KMG(newFailed.Count)} pixels with no preference " +
-                                $"{level} observation");
+                        failed.AddRange(dead[true]);
+                        numFailed += dead.Count;
+                        verbose($"{Fmt.KMG(dead.Count)} pixels with no preference {level} observation");
+                        remaining = dead.ContainsKey(false) ? dead[false] : new List<int>();
                     }
                     
-                    remaining = remaining
-                        .Where(idx => sortedContexts[idx] != null && sortedContexts[idx].Count > level)
-                        .ToList();
                     if (remaining.Count == 0)
                     {
                         break;
                     }
-                        
+
                     //group all remaining points by their current best context
                     //the idea is to deal with one observation at a time for better disk and memory cache coherence
                     //BackprojectSurfaceObs() will parallelize on each pixel
-                    var groups = remaining.GroupBy(idx => sortedContexts[idx][level].Context);
+                    var groups = remaining.GroupBy(i => sortedContexts[i][level].Context);
                     
                     verbose($"attempting to backproject {Fmt.KMG(remaining.Count)} pixels into {groups.Count()} " +
                             $"preference {level} observations");
@@ -670,9 +696,9 @@ namespace OPS.Pipeline
                     info("no orbital image");
                     failed = failed ?? Enumerable.Range(0, samplePoints.Count).ToList();
                 }
-                foreach (var idx in failed)
+                foreach (var i in failed)
                 {
-                    results[SubpixelToPixel(samplePoints[idx].Pixel)] = new ObsPixel();
+                    results[SubpixelToPixel(samplePoints[i].Pixel)] = new ObsPixel();
                     stats.BackprojectMissingPixels++;
                 }
             }
@@ -735,7 +761,7 @@ namespace OPS.Pipeline
             return contexts;
         }
 
-        private static void DebugWriteCoverageImage(Options opts, SceneCaster debugTileOcclusion, Observation obs,
+        public static void DebugWriteCoverageImage(Options opts, SceneCaster debugTileOcclusion, Observation obs,
                                                     Matrix obsToMesh)
         {
             Image srcImg = opts.pipeline.LoadImage(obs.Url);
@@ -895,21 +921,21 @@ namespace OPS.Pipeline
             return results;
         }
 
-        private static WinnersAndLosers BackprojectSurfaceObs(PipelineCore pipeline, Project project,
-                                                              SceneCaster occlusionScene, RoverMasker masker,
-                                                              Context ctx, List<PixelPoint> samplePoints,
-                                                              IEnumerable<int> indices,
-                                                              IDictionary<Pixel, ObsPixel> results)
+        public static WinnersAndLosers BackprojectSurfaceObs(PipelineCore pipeline, Project project,
+                                                             SceneCaster occlusionScene, RoverMasker masker,
+                                                             Context ctx, List<PixelPoint> samplePoints,
+                                                             IEnumerable<int> indices,
+                                                             IDictionary<Pixel, ObsPixel> results)
         {
             Image mask = ImageMasker.GetOrCreateMask(pipeline, project, ctx.Obs, masker, ctx.MaskObs); //cached
             return CoreBackproject(occlusionScene, mask, ctx.FrustumHull, ctx.MeshToObs, ctx.ObsToMesh, ctx.CameraModel,
                                    ctx.Obs, samplePoints, indices, results);
         }
 
-        private static WinnersAndLosers BackprojectOrbitalObs(Observation orbitalObs, SceneCaster occlusionScene,
-                                                              List<PixelPoint> samplePoints, IEnumerable<int> indices,
-                                                              Matrix meshToOrbital, Vector3 skyDirInMesh,
-                                                              IDictionary<Pixel, ObsPixel> results)
+        public static WinnersAndLosers BackprojectOrbitalObs(Observation orbitalObs, SceneCaster occlusionScene,
+                                                             List<PixelPoint> samplePoints, IEnumerable<int> indices,
+                                                             Matrix meshToOrbital, Vector3 skyDirInMesh,
+                                                             IDictionary<Pixel, ObsPixel> results)
         {
             int ni = indices.Count();
             var winners = new WinnersAndLosers(ni);
@@ -957,6 +983,13 @@ namespace OPS.Pipeline
             return InFrame(meshPoint, context, out Vector2 px);
         }
 
+        public static bool IsObstructed(Vector3 meshPoint, SceneCaster occlusionScene, Backproject.Context context)
+        {
+            var px = context.CameraModel.Project(Vector3.Transform(meshPoint, context.MeshToObs), out double range);
+            bool inFrame = range > 0 && px.X >= 0 && px.X < context.Obs.Width && px.Y >= 0 && px.Y < context.Obs.Height;
+            return inFrame && IsOccluded(context.CameraModel, px, meshPoint, occlusionScene, range, context.ObsToMesh);
+        }
+
         /// <summary>
         /// helper function to test if there is another part of the mesh between the camera and the test point
         /// </summary>
@@ -981,7 +1014,8 @@ namespace OPS.Pipeline
             return (dist != null) && (dist < rangeMeshToImage);
         }
 
-        private static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
+
+        public static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
         {
             //get ray from camera through pixel associated with meshPos
             Ray rayCamToMeshInObsFrame = camera.Unproject(pixel);
@@ -999,7 +1033,7 @@ namespace OPS.Pipeline
                                            SceneCaster occlusionScene, double raycastTolerance = float.Epsilon)
         {            
             //check if pixel ray hit the mesh
-            Vector3? meshPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, meshCaster);
+            Vector3? meshPos = RaycastMesh(camera, obsToMesh, pixel, meshCaster);
             if (!meshPos.HasValue)
             {
                 return null;
@@ -1022,7 +1056,7 @@ namespace OPS.Pipeline
             //e.g. for sky sphere meshCaster is a tile on the skysphere and occlusionScene represents the terrain mesh
             if (occlusionScene != null && occlusionScene != meshCaster)
             {
-                Vector3? occluderPos = Backproject.RaycastMesh(camera, obsToMesh, pixel, occlusionScene);
+                Vector3? occluderPos = RaycastMesh(camera, obsToMesh, pixel, occlusionScene);
                 if (occluderPos.HasValue)
                 {
                     double distanceToOccluder = Vector3.DistanceSquared(occluderPos.Value, obsToMesh.Translation);
@@ -1084,7 +1118,7 @@ namespace OPS.Pipeline
         }
 
         //helper fucntion to convert from subpixel coordinates to integer pixel texture addresses
-        private static Pixel SubpixelToPixel(Vector2 subPixel)
+        public static Pixel SubpixelToPixel(Vector2 subPixel)
         {
             return new Pixel((int)subPixel.Y, (int)subPixel.X);
         }

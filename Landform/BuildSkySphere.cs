@@ -135,7 +135,6 @@ namespace OPS.Landform
     {
         public const double DEF_SCENE_RADIUS = 45;
         public const double DEF_FAR_RADIUS = 2000;
-        public const double AUTO_OCCLUDE_SKY_RADIUS = 50;
 
         public const int MAX_BLEND_SIZE = 8192;
 
@@ -181,6 +180,7 @@ namespace OPS.Landform
                  
                 RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                 RunPhase("build observation frustum hulls", BuildObsHulls);
+
                 RunPhase("build sky sphere tile geometry", BuildTileTree);
 
                 if (options.SkyMode == SkyMode.FarSphere)
@@ -188,6 +188,7 @@ namespace OPS.Landform
                     RunPhase("build orbital scene", BuildOrbitalScene);
                 }
 
+                RunPhase("build backproject strategy", InitBackprojectStrategy);
                 RunPhase("build sky sphere tile textures", BuildTileTexturesAndSaveTiles);
 
                 if (!options.NoBlend)
@@ -301,11 +302,7 @@ namespace OPS.Landform
                     break;
                 }
                 case SkyOcclusionMode.Never: sceneOccludesSky = false; break;
-                case SkyOcclusionMode.Auto:
-                {
-                    sceneOccludesSky = options.SkyMode != SkyMode.FarSphere && sphereRadius > AUTO_OCCLUDE_SKY_RADIUS;
-                    break;
-                }
+                case SkyOcclusionMode.Auto: sceneOccludesSky = options.SkyMode != SkyMode.FarSphere; break;
                 default: throw new Exception("unknown sky occlusion mode: " + options.SceneOccludesSky);
             }
             pipeline.LogInfo("scene {0} sky", sceneOccludesSky ? "occludes" : "does not occlude");
@@ -445,6 +442,14 @@ namespace OPS.Landform
             pipeline.LogInfo("filtered {0} rover images to {1} containing sky", numWas, roverImages.Count);
         }
 
+        protected override void InitBackprojectStrategy()
+        {
+            //build backproject strategy globally vs per tile to avoid artifacts at adjacent tile boundaries
+            var skyMesh = Mesh.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
+            InitBackprojectStrategy(skyMesh, new MeshOperator(skyMesh), new SceneCaster(skyMesh),
+                                    sceneOccludesSky ? sceneCaster : null);
+        }
+
         protected override Backproject.Options CustomizeBackprojectOptions(Backproject.Options opts)
         {
             if (options.SkyMode == SkyMode.FarSphere)
@@ -467,6 +472,10 @@ namespace OPS.Landform
                     }
                     return samples;
                 };
+            }
+            else if (sceneOccludesSky)
+            {
+                opts.onlyCompletelyUnobstructed = true;
             }
             return opts;
         }
@@ -629,10 +638,6 @@ namespace OPS.Landform
                              leaves.Count, tileResolution, options.BackprojectQuality, options.PreferColor,
                              options.TextureFarClip);
 
-            var backprojectContexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
-                                                                observationCache, meshFrame, tcopts.UsePriors,
-                                                                tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
-
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
             CoreLimitedParallel.ForEach(leaves, tile =>
             {
@@ -648,25 +653,9 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
-                var meshOp = new MeshOperator(mip.Mesh);
-
-                var meshCaster = new SceneCaster();
-                meshCaster.AddMesh(mip.Mesh, null, Matrix.Identity);
-                meshCaster.Build();
-
-                var occlusionScene = sceneOccludesSky ? sceneCaster : null;
-
-                var strategy = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                strategy.Quality = options.BackprojectQuality;
-                strategy.PreferColor = options.PreferColor;
-                strategy.RaycastTolerance = options.RaycastTolerance;
-                strategy.PreferNonlinear = !tcopts.PreferLinearToNonlinear;
-                strategy.DebugOutputPath = options.WriteBackprojectDebug ? backprojectDebugDir : null;
-
-                strategy.Initialize(mip.Mesh, meshOp, meshCaster, occlusionScene, backprojectContexts);
-
                 mip.Index = new Image(3, tileResolution, tileResolution);
-                mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, meshCaster, occlusionScene, strategy);
+                mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, new SceneCaster(mip.Mesh),
+                                            sceneOccludesSky ? sceneCaster : null);
 
                 if (mip.Image != null)
                 {
