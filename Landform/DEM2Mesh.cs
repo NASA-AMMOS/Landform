@@ -51,6 +51,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = 0, HelpText = "Adaptive mesh to this error threshold.  Set to 0 to build a full organized mesh instead of adaptive meshing.")]
         public double MaxError { get; set; }
 
+        [Option(Required = false, Default = 1, HelpText = "Organized mesh subsample factor.  Set > 1 to decimate, < 1 to interpolate")]
+        public double SubsampleMesh { get; set; }
+
         [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "Dem values less than this will be ignored")]
         public double DEMMinFilter { get; set; }
 
@@ -156,6 +159,11 @@ namespace OPS.Landform
             if (imageExt == null)
             {
                 return false; //help
+            }
+
+            if (options.SubsampleMesh != 1 && options.MaxError != 0)
+            {
+                throw new Exception("--subsamplesmesh requires --maxerror=0");
             }
 
             if (string.IsNullOrEmpty(options.InputDEM) || !File.Exists(options.InputDEM))
@@ -454,12 +462,20 @@ namespace OPS.Landform
 
         private void BuildAndSaveMesh()
         {
-            logger.LogInfo("{0} meshing DEM, radius {1}",
-                           options.MaxError == 0 ? "organized" : "adaptive", options.RadiusMeters);
-            
-            var mesh = options.MaxError == 0 ?
-                dem.OrganizedMesh(options.RadiusMeters, withUV: true) :
-                dem.AdaptiveMesh(options.MaxError, options.RadiusMeters, withUV: true);
+            logger.LogInfo("{0} meshing DEM, radius {1}{2}",
+                           options.MaxError == 0 ? "organized" : "adaptive", options.RadiusMeters,
+                           options.SubsampleMesh != 1 ? $", subsample {options.SubsampleMesh:f3}" : "");
+
+            Mesh mesh = null;
+            if (options.MaxError == 0)
+            {
+                var subrect = dem.GetSubrectMeters(options.RadiusMeters);
+                mesh = dem.OrganizedMesh(subrect, subsample: options.SubsampleMesh, withUV: true);
+            }
+            else
+            {
+                mesh = dem.AdaptiveMesh(options.MaxError, options.RadiusMeters, withUV: true);
+            }
             
             logger.LogInfo("{0}saving {1} triangle mesh {2}",
                            options.NoSave ? "not " : "", Fmt.KMG(mesh.Faces.Count), outputMesh);
