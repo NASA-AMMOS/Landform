@@ -65,16 +65,20 @@
 # workflows saved or even running simultaneously for the same base dataset using different suffixes.  Also remember you
 # can always tack on --dryrun to see the commands that will be run before you actually run them.  For example:
 #
-# (a) run first with --nocleanup --suffix foo --notileset --notexture --noblend to ingest, align, and build an
-#     untextured monolithic mesh.
-# (b) run again with --nocleanup --suffix foo --notileset --noblend to add a backproject texture to the monolithic mesh.
-# (c) run again with --nocleanup --suffix foo --notileset --notexture to blend the monolithic mesh texture.
-# (d) run again with --nocleanup --suffix foo --noingest --noalign --nogeometry to build, texture, and blend a tileset.
-# (d) run again with --nocleanup --suffix foo --noingest --noalign --notilinginput --redo --blendargs
-#     "--numrelaxationsteps=1000 --nummultigriditerations=10" to re-blend the tileset with custom tunings.
-# (e) run again with --nocleanup --suffix foo --onlysky to add a sky sphere tileset.
-# (f) run again with --nocleanup --suffix foo --onlysky --redo --skyargs "--onlyforcameras=Mastcam --noblend"
-#     to rebuild the sky sphere tileset using only mastcam and without blending.
+# * run first with --nocleanup --suffix foo --notileset --notexture --noblend to ingest, align, and build an
+#   untextured monolithic mesh.
+# * run again with --nocleanup --suffix foo --notileset --noblend to add a backproject texture to the monolithic mesh.
+# * run again with --nocleanup --suffix foo --notileset --notexture to blend the monolithic mesh texture.
+# * run again with --nocleanup --suffix foo --noingest --noalign --nogeometry to build, texture, and blend a tileset.
+# * run again with --nocleanup --suffix foo --noingest --noalign --notilinginput --redo --blendargs
+#   "--numrelaxationsteps=1000 --nummultigriditerations=10" to re-blend the tileset with custom tunings.
+# * run again with --nocleanup --suffix foo --onlysky to add a sky sphere tileset.
+# * run again with --nocleanup --suffix foo --onlysky --redo --skyargs "--onlyforcameras=Mastcam --noblend"
+#   to rebuild the sky sphere tileset using only mastcam and without blending.
+# * run again with --nocleanup --suffix foo --noingest --noalign --nogeometry --notileset --notexture --blendargs
+#   --colorize to re-blend the monolithich mesh with colorize.
+# * run again with --nocleanup --suffix foo --noingest --noalign --nogeometry --notilinginput --nosky --nomanifest
+#   --blendargs --colorize to re-blend the tileset with colorize.
 #
 # The script can optionally (not by default) upload the tileset using aws s3 sync.  If the tileset is uploaded then a
 # combined scene manifest in the same directory on s3 is also updated.
