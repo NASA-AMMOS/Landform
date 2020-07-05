@@ -232,12 +232,24 @@ namespace OPS.Util
                 if (a is FileAppender)
                 {
                     FileAppender fa = (FileAppender)a;
-                    var oldFile = new FileInfo(fa.File);
+                    var oldFile = fa.File != null ? new FileInfo(fa.File) : null;
                     if (string.IsNullOrEmpty(logFile) && !string.IsNullOrEmpty(logFilename))
                     {
-                        logFile = Path.Combine(oldFile.DirectoryName, logFilename);
+                        if (oldFile != null)
+                        {
+                            logFile = Path.Combine(oldFile.DirectoryName, logFilename);
+                        }
+                        else
+                        {
+                            logFile = logFilename;
+                        }
                     }
-                    bool fileChanged = StringHelper.NormalizeSlashes(fa.File) != StringHelper.NormalizeSlashes(logFile);
+                    bool fileChanged = false;
+                    if (!string.IsNullOrEmpty(logFile))
+                    {
+                        logFile = StringHelper.NormalizeSlashes(logFile);
+                        fileChanged = fa.File == null || StringHelper.NormalizeSlashes(fa.File) != logFile;
+                    }
                     if (fileChanged)
                     {
                         fa.File = logFile;
