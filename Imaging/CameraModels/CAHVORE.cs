@@ -70,7 +70,7 @@ namespace OPS.Imaging
             double tmp = Vector3.Dot(A, u3);    // avh1 = 1 / dot3(a, u3);
             if (Math.Abs(tmp) < EPSILON)
             {
-                throw new DivideByZeroException();  // Not sure if this is possible
+                throw new CameraModelException("divide by zero");  // Not sure if this is possible
             }
             avh1 = 1 / tmp;
             rp = avh1 * w3;                     // scale3(avh1, w3, rp);
@@ -110,7 +110,7 @@ namespace OPS.Imaging
                     /* Make sure we don't iterate forever */
                     if (++n > MAX_NEWTON)
                     {
-                        throw new Exception("cahvore_2d_to_3d(): too many iterations\n");
+                        throw new CameraModelException("cahvore_2d_to_3d(): too many iterations");
                         //Console.WriteLine("cahvore_2d_to_3d(): too many iterations\n");
                         //break;
                     }
@@ -202,7 +202,7 @@ namespace OPS.Imaging
                 /* Make sure we don't iterate forever */
                 if (++n > MAX_NEWTON)
                 {
-                    throw new Exception("cahvore_3d_to_2d(): too many iterations\n");
+                    throw new CameraModelException("cahvore_3d_to_2d(): too many iterations");
                     //Console.WriteLine("cahvore_3d_to_2d(): too many iterations\n");
                     //break;
                     
@@ -233,7 +233,7 @@ namespace OPS.Imaging
             /* Check the value of theta */
             if ((theta * Math.Abs(Linearity)) > Math.PI / 2.0)
             {
-                throw new Exception("cahvore_3d_to_2d(): theta out of bounds\n");
+                throw new CameraModelException("cahvore_3d_to_2d(): theta out of bounds");
                 //Console.WriteLine("cahvore_3d_to_2d(): theta out of bounds\n");
             }
             Vector3 rp = new Vector3();
@@ -274,7 +274,7 @@ namespace OPS.Imaging
             gamma = Vector3.Dot(rp, V);                 // gamma = dot3(rp, v);
             if (alpha < EPSILON)
             {
-                throw new DivideByZeroException();      // Don't know if this is possible but why not
+                throw new CameraModelException("divide by zero");      // Don't know if this is possible but why not
             }
             Vector2 pixelPos = new Vector2();
             pixelPos.X = beta / alpha;                  // pos2[0] = beta / alpha;

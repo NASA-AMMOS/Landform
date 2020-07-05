@@ -7,6 +7,12 @@ using Newtonsoft.Json;
 
 namespace OPS.Imaging
 {
+    public class CameraModelException : Exception
+    {
+        public CameraModelException() : base() { }
+        public CameraModelException(string reason) : base(reason) { }
+    }
+
     public abstract class CameraModel : ICloneable
     {
         protected CameraModel() { }
@@ -18,6 +24,7 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Convience method returns a ray coming out of a camera at a particular pixel position
+        /// Should only throw CameraModelException if the math fails.
         /// </summary>
         public Ray Unproject(Vector2 pixelPos)
         {
@@ -28,6 +35,7 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Return a 3D position unprojected from the given pixel.
+        /// Should only throw CameraModelException if the math fails.
         /// </summary>
         public virtual Vector3 Unproject(Vector2 pixelPos, double range)
         {
@@ -37,11 +45,13 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Project a 3D position to a pixel location in an image.
+        /// Should only throw CameraModelException if the math fails.
         /// </summary>
         public abstract Vector2 Project(Vector3 pos, out double range);
 
         /// <summary>
         /// Project a 3D position to a pixel location in an image.
+        /// Should only throw CameraModelException if the math fails.
         /// </summary>
         public Vector2 Project(Vector3 pos)
         {

@@ -219,24 +219,31 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            //project into observation
-            Vector3 obsPos = Vector3.Transform(meshPos, meshToCam);
-            Vector2 obsPixel = camera.Project(obsPos, out double rangeMeshToImage);
-
-            if (rangeMeshToImage <= 0 ||
-                (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels ||
-                (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
+            try
             {
-                return null; //the center of the pixel may have passed the frustum test, but the pixel corner may not
+                //project into observation
+                Vector3 obsPos = Vector3.Transform(meshPos, meshToCam);
+                Vector2 obsPixel = camera.Project(obsPos, out double rangeMeshToImage);
+                
+                if (rangeMeshToImage <= 0 ||
+                    (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels ||
+                    (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
+                {
+                    return null; //the center of the pixel may have passed the frustum test, but the corner may not
+                }
+                
+                // raycast the scene to test if the desired position is occluded by terrain
+                if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+                {
+                    return null;
+                }
+                
+                return obsPixel;
             }
-
-            // raycast the scene to test if the desired position is occluded by terrain
-            if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+            catch (CameraModelException)
             {
-                return null;
+                return null; //happens infrequently, but not in frame
             }
-
-            return obsPixel;
         }
     }
 }

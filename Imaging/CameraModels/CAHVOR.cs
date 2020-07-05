@@ -58,7 +58,7 @@ namespace OPS.Imaging
             magi = rr.Length();
             if (magi <= EPSILON)
             {
-                throw new DivideByZeroException();
+                throw new CameraModelException("divide by zero");
             }
             magi = 1.0 / rr.Length();               // magi = 1.0 / mag3(rr);
             rr = magi * rr;                         // scale3(magi, rr, rr);
@@ -102,7 +102,7 @@ namespace OPS.Imaging
                 deriv = (5 * k5 * u_2 + 3 * k3) * u_2 + k1;
                 if (deriv <= 0)
                 {
-                    throw new Exception("cmod_cahvor_2d_to_3d(): Distortion is too negative\n");
+                    throw new CameraModelException("cmod_cahvor_2d_to_3d(): Distortion is too negative");
                     //Console.WriteLine();
                     //break;
                 }
@@ -115,7 +115,7 @@ namespace OPS.Imaging
                 }
             }
             if (i >= MAXITER) {
-                throw new Exception("cmod_cahvor_2d_to_3d(): Too many iterations "+i+"\n");
+                throw new CameraModelException("cmod_cahvor_2d_to_3d(): Too many iterations "+i);
                 //Console.WriteLine("cmod_cahvor_2d_to_3d(): Too many iterations (%d)\n", i);
             }
 
@@ -127,7 +127,7 @@ namespace OPS.Imaging
             uvec3 = rr-pp;                  // sub3(rr, pp, uvec3);
             magv = uvec3.Length();          // magv = mag3(uvec3);
             if(magv < EPSILON) {
-                throw new DivideByZeroException();      // not sure if this is possible but might as well check
+                throw new CameraModelException("divide by zero");// not sure if this is possible but might as well check
             }
             uvec3 = uvec3 * (1.0 / magv);  // scale3(1.0 / magv, uvec3, uvec3);
                         
@@ -165,7 +165,7 @@ namespace OPS.Imaging
             omega_2 = omega * omega;
             if (Math.Abs(omega_2) <= EPSILON)
             {
-                throw new DivideByZeroException();
+                throw new CameraModelException("divide by zero");
                 //Console.WriteLine("warning: omega_2 is too small");
             }
             wo = omega * O;                         // scale3(omega, o, wo);
@@ -183,7 +183,7 @@ namespace OPS.Imaging
             gamma = Vector3.Dot(pp_c, V);               //gamma = dot3(pp_c, v);
             if (Math.Abs(alpha) <= EPSILON)
             {
-                throw new DivideByZeroException();
+                throw new CameraModelException("divide by zero");
                 //Console.WriteLine("warning: alpha is too small");
             }
 

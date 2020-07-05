@@ -951,21 +951,28 @@ namespace OPS.Pipeline
                 if (sample.Point.IsFinite()) //sampleTransform (used e.g. by BuildSkySphere) can kill points
 #endif
                 {
-                    Vector2 px = camera.Project(Vector3.Transform(sample.Point, meshToObs), out double range);
-                    if (range > 0 && px.X >= 0 && px.X < obs.Width && px.Y >= 0 && px.Y < obs.Height)
+                    try
                     {
-                        //test if rover masked or missing data
-                        //any neighbor pixels that are set to zero will cause the bilinear sample to be less than 1
-                        //mask: 0 means bad, 1 means good (opposite of Image.Mask)
-                        if (mask == null || mask.BilinearSample(0, (float)px.Y, (float)px.X) >= 1)
+                        Vector2 px = camera.Project(Vector3.Transform(sample.Point, meshToObs), out double range);
+                        if (range > 0 && px.X >= 0 && px.X < obs.Width && px.Y >= 0 && px.Y < obs.Height)
                         {
-                            //raycast the scene to test if the desired position is occluded by terrain
-                            if (!IsOccluded(camera, px, sample.Point, occlusionScene, range, obsToMesh))
+                            //test if rover masked or missing data
+                            //any neighbor pixels that are set to zero will cause the bilinear sample to be less than 1
+                            //mask: 0 means bad, 1 means good (opposite of Image.Mask)
+                            if (mask == null || mask.BilinearSample(0, (float)px.Y, (float)px.X) >= 1)
                             {
-                                results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(obs, px);
-                                winner = true;
+                                //raycast the scene to test if the desired position is occluded by terrain
+                                if (!IsOccluded(camera, px, sample.Point, occlusionScene, range, obsToMesh))
+                                {
+                                    results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(obs, px);
+                                    winner = true;
+                                }
                             }
                         }
+                    }
+                    catch (CameraModelException)
+                    {
+                        winner = false; //happens infrequently, but not in frame
                     }
                 }
 #if NO_PARALLEL_RAYCASTS
@@ -1022,11 +1029,18 @@ namespace OPS.Pipeline
                     var rayToSky = new Ray(sample.Point, skyDirInMesh);
                     if (occlusionScene == null || occlusionScene.RaycastDistance(rayToSky, RAYCAST_NEAR_METERS) == null)
                     {
-                        var px = orbitalObs.CameraModel.Project(Vector3.Transform(sample.Point, meshToOrbital));
-                        if (px.X >= 0 && px.X < orbitalObs.Width && px.Y >= 0 && px.Y < orbitalObs.Height)
+                        try
                         {
-                            results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(orbitalObs, px);
-                            winner = true;
+                            var px = orbitalObs.CameraModel.Project(Vector3.Transform(sample.Point, meshToOrbital));
+                            if (px.X >= 0 && px.X < orbitalObs.Width && px.Y >= 0 && px.Y < orbitalObs.Height)
+                            {
+                                results[SubpixelToPixel(sample.Pixel)] = new ObsPixel(orbitalObs, px);
+                                winner = true;
+                            }
+                        }
+                        catch (CameraModelException)
+                        {
+                            winner = false; //happens infrequently, but not in frame
                         }
                     }
                 }
@@ -1043,8 +1057,16 @@ namespace OPS.Pipeline
 
         public static bool InFrame(Vector3 meshPoint, Backproject.Context context, out Vector2 px)
         {
-            px = context.CameraModel.Project(Vector3.Transform(meshPoint, context.MeshToObs), out double range);
-            return range > 0 && px.X >= 0 && px.X < context.Obs.Width && px.Y >= 0 && px.Y < context.Obs.Height;
+            try
+            {
+                px = context.CameraModel.Project(Vector3.Transform(meshPoint, context.MeshToObs), out double range);
+                return range > 0 && px.X >= 0 && px.X < context.Obs.Width && px.Y >= 0 && px.Y < context.Obs.Height;
+            }
+            catch (CameraModelException)
+            {
+                px = new Vector2(double.NaN, double.NaN);
+                return false; //happens infrequently, but not in frame
+            }
         }
         
         public static bool InFrame(Vector3 meshPoint, Backproject.Context context)
@@ -1054,9 +1076,16 @@ namespace OPS.Pipeline
 
         public static bool IsObstructed(Vector3 meshPoint, SceneCaster occlusionScene, Backproject.Context context)
         {
-            var px = context.CameraModel.Project(Vector3.Transform(meshPoint, context.MeshToObs), out double range);
-            bool inFrame = range > 0 && px.X >= 0 && px.X < context.Obs.Width && px.Y >= 0 && px.Y < context.Obs.Height;
-            return inFrame && IsOccluded(context.CameraModel, px, meshPoint, occlusionScene, range, context.ObsToMesh);
+            try
+            {
+                var px = context.CameraModel.Project(Vector3.Transform(meshPoint, context.MeshToObs), out double range);
+                bool ok = range > 0 && px.X >= 0 && px.X < context.Obs.Width && px.Y >= 0 && px.Y < context.Obs.Height;
+                return ok && IsOccluded(context.CameraModel, px, meshPoint, occlusionScene, range, context.ObsToMesh);
+            }
+            catch (CameraModelException)
+            {
+                return false; //happens infrequently, but not in frame
+            }
         }
 
         /// <summary>
@@ -1070,8 +1099,13 @@ namespace OPS.Pipeline
                 return false;
             }
 
-            Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
-            Ray rayMeshToCam = new Ray(meshPos, -rayCamToMesh.Direction);
+            Ray? rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
+            if (!rayCamToMesh.HasValue)
+            {
+                return false;
+            }
+            
+            Ray rayMeshToCam = new Ray(meshPos, -rayCamToMesh.Value.Direction);
 
             //from embree docs:
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
@@ -1084,16 +1118,23 @@ namespace OPS.Pipeline
         }
 
 
-        public static Ray GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
+        public static Ray? GetRayToMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel)
         {
-            //get ray from camera through pixel associated with meshPos
-            Ray rayCamToMeshInObsFrame = camera.Unproject(pixel);
-
-            // convert from observation frame (typically rover_nav) to mesh (output frame, typically "root")
-            Ray rayCamToMesh = new Ray(Vector3.Transform(rayCamToMeshInObsFrame.Position, obsToMesh),
-                                       Vector3.TransformNormal(rayCamToMeshInObsFrame.Direction, obsToMesh));
-
-            return rayCamToMesh;
+            try
+            {
+                //get ray from camera through pixel associated with meshPos
+                Ray rayCamToMeshInObsFrame = camera.Unproject(pixel);
+                
+                // convert from observation frame (typically rover_nav) to mesh (output frame, typically "root")
+                Ray rayCamToMesh = new Ray(Vector3.Transform(rayCamToMeshInObsFrame.Position, obsToMesh),
+                                           Vector3.TransformNormal(rayCamToMeshInObsFrame.Direction, obsToMesh));
+                
+                return rayCamToMesh;
+            }
+            catch (CameraModelException)
+            {
+                return null; //happens infrequently but failed to get ray for pixel
+            }
         }
 
         // raycast the mesh with an occulusion check
@@ -1142,13 +1183,17 @@ namespace OPS.Pipeline
 
         public static Vector3? RaycastMesh(CameraModel camera, Matrix obsToMesh, Vector2 pixel, SceneCaster sc)
         {
-            Ray rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
+            Ray? rayCamToMesh = GetRayToMesh(camera, obsToMesh, pixel);
+            if (!rayCamToMesh.HasValue)
+            {
+                return null;
+            }
 
             //from embree docs:
             //The implementation makes no guarantees that primitives whose hit distance is exactly at
             //(or very close to) tnear or tfar are hit or missed. 
             //If you want to exclude intersections at tnear just pass a slightly enlarged tnear
-            return sc.RaycastPosition(rayCamToMesh, RAYCAST_NEAR_METERS);
+            return sc.RaycastPosition(rayCamToMesh.Value, RAYCAST_NEAR_METERS);
         }
      
         public static IDictionary<string, ConvexHull> //indexed by observation name
