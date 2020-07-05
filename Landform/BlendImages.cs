@@ -157,7 +157,7 @@ namespace OPS.Landform
         [Option(HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
 
-        [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 0)]
+        [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 0.5)]
         public double PreadjustLuminance { get; set; }
 
         [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]
