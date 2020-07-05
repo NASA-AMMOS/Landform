@@ -7,3 +7,5 @@ landform-test-data/
 docs/*.pdf
 zip/
 *.zip
+client/public/viewer/tilesets/
+client/public/viewer/meshes/

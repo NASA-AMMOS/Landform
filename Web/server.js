@@ -16,6 +16,8 @@ const projectRouter = require('./api/project');
 const taskRouter = require('./api/task');
 const { startTaskReaper } = require('./taskUtil');
 
+const { hasFlag } = require('./tools/toolUtil');
+
 const app = express();
 
 const nodeEnv = app.get('env');
@@ -66,21 +68,42 @@ if (nodeEnv === 'production' || nodeEnv === 'integration') {
 
 //serve public dir of client but in development only
 //this is so that e.g. http://localhost:8081/viewer/index.html works, which is what the project/view API returns
-if (nodeEnv === 'development') app.use('/', express.static(path.join(__dirname, 'client', 'public')));
+if (nodeEnv === 'development') {
+  const pubRoot = path.join(__dirname, 'client', 'public');
+  //app.use('/', express.static(pubRoot));
+  app.use(express.static(pubRoot, {
+    setHeaders(res, pth) {
+      if (pth.endsWith('.unityweb')) res.set('Content-Encoding', 'gzip');
+    },
+  }));
+}
 
-logger.info(`NODE_ENV: ${app.get('env')}`);
-logger.info(`LDAP group: ${config.app.ldapGroup}`);
-logger.info(`Landform venue: ${config.app.venue}`);
-logger.info(`AWS profile: ${config.app.awsProfile}`);
-logger.info(`AWS region: ${config.app.awsRegion}`);
-logger.info(`S3 URL: ${config.app.s3Url}`);
-logger.info(`MSLICE AWS profile: ${config.app.MSLICEAWSProfile}`);
-logger.info(`MSLICE AWS region: ${config.app.MSLICEAWSRegion}`);
-logger.info(`MSLICE S3 URL: ${config.app.MSLICES3Url}`);
-logger.info(`master: ${path.join(config.app.binDir, config.app.masterExe)}`);
 
-tilingMaster().then(() => {
-  logger.info('launched TilingServer master');
+function listen() {
   app.listen(config.app.port, () => logger.info(`${config.app.name} listening on port ${config.app.port}`));
-  startTaskReaper();
-});
+}
+
+if (hasFlag('nomaster')) {
+
+  logger.info('running server without master');
+  listen();
+
+} else {
+
+  logger.info(`NODE_ENV: ${app.get('env')}`);
+  logger.info(`LDAP group: ${config.app.ldapGroup}`);
+  logger.info(`Landform venue: ${config.app.venue}`);
+  logger.info(`AWS profile: ${config.app.awsProfile}`);
+  logger.info(`AWS region: ${config.app.awsRegion}`);
+  logger.info(`S3 URL: ${config.app.s3Url}`);
+  logger.info(`MSLICE AWS profile: ${config.app.MSLICEAWSProfile}`);
+  logger.info(`MSLICE AWS region: ${config.app.MSLICEAWSRegion}`);
+  logger.info(`MSLICE S3 URL: ${config.app.MSLICES3Url}`);
+  logger.info(`master: ${path.join(config.app.binDir, config.app.masterExe)}`);
+
+  tilingMaster().then(() => {
+    logger.info('launched TilingServer master');
+    listen();
+    startTaskReaper();
+  });
+}
