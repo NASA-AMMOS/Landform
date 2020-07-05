@@ -39,9 +39,11 @@ const development = {
 
     //default venue name same as in ConfigureCloud.cs
     venue: env.LANDFORM_VENUE || `landform-dev-${os.userInfo().username}-${os.hostname()}`,
-    s3Url: env.LANDFORM_S3_URL || 's3://landlords-dev/landform-web',
-    awsRegion: env.LANDFORM_AWS_REGION || env.AWS_DEFAULT_REGION || 'us-west-1',
-    awsProfile: env.LANDFORM_AWS_PROFILE || env.AWS_PROFILE || 'default',
+
+    //see Docs/INTERNAL.md for info on credentials for using this venue
+    s3Url: env.LANDFORM_S3_URL || 's3://mipl-dev-landform/landform-web',
+    awsRegion: env.LANDFORM_AWS_REGION || env.AWS_DEFAULT_REGION || 'us-gov-west-1',
+    awsProfile: env.LANDFORM_AWS_PROFILE || env.AWS_PROFILE || 'credss-mipl-dev',
 
     //TODO MSL specific
     MSLICEAWSProfile: env.LANDFORM_MSLICE_AWS_PROFILE || 'mslice',
