@@ -137,6 +137,11 @@ namespace OPS.Landform
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
                 }
 
+                if (options.Colorize)
+                {
+                    RunPhase("checking/computing observation image stats", BuildObservationImageStats);
+                }
+
                 RunPhase(string.Format("{0}save tiles", withTextures ? "build tile textures and " : ""),
                          BuildTileTexturesAndSaveTiles);
             }
@@ -476,6 +481,11 @@ namespace OPS.Landform
             {
                 pipeline.LogInfo("backproject quality {0}, prefer color {1}, texture far clip {2:f3}",
                                  options.BackprojectQuality, options.PreferColor, options.TextureFarClip);
+                if (!options.NoIndexImages)
+                {
+                    pipeline.LogInfo("saving tile backproject index images");
+                }
+                pipeline.LogInfo("colorize: {0}", options.Colorize);
             }
 
             if (meshLOD.Count == 1 && texGenMode == TextureGenMode.Clip)
@@ -490,11 +500,6 @@ namespace OPS.Landform
                 bakeClipper = new MultiMeshClipper();
                 bakeClipper.AddInput(mesh, sceneTexture);
                 bakeClipper.InitTextureBaker();
-            }
-
-            if (texGenMode == TextureGenMode.Backproject && !options.NoIndexImages)
-            {
-                pipeline.LogInfo("saving tile backproject index images");
             }
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;

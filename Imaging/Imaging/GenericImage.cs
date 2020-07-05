@@ -336,6 +336,26 @@ namespace OPS.Imaging
             return IsValid((row * Width) + column);
         }
 
+        public int CountValid()
+        {
+            if (!HasMask)
+            {
+                return Width * Height;
+            }
+            int numValid = 0;
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    if (IsValid(row, col))
+                    {
+                        numValid++;
+                    }
+                }
+            }
+            return numValid;
+        }
+
         /// <summary>
         /// Returns true if the value at the given index should be masked out (ignored)
         /// If a mask is not defined for this image this will always return false

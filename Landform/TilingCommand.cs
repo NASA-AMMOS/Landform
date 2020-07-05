@@ -455,7 +455,8 @@ namespace OPS.Landform
                 var image = new Image(3, tileResolution, tileResolution);
                 Backproject.FillOutputTexture(pipeline, project, results, image, tilingOpts.TextureVariant,
                                               tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
-                                              fallbackToOriginal: true, orbitalTexture: orbitalTexture);
+                                              fallbackToOriginal: true, orbitalTexture: orbitalTexture,
+                                              colorizeHue: tilingOpts.Colorize ? medianHue : -1);
 
                 if (index != null)
                 {

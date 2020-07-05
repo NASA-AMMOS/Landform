@@ -68,6 +68,9 @@ namespace OPS.Landform
         [Option(HelpText = "Redo observation image masks", Default = false)]
         public bool RedoObservationMasks { get; set; }
 
+        [Option(HelpText = "Redo observation image stats", Default = false)]
+        public bool RedoObservationStats { get; set; }
+
         [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
         public int BackprojectInpaintMissing { get; set; }
 
@@ -85,6 +88,12 @@ namespace OPS.Landform
 
         [Option(HelpText = "Prefer linearized version of images for texturing", Default = false)]
         public bool PreferLinearToNonlinear { get; set; }
+
+        [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
+        public virtual bool Colorize { get; set; }
+
+        [Option(HelpText = "Override median hue [0-360], negative disables (e.g. 33)", Default = -1)]
+        public double OverrideMedianHue { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
@@ -115,6 +124,8 @@ namespace OPS.Landform
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
+        protected double medianHue = -1;
+
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
             this.tcopts = tcopts;
@@ -122,6 +133,7 @@ namespace OPS.Landform
             {
                 tcopts.RedoBlurredObservationTextures = true;
                 tcopts.RedoObservationMasks = true;
+                tcopts.RedoObservationStats = true;
             }
         }
 
@@ -193,6 +205,11 @@ namespace OPS.Landform
             {
                 ListImageObservations();
                 return false;
+            }
+
+            if (tcopts.OverrideMedianHue >= 0 && tcopts.OverrideMedianHue <= 360)
+            {
+                medianHue = tcopts.OverrideMedianHue;
             }
 
             return true;
@@ -402,6 +419,61 @@ namespace OPS.Landform
 
                 Interlocked.Decrement(ref np);
             });
+        }
+
+        protected void BuildObservationImageStats()
+        {
+            int no = roverImages.Count;
+            int np = 0, nc = 0;
+            CoreLimitedParallel.ForEach(roverImages, obs =>
+            {
+                if (!tcopts.RedoObservationStats && obs.StatsGuid != Guid.Empty)
+                {
+                    Interlocked.Increment(ref nc);
+                    return;
+                }
+                
+                Interlocked.Increment(ref np);
+                
+                pipeline.LogVerbose("computing stats for observation {0}, processing {1} in parallel, " +
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
+
+                try
+                {
+                    var img = pipeline.LoadImage(obs.Url);
+                    if (obs.MaskGuid != Guid.Empty)
+                    {
+                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
+                        img = new Image(img); //don't mutate cached image
+                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
+                    }
+                    var statsProd = new ImageStats(img);
+                    if (!tcopts.NoSave)
+                    {
+                        pipeline.SaveDataProduct(project, statsProd);
+                        obs.StatsGuid = statsProd.Guid;
+                        obs.Save(pipeline);
+                    }
+                    Interlocked.Increment(ref nc);
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"error computing stats for observation {obs.Name}");
+                }
+
+                Interlocked.Decrement(ref np);
+            });
+
+            int numColor = Backproject.GetImageStats(pipeline, project, roverImages, out double lumaMed,
+                                                     out double lumaMAD, out double hueMed);
+
+            if (numColor > 0 && tcopts.OverrideMedianHue < 0)
+            {
+                medianHue = hueMed;
+            }
+
+            pipeline.LogInfo("global luminance median {0:f3}, MAD {1:f3}, hue median {2:f3}, {3}/{4} images color",
+                             lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
         protected void LoadInputMesh(bool requireUVs = true)
@@ -767,7 +839,8 @@ namespace OPS.Landform
         }
 
         protected Image BuildBackprojectTexture(TextureVariant srcTextureVariant,
-                                                TextureVariant? dstTextureVariant = null)
+                                                TextureVariant? dstTextureVariant = null,
+                                                double preadjustLuminance = 0)
         {
             //careful here, if we already have a full-scene backprojectIndex
             //then the full-scene texture we're going to generate should be the same resolution
@@ -783,18 +856,23 @@ namespace OPS.Landform
             pipeline.LogInfo("creating {0}x{1} {2} backproject texture from {3} backproject results, inpaint {4}",
                              width, height, srcTextureVariant, Fmt.KMG(backprojectResults.Count),
                              tcopts.BackprojectInpaintMissing);
+            pipeline.LogInfo("preadjust luminance: {0:f3}, colorize: {1}", preadjustLuminance, tcopts.Colorize);
 
             Image texture = new Image(3, width, height);
 
             var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, texture, srcTextureVariant,
                                                       tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
-                                                      orbitalTexture: orbitalTexture);
+                                                      orbitalTexture: orbitalTexture,
+                                                      preadjustLuminance: preadjustLuminance,
+                                                      colorizeHue: tcopts.Colorize ? medianHue : -1);
 
             pipeline.LogInfo("filled {0} pixels from {1} surface observations, {2} from orbital, {3} failed, " +
                              "{4} fallbacks to original texture",
                              Fmt.KMG(stats.BackprojectedSurfacePixels), srcTextureVariant,
                              Fmt.KMG(stats.BackprojectedOrbitalPixels), Fmt.KMG(stats.BackprojectMissingPixels),
                              stats.NumFallbacks);
+
+            texture.DumpStats(msg => pipeline.LogInfo(msg));
 
             if (stats.NumFallbacks > 0)
             {

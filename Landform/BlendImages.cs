@@ -127,7 +127,7 @@ namespace OPS.Landform
         [Option(HelpText = "Inpaint diff images by this many pixels (after Barycentric interpolation, if any), 0 to disable, negative for unlimited", Default = -1)]
         public int InpaintDiff { get; set; }
 
-        [Option(Required = false, HelpText = "Diff image blur radius, 0 to disable", Default = 7)]
+        [Option(HelpText = "Diff image blur radius, 0 to disable", Default = 7)]
         public int BlurDiff { get; set; }
 
         [Option(HelpText = "Don't fill unknown areas in blended images with average diff", Default = false)]
@@ -145,17 +145,20 @@ namespace OPS.Landform
         [Option(HelpText = "Shrinkwrap Project miss behaviour (None, Delaunay, Inpaint)", Default = Shrinkwrap.ProjectionMissResponse.Delaunay)]
         public Shrinkwrap.ProjectionMissResponse ShrinkwrapMiss { get; set; }
 
-        [Option(Required = false, HelpText = "Acceptable error in solving the linear system", Default = LimberDMG.DEF_RESIDUAL_EPSILON)]
+        [Option(HelpText = "Acceptable error in solving the linear system", Default = LimberDMG.DEF_RESIDUAL_EPSILON)]
         public double ResidualEpsilon { get; set; }
 
-        [Option(Required = false, HelpText = "Number of iterations of relaxation to perform between multigrid iterations", Default = LimberDMG.DEF_NUM_RELAXATION_STEPS)]
+        [Option(HelpText = "Number of iterations of relaxation to perform between multigrid iterations", Default = LimberDMG.DEF_NUM_RELAXATION_STEPS)]
         public int NumRelaxationSteps { get; set; }
 
-        [Option(Required = false, HelpText = "Number of multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
+        [Option(HelpText = "Number of multigrid iterations to perform", Default = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS)]
         public int NumMultigridIterations { get; set; }
 
-        [Option(Required = false, HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
+        [Option(HelpText = "Higher values will cause sharper transitions between images but better conform to the inputs", Default = LimberDMG.DEF_LAMBDA)]
         public double Lambda { get; set; }
+
+        [Option(HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 0)]
+        public double PreadjustLuminance { get; set; }
 
         [Option(HelpText = "Redo shrinkwrap mesh", Default = false)]
         public bool RedoShrinkwrapMesh { get; set; }
@@ -221,6 +224,13 @@ namespace OPS.Landform
                 }
 
                 RunPhase("check/generate blurred observation images", BuildBlurredObservationImages);
+
+                if (options.PreadjustLuminance > 0 || options.Colorize)
+                {
+                    RunPhase("check/build observation image masks", BuildObservationImageMasks);
+                    RunPhase("check/build observation image stats", BuildObservationImageStats);
+                }
+
                 RunPhase("load or generate blurred texture", LoadOrBuildBlurredTexture);
                 RunPhase("load or generate blended texture", LoadOrBuildBlendedTexture);
                 RunPhase("generate blended observation images", BuildBlendedObservationImages);
@@ -517,7 +527,8 @@ namespace OPS.Landform
                 BuildBackprojectIndex();
             }
 
-            blurredTexture = BuildBackprojectTexture(TextureVariant.Blurred);
+            //note: BuildBackprojectTexture() will colorize blurredTexture if appropriate
+            blurredTexture = BuildBackprojectTexture(TextureVariant.Blurred, null, options.PreadjustLuminance);
 
             pipeline.LogInfo("created {0}x{0} blurred texture", sceneTextureResolution);
         }
@@ -548,7 +559,7 @@ namespace OPS.Landform
 
             blendedTexture = BlendImage(pipeline, backprojectIndex, blurredTexture, indexedImages,
                                         options.ResidualEpsilon, options.NumRelaxationSteps,
-                                        options.NumMultigridIterations, options.Lambda, LimberDMG.EdgeBehavior.Clamp);
+                                        options.NumMultigridIterations, options.Lambda, colorize: options.Colorize);
 
             if (!options.NoSave)
             {
@@ -561,17 +572,18 @@ namespace OPS.Landform
             writeDebug();
         }
 
-        static public Image BlendImage(PipelineCore pipeline, Image backprojectIndex, Image blurredTexture,
+        static public Image BlendImage(PipelineCore pipeline, Image backprojectIndex, Image blurred,
                                        Dictionary<int, Observation> indexedImages,
                                        double residualEpsilon = LimberDMG.DEF_RESIDUAL_EPSILON,
                                        int numRelaxationSteps = LimberDMG.DEF_NUM_RELAXATION_STEPS,
                                        int numMultigridIterations = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS,
                                        double lambda = LimberDMG.DEF_LAMBDA,
-                                       LimberDMG.EdgeBehavior edgeMode = LimberDMG.DEF_EDGE_BEHAVIOR)
+                                       LimberDMG.EdgeBehavior edgeMode = LimberDMG.DEF_EDGE_BEHAVIOR,
+                                       bool colorize = false)
         {
             int width = backprojectIndex.Width, height = backprojectIndex.Height;
 
-            if (blurredTexture.Height != height || blurredTexture.Width != width)
+            if (blurred.Height != height || blurred.Width != width)
             {
                 throw new ArgumentException("backproject index and blurred texture must be same size");
             }
@@ -598,7 +610,7 @@ namespace OPS.Landform
                     }
 
                     bool hasGray = obs != null;
-                    bool hasColor = obs != null && obs.Bands == 3;
+                    bool hasColor = obs != null && (colorize || obs.Bands == 3);
                     bool orbital = obs != null && obs.IsOrbitalImage;
 
                     byte lumaFlag = (byte)(hasGray ? LimberDMG.Flags.NONE : LimberDMG.Flags.NO_DATA);
@@ -621,13 +633,20 @@ namespace OPS.Landform
             var dmg = new LimberDMG(residualEpsilon, numRelaxationSteps, numMultigridIterations, lambda,
                                     edgeMode, LimberDMG.ColorConversion.RGBToLAB, msg => pipeline.LogVerbose(msg));
 
-            return dmg.StitchImage(blurredTexture, index, flags);
+            blurred.DumpStats(msg => pipeline.LogInfo("initial image: " + msg));
+
+            var blended = dmg.StitchImage(blurred, index, flags);
+
+            blended.DumpStats(msg => pipeline.LogInfo("blended image: " + msg));
+
+            return blended;
         }
 
         private void BuildBlendedObservationImages()
         {
             BuildBlendedObservationImages(pipeline, project, options, backprojectIndex, blendedTexture, indexedImages,
-                                          TextureVariant.Blended, SaveDebugWedgeImage);
+                                          TextureVariant.Blended, SaveDebugWedgeImage,
+                                          options.Colorize ? medianHue : -1);
         }
         
         static public void BuildBlendedObservationImages(PipelineCore pipeline, Project project,
@@ -635,7 +654,8 @@ namespace OPS.Landform
                                                          Image backprojectIndex, Image blendedTexture,
                                                          Dictionary<int, Observation> indexedImages,
                                                          TextureVariant textureVariant = TextureVariant.Blended,
-                                                         Action<Image, Observation, string> saveDebugImg = null)
+                                                         Action<Image, Observation, string> saveDebugImg = null,
+                                                         double colorizeHue = -1)
         {
             pipeline.LogInfo("building blended observation images");
 
@@ -713,22 +733,22 @@ namespace OPS.Landform
                 }
             }
 
+            double luminanceRange = Colorspace.GetLuminanceRange(); //typically defined as 100
+
             int no = indexedImages.Count;
             var strat = options.BlendStrategy;
-            pipeline.LogInfo("creating {0} images for {1} observations{2}",
-                             textureVariant, no, strat != BlendStrategy.None ? (", strategy " + strat) : "");
+            pipeline.LogInfo("creating {0} images for {1} observations{2}{3}",
+                             textureVariant, no, strat != BlendStrategy.None ? (", strategy " + strat) : "",
+                             colorizeHue >= 0 ? ", colorizing monochrome images" : "");
             pipeline.LogInfo("barycentric interp: {0}, inpaint diff: {1}, blur diff: {2}, fill avg: {3}",
                              options.BarycentricInterpolateWinners, options.InpaintDiff, options.BlurDiff,
                              !options.NoFillBlendWithAverageDiff);
-
             if (options.BarycentricInterpolateWinners &&
                 options.BarycentricInterpolateMaxTriangleSideLengthPixels > 0)
             {
                 pipeline.LogInfo("barycentric interpolate max triangle side {0}px",
                                  options.BarycentricInterpolateMaxTriangleSideLengthPixels);
             }
-
-            double maxLuminance = (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L;
 
             int np = 0, nc = 0, nf = 0;
             CoreLimitedParallel.ForEach(indexedImages, entry =>
@@ -789,10 +809,18 @@ namespace OPS.Landform
 
                 Image blr = pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image;
 
+                if (colorizeHue >= 0 && img.Bands == 1)
+                {
+                    img = img.ColorizeScalarImage(colorizeHue);
+                    blr = blr.ColorizeScalarImage(colorizeHue);
+//                    writeDebug(img, obs, "_colorize");
+//                    writeDebug(blr, obs, "_colorize_blur");
+                }
+
                 var diffImage = new Image(img.Bands, img.Width, img.Height);
                 diffImage.CreateMask(true); //all pixels initially masked
 
-                var avgDiff = new float[obs.Bands];
+                var avgDiff = new float[img.Bands];
                 int numWinners = 0;
                 foreach (var winner in winners[obsIndex])
                 {
@@ -809,7 +837,7 @@ namespace OPS.Landform
                     }
 
                     float[] diff = null;
-                    if (obs.Bands == 3)
+                    if (img.Bands == 3)
                     {
                         Vector3 d = blendedRGB - new Vector3(blr[0, or, oc], blr[1, or, oc], blr[2, or, oc]);
                         diff = new float[] { (float)d.X, (float)d.Y, (float)d.Z };
@@ -820,10 +848,11 @@ namespace OPS.Landform
                         float bg = (float)blendedRGB.Y;
                         float bb = (float)blendedRGB.Z;
                         double luminance = (new Rgb() { R = 255 * br, G = 255 * bg, B = 255 * bb }).To<Lab>().L;
-                        diff = new float[] { (float)(luminance / maxLuminance) - blr[0, or, oc] };
+                        luminance /= luminanceRange; //[0,100] => [0,1]
+                        diff = new float[] { (float)luminance - blr[0, or, oc] };
                     }
 
-                    for (int i = 0; i < obs.Bands; i++)
+                    for (int i = 0; i < img.Bands; i++)
                     {
                         avgDiff[i] += diff[i];
                     }
@@ -836,7 +865,7 @@ namespace OPS.Landform
 
                 if (numWinners > 0)
                 {
-                    for (int i = 0; i < obs.Bands; i++)
+                    for (int i = 0; i < img.Bands; i++)
                     {
                         avgDiff[i] /= numWinners;
                     }
@@ -1082,13 +1111,15 @@ namespace OPS.Landform
         {
             string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
             BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture,
-                                     options.BackprojectInpaintMissing, options.BackprojectInpaintGutter);
+                                     options.BackprojectInpaintMissing, options.BackprojectInpaintGutter,
+                                     colorizeHue: options.Colorize ? medianHue : -1);
         }
 
         static public void BuildBlendedLeafTextures(PipelineCore pipeline, Project project, string leafFolder,
                                                     TileList tileList, Dictionary<int, Observation> indexedImages,
                                                     Image orbitalTexture, int inpaintMissing, int inpaintGutter,
-                                                    TextureVariant textureVariant = TextureVariant.Blended)
+                                                    TextureVariant textureVariant = TextureVariant.Blended,
+                                                    double colorizeHue = -1)
         {
             pipeline.LogInfo("replacing leaf textures in {0} with {1} variant",
                              pipeline.GetStorageUrl(leafFolder, project.Name), textureVariant);
@@ -1105,8 +1136,8 @@ namespace OPS.Landform
                 var results = Backproject.BuildResultsFromIndex(index, indexedImages, msg => pipeline.LogWarn(msg));
                 var texture = new Image(3, index.Width, index.Height);
                 var stats = Backproject.FillOutputTexture(pipeline, project, results, texture, textureVariant,
-                                                          inpaintMissing, inpaintGutter,
-                                                          fallbackToOriginal: true, orbitalTexture: orbitalTexture);
+                                                          inpaintMissing, inpaintGutter, fallbackToOriginal: true,
+                                                          orbitalTexture: orbitalTexture, colorizeHue: colorizeHue);
                 Interlocked.Add(ref numSurfacePixels, stats.BackprojectedSurfacePixels);
                 Interlocked.Add(ref numOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 Interlocked.Add(ref numMissingPixels, stats.BackprojectMissingPixels);

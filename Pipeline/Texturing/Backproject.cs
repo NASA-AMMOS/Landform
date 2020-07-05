@@ -16,6 +16,7 @@ using OPS.Imaging;
 using OPS.Geometry;
 using OPS.Pipeline.AlignmentServer;
 using OPS.RayTrace;
+using OPS.Pipeline;
 using OPS.Pipeline.Texturing;
 
 namespace OPS.Pipeline
@@ -170,6 +171,41 @@ namespace OPS.Pipeline
             return results;
         }
 
+        static public int GetImageStats(PipelineCore pipeline, Project project, IEnumerable<Observation> observations,
+                                        out double luminanceMed, out double luminanceMAD, out double hueMed)
+        {
+            List<double> lumaMeds = new List<double>(), lumaMADs = new List<double>(), hueMeds = new List<double>();
+
+            foreach (var obs in observations.Where(obs => obs.StatsGuid != Guid.Empty))
+            {
+                var stats = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid);
+                lumaMeds.Add(stats.LuminanceMedian);
+                lumaMADs.Add(stats.LuminanceMedianAbsoluteDeviation);
+                if (stats.Bands > 2)
+                {
+                    hueMeds.Add(stats.HueMedian);
+                }
+            }
+
+            luminanceMed = luminanceMAD = -1;
+            if (lumaMeds.Count > 0)
+            {
+                lumaMeds.Sort();
+                lumaMADs.Sort();
+                luminanceMed = lumaMeds[lumaMeds.Count / 2];
+                luminanceMAD = lumaMADs[lumaMADs.Count / 2];
+            }
+
+            hueMed = 0;
+            if (hueMeds.Count > 0)
+            {
+                hueMeds.Sort();
+                hueMed = hueMeds[hueMeds.Count / 2];
+            }
+
+            return hueMeds.Count;
+        }
+
         /// <summary>
         /// high level function that uses backproject results to populate an image
         /// with corresponding pixels from all the source images
@@ -185,7 +221,8 @@ namespace OPS.Pipeline
                                               Image outputImage, TextureVariant textureVariant,
                                               int inpaintMissing = 4, int inpaintGutter = -1,
                                               bool fallbackToOriginal = true, Image orbitalTexture = null,
-                                              float[] missingColor = null)
+                                              float[] missingColor = null, double preadjustLuminance = 0,
+                                              double colorizeHue = -1)
         {
             missingColor = missingColor ?? NO_OBSERVATION_COLOR;
 
@@ -212,6 +249,32 @@ namespace OPS.Pipeline
                 return stats;
             }
 
+            var results = backprojectResults.ToList();
+
+            //group by source texture for perfomance (load the image once for all pixels needed from it)
+            var groupedWinners =
+                results
+                .Where(pair => pair.Value.Obs != null &&
+                       (pair.Value.Obs is RoverObservation ||
+                        (pair.Value.Obs.IsOrbitalImage && orbitalTexture != null)))
+                .ToList()
+                .GroupBy(pair => pair.Value.Obs.Name);
+
+            double lumaMed = -1, lumaMAD = -1;
+            if (preadjustLuminance > 0)
+            {
+                GetImageStats(pipeline, project, groupedWinners.Select(group => group.First().Value.Obs),
+                              out lumaMed, out lumaMAD, out double hueMed);
+            }
+
+            void checkProject(Observation obs)
+            {
+                if (project == null || project.Name != obs.ProjectName)
+                {
+                    throw new ArgumentException($"invalid project: {project?.Name} != {obs.ProjectName}");
+                }
+            }
+
             Image getObservationImage(Observation obs)
             {
                 if (obs.IsOrbitalImage)
@@ -226,42 +289,36 @@ namespace OPS.Pipeline
                     variant = TextureVariant.Original;
                 }
 
+                Image img = null;
                 if (variant == TextureVariant.Original)
                 {
                     if (variant != textureVariant)
                     {
                         Interlocked.Increment(ref stats.NumFallbacks);
                     }
-                    return pipeline.LoadImage(obs.Url);
+                    img = pipeline.LoadImage(obs.Url);
                 }
-
-                if (project == null)
+                else
                 {
-                    throw new ArgumentException($"project required to load {variant} texture");
+                    checkProject(obs);
+                    img = pipeline.GetDataProduct<PngDataProduct>(project, obs.GetTextureVariantGuid(variant)).Image;
                 }
 
-                if (project.Name != obs.ProjectName)
+                if (preadjustLuminance > 0 && lumaMed >= 0 && obs.StatsGuid != Guid.Empty)
                 {
-                    throw new ArgumentException("cannot load observations from multiple projects: " +
-                                                $"{project.Name}, {obs.ProjectName}");
+                    checkProject(obs);
+                    var st = pipeline.GetDataProduct<ImageStats>(project, obs.StatsGuid);
+                    img = new Image(img); //don't mutate cached image
+                    img.AdjustLuminanceDistribution(st.LuminanceMedian, st.LuminanceMedianAbsoluteDeviation,
+                                                    lumaMed, lumaMAD, preadjustLuminance);
                 }
 
-                return pipeline.GetDataProduct<PngDataProduct>(project, obs.GetTextureVariantGuid(variant)).Image;
+                return img;
             }
-
-            var results = backprojectResults.ToList();
-
-            //group by source texture for perfomance (load the image once for all pixels needed from it)
-            var groupedWinners =
-                results
-                .Where(pair => pair.Value.Obs != null &&
-                       (pair.Value.Obs is RoverObservation ||
-                        (pair.Value.Obs.IsOrbitalImage && orbitalTexture != null)))
-                .ToList()
-                .GroupBy(pair => pair.Value.Obs.Name);
 
             var failedObservations = new ConcurrentDictionary<string, IEnumerable<KeyValuePair<Pixel, ObsPixel>>>();
             var failedPixels = new ConcurrentBag<Pixel>();
+            var isMono = colorizeHue >= 0 ? new ConcurrentDictionary<Pixel, bool>() : null;
             CoreLimitedParallel.ForEach(groupedWinners, group =>
             {
                 var obs = group.First().Value.Obs;
@@ -302,9 +359,14 @@ namespace OPS.Pipeline
                         return;
                     }
 
-                    var color = srcImg.SampleAsColor(srcPx);
+                    float[] color = srcImg.SampleAsColor(srcPx);
                     outputImage.SetAsColor(color, dstPx.Row, dstPx.Col);
                     outputImage.SetMaskValue(dstPx.Row, dstPx.Col, false);
+
+                    if (isMono != null)
+                    {
+                        isMono[dstPx] = srcImg.Bands < 3;
+                    }
                     
                     if (obs.IsOrbitalImage)
                     {
@@ -331,6 +393,12 @@ namespace OPS.Pipeline
             if (failed.Count > 0)
             {
                 pipeline.LogWarn("error filling {0} backprojected pixels", Fmt.KMG(failed.Count));
+            }
+
+            if (colorizeHue >= 0)
+            {
+                outputImage.ColorizeSelected(colorizeHue, (row, col) => isMono[new Pixel(row, col)],
+                                             LuminanceMode.Average);
             }
 
             //at this point all successfull backproject pixels have been filled in and unmasked

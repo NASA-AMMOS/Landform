@@ -75,6 +75,8 @@ namespace OPS.Pipeline.AlignmentServer
 
         public Guid SkyBlendedGuid;
 
+        public Guid StatsGuid;
+
         public string FrameName;
 
         public bool UseForAlignment;
@@ -143,6 +145,7 @@ namespace OPS.Pipeline.AlignmentServer
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
             this.SkyBlendedGuid = Guid.Empty;
+            this.StatsGuid = Guid.Empty;
             this.CameraModel = cameraModel;
             this.UseForAlignment = useForAlignment;
             this.UseForMeshing = useForMeshing;

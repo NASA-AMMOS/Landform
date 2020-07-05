@@ -126,6 +126,12 @@ namespace OPS.Landform
         [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores, auto)", Default = "auto")]
         public string SkyPreferColor { get; set; }
 
+        [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 1)]
+        public double PreadjustLuminance { get; set; }
+
+        [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
+        public override bool Colorize { get; set; }
+
         //https://github.jpl.nasa.gov/OnSight/Landform/issues/1095
         [Option(HelpText = "Add dummy content to tileset root", Default = false)]
         public bool HackRoot { get; set; }
@@ -193,6 +199,10 @@ namespace OPS.Landform
 
                 if (!options.NoBlend)
                 {
+                    if (options.PreadjustLuminance > 0 || options.Colorize)
+                    {
+                        RunPhase("checking/computing observation image stats", BuildObservationImageStats);
+                    }
                     RunPhase("build blurred observations", BuildBlurredObservationImages);
                     RunPhase("blending sky sphere tile textures", BlendTileTextures);
                 }
@@ -378,6 +388,7 @@ namespace OPS.Landform
 
             pipeline.LogInfo("backproject quality: {0:f6} ({1} samples per {2:f3}m^2 tile)",
                              options.BackprojectQuality, options.BackprojectSamplesPerTile, tileAreaOnSphereAtHorizon);
+            pipeline.LogInfo("colorize: {0}", options.Colorize);
 
             skyColor = new float[] { (float)options.SkyColorRed / 255.0f,
                                      (float)options.SkyColorGreen / 255.0f,
@@ -760,7 +771,9 @@ namespace OPS.Landform
             Image bigBlurredImage = new Image(3, bigImgWidth, bigImgHeight);
             Backproject.FillOutputTexture(pipeline, project, backprojectResults, bigBlurredImage,
                                           TextureVariant.Blurred, options.BackprojectInpaintMissing,
-                                          options.BackprojectInpaintGutter, missingColor: skyColor);
+                                          options.BackprojectInpaintGutter, missingColor: skyColor,
+                                          preadjustLuminance: options.PreadjustLuminance,
+                                          colorizeHue: options.Colorize ? medianHue : -1);
 
             if (options.WriteDebug)
             {
@@ -769,7 +782,7 @@ namespace OPS.Landform
 
             var edgeMode = wrappable ? LimberDMG.EdgeBehavior.WrapCylinder : LimberDMG.DEF_EDGE_BEHAVIOR;
             Image bigBlendedImage = BlendImages.BlendImage(pipeline, bigIndexMap, bigBlurredImage, indexedImages,
-                                                           edgeMode: edgeMode);
+                                                           edgeMode: edgeMode, colorize: options.Colorize);
             bigBlurredImage = null; //free memory
 
             if (options.WriteDebug)
@@ -798,13 +811,14 @@ namespace OPS.Landform
             }
 
             BlendImages.BuildBlendedObservationImages(pipeline, project, blendOptions, bigIndexMap, bigBlendedImage,
-                                                      indexedImages, TextureVariant.SkyBlended, saveDebugImg);
-            bigIndexMap = null;
-            bigBlendedImage = null;
+                                                      indexedImages, TextureVariant.SkyBlended, saveDebugImg,
+                                                      options.Colorize ? medianHue : -1);
+            bigIndexMap = bigBlendedImage = null;
 
             BlendImages.BuildBlendedLeafTextures(pipeline, project, outputFolder, tileList, indexedImages,
                                                  orbitalTexture, options.BackprojectInpaintMissing,
-                                                 options.BackprojectInpaintGutter, TextureVariant.SkyBlended);
+                                                 options.BackprojectInpaintGutter, TextureVariant.SkyBlended,
+                                                 colorizeHue: options.Colorize ? medianHue : -1);
         }
 
         protected override void SaveTileset()

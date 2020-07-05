@@ -94,6 +94,10 @@ namespace OPS.Landform
 
                 if (!options.OnlyIndex)
                 {
+                    if (options.Colorize)
+                    {
+                        RunPhase("checking/computing observation image stats", BuildObservationImageStats);
+                    }
                     RunPhase(string.Format("generate {0} backproject texture", options.TextureVariant),
                              () => { sceneTexture = BuildBackprojectTexture(options.TextureVariant); });
                 }
