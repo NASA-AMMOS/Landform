@@ -232,19 +232,15 @@ namespace OPS.Util
                 if (a is FileAppender)
                 {
                     FileAppender fa = (FileAppender)a;
-                    bool fileChanged = !string.IsNullOrEmpty(logFilename) || !string.IsNullOrEmpty(logFile);
-                    FileInfo oldFile = null;
+                    var oldFile = new FileInfo(fa.File);
+                    if (string.IsNullOrEmpty(logFile) && !string.IsNullOrEmpty(logFilename))
+                    {
+                        logFile = Path.Combine(oldFile.DirectoryName, logFilename);
+                    }
+                    bool fileChanged = StringHelper.NormalizeSlashes(fa.File) != StringHelper.NormalizeSlashes(logFile);
                     if (fileChanged)
                     {
-                        oldFile = new FileInfo(fa.File);
-                        if (!string.IsNullOrEmpty(logFile))
-                        {
-                            fa.File = logFile;
-                        }
-                        else
-                        {
-                            fa.File = Path.Combine(oldFile.DirectoryName, logFilename);
-                        }
+                        fa.File = logFile;
                     }
                     if (debug)
                     {
@@ -253,7 +249,8 @@ namespace OPS.Util
                     if (fileChanged || debug)
                     {
                         fa.ActivateOptions();
-                        if (oldFile != null && oldFile.Exists)
+
+                        if (fileChanged && oldFile.Exists)
                         {
                             //if (oldFile.Length == 0)
                             //https://github.jpl.nasa.gov/OnSight/Landform/issues/350
