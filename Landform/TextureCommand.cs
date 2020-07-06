@@ -556,7 +556,7 @@ namespace OPS.Landform
             {
                 if (requireUVs && !meshLOD[i].HasUVs)
                 {
-                    UVAtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                    AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
                 }
             }
         }

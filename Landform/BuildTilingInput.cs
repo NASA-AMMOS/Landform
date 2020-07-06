@@ -704,20 +704,10 @@ namespace OPS.Landform
             {
                 if (!tileMesh.HasUVs || options.RedoTileMeshUVs)
                 {
-                    pipeline.LogVerbose("atlasing tile {0} with UVAtlas, texture resolution {1}",
-                                        tile.Name, tileResolution);
-                    try
+                    tileMesh = AtlasMesh(tileMesh, tileResolution, "tile " + tile.Name);
+                    if (tileMesh == null)
                     {
-                        tileMesh = UVAtlas.Atlas(tileMesh, tileResolution, tileResolution);
-                        if (tileMesh == null)
-                        {
-                            pipeline.LogError("unknown error atlasing tile mesh {0}", tile.Name);
-                            return null;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        pipeline.LogError("error atlasing tile mesh {0}: {1}", tile.Name, ex.Message);
+                        pipeline.LogError("unknown error atlasing tile mesh {0}", tile.Name);
                         return null;
                     }
                 }

@@ -13,6 +13,8 @@ using OPS.Pipeline;
 
 namespace OPS.Landform
 {
+    public enum AtlasMode { UVAtlas, Heightmap };
+
     public class GeometryCommandOptions : WedgeCommandOptions
     {
         [Option(HelpText = "Scene mesh coordinate frame: auto, passthrough, newest, oldest, mission_root, project_root, numeric sitedrive SSSDDDD", Default = "auto")]
@@ -41,6 +43,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Orbital sampling rate, non-positive to use DEM resolution", Default = -1)]
         public double OrbitalPointsPerMeter { get; set; }
+
+        [Option(HelpText = "UV generation mode for surface meshes (UVAtlas, Heightmap)", Default = AtlasMode.UVAtlas)]
+        public AtlasMode SurfaceUVMode { get; set; }
     }
 
     public class GeometryCommand : WedgeCommand
@@ -109,7 +114,7 @@ namespace OPS.Landform
             return true;
         }
 
-        protected void HandleSpecialMeshFrames()
+        protected virtual void HandleSpecialMeshFrames()
         {
             meshFrame = GetMeshFrame();
 
@@ -242,7 +247,6 @@ namespace OPS.Landform
         protected virtual Mesh UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-
             pipeline.LogInfo("atlasing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
                              name, Fmt.KMG(mesh.Faces.Count), resolution);
 
@@ -270,12 +274,26 @@ namespace OPS.Landform
             return mesh;
         }
 
-        protected virtual Mesh HeightmapAtlasMesh(Mesh mesh)
+        protected virtual Mesh HeightmapAtlasMesh(Mesh mesh, string name = null)
         {
+            name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
+            pipeline.LogInfo("heightmap atlasing {0}mesh ({1} triangles)}", name, Fmt.KMG(mesh.Faces.Count));
+
             //swap U and V because mission surface frames are typically X north, Y east
             //this doesn't really matter here except that backproject texture images created to match these flipped UVs
             //will have north up and east right in image viewers, matching the orientation of other debug images
             mesh.HeightmapAtlas(BoxAxis.Z, swapUV: true);
+            return mesh;
+        }
+
+        protected virtual Mesh AtlasMesh(Mesh mesh, int resolution, string name = null)
+        {
+            switch (gcopts.SurfaceUVMode)
+            {
+                case AtlasMode.UVAtlas: mesh = UVAtlasMesh(mesh, resolution, name); break;
+                case AtlasMode.Heightmap: mesh = HeightmapAtlasMesh(mesh, name); break;
+                default: throw new ArgumentException("unknown atlas mode: " + gcopts.SurfaceUVMode);
+            }
             return mesh;
         }
 

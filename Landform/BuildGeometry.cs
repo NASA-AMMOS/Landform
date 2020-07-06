@@ -89,8 +89,6 @@ using System.IO;
 /// </summary>
 namespace OPS.Landform
 {
-    public enum AtlasMode { UVAtlas, Heightmap };
-
     [Verb("build-geometry", HelpText = "create scene mesh from point clouds")]
     public class BuildGeometryOptions : GeometryCommandOptions
     {
@@ -168,9 +166,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Generate full-mesh UVs", Default = false)]
         public bool GenerateUVs { get; set; }
-
-        [Option(HelpText = "UV generation mode for central surface and blended orbital mesh (UVAtlas, Heightmap)", Default = AtlasMode.UVAtlas)]
-        public AtlasMode SurfaceUVMode { get; set; }
     }
 
     public class BuildGeometry : GeometryCommand
@@ -1070,12 +1065,7 @@ namespace OPS.Landform
             if (options.NoOrbital || blendExtent == options.Extent || orbitalTextureMetersPerPixel <= 0)
             {
                 pipeline.LogInfo("no peripheral orbital, {0} atlassing full scene mesh", options.SurfaceUVMode);
-                switch (options.SurfaceUVMode)
-                {
-                    case AtlasMode.UVAtlas: mesh = UVAtlasMesh(mesh, sceneTextureResolution); break;
-                    case AtlasMode.Heightmap: HeightmapAtlasMesh(mesh); break;
-                    default: throw new ArgumentException("unknown atlas mode: " + options.SurfaceUVMode);
-                }
+                mesh = AtlasMesh(mesh, sceneTextureResolution);
                 if (mesh == null)
                 {
                     throw new Exception("atlasing failed");
