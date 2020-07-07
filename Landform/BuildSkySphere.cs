@@ -17,14 +17,13 @@ using OPS.Pipeline.TilingServer;
 /// <summary>
 /// Creates a sky tileset to display behind the terrain.
 ///
-/// There are three modes:
 /// In --skymode=Box the sky geometry is the vertical sides of a box centered on a point c at rover mast height above
 /// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, or is auto-computed as half the
 /// scene XY bounds diagonal. Surface observations are backprojected onto the box, optionally using the scene mesh as an
-/// occluder.  If the box radius is less than 2km then the backprojections are actually computed as if it were at 2km to
-/// avoid incorrect parallax.
+/// occluder.  By default backprojections are actually computed from a min radius of 2km, even if the box radius is
+/// smaller.
 ///
-/// --skymode=NearSphere is the same as Box but uses sphere instead of box geometry.
+/// NearSphere mode is the same as Box but uses sphere instead of box geometry.
 ///
 /// In --skymode=FarSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
 /// the scene origin.  If --sphereradiusmeters=auto then the radius defaults to 2km.  Each point p on the sky sphere is
@@ -99,6 +98,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Mask any point on sky that is obstructed in any observation", Default = false)]
         public bool MaskObstructed { get; set; }
+
+        [Option(HelpText = "Disable backproject from far radius in Box and NearSphere modes", Default = false)]
+        public bool NoBackprojectNearAsFar { get; set; }
 
         [Option(HelpText = "Disable image blending", Default = false)]
         public bool NoBlend { get; set; }
@@ -299,7 +301,8 @@ namespace OPS.Landform
                 sphereRadius = double.Parse(options.SphereRadiusMeters);
             }
             backprojectRadius = sphereRadius;
-            if (options.SkyMode != SkyMode.FarSphere && backprojectRadius < DEF_FAR_RADIUS)
+            if (!options.NoBackprojectNearAsFar && options.SkyMode != SkyMode.FarSphere &&
+                backprojectRadius < DEF_FAR_RADIUS)
             {
                 backprojectRadius = DEF_FAR_RADIUS;
             }
@@ -459,7 +462,7 @@ namespace OPS.Landform
         {
             //build backproject strategy globally vs per tile to avoid artifacts at adjacent tile boundaries
             var skyMesh = Mesh.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
-            if (options.SkyMode != SkyMode.FarSphere)
+            if (options.SkyMode != SkyMode.FarSphere && backprojectRadius != sphereRadius)
             {
                 foreach (var v in skyMesh.Vertices)
                 {
@@ -496,15 +499,18 @@ namespace OPS.Landform
             }
             else
             {
-                opts.sampleTransform = samples =>
+                if (backprojectRadius != sphereRadius)
                 {
-                    foreach (var sample in samples)
+                    opts.sampleTransform = samples =>
                     {
-                        var dir = Vector3.Normalize(sample.Point - sphereCenter);
-                        sample.Point = sphereCenter + dir * backprojectRadius;
-                    }
-                    return samples;
-                };
+                        foreach (var sample in samples)
+                        {
+                            var dir = Vector3.Normalize(sample.Point - sphereCenter);
+                            sample.Point = sphereCenter + dir * backprojectRadius;
+                        }
+                        return samples;
+                    };
+                }
                 if (sceneOccludesSky)
                 {
                     opts.onlyCompletelyUnobstructed = options.MaskObstructed;
