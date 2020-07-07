@@ -18,15 +18,13 @@ using OPS.Pipeline.TilingServer;
 /// Creates a sky tileset to display behind the terrain.
 ///
 /// There are three modes:
-///
 /// In --skymode=Box the sky geometry is the vertical sides of a box centered on a point c at rover mast height above
-/// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, or is auto-comuted as half the
+/// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, or is auto-computed as half the
 /// scene XY bounds diagonal. Surface observations are backprojected onto the box, optionally using the scene mesh as an
-/// occluder.
+/// occluder.  If the box radius is less than 2km then the backprojections are actually computed as if it were at 2km to
+/// avoid incorrect parallax.
 ///
-/// In --skymode=NearSphere the sky geometry is a portion of a sphere centered on a point at rover mast height above the
-/// scene origin.  If --sphereradiusmeters=auto then the radius is auto-computed as half the scene XY bounds diagonal.
-/// Surface observations are backprojected onto the box, optionally using the scene mesh as an occluder.
+/// --skymode=NearSphere is the same as Box but uses sphere instead of box geometry.
 ///
 /// In --skymode=FarSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
 /// the scene origin.  If --sphereradiusmeters=auto then the radius defaults to 2km.  Each point p on the sky sphere is
@@ -99,6 +97,9 @@ namespace OPS.Landform
         [Option(HelpText = "Occlude sky texture by scene geometry (Never, Always, Auto)", Default = SkyOcclusionMode.Auto)]
         public SkyOcclusionMode SceneOccludesSky { get; set; }
 
+        [Option(HelpText = "Mask any point on sky that is obstructed in any observation", Default = false)]
+        public bool MaskObstructed { get; set; }
+
         [Option(HelpText = "Disable image blending", Default = false)]
         public bool NoBlend { get; set; }
 
@@ -150,7 +151,7 @@ namespace OPS.Landform
         private BuildSkySphereOptions options;
 
         private Vector3 sphereCenter;
-        private double sphereRadius, sceneRadius;
+        private double sphereRadius, sceneRadius, backprojectRadius;
         private double angleAboveHorizon, angleBelowHorizon;
 
         private int sphereTileRows, sphereTileCols;
@@ -297,23 +298,24 @@ namespace OPS.Landform
             {
                 sphereRadius = double.Parse(options.SphereRadiusMeters);
             }
-            pipeline.LogInfo("sky sphere mode {0}, radius {1:f3}m, scene radius {2:f3}m",
-                             options.SkyMode, sphereRadius, sceneRadius);
+            backprojectRadius = sphereRadius;
+            if (options.SkyMode != SkyMode.FarSphere && backprojectRadius < DEF_FAR_RADIUS)
+            {
+                backprojectRadius = DEF_FAR_RADIUS;
+            }
+            pipeline.LogInfo("sky sphere mode {0}, radius {1:f3}m, scene radius {2:f3}m, backproject radius {3:f3}m",
+                             options.SkyMode, sphereRadius, sceneRadius, backprojectRadius);
 
             switch (options.SceneOccludesSky)
             {
-                case SkyOcclusionMode.Always:
-                {
-                    if (sceneCaster == null)
-                    {
-                        throw new Exception("must run after build-geometry with --sceneoccludessky=Always");
-                    }
-                    sceneOccludesSky = true;
-                    break;
-                }
+                case SkyOcclusionMode.Always: sceneOccludesSky = true; break;
                 case SkyOcclusionMode.Never: sceneOccludesSky = false; break;
                 case SkyOcclusionMode.Auto: sceneOccludesSky = options.SkyMode != SkyMode.FarSphere; break;
                 default: throw new Exception("unknown sky occlusion mode: " + options.SceneOccludesSky);
+            }
+            if (sceneOccludesSky && sceneCaster == null)
+            {
+                throw new Exception("must run after build-geometry with --sceneoccludessky=Always,Auto");
             }
             pipeline.LogInfo("scene {0} sky", sceneOccludesSky ? "occludes" : "does not occlude");
 
@@ -329,7 +331,7 @@ namespace OPS.Landform
             }
 
             //need camera frustums to reach sky sphere
-            options.TextureFarClip = sphereRadius * 2;
+            options.TextureFarClip = backprojectRadius * 2;
 
             //mission surface frames are X north, Y east, Z down
             sphereCenter = new Vector3(0, 0, -mission.GetMastHeightMeters());
@@ -378,7 +380,7 @@ namespace OPS.Landform
             //length of circular arc = circumference * (angle of arc in radians) / (2 * PI)
             //                       = (2 * PI * radius) * (angle of arc in radians) / (2 * PI)
             //                       = radius * (angle of arc in radians)
-            double tileWidthOnSphereAtHorizon = sphereRadius * tileSizeRad;
+            double tileWidthOnSphereAtHorizon = backprojectRadius * tileSizeRad;
             double tileAreaOnSphereAtHorizon = tileWidthOnSphereAtHorizon * tileWidthOnSphereAtHorizon;
 
             //select a good spacing of backproject points per tile
@@ -457,6 +459,14 @@ namespace OPS.Landform
         {
             //build backproject strategy globally vs per tile to avoid artifacts at adjacent tile boundaries
             var skyMesh = Mesh.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
+            if (options.SkyMode != SkyMode.FarSphere)
+            {
+                foreach (var v in skyMesh.Vertices)
+                {
+                    var dir = Vector3.Normalize(v.Position - sphereCenter);
+                    v.Position = sphereCenter + dir * backprojectRadius;
+                }
+            }
             InitBackprojectStrategy(skyMesh, new MeshOperator(skyMesh), new SceneCaster(skyMesh),
                                     sceneOccludesSky ? sceneCaster : null);
         }
@@ -484,9 +494,21 @@ namespace OPS.Landform
                     return samples;
                 };
             }
-            else if (sceneOccludesSky)
+            else
             {
-                opts.onlyCompletelyUnobstructed = true;
+                opts.sampleTransform = samples =>
+                {
+                    foreach (var sample in samples)
+                    {
+                        var dir = Vector3.Normalize(sample.Point - sphereCenter);
+                        sample.Point = sphereCenter + dir * backprojectRadius;
+                    }
+                    return samples;
+                };
+                if (sceneOccludesSky)
+                {
+                    opts.onlyCompletelyUnobstructed = options.MaskObstructed;
+                }
             }
             return opts;
         }
