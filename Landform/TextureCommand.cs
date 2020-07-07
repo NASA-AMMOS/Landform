@@ -156,7 +156,7 @@ namespace OPS.Landform
 
             if (!tcopts.NoOrbital && !SiteDrive.IsSiteDriveString(meshFrame))
             {
-                pipeline.LogWarn("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
+                pipeline.LogInfo("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
                 tcopts.NoOrbital = true;
             }
 

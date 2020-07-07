@@ -234,6 +234,16 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override bool AllowUnlimitedTileResolution()
+        {
+            return true;
+        }
+
+        protected override bool RequireSceneMesh()
+        {
+            return !DisableDatabase();
+        }
+
         protected override Project GetProject()
         {
             if (DisableDatabase())

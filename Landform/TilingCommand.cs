@@ -21,7 +21,7 @@ namespace OPS.Landform
 {
     public class TilingCommandOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 256)]
+        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing, -1 for unlimited (only when clipping textures)", Default = 256)]
         public virtual int TileResolution { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
@@ -113,9 +113,14 @@ namespace OPS.Landform
             }
 
             tileResolution = tilingOpts.TileResolution;
-            if (!NumberHelper.IsPowerOfTwo(tileResolution))
+            if (tileResolution > 0 && !NumberHelper.IsPowerOfTwo(tileResolution))
             {
                 pipeline.LogWarn("tile texture resolution {0} not a power of two", tileResolution);
+            }
+
+            if (tileResolution < 0 && !AllowUnlimitedTileResolution())
+            {
+                throw new Exception("tile resolution must be nonnegative");
             }
 
             withTextures = !tilingOpts.NoTextures && tileResolution != 0;
@@ -138,11 +143,21 @@ namespace OPS.Landform
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
             }
 
-            if (sceneMesh == null)
+            if (sceneMesh == null && RequireSceneMesh())
             {
                 throw new Exception($"no scene mesh for project {project.Name} in frame {meshFrame}");
             }
 
+            return true;
+        }
+
+        protected virtual bool AllowUnlimitedTileResolution()
+        {
+            return false;
+        }
+
+        protected virtual bool RequireSceneMesh()
+        {
             return true;
         }
 
