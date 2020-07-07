@@ -93,7 +93,7 @@ fi
 help="\
 USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--redo]
-[--debug] [--verbose] [--singlethreaded]
+[--writedebug] [--debug] [--verbose] [--singlethreaded]
 [--nolods] [--meshext iv] [--imgext IMG]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"]
@@ -163,6 +163,7 @@ while (( "$#" )); do
         "--redo") redo="--redo";;
         "--onlyupload") upload=true; only_upload=true; cleanup=; only_cleanup=; generate=;;
         "--quiet") dbg="$dbg --quiet";;
+        "--writedebug") dbg="$dbg --writedebug";;
         "--debug") dbg="$dbg --debug";;
         "--verbose") dbg="$dbg --verbose";;
         "--singlethreaded") dbg="$dbg --singlethreaded";;

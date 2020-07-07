@@ -15,6 +15,9 @@ if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 set meshformat=mission
 if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
 
+set indices=
+if not "%LANDFORM_TACTICAL_INDICES%"=="" set indices==--publishindeximages
+
 set lfver=newest
 if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
@@ -63,7 +66,7 @@ set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
 
-set tacticalopts=--meshformat=%meshformat%
+set tacticalopts=--meshformat=%meshformat% %indices%
 
 set appsdir=%bindir%\ExternalApps
 if exist %appsdir%\opengl32-for-ivcat.dll (

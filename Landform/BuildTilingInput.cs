@@ -520,7 +520,7 @@ namespace OPS.Landform
                 MeshExt = meshExt,
                 ImageExt = withTextures ? imageExt : null,
                 MeshFrame = meshFrame,
-                HasIndexImages = textureMode == TextureMode.Backproject && !options.NoIndexImages,
+                HasIndexImages = !options.NoIndexImages,
                 TilingScheme = options.TilingScheme,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
@@ -563,16 +563,31 @@ namespace OPS.Landform
                 pipeline.LogWarn("clipping leaf tile textures but baking parent tile textures");
             }
 
-            if (tileList.HasIndexImages)
+            Image sceneIndex = null;
+            if (!options.NoIndexImages)
             {
                 pipeline.LogInfo("saving tile backproject index images");
+
+                if (textureMode == TextureMode.Bake || textureMode == TextureMode.Clip)
+                {
+                    sceneIndex = new Image(3, sceneTexture.Width, sceneTexture.Height);
+                    for (int r = 0; r < sceneIndex.Height; r++)
+                    {
+                        for (int c = 0; c < sceneIndex.Width; c++)
+                        {
+                            sceneIndex[0, r, c] = 1; //reserve 0 as invalid
+                            sceneIndex[1, r, c] = r;
+                            sceneIndex[2, r, c] = c;
+                        }
+                    }
+                }
             }
 
             MultiMeshClipper bakeClipper = null;
             if (textureMode == TextureMode.Bake)
             {
                 bakeClipper = new MultiMeshClipper();
-                bakeClipper.AddInput(mesh, sceneTexture);
+                bakeClipper.AddInput(new MeshImagePair(mesh, sceneTexture, sceneIndex));
                 bakeClipper.InitTextureBaker();
             }
 
@@ -595,34 +610,26 @@ namespace OPS.Landform
                 if (textureMode == TextureMode.Bake)
                 {
                     var tmp = bakeClipper.BakeTexture(mip.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
-                    if (tmp != null)
-                    {
-                        mip.Mesh = tmp.Mesh;
-                        mip.Image = tmp.Image;
-                    }
-                    //TODO index
+                    mip.Mesh = tmp.Mesh; //may have been atlassed
+                    mip.Image = tmp.Image;
+                    mip.Index = tmp.Index;
                 }
                 else if (textureMode == TextureMode.Backproject)
                 {                
-                    mip.Index = new Image(3, tileResolution, tileResolution);
-                    mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, sceneCaster, sceneCaster);
+                    BackprojectTile(mip, tile.Name, sceneCaster, sceneCaster);
                 }
                 else if (textureMode == TextureMode.Clip)
                 {
                     var texClipper = new TexturedMeshClipper(logger: pipeline, logPrefix: tile.Name);
-                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, tileResolution);
-                    mip.Mesh = tmp.Mesh;
+                    var tmp = texClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, sceneIndex, tileResolution);
+                    mip.Mesh = tmp.Mesh; //may have been re-atlassed
                     mip.Image = tmp.Image;
-                    //TODO index
+                    mip.Index = tmp.Index;
                 }
 
                 if (mip.Mesh != null && (!withTextures || mip.Image != null))
                 {
-                    SaveTile(tile.Name, mip.Mesh, mip.Image, mip.Index, localSave, cloudSave, tile.IsLeaf);
-                    if (options.WriteBackprojectDebug)
-                    {
-                        SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tile.Name + "_index_preview");
-                    }
+                    SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -631,7 +638,7 @@ namespace OPS.Landform
                 }
 
                 //conserve memory
-                tile.AddComponent(new MeshImagePairStats(tile.GetComponent<MeshImagePair>()));
+                tile.AddComponent(new MeshImagePairStats(mip));
                 tile.RemoveComponent<MeshImagePair>();
 
                 Interlocked.Decrement(ref np);

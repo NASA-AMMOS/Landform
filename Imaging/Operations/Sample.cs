@@ -9,6 +9,11 @@ namespace OPS.Imaging
 {
     public static class Sample
     {
+        public static float NearestSample(this Image img, int band, float row, float col)
+        {
+            return img.ReadClampedToBounds(band, x: (float)Math.Round(col), y: (float)Math.Round(row));
+        }
+
         public static float BilinearSample(this Image img, int band, float row, float col)
         {
             int irow, icol;
@@ -47,20 +52,6 @@ namespace OPS.Imaging
                 }
             }
             return rfrac * row1 + (1f - rfrac) * row2;
-        }
-
-        /// <summary>
-        /// Read a value but clamp x and y to valid bounds
-        /// </summary>
-        /// <param name="b"></param>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <returns></returns>
-        public static float ReadClampedToBounds(this Image img, int b, float x, float y)
-        {
-            int row = (int)MathE.Clamp(y, 0, img.Height - 1);
-            int col = (int)MathE.Clamp(x, 0, img.Width - 1);
-            return img[b, row, col];
         }
 
         /// <summary>
@@ -167,6 +158,22 @@ namespace OPS.Imaging
 
             return y0 * yf * yf2 + y1 * yf2 + y2 * yf + x1;
         }
+
+        /// <summary>
+        /// Read a value but clamp x and y to valid bounds
+        /// CAREFUL this function takes arguments in (x, y) order not (row, col)
+        /// </summary>
+        /// <param name="b"></param>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns></returns>
+        public static float ReadClampedToBounds(this Image img, int b, float x, float y)
+        {
+            int row = (int)MathE.Clamp(y, 0, img.Height - 1);
+            int col = (int)MathE.Clamp(x, 0, img.Width - 1);
+            return img[b, row, col];
+        }
+
     }
 }
 

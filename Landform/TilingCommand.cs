@@ -183,43 +183,43 @@ namespace OPS.Landform
             return tilingProject;
         }
 
-        protected void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
+        protected void SaveTile(MeshImagePair mip, string tileName, bool local, bool cloud, bool isLeaf)
         {
-            string imgName = image != null ? name + imageExt : null;
+            string imgName = mip.Image != null ? tileName + imageExt : null;
 
             if (local)
             {
-                if (image != null)
+                if (mip.Image != null)
                 {
-                    SaveImage(image, name);
+                    SaveImage(mip.Image, tileName);
                 }
-                if (index != null)
+                if (mip.Index != null)
                 {
-                    SaveFloatTIFF(index, name + TileList.INDEX_FILE_SUFFIX);
+                    SaveFloatTIFF(mip.Index, tileName + TileList.INDEX_FILE_SUFFIX);
                 }
-                SaveMesh(mesh, name, imgName);
+                SaveMesh(mip.Mesh, tileName, imgName);
             }
 
             if (cloud)
             {
-                if (image != null)
+                if (mip.Image != null)
                 {
                     TemporaryFile.GetAndDelete(imageExt, tmpFile =>
                     {
-                        image.Save<byte>(tmpFile);
+                        mip.Image.Save<byte>(tmpFile);
                         string imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, imgName);
                         pipeline.SaveFile(tmpFile, imgUrl);
                     });
                 }
 
-                if (index != null)
+                if (mip.Index != null)
                 {
                     TemporaryFile.GetAndDelete(".tif", tmpFile =>
                     {
                         var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
                         var serializer = new GDALSerializer(opts);
-                        serializer.Write<float>(tmpFile, index);
-                        string indexName = name + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                        serializer.Write<float>(tmpFile, mip.Index);
+                        string indexName = tileName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
                         string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
                         pipeline.SaveFile(tmpFile, indexUrl);
                     });
@@ -228,22 +228,27 @@ namespace OPS.Landform
                 TemporaryFile.GetAndDelete(meshExt, tmpFile =>
                 {
                     mesh.Save(tmpFile, imgName);
-                    string meshName = name + meshExt;
+                    string meshName = tileName + meshExt;
                     string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, meshName);
                     pipeline.SaveFile(tmpFile, meshUrl);
 
-                    if (image != null)
+                    if (mip.Image != null)
                     {
                         string mtlFile = Path.GetFileNameWithoutExtension(tmpFile) + ".mtl";
                         if (meshExt.ToLower() == ".obj" && File.Exists(mtlFile))
                         {
-                            string mtlName = name + ".mtl";
+                            string mtlName = tileName + ".mtl";
                             string mtlUrl = pipeline.GetStorageUrl(outputFolder, project.Name, mtlName);
                             pipeline.SaveFile(mtlFile, mtlUrl);
                             PathHelper.DeleteWithRetry(mtlFile, pipeline.Logger);
                         }
                     }
                 });
+            }
+
+            if (mip.Index != null && tilingOpts.WriteDebug)
+            {
+                SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tileName + "_index_preview");
             }
 
             //each tile name is of the form ABCDE... where
@@ -255,14 +260,14 @@ namespace OPS.Landform
             {
                 lock (tileList.LeafNames)
                 {
-                    tileList.LeafNames.Add(name);
+                    tileList.LeafNames.Add(tileName);
                 }
             }
             else
             {
                 lock (tileList.ParentNames)
                 {
-                    tileList.ParentNames.Add(name);
+                    tileList.ParentNames.Add(tileName);
                 }
             }
         }
@@ -464,37 +469,38 @@ namespace OPS.Landform
             TilingNode.DumpLRUCacheStats(pipeline);
         }
 
-        protected Image BackprojectTile(SceneNode node, Mesh mesh, Image index, SceneCaster meshCaster,
-                                        SceneCaster occlusionScene, ObsSelectionStrategy strategy = null)
+        protected bool BackprojectTile(MeshImagePair mip, string tileName, SceneCaster meshCaster,
+                                       SceneCaster occlusionScene, ObsSelectionStrategy strategy = null)
         {
             try
             {
                 bool quiet = !(pipeline.Verbose || pipeline.Debug || tilingOpts.VerboseBackproject);
                 var results = BackprojectObservations(mesh, tileResolution, meshCaster, occlusionScene,
-                                                      out Backproject.Stats stats, strategy, node.Name, quiet);
+                                                      out Backproject.Stats stats, strategy, tileName, quiet);
                 
                 Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
                 Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
                 Interlocked.Add(ref numBackprojectFailedPixels, stats.BackprojectMissingPixels);
                 NumberHelper.InterlockedExchangeIfGreaterThan(ref numBackprojectFallbacks, stats.NumFallbacks);
 
-                var image = new Image(3, tileResolution, tileResolution);
-                Backproject.FillOutputTexture(pipeline, project, results, image, tilingOpts.TextureVariant,
+                mip.Image = new Image(3, tileResolution, tileResolution);
+                Backproject.FillOutputTexture(pipeline, project, results, mip.Image, tilingOpts.TextureVariant,
                                               tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
                                               fallbackToOriginal: true, orbitalTexture: orbitalTexture,
                                               colorizeHue: tilingOpts.Colorize ? medianHue : -1);
 
-                if (index != null)
+                if (!tilingOpts.NoIndexImages)
                 {
-                    Backproject.FillIndexImage(results, index);
+                    mip.Index = new Image(3, tileResolution, tileResolution);
+                    Backproject.FillIndexImage(results, mip.Index);
                 }
 
-                return image;
+                return true;
             }
             catch (Exception ex)
             {
-                pipeline.LogException(ex, $"error backprojecting tile {node.Name}");
-                return null;
+                pipeline.LogException(ex, $"error backprojecting tile {tileName}");
+                return false;
             }
         }
     }

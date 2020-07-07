@@ -215,9 +215,9 @@ namespace ImageTest
         public void TestImageResizeBicubic()
         {
             Image img = Image.Load(Path.Combine("TestData", "img", "testPattern.png"));
-            Image smaller = img.ResizeSimpleBicubic(64, 64);
+            Image smaller = img.ResizeBicubic(64, 64);
             smaller.Save<byte>("testPatternBicubicSmall.png");
-            Image bigger = img.ResizeSimpleBicubic(1200, 1401);
+            Image bigger = img.ResizeBicubic(1200, 1401);
             bigger.Save<byte>("testPatternBicubicBigger.png");
         }
 

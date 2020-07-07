@@ -38,7 +38,7 @@ namespace PipelineTest
             MeshImagePair pair = new MeshImagePair(mesh, img);
             BoundingBox box = new BoundingBox(new Vector3(0), new Vector3(70));
             TexturedMeshClipper clipper = new TexturedMeshClipper();
-            clipper.AddMeshImagePair(pair);
+            clipper.AddInput(pair);
             MeshImagePair clippedPair = clipper.Clip(box);
             Assert.IsTrue(clippedPair.Mesh.HasFaces);
             Assert.IsTrue(clippedPair.Image.Width > 0 && clippedPair.Image.Height > 0);
@@ -55,9 +55,9 @@ namespace PipelineTest
             mesh1.Clean();
             mesh2.Clean();
             Image img = LoadImage();
-            clipper.AddMeshImagePair(new MeshImagePair(mesh1, img));
+            clipper.AddInput(new MeshImagePair(mesh1, img));
             mesh2.Translate(new Vector3(0, 0, 60));
-            clipper.AddMeshImagePair(new MeshImagePair(mesh2, img));
+            clipper.AddInput(new MeshImagePair(mesh2, img));
             BoundingBox box = new BoundingBox(new Vector3(-100, 60, 0), new Vector3(-30, 90, 120));
 
             MeshImagePair clippedPair = clipper.Clip(box);

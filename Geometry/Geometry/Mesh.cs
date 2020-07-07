@@ -796,9 +796,7 @@ namespace OPS.Geometry
             List<Triangle> triangles = new List<Triangle>(Faces.Count);
             foreach (Face f in Faces)
             {
-                Triangle t = new Triangle(Vertices[f.P0],
-                                          Vertices[f.P1],
-                                          Vertices[f.P2]);
+                Triangle t = new Triangle(Vertices[f.P0], Vertices[f.P1], Vertices[f.P2]);
                 triangles.Add(t);
             }
             return triangles;

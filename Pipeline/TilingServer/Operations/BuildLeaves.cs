@@ -118,7 +118,7 @@ namespace OPS.Pipeline.TilingServer
                     image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
                                                     chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
                 }
-                clipper.AddInput(mergedMesh, image);
+                clipper.AddInput(new MeshImagePair(mergedMesh, image));
                 hasUVs = hasUVs && mergedMesh.HasUVs;
             }
 

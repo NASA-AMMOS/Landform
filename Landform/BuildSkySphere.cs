@@ -699,13 +699,11 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
-                mip.Index = new Image(3, tileResolution, tileResolution);
-                mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, new SceneCaster(mip.Mesh),
-                                            sceneOccludesSky ? sceneCaster : null);
+                BackprojectTile(mip, tile.Name, new SceneCaster(mip.Mesh), sceneOccludesSky ? sceneCaster : null);
 
-                if (mip.Image != null)
+                if (mip.Mesh != null && mip.Image != null && mip.Index != null)
                 {
-                    SaveTile(tile.Name, mip.Mesh, mip.Image, mip.Index, localSave, cloudSave, tile.IsLeaf);
+                    SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -714,7 +712,7 @@ namespace OPS.Landform
                 }
 
                 //conserve memory
-                tile.AddComponent(new MeshImagePairStats(tile.GetComponent<MeshImagePair>()));
+                tile.AddComponent(new MeshImagePairStats(mip));
                 tile.RemoveComponent<MeshImagePair>();
 
                 Interlocked.Decrement(ref np);
