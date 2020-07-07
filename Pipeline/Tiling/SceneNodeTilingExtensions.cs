@@ -316,7 +316,12 @@ namespace OPS.Pipeline
                 if (!useExistingLeafBounds || !leaf.HasComponent<NodeBounds>())
                 {
                     var pair = leaf.GetComponent<MeshImagePair>();
-                    leaf.GetOrAddComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
+                    var meshBounds = pair.Mesh.Bounds();
+                    if (meshBounds.IsEmpty())
+                    {
+                        meshBounds = new BoundingBox();
+                    }
+                    leaf.GetOrAddComponent<NodeBounds>().Bounds = meshBounds;
                 }
                 if (leaf.Parent != null)
                 {
@@ -329,7 +334,8 @@ namespace OPS.Pipeline
                 foreach (var p in curParents)
                 {
                     p.GetOrAddComponent<NodeBounds>().Bounds =
-                        BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
+                        BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds)
+                                                    .ToArray());
                     if (p.HasComponent<MeshImagePair>() && p.GetComponent<MeshImagePair>().Mesh != null)
                     {
                         p.GetComponent<NodeBounds>().Bounds =

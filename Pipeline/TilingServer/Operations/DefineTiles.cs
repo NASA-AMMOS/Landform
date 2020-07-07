@@ -198,7 +198,13 @@ namespace OPS.Pipeline.TilingServer
                     var pair = tilingNode.LoadMeshImagePair(pipeline, cleanMesh: true);
                     if (pair != null)
                     {
-                        sceneNode.GetComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
+                        var meshBounds = pair.Mesh.Bounds();
+                        if (meshBounds.IsEmpty())
+                        {
+                            pipeline.LogWarn("empty mesh for user defined tile {0}", id);
+                            meshBounds = new BoundingBox();
+                        }
+                        sceneNode.GetComponent<NodeBounds>().Bounds = meshBounds;
                         bool saveInternal = !skipSavingInternalTileMeshesForUserDefinedNodes;
                         tilingNode.SaveMesh(pair, pipeline, project, saveInternal);
                     }
