@@ -31,67 +31,68 @@ namespace PipelineTest
         [TestMethod()]
         public void TextureShouldSplitTest()
         {
-            int destTextureResolution = 4;
-            int srcTextureResolution = 8;
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution,false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution,true));
+            int destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
+            int srcImageResolution = 1000; //1M pixels / m^2
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution,false));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution,true));
 
-            destTextureResolution = 3;
-            srcTextureResolution = 5;
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution, true));
+            srcImageResolution = 360; //129600 pixels / m^2
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, false));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true));
         }
 
         [TestMethod()]
         public void TextureShouldntSplitTest()
         {
-            int destTextureResolution = 4;
-            int srcTextureResolution = 2;
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, true));
+            int destTextureResolution = 256; //65536 texels / m^2 (half that for approx)
+            int srcImageResolution = 350; //122500 pixels / m^2
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false));
+            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcImageResolution, true));
 
-            destTextureResolution = 4;
-            srcTextureResolution = 3;
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, true));
-
-            destTextureResolution = 4;
-            srcTextureResolution = 4;
-            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcTextureResolution, false));
-            Assert.IsTrue(StandardTexSplit(destTextureResolution, srcTextureResolution, true)); // uses true surface area and we've doubled our plane for convexhull bug
+            srcImageResolution = 250; //62500 pixels / m^2
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, false));
+            Assert.IsFalse(StandardTexSplit(destTextureResolution, srcImageResolution, true));
         }
 
-        private static bool StandardTexSplit(int destTextureResolution, int srcTextureResolution, bool approx)
+        private static bool StandardTexSplit(int destTextureResolution, int srcImageResolution, bool approx)
         {
+            // +----Y
+            // |
+            // |
+            // Z
+            
             //uv origin: lower left
-            Vertex ul = new Vertex(new Vector3(0, -1, -1), new Vector3(-1, 0, 0), new Vector4(1, 0, 0, 1), new Vector2(0,1));
-            Vertex ll = new Vertex(new Vector3(0, -1, 1), new Vector3(-1, 0, 0), new Vector4(0, 0, 1, 1), new Vector2(0,0));
-            Vertex ur = new Vertex(new Vector3(0, 1, -1), new Vector3(-1, 0, 0), new Vector4(0, 1, 0, 1), new Vector2(1, 1));
-            Vertex lr = new Vertex(new Vector3(0, 1, 1), new Vector3(-1, 0, 0), new Vector4(1, 0, 1, 1), new Vector2(1,0));
+            Vertex ul =
+                //             position                normal                 color                    uv
+                new Vertex(new Vector3(0, -0.5, -0.5), new Vector3(-1, 0, 0), new Vector4(1,0,0,1), new Vector2(0,1));
+            Vertex ll =
+                new Vertex(new Vector3(0, -0.5, 0.5), new Vector3(-1, 0, 0), new Vector4(0,0,1,1), new Vector2(0,0));
+            Vertex ur =
+                new Vertex(new Vector3(0, 0.5, -0.5), new Vector3(-1, 0, 0), new Vector4(0,1,0,1), new Vector2(1, 1));
+            Vertex lr =
+                new Vertex(new Vector3(0, 0.5, 0.5), new Vector3(-1, 0, 0), new Vector4(1,0,1,1), new Vector2(1,0));
 
             Triangle tri0 = new Triangle(ul, ll, ur);
-            Triangle tri1 = new Triangle(ll, ur, lr);
+            Triangle tri1 = new Triangle(ll, lr, ur);
 
-            Mesh mesh0 = new Mesh(new List<Triangle>() { tri0, tri1 }, true, true, true);
+            Mesh mesh = new Mesh(new List<Triangle>() { tri0, tri1 }, true, true, true);
 
-            //Issue #559:convex hull of a quad fails currently, duplicating the mesh to add some thickness
-            Mesh mesh1 = Mesh.Transformed(mesh0, Matrix.CreateTranslation(new Vector3(0.25, 0, 0)));
-
-            Mesh mesh = Mesh.Merge(new Mesh[] { mesh0, mesh1 });
             BoundingBox box = new BoundingBox(-1 * Vector3.One, Vector3.One);
 
             MeshOperator op = new MeshOperator(mesh);
+
             SceneCaster sc = new SceneCaster();
             sc.AddMesh(mesh, null, Matrix.Identity);
             sc.Build();
 
-            double focalLength = srcTextureResolution;
-            Vector3 camC = new Vector3(-2, 0, 0);
+            //construct camera which vews whole mesh exactly
+            double focalLength = srcImageResolution;
+            Vector3 camC = new Vector3(-1, 0, 0);
             Vector3 camA = new Vector3(1, 0, 0);
-            Vector3 camH = new Vector3(0, 1, 0) * focalLength + camA * srcTextureResolution / 2.0;
-            Vector3 camV = new Vector3(0, 0, 1) * focalLength + camA * srcTextureResolution / 2.0;
+            Vector3 camH = new Vector3(0, 1, 0) * focalLength + camA * srcImageResolution / 2.0;
+            Vector3 camV = new Vector3(0, 0, 1) * focalLength + camA * srcImageResolution / 2.0;
             CAHV cahv = new CAHV(camC, camA, camH, camV);
-            ConvexHull camHull = ConvexHull.FromParams(cahv, srcTextureResolution, srcTextureResolution, 0.1, 4);
+            ConvexHull camHull = ConvexHull.FromParams(cahv, srcImageResolution, srcImageResolution, 0.1, 4);
 
             CameraInstance[] cameraInstances = new CameraInstance[]
             {
@@ -101,8 +102,8 @@ namespace PipelineTest
                     meshToCamera = Matrix.Identity,
                     cameraModel = cahv,
                     hullInMesh = camHull,
-                    widthPixels = srcTextureResolution,
-                    heightPixels = srcTextureResolution
+                    widthPixels = srcImageResolution,
+                    heightPixels = srcImageResolution
                 }
             };
 

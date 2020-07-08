@@ -23,5 +23,8 @@ for m in $modules; do
     dlls="$dlls ${m}Test\\bin\\Release\\${m}Test.dll"
 done
 
+# use lines like this to spew in test
+# System.Diagnostics.Trace.WriteLine("foo");
+
 "$mstest" $parallel $dlls
 
