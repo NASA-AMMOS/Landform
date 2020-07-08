@@ -476,7 +476,7 @@ namespace OPS.Landform
                              lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
-        protected void LoadInputMesh(bool requireUVs = true)
+        protected void LoadInputMesh(bool requireUVs = true, bool requireNormals = true)
         {
             if (sceneMesh == null && project != null) //might have already been loaded in GetProject()
             {
@@ -557,6 +557,11 @@ namespace OPS.Landform
                 if (requireUVs && !meshLOD[i].HasUVs)
                 {
                     AtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                }
+
+                if (requireNormals && !meshLOD[i].HasNormals)
+                {
+                    meshLOD[i].GenerateVertexNormals();
                 }
             }
         }
