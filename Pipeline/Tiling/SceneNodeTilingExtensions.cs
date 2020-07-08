@@ -468,10 +468,33 @@ namespace OPS.Pipeline
         public static void DumpStats(this SceneNode root, Action<string> writeLine)
         {
             var nodes = root.DepthFirstTraverse().ToList();
-            var levels = nodes.GroupBy(n => n.Transform.Depth()).OrderBy(g => g.Key);
-            int numLevels = levels.Count();
-            writeLine(string.Format("tile tree has {0} levels, {1} total tiles, {2} leaves",
-                                    numLevels, nodes.Count, nodes.Count(node => node.IsLeaf)));
+
+            foreach (var node in nodes)
+            {
+                if (node.HasComponent<MeshImagePair>() && !node.HasComponent<MeshImagePairStats>())
+                {
+                    node.AddComponent(new MeshImagePairStats(node.GetComponent<MeshImagePair>()));
+                }
+            }
+
+            void dumpTextureStats(IEnumerable<MeshImagePairStats> mipStats, string prefix = "")
+            {
+                var minUVArea = mipStats.Min(s => s.UVArea);
+                var maxUVArea = mipStats.Max(s => s.UVArea);
+                
+                var texRes = mipStats
+                    .Where(s => s.MeshArea > 0 && s.UVArea > 0 && s.NumPixels > 0)
+                    .Select(s => (s.UVArea * s.NumPixels) / (s.MeshArea * 100 * 100))
+                    .OrderBy(v => v);
+                var minTexRes = texRes.FirstOrDefault();
+                var maxTexRes = texRes.LastOrDefault();
+
+                if (minTexRes > 0 || maxTexRes > 0)
+                {
+                    writeLine(string.Format("{0}texture utilization {1:f3}-{2:f3}; texels/cm^2 {3:f3}-{4:f3}",
+                                            prefix, minUVArea, maxUVArea, minTexRes, maxTexRes));
+                }
+            }
 
             void dumpLevel(IEnumerable<SceneNode> level, string msg)
             {
@@ -501,9 +524,8 @@ namespace OPS.Pipeline
                 }
 
                 var mipStats = level
-                    .Where(node => node.HasComponent<MeshImagePair>() || node.HasComponent<MeshImagePairStats>())
-                    .Select(node => node.HasComponent<MeshImagePairStats>() ? node.GetComponent<MeshImagePairStats>() :
-                            new MeshImagePairStats(node.GetComponent<MeshImagePair>()))
+                    .Where(node => node.HasComponent<MeshImagePairStats>())
+                    .Select(node => node.GetComponent<MeshImagePairStats>())
                     .ToList();
 
                 if (mipStats.Count > 0)
@@ -550,27 +572,14 @@ namespace OPS.Pipeline
                                                  minMeshArea, maxMeshArea, Fmt.KMG(triStats.Sum(s => s.MeshArea)),
                                                  minTriArea, maxTriArea);
                             writeLine(msg);
-                            
-                            var minUVArea = triStats.Min(s => s.UVArea);
-                            var maxUVArea = triStats.Max(s => s.UVArea);
-                            
-                            var texRes = mipStats
-                                .Where(s => s.MeshArea > 0 && s.UVArea > 0 && s.NumPixels > 0)
-                                .Select(s => (s.UVArea * s.NumPixels) / (s.MeshArea * 100 * 100))
-                                .OrderBy(v => v);
-                            var minTexRes = texRes.FirstOrDefault();
-                            var maxTexRes = texRes.LastOrDefault();
 
-                            if (minTexRes > 0 || maxTexRes > 0)
-                            {
-                                msg = string.Format("  texture utilization {0:f3}-{1:f3}; texels/cm^2 {2:f3}-{3:f3}",
-                                                    minUVArea, maxUVArea, minTexRes, maxTexRes);
-                                writeLine(msg);
-                            }
+                            dumpTextureStats(triStats, "  ");
                         }
                     }
                 }
             }
+
+            var levels = nodes.GroupBy(n => n.Transform.Depth()).OrderBy(g => g.Key);
 
             foreach (var level in levels)
             {
@@ -599,6 +608,20 @@ namespace OPS.Pipeline
             var leafLevels = leaves.Select(n => n.Transform.Depth()).DefaultIfEmpty(-1);
             dumpLevel(leaves, string.Format("{0} leaves at level(s) {1}-{2}",
                                             leaves.Count(), leafLevels.Min(), leafLevels.Max()));
+
+            writeLine(string.Format("tile tree has {0} levels, {1} total tiles, {2} leaves",
+                                    levels.Count(), nodes.Count, nodes.Count(node => node.IsLeaf)));
+
+            var meshStats = nodes
+                .Where(node => node.HasComponent<MeshImagePairStats>())
+                .Select(node => node.GetComponent<MeshImagePairStats>())
+                .Where(s => s.NumTris > 0)
+                .ToList();
+
+            writeLine(string.Format("{0} meshes, {1} textures, {2} triangles, {3} texels",
+                                    meshStats.Count, meshStats.Count(s => s.NumPixels > 0),
+                                    Fmt.KMG(meshStats.Sum(s => s.NumTris)), Fmt.KMG(meshStats.Sum(s => s.NumPixels))));
+            dumpTextureStats(meshStats);
         }
     }
 }
