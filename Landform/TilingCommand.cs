@@ -39,6 +39,9 @@ namespace OPS.Landform
         [Option(Default = MeshReconstructionMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
 
+        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
+        public bool NoConvertLinearRGBToSRGB { get; set; }
+
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
         public string ExportMeshFormat { get; set; }
 
@@ -284,7 +287,8 @@ namespace OPS.Landform
             string tileFolder = outputFolder + "/" + project.Name;
 
             Tile3DBuilder.ConvertTiles(pipeline, tileTree, tileFolder, tilesetFolder, tilesetName, withTextures,
-                                       withIdx, embedIdx, inMeshExt, inImgExt, inIdxExt, tsMeshExt, tsImgExt, tsIdxExt);
+                                       withIdx, embedIdx, inMeshExt, inImgExt, inIdxExt, tsMeshExt, tsImgExt, tsIdxExt,
+                                       !tilingOpts.NoConvertLinearRGBToSRGB);
 
             Tile3DBuilder.BuildAndSaveTileset(pipeline, tileTree, tilesetFolder, tilesetName,
                                               nodeToUrl = nodeToUrl ?? (node => node.Name + tsMeshExt));
@@ -333,8 +337,8 @@ namespace OPS.Landform
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      tilingOpts.SkirtMode, tilingOpts.ReconstructionMethod,
                                                      tilingOpts.FacesPerTile, tileResolution, projectType,
-                                                     tilingOpts.ExportMeshFormat, tilingOpts.ExportImageFormat,
-                                                     maxTileGroupSize);
+                                                     !tilingOpts.NoConvertLinearRGBToSRGB, tilingOpts.ExportMeshFormat,
+                                                     tilingOpts.ExportImageFormat, maxTileGroupSize);
 
                 tilingProject.ExportDir = null;
                 if (!string.IsNullOrEmpty(tilingOpts.ExportMeshFormat) ||

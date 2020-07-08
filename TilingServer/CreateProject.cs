@@ -36,6 +36,9 @@ namespace OPS.TilingServer
         [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline, currently only GenericTiling is supported")]
         public PipelineStateMachine.ProjectType ProjectType { get; set; }
 
+        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
+        public bool NoConvertLinerRGBToSRGB { get; set; }
+
         [Option(Default = null, HelpText = "write additional mesh format, or \"help\" to list")]
         public string ExportMeshFormat { get; set; }
 
@@ -144,6 +147,7 @@ namespace OPS.TilingServer
                                          FacesPerTile = options.FacesPerTile,
                                          TileResolution = options.TileResolution,
                                          ProjectType = options.ProjectType,
+                                         ConvertLinearRGBToSRGB = !options.NoConvertLinerRGBToSRGB,
                                          ExportMeshFormat = exMeshFmt,
                                          ExportImageFormat = exImageFmt,
                                          MaxLeafGroupSize = options.MaxLeafGroupSize

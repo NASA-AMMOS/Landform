@@ -16,6 +16,7 @@ Accepts the following arugments:
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
 * *projecttype*: project type; currently only `GenericTiling` is supported
+* *convertlinearrgbtosrgb*: convert from linear to sRGB colorspace before saving tileset and export images; default true
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
 * *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none
 * *maxleafgroupsize*: maximum number of leaves to process as a group; default 32

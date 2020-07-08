@@ -153,6 +153,78 @@ namespace OPS.Imaging
                                   (float)MathE.Clamp01(rgb.B / 255) };
         }
 
+        //http://entropymine.com/imageworsener/srgbformula
+        public static float ApplySRGBGamma(float l)
+        {
+            return (float)MathE.Clamp01(l < 0.0031308 ? (l * 12.92) : (1.055 * Math.Pow(l, 1.0 / 2.4) - 0.055));
+        }
+
+        public static float[] LinearRGBToSRGB(float[] lrgb)
+        {
+            float[] srgb = new float[3];
+            for (int i = 0; i < 3; i++)
+            {
+                srgb[i] = ApplySRGBGamma(lrgb[i]);
+            }
+            return srgb;
+        }
+
+        //http://entropymine.com/imageworsener/srgbformula
+        public static float UnapplySRGBGamma(float s)
+        {
+            return (float)MathE.Clamp01(s < 0.04045 ? (s / 12.92) : Math.Pow((s + 0.055) / 1.055, 2.4));
+        }
+
+        public static float[] SRGBToLinearRGB(float[] srgb)
+        {
+            float[] lrgb = new float[3];
+            for (int i = 0; i < 3; i++)
+            {
+                lrgb[i] = UnapplySRGBGamma(srgb[i]);
+            }
+            return lrgb;
+        }
+
+        public static Image LinearRGBToSRGB(this Image img)
+        {
+            if (img.Bands != 3)
+            {
+                throw new ArgumentException("RGB image must have 3 bands");
+            }
+            Image result = new Image(3, img.Width, img.Height);
+            for (int b = 0; b < 3; b++)
+            {
+                for (int r = 0; r < img.Height; ++r)
+                {
+                    for (int c = 0; c < img.Width; ++c)
+                    {
+                        result[b, r, c] = ApplySRGBGamma(img[b, r, c]);
+                    }
+                }
+            }
+            return result;
+        }
+
+        public static Image SRGBToLinearRGB(this Image img)
+        {
+            if (img.Bands != 3)
+            {
+                throw new ArgumentException("RGB image must have 3 bands");
+            }
+            Image result = new Image(3, img.Width, img.Height);
+            for (int b = 0; b < 3; b++)
+            {
+                for (int r = 0; r < img.Height; ++r)
+                {
+                    for (int c = 0; c < img.Width; ++c)
+                    {
+                        result[b, r, c] = UnapplySRGBGamma(img[b, r, c]);
+                    }
+                }
+            }
+            return result;
+        }
+
         public static double GetLuminanceRange()
         {
             return (new Rgb() { R = 255, G = 255, B = 255 }).To<Lab>().L; //typically defined as 100

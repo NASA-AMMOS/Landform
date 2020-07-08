@@ -128,7 +128,8 @@ namespace OPS.Pipeline
                                         string tilesetName, bool withTextures = true, bool withIndices = false,
                                         bool embedIndices = true, string inMeshExt = "ply", string inImgExt = "png",
                                         string inIdxExt = "tiff", string tsMeshExt = "b3dm", string tsImgExt = "jpg",
-                                        string tsIdxExt = "ppmz", Action<string> info = null)
+                                        string tsIdxExt = "ppmz", bool convertLinearRGBToSRGB = true,
+                                        Action<string> info = null)
         {
             info = info ?? (msg => pipeline.LogInfo(msg));
 
@@ -209,6 +210,10 @@ namespace OPS.Pipeline
                     Image image = withTextures ? (mip?.Image ?? loadImage(tile, inImgExt)) : null;
                     if (image != null)
                     {
+                        if (convertLinearRGBToSRGB)
+                        {
+                            image = image.LinearRGBToSRGB();
+                        }
                         image.Save<byte>(tmpImg); //convert to tileset image format
                         if (!embedImgs)
                         {

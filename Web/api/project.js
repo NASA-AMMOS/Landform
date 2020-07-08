@@ -21,6 +21,7 @@ async function createProject(req, res) {
       facespertile: { type: 'int' },
       tileresolution: { type: 'int' },
       projecttype: { type: 'enum', options: ['GenericTiling'] },
+      convertlinearrgbtosrgb: { type: 'bool', default: true },
       exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
       exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
       maxleafgroupsize: { type: 'int' },

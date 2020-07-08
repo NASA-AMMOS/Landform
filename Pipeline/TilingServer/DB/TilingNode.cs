@@ -336,7 +336,7 @@ namespace OPS.Pipeline.TilingServer
                         {
                             pair.Image.Save<byte>(tmpImage);
                             upload(tmpImage, ImageUrl);
-                            if (exImageUrl != null && exImageExt == imageExt)
+                            if (exImageUrl != null && exImageExt == imageExt && !project.ConvertLinearRGBToSRGB)
                             {
                                 upload(tmpImage, exImageUrl);
                                 uploadedExImage = true;
@@ -443,7 +443,12 @@ namespace OPS.Pipeline.TilingServer
 
                     if (pair.Image != null)
                     {
-                        pair.Image.Save<byte>(tmpImage);
+                        var img = pair.Image;
+                        if (project.ConvertLinearRGBToSRGB)
+                        {
+                            img = img.LinearRGBToSRGB();
+                        }
+                        img.Save<byte>(tmpImage);
                         if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
                         {
                             upload(tmpImage, exImageUrl);
@@ -517,7 +522,12 @@ namespace OPS.Pipeline.TilingServer
             {
                 TemporaryFile.GetAndDelete(exImageExt, tmpImage => 
                 {
-                    pair.Image.Save<byte>(tmpImage);
+                    var img = pair.Image;
+                    if (project.ConvertLinearRGBToSRGB)
+                    {
+                        img = img.LinearRGBToSRGB();
+                    }
+                    img.Save<byte>(tmpImage);
                     upload(tmpImage, exImageUrl);
                     uploadedExImage = true;
                 });
