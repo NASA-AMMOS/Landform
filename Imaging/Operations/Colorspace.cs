@@ -159,10 +159,11 @@ namespace OPS.Imaging
             return (float)MathE.Clamp01(l < 0.0031308 ? (l * 12.92) : (1.055 * Math.Pow(l, 1.0 / 2.4) - 0.055));
         }
 
+        //this works on any number of bands
         public static float[] LinearRGBToSRGB(float[] lrgb)
         {
-            float[] srgb = new float[3];
-            for (int i = 0; i < 3; i++)
+            float[] srgb = new float[lrgb.Length];
+            for (int i = 0; i < lrgb.Length; i++)
             {
                 srgb[i] = ApplySRGBGamma(lrgb[i]);
             }
@@ -175,24 +176,22 @@ namespace OPS.Imaging
             return (float)MathE.Clamp01(s < 0.04045 ? (s / 12.92) : Math.Pow((s + 0.055) / 1.055, 2.4));
         }
 
+        //this works on any number of bands
         public static float[] SRGBToLinearRGB(float[] srgb)
         {
-            float[] lrgb = new float[3];
-            for (int i = 0; i < 3; i++)
+            float[] lrgb = new float[srgb.Length];
+            for (int i = 0; i < srgb.Length; i++)
             {
                 lrgb[i] = UnapplySRGBGamma(srgb[i]);
             }
             return lrgb;
         }
 
+        //this works on any number of bands
         public static Image LinearRGBToSRGB(this Image img)
         {
-            if (img.Bands != 3)
-            {
-                throw new ArgumentException("RGB image must have 3 bands");
-            }
-            Image result = new Image(3, img.Width, img.Height);
-            for (int b = 0; b < 3; b++)
+            Image result = new Image(img.Bands, img.Width, img.Height);
+            for (int b = 0; b < img.Bands; b++)
             {
                 for (int r = 0; r < img.Height; ++r)
                 {
@@ -205,14 +204,11 @@ namespace OPS.Imaging
             return result;
         }
 
+        //this works on any number of bands
         public static Image SRGBToLinearRGB(this Image img)
         {
-            if (img.Bands != 3)
-            {
-                throw new ArgumentException("RGB image must have 3 bands");
-            }
-            Image result = new Image(3, img.Width, img.Height);
-            for (int b = 0; b < 3; b++)
+            Image result = new Image(img.Bands, img.Width, img.Height);
+            for (int b = 0; b < img.Bands; b++)
             {
                 for (int r = 0; r < img.Height; ++r)
                 {
