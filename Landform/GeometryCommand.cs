@@ -284,7 +284,7 @@ namespace OPS.Landform
         protected virtual Mesh HeightmapAtlasMesh(Mesh mesh, string name = null)
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            string msg = string.Format("heightmap atlasing {0}mesh ({1} triangles)}", name, Fmt.KMG(mesh.Faces.Count));
+            string msg = string.Format("heightmap atlasing {0}mesh ({1} triangles)", name, Fmt.KMG(mesh.Faces.Count));
             if (mesh.Faces.Count > 20000)
             {
                 pipeline.LogInfo(msg);
