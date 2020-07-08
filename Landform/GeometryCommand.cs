@@ -247,8 +247,16 @@ namespace OPS.Landform
         protected virtual Mesh UVAtlasMesh(Mesh mesh, int resolution, string name = null) 
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            pipeline.LogInfo("atlasing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
-                             name, Fmt.KMG(mesh.Faces.Count), resolution);
+            string msg = string.Format("atlasing {0}mesh ({1} triangles) with UVAtlas, texture resolution {2}",
+                                       name, Fmt.KMG(mesh.Faces.Count), resolution);
+            if (mesh.Faces.Count > 20000)
+            {
+                pipeline.LogInfo(msg);
+            }
+            else
+            {
+                pipeline.LogVerbose(msg);
+            }
 
             if (mesh.Faces.Count > 100000)
             {
@@ -264,25 +272,33 @@ namespace OPS.Landform
                 {
                     throw new Exception("unknown");
                 }
+                return mesh;
             }
             catch (Exception ex)
             {
                 pipeline.LogError("error atlasing {0} mesh with UVAtlas: {1}", name, ex.Message);
-                mesh = null;
+                return null;
             }
-
-            return mesh;
         }
 
         protected virtual Mesh HeightmapAtlasMesh(Mesh mesh, string name = null)
         {
             name = !string.IsNullOrEmpty(name) ? (name + " ") : "";
-            pipeline.LogInfo("heightmap atlasing {0}mesh ({1} triangles)}", name, Fmt.KMG(mesh.Faces.Count));
+            string msg = string.Format("heightmap atlasing {0}mesh ({1} triangles)}", name, Fmt.KMG(mesh.Faces.Count));
+            if (mesh.Faces.Count > 20000)
+            {
+                pipeline.LogInfo(msg);
+            }
+            else
+            {
+                pipeline.LogVerbose(msg);
+            }
 
             //swap U and V because mission surface frames are typically X north, Y east
             //this doesn't really matter here except that backproject texture images created to match these flipped UVs
             //will have north up and east right in image viewers, matching the orientation of other debug images
             mesh.HeightmapAtlas(BoxAxis.Z, swapUV: true);
+
             return mesh;
         }
 
@@ -290,11 +306,10 @@ namespace OPS.Landform
         {
             switch (gcopts.SurfaceUVMode)
             {
-                case AtlasMode.UVAtlas: mesh = UVAtlasMesh(mesh, resolution, name); break;
-                case AtlasMode.Heightmap: mesh = HeightmapAtlasMesh(mesh, name); break;
+                case AtlasMode.UVAtlas: return UVAtlasMesh(mesh, resolution, name);
+                case AtlasMode.Heightmap: return HeightmapAtlasMesh(mesh, name);
                 default: throw new ArgumentException("unknown atlas mode: " + gcopts.SurfaceUVMode);
             }
-            return mesh;
         }
 
         protected Vector2 PointToUV(BoundingBox meshBounds, Vector3 pt)

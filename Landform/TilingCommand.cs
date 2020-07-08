@@ -475,7 +475,7 @@ namespace OPS.Landform
             try
             {
                 bool quiet = !(pipeline.Verbose || pipeline.Debug || tilingOpts.VerboseBackproject);
-                var results = BackprojectObservations(mesh, tileResolution, meshCaster, occlusionScene,
+                var results = BackprojectObservations(mip.Mesh, tileResolution, meshCaster, occlusionScene,
                                                       out Backproject.Stats stats, strategy, tileName, quiet);
                 
                 Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);

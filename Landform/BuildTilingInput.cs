@@ -449,10 +449,11 @@ namespace OPS.Landform
                                     curNode, numNodes, 100 * curNode / (float)numNodes,
                                     np > 1 ? ", processing " + np + " in parallel" : "", node.Name, lod);
 
-                Mesh nodeMesh = MakeTileMesh(node, meshOpForLOD[lod]);
-                if (nodeMesh != null)
+                Mesh tileMesh = MakeTileMesh(node, meshOpForLOD[lod]);
+
+                if (tileMesh != null && (!withTextures || tileMesh.HasUVs))
                 {
-                    node.AddComponent(new MeshImagePair(nodeMesh));
+                    node.AddComponent(new MeshImagePair(tileMesh));
                 }
                 else
                 {
@@ -492,12 +493,11 @@ namespace OPS.Landform
                                     curNode, numNodes, 100 * curNode / (float)numNodes,
                                     np > 1 ? ", processing " + np + " in parallel" : "", leaf.Name);
 
-                Mesh leafMesh = MakeTileMesh(leaf, meshOpForLOD.First());
+                Mesh tileMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 
-                if (leafMesh != null)
+                if (tileMesh != null && (!withTextures || tileMesh.HasUVs))
                 {
-                    leaf.AddComponent<MeshImagePair>(new MeshImagePair(leafMesh, null));
-                    leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
+                    leaf.AddComponent<MeshImagePair>(new MeshImagePair(tileMesh));
                 }
                 else
                 {
