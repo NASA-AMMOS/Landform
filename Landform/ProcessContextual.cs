@@ -146,6 +146,9 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't generate sky sphere tileset")]
         public bool NoSky { get; set; }
 
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere)", Default = SkyMode.Box)]
+        public SkyMode SkyMode { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Don't write/update combined scene manifest on s3")]
         public bool NoCombinedManifest { get; set; }
 
@@ -790,7 +793,8 @@ namespace OPS.Landform
 
                     if (!options.NoSky)
                     {
-                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr);
+                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr,
+                                   "--skymode", options.SkyMode.ToString());
                         string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
                         SaveTileset(skyTilesetDir, project, destDir, "_sky");
                     }

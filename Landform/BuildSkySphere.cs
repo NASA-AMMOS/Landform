@@ -18,14 +18,22 @@ using OPS.Pipeline.TilingServer;
 /// Creates a sky tileset to display behind the terrain.
 ///
 /// In --skymode=Box the sky geometry is the vertical sides of a box centered on a point c at rover mast height above
-/// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, or is auto-computed as half the
+/// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, or is auto computed as half the
 /// scene XY bounds diagonal. Surface observations are backprojected onto the box, optionally using the scene mesh as an
-/// occluder.  By default backprojections are actually computed from a min radius of 2km, even if the box radius is
-/// smaller.
+/// occluder. Sphere mode is the same as Box but uses sphere instead of box geometry.
 ///
-/// NearSphere mode is the same as Box but uses sphere instead of box geometry.
+/// By default backprojections are actually computed from a min radius of 2km in Box and Sphere modes, even if the sky
+/// radius is smaller.  This minimizes aliasing of topographic features imaged from different local perspectives and
+/// also makes the skyline appear approximately perspective correct for viewpoints near the center of the scene, even
+/// when the actual radius is not large.  A box radius that matches the scene bounds diagonal (or a sphere radius equal
+/// to half the scene width) means there is no gap between the edge of the terrain and the sky, and the entire combined
+/// scene can be zoomed out and viewed from third-person perspectives, like a diorama.  However, the skyline will not be
+/// perspective correct in such views, and will also deviate from perspective correctness from first-person views near
+/// the terrain but away from the center of the scene.  Applications which don't need third-person zoomed out
+/// viewpoints, but only first-person viewpoints near the terrain, can opt for sky sphere with a much larger radius
+/// (e.g. 2km) which will keep the skyline perspective correct independent of the viewer's position on the terrrain.
 ///
-/// In --skymode=FarSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
+/// In --skymode=TopoSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
 /// the scene origin.  If --sphereradiusmeters=auto then the radius defaults to 2km.  Each point p on the sky sphere is
 /// textured as follows: (1) Build a mesh using only the orbital DEM extended out to the sky sphere radius, but with the
 /// central area corresponding to the scene mesh removed (this is of course done only once and cached). (2) Find the
@@ -38,19 +46,18 @@ using OPS.Pipeline.TilingServer;
 /// legacy implementation in OnSight TerrainTools.
 /// 
 /// Sky sphere typically runs anytime after build-geometry so that a surface scene exists.  Can be run anytime after
-/// ingest in FarSphere mode, or in one of the other modes without --sceneoccludessky=Always.
+/// ingest in TopoSphere mode, or in one of the other modes without --sceneoccludessky=Always.
 ///
-/// Typical resolution is 5 rows and 32 columns of tiles, each with a 512x512 image
-///
-/// The output tileset is saved to project storage and will typically contain:
+/// The output tileset is saved to
+/// project storage and will typically contain:
 /// * one B3DM file for each tile
 /// * one tileset.json file defining the tile hierarchy and a bounds and geometric error for every tile
 /// * one stats.txt file containing statistics of the tileset.
 ///
 /// Note: this is also a relatively fast way to generate a large, aligned, blended image panorama.  The tile texture
 /// images are spatially coherent in that the tiles are quads with trivial texture coordinates.  They could be loaded on
-/// their own as a cylindrical or spherical projection 2D panorama.  With the typical settings giving 5x32 tiles with
-/// 512x512 textures the total panorama size is 16k by 2560.
+/// their own as a cylindrical or spherical projection 2D panorama. A typical sky tileset is 5 rows and 32 columns of
+/// tiles, each with a 512x512 image, or a total panorama size of 16k by 2560.
 ///
 /// Example:
 ///
@@ -59,14 +66,14 @@ using OPS.Pipeline.TilingServer;
 /// </summary>
 namespace OPS.Landform
 {
-    public enum SkyMode { Box, NearSphere, FarSphere };
+    public enum SkyMode { Box, Sphere, TopoSphere };
 
     public enum SkyOcclusionMode { Never, Always, Auto };
 
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
     public class BuildSkySphereOptions : TilingCommandOptions
     {
-        [Option(HelpText = "Sky mode (Box, NearSphere, FarSphere)", Default = SkyMode.Box)]
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere)", Default = SkyMode.Box)]
         public SkyMode SkyMode { get; set; }
 
         [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]
@@ -99,7 +106,7 @@ namespace OPS.Landform
         [Option(HelpText = "Mask any point on sky that is obstructed in any observation", Default = false)]
         public bool MaskObstructed { get; set; }
 
-        [Option(HelpText = "Disable backproject from far radius in Box and NearSphere modes", Default = false)]
+        [Option(HelpText = "Disable backproject from far radius in Box and Sphere modes", Default = false)]
         public bool NoBackprojectNearAsFar { get; set; }
 
         [Option(HelpText = "Disable image blending", Default = false)]
@@ -192,7 +199,7 @@ namespace OPS.Landform
 
                 RunPhase("build sky sphere tile geometry", BuildTileTree);
 
-                if (options.SkyMode == SkyMode.FarSphere)
+                if (options.SkyMode == SkyMode.TopoSphere)
                 {
                     RunPhase("build orbital scene", BuildOrbitalScene);
                 }
@@ -251,17 +258,17 @@ namespace OPS.Landform
             if (options.OnlyForCameras.ToLower() == "auto")
             {
                 //Alex sez legacy may have only used Mastcam and orbital
-                //options.OnlyForCameras = options.SkyMode == SkyMode.FarSphere ? "Mastcam" : "Mastcam,Navcam";
+                //options.OnlyForCameras = options.SkyMode == SkyMode.TopoSphere ? "Mastcam" : "Mastcam,Navcam";
                 options.OnlyForCameras = "Mastcam,Navcam";
             }
 
-            if (options.SceneOccludesSky == SkyOcclusionMode.Always && options.SkyMode == SkyMode.FarSphere)
+            if (options.SceneOccludesSky == SkyOcclusionMode.Always && options.SkyMode == SkyMode.TopoSphere)
             {
-                throw new Exception("--sceneoccludessky and --skymode=FarSphere are mutually exclusive");
+                throw new Exception("--sceneoccludessky and --skymode=TopoSphere are mutually exclusive");
             }
 
             //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available
-            options.NoOrbital = options.SkyMode != SkyMode.FarSphere;
+            options.NoOrbital = options.SkyMode != SkyMode.TopoSphere;
 
             if (!base.ParseArgumentsAndLoadCaches(SKY_TILING_DIR))
             {
@@ -273,7 +280,7 @@ namespace OPS.Landform
                 throw new Exception("--notextures not implemented for this command");
             }
 
-            if (options.SkyMode == SkyMode.FarSphere)
+            if (options.SkyMode == SkyMode.TopoSphere)
             {
                 LoadOrbitalDEM(required: true);
             }
@@ -291,8 +298,8 @@ namespace OPS.Landform
                 switch (options.SkyMode)
                 {
                     case SkyMode.Box: sphereRadius = sceneRadius; break;
-                    case SkyMode.NearSphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break;
-                    case SkyMode.FarSphere: sphereRadius = DEF_FAR_RADIUS; break;
+                    case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break;
+                    case SkyMode.TopoSphere: sphereRadius = DEF_FAR_RADIUS; break;
                     default: throw new Exception("unknown sky mode: " + options.SkyMode);
                 }
             }
@@ -301,7 +308,7 @@ namespace OPS.Landform
                 sphereRadius = double.Parse(options.SphereRadiusMeters);
             }
             backprojectRadius = sphereRadius;
-            if (!options.NoBackprojectNearAsFar && options.SkyMode != SkyMode.FarSphere &&
+            if (!options.NoBackprojectNearAsFar && options.SkyMode != SkyMode.TopoSphere &&
                 backprojectRadius < DEF_FAR_RADIUS)
             {
                 backprojectRadius = DEF_FAR_RADIUS;
@@ -313,7 +320,7 @@ namespace OPS.Landform
             {
                 case SkyOcclusionMode.Always: sceneOccludesSky = true; break;
                 case SkyOcclusionMode.Never: sceneOccludesSky = false; break;
-                case SkyOcclusionMode.Auto: sceneOccludesSky = options.SkyMode != SkyMode.FarSphere; break;
+                case SkyOcclusionMode.Auto: sceneOccludesSky = options.SkyMode != SkyMode.TopoSphere; break;
                 default: throw new Exception("unknown sky occlusion mode: " + options.SceneOccludesSky);
             }
             if (sceneOccludesSky && sceneCaster == null)
@@ -325,7 +332,7 @@ namespace OPS.Landform
             if (options.SkyPreferColor.ToLower() == "auto")
             {
                 options.PreferColor =
-                    options.SkyMode == SkyMode.FarSphere ? PreferColorMode.EquivalentScores : PreferColorMode.Always;
+                    options.SkyMode == SkyMode.TopoSphere ? PreferColorMode.EquivalentScores : PreferColorMode.Always;
             }
             else
             {
@@ -413,7 +420,7 @@ namespace OPS.Landform
         {
             base.FilterRoverImages();
 
-            if (options.SkyMode == SkyMode.FarSphere)
+            if (options.SkyMode == SkyMode.TopoSphere)
             {
                 return;
             }
@@ -462,7 +469,7 @@ namespace OPS.Landform
         {
             //build backproject strategy globally vs per tile to avoid artifacts at adjacent tile boundaries
             var skyMesh = Mesh.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
-            if (options.SkyMode != SkyMode.FarSphere && backprojectRadius != sphereRadius)
+            if (options.SkyMode != SkyMode.TopoSphere && backprojectRadius != sphereRadius)
             {
                 foreach (var v in skyMesh.Vertices)
                 {
@@ -476,7 +483,7 @@ namespace OPS.Landform
 
         protected override Backproject.Options CustomizeBackprojectOptions(Backproject.Options opts)
         {
-            if (options.SkyMode == SkyMode.FarSphere)
+            if (options.SkyMode == SkyMode.TopoSphere)
             {
                 opts.sampleTransform = samples =>
                 {
