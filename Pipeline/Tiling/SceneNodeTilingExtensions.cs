@@ -620,8 +620,13 @@ namespace OPS.Pipeline
 
             writeLine(string.Format("{0} meshes, {1} textures, {2} triangles, {3} texels",
                                     meshStats.Count, meshStats.Count(s => s.NumPixels > 0),
-                                    Fmt.KMG(meshStats.Sum(s => s.NumTris)), Fmt.KMG(meshStats.Sum(s => s.NumPixels))));
-            dumpTextureStats(meshStats);
+                                    Fmt.KMG(meshStats.Sum(s => s.NumTris)),
+                                    Fmt.KMG(meshStats.Sum(s => s.NumPixels))));
+
+            if (meshStats.Count > 0)
+            {
+                dumpTextureStats(meshStats);
+            }
         }
     }
 }
