@@ -15,8 +15,14 @@
 #
 # ./Scripts/m20-credss.sh
 #
-# ./Scripts/contextual-service.sh M2020 --landformownedqueues --queuename=m20-ids-g-landform-contextual-$USERNAME \
-#     --maxfetch=50G --maxorbital=20G --nocombinedmanifest [--noorbital]
+# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-landform-contextual-$USERNAME \
+#     --landformownedqueues --service 
+#
+# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-landform-contextual-$USERNAME \
+#    --sendmessage TestData/TestData/json/roastt20-sol403-contextual-event.json
+#
+# ./Scripts/contextual-service.sh ROASTT20 --queuename=m20-ids-g-landform-contextual-$USERNAME \
+#     --landformownedqueues --deletequeues
 
 if [ $# -lt 1 ]; then
     echo "USAGE: contextual-service.sh MISSION ..."
@@ -39,7 +45,7 @@ venue=${service}-service
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir"
 cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
-svcopts="$stdopts --stacktraces --service --mission=$mission"
+svcopts="$stdopts --stacktraces --mission=$mission"
 
 set -x # echo commands
 
