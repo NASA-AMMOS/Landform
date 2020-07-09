@@ -27,9 +27,9 @@ namespace OPS.Geometry
     /// </summary>
     public class Triangle
     {
-        public Vertex V0;
-        public Vertex V1;
-        public Vertex V2;
+        public readonly Vertex V0;
+        public readonly Vertex V1;
+        public readonly Vertex V2;
 
         public Triangle()
         {
@@ -134,98 +134,98 @@ namespace OPS.Geometry
         /// <returns></returns>
         public double Area()
         {
+            return Area(V0.Position, V1.Position, V2.Position);
+        }
+
+        public static double Area(Vector3 v0, Vector3 v1, Vector3 v2)
+        {
             // Compute the length of all 3 sides of the triangle
-            double a = (this.V0.Position - this.V1.Position).Length();
-            double b = (this.V1.Position - this.V2.Position).Length();
-            double c = (this.V2.Position - this.V0.Position).Length();
+            double a = (v0 - v1).Length();
+            double b = (v1 - v2).Length();
+            double c = (v2 - v0).Length();
+
+            void swap(ref double x, ref double y)
+            {
+                double tmp = x;
+                x = y;
+                y = tmp;
+            }
+
             // Sort such that a >= b >= c
             if (a < b)
             {
-                Swap(ref a, ref b);
+                swap(ref a, ref b);
             }
             if (b < c)
             {
-                Swap(ref b, ref c);
+                swap(ref b, ref c);
             }
             if (a < b)
             {
-                Swap(ref a, ref b);
+                swap(ref a, ref b);
             }
+
             if (c - (a - b) < 0)
             {
-                // Not a real triangle
-                return 0;
+                return 0; // Not a real triangle
             }
+
             double v = ((a + (b + c)) * (c - (a - b)) * (c + (a - b)) * (a + (b - c)));
             v = Math.Sqrt(v) / 4;
             return v;
         }
 
         /// <summary>
-        /// Helper method swaps two doubles
+        /// Clips this traingle to the provided plane.
+        /// Returns 0, 1, or 2 triangles representing the clipped geometry on or above the plane.
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        void Swap(ref double x, ref double y)
-        {
-            double tmp = x;
-            x = y;
-            y = tmp;
-        }
-
-        /// <summary>
-        /// Helper method for adding vertices to an array.  Returns the index of the added vertex.
-        /// If an identical vertex already exists do not add v but instead return the index of the existing vert.
-        /// </summary>
-        /// <param name="vertices"></param>
-        /// <param name="v"></param>
-        /// <returns></returns>
-        static int AddVertex(List<Vertex> vertices, Vertex v)
-        {
-            int i;
-            for (i = 0; i < vertices.Count; i++)
-            {
-                if ((vertices[i].AlmostEqual(v)))
-                {
-                    return i;
-                }
-            }
-            int res = vertices.Count;
-            vertices.Add(v);
-            return res;
-        }
-
-        /// <summary>
-        /// Clips this traingle to the provided plane.  Returns 0, 1, or 2 triangles
-        /// representing the clipped geometry
-        /// </summary>
-        /// <param name="plane"></param>
-        /// <returns></returns>
         public IEnumerable<Triangle> Clip(Plane plane)
         {
             List<Vertex> vertices = new List<Vertex>();
+
+            // Returns the index of the added vertex.
+            // If an identical vertex already exists do not add v but instead return the index of the existing vert.
+            int addVertex(Vertex v)
+            {
+                int i;
+                for (i = 0; i < vertices.Count; i++)
+                {
+                    if ((vertices[i].AlmostEqual(v)))
+                    {
+                        return i;
+                    }
+                }
+                int res = vertices.Count;
+                vertices.Add(v);
+                return res;
+            }
+
             Vertex[][] edges = new Vertex[][]
             {
                 new Vertex[] {V0, V1},
                 new Vertex[] {V1, V2},
                 new Vertex[] {V2, V0}
             };
+
             foreach (Vertex[] edge in edges)
             {
 
-                if (Vector3.Dot(edge[0].Position, plane.Normal) < plane.D &&
-                    Vector3.Dot(edge[1].Position, plane.Normal) < plane.D)
+                // Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+                double dist = -plane.D;
+
+                if (Vector3.Dot(edge[0].Position, plane.Normal) < dist &&
+                    Vector3.Dot(edge[1].Position, plane.Normal) < dist)
                 {
                     // Skip this edge if both points are below the plane
                     continue;
                 }
 
-                else if (Vector3.Dot(edge[0].Position, plane.Normal) >= plane.D &&
-                         Vector3.Dot(edge[1].Position, plane.Normal) >= plane.D)
+                else if (Vector3.Dot(edge[0].Position, plane.Normal) >= dist &&
+                         Vector3.Dot(edge[1].Position, plane.Normal) >= dist)
                 {
                     // Or above the plane
-                    AddVertex(vertices, edge[0]);
-                    AddVertex(vertices, edge[1]);
+                    addVertex(edge[0]);
+                    addVertex(edge[1]);
                     continue;
                 }
                 // Intersection vertex
@@ -233,22 +233,22 @@ namespace OPS.Geometry
                 if (intervert == null)
                 {
                     // No intersection
-                    AddVertex(vertices, edge[0]);
-                    AddVertex(vertices, edge[1]);
+                    addVertex(edge[0]);
+                    addVertex(edge[1]);
                 }
                 else
                 {
-                    if (Vector3.Dot(edge[0].Position, plane.Normal) >= plane.D)
+                    if (Vector3.Dot(edge[0].Position, plane.Normal) >= dist)
                     {
                         // First point is above the plane
-                        AddVertex(vertices, edge[0]);
-                        AddVertex(vertices, intervert);
+                        addVertex(edge[0]);
+                        addVertex(intervert);
                     }
                     else
                     {
                         // Second point is above the plane
-                        AddVertex(vertices, intervert);
-                        AddVertex(vertices, edge[1]);
+                        addVertex(intervert);
+                        addVertex(edge[1]);
                     }
                 }
             }
@@ -434,36 +434,31 @@ namespace OPS.Geometry
             Vector2 uv1 = V1.UV;
             Vector2 uv2 = V2.UV;
 
-            Vector3 v0 = V0.Position;
-            Vector3 v1 = V1.Position;
-            Vector3 v2 = V2.Position;
+            double u0 = uv0.X;
+            double u1 = uv1.X;
+            double u2 = uv2.X;
 
-            double lowLimit = 0;
-            double highLimit = 1;
+            double v0 = uv0.Y;
+            double v1 = uv1.Y;
+            double v2 = uv2.Y;
 
-            double x1 = uv0.X;
-            double x2 = uv1.X;
-            double x3 = uv2.X;
-            double y1 = uv0.Y;
-            double y2 = uv1.Y;
-            double y3 = uv2.Y;
-            double xf = uv.X;
-            double yf = uv.Y;
+            double u = uv.X;
+            double v = uv.Y;
+            
+            double b0 = (((v1 - v2) * (u  - u2) + (u2 - u1) * (v  - v2)) /
+                         ((v1 - v2) * (u0 - u2) + (u2 - u1) * (v0 - v2)));
 
-            double b0 = (((y2 - y3) * (xf - x3) + (x3 - x2) * (yf - y3)) /
-                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
-            double b1 = (((y3 - y1) * (xf - x3) + (x1 - x3) * (yf - y3)) /
-                ((y2 - y3) * (x1 - x3) + (x3 - x2) * (y1 - y3)));
+            double b1 = (((v2 - v0) * (u  - u2) + (u0 - u2) * (v  - v2)) /
+                         ((v1 - v2) * (u0 - u2) + (u2 - u1) * (v0 - v2)));
+
             double b2 = 1.0f - b0 - b1;
 
-            BarycentricPoint r = null;
-            if (b0 >= lowLimit && b0 <= highLimit &&
-                b1 >= lowLimit && b1 <= highLimit &&
-                b2 >= lowLimit && b2 <= highLimit)
+            if (b0 >= 0 && b0 <= 1 && b1 >= 0 && b1 <= 1 && b2 >= 0 && b2 <= 1)
             {
-                r = new BarycentricPoint(b0, b1, b2, this);
+                return new BarycentricPoint(b0, b1, b2, this);
             }
-            return r;
+
+            return null;
         }
 
         /// <summary>
@@ -475,6 +470,11 @@ namespace OPS.Geometry
             {
                 return ComputeNormal(V0.Position, V1.Position, V2.Position);
             }
+        }
+
+        public bool TryComputeNormal(out Vector3 norm)
+        {
+            return ComputeNormal(V0.Position, V1.Position, V2.Position, out norm);
         }
 
         public static Vector3 ComputeNormal(Vector3 v0, Vector3 v1, Vector3 v2)
@@ -506,20 +506,27 @@ namespace OPS.Geometry
 
         public IEnumerable<Triangle> Clip(BoundingBox box)
         {
-            // This triangle does not intersect the box.  Clip everything by returning an empty list
-            if(!this.Bounds().Intersects(box))
+            if (box.Contains(this))
             {
-                return new Triangle[] { };
+                yield return this;
+                yield break;
             }
-            Vector3 size = box.Size();
-            IEnumerable<Triangle> clipped = new Triangle[] { this };
-            clipped = clipped.SelectMany(tri => tri.Clip(new Plane(new Vector3(1, 0, 0), box.Min.X)))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(-1, 0, 0), -(box.Min.X + size.X))))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 1, 0), box.Min.Y)))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, -1, 0), -(box.Min.Y + size.Y))))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, 1), box.Min.Z)))
-                                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
-            return clipped;
+            if (!Bounds().Intersects(box))
+            {
+                yield break;
+            }
+            // Note Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+            var clipped = new Triangle[] { this }
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(1, 0, 0), -box.Min.X)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(-1, 0, 0), box.Max.X)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 1, 0), -box.Min.Y)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, -1, 0), box.Max.Y)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, 1), -box.Min.Z)))
+                .SelectMany(tri => tri.Clip(new Plane(new Vector3(0, 0, -1), box.Max.Z)));
+            foreach (var tri in clipped)
+            {
+                yield return tri;
+            }
         }
 
         /// <summary>
@@ -568,22 +575,59 @@ namespace OPS.Geometry
             {
                 return new Triangle[] { this };
             }
-            Vector3 size = box.Size();
             IEnumerable<Triangle> clipped = new Triangle[] { this };
             // Clip each triangle against each plane of the box, against both directions
             // This will garantee we generate triangles on both sides of the box boundary with edges along the box
-            clipped = clipped.SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(1, 0, 0), box.Min.X)))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(-1, 0, 0), -(box.Min.X + size.X))))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 1, 0), box.Min.Y)))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, -1, 0), -(box.Min.Y + size.Y))))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, 1), box.Min.Z)))
-                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, -1), -(box.Min.Z + size.Z))));
+            // Note Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+            clipped = clipped
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(1, 0, 0), -box.Min.X)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(-1, 0, 0), box.Max.X)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 1, 0), -box.Min.Y)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, -1, 0), box.Max.Y)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, 1), -box.Min.Z)))
+                .SelectMany(tri => tri.SplitAlongPlane(new Plane(new Vector3(0, 0, -1), box.Max.Z)));
             return clipped.Where(tri => !box.FuzzyContains(tri.Bounds()));
         }
 
         public override int GetHashCode()
         {
-            return V0.Position.X.GetHashCode() ^ V1.Position.Y.GetHashCode() ^ V2.Position.Z.GetHashCode();
+            int hash = 17;
+            hash = hash * 23 + V0.GetHashCode();
+            hash = hash * 23 + V1.GetHashCode();
+            hash = hash * 23 + V2.GetHashCode();
+            return hash;
         }        
+
+        public override bool Equals(System.Object obj)
+        {
+            return Equals(obj as Triangle);
+        }
+
+        public bool Equals(Triangle  t)
+        {
+            // For Equals implementation see https://msdn.microsoft.com/en-us/library/dd183755.aspx 
+            // If parameter is null, return false.
+            if (Object.ReferenceEquals(t, null))
+            {
+                return false;
+            }
+
+            // Optimization for a common success case.
+            if (Object.ReferenceEquals(this, t))
+            {
+                return true;
+            }
+
+            // If run-time types are not exactly the same, return false.
+            if (this.GetType() != t.GetType())
+            {
+                return false;
+            }
+
+            // Return true if the fields match.
+            // Note that the base class is not invoked because it is
+            // System.Object, which defines Equals as reference equality.
+            return (V0 == t.V0) && (V1 == t.V1) && (V2 == t.V2);
+        }
     }
 }

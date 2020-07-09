@@ -196,11 +196,8 @@ namespace OPS.Pipeline
 
                 Interlocked.Increment(ref np);
 
-                if (!noProgress)
-                {
-                    pipeline.LogInfo("ingesting {0} images in parallel, completed {1}/{2}, {3} overall",
-                                     np, ni, nt, nu);
-                }
+                pipeline.LogVerbose("ingesting {0} images in parallel, completed {1}/{2}, {3} overall",
+                                    np, ni, nt, nu);
                 
                 var res = ingester.Ingest(url);
                 

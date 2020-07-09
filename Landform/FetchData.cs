@@ -735,7 +735,18 @@ namespace OPS.Landform
 
         private bool ShouldDownload(string url, ref long batchBytes)
         {
-            long remoteBytes = url.ToLower().StartsWith("s3://") ? storageHelper.FileSize(url) : -1;
+            long remoteBytes = -1;
+            if (url.ToLower().StartsWith("s3://"))
+            {
+                try
+                {
+                    remoteBytes = storageHelper.FileSize(url);
+                }
+                catch (Exception ex)
+                {
+                    logger.InfoFormat("error getting file size for \"{0}\": {1}", url, ex.Message);
+                }
+            }
             if (maxBytes > 0 && remoteBytes > maxBytes)
             {
                 logger.InfoFormat("not downloading {0}: {1} bytes > max download {2}",

@@ -829,5 +829,10 @@ namespace OPS.Pipeline
             gisImageRightInLocalLevel = east;
             gisImageDownInLocalLevel = -north;
         }
+
+        public virtual double GetMastHeightMeters()
+        {
+            return 2; //MSL and M2020 rover mast height is about 2m above bottom of wheels on flat surface
+        }
     }
 }

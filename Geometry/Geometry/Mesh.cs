@@ -17,7 +17,7 @@ namespace OPS.Geometry
     /// </summary>
     public enum SkirtMode { X, Y, Z, Normal, None }
 
-    public enum MeshColor { None, Texture, Normals, NormalMagnitude, Elevation, Curvature };
+    public enum MeshColor { None, Texture, Normals, NormalMagnitude, Elevation, Curvature, TexCoord, TexU, TexV };
     
     /// <summary>
     /// A class representing a 3D mesh
@@ -28,7 +28,6 @@ namespace OPS.Geometry
     /// are optional.  Properties are defined on a per mesh basis, either a property is defined for all of 
     /// a mesh's vertices or none of them.  The flags controlled by SetProperties determine what properties
     /// a mesh has and undefined properties are ingored by meshing operations.
-    /// 
     /// </summary>
     public class Mesh
     {
@@ -81,7 +80,8 @@ namespace OPS.Geometry
         /// <param name="hasNormals"></param>
         /// <param name="hasUVs"></param>
         /// <param name="hasColors"></param>
-        public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false)
+        public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false,
+                    Action<string> warn = null)
         {
             Faces = new List<Face>(triangles.Count);
             Vertices = new List<Vertex>(triangles.Count * 3);
@@ -95,7 +95,7 @@ namespace OPS.Geometry
                 Vertices.Add((Vertex)t.V1.Clone());
                 Vertices.Add((Vertex)t.V2.Clone());
             }
-            Clean();
+            Clean(warn: warn);
         }
 
         /// <summary>
@@ -526,332 +526,146 @@ namespace OPS.Geometry
             RemoveIdenticalFaces();
         }
 
-        Dictionary<Vector3, List<Vertex>> GetPositionToVertexMap()
-        {
-            Dictionary<Vector3, List<Vertex>> map = new Dictionary<Vector3, List<Vertex>>();
-            foreach (Vertex v in this.Vertices)
-            {
-                if (map.ContainsKey(v.Position))
-                {
-                    map[v.Position].Add(v);
-                }
-                else
-                {
-                    map.Add(v.Position, new List<Vertex> { v });
-                }
-            }
-            return map;
-        }
-
-        /// <summary>
-        /// Remove the skirt along the specified axis
-        /// The skirt's edge vertex must share the normals, UVs, and color of the connected skirt vertex on the mesh
-        /// The edge and its connected corresponding one on the mesh must be aligned on the axis specified
-        /// </summary>
-        /// <param name="axis">The axis which the skirt is extruded along, where the other two axes must be equal between the two skirt vertices</param>
-        public void RemoveSkirt(SkirtMode axis)
-        {
-            if(axis == SkirtMode.Normal)
-            {
-                throw new Exception("Mesh.RemoveSkirt not implemented for normals...");
-            }
-
-            // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
-            // Vertices that are part of the skirt that need to be removed at the end
-            List<Vertex> edgeVertices = EdgeVertices();
-            List<Vertex> verticesToRemove = new List<Vertex>();
-            // Run through each unique vertex on the edge and remove it if it qualifies as part of a skirt
-            foreach (Vertex edgeVertex in edgeVertices)
-            {
-                // Find index of the current edge vertex
-                int vertexIndexInMesh = Vertices.IndexOf(edgeVertex);
-
-                // Find the connected faces to the edge vertex
-                Face[] facesUsingEdgeVertex = Faces.Where(face => Vertices[face.P0] == edgeVertex || Vertices[face.P1] == edgeVertex || Vertices[face.P2] == edgeVertex).ToArray();
-
-                // All vertices connected to this vertex
-                HashSet<Vertex> otherVertices = new HashSet<Vertex>();
-
-                // Add the other two vertices to the set
-                foreach (Face face in facesUsingEdgeVertex)
-                {
-                    int[] vertexIndices = face.ToArray();
-                    int vertexIndexInFace = Array.IndexOf(vertexIndices, vertexIndexInMesh);
-                    otherVertices.Add(Vertices[vertexIndices[(vertexIndexInFace + 1) % 3]]);
-                    otherVertices.Add(Vertices[vertexIndices[(vertexIndexInFace + 2) % 3]]);
-                }
-
-                // Go through each vertex and attempt to find one that matches this one's normals/UVs/color/position
-                foreach (Vertex candidateVertex in otherVertices)
-                {
-                    // Skip this point because it doesn't qualify if it has a mismatched normal or UV or color
-                    if ((HasNormals && !edgeVertex.Normal.AlmostEqual(candidateVertex.Normal)) ||
-                        (HasUVs && !edgeVertex.UV.AlmostEqual(candidateVertex.UV)) ||
-                        (HasColors && !edgeVertex.Color.AlmostEqual(candidateVertex.Color))
-                    )
-                    {
-                        continue;
-                    }
-
-                    // Check if the other two axes are almost equal between the edge vertex and candidate vertex
-                    if ((axis == SkirtMode.X && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
-                        (axis == SkirtMode.Y && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Z.AlmostEqual(candidateVertex.Position.Z)) ||
-                        (axis == SkirtMode.Z && edgeVertex.Position.X.AlmostEqual(candidateVertex.Position.X) && edgeVertex.Position.Y.AlmostEqual(candidateVertex.Position.Y))
-                    )
-                    {
-                        // Include the edge vertex in the list to be deleted
-                        verticesToRemove.Add(edgeVertex);
-                    }
-                }
-            }
-            // Remove the vertices selected on the edge that are part of the skirt
-            RemoveVertices(verticesToRemove);
-        }
-
         /// <summary>
         /// Adds a skirt to all open edges (edges which are connected on only one side) in the direction specified
         /// If SkirtMode.Normal used, then skirt position will be based on average of 2-ring face normals.
         /// Because skirt points can be projected in different directions (and create bad looking skirts),
         /// skirtpoints will be merged if the distance between them divided by the skirt height falls below threshold
         /// </summary>
-        /// <param name="axis">Extrudes the skirt in the X, Y, or Z axis</param>
-        /// <param name="heightAsPercentOfWidth">Specifies the height of the skirt, where 100% is the width or</param>
-        public void AddSkirt(SkirtMode axis, double heightAsPercentOfWidth = 0.02, double threshold = 0.15, bool invert=false)
+        public void AddSkirt(SkirtMode axis, double relHeight = 0.02, double threshold = 0.15, bool invert = false)
         {
-            // Calculate skirt offset height
             Vector3 size = Bounds().Size();
+            double height = relHeight * Math.Max(Math.Max(size.X, size.Y), size.Z);
+            threshold *= height;
 
-            if (axis == SkirtMode.Normal)
+            //make a position-only copy, then clean it
+            //this has the effect of merging coincident verts
+            Mesh copy = new Mesh(this);
+            copy.ClearColors();
+            copy.ClearNormals();
+            copy.ClearUVs();
+            copy.Clean();
+
+            //now copy uvs, and colors back to the remaining verts by matching positions
+            //attributes of groups of coincident verts will be averaged
+            //this is important because the color and UV of added skirt verts will be copied from their adjacent verts
+            //(skirt vert normals are computed from adjacent skirt face tris)
+            copy.CopyVertexAttributes(this, copyNormals: false, copyUVs: true, copyColors: true);
+
+            var edgeGraph = new EdgeGraph(copy);
+
+            var skirtMap = new Dictionary<VertexNode, VertexNode>(); //perimeter vert -> corresponding skirt vert
+
+            //add skirt vertices and populate skirtMap
+            foreach (var pv in edgeGraph.GetVertNodes().Where(v => v.IsOnPerimeter))
             {
-                double height = heightAsPercentOfWidth * Math.Max(Math.Max(size.X, size.Y), size.Z); //Always within factor ( * or / ) sqrt 2
-                height = invert ? height * -1 : height;
-                Dictionary<Vertex, Vertex> skirtMap = new Dictionary<Vertex, Vertex>();
-
-                //Store mapping from positions to vertexes
-                Dictionary<Vector3, List<Vertex>> posToVert = this.GetPositionToVertexMap();
-
-                //Work only with positions
-                Mesh copy = new Mesh(this);
-                copy.ClearColors();
-                copy.ClearNormals();
-                copy.ClearUVs();
-                copy.Clean();
-
-                //Create node edge graph to find triangles on perimeter
-                EdgeGraph edgeGraph = new EdgeGraph(copy);
-
-                //Compute a skirt location for each perimeter vertex based on the normals of surrounding triangles. If a previous skirt vertex is "good enough" based on `threshold', it may be used instead of creating a new one
-                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
+                Vector3 offset = Vector3.Zero;
+                switch (axis)
                 {
-                    if (vNode.IsOnPerimeter)
+                    case SkirtMode.Normal:
                     {
-                        List<Vertex> candidates = new List<Vertex>();
-                        Vector3 averageNormal = new Vector3(0, 0, 0);
-                        foreach (Edge e1 in vNode.GetAdjacentEdges())
+                        var averageNormal = Vector3.Zero;
+                        foreach (var e1 in pv.GetAdjacentEdges())
                         {
-                            if (e1.IsPerimeterEdge)
-                            {
-                                candidates.Add(e1.Dst);
-                            }
-                            foreach (Edge e2 in e1.Dst.GetAdjacentEdges())
+                            foreach (var e2 in e1.Dst.GetAdjacentEdges())
                             {
                                 if (e2.Left != null)
                                 {
-                                    Triangle t = new Triangle(e2.Src.Position, e2.Dst.Position, e2.Left.Position);
-                                    averageNormal += t.Normal * t.Area();
+                                    var t = new Triangle(e2.Src.Position, e2.Dst.Position, e2.Left.Position);
+                                    if (t.TryComputeNormal(out Vector3 tn))
+                                    {
+                                        averageNormal += tn * t.Area();
+                                    }
                                 }
                             }
                         }
-                        averageNormal.Normalize();
-                        Vector3 offset = averageNormal * -1 * height;
-
-                        Vertex vSkirt = new Vertex(vNode.Position + offset, vNode.Normal, vNode.Color, vNode.UV);
-
-                        bool shouldAddSkirtVertex = true;
-
-                        foreach (Vertex candidate in skirtMap.Keys)
+                        if (averageNormal.Length() > MathHelper.Epsilon)
                         {
-                            Vertex skirtCandidate = skirtMap[candidate];
-                            if ((vSkirt.Position - vNode.Position).LengthSquared() > (skirtCandidate.Position - vNode.Position).LengthSquared() || (skirtCandidate.Position - vSkirt.Position).Length() < threshold * offset.Length())
-                            {
-                                skirtMap.Add(vNode, skirtCandidate);
-                                shouldAddSkirtVertex = false;
-                                break;
-                            }
+                            averageNormal.Normalize();
                         }
-
-                        if (shouldAddSkirtVertex)
-                        {
-                            this.Vertices.Add(vSkirt);
-                            posToVert.Add(vSkirt.Position, new List<Vertex> { vSkirt });
-                            skirtMap.Add(vNode, vSkirt);
-                        }
+                        offset = (invert ? 1 : -1) * averageNormal * height; //*opposite* normal unless inverted
+                        break;
                     }
-
-                }
-
-                //Add in the faces for the new skirt vertices
-                foreach (VertexNode vNode in edgeGraph.GetVertNodes())
-                {
-                    if (vNode.IsOnPerimeter)
+                    case SkirtMode.X:
                     {
-                        foreach (Edge e in vNode.GetAdjacentEdges())
+                        offset.X = (invert ? -1 : 1) * height; //in +X direction unless inverted
+                        break;
+                    }
+                    case SkirtMode.Y:
+                    {
+                        offset.Y = (invert ? -1 : 1) * height; //in +Y direction unless inverted
+                        break;
+                    }
+                    case SkirtMode.Z:
+                    {
+                        offset.Z = (invert ? -1 : 1) * height; //in +Z direction unless inverted
+                        break;
+                    }
+                }
+                if (offset.Length() > MathHelper.Epsilon)
+                {
+                    //normals and ids for skirt verts are computed below
+                    var sv = new VertexNode(new Vertex(pv.Position + offset, Vector3.Zero, pv.Color, pv.UV), -1);
+                    bool shouldAdd = true;
+                    foreach (var existing in skirtMap.Values)
+                    {
+                        if ((existing.Position - pv.Position).Length() < height ||
+                            (existing.Position - sv.Position).Length() < threshold)
                         {
-                            if (e.IsPerimeterEdge && e.Left != null)
-                            {
-                                Vertex v1 = skirtMap[e.Src];
-                                Vertex v2 = skirtMap[e.Dst];
-
-                                int v1Index = Vertices.IndexOf(posToVert[v1.Position][0]);
-                                int v2Index = Vertices.IndexOf(posToVert[v2.Position][0]);
-                                int srcIndex = Vertices.IndexOf(posToVert[e.Src.Position][0]);
-                                int dstIndex = Vertices.IndexOf(posToVert[e.Dst.Position][0]);
-                                this.Faces.Add(new Face(srcIndex, v1Index, dstIndex));
-                                this.Faces.Add(new Face(v1Index, v2Index, dstIndex));
-                            }
+                            skirtMap.Add(pv, existing);
+                            shouldAdd = false;
+                            break;
                         }
                     }
-                }
-            }
-            else
-            {
-
-                // Finds the maximum extent of either of the other two axes that the skirt is not being created along
-                double maxDimension;
-                if (axis == SkirtMode.X)
-                {
-                    maxDimension = Math.Max(size.Y, size.Z);
-                }
-                else if (axis == SkirtMode.Y)
-                {
-                    maxDimension = Math.Max(size.X, size.Z);
-                }
-                else
-                {
-                    maxDimension = Math.Max(size.X, size.Y);
-                }
-
-                // Determines the actual number of model units to extrude the skirt along
-                double actualHeight = maxDimension * -heightAsPercentOfWidth / 100;
-                actualHeight = invert ? actualHeight * -1 : actualHeight;
-
-                // Set the offset in the correct axis
-                Vector3 offset = Vector3.Zero;
-                if (axis == SkirtMode.X)
-                {
-                    offset = new Vector3(actualHeight, 0, 0);
-                }
-                else if (axis == SkirtMode.Y)
-                {
-                    offset = new Vector3(0, actualHeight, 0);
-                }
-                else if (axis == SkirtMode.Z)
-                {
-                    offset = new Vector3(0, 0, actualHeight);
-                }
-
-                // List of resulting exterior edges that are connected by only one face
-                List<SimpleEdge> edges = GetExteriorEdges();
-
-                // Pairing between points at the edge and the corresponding skirt point on the mesh
-                Dictionary<Vertex, Vertex> edgeToSkirtPoints = new Dictionary<Vertex, Vertex>();
-
-                // Copy each vertex down from the edge of the mesh to the skirt and form two triangles along the edge
-                foreach (SimpleEdge edge in edges)
-                {
-                    // Copy edge vertex A to the skirt position
-                    if (!edgeToSkirtPoints.ContainsKey(edge.Src))
+                    if (shouldAdd)
                     {
-                        Vertex newVertex = new Vertex(edge.Src.Position + offset, edge.Src.Normal, edge.Src.Color, edge.Src.UV);
-                        Vertices.Add(newVertex);
-                        edgeToSkirtPoints.Add(edge.Src, newVertex);
+                        sv.ID = Vertices.Count;
+                        Vertices.Add(sv);
+                        skirtMap.Add(pv, sv);
                     }
-                    Vertex aSkirt = edgeToSkirtPoints[edge.Src];
+                }
+            }
 
-                    // Get the indexes of the new point and skirt point in the list of mesh vertices
-                    int aIndex = Vertices.IndexOf(edge.Src);
-                    int aSkirtIndex = Vertices.IndexOf(aSkirt);
-
-                    // Copy edge vertex B to the skirt position
-                    if (!edgeToSkirtPoints.ContainsKey(edge.Dst))
+            //add skirt faces and compute skirt vertex normals
+            var posToIndex = new Dictionary<Vector3, int>();
+            for (int i = 0; i < Vertices.Count; i++)
+            {
+                posToIndex[Vertices[i].Position] = i;
+            }
+            foreach (var pv in edgeGraph.GetVertNodes().Where(v => v.IsOnPerimeter))
+            {
+                foreach (var e in pv.GetAdjacentEdges().Where(e => e.IsPerimeterEdge && e.Left != null &&
+                                                              skirtMap.ContainsKey(e.Src) &&
+                                                              skirtMap.ContainsKey(e.Dst) &&
+                                                              posToIndex.ContainsKey(e.Src.Position) &&
+                                                              posToIndex.ContainsKey(e.Dst.Position)))
+                {
+                    var sv1 = skirtMap[e.Src];
+                    var sv2 = skirtMap[e.Dst];
+                    
+                    var st1 = new Triangle(e.Src, sv1, e.Dst);
+                    var st2 = new Triangle(sv1, sv2, e.Dst);
+                    
+                    if (st1.TryComputeNormal(out Vector3 n1) && st2.TryComputeNormal(out Vector3 n2))
                     {
-                        Vertex newVertex = new Vertex(edge.Dst.Position + offset, edge.Dst.Normal, edge.Dst.Color, edge.Dst.UV);
-                        Vertices.Add(newVertex);
-                        edgeToSkirtPoints.Add(edge.Dst, newVertex);
+                        n1 *= st1.Area();
+                        n2 *= st2.Area();
+                        sv1.Normal += n1 + n2;
+                        sv2.Normal += n2;
+                        int srcID = posToIndex[e.Src.Position];
+                        int dstID = posToIndex[e.Dst.Position];
+                        Faces.Add(new Face(srcID, sv1.ID, dstID));
+                        Faces.Add(new Face(sv1.ID, sv2.ID, dstID));
                     }
-                    Vertex bSkirt = edgeToSkirtPoints[edge.Dst];
-
-                    // Get the indexes of the new point and skirt point in the list of mesh vertices
-                    int bIndex = Vertices.IndexOf(edge.Dst);
-                    int bSkirtIndex = Vertices.IndexOf(bSkirt);
-
-                    // Construct both triangles for the face
-                    Faces.Add(new Face(aIndex, aSkirtIndex, bIndex));
-                    Faces.Add(new Face(bIndex, aSkirtIndex, bSkirtIndex));
                 }
             }
-            // Clean the mesh for good measure
-            Clean();
-        }
-
-        public List<Vertex> EdgeVertices()
-        {
-            // List of edges in the mesh located on the exterior (edges adjacent to only one triangle)
-            List<SimpleEdge> edges = GetExteriorEdges();
-            // Put each vertex in another hashset from all the edges
-            HashSet<Vertex> edgeVertices = new HashSet<Vertex>();
-            foreach (SimpleEdge edge in edges)
+            foreach (var sv in skirtMap.Values)
             {
-                edgeVertices.Add(edge.Src);
-                edgeVertices.Add(edge.Dst);
-            }
-            return edgeVertices.ToList();
-        }
-
-        /// <summary>
-        /// Returns a list of edge structs holding the two vertices forming the edges wherever the mesh has only one face using the edge
-        /// </summary>
-        /// <returns></returns>
-        private List<SimpleEdge> GetExteriorEdges()
-        {
-            // Unordered set of edges
-            HashSet<SimpleEdge> edges = new HashSet<SimpleEdge>();
-
-            // Put each edge in the hashset and remove it if it already exists
-            foreach (Face face in Faces)
-            {
-                SimpleEdge edge0 = new SimpleEdge(Vertices[face.P0], Vertices[face.P1]);
-                if (edges.Contains(edge0))
+                if (sv.Normal.Length() > MathHelper.Epsilon)
                 {
-                    edges.Remove(edge0);
-                }
-                else
-                {
-                    edges.Add(edge0);
-                }
-
-                SimpleEdge edge1 = new SimpleEdge(Vertices[face.P1], Vertices[face.P2]);
-                if (edges.Contains(edge1))
-                {
-                    edges.Remove(edge1);
-                }
-                else
-                {
-                    edges.Add(edge1);
-                }
-
-                SimpleEdge edge2 = new SimpleEdge(Vertices[face.P2], Vertices[face.P0]);
-                if (edges.Contains(edge2))
-                {
-                    edges.Remove(edge2);
-                }
-                else
-                {
-                    edges.Add(edge2);
+                    sv.Normal.Normalize();
                 }
             }
-
-            return edges.ToList();
         }
 
         /// <summary>
@@ -991,32 +805,23 @@ namespace OPS.Geometry
         /// <returns></returns>
         public double SurfaceArea()
         {
-            double area = 0;
-            this.Triangles().ForEach(tri =>
-            {
-                area += tri.Area();
-            });
-            return area;
+            return Faces.Sum(f => Triangle.Area(Vertices[f.P0].Position, Vertices[f.P1].Position, Vertices[f.P2].Position));
         }
 
         /// <summary>
         /// Checks to see if this mesh has the same attributes as the other mesh (normal, uv, and texture)
         /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
         public bool AttributesEqual(Mesh other)
         {
-            return this.HasNormals == other.HasNormals && this.HasUVs == other.HasUVs && this.HasColors == other.HasColors;
+            return HasNormals == other.HasNormals && HasUVs == other.HasUVs && HasColors == other.HasColors;
         }
 
         /// <summary>
         /// Return true if all attributes that are true of this mesh are also true of other
         /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
         public bool AttributesSubsetOf(Mesh other)
         {
-            if ((this.HasNormals && !other.HasNormals) || (this.HasUVs && !other.HasUVs) || (this.HasColors && !other.HasColors))
+            if ((HasNormals && !other.HasNormals) || (HasUVs && !other.HasUVs) || (HasColors && !other.HasColors))
             {
                 return false;
             }
@@ -1024,27 +829,83 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Combines one or more meshes with this one
-        /// The proprties of the input meshes must match this one
-        /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
+        /// Combine meshes together without merging duplicate vertices.
+        /// The latter meshes must have at least the vertex attributes (normals, UVs, colors) that the first one has.
         /// </summary>
-        /// <param name="otherMeshes"></param>
-        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true, bool removeDuplicateVerts = true)
+        public static Mesh Join(Mesh[] meshes, bool clone = true)
+        {
+            var inputs = meshes.Where(m => m != null && m.Vertices.Count > 0).ToList();
+
+            if (inputs.Count == 0)
+            {
+                return new Mesh();
+            }
+
+            for (int i = 1; i < inputs.Count; i++)
+            {
+                if (!inputs[i].AttributesSubsetOf(inputs[0]))
+                {
+                    throw new MeshException("mesh to join missing one or more attributes required by aggregate mesh");
+                }
+            }
+
+            var ret = clone ? new Mesh(inputs[0]) : inputs[0];
+
+            //do it like this in part so that the degenerate case of meshes.Length=1 clone=false does not modify mesh
+            ret.Vertices.Capacity = Math.Max(ret.Vertices.Capacity, inputs.Sum(m => m.Vertices.Count));
+            ret.Faces.Capacity = Math.Max(ret.Faces.Capacity, inputs.Sum(m => m.Faces.Count));
+
+            int nv = ret.Vertices.Count;
+            for (int i = 1; i < inputs.Count; i++)
+            {
+                if (clone)
+                {
+                    foreach (var v in inputs[i].Vertices)
+                    {
+                        ret.Vertices.Add((Vertex)(v.Clone()));
+                    }
+                }
+                else
+                {
+                    ret.Vertices.AddRange(inputs[i].Vertices);
+                }
+
+                foreach (var f in inputs[i].Faces)
+                {
+                    ret.Faces.Add(new Face(f.P0 + nv, f.P1 + nv, f.P2 + nv));
+                }
+
+                nv += inputs[i].Vertices.Count;
+            }
+
+            return ret;
+        }
+
+        /// <summary>
+        /// Combines one or more meshes with this one.
+        /// The other meshes must have at least the vertex attributes (normals, UVs, colors) that this one has.
+        /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future.
+        /// </summary>
+        public void MergeWith(Mesh[] otherMeshes, bool clean = true, bool normalize = true,
+                              bool removeDuplicateVerts = true, Action<string> warn = null)
         {
             int numNewVerts = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Vertices.Count);
             int numNewFaces = otherMeshes.Aggregate(0, (sum, mesh) => mesh == null ? sum : sum + mesh.Faces.Count);
-            Vertices.Capacity = Math.Min(Vertices.Capacity, Vertices.Count + numNewVerts);
-            Faces.Capacity = Math.Min(Faces.Capacity, Faces.Count + numNewFaces);
+            Vertices.Capacity = Math.Max(Vertices.Capacity, Vertices.Count + numNewVerts);
+            Faces.Capacity = Math.Max(Faces.Capacity, Faces.Count + numNewFaces);
             for (int i = 0; i < otherMeshes.Length; i++)
             {
                 Mesh m = otherMeshes[i];
                 if (m == null)
+                {
                     continue;
+                }
 
                 if (!AttributesSubsetOf(m))
                 {
-                    throw new MeshException("Mesh to merge missing one or more attributes required by aggregate mesh");
+                    throw new MeshException("mesh to merge missing one or more attributes required by aggregate mesh");
                 }
+
                 int vertexBaseCount = this.Vertices.Count;
                 for (int j = 0; j < m.Vertices.Count; j++)
                 {
@@ -1062,13 +923,18 @@ namespace OPS.Geometry
 
             if (clean)
             {
-                Clean(normalize, removeDuplicateVerts);
+                Clean(normalize, removeDuplicateVerts, warn: warn);
             }
         }
 
         public void MergeWith(params Mesh[] otherMeshes)
         {
-            MergeWith(otherMeshes, true, true); //specify params or this will be a self-call (infinite recursion)
+            MergeWith(otherMeshes, true, true, true); //specify params or will be a self-call (infinite recursion)
+        }
+
+        public void MergeWith(Action<string> warn, params Mesh[] otherMeshes)
+        {
+            MergeWith(otherMeshes, true, true, true, warn); //specify params or will be a self-call (infinite recursion)
         }
 
         /// <summary>
@@ -1076,65 +942,75 @@ namespace OPS.Geometry
         /// The proprties of the input meshes must match this one
         /// Vertex objects are cloned to avoid side effects in case the meshes are modifed in the future
         /// </summary>
-        /// <param name="meshesToCombine"></param>
-        /// <returns></returns>
-        public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
+        public static Mesh Merge(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
+                                 bool removeDuplicateVerts = true, Action<string> warn = null)
         {
             Mesh first = meshesToCombine[0];
-            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine, clean, normalize);
+            return Merge(first.HasNormals, first.HasUVs, first.HasColors, meshesToCombine,
+                         clean, normalize, removeDuplicateVerts, warn);
+        }
+
+        public static Mesh Merge(Action<string> warn, params Mesh[] meshesToCombine)
+        {
+            return Merge(meshesToCombine, true, true, true, warn);
         }
 
         public static Mesh Merge(params Mesh[] meshesToCombine)
         {
-            return Merge(meshesToCombine, true, true); //specify params or this will be a self-call (infinite recursion)
+            return Merge(meshesToCombine, true, true, true, null);
         }
 
         /// <summary>
         /// Combines and returns one or more meshes
-        /// The combined mesh will have an attribute (normals, uvs, colors) only if all the input meshes have that attribute
+        /// The combined mesh will have an attribute (normals, uvs, colors)
+        /// only if all the input meshes have that attribute
         /// </summary>
-        /// <param name="meshesToCombine"></param>
-        /// <returns></returns>
-        public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true)
+        public static Mesh MergeWithCommonAttributes(Mesh[] meshesToCombine, bool clean = true, bool normalize = true,
+                                                     bool removeDuplicateVerts = true, Action<string> warn = null)
         {
             bool normals = meshesToCombine.All(m => m.HasNormals);
             bool uvs = meshesToCombine.All(m => m.HasUVs);
             bool colors = meshesToCombine.All(m => m.HasColors);
-            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize);
+            return Merge(normals, uvs, colors, meshesToCombine, clean, normalize, removeDuplicateVerts, warn);
+        }
+
+        public static Mesh MergeWithCommonAttributes(Action<string> warn, params Mesh[] meshesToCombine)
+        {
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, warn);
         }
 
         public static Mesh MergeWithCommonAttributes(params Mesh[] meshesToCombine)
         {
-            return MergeWithCommonAttributes(meshesToCombine, true, true); //all params or this will be infinite recursion
+            return MergeWithCommonAttributes(meshesToCombine, true, true, true, null);
         }
 
         /// <summary>
         /// Combines several meshes and returnes a new mesh with the specified attributes
         /// </summary>
-        /// <param name="hasNormals"></param>
-        /// <param name="hasUvs"></param>
-        /// <param name="hasColors"></param>
-        /// <param name="meshesToCombine"></param>
-        /// <returns></returns>
-        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Mesh[] meshesToCombine,
-                                 bool clean = true, bool normalize = true)
+        public static Mesh Merge(bool hasNormals, bool hasUVs, bool hasColors, Mesh[] meshesToCombine,
+                                 bool clean = true, bool normalize = true, bool removeDuplicateVerts = true,
+                                 Action<string> warn = null)
         {
-            Mesh result = new Mesh(hasNormals, hasUvs, hasColors);
-            result.MergeWith(meshesToCombine, clean, normalize);
+            Mesh result = new Mesh(hasNormals, hasUVs, hasColors);
+            result.MergeWith(meshesToCombine, clean, normalize, removeDuplicateVerts, warn);
             return result;
         }
 
         public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, params Mesh[] meshesToCombine)
         {
-            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true); //all params or infinite recursion
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, null);
+        }
+            
+        public static Mesh Merge(bool hasNormals, bool hasUvs, bool hasColors, Action<string> warn,
+                                 params Mesh[] meshesToCombine)
+        {
+            return Merge(hasNormals, hasUvs, hasColors, meshesToCombine, true, true, true, warn);
         }
 
         /// <summary>
         /// Clips the mesh to fit within the given bounding box
+        /// Always returns a new mesh that does not share any data with the passed mesh.
         /// </summary>
-        /// <param name="m"></param>
-        /// <param name="box"></param>
-        /// <returns></returns>
         public static Mesh Clip(Mesh m, BoundingBox box)
         {
             Mesh result;
@@ -1159,7 +1035,7 @@ namespace OPS.Geometry
                 {
                     if (box.Contains(v.Position) != ContainmentType.Disjoint)
                     {
-                        result.Vertices.Add(v);
+                        result.Vertices.Add((Vertex)v.Clone());
                     }
                 }
             }
@@ -1168,6 +1044,103 @@ namespace OPS.Geometry
                 throw new Exception("Clipped mesh exceeds bounding box");
             }
             return result;
+        }
+
+        /// <summary>
+        /// Slice any triangles that intersect plane, keeping all parts.
+        /// No vertices are shared between parts on opposite sides of the plane.
+        /// The 0th returned mesh is "below" the plane and the 1st returned mesh is "on or above" the plane.
+        /// If checkBounds=true and one of the returned meshes would be empty then just returns this mesh.
+        /// Otherwise returns two new meshes that do not share any data with this mesh.
+        /// </summary>
+        public Mesh[] SplitOnPlane(Plane plane, bool checkBounds = true)
+        {
+            if (checkBounds && Bounds().Intersects(plane) != PlaneIntersectionType.Intersecting)
+            {
+                return new Mesh[] { this };
+            }
+
+            var ret = new Mesh[2];
+
+            if (Faces.Count == 0)
+            {
+                for (int i = 0; i < 2; i++)
+                {
+                    ret[i] = new Mesh(capacity: 0);
+                    ret[i].Vertices.Capacity = Vertices.Count;
+                    ret[i].SetProperties(this);
+                }
+                // Plane.D is the negative of the distance from the origin to the plane in the direction of the normal
+                double dist = -plane.D;
+                foreach (var v in Vertices)
+                {
+                    ret[Vector3.Dot(v.Position, plane.Normal) < dist ? 0 : 1].Vertices.Add((Vertex)(v.Clone()));
+                }
+                for (int i = 0; i < 2; i++)
+                {
+                    ret[i].Vertices.Capacity = ret[i].Vertices.Count;
+                }
+            }
+            else
+            {
+                var flippedPlane = new Plane(-plane.Normal, -plane.D);
+                var tris = new List<Triangle>[2];
+                for (int i = 0; i < 2; i++)
+                {
+                    tris[i] = new List<Triangle>(Faces.Count);
+                }
+                foreach (Face f in Faces)
+                {
+                    var t = new Triangle(Vertices[f.P0], Vertices[f.P1], Vertices[f.P2]);
+                    tris[0].AddRange(t.Clip(flippedPlane));
+                    tris[1].AddRange(t.Clip(plane));
+                }
+                for (int i = 0; i < 2; i++)
+                {
+                    ret[i] = new Mesh(tris[i], HasNormals, HasUVs, HasColors);
+                }
+            }
+
+            return ret;
+        }
+
+        public Mesh SplitAndJoinOnPlane(Plane plane, bool checkBounds = true)
+        {
+            if (checkBounds && Bounds().Intersects(plane) != PlaneIntersectionType.Intersecting)
+            {
+                return this;
+            }
+            return Join(SplitOnPlane(plane, checkBounds: false), clone: false);
+        }
+
+        public Mesh[] SplitOnPlanes(bool checkBounds, params Plane[] planes)
+        {
+            var ret = new Mesh[] { this };
+            if (checkBounds)
+            {
+                var bounds = Bounds();
+                planes = planes.Where(p => bounds.Intersects(p) == PlaneIntersectionType.Intersecting).ToArray();
+            }
+            foreach (var plane in planes)
+            {
+                ret = ret.SelectMany(m => m.SplitOnPlane(plane, checkBounds: false)).ToArray();
+            }
+            return ret;
+        }
+
+        public Mesh[] SplitOnPlanes(params Plane[] planes)
+        {
+            return SplitOnPlanes(true, planes);
+        }
+
+        public Mesh SplitAndJoinOnPlanes(bool checkBounds, params Plane[] planes)
+        {
+            return Join(SplitOnPlanes(checkBounds, planes), clone: false);
+        }
+
+        public Mesh SplitAndJoinOnPlanes(params Plane[] planes)
+        {
+            return SplitAndJoinOnPlanes(true, planes);
         }
 
         /// <summary>
@@ -1290,7 +1263,7 @@ namespace OPS.Geometry
                 {
                     if (box.Contains(v.Position) == ContainmentType.Disjoint)
                     {
-                        result.Vertices.Add(v);
+                        result.Vertices.Add((Vertex)v.Clone());
                     }
                 }
             }
@@ -1373,15 +1346,11 @@ namespace OPS.Geometry
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
             if (HasFaces)
             {
-                var referencedIndices = VertexIndicesReferencedByFaces();
-                for (int idxVert = 0; idxVert < this.Vertices.Count(); idxVert++)
+                foreach (var idxVert in VertexIndicesReferencedByFaces())
                 {
-                    if (referencedIndices.Contains(idxVert))
-                    {
-                        var v = this.Vertices[idxVert];
-                        b.Min = Vector3.Min(b.Min, v.Position);
-                        b.Max = Vector3.Max(b.Max, v.Position);
-                    }
+                    var v = this.Vertices[idxVert];
+                    b.Min = Vector3.Min(b.Min, v.Position);
+                    b.Max = Vector3.Max(b.Max, v.Position);
                 }
             }
             else
@@ -1401,6 +1370,10 @@ namespace OPS.Geometry
         /// <returns></returns>
         public BoundingBox NormalBounds()
         {
+            if (!HasNormals)
+            {
+                throw new Exception("mesh does not have normals");
+            }
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
             foreach (Vertex v in this.Vertices)
             {
@@ -1415,15 +1388,151 @@ namespace OPS.Geometry
         /// Since min and max are 3D vectors the z components are set to 0
         /// </summary>
         /// <returns></returns>
-        public BoundingBox UVBounds()
+        public BoundingBox UVBounds(bool flipY = false)
         {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
             BoundingBox b = new BoundingBox(Vector3.Largest, Vector3.Smallest);
             foreach (Vertex v in this.Vertices)
             {
-                b.Min = Vector3.Min(b.Min, new Vector3(v.UV, 0));
-                b.Max = Vector3.Max(b.Max, new Vector3(v.UV, 0));
+                var uv = new Vector3(v.UV.X, flipY ? (1 - v.UV.Y) : v.UV.Y, 0);
+                b.Min = Vector3.Min(b.Min, uv);
+                b.Max = Vector3.Max(b.Max, uv);
             }
             return b;
+        }
+
+        /// <summary>
+        /// remap UV coordinates to the box [border, border]x[1 - border, 1 - border]
+        /// </summary>
+        public void RescaleUVs(double border = 0.01, double growThreshold = 0.1)
+        {
+            var targetMin = Vector2.Zero;
+            var targetMax = Vector2.One;
+            if (border > 0)
+            {
+                targetMin += border * Vector2.One;
+                targetMax -= border * Vector2.One;
+            }
+            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+        }
+
+        /// <summary>
+        /// computes target bounds from image pixels
+        /// </summary>
+        public void RescaleUVsForTexture(int texWidth, int texHeight, double borderPixels = 2,
+                                         double growThreshold = 0.1)
+        {
+            var border = borderPixels * Vector2.One;
+            var targetMin = Image.PixelToUV(border, texWidth, texHeight);
+            var targetMax = Image.PixelToUV(new Vector2(texWidth, texHeight) - border, texWidth, texHeight);
+            RescaleUVs(BoundingBoxExtensions.CreateXY(targetMin, targetMax), growThreshold);
+        }
+
+        /// <summary>
+        /// remap UV coordinates to targetBounds  
+        /// does nothing if the current UV bounds is already contained in targetBounds
+        /// and the current bounds size in each dimension is within growThreshold of targetBounds
+        /// </summary>
+        public void RescaleUVs(BoundingBox targetBounds, double growThreshold = 0.1)
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
+            var targetSz = targetBounds.Max - targetBounds.Min;
+
+            var b = UVBounds();
+            var uvMin = new Vector2(b.Min.X, b.Min.Y);
+            var uvMax = new Vector2(b.Max.X, b.Max.Y);
+            var sz = uvMax - uvMin;
+
+            if (growThreshold > 0 &&
+                targetBounds.Contains(b) == ContainmentType.Contains &&
+                targetSz.X - sz.X <= growThreshold && targetSz.Y - sz.Y <= growThreshold)
+            {
+                return;
+            }
+
+            double eps = 1e-10;
+            var rescale = new Vector2(Math.Abs(sz.X) > eps ? targetSz.X / sz.X : 1,
+                                      Math.Abs(sz.Y) > eps ? targetSz.Y / sz.Y : 1);
+            var targetMin = new Vector2(targetBounds.Min.X, targetBounds.Min.Y);
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = targetMin + (v.UV - uvMin) * rescale;
+            }
+        }
+
+        /// <summary>
+        /// (re-)assign UVs assuming this mesh is a heightmap
+        /// </summary>
+        public void HeightmapAtlas(BoxAxis verticalAxis, bool flipU = false, bool flipV = false, bool swapUV = false)
+        {
+            Func<Vector3, Vector2> project = null;
+            switch (verticalAxis)
+            {
+                case BoxAxis.X: project = v => new Vector2(v.Y, v.Z); break;
+                case BoxAxis.Y: project = v => new Vector2(v.X, v.Z); break;
+                case BoxAxis.Z: project = v => new Vector2(v.X, v.Y); break;
+                default: throw new Exception("unknown axis " + verticalAxis);
+            }
+            var bounds = Bounds();
+            var min = project(bounds.Min);
+            var scale = project(bounds.Size());
+            double eps = MathE.EPSILON;
+            scale.X = scale.X > eps ? (1 / scale.X) : 1;
+            scale.Y = scale.Y > eps ? (1 / scale.Y) : 1;
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = (project(v.Position) - min) * scale;
+                if (flipU)
+                {
+                    v.UV.X = 1.0 - v.UV.X;
+                }
+                if (flipV)
+                {
+                    v.UV.Y = 1.0 - v.UV.Y;
+                }
+                if (swapUV)
+                {
+                    v.UV = v.UV.Swap();
+                }
+                v.UV.X = MathE.Clamp01(v.UV.X);
+                v.UV.Y = MathE.Clamp01(v.UV.Y);
+            }
+            HasUVs = true;
+        }
+
+        /// <summary>
+        /// remap UVs from src to dst, squishing those outside of src  
+        /// </summary>
+        public void WarpUVs(BoundingBox src, BoundingBox dst, double ease = 0)
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
+            var box = BoundingBoxExtensions.CreateXY(0.5 * Vector2.One, 1);
+            var warp = box.Create2DWarpFunction(src, dst, ease);
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = warp(v.UV);
+            }
+        }
+
+        public void SwapUVs()
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("mesh does not have UVs");
+            }
+            foreach (Vertex v in Vertices)
+            {
+                v.UV = v.UV.Swap();
+            }
         }
 
         /// <summary>
@@ -1474,6 +1583,102 @@ namespace OPS.Geometry
                 area += triArea;
             }
             return area;
+        }
+
+        /// <summary>
+        /// Apply UV atlas results to a mesh.
+        /// The mesh is not modified, a new mesh is created.
+        /// </summary>
+        public static Mesh ApplyAtlas(Mesh mesh, float[] u, float[] v, int[] indices, int[] vertexRemap)
+        {
+            if (indices.Length % 3 != 0)
+            {
+                throw new ArgumentException("indices not divisible by 3");
+            }
+
+            Mesh result = new Mesh(hasUVs: true, hasNormals: mesh.HasNormals, hasColors: mesh.HasColors);
+
+            for (int i = 0; i < vertexRemap.Length; i++)
+            {
+                var vert = new Vertex(mesh.Vertices[vertexRemap[i]]);
+                vert.UV = new Vector2(u[i], v[i]);
+                result.Vertices.Add(vert);
+            }
+
+            for (int i = 0; i < indices.Length; i += 3)
+            {
+                result.Faces.Add(new Face(indices[i], indices[i + 1], indices[i + 2]));
+            }
+
+            result.Clean();
+
+            return result;
+        }
+
+        /// <summary>
+        /// Copy one or more vertex attributes from another mesh to matching vertices of this mesh.
+        /// By default matching includes all non-copied attributes which are present on both meshes.
+        /// Where multiple src vertices match a destionation vertex the attributes of the source vertices are averaged.
+        /// </summary>
+        public void CopyVertexAttributes(Mesh src, bool matchPositions = true, bool matchNormals = true,
+                                         bool matchUVs = true, bool matchColors = true, bool copyPositions = false,
+                                         bool copyNormals = false, bool copyUVs = false, bool copyColors = false)
+        {
+            copyNormals &= src.HasNormals;
+            copyUVs &= src.HasUVs;
+            copyColors &= src.HasColors;
+
+            matchPositions &= !copyPositions;
+            matchNormals &= HasNormals && src.HasNormals && !copyNormals;
+            matchUVs &= HasUVs && src.HasUVs && !copyUVs;
+            matchColors &= HasColors && src.HasColors && !copyColors;
+
+            var comparer = new Vertex.Comparer(matchPositions, matchNormals, matchUVs, matchColors);
+
+            //unique vertex of this mesh -> list of equivalent vertices of src
+            var map = new Dictionary<Vertex, List<Vertex>>(comparer);
+
+            foreach (var v in Vertices)
+            {
+                map[v] = null;
+            }
+
+            foreach (var v in src.Vertices)
+            {
+                if (map.ContainsKey(v))
+                {
+                    var srcs = map[v];
+                    if (srcs == null)
+                    {
+                        map[v] = srcs = new List<Vertex>();
+                    }
+                    srcs.Add(v);
+                }
+            }
+
+            foreach (var dst in Vertices)
+            {
+                var srcs = map[dst];
+                if (srcs != null)
+                {
+                    if (copyPositions)
+                    {
+                        dst.Position = srcs.Aggregate(Vector3.Zero, (s, v) => (s + v.Position)) / srcs.Count;
+                    }
+                    if (copyNormals)
+                    {
+                        dst.Normal = srcs.Aggregate(Vector3.Zero, (s, v) => (s + v.Normal)) / srcs.Count;
+                    }
+                    if (copyUVs)
+                    {
+                        dst.UV = srcs.Aggregate(Vector2.Zero, (s, v) => (s + v.UV)) / srcs.Count;
+                    }
+                    if (copyColors)
+                    {
+                        dst.Color = srcs.Aggregate(Vector4.Zero, (s, v) => (s + v.Color)) / srcs.Count;
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -1607,7 +1812,7 @@ namespace OPS.Geometry
             {
                 if (isB3dm)
                 {
-                    ((B3DMSerializer)s).Save(this, filename, textureFilename, indexFilename);
+                    B3DMSerializer.Save(this, filename, textureFilename, indexFilename);
                 }
                 else
                 {
@@ -1843,6 +2048,27 @@ namespace OPS.Geometry
             ColorByCurvature(out double min, out double max);
         }
 
+        public void ColorByUV(int uChannel = 0, int vChannel = 1)
+        {
+            if (!HasUVs)
+            {
+                throw new Exception("no texture coordinates");
+            }
+            foreach (var v in Vertices)
+            {
+                v.Color.X = v.Color.Y = v.Color.Z = 0;
+                if (uChannel >= 0 && uChannel < 3)
+                {
+                    v.Color[uChannel] = v.UV.X;
+                }
+                if (vChannel >= 0 && vChannel < 3)
+                {
+                    v.Color[vChannel] = v.UV.Y;
+                }
+            }
+            HasColors = true;
+        }
+
         /// <summary>
         /// set the colors of this mesh according to the specified mode 
         /// does nothing if mode=Texture or mode=None
@@ -1886,6 +2112,24 @@ namespace OPS.Geometry
                 {
                     ColorByElevation(out min, out max);
                     adjustColors = greyscale = true;
+                    break;
+                }
+                case MeshColor.TexCoord:
+                {
+                    ColorByUV();
+                    adjustColors = false;
+                    break;
+                }
+                case MeshColor.TexU:
+                {
+                    ColorByUV(vChannel: -1);
+                    adjustColors = false;
+                    break;
+                }
+                case MeshColor.TexV:
+                {
+                    ColorByUV(uChannel: -1);
+                    adjustColors = false;
                     break;
                 }
             }

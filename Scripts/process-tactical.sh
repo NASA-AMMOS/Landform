@@ -92,7 +92,7 @@ fi
 #                                                                         80char|
 help="\
 USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
-[--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup]
+[--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--redo]
 [--debug] [--verbose] [--singlethreaded]
 [--nolods] [--meshext iv] [--imgext IMG]
 [--exportmeshext ply] [--exportimgext png]
@@ -136,6 +136,7 @@ dry=
 generate=true
 cleanup=true
 only_cleanup=
+redo=
 upload=
 only_upload=
 s3rdrdir=
@@ -159,11 +160,12 @@ while (( "$#" )); do
         "--help") echo "$help"; exit 0;;
         "--nocleanup") cleanup=;;
         "--onlycleanup") cleanup=true; only_cleanup=true; generate=; upload=;;
+        "--redo") redo="--redo";;
         "--onlyupload") upload=true; only_upload=true; cleanup=; only_cleanup=; generate=;;
-        "--quiet") dbg="${dbg} --quiet";;
-        "--debug") dbg="${dbg} --debug";;
-        "--verbose") dbg="${dbg} --verbose";;
-        "--singlethreaded") dbg="${dbg} --singlethreaded";;
+        "--quiet") dbg="$dbg --quiet";;
+        "--debug") dbg="$dbg --debug";;
+        "--verbose") dbg="$dbg --verbose";;
+        "--singlethreaded") dbg="$dbg --singlethreaded";;
         "--upload") shift; expect $# "upload URL"; upload=true; s3rdrdir=$1;;
         "--suffix") shift; expect $# "suffix"; suffix="_$1";;
         "--exportmeshext") shift; expect $# "export mesh extension"; export="$export --exportmeshformat $1";;
@@ -197,7 +199,7 @@ for f in `find ${indir} -name '*'.${meshext}`; do
 
     stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir/$venue"
     cfgopts="$stdopts --venue=$venue --storagedir=$storagedir"
-    stdopts="$stdopts $dbg"
+    stdopts="$stdopts $dbg $redo"
 
     # TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
     # apparently it is possible that foo.iv might refer to bar.rgb as its texture
@@ -244,7 +246,7 @@ for f in `find ${indir} -name '*'.${meshext}`; do
             ${dry}mv $outproj/tileset.json $outproj/${proj}_tileset.json
             if [ -f $outproj/stats.txt ]; then ${dry}mv $outproj/stats.txt $outproj/${proj}_stats.txt; fi
 
-            if [ "$manifest" ]; then
+            if [[ "$manifest" && $img == *.IMG ]]; then
                 ${dry}$landform update-scene-manifest $stdopts --mission $mission --nocontextual --nourls \
                       --manifestfile $outproj/${proj}_scene.json --tacticalpdsfile $img $manifestargs | tee -a $log
             fi
@@ -261,10 +263,40 @@ for f in `find ${indir} -name '*'.${meshext}`; do
         fi
 
         if [[ ! ( "$dry" || "$only_cleanup" || "$only_upload" ) ]]; then
+
             printf "total time %dh%dm%ds\r\n" $(($SECONDS/3600)) $(($SECONDS/60%60)) $((SECONDS%60)) | tee -a $log
+
             if [ -d $outproj ]; then
+
                 printf "moved output to ${outproj}\r\n" | tee -a $log
+
+                realpath $outproj/${proj}_tileset.json
+
                 mv $log $outproj
+
+                # outdir=.         => out=.    outpath=
+                # outdir=./out/foo => out=out, outpath=/foo
+                # outdir=out/foo   => out=out, outpath=/foo
+                # outdir=out/      => out=out, outpath=
+                out=$outdir
+                outpath=
+                if [[ "$out" == *\/* ]]; then
+                    if [[ "$out" == .\/* ]]; then out=${out#./}; fi
+                    outpath=/${out#*/}
+                    outpath=${outpath%/}
+                    out=${out%%/*}
+                fi
+
+                url=http://localhost:8000/Unity3DTilesWeb/index.html?Tileset=..$outpath/$proj/${proj}_tileset.json
+                
+                echo "commands you could run to view tileset in Unity3DTiles:"
+                echo $landform fetch s3://$lfbucket/Unity3DTilesWeb.zip $out --raw --nosubdirs --mission M2020
+                echo powershell $scriptdir/unzip.ps1 ./$out/Unity3DTilesWeb.zip ./$out
+                echo python -m http.server 8000 --directory $out \# Python 3.7
+                echo cd $out \&\& python -m SimpleHTTPServer 8000 \# Python 2.7
+                echo start \"$url\"
+                echo start \"${url}\&TilesetOptions=zero_sse_tileset_options.json\"
+                echo "tip: run python last to avoid opening another terminal"
             fi
         fi
     fi

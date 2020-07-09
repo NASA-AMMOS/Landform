@@ -735,7 +735,7 @@ namespace GeometryTest
         [TestMethod]
         public void MeshNormalAndUVBoundsTest()
         {
-            Mesh m = new Mesh();
+            Mesh m = new Mesh(hasNormals: true, hasUVs: true, hasColors: true);
             m.Vertices.Add(new Vertex(-1, 0, 0,  2, 3,  7, 0.1,  0.3, 0, 0, 0, 0));
             m.Vertices.Add(new Vertex(1,  0, 0,  5, 2, -1, 0.4,  0.2, 4, 5, 2, 1));
             m.Vertices.Add(new Vertex(0,  2, 3, -3, 5,  1, 0.9,  0.1, 2, 4, 2, 4));
@@ -766,34 +766,27 @@ namespace GeometryTest
         public void MeshSkirtTest()
         {
             Mesh m = new Mesh(true, true, true);
-            m.Vertices.Add(new Vertex(0, 0, 0, 2, 3, 7, 0.1, 0.3, 5, 6, 7, 8));
-            m.Vertices.Add(new Vertex(1, 0, 0, 3, 1, 0, 0.3, 0.5, 2, 1, 4, 0));
-            m.Vertices.Add(new Vertex(0, 0, 1, 6, 2, 7, 0.8, 0.3, 5, 2, 3, 4));
-            m.Vertices.Add(new Vertex(1, 0, 1, 4, 6, 8, 0.0, 0.4, 2, 3, 4, 2));
-            m.Faces.Add(new Face(0, 1, 3));
+            m.Vertices.Add(new Vertex(/* xyz */ 0, 0, 0, /* n */ 0, 0, 1, /* uv */ 0.1, 0.3, /* rgba */ 5, 6, 7, 8));
+            m.Vertices.Add(new Vertex(/* xyz */ 1, 0, 0, /* n */ 0, 0, 1, /* uv */ 0.3, 0.5, /* rgba */ 2, 1, 4, 0));
+            m.Vertices.Add(new Vertex(/* xyz */ 1, 1, 0, /* n */ 0, 0, 1, /* uv */ 0.0, 0.4, /* rgba */ 2, 3, 4, 2));
+            m.Vertices.Add(new Vertex(/* xyz */ 0, 1, 0, /* n */ 0, 0, 1, /* uv */ 0.8, 0.3, /* rgba */ 5, 2, 3, 4));
+            m.Faces.Add(new Face(0, 1, 2));
             m.Faces.Add(new Face(0, 2, 3));
-            m.AddSkirt(SkirtMode.Y);
+            m.AddSkirt(SkirtMode.Normal);
             Assert.AreEqual(8, m.Vertices.Count);
             foreach (var v1 in m.Vertices)
             {
                 int similarVerts = 0;
                 foreach (var v2 in m.Vertices)
                 {
-                    if (v1.Position.X == v2.Position.X && v1.Position.Z == v2.Position.Z && v1.UV == v2.UV && v1.Normal == v2.Normal && v1.Color == v2.Color)
+                    if (v1.Position.X == v2.Position.X && v1.Position.Y == v2.Position.Y &&
+                        v1.UV == v2.UV && v1.Color == v2.Color)
                     {
                         similarVerts++;
                     }
                 }
                 Assert.AreEqual(2, similarVerts);
             }
-            m.RemoveSkirt(SkirtMode.Y);
-            Assert.AreEqual(4, m.Vertices.Count);
-            m.RemoveSkirt(SkirtMode.Y);
-            Assert.AreEqual(4, m.Vertices.Count);
-            m.RemoveSkirt(SkirtMode.Z);
-            Assert.AreEqual(4, m.Vertices.Count);
-            m.RemoveSkirt(SkirtMode.X);
-            Assert.AreEqual(4, m.Vertices.Count);
         }
     }
 }

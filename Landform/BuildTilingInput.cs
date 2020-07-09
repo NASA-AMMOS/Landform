@@ -57,7 +57,7 @@ namespace OPS.Landform
         [Option(HelpText = "Ratio of source pixels to destination pixels that would trigger a split", Default = 16)]
         public double SplitByTextureSamplingRatio { get; set; }
 
-        [Option(HelpText = "Tiling scheme (axis letters indicate the up direction):  Bin, QuadX, QuadY, QuadZ, Oct", Default = TilingScheme.Bin)]
+        [Option(HelpText = "Tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct)", Default = TilingScheme.QuadAuto)]
         public TilingScheme TilingScheme { get; set; }
 
         [Option(HelpText = "Preferred observation image texture variant (Original, Blurred, Blended), falls back to Original", Default = TextureVariant.Blended)]
@@ -72,15 +72,14 @@ namespace OPS.Landform
         [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture are both specified)", Default = Mission.None)]
         public Mission Mission { get; set; }
 
-        [Option(HelpText = "Don't save tile backproject index images", Default = false)]
-        public bool NoIndexImages { get; set; }
-
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
     }
 
     public class BuildTilingInput : TilingCommand
     {
+        public const int DEF_MAX_TILE_RESOLUTION = 256;
+
         private BuildTilingInputOptions options;
 
         private enum TextureGenMode
@@ -92,11 +91,6 @@ namespace OPS.Landform
         };
         private TextureGenMode texGenMode = TextureGenMode.None;
 
-        private Image sceneTexture;
-        private SceneNode tileTree;
-
-        private int numBackprojectedSurfacePixels, numBackprojectFailedSurfacePixels, numBackprojectedOrbitalPixels;
-      
         public BuildTilingInput(BuildTilingInputOptions options) : base(options)
         {
             this.options = options;
@@ -126,8 +120,8 @@ namespace OPS.Landform
                     RunPhase("build observation frustum hulls", BuildObsHulls);
                 }
 
-                RunPhase("build tile tree", BuildTileTree);
                 RunPhase("build acceleration datastructures", BuildMeshOperator);
+                RunPhase("build tile tree", BuildTileTree);
 
                 if (meshLOD.Count > 1)
                 {
@@ -141,6 +135,11 @@ namespace OPS.Landform
                 if (!options.NoSurface && texGenMode == TextureGenMode.Backproject)
                 {
                     RunPhase("build backproject strategy", InitBackprojectStrategy);
+                }
+
+                if (options.Colorize)
+                {
+                    RunPhase("checking/computing observation image stats", BuildObservationImageStats);
                 }
 
                 RunPhase(string.Format("{0}save tiles", withTextures ? "build tile textures and " : ""),
@@ -157,23 +156,21 @@ namespace OPS.Landform
             return 0;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches()
+        protected bool ParseArgumentsAndLoadCaches()
         {
-            if (!base.ParseArgumentsAndLoadCaches())
+            if (!base.ParseArgumentsAndLoadCaches(TILING_DIR))
             {
                 return false; //help
             }
 
-            if (options.LoadLODs && !BakingInputMesh())
+            if (options.LoadLODs && !DisableDatabase())
             {
                 throw new Exception("--loadlods requires --inputmesh and --inputtexture");
             }
 
-            string description = null;
             if (!withTextures)
             {
                 texGenMode = TextureGenMode.None;
-                description = "not making";
             }
             else if (options.LoadLODs)
             {
@@ -184,39 +181,72 @@ namespace OPS.Landform
                 //also note: below in BuildTileTexturesAndSaveTiles() we will switch texGenMode to Bake
                 //if the input mesh actually only had one LOD (we don't know that yet here)
                 texGenMode = TextureGenMode.Clip;
-                description = "clipping/baking from source texture";
-                options.NoIndexImages = true;
             }
             else if (!string.IsNullOrEmpty(options.InputTexture))
             {
                 texGenMode = TextureGenMode.Bake;
-                description = "baking from source texture";
-                options.NoIndexImages = true;
             }
             else
             {
                 texGenMode = TextureGenMode.Backproject;
-                description = "backprojecting from observations";
             }
 
-            if (!options.NoIndexImages && texGenMode != TextureGenMode.Backproject)
+            if (tileResolution < 0 && texGenMode != TextureGenMode.Clip)
             {
-                throw new Exception("not backprojecting textures, cannot save backproject index images");
+                tileResolution = DEF_MAX_TILE_RESOLUTION;
             }
 
-            pipeline.LogInfo("{0} tile textures", description);
+            pipeline.LogInfo("texture mode: {0}, resolution {1}", texGenMode, tileResolution);
 
             return true;
         }
 
-        private bool BakingInputMesh()
+        private bool DisableDatabase()
         {
-            return !string.IsNullOrEmpty(options.InputMesh) && !string.IsNullOrEmpty(options.InputTexture);
+            //this is called by hooks from base base.ParseArgumentsAndLoadCaches()
+            //so don't use anything that wouldn't be availale yet in that context
+
+            if (string.IsNullOrEmpty(options.InputMesh))
+            {
+                return false;
+            }
+
+            if (options.NoTextures || options.TileResolution == 0)
+            {
+                return true;
+            }
+
+            //if (options.TextureGenMode.ToLower() == "none")
+            //{
+            //    return true;
+            //}
+
+            //if (options.TextureGenMode.ToLower() == "backproject")
+            //{
+            //    return false;
+            //}
+
+            if (string.IsNullOrEmpty(options.InputTexture))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        protected override bool AllowUnlimitedTileResolution()
+        {
+            return true;
+        }
+
+        protected override bool RequireSceneMesh()
+        {
+            return !DisableDatabase();
         }
 
         protected override Project GetProject()
         {
-            if (BakingInputMesh())
+            if (DisableDatabase())
             {
                 string projectName = options.ProjectName;
                 if (string.IsNullOrEmpty(projectName))
@@ -251,22 +281,22 @@ namespace OPS.Landform
 
         protected override string GetAutoMeshFrame()
         {
-            return BakingInputMesh() ? "passthrough" : "newest";
+            return DisableDatabase() ? "passthrough" : "newest";
         }
 
         protected override bool PassthroughMeshFrameAllowed()
         {
-            return BakingInputMesh();
+            return DisableDatabase();
         }
 
         protected override bool NonPassthroughMeshFrameAllowed()
         {
-            return !BakingInputMesh();
+            return !DisableDatabase();
         }
 
         protected override void LoadFrameCache()
         {
-            if (!BakingInputMesh())
+            if (!DisableDatabase())
             {
                 base.LoadFrameCache();
             }
@@ -274,23 +304,19 @@ namespace OPS.Landform
 
         protected override void LoadObservationCache()
         {
-            if (!BakingInputMesh())
+            if (!DisableDatabase())
             {
                 base.LoadObservationCache();
             }
-        }
-
-        protected override void LoadTileList()
-        {
-            return; // build tiling inputs won't have tiles yet, even though it is a TextureCommand
         }
 
         private void BuildTileTree()
         {
             if (meshLOD.Count > 1)
             {
-                //use decimated versions of the mesh provided to generate a tile tree with a fixed number of levels
-                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshLOD);
+                pipeline.LogInfo("building tile tree from {0} existing LODs, tiling scheme {1}",
+                                 meshLOD.Count, options.TilingScheme);
+                tileTree = DefineTiles.BuildTileTreeFromLODs(pipeline, options.TilingScheme, meshOpForLOD);
             }
             else
             {
@@ -315,12 +341,11 @@ namespace OPS.Landform
                     }
                     texSplitOpts = new SplitByTextureOpts()
                     {
-
                         pctPixelsToTest = options.SplitByTexturePctToTest,
                         pctSampledPixelsSatisfied = options.SplitByTexturePctSatisfied,
                         splitPixelTexelRatio = options.SplitByTextureSamplingRatio,
                         useApproximateTileSplit = !options.NoApproxTileSplit,
-                        tileResolution = resolution,
+                        tileResolution = tileResolution,
                         scInMesh = sceneCaster,
                         cameraInstances = roverImages.Select(obs => toCameraInstance(obs)).ToArray(),
                         raycastTolerance = tcopts.RaycastTolerance
@@ -329,7 +354,9 @@ namespace OPS.Landform
                 double surfaceExtent = sceneMesh != null ? sceneMesh.SurfaceExtent : -1;
                 tileTree = DefineTiles.BuildTileTreeFromInputs(pipeline, options.TilingScheme, options.FacesPerTile,
                                                                new List<MeshImagePair>() { new MeshImagePair(mesh) },
-                                                               texSplitOpts, null, surfaceExtent);
+                                                               texSplitOpts, surfaceExtent,
+                                                               info: msg => pipeline.LogInfo(msg),
+                                                               verbose: msg => pipeline.LogVerbose(msg));
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
@@ -404,11 +431,9 @@ namespace OPS.Landform
                 {
                     return;
                 }
-                else if (!options.NoProgress)
-                {
-                    pipeline.LogInfo("building leaf mesh {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
-                                     100 * curLeafNum / (float)leafCount, leaf.Name);
-                }
+
+                pipeline.LogVerbose("building leaf mesh {0}/{1} ({2:F2}%): {3}", curLeafNum, leafCount,
+                                    100 * curLeafNum / (float)leafCount, leaf.Name);
 
                 Mesh leafMesh = MakeTileMesh(leaf, meshOpForLOD.First());
 
@@ -436,7 +461,7 @@ namespace OPS.Landform
                 MeshExt = meshExt,
                 ImageExt = withTextures ? imageExt : null,
                 MeshFrame = meshFrame,
-                HasIndexImages = !options.NoIndexImages,
+                HasIndexImages = texGenMode == TextureGenMode.Backproject && !options.NoIndexImages,
                 TilingScheme = options.TilingScheme,
                 LeafNames = new List<string>(),
                 ParentNames = new List<string>()
@@ -453,7 +478,27 @@ namespace OPS.Landform
                 .ToList();
             int tileCount = tilesToTexture.Count;
 
-            if (options.LoadLODs && meshLOD.Count == 1)
+            string texMsg = texGenMode == TextureGenMode.Bake ? "baking" :
+                texGenMode == TextureGenMode.Backproject ? "backprojecting" :
+                texGenMode == TextureGenMode.Clip ? "clipping" :
+                "no";
+
+            pipeline.LogInfo("processing {0} tiles, {1} {2}x{2} {3} textures{4}", tileCount, texMsg, tileResolution,
+                             options.TextureVariant, options.TextureVariant != TextureVariant.Original ?
+                             " (falling back to " + TextureVariant.Original + ")" : "");
+
+            if (texGenMode == TextureGenMode.Backproject)
+            {
+                pipeline.LogInfo("backproject quality {0}, prefer color {1}, texture far clip {2:f3}",
+                                 options.BackprojectQuality, options.PreferColor, options.TextureFarClip);
+                if (!options.NoIndexImages)
+                {
+                    pipeline.LogInfo("saving tile backproject index images");
+                }
+                pipeline.LogInfo("colorize: {0}", options.Colorize);
+            }
+
+            if (meshLOD.Count == 1 && texGenMode == TextureGenMode.Clip)
             {
                 //TODO for now if the input mesh has only one LOD behave same as if --loadlods was not specified
                 texGenMode = TextureGenMode.Bake;
@@ -463,21 +508,8 @@ namespace OPS.Landform
             if (texGenMode == TextureGenMode.Bake)
             {
                 bakeClipper = new MultiMeshClipper();
-                bakeClipper.AddInput(new MultiMeshClipperInput(mesh, sceneTexture));
+                bakeClipper.AddInput(mesh, sceneTexture);
                 bakeClipper.InitTextureBaker();
-            }
-
-            var texMsg = string.Format("{0}x{0} {1} textures{2}",
-                                       resolution, options.TextureVariant,
-                                       options.TextureVariant != TextureVariant.Original ?
-                                       " (falling back to " + TextureVariant.Original + ")" : "");
-            pipeline.LogInfo("processing {0} tiles{1}", tileCount,
-                             texGenMode == TextureGenMode.Bake ? ", baking " + texMsg :
-                             texGenMode == TextureGenMode.Backproject ? ", backprojecting " + texMsg :
-                             texGenMode == TextureGenMode.Clip ? ", clipping " + texMsg : "");
-            if (texGenMode == TextureGenMode.Backproject && !options.NoIndexImages)
-            {
-                pipeline.LogInfo("saving tile backproject index images");
             }
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
@@ -494,37 +526,37 @@ namespace OPS.Landform
                                      np > 1 ? ", processing " + np + " in parallel" : "", tile.Name);
                 }
 
-                MeshImagePair mp = tile.GetComponent<MeshImagePair>();
+                var mip = tile.GetComponent<MeshImagePair>();
 
-                Image index = !options.NoIndexImages ? new Image(3, resolution, resolution) : null;
+                mip.Index = !options.NoIndexImages ? new Image(3, tileResolution, tileResolution) : null;
+
                 if (texGenMode == TextureGenMode.Bake)
                 {
-                    var newMP = bakeClipper.BakeTexture(mp.Mesh, resolution, msg => pipeline.LogVerbose(msg));
-                    if (newMP != null)
+                    var tmp = bakeClipper.BakeTexture(mip.Mesh, tileResolution, msg => pipeline.LogVerbose(msg));
+                    if (tmp != null)
                     {
-                        mp.Mesh = newMP.Mesh;
-                        mp.Image = newMP.Image;
+                        mip.Mesh = tmp.Mesh;
+                        mip.Image = tmp.Image;
                     }
                 }
                 else if (texGenMode == TextureGenMode.Backproject)
                 {                
-                    mp.Image = BackprojectTile(tile, mp.Mesh, index);
+                    mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, sceneCaster, sceneCaster);
                 }
                 else if (texGenMode == TextureGenMode.Clip)
                 {
-                    var newMP = TexturedMeshClipper.RemapMeshClipImage(mp.Mesh, sceneTexture);
-                    mp.Mesh = newMP.Mesh;
-                    mp.Image = newMP.Image;
+                    var tmp = TexturedMeshClipper.RemapMeshClipImage(mip.Mesh, sceneTexture);
+                    //var tmp = TexturedMeshClipper.RemapMeshClipImage(mip.Mesh, sceneTexture, tileResolution);
+                    mip.Mesh = tmp.Mesh;
+                    mip.Image = tmp.Image;
                 }
 
-                if (mp.Mesh != null && (!withTextures || mp.Image != null))
+                if (mip.Mesh != null && (!withTextures || mip.Image != null))
                 {
-                    SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave, tile.IsLeaf);
-                    if (options.WriteBackprojectDebug && localSave)
+                    SaveTile(tile.Name, mip.Mesh, mip.Image, mip.Index, localSave, cloudSave, tile.IsLeaf);
+                    if (options.WriteBackprojectDebug)
                     {
-                        Image preview = Backproject.GenerateIndexPreviewImage(index);
-                        string indexImageName = IndexName(tile.Name);
-                        SaveImage(preview, indexImageName + "_preview");
+                        SaveImage(Backproject.GenerateIndexPreviewImage(mip.Index), tile.Name + "_index_preview");
                     }
                     Interlocked.Increment(ref numSucceded);
                 }
@@ -554,9 +586,10 @@ namespace OPS.Landform
 
             if (texGenMode == TextureGenMode.Backproject)
             {
-                pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed), {2} from orbital",
-                                 Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectFailedSurfacePixels),
-                                 Fmt.KMG(numBackprojectedOrbitalPixels));
+                pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed, " +
+                                 "tried up to {3} observations per pixel",
+                                 Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectedOrbitalPixels),
+                                 Fmt.KMG(numBackprojectFailedPixels), numBackprojectFallbacks + 1);
             }
 
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
@@ -607,7 +640,7 @@ namespace OPS.Landform
             {
                 try
                 {
-                    tileMesh = UVAtlas.Atlas(tileMesh, options.TextureResolution, options.TextureResolution);
+                    tileMesh = UVAtlas.Atlas(tileMesh, tileResolution, tileResolution);
                     if (tileMesh == null)
                     {
                         pipeline.LogError("error atlasing tile mesh {0}: {1}", tile.Name);
@@ -622,60 +655,6 @@ namespace OPS.Landform
             }
 
             return tileMesh;
-        }
-
-        private Image BackprojectTile(SceneNode node, Mesh mesh, Image index = null)
-        {
-            try
-            {
-                List<PixelPoint> missingPixels = null;
-                IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = null;
-                if (options.NoSurface)
-                {
-                    //if no surface imagery is used, all pixels will be textured by orbital
-                    MeshOperator tileMeshOp = new MeshOperator(mesh);
-                    missingPixels = tileMeshOp.SampleUVSpace(options.TextureResolution,  options.TextureResolution);
-                }
-                else
-                {
-                    SceneCaster meshCaster = new SceneCaster();
-                    meshCaster.AddMesh(mesh, null, Matrix.Identity);
-                    meshCaster.Build();
-
-                    missingPixels = new List<PixelPoint>();
-                    backprojectResults = BackprojectRoverObservations(mesh, meshCaster, options.TextureResolution, missingPixels, backprojectStrategy, 
-                                                                      debugSubdir: node.Name);
-                }
-
-                Interlocked.Add(ref numBackprojectFailedSurfacePixels, missingPixels.Count);
-
-                if (!options.NoOrbital && missingPixels.Count > 0)
-                {
-                    BackprojectOrbital(missingPixels, backprojectResults);
-                }
-
-                Image image = new Image(3, resolution, resolution);
-                image.Fill(MISSING_COLOR);
-
-                if (index != null)
-                {
-                    Backproject.FillIndexImage(backprojectResults, index);
-                }
-                
-                var stats = Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
-                                                          options.BackprojectInpaintPixels, fallbackToOriginal: true,
-                                                          orbitalTexture: orbitalTexture);
-
-                Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
-                Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
-
-                return image;
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogException(ex, $"error backprojecting tile {node.Name}");
-                return null;
-            }
         }
     }
 }

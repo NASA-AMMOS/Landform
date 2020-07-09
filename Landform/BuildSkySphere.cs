@@ -2,47 +2,91 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using Microsoft.Xna.Framework;
 using CommandLine;
-using OPS.Geometry;
+using OPS.Util;
+using OPS.MathExtensions;
+using OPS.RayTrace;
 using OPS.Imaging;
+using OPS.Geometry;
 using OPS.Pipeline;
+using OPS.Pipeline.Texturing;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
-using Microsoft.Xna.Framework;
-using OPS.Util;
-using OPS.Pipeline.Texturing;
-using OPS.RayTrace;
 
 /// <summary>
-/// creates a tileset containing a fixed sphere mesh to display
-/// behind the terrain
+/// Creates a sky tileset to display behind the terrain.
+///
+/// In --skymode=Box the sky geometry is the vertical sides of a box centered on a point c at rover mast height above
+/// the scene origin.  The diagonal of the box is twice the given --sphereradiusmeters, or is auto computed as half the
+/// scene XY bounds diagonal. Surface observations are backprojected onto the box, optionally using the scene mesh as an
+/// occluder. Sphere mode is the same as Box but uses sphere instead of box geometry.
+///
+/// By default backprojections are actually computed from a min radius of 2km in Box and Sphere modes, even if the sky
+/// radius is smaller.  This minimizes aliasing of topographic features imaged from different local perspectives and
+/// also makes the skyline appear approximately perspective correct for viewpoints near the center of the scene, even
+/// when the actual radius is not large.  A box radius that matches the scene bounds diagonal (or a sphere radius equal
+/// to half the scene width) means there is no gap between the edge of the terrain and the sky, and the entire combined
+/// scene can be zoomed out and viewed from third-person perspectives, like a diorama.  However, the skyline will not be
+/// perspective correct in such views, and will also deviate from perspective correctness from first-person views near
+/// the terrain but away from the center of the scene.  Applications which don't need third-person zoomed out
+/// viewpoints, but only first-person viewpoints near the terrain, can opt for sky sphere with a much larger radius
+/// (e.g. 2km) which will keep the skyline perspective correct independent of the viewer's position on the terrrain.
+///
+/// In --skymode=TopoSphere the sky geometry is a portion of a sphere centered on a point c at rover mast height above
+/// the scene origin.  If --sphereradiusmeters=auto then the radius defaults to 2km.  Each point p on the sky sphere is
+/// textured as follows: (1) Build a mesh using only the orbital DEM extended out to the sky sphere radius, but with the
+/// central area corresponding to the scene mesh removed (this is of course done only once and cached). (2) Find the
+/// intersection s of that mesh with the line segment from c to p nearest to c. (3) If no intersection then assign the
+/// default sky color to that point, otherwise backproject surface and orbital image observations as usual for point s
+/// and use that color.  This mode has the advantage that it should minimize aliasing of the same hill if there are
+/// multiple surface observations of it from different angles.  It also is the only mode that can use orbital imagery,
+/// which can actually have higher effective resolution than surface images at a far enough distance.  It has the
+/// disadvantage that it doesn't actually show the sky, only the hills along the horizon.  This mode corresponds to the
+/// legacy implementation in OnSight TerrainTools.
 /// 
-/// this stage is intended to create a tiling project, populate it with tile geometry, texture the tiles, then destroy the project
-/// to leave a clean database for the surface scene's tiling. This stage runs after the build-geometry stage so that it has a scene
-/// mesh to use for occlusion (prevents a double image of near geometry in the distant skysphere).
-/// 
-/// The outputs match the build-tileset command:
+/// Sky sphere typically runs anytime after build-geometry so that a surface scene exists.  Can be run anytime after
+/// ingest in TopoSphere mode, or in one of the other modes without --sceneoccludessky=Always.
+///
+/// The output tileset is saved to
+/// project storage and will typically contain:
 /// * one B3DM file for each tile
 /// * one tileset.json file defining the tile hierarchy and a bounds and geometric error for every tile
-/// * one stats.txt file containing statistics of the tileset
-/// * optionally an additonal mesh and texture file per tile if "export" formats are defined.
+/// * one stats.txt file containing statistics of the tileset.
 ///
-/// They are written to project storage in the /sky subdirectory of the tiling folder
+/// Note: this is also a relatively fast way to generate a large, aligned, blended image panorama.  The tile texture
+/// images are spatially coherent in that the tiles are quads with trivial texture coordinates.  They could be loaded on
+/// their own as a cylindrical or spherical projection 2D panorama. A typical sky tileset is 5 rows and 32 columns of
+/// tiles, each with a 512x512 image, or a total panorama size of 16k by 2560.
+///
 /// Example:
+///
 /// Landform.exe build-sky-sphere windjana --meshframe 0311472
+///
 /// </summary>
-/// 
-
 namespace OPS.Landform
 {
+    public enum SkyMode { Box, Sphere, TopoSphere };
+
+    public enum SkyOcclusionMode { Never, Always, Auto };
+
     [Verb("build-sky-sphere", HelpText = "build a skysphere tileset from observations")]
     public class BuildSkySphereOptions : TilingCommandOptions
     {
-        [Option(HelpText = "Sky sphere radius (meters)", Default = 1000)]
-        public double SphereRadiusMeters { get; set; }
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere)", Default = SkyMode.Box)]
+        public SkyMode SkyMode { get; set; }
 
-        [Option(HelpText = "Sky sphere mesh resolution (degrees)", Default = 10)]
+        [Option(HelpText = "Sky sphere radius (meters), or auto", Default = "auto")]
+        public string SphereRadiusMeters { get; set; }
+
+        [Option(HelpText = "Sky sphere mesh tile size (degrees), should divide 360 by a power of 2", Default = 11.25)]
         public double SphereResolutionDegrees { get; set; }
+
+        [Option(HelpText = "Sky sphere mesh max degrees above / below horizon", Default = 40)]
+        public double MaxDegreesFromHorizon { get; set; }
+
+        [Option(HelpText = "Sky sphere mesh extra degrees below horizon in addition to visibility angle from mast to bottom of mesh", Default = 5)]
+        public double ExtraDegreesBelowHorizon { get; set; }
 
         [Option(HelpText = "A quality/perf tradeoff spent caclulating which texture to use", Default = 4)]
         public double BackprojectSamplesPerTile { get; set; }
@@ -56,13 +100,28 @@ namespace OPS.Landform
         [Option(HelpText = "Sky sphere background color Blue (0-255)", Default = 140)]
         public double SkyColorBlue { get; set; }
 
+        [Option(HelpText = "Occlude sky texture by scene geometry (Never, Always, Auto)", Default = SkyOcclusionMode.Auto)]
+        public SkyOcclusionMode SceneOccludesSky { get; set; }
+
+        [Option(HelpText = "Mask any point on sky that is obstructed in any observation", Default = false)]
+        public bool MaskObstructed { get; set; }
+
+        [Option(HelpText = "Disable backproject from far radius in Box and Sphere modes", Default = false)]
+        public bool NoBackprojectNearAsFar { get; set; }
+
+        [Option(HelpText = "Disable image blending", Default = false)]
+        public bool NoBlend { get; set; }
+
+        [Option(HelpText = "Only use specific surface cameras, comma separated (e.g. Hazcam, Mastcam, Navcam, FrontHazcam, FrontHazcamLeft, etc), or auto", Default = "auto")]
+        public override string OnlyForCameras { get; set; }
+
         [Option(HelpText = "Option disabled for this command", Default = false)]
-        public override bool NoSave { get; set; }
+        public override bool NoTextures { get; set; }
 
-        [Option(HelpText = "option disabled for this command", Default = false, Required = false)]
-        public override bool NoOrbital { get; set; }
+        [Option(HelpText = "Option disabled for this command", Default = false)]
+        public override bool NoIndexImages { get; set; }
 
-        [Option(HelpText = "Option disabled for this command", Default = false, Required = false)]
+        [Option(HelpText = "Option disabled for this command", Default = false)]
         public override bool NoSurface { get; set; }
 
         [Option(HelpText = "Option disabled for this command", Default = 0)]
@@ -71,23 +130,48 @@ namespace OPS.Landform
         [Option(HelpText = "Option disabled for this command", Default = ObsSelectionStrategyName.Spatial)]
         public override ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
 
-        [Option(HelpText = "Option disabled for this command", Default = -1)]
-        public override int BackprojectInpaintPixels { get; set; }
+        [Option(HelpText = "Image resolution for output texture for each tile, should be power of 2", Default = 512)]
+        public override int TileResolution { get; set; }
 
-        [Option(HelpText = "Tiling project is deleted after run by default, enable this to preserve it for debugging or iteration", Default = false)]
-        public bool NoCleanup { get; set; }
+        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores, auto)", Default = "auto")]
+        public string SkyPreferColor { get; set; }
+
+        [Option(Required = false, HelpText = "Preadjust image luminance towards global median before blending, 0 to disable, 1 for max", Default = 1)]
+        public double PreadjustLuminance { get; set; }
+
+        [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
+        public override bool Colorize { get; set; }
+
+        //https://github.jpl.nasa.gov/OnSight/Landform/issues/1095
+        [Option(HelpText = "Add dummy content to tileset root", Default = false)]
+        public bool HackRoot { get; set; }
     }
 
     public class BuildSkySphere : TilingCommand
     {
-        public const string TILING_DIR_SUFFIX = "/sky";
+        public const double DEF_SCENE_RADIUS = 45;
+        public const double DEF_FAR_RADIUS = 2000;
 
-        private SceneNode tileTree;
+        public const int MAX_BLEND_SIZE = 8192;
+
+        public const string SKY_TILING_DIR = "tiling/SkyTile";
+        public const string SKY_TILESET_DIR = "tiling/SkyTileSet";
+
         private BuildSkySphereOptions options;
-        private List<Backproject.Context> contexts;
-        private Image bigIndexMap;
-        private Image bigBlurredImage;
-        private Image bigBlendedImage;
+
+        private Vector3 sphereCenter;
+        private double sphereRadius, sceneRadius, backprojectRadius;
+        private double angleAboveHorizon, angleBelowHorizon;
+
+        private int sphereTileRows, sphereTileCols;
+
+        private bool sceneOccludesSky;
+
+        private float[] skyColor;
+
+        private BoundingBox? sceneBounds;
+
+        private SceneCaster orbitalScene;
 
         public BuildSkySphere(BuildSkySphereOptions options) : base(options)
         {
@@ -102,35 +186,40 @@ namespace OPS.Landform
                 {
                     return 0; //help
                 }
+
+                if (roverImages.Count == 0)
+                {
+                    pipeline.LogWarn("no sky observations available");
+                    StopStopwatch();
+                    return 0;
+                }
                  
-                //prep
-                RunPhase("load input mesh", () => LoadInputMesh(requireUVs: false));
-                RunPhase("build occlusion datastructures", BuildSceneCaster);
-                RunPhase("filter images for sky images", FilterRoverImages);
                 RunPhase("checking/generating observation image masks", BuildObservationImageMasks);
                 RunPhase("build observation frustum hulls", BuildObsHulls);
 
-                //build geometry and tiling input
-                RunPhase("build sphere tile geometry", BuildSphereTiles);
-                RunPhase("build sphere tile textures", BuildTileTextures);
+                RunPhase("build sky sphere tile geometry", BuildTileTree);
 
-                //blending
-                RunPhase("build big index", BuildBigIndex);
-                RunPhase("build blurred observations", BuildBlurredObservationImages);
-                RunPhase("build big blurred image", BuildBigBlurredImage);
-                RunPhase("build big blended image", BuildBigBlendedImage);
-                RunPhase("build blended observations", BuildBlendedObservationImages);
-                RunPhase("build blended leaf tiles observations", BuildBlendedLeafTextures);
-
-                //build tileset
-                RunPhase("create tiling project", () => CreateTilingProject(TilingScheme.Flat));
-                RunPhase("add tile meshes", AddTileMeshes);
-                RunPhase("build tiles and define parents", BuildTilesAndDefineParents);
-                RunPhase("build parent tiles", BuildParentTiles);
-
-                if(!options.NoCleanup)
+                if (options.SkyMode == SkyMode.TopoSphere)
                 {
-                    RunPhase("delete tiling project", DeleteTilingProject);
+                    RunPhase("build orbital scene", BuildOrbitalScene);
+                }
+
+                RunPhase("build backproject strategy", InitBackprojectStrategy);
+                RunPhase("build sky sphere tile textures", BuildTileTexturesAndSaveTiles);
+
+                if (!options.NoBlend)
+                {
+                    if (options.PreadjustLuminance > 0 || options.Colorize)
+                    {
+                        RunPhase("checking/computing observation image stats", BuildObservationImageStats);
+                    }
+                    RunPhase("build blurred observations", BuildBlurredObservationImages);
+                    RunPhase("blending sky sphere tile textures", BlendTileTextures);
+                }
+
+                if (!options.NoSave)
+                {
+                    RunPhase("saving sky sphere tileset", SaveTileset);
                 }
             }
             catch (Exception ex)
@@ -144,140 +233,11 @@ namespace OPS.Landform
             return 0;
         }
 
-        private void DeleteTilingProject()
+        private bool ParseArgumentsAndLoadCaches()
         {
-            //remove all side effects from this command
-
-            CoreLimitedParallel.ForEach(indexedImages, entry =>
+            if (options.NoIndexImages)
             {
-                Observation obs = entry.Value;
-                if (obs.BlendedGuid != Guid.Empty)
-                {
-                    obs.BlendedGuid = Guid.Empty;
-                    obs.Save(pipeline);
-                }
-            });
-
-            pipeline.LogInfo("deleting tiling project");
-            tilingProject.Delete(pipeline,ignoreErrors:false, keepTileset:true);
-        }
-
-        private void BuildBlendedLeafTextures()
-        {
-            pipeline.LogInfo("blending leaf textures");
-            string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            float [] skyColor = new float[] { (float)options.SkyColorRed / 255.0f, (float)options.SkyColorGreen / 255.0f, (float)options.SkyColorBlue / 255.0f };
-
-            BlendImages.BuildBlendedLeafTextures(pipeline, project, leafFolder, tileList, indexedImages, orbitalTexture, options.BackprojectInpaintPixels, skyColor);
-        }
-
-        private BlendImagesOptions GetBlendOptions()
-        {
-            BlendImagesOptions blendOps = new BlendImagesOptions();
-            //TODO: copy texture command options from options before overriding blend specific values
-            blendOps.BlendStrategy = BlendStrategy.Inpaint;
-            blendOps.InpaintWinners = 20;
-            blendOps.NoBarycentricInterpolateWinners = true;
-            blendOps.InpaintDiff = 0;
-            blendOps.BlurDiff = 7;
-            blendOps.NoFillBlendWithAverageDiff = false;
-            blendOps.TextureVariant = TextureVariant.Blurred;
-            blendOps.ResidualEpsilon = LimberDMG.DEF_RESIDUAL_EPSILON;
-            blendOps.NumRelaxationSteps = LimberDMG.DEF_NUM_RELAXATION_STEPS;
-            blendOps.NumMultigridIterations = LimberDMG.DEF_NUM_MULTIGRID_ITERATIONS;
-            blendOps.Lambda = LimberDMG.DEF_LAMBDA;
-            return blendOps;
-        }
-
-        private void BuildBlendedObservationImages()
-        {
-            pipeline.LogInfo("collecting backprojected pixels for each observation");
-            BlendImages.BuildBlendedObservationImages(pipeline, project, GetBlendOptions(),
-                bigBlendedImage.Width, bigBlendedImage.Height,
-                bigIndexMap, bigBlendedImage, indexedImages);
-
-            bigIndexMap = null;
-            bigBlendedImage = null;
-        }
-
-        private void BuildBigBlendedImage()
-        {
-            bigBlendedImage = BlendImages.BlendImage(pipeline, GetBlendOptions(), bigBlurredImage.Width, bigBlurredImage.Height, 
-                bigIndexMap, bigBlurredImage, indexedImages);
-
-            bigBlurredImage = null; //free memory
-        }
-
-        private void FilterRoverImages()
-        {
-
-            // raycast the corners for a quick test to see if something that should be in
-            // skybox should be visible. this is not a perfect test. It is possible that looking 
-            // throught a canyon would have all four corners report they hit the scene mesh and 
-            // miss the fact skybox related data would be visible throught the middle of the image.
-            roverImages = roverImages.Where(obs =>
-            {
-                var obsToMesh = frameCache.GetObservationTransform(obs, meshFrame, tcopts.UsePriors, tcopts.OnlyAligned).Mean;
-                var cameraModel = obs.CameraModel;
-
-                return (!Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, 0), sceneCaster).HasValue ||
-                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, 0), sceneCaster).HasValue ||
-                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(0, obs.Height), sceneCaster).HasValue ||
-                       !Backproject.RaycastMesh(cameraModel, obsToMesh, new Vector2(obs.Width, obs.Height), sceneCaster).HasValue);
-            }).ToList();
-        }
-
-        private void BuildBigBlurredImage()
-        {
-            pipeline.LogInfo("building big blurred image from big blurred index");
-            var backprojectResults = Backproject.BuildResultsFromIndex(bigIndexMap, indexedImages);
-            bigBlurredImage = new Image(3, bigIndexMap.Width, bigIndexMap.Height);
-            Backproject.FillOutputTexture(pipeline, backprojectResults, bigBlurredImage, TextureVariant.Blurred, 0, false);
-        }
-
-        //builds a large single image of the backproject results as an index map
-        private void BuildBigIndex()
-        {
-            GetNumSphereTiles(out int rows, out int cols);
-
-            int bigMapWidth = cols * resolution;
-            int bigMapHeight = rows * resolution;
-
-            bigIndexMap = new Image(3, bigMapWidth, bigMapHeight);
-
-            string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
-            CoreLimitedParallel.ForEach(tileTree.Leaves(), leaf =>
-            {
-                string indexName = leaf.Name + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
-                string indexUrl = pipeline.GetStorageUrl(leafFolder, project.Name, indexName);
-                var leafIndex = Backproject.LoadIndexMapWithMask(pipeline, indexUrl);
-
-                //fill small gaps along tile boundaries, should make LimberDMG happier
-                //TODO: see if inpaint after instead of here works better
-                leafIndex.Inpaint(2, useAnyNeighbor: true);
-
-                //blit into big map
-                int tileNum = int.Parse(leaf.Name) - 1; //one based
-                int tileRow = tileNum / cols;
-                int tileCol = tileNum % cols;
-                int dstPixelRow = tileRow * resolution;
-                int dstPixelCol = tileCol * resolution;
-
-                lock (bigIndexMap)
-                {
-                    bigIndexMap.Blit(leafIndex, dstPixelCol, dstPixelRow);
-                }
-            });
-
-            //ISSUE #1093 replicate data to avoid seam at the wrapping edge of texture data
-
-        }
-
-        protected override bool ParseArgumentsAndLoadCaches()
-        {
-            if (options.NoSave)
-            {
-                throw new Exception("--nosave not implemented for this command");
+                throw new Exception("--noindeximages not implemented for this command");
             }
 
             if (options.NoSurface)
@@ -285,125 +245,320 @@ namespace OPS.Landform
                 throw new Exception("--nosurface not implemented for this command");
             }
 
-            //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available
-            options.NoOrbital = true;
+            if (options.ObsSelectionStrategy != ObsSelectionStrategyName.Spatial)
+            {
+                throw new Exception("--obsselectionstrategy not implemented for this command");
+            }
 
-            if (!base.ParseArgumentsAndLoadCaches())
+            if (options.TextureFarClip != 0)
+            {
+                throw new Exception("--texturefarclip not implemented for this command");
+            }
+
+            if (options.OnlyForCameras.ToLower() == "auto")
+            {
+                //Alex sez legacy may have only used Mastcam and orbital
+                //options.OnlyForCameras = options.SkyMode == SkyMode.TopoSphere ? "Mastcam" : "Mastcam,Navcam";
+                options.OnlyForCameras = "Mastcam,Navcam";
+            }
+
+            if (options.SceneOccludesSky == SkyOcclusionMode.Always && options.SkyMode == SkyMode.TopoSphere)
+            {
+                throw new Exception("--sceneoccludessky and --skymode=TopoSphere are mutually exclusive");
+            }
+
+            //set before calling base.ParseArgumentsAndLoadCaches() to avoid warnings if orbital not available
+            options.NoOrbital = options.SkyMode != SkyMode.TopoSphere;
+
+            if (!base.ParseArgumentsAndLoadCaches(SKY_TILING_DIR))
             {
                 return false; //help
             }
 
-            PipelineOperation.LessSpew = PipelineStateMachine.LessSpew = !(pipeline.Verbose || pipeline.Debug);
-            PipelineOperation.SingleWorkflowSpew = PipelineStateMachine.SingleWorkflowSpew = true;
+            if (!withTextures)
+            {
+                throw new Exception("--notextures not implemented for this command");
+            }
 
-            tilesetFolder = DecorateOutDir(TilingCommand.TILESET_DIR) + TILING_DIR_SUFFIX;
+            if (options.SkyMode == SkyMode.TopoSphere)
+            {
+                LoadOrbitalDEM(required: true);
+            }
 
-            //need camera frustums to reach skybox
-            options.TextureFarClip = options.SphereRadiusMeters * 2.0;
+            sceneBounds = sceneMesh != null ? sceneMesh.GetBounds() : null;
+
+            sceneRadius = DEF_SCENE_RADIUS;
+            if (sceneBounds.HasValue)
+            {
+                sceneRadius = Math.Max(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
+            }
+
+            if (options.SphereRadiusMeters.ToLower() == "auto")
+            {
+                switch (options.SkyMode)
+                {
+                    case SkyMode.Box: sphereRadius = sceneRadius; break;
+                    case SkyMode.Sphere: sphereRadius = sceneRadius * Math.Sqrt(0.5); break;
+                    case SkyMode.TopoSphere: sphereRadius = DEF_FAR_RADIUS; break;
+                    default: throw new Exception("unknown sky mode: " + options.SkyMode);
+                }
+            }
+            else
+            {
+                sphereRadius = double.Parse(options.SphereRadiusMeters);
+            }
+            backprojectRadius = sphereRadius;
+            if (!options.NoBackprojectNearAsFar && options.SkyMode != SkyMode.TopoSphere &&
+                backprojectRadius < DEF_FAR_RADIUS)
+            {
+                backprojectRadius = DEF_FAR_RADIUS;
+            }
+            pipeline.LogInfo("sky sphere mode {0}, radius {1:f3}m, scene radius {2:f3}m, backproject radius {3:f3}m",
+                             options.SkyMode, sphereRadius, sceneRadius, backprojectRadius);
+
+            switch (options.SceneOccludesSky)
+            {
+                case SkyOcclusionMode.Always: sceneOccludesSky = true; break;
+                case SkyOcclusionMode.Never: sceneOccludesSky = false; break;
+                case SkyOcclusionMode.Auto: sceneOccludesSky = options.SkyMode != SkyMode.TopoSphere; break;
+                default: throw new Exception("unknown sky occlusion mode: " + options.SceneOccludesSky);
+            }
+            if (sceneOccludesSky && sceneCaster == null)
+            {
+                throw new Exception("must run after build-geometry with --sceneoccludessky=Always,Auto");
+            }
+            pipeline.LogInfo("scene {0} sky", sceneOccludesSky ? "occludes" : "does not occlude");
+
+            if (options.SkyPreferColor.ToLower() == "auto")
+            {
+                options.PreferColor =
+                    options.SkyMode == SkyMode.TopoSphere ? PreferColorMode.EquivalentScores : PreferColorMode.Always;
+            }
+            else
+            {
+                options.PreferColor =
+                    (PreferColorMode)Enum.Parse(typeof(PreferColorMode), options.SkyPreferColor, ignoreCase: true);
+            }
+
+            //need camera frustums to reach sky sphere
+            options.TextureFarClip = backprojectRadius * 2;
+
+            //mission surface frames are X north, Y east, Z down
+            sphereCenter = new Vector3(0, 0, -mission.GetMastHeightMeters());
+
+            //only need tiles to cover the lowest point visible from rover height
+            //assume from center, angle would be different from the edge, but less savings
+            angleBelowHorizon = MathHelper.ToRadians(options.ExtraDegreesBelowHorizon);
+            if (sceneMesh != null)
+            {
+                angleBelowHorizon += sceneMesh.GetBounds().Value.GetCorners().Max(c =>
+                {
+                    Vector3 toCorner = c - sphereCenter;
+                    return Math.Asin(toCorner.Z / toCorner.Length());
+                });
+            }
+
+            double maxAngle = MathHelper.ToRadians(options.MaxDegreesFromHorizon);
+            angleBelowHorizon = Math.Min(maxAngle, Math.Max(angleBelowHorizon, 0));
+            angleAboveHorizon = maxAngle;
+
+            double tileSizeRad = MathHelper.ToRadians(options.SphereResolutionDegrees);
+            sphereTileRows = (int)Math.Ceiling((angleBelowHorizon + angleAboveHorizon) / tileSizeRad);
+            sphereTileCols = (int)Math.Ceiling(2 * Math.PI / tileSizeRad);
+            if (options.SkyMode == SkyMode.Box)
+            {
+                //round up to nearest multiple of 4
+                int remainder = sphereTileCols % 4;
+                if (remainder > 0)
+                {
+                    sphereTileCols += 4 - remainder;
+                }
+            }
+            int numTiles = sphereTileRows * sphereTileCols;
+
+            pipeline.LogInfo("creating {0} {1:f3}x{1:f3} deg sky sphere tiles in {2} rows, {3} cols, " +
+                             "min elevation {4:f3} deg below horizon, max elevation {5:f3} deg above horizon",
+                             numTiles, options.SphereResolutionDegrees, sphereTileRows, sphereTileCols,
+                             MathHelper.ToDegrees(angleBelowHorizon), MathHelper.ToDegrees(angleAboveHorizon));
+
+            int totalWidth = sphereTileCols * tileResolution;
+            if (!MathHelper.IsPowerOfTwo(totalWidth))
+            {
+                pipeline.LogWarn("total width {0} pixels not a power of two, LimberDMG wrap mode disabled", totalWidth);
+            }
+
+            //length of circular arc = circumference * (angle of arc in radians) / (2 * PI)
+            //                       = (2 * PI * radius) * (angle of arc in radians) / (2 * PI)
+            //                       = radius * (angle of arc in radians)
+            double tileWidthOnSphereAtHorizon = backprojectRadius * tileSizeRad;
+            double tileAreaOnSphereAtHorizon = tileWidthOnSphereAtHorizon * tileWidthOnSphereAtHorizon;
 
             //select a good spacing of backproject points per tile
-            double lengthOfTile = (options.SphereRadiusMeters * Math.Tan(MathHelper.ToRadians(options.SphereResolutionDegrees))); //ISSUE #1094: only works for small angles, use distance on the surface of sphere
-            options.BackprojectQuality = options.BackprojectSamplesPerTile / (lengthOfTile * lengthOfTile);
-            options.BackprojectQuality /= 100; //convert to expected units 'quality'
+            options.BackprojectQuality = options.BackprojectSamplesPerTile / tileAreaOnSphereAtHorizon;
+            options.BackprojectQuality /= ObsSelectionSpatial.QUALITY_TO_SAMPLES_PER_SQUARE_METER; 
+            //BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
+
+            pipeline.LogInfo("backproject quality: {0:f6} ({1} samples per {2:f3}m^2 tile)",
+                             options.BackprojectQuality, options.BackprojectSamplesPerTile, tileAreaOnSphereAtHorizon);
+            pipeline.LogInfo("colorize: {0}", options.Colorize);
+
+            skyColor = new float[] { (float)options.SkyColorRed / 255.0f,
+                                     (float)options.SkyColorGreen / 255.0f,
+                                     (float)options.SkyColorBlue / 255.0f };
+
+            tilesetFolder = DecorateOutDir(SKY_TILESET_DIR);
 
             return true;
         }
 
-        private void GetNumSphereTiles(out int rows, out int cols)
+        protected override bool DisableOrbitalIfNoOrbitalTexture()
         {
-            //only need tiles to cover the lowest point visible from rover height
-            //assume from center, angle would be different from the edge, but less savings
-            //assumes z down
-            BoundingBox sceneBounds = mesh.Bounds();
-            Vector3 roverMastLocation = new Vector3(0, 0, -5.0); //TODO: pull from a mastcam z-height in mission specific or expose viewer height
-            Vector3 lowestViewVector = Vector3.Normalize(sceneBounds.Max - roverMastLocation);    //z incresases down
-            double angleBelowHorizon = lowestViewVector.Z * Math.PI / 2.0; // equivalent to Vector3.Dot(roverMastLocation, new Vector3(0,0,1)) * PI/2
-
-            double sphereResRad = MathHelper.ToRadians(options.SphereResolutionDegrees);
-            rows = (int)((Math.PI / 2.0 + angleBelowHorizon) / sphereResRad);
-            cols = (int)(2.0 * Math.PI / sphereResRad);
+            return false;
         }
 
-        private void BuildSphereTiles()
+        protected override void FilterRoverImages()
         {
-            double sphereResRad = MathHelper.ToRadians(options.SphereResolutionDegrees);
-            GetNumSphereTiles(out int rows, out int cols);
+            base.FilterRoverImages();
 
-            //generate the verts to be shared by the tiles
-
-            List<Vector3> positions = new List<Vector3>();
-            for (int idxRow = 0; idxRow < rows; idxRow++)
+            if (options.SkyMode == SkyMode.TopoSphere)
             {
-                for (int idxCol = 0; idxCol < cols; idxCol++)
-                {
-                    double el = Math.PI - idxRow * sphereResRad; //work from top down (want total coverage above, partial below)
-                    double az = idxCol * sphereResRad;
+                return;
+            }
 
-                    Vector3 pos = Vector3.Zero;
-                    pos.X = options.SphereRadiusMeters * Math.Cos(az) * Math.Sin(el);
-                    pos.Y = options.SphereRadiusMeters * Math.Sin(az) * Math.Sin(el);
-                    pos.Z = options.SphereRadiusMeters * Math.Cos(el);
-                    positions.Add(pos);
+            if (sceneCaster == null)
+            {
+                //FilterRoverImages() is a callback from TextureCommand.ParseArgumentsAndLoadCaches()
+                //normally these things would be done later on
+                //but we need to get them done sooner here so that we can get the sceneCaster
+                if (sceneMesh == null) //might have already been loaded in GetProject()
+                {
+                    sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
+                }
+                if (sceneMesh != null)
+                {
+                    LoadInputMesh(requireUVs: false);
+                    BuildSceneCaster();
                 }
             }
 
-            int ToIndex(int row, int col, int numCols)
+            if (sceneCaster == null)
             {
-                return row * cols + col;
+                pipeline.LogWarn("no scene mesh, run after build-geometry to filter rover images containing sky");
+                return;
             }
 
-            //create mesh tiles
-            List<Mesh> tiles = new List<Mesh>();
-            for (int idxRow = 1; idxRow < rows; idxRow++)
+            int numWas = roverImages.Count;
+            roverImages = roverImages.Where(obs =>
             {
-                int prevRow = idxRow - 1;
+                // raycast the corners for a quick test to see if something that should be in
+                // skybox should be visible. this is not a perfect test. It is possible that looking 
+                // throught a canyon would have all four corners report they hit the scene mesh and 
+                // miss the fact skybox related data would be visible throught the middle of the image.
+                var corners = new Vector2[] { new Vector2(0, 0), new Vector2(obs.Width, 0),
+                                              new Vector2(0, obs.Height), new Vector2(obs.Width, obs.Height) };
+                var obsToMesh =
+                frameCache.GetObservationTransform(obs, meshFrame, options.UsePriors, options.OnlyAligned).Mean;
+                
+                return corners.Any(c => !Backproject.RaycastMesh(obs.CameraModel, obsToMesh, c, sceneCaster).HasValue);
+            }).ToList();
 
-                for (int idxCol = 1; idxCol <= cols; idxCol++)
+            pipeline.LogInfo("filtered {0} rover images to {1} containing sky", numWas, roverImages.Count);
+        }
+
+        protected override void InitBackprojectStrategy()
+        {
+            //build backproject strategy globally vs per tile to avoid artifacts at adjacent tile boundaries
+            var skyMesh = Mesh.Merge(tileTree.Leaves().Select(l => l.GetComponent<MeshImagePair>().Mesh).ToArray());
+            if (options.SkyMode != SkyMode.TopoSphere && backprojectRadius != sphereRadius)
+            {
+                foreach (var v in skyMesh.Vertices)
                 {
-                    int curCol = idxCol;
-                    int prevCol = idxCol - 1;
+                    var dir = Vector3.Normalize(v.Position - sphereCenter);
+                    v.Position = sphereCenter + dir * backprojectRadius;
+                }
+            }
+            InitBackprojectStrategy(skyMesh, new MeshOperator(skyMesh), new SceneCaster(skyMesh),
+                                    sceneOccludesSky ? sceneCaster : null);
+        }
 
-                    if (idxCol == cols)
+        protected override Backproject.Options CustomizeBackprojectOptions(Backproject.Options opts)
+        {
+            if (options.SkyMode == SkyMode.TopoSphere)
+            {
+                opts.sampleTransform = samples =>
+                {
+                    foreach (var sample in samples)
                     {
-                        //wrap
-                        curCol = 0;
-                        prevCol = cols - 1;
+                        var dir = Vector3.Normalize(sample.Point - sphereCenter);
+                        var ray = new Ray(sphereCenter, dir);
+                        var hit = orbitalScene.Raycast(ray);
+                        if (hit != null && Vector3.Dot(hit.FaceNormal, dir) < 0) //yes, embree returns backface hits
+                        {
+                            sample.Point = hit.Position;
+                        }
+                        else //invalidate point so it won't be textured
+                        {
+                            sample.Point.X = sample.Point.Y = sample.Point.Z = double.PositiveInfinity;
+                        }
                     }
-
-                    Vector3 topLeft = positions[ToIndex(prevRow, prevCol, cols)];
-                    Vector3 topRight = positions[ToIndex(prevRow, curCol, cols)];
-                    Vector3 bottomLeft = positions[ToIndex(idxRow, prevCol, cols)];
-                    Vector3 bottomRight = positions[ToIndex(idxRow, curCol, cols)];
-                    tiles.Add(BuildSphereTile(topLeft, topRight, bottomLeft, bottomRight));
+                    return samples;
+                };
+            }
+            else
+            {
+                if (backprojectRadius != sphereRadius)
+                {
+                    opts.sampleTransform = samples =>
+                    {
+                        foreach (var sample in samples)
+                        {
+                            var dir = Vector3.Normalize(sample.Point - sphereCenter);
+                            sample.Point = sphereCenter + dir * backprojectRadius;
+                        }
+                        return samples;
+                    };
+                }
+                if (sceneOccludesSky)
+                {
+                    opts.onlyCompletelyUnobstructed = options.MaskObstructed;
                 }
             }
-
-            //create tile tree
-            tileTree = DefineTiles.BuildSingleLevelBoundsTree(tiles);
+            return opts;
         }
 
-        private Mesh BuildSphereTile(Vector3 topLeft, Vector3 topRight, Vector3 bottomLeft, Vector3 bottomRight)
+        private void BuildOrbitalScene()
         {
-            Mesh tile = new Mesh(hasNormals: true, hasUVs: true);
-            tile.Vertices = new List<Vertex>();
-            tile.Vertices.Add(new Vertex(topLeft, -Vector3.Normalize(topLeft), Vector4.One, new Vector2(0.0, 1.0)));
-            tile.Vertices.Add(new Vertex(topRight, -Vector3.Normalize(topRight), Vector4.One, new Vector2(1.0, 1.0)));
-            tile.Vertices.Add(new Vertex(bottomLeft, -Vector3.Normalize(bottomLeft), Vector4.One, new Vector2(0.0, 0.0)));
-            tile.Vertices.Add(new Vertex(bottomRight, -Vector3.Normalize(bottomRight), Vector4.One, new Vector2(1.0, 0.0)));
-
-            //right handed winding from interior
-            tile.Faces = new List<Face>();
-            tile.Faces.Add(new Face(new int[] { 0, 2, 1 }));
-            tile.Faces.Add(new Face(new int[] { 1, 2, 3 }));
-            return tile;
+            var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
+            var meshToOrbital = meshToRoot * Matrix.Invert(orbitalDEMToRoot);
+            Vector3 meshOriginInOrbital = Vector3.Transform(Vector3.Zero, meshToOrbital);
+            
+            double sceneSize = sceneRadius; //this is actually from center of scene to a corner
+            if (sceneBounds.HasValue)
+            {
+                Vector3 size = sceneBounds.Value.Size();
+                sceneSize = Math.Max(size.X, size.Y); //what we really want here is center to side
+            }
+            
+            int outerExtentPixels = (int)Math.Ceiling(sphereRadius / orbitalDEMMetersPerPixel);
+            var outerBounds = orbitalDEM.GetSubrectPixels(outerExtentPixels, meshOriginInOrbital);
+            
+            int innerExtentPixels = (int)Math.Ceiling(0.5 * sceneSize / orbitalDEMMetersPerPixel);
+            var innerBounds = orbitalDEM.GetSubrectPixels(innerExtentPixels, meshOriginInOrbital);
+            
+            var orbitalMesh = orbitalDEM.OrganizedMesh(outerBounds, innerBounds, orbitalSamplesPerPixel,
+                                                       quadsOnly: true);
+            
+            orbitalScene = new SceneCaster();
+            orbitalScene.AddMesh(orbitalMesh, null, Matrix.Identity);
+            orbitalScene.Build();
         }
 
-        private void BuildTileTextures()
+        private void BuildTileTree()
         {
             tileList = new TileList()
             {
                 MeshExt = meshExt,
-                ImageExt = withTextures ? imageExt : null,
+                ImageExt = imageExt,
                 MeshFrame = meshFrame,
                 HasIndexImages = true,
                 TilingScheme = TilingScheme.Flat,
@@ -411,47 +566,146 @@ namespace OPS.Landform
                 ParentNames = new List<string>()
             };
 
-            if (sceneMesh != null && sceneMesh.Frame != tileList.MeshFrame)
+            var root = new SceneNode("root");
+            var rootBounds = BoundingBoxExtensions.CreateEmpty();
+            root.AddComponent<NodeGeometricError>(new NodeGeometricError(2 * sphereRadius));
+            tileList.ParentNames.Add(root.Name);
+
+            //mission surface frames are X north, Y right, Z down
+            //sphere tile rows decrease in elevation from top down
+            //sphere tile cols increase in azimuth clockwise from east 
+            //this way they can be blitted to a big image nicely for blending
+
+            Func<double, double, Vector3> azElToXYZ = (az, el) =>
             {
-                throw new Exception(string.Format("existing scene mesh in frame {0} but tile list in frame {1}",
-                                                  sceneMesh.Frame, tileList.MeshFrame));
+                double projected = sphereRadius * Math.Cos(el);
+                return new Vector3(-projected * Math.Sin(az), projected * Math.Cos(az), -sphereRadius * Math.Sin(el));
+            };
+
+            if (options.SkyMode == SkyMode.Box)
+            {
+                // ulc----D----urc
+                //  |           |
+                //  |     X     E
+                //  |     |     |
+                //  C     +-Y  mrc
+                //  |           |
+                //  |           A
+                //  |           |
+                // llc----B----lrc
+
+                var sceneBounds = sceneMesh.GetBounds().Value;
+                Vector2 llc = sceneBounds.Min.XY();
+                Vector2 urc = sceneBounds.Max.XY();
+                Vector2 ulc = new Vector2(urc.X, llc.Y);
+                Vector2 lrc = new Vector2(llc.X, urc.Y);
+                Vector2 mrc = new Vector2(0, urc.Y);
+
+                Func<double, double, double, double> bracket = (min, max, val) => (val - min) / (max - min);
+
+                azElToXYZ = (az, el) =>
+                {
+                    az = MathE.NormalizeAngle(az);
+                    var xy = Vector2.Zero;
+                    if (az < 0.25 * Math.PI) //A
+                    {
+                        xy = Vector2.Lerp(mrc, lrc, bracket(0, 0.25 * Math.PI, az));
+                    }
+                    else if (az < 0.75 * Math.PI) //B
+                    {
+                        xy = Vector2.Lerp(lrc, llc, bracket(0.25 * Math.PI, 0.75 * Math.PI, az));
+                    }
+                    else if (az < 1.25 * Math.PI) //C
+                    {
+                        xy = Vector2.Lerp(llc, ulc, bracket(0.75 * Math.PI, 1.25 * Math.PI, az));
+                    }
+                    else if (az < 1.75 * Math.PI) //D
+                    {
+                        xy = Vector2.Lerp(ulc, urc, bracket(1.25 * Math.PI, 1.75 * Math.PI, az));
+                    }
+                    else //E
+                    {
+                        xy = Vector2.Lerp(urc, mrc, bracket(1.75 * Math.PI, 2 * Math.PI, az));
+                    }
+                    double z = -sphereRadius * (2 * MathE.Clamp01(bracket(-0.5 * Math.PI, 0.5 * Math.PI, el)) - 1);
+                    return new Vector3(xy.X, xy.Y, z);
+                };
             }
 
-            var tilesToTexture = tileTree.DepthFirstTraverse() //TODO: #1096 skip root
-                .Where(l => l.HasComponent<MeshImagePair>() && l.GetComponent<MeshImagePair>().Mesh != null)
-                .ToList();
-            int tileCount = tilesToTexture.Count;
+            double azStep = 2 * Math.PI / sphereTileCols;
+            double elStep = (angleBelowHorizon + angleAboveHorizon) / sphereTileRows;
 
-            var texMsg = string.Format("{0}x{0} {1} textures{2}",
-                                       resolution, options.TextureVariant,
-                                       options.TextureVariant != TextureVariant.Original ?
-                                       " (falling back to " + TextureVariant.Original + ")" : "");
-            pipeline.LogInfo("processing {0} tiles{1}", tileCount, ", backprojecting ");
-            pipeline.LogInfo("saving tile backproject index images");
+            for (int row = 0; row < sphereTileRows; row++)
+            {
+                for (int col = 0; col < sphereTileCols; col++)
+                {
+                    double leftAz = col * azStep;
+                    double rightAz = leftAz + azStep;
+                    double topEl = angleAboveHorizon - row * elStep;
+                    double bottomEl = topEl - elStep;
+
+                    var bl = azElToXYZ(leftAz, bottomEl);
+                    var br = azElToXYZ(rightAz, bottomEl);
+                    var tr = azElToXYZ(rightAz, topEl);
+                    var tl = azElToXYZ(leftAz, topEl);
+
+                    var mesh = new Mesh(hasNormals: true, hasUVs: true, capacity: 4);
+                    mesh.Vertices.Add(new Vertex(bl, -Vector3.Normalize(bl), Vector4.One, new Vector2(0.0, 0.0)));
+                    mesh.Vertices.Add(new Vertex(br, -Vector3.Normalize(br), Vector4.One, new Vector2(1.0, 0.0)));
+                    mesh.Vertices.Add(new Vertex(tr, -Vector3.Normalize(tr), Vector4.One, new Vector2(1.0, 1.0)));
+                    mesh.Vertices.Add(new Vertex(tl, -Vector3.Normalize(tl), Vector4.One, new Vector2(0.0, 1.0)));
+                    
+                    //right handed winding from interior
+                    mesh.Faces.Add(new Face(new int[] { 0, 1, 2 }));
+                    mesh.Faces.Add(new Face(new int[] { 0, 2, 3 }));
+
+                    var corners = new Vector3[] { bl, br, tl, tr };
+
+                    var leaf = new SceneNode((row * sphereTileCols + col).ToString(), root.Transform);
+                    leaf.AddComponent(new MeshImagePair(mesh));
+                    leaf.AddComponent(new NodeBounds(BoundingBox.CreateFromPoints(corners)));
+                    leaf.AddComponent<NodeGeometricError>().Error = 0;
+                    //leaf name will be added to tileList.LeafNames in SaveTile()
+
+                    BoundingBoxExtensions.Extend(ref rootBounds, corners);
+                }
+            }
+
+            root.AddComponent(new NodeBounds(rootBounds));
+            tileTree = root;
+        }
+
+        private void BuildTileTexturesAndSaveTiles()
+        {
+            var leaves = tileTree.Leaves().ToList();
+
+            pipeline.LogInfo("backprojecting {0} tiles, texture resolution {1}, quality {2}, prefer color {3}, " +
+                             "texture far clip {4:f3}",
+                             leaves.Count, tileResolution, options.BackprojectQuality, options.PreferColor,
+                             options.TextureFarClip);
 
             int np = 0, curTileNum = 0, numFailed = 0, numSucceded = 0;
-
-            void buildTile(SceneNode tile)
+            CoreLimitedParallel.ForEach(leaves, tile =>
             {
                 Interlocked.Increment(ref curTileNum);
                 Interlocked.Increment(ref np);
 
                 if (!options.NoProgress)
                 {
-                    pipeline.LogInfo("{0}saving tile {1}/{2} ({3:F2}%){4}: {5}",
-                                     withTextures ? "texturing and " : "",
-                                     curTileNum, tileCount, 100 * curTileNum / (float)tileCount,
+                    pipeline.LogInfo("texturing and saving tile {0}/{1} ({2:F2}%){3}: {4}",
+                                     curTileNum, leaves.Count, 100 * curTileNum / (float)(leaves.Count),
                                      np > 1 ? ", processing " + np + " in parallel" : "", tile.Name);
                 }
 
-                MeshImagePair mp = tile.GetComponent<MeshImagePair>();
+                var mip = tile.GetComponent<MeshImagePair>();
 
-                Image index = new Image(3, resolution, resolution);
-                mp.Image = BackprojectTile(tile, mp.Mesh, index);
+                mip.Index = new Image(3, tileResolution, tileResolution);
+                mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, new SceneCaster(mip.Mesh),
+                                            sceneOccludesSky ? sceneCaster : null);
 
-                if (mp.Mesh != null && (!withTextures || mp.Image != null))
+                if (mip.Image != null)
                 {
-                    SaveTile(tile.Name, mp.Mesh, mp.Image, index, localSave, cloudSave, tile.IsLeaf);
+                    SaveTile(tile.Name, mip.Mesh, mip.Image, mip.Index, localSave, cloudSave, tile.IsLeaf);
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -464,19 +718,14 @@ namespace OPS.Landform
                 tile.RemoveComponent<MeshImagePair>();
 
                 Interlocked.Decrement(ref np);
-            }
-                
-            contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
-                                                     observationCache, meshFrame, tcopts.UsePriors,
-                                                     tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
+            });                           
 
+            pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} from orbital, {2} failed, " +
+                             "tried up to {3} observations per pixel",
+                             Fmt.KMG(numBackprojectedSurfacePixels), Fmt.KMG(numBackprojectedOrbitalPixels),
+                             Fmt.KMG(numBackprojectFailedPixels), numBackprojectFallbacks + 1);
 
-            //it used to be the case that it was a perf win to build the tiles serially at least when backprojecting
-            //but probably not anymore
-            //now that PipelineCore implements locking to prevent multiple threads from trying to load the same image
-            CoreLimitedParallel.ForEach(tilesToTexture, buildTile);
-
-            if (withTextures && numFailed > 0)
+            if (numFailed > 0)
             {
                 pipeline.LogWarn("failed to generate textures for {0} tiles", numFailed);
             }
@@ -485,44 +734,138 @@ namespace OPS.Landform
             tileTree.DumpStats(msg => pipeline.LogInfo(msg));
         }
 
-        protected override void LoadTileList()
+        private void BlendTileTextures()
         {
-            return; // sky sphere won't have tiles yet, even though it is a TextureCommand
-        }
+            int tileRes = tileResolution;
+            int tileDecimation = 1;
+            int bigImgWidth = sphereTileCols * tileRes, bigImgHeight = sphereTileRows * tileRes;
 
-        private Image BackprojectTile(SceneNode node, Mesh mesh, Image index)
-        {
-            try
+            while (Math.Max(bigImgWidth, bigImgHeight) > MAX_BLEND_SIZE)
             {
-                List<PixelPoint> missingPixels = null;
-                missingPixels = new List<PixelPoint>();
+                tileDecimation++;
+                tileRes = tileResolution / tileDecimation; //integer math
+                bigImgWidth = sphereTileCols * tileRes;
+                bigImgHeight = sphereTileRows * tileRes;
+            }
 
-                SceneCaster meshCaster = new SceneCaster();
-                meshCaster.AddMesh(mesh, null, Matrix.Identity);
-                meshCaster.Build();
+            bool wrappable = MathHelper.IsPowerOfTwo(bigImgWidth);
+            if (!wrappable)
+            {
+                bigImgWidth += 2 * tileRes;
+            }
 
-                ObsSelectionStrategy obsSelStrat = ObsSelectionStrategy.Create(options.ObsSelectionStrategy);
-                obsSelStrat.Initialize(mesh, new MeshOperator(mesh), meshCaster, sceneCaster, contexts, resolution, tcopts.RaycastTolerance, tcopts.BackprojectQuality);
-                IDictionary<Pixel, Backproject.ObsPixel> backprojectResults = BackprojectRoverObservations(mesh, meshCaster, options.TextureResolution, missingPixels,
-                                                                    obsSelStrat, debugSubdir: node.Name);
+            pipeline.LogInfo("building {0}x{1} backproject index for blending, decimation {2}, {3}wrappable",
+                             bigImgWidth, bigImgHeight, tileDecimation, wrappable ? "" : "not ");
 
-                Image image = new Image(3, resolution, resolution);
+            Image bigIndexMap = new Image(3, bigImgWidth, bigImgHeight);
+            CoreLimitedParallel.ForEach(tileList.LeafNames, leafName =>
+            {
+                string indexName = leafName + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
+                string indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name, indexName);
+                var leafIndex = MaskBackprojectIndex(pipeline.LoadImage(indexUrl));
 
-                if (index != null)
+                if (tileDecimation > 1)
                 {
-                    Backproject.FillIndexImage(backprojectResults, index);
+                    leafIndex = leafIndex.Decimated(tileDecimation, average: false);
                 }
 
-                var stats = Backproject.FillOutputTexture(pipeline, backprojectResults, image, options.TextureVariant,
-                                                          options.BackprojectInpaintPixels, fallbackToOriginal: true,
-                                                          orbitalTexture: orbitalTexture);
-                return image;
-            }
-            catch (Exception ex)
+                //fill small gaps along tile boundaries, should make LimberDMG happier
+                //TODO: see if inpaint after instead of here works better
+                leafIndex.Inpaint(2, useAnyNeighbor: true);
+
+                //blit into big map
+                int tileNum = int.Parse(leafName);
+                int tileRow = tileNum / sphereTileCols;
+                int tileCol = tileNum % sphereTileCols;
+                int dstPixelRow = tileRow * tileRes;
+                int dstPixelCol = (tileCol + (wrappable ? 0 : 1)) * tileRes;
+
+                lock (bigIndexMap)
+                {
+                    bigIndexMap.Blit(leafIndex, dstPixelCol, dstPixelRow);
+
+                    //replicate data to minimize seam (not as good as wrappable)
+                    if (!wrappable && tileCol == 0)
+                    {
+                        bigIndexMap.Blit(leafIndex, bigImgWidth - tileRes, dstPixelRow);
+                    }
+                    if (!wrappable && tileCol == sphereTileCols - 1)
+                    {
+                        bigIndexMap.Blit(leafIndex, 0, dstPixelRow);
+                    }
+                }
+            });
+
+            if (options.WriteDebug)
             {
-                pipeline.LogException(ex, $"error backprojecting tile {node.Name}");
-                return null;
+                SaveBackprojectIndexDebug(bigIndexMap, withMesh: false);
             }
+
+            var backprojectResults = Backproject.BuildResultsFromIndex(bigIndexMap, indexedImages);
+
+            Image bigBlurredImage = new Image(3, bigImgWidth, bigImgHeight);
+            Backproject.FillOutputTexture(pipeline, project, backprojectResults, bigBlurredImage,
+                                          TextureVariant.Blurred, options.BackprojectInpaintMissing,
+                                          options.BackprojectInpaintGutter, missingColor: skyColor,
+                                          preadjustLuminance: options.PreadjustLuminance,
+                                          colorizeHue: options.Colorize ? medianHue : -1);
+
+            if (options.WriteDebug)
+            {
+                SaveBackprojectTextureDebug(bigBlurredImage, TextureVariant.Blurred, withMesh: false);
+            }
+
+            var edgeMode = wrappable ? LimberDMG.EdgeBehavior.WrapCylinder : LimberDMG.DEF_EDGE_BEHAVIOR;
+            Image bigBlendedImage = BlendImages.BlendImage(pipeline, bigIndexMap, bigBlurredImage, indexedImages,
+                                                           edgeMode: edgeMode, colorize: options.Colorize);
+            bigBlurredImage = null; //free memory
+
+            if (options.WriteDebug)
+            {
+                SaveBackprojectTextureDebug(bigBlendedImage, TextureVariant.Blended, withMesh: false);
+            }
+
+            var blendOptions = new BlendImagesOptions()
+            {
+                NoSave = options.NoSave,
+                NoProgress = options.NoProgress,
+                RedoBlendedObservationTextures = true, //yes, always redo
+                BlendStrategy = BlendStrategy.Inpaint,
+                BarycentricInterpolateWinners = false,
+                //BarycentricInterpolateMaxTriangleSideLengthPixels = 100,
+                InpaintDiff = -1,
+                BlurDiff = 7,
+                NoFillBlendWithAverageDiff = false
+            };
+
+            Action<Image, Observation, string> saveDebugImg = null;
+            if (options.WriteDebug)
+            {
+                blendOptions.WriteDebug = true;
+                saveDebugImg = SaveDebugWedgeImage;
+            }
+
+            BlendImages.BuildBlendedObservationImages(pipeline, project, blendOptions, bigIndexMap, bigBlendedImage,
+                                                      indexedImages, TextureVariant.SkyBlended, saveDebugImg,
+                                                      options.Colorize ? medianHue : -1);
+            bigIndexMap = bigBlendedImage = null;
+
+            BlendImages.BuildBlendedLeafTextures(pipeline, project, outputFolder, tileList, indexedImages,
+                                                 orbitalTexture, options.BackprojectInpaintMissing,
+                                                 options.BackprojectInpaintGutter, TextureVariant.SkyBlended,
+                                                 colorizeHue: options.Colorize ? medianHue : -1);
+        }
+
+        protected override void SaveTileset()
+        {
+            string tsMeshExt = TilingProject.ToExt(TilingProject.DEF_TILESET_MESH_FORMAT);
+            Func<SceneNode, string> nodeToUrl = node => node.Name + tsMeshExt;
+            if (options.HackRoot)
+            {
+                nodeToUrl = node => (node.Name == "root" ? "0" : node.Name) + tsMeshExt;
+                tileTree.AddComponent(new MeshImagePair());
+            }
+            SaveTileset(project.Name, nodeToUrl);
         }
     }
 }

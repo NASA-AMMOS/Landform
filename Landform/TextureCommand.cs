@@ -1,3 +1,5 @@
+//#define DBG_BLURRED
+//#define DBG_FRUSTA
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -13,9 +15,9 @@ using OPS.Imaging;
 using OPS.RayTrace;
 using OPS.Geometry;
 using OPS.Pipeline;
+using OPS.Pipeline.Texturing;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
-using OPS.Pipeline.Texturing;
 
 namespace OPS.Landform
 {
@@ -39,9 +41,6 @@ namespace OPS.Landform
         [Option(HelpText = "Occlusion mesh in same frame as input mesh, defaults to input mesh", Default = null)]
         public string OcclusionMesh { get; set; }
 
-        [Option(HelpText = "Output texture resolution, should be power of two", Default = 4096)]
-        public virtual int TextureResolution { get; set; }
-
         [Option(HelpText = "Observation image texture variant (Original, Blurred, Blended)", Default = TextureVariant.Original)]
         public virtual TextureVariant TextureVariant { get; set; }
 
@@ -54,7 +53,10 @@ namespace OPS.Landform
         [Option(HelpText = "Write extended backproject debug info", Default = false)]
         public bool WriteBackprojectDebug { get; set; }
 
-        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Greedy, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
+        [Option(HelpText = "Verbose backproject spew", Default = false)]
+        public bool VerboseBackproject { get; set; }
+
+        [Option(HelpText = "The strategy used to pick which of the many source image candidates for a given area is selected in backproject (Exhaustive, Spatial)", Default = ObsSelectionStrategyName.Spatial)]
         public virtual ObsSelectionStrategyName ObsSelectionStrategy { get; set; }
         
         [Option(Required = false, HelpText = "Observation image blur radius", Default = 7)]
@@ -66,23 +68,37 @@ namespace OPS.Landform
         [Option(HelpText = "Redo observation image masks", Default = false)]
         public bool RedoObservationMasks { get; set; }
 
-        [Option(HelpText = "Number of inpaint pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
-        public virtual int BackprojectInpaintPixels { get; set; }
+        [Option(HelpText = "Redo observation image stats", Default = false)]
+        public bool RedoObservationStats { get; set; }
 
-        [Option(HelpText = "just show list of image observations selected for texturing", Default = false)]
+        [Option(HelpText = "Number of inpaint missing pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = 4)]
+        public int BackprojectInpaintMissing { get; set; }
+
+        [Option(HelpText = "Number of inpaint gutter pixels for backproject, 0 to disable inpaint, negative for unlimited", Default = -1)]
+        public int BackprojectInpaintGutter { get; set; }
+
+        [Option(HelpText = "Just show list of image observations selected for texturing", Default = false)]
         public bool ListImageObservations { get; set; }
 
-        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 20)]
+        [Option(HelpText = "Length of the convex hull to use when finding observations to texture width (meters)", Default = 100)]
         public virtual double TextureFarClip { get; set; }
+
+        [Option(HelpText = "Prefer color images (Never, Always, EquivalentScores)", Default = PreferColorMode.EquivalentScores)]
+        public virtual PreferColorMode PreferColor { get; set; }
+
+        [Option(HelpText = "Prefer linearized version of images for texturing", Default = false)]
+        public bool PreferLinearToNonlinear { get; set; }
+
+        [Option(HelpText = "Colorize mono images to median chrominance", Default = false)]
+        public virtual bool Colorize { get; set; }
+
+        [Option(HelpText = "Override median hue [0-360], negative disables (e.g. 33)", Default = -1)]
+        public double OverrideMedianHue { get; set; }
     }
 
     public class TextureCommand : GeometryCommand
     {
-        public readonly float[] MISSING_COLOR = new float[] { 0.5f, 0.5f, 0.5f };
-
         protected TextureCommandOptions tcopts;
-
-        protected int resolution;
 
         protected IDictionary<string, ConvexHull> obsToHull;
 
@@ -90,13 +106,10 @@ namespace OPS.Landform
 
         protected ObsSelectionStrategy backprojectStrategy;
         protected IDictionary<Pixel, Backproject.ObsPixel> backprojectResults;
-        protected List<PixelPoint> backprojectMissingPixels = new List<PixelPoint>();
         protected string backprojectDebugDir;
         protected Image backprojectIndex;
 
         protected TileList tileList;
-
-        protected ObsSelectionStrategy obsSelStrat;
 
         protected List<Observation> imageObservations;
         protected List<Observation> orbitalImages;
@@ -104,14 +117,14 @@ namespace OPS.Landform
         protected Dictionary<int, Observation> indexedImages;
 
         protected SceneMesh sceneMesh;
+        protected Image sceneTexture;
 
         protected Mesh mesh; //finest LOD
         protected List<Mesh> meshLOD; //meshLOD[0] = mesh, coarser LODs populated iff --loadlods
         protected MeshOperator meshOp; //finest LOD
         protected List<MeshOperator> meshOpForLOD; //meshOpForLOD[0] = meshOp, coarser LODs populated iff --loadlods
 
-        protected Image orbitalTexture;
-        protected Matrix orbitalTextureToRoot; //unprojected point in orbitalTexture camera model -> project root frame
+        protected double medianHue = -1;
 
         protected TextureCommand(TextureCommandOptions tcopts) : base(tcopts)
         {
@@ -120,6 +133,7 @@ namespace OPS.Landform
             {
                 tcopts.RedoBlurredObservationTextures = true;
                 tcopts.RedoObservationMasks = true;
+                tcopts.RedoObservationStats = true;
             }
         }
 
@@ -142,17 +156,10 @@ namespace OPS.Landform
 
             if (!tcopts.NoOrbital && !SiteDrive.IsSiteDriveString(meshFrame))
             {
-                pipeline.LogWarn("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
+                pipeline.LogInfo("mesh frame \"{0}\" is not a site drive, disabling orbital", meshFrame);
                 tcopts.NoOrbital = true;
             }
 
-            resolution = tcopts.TextureResolution;
-            if (resolution > 0 && (resolution & (resolution - 1)) != 0)
-            {
-                pipeline.LogWarn("resolution {0} not a power of two", resolution);
-            }
-
-            obsSelStrat = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
             backprojectDebugDir = Path.Combine(localOutputPath, "Backproject");
 
             //some workflows do not load observations, for example tiling an M2020 tactical mesh
@@ -166,15 +173,7 @@ namespace OPS.Landform
                     .Cast<RoverObservation>()
                     .ToList();
 
-                //the observation selection strategy has an opportunity to independently define its preference
-                //for linear or nonlinear images
-                var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
-                comparator.logger = pipeline.Verbose ? pipeline : null;
-                comparator.SetPreferLinearToNonlinear(obsSelStrat.PreferLinearToNonlinear());
-                roverImages = comparator
-                    .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
-                                               RoverProductType.Image)
-                    .ToList();
+                FilterRoverImages();
 
                 imageObservations = roverImages.Cast<Observation>().ToList();
                 imageObservations.AddRange(orbitalImages);
@@ -190,8 +189,11 @@ namespace OPS.Landform
 
                 if (!tcopts.NoOrbital)
                 {
-                    LoadOrbitalTexture(); //may overwrite tcopts.NoOrbital
-
+                    bool ok = LoadOrbitalTexture();
+                    if (!ok && DisableOrbitalIfNoOrbitalTexture())
+                    {
+                        tcopts.NoOrbital = true;
+                    }
                     if (tcopts.NoOrbital && tcopts.NoSurface)
                     {
                         throw new Exception("--nosurface but failed to load orbital");
@@ -205,7 +207,30 @@ namespace OPS.Landform
                 return false;
             }
 
+            if (tcopts.OverrideMedianHue >= 0 && tcopts.OverrideMedianHue <= 360)
+            {
+                medianHue = tcopts.OverrideMedianHue;
+            }
+
             return true;
+        }
+
+        protected virtual bool DisableOrbitalIfNoOrbitalTexture()
+        {
+            return true;
+        }
+
+        protected virtual void FilterRoverImages()
+        {
+            //the observation selection strategy has an opportunity to independently define its preference
+            //for linear or nonlinear images
+            var comparator = new RoverObservationComparator(mission.GetRoverObservationComparator());
+            comparator.logger = pipeline.Verbose ? pipeline : null;
+            comparator.SetPreferLinearToNonlinear(tcopts.PreferLinearToNonlinear);
+            roverImages = comparator
+                .KeepBestRoverObservations(roverImages, RoverObservationComparator.LinearVariants.Best,
+                                           RoverProductType.Image)
+                .ToList();
         }
 
         private void ListImageObservations()
@@ -237,27 +262,6 @@ namespace OPS.Landform
             }
         }
             
-        protected void LoadOrbitalTexture()
-        {
-            try
-            {
-                int idx = Observation.ORBITAL_IMAGE_INDEX;
-                orbitalTexture = LoadOrbitalAsset(idx);
-                if (orbitalTexture != null)
-                {
-                    var obs = observationCache.GetObservation(idx);
-                    orbitalTextureToRoot = frameCache.GetBestPrior(obs.FrameName).Transform.Mean;
-                    indexedImages[idx] = obs;
-                    orbitalImages.Add(obs);
-                }
-            }
-            catch (Exception ex)
-            {
-                pipeline.LogWarn("failed to load orbital image, running without it: {0}", ex.Message);
-                tcopts.NoOrbital = true;
-            }
-        }
-
         protected override bool ObservationFilter(RoverObservation obs)
         {
             return obs.UseForTexturing && (obs.ObservationType == RoverProductType.Image ||
@@ -303,28 +307,6 @@ namespace OPS.Landform
             return !string.IsNullOrEmpty(meshFrame) ? meshFrame : tcopts.MeshFrame.ToLower().Trim();
         }
 
-        protected void EnsureOrBuildObservationTextures()
-        {
-            switch (tcopts.TextureVariant)
-            {
-                case TextureVariant.Original: break;
-                case TextureVariant.Blurred: BuildBlurredObservationImages(); break;
-                case TextureVariant.Blended: EnsureBlendedObservationImages(); break;
-                default: throw new Exception("unknown texture variant " + tcopts.TextureVariant);
-            }
-        }
-
-        protected void EnsureBlendedObservationImages()
-        {
-            foreach (var obs in imageObservations)
-            {
-                if (obs.BlendedGuid == Guid.Empty)
-                {
-                    throw new Exception(string.Format("no blended texture for {0}, run blend-images", obs.Name));
-                }
-            }
-        }
-
         protected void BuildBlurredObservationImages()
         {
             int no = roverImages.Count;
@@ -333,17 +315,22 @@ namespace OPS.Landform
             {
                 if (!tcopts.RedoBlurredObservationTextures && obs.BlurredGuid != Guid.Empty)
                 {
+#if DBG_BLURRED
+                    if (tcopts.WriteDebug)
+                    {
+                        SaveDebugWedgeImage(pipeline.GetDataProduct<PngDataProduct>(project, obs.BlurredGuid).Image,
+                                            obs, "_blurred");
+                    }
+
+#endif
                     Interlocked.Increment(ref nc);
                     return;
                 }
                 
                 Interlocked.Increment(ref np);
 
-                if (!tcopts.NoProgress)
-                {
-                    pipeline.LogInfo("creating blurred image for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}", obs.Name, np, nc, no);
-                }
+                pipeline.LogVerbose("creating blurred image for observation {0}, processing {1} in parallel, " +
+                                        "completed {2}/{3}", obs.Name, np, nc, no);
 
                 try
                 {
@@ -354,10 +341,12 @@ namespace OPS.Landform
                     //the current code is: img.SmoothBlur(13, 13)
                     Image blurredImage = (new Image(orig)).GaussianBoxBlur(tcopts.ObservationBlurRadius);
                     
+#if DBG_BLURRED
                     if (tcopts.WriteDebug)
                     {
                         SaveDebugWedgeImage(blurredImage, obs, "_blurred");
                     }
+#endif
                     
                     if (!tcopts.NoSave)
                     {
@@ -394,11 +383,8 @@ namespace OPS.Landform
                 
                 Interlocked.Increment(ref np);
                 
-                if (!tcopts.NoProgress)
-                {
-                    pipeline.LogInfo("creating mask for observation {0}, processing {1} in parallel, " +
-                                     "completed {2}/{3}", obs.Name, np, nc, no);
-                }
+                pipeline.LogVerbose("creating mask for observation {0}, processing {1} in parallel, " +
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
 
                 try
                 {
@@ -433,6 +419,61 @@ namespace OPS.Landform
 
                 Interlocked.Decrement(ref np);
             });
+        }
+
+        protected void BuildObservationImageStats()
+        {
+            int no = roverImages.Count;
+            int np = 0, nc = 0;
+            CoreLimitedParallel.ForEach(roverImages, obs =>
+            {
+                if (!tcopts.RedoObservationStats && obs.StatsGuid != Guid.Empty)
+                {
+                    Interlocked.Increment(ref nc);
+                    return;
+                }
+                
+                Interlocked.Increment(ref np);
+                
+                pipeline.LogVerbose("computing stats for observation {0}, processing {1} in parallel, " +
+                                    "completed {2}/{3}", obs.Name, np, nc, no);
+
+                try
+                {
+                    var img = pipeline.LoadImage(obs.Url);
+                    if (obs.MaskGuid != Guid.Empty)
+                    {
+                        var mask = pipeline.GetDataProduct<PngDataProduct>(project, obs.MaskGuid).Image;
+                        img = new Image(img); //don't mutate cached image
+                        img.UnionMask(mask, new float[] { 0 }); //0 means bad, 1 means good
+                    }
+                    var statsProd = new ImageStats(img);
+                    if (!tcopts.NoSave)
+                    {
+                        pipeline.SaveDataProduct(project, statsProd);
+                        obs.StatsGuid = statsProd.Guid;
+                        obs.Save(pipeline);
+                    }
+                    Interlocked.Increment(ref nc);
+                }
+                catch (Exception ex)
+                {
+                    pipeline.LogException(ex, $"error computing stats for observation {obs.Name}");
+                }
+
+                Interlocked.Decrement(ref np);
+            });
+
+            int numColor = Backproject.GetImageStats(pipeline, project, roverImages, out double lumaMed,
+                                                     out double lumaMAD, out double hueMed);
+
+            if (numColor > 0 && tcopts.OverrideMedianHue < 0)
+            {
+                medianHue = hueMed;
+            }
+
+            pipeline.LogInfo("global luminance median {0:f3}, MAD {1:f3}, hue median {2:f3}, {3}/{4} images color",
+                             lumaMed, lumaMAD, hueMed, numColor, roverImages.Count);
         }
 
         protected void LoadInputMesh(bool requireUVs = true)
@@ -511,9 +552,12 @@ namespace OPS.Landform
                                  lod, Fmt.KMG(meshLOD[lod].Vertices.Count()), Fmt.KMG(meshLOD[lod].Faces.Count()));
             }
 
-            if (requireUVs && !mesh.HasUVs)
+            for (int i = 0; i < meshLOD.Count; i++)
             {
-                throw new Exception("input mesh needs UVs");
+                if (requireUVs && !meshLOD[i].HasUVs)
+                {
+                    UVAtlasMesh(meshLOD[i], sceneTextureResolution, "LOD " + i);
+                }
             }
         }
 
@@ -559,10 +603,7 @@ namespace OPS.Landform
                 occlusionMesh = mesh;
             }
 
-            pipeline.LogInfo("building occlusion data structures");
-            sceneCaster = new SceneCaster();
-            sceneCaster.AddMesh(occlusionMesh, null, Matrix.Identity); //NOTE: can't change mesh after this
-            sceneCaster.Build();
+            sceneCaster = new SceneCaster(occlusionMesh); //NOTE: can't change mesh after this
         }
 
         protected void BuildMeshOperator()
@@ -579,8 +620,9 @@ namespace OPS.Landform
 
         protected void BuildObsHulls()
         {
-            obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
-                                                     tcopts.OnlyAligned, roverImages, farClip: tcopts.TextureFarClip );
+            obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, meshFrame, tcopts.UsePriors,
+                                                      tcopts.OnlyAligned, roverImages, farClip: tcopts.TextureFarClip );
+#if DBG_FRUSTA
             if (tcopts.WriteDebug)
             {
                 foreach (var entry in obsToHull)
@@ -588,115 +630,164 @@ namespace OPS.Landform
                     SaveMesh(entry.Value.Mesh, "Frusta/" + entry.Key);
                 }
             }
+#endif
         }
 
-        protected void InitBackprojectStrategy()
+        protected virtual void InitBackprojectStrategy()
         {
             if (meshOp == null)
             {
                 throw new Exception("must build mesh operator before initializing backproject strategy");
             }
+            if (sceneCaster == null)
+            {
+                throw new Exception("must build scene cater before initializing backproject strategy");
+            }
+            InitBackprojectStrategy(mesh, meshOp, sceneCaster, sceneCaster);
+        }
 
-            pipeline.LogInfo("initializing backproject observation selection strategy {0} for {1} observations",
-                             tcopts.ObsSelectionStrategy, imageObservations.Count);
-
+        protected void InitBackprojectStrategy(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
+                                               SceneCaster occlusionScene)
+        {
             backprojectStrategy = ObsSelectionStrategy.Create(tcopts.ObsSelectionStrategy);
 
-            if (tcopts.WriteBackprojectDebug)
-            {
-                backprojectStrategy.DebugOutputPath = backprojectDebugDir;
-            }
+            backprojectStrategy.Quality = tcopts.BackprojectQuality;
+            backprojectStrategy.PreferColor = tcopts.PreferColor;
+            backprojectStrategy.RaycastTolerance = tcopts.RaycastTolerance;
+            backprojectStrategy.PreferNonlinear = !tcopts.PreferLinearToNonlinear;
+            backprojectStrategy.DebugOutputPath = tcopts.WriteBackprojectDebug ? backprojectDebugDir : null;
 
+            int numOrbital = 0;
             if (!tcopts.NoOrbital && observationCache.ContainsObservation(Observation.ORBITAL_IMAGE_INDEX))
             {
                 var texObs = observationCache.GetObservation(Observation.ORBITAL_IMAGE_INDEX);
                 backprojectStrategy.OrbitalMetersPerPixel =
                     (texObs.CameraModel as ConformalCameraModel).AvgMetersPerPixel;
+                numOrbital = 1;
             }
+
+            pipeline.LogInfo("initializing observation selection strategy {0} for {1} rover observations, {2} orbital",
+                             tcopts.ObsSelectionStrategy, roverImages.Count, numOrbital);
 
             var contexts = Backproject.BuildContexts(obsToHull, roverImages, mission, frameCache,
                                                      observationCache, meshFrame, tcopts.UsePriors,
                                                      tcopts.OnlyAligned, msg => pipeline.LogWarn(msg));
 
-            backprojectStrategy.Initialize(mesh, meshOp, sceneCaster, sceneCaster, contexts, resolution, tcopts.RaycastTolerance, tcopts.BackprojectQuality);
+            backprojectStrategy.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts);
         }
 
-        protected void BackprojectRoverObservations()
+        protected void BackprojectObservations()
         {
-            pipeline.LogInfo("backprojecting {0} rover observations", imageObservations.Count);
-
-            backprojectResults = BackprojectRoverObservations(mesh, sceneCaster, resolution, backprojectMissingPixels, backprojectStrategy);
-
-            pipeline.LogInfo("backprojected {0} pixels from surface observations ({1} failed)",
-                             Fmt.KMG(backprojectResults.Count), Fmt.KMG(backprojectMissingPixels.Count));
+            backprojectResults = BackprojectObservations(mesh, sceneTextureResolution, sceneCaster, sceneCaster,
+                                                         out Backproject.Stats stats);
         }
 
         protected IDictionary<Pixel, Backproject.ObsPixel>
-            BackprojectRoverObservations(Mesh mesh, SceneCaster meshCaster, int resolution, List<PixelPoint> missingPixels, ObsSelectionStrategy backprojectStrat,
-                                         string debugSubdir = "")
+            BackprojectObservations(Mesh mesh, int resolution, SceneCaster meshCaster, SceneCaster occlusionScene,
+                                    out Backproject.Stats stats, ObsSelectionStrategy strategy = null,
+                                    string meshName = "", bool quiet = false)
         {
-            if (backprojectStrat == null)
+            string forMesh = !string.IsNullOrEmpty(meshName) ? $" for mesh {meshName}" : "";
+
+            if (mesh.Vertices.Count < 3 || mesh.Faces.Count < 1)
             {
-                throw new Exception("must initialize backproject strategy before backprojecting observations");
+                throw new Exception($"cannot backproject: no triangles{forMesh}");
             }
-            bool logging = pipeline.Verbose || pipeline.Debug;
-            var opts = new Backproject.BackprojectOptions()
+
+            strategy = strategy ?? backprojectStrategy;
+            if (strategy == null)
+            {
+                throw new Exception($"must initialize backproject strategy before backprojecting{forMesh}");
+            }
+
+            var opts = new Backproject.Options()
             {
                 pipeline = pipeline,
+
                 project = project,
                 mission = mission,
+
                 frameCache = frameCache,
                 observationCache = observationCache,
-                observations = roverImages,
+
+                obsToHull = obsToHull,
+
                 mesh = mesh,
-                meshCaster = meshCaster,
+                meshOp = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true),
                 meshFrame = meshFrame,
-                resolution = resolution,
-                sceneOcclusion = sceneCaster,
+
+                meshCaster = meshCaster,
+                occlusionScene = occlusionScene,
+
                 usePriors = tcopts.UsePriors,
                 onlyAligned = tcopts.OnlyAligned,
-                quality = tcopts.BackprojectQuality,
+
                 writeDebug = tcopts.WriteBackprojectDebug,
-                localDebugOutputPath = Path.Combine(backprojectDebugDir, debugSubdir), //ignores empty strings
-                obsSelectionStrategy = backprojectStrat,
-                obsToHull = obsToHull,
-                info = msg => { if (logging) pipeline.LogInfo(msg); },
-                progress = msg => { if (logging && !tcopts.NoProgress) pipeline.LogInfo(msg); },
-                warn = msg => pipeline.LogWarn(msg),
-                error = msg => pipeline.LogError(msg)
+                localDebugOutputPath = Path.Combine(backprojectDebugDir, meshName), //ignores empty strings
+
+                outputResolution = resolution,
+
+                quality = tcopts.BackprojectQuality,
+                obsSelectionStrategy = strategy,
+
+                meshName = meshName,
+                quiet = quiet,
+                verbose = tcopts.VerboseBackproject
             };
-            return Backproject.BackprojectRoverObservations(opts, missingPixels);
-        }
 
-        protected void BackprojectOrbital(List<PixelPoint> missingPixels,
-                                          IDictionary<Pixel, Backproject.ObsPixel> backprojectResults)
-        {
+            try
+            {
+                opts.meshHull = ConvexHull.CreateWithFallback(mesh);
+            }
+            catch (Exception ex)
+            {
+                if (!quiet)
+                {
+                    pipeline.LogWarn("failed to make convex hull{0}: {1}", forMesh, ex.Message);
+                }
+            }
+
             if (!tcopts.NoOrbital)
             {
-                var obs = indexedImages[Observation.ORBITAL_IMAGE_INDEX];
                 var meshToRoot = frameCache.GetBestTransform(meshFrame).Transform.Mean;
-                var meshToOrbital = meshToRoot * Matrix.Invert(orbitalTextureToRoot);
-                Backproject.BackprojectOrbital(obs, meshToOrbital, missingPixels, backprojectResults);
+                opts.meshToOrbital = meshToRoot * Matrix.Invert(orbitalTextureToRoot);
+                mission.GetLocalLevelBasis(out Vector3 north, out Vector3 east, out Vector3 nadir);
+                opts.skyDirInMesh = -nadir;
             }
+
+            opts = CustomizeBackprojectOptions(opts);
+
+            if (!quiet)
+            {
+                pipeline.LogInfo("backprojecting {0} observations{1}, resolution {2}, quality {3}, prefer color {4}, " +
+                                 "texture far clip {5:f3}",
+                                 imageObservations.Count, forMesh, resolution, tcopts.BackprojectQuality,
+                                 tcopts.PreferColor, tcopts.TextureFarClip);
+            }
+
+            var results = Backproject.BackprojectObservations(opts, imageObservations, out stats);
+
+            if (!quiet)
+            {
+                pipeline.LogInfo("backprojected {0} pixels from surface{1}, {2} from orbital, {3} failed, " +
+                                 "tried up to {4} observations per pixel",
+                                 Fmt.KMG(stats.BackprojectedSurfacePixels), forMesh,
+                                 Fmt.KMG(stats.BackprojectedOrbitalPixels), Fmt.KMG(stats.BackprojectMissingPixels),
+                                 stats.NumFallbacks + 1);
+            }
+
+            return results;
         }
 
-        protected void BackprojectOrbital()
+        protected virtual Backproject.Options CustomizeBackprojectOptions(Backproject.Options opts)
         {
-            if (!tcopts.NoOrbital)
-            {
-                pipeline.LogInfo("backprojecting {0} pixels to orbital", Fmt.KMG(backprojectMissingPixels.Count));
-                int countWas = backprojectResults.Count;
-                BackprojectOrbital(backprojectMissingPixels, backprojectResults);
-                int numSuccessful = backprojectResults.Count - countWas;
-                pipeline.LogInfo("backprojected {0} pixels to orbital ({1} failed)",
-                                 Fmt.KMG(numSuccessful), Fmt.KMG(backprojectMissingPixels.Count - numSuccessful));
-            }
+            return opts;
         }
 
         protected void BuildBackprojectIndex()
         {
             pipeline.LogInfo("creating backproject index");
-            backprojectIndex = new Image(3, resolution, resolution);
+            backprojectIndex = new Image(3, sceneTextureResolution, sceneTextureResolution);
             Backproject.FillIndexImage(backprojectResults, backprojectIndex);
 
             if (!tcopts.NoSave)
@@ -714,66 +805,137 @@ namespace OPS.Landform
             }
         }
 
+        protected Image MaskBackprojectIndex(Image index)
+        {
+            index.CreateMask();
+            for (int r = 0; r < index.Height; r++)
+            {
+                for (int c = 0; c < index.Width; c++)
+                {
+                    if (index[0, r, c] < Observation.MIN_INDEX)
+                    {
+                        index.SetMaskValue(r, c, true);
+                    }
+                }
+            }
+            return index;
+        }
+
+        protected void MaskBackprojectIndex()
+        {
+            MaskBackprojectIndex(backprojectIndex);
+        }
+
         protected void BuildBackprojectResultsFromIndex()
         {
             pipeline.LogInfo("building backproject results from index");
-            backprojectResults = Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages);
+            if (backprojectIndex == null)
+            {
+                var indexGuid = sceneMesh.BackprojectIndexGuid;
+                backprojectIndex = pipeline.GetDataProduct<TiffDataProduct>(project, indexGuid).Image;
+            }
+            backprojectResults =
+                Backproject.BuildResultsFromIndex(backprojectIndex, indexedImages, msg => pipeline.LogWarn(msg));
         }
 
-        protected Image BuildBackprojectTexture(TextureVariant textureVariant)
+        protected Image BuildBackprojectTexture(TextureVariant srcTextureVariant,
+                                                TextureVariant? dstTextureVariant = null,
+                                                double preadjustLuminance = 0)
         {
-            pipeline.LogInfo("creating {0}x{0} backproject texture", resolution);
-            Image texture = new Image(3, resolution, resolution);
-            texture.Fill(MISSING_COLOR);
-            var stats = Backproject.FillOutputTexture(pipeline, backprojectResults, texture, textureVariant,
-                                                      tcopts.BackprojectInpaintPixels, orbitalTexture: orbitalTexture);
-            pipeline.LogInfo("backprojected {0} pixels from surface observations, {1} pixels from orbital",
-                             Fmt.KMG(stats.BackprojectedSurfacePixels), Fmt.KMG(stats.BackprojectedOrbitalPixels));
+            //careful here, if we already have a full-scene backprojectIndex
+            //then the full-scene texture we're going to generate should be the same resolution
+            //in most cases the resolution should match tcopts.TextureResolution
+            //but in some workflows, such as blend-after-texture with a lower res blend, it may not
+            int width = sceneTextureResolution, height = sceneTextureResolution;
+            if (backprojectIndex != null)
+            {
+                width = backprojectIndex.Width;
+                height = backprojectIndex.Height;
+            }
+            
+            pipeline.LogInfo("creating {0}x{1} {2} backproject texture from {3} backproject results, inpaint {4}",
+                             width, height, srcTextureVariant, Fmt.KMG(backprojectResults.Count),
+                             tcopts.BackprojectInpaintMissing);
+            pipeline.LogInfo("preadjust luminance: {0:f3}, colorize: {1}", preadjustLuminance, tcopts.Colorize);
+
+            Image texture = new Image(3, width, height);
+
+            var stats = Backproject.FillOutputTexture(pipeline, project, backprojectResults, texture, srcTextureVariant,
+                                                      tcopts.BackprojectInpaintMissing, tcopts.BackprojectInpaintGutter,
+                                                      orbitalTexture: orbitalTexture,
+                                                      preadjustLuminance: preadjustLuminance,
+                                                      colorizeHue: tcopts.Colorize ? medianHue : -1);
+
+            pipeline.LogInfo("filled {0} pixels from {1} surface observations, {2} from orbital, {3} failed, " +
+                             "{4} fallbacks to original texture",
+                             Fmt.KMG(stats.BackprojectedSurfacePixels), srcTextureVariant,
+                             Fmt.KMG(stats.BackprojectedOrbitalPixels), Fmt.KMG(stats.BackprojectMissingPixels),
+                             stats.NumFallbacks);
+
+            texture.DumpStats(msg => pipeline.LogInfo(msg));
+
+            if (stats.NumFallbacks > 0)
+            {
+                pipeline.LogWarn("falling back to {0} texture on {1} observations missing {2} texture",
+                                 TextureVariant.Original, stats.NumFallbacks, srcTextureVariant);
+            }
+
+            if (!dstTextureVariant.HasValue)
+            {
+                dstTextureVariant = srcTextureVariant;
+            }
 
             if (!tcopts.NoSave)
             {
-                pipeline.LogInfo("saving backproject texture");
+                pipeline.LogInfo("saving {0} backproject texture", dstTextureVariant.Value);
                 var texProd = new PngDataProduct(texture);
                 pipeline.SaveDataProduct(project, texProd);
-                switch (textureVariant)
+                switch (dstTextureVariant.Value)
                 {
                     case TextureVariant.Original: sceneMesh.TextureGuid = texProd.Guid; break;
                     case TextureVariant.Blurred: sceneMesh.BlurredTextureGuid = texProd.Guid; break;
                     case TextureVariant.Blended: sceneMesh.BlendedTextureGuid = texProd.Guid; break;
-                    default: throw new Exception("unknown texture variant " + textureVariant);
+                    default: throw new Exception("unknown texture variant " + dstTextureVariant.Value);
                 }
                 sceneMesh.Save(pipeline);
             }
             
             if (tcopts.WriteDebug)
             {
-                SaveBackprojectTextureDebug(texture, textureVariant);
+                SaveBackprojectTextureDebug(texture, dstTextureVariant.Value);
             }
 
             return texture;
         }
 
-        protected void SaveBackprojectIndexDebug(Image index)
+        protected void SaveBackprojectIndexDebug(Image index, bool withMesh = true, string suffix = "")
         {
-            string name = sceneMesh.Name + "_backprojectIndex";
+            string name = sceneMesh.Name + "_backprojectIndex" + suffix;
             SaveFloatTIFF(index, name);
             Image previewImg = Backproject.GenerateIndexPreviewImage(index);
-            name += "FalseColor";
+            name = sceneMesh.Name + "_backprojectIndexFalseColor" + suffix;
             pipeline.LogInfo("saving backproject index false color debug image");
             SaveImage(previewImg, name);
-            if (mesh != null)
+            if (withMesh && mesh != null)
             {
                 pipeline.LogInfo("saving backproject index false color textured debug mesh");
                 SaveMesh(mesh, name, name + imageExt);
             }
         }
 
-        protected void SaveBackprojectTextureDebug(Image texture, TextureVariant textureVariant)
+        protected void SaveBackprojectTextureDebug(Image texture,
+                                                   TextureVariant textureVariant = TextureVariant.Original,
+                                                   bool withMesh = true, string suffix = "")
         {
-            string name = sceneMesh.Name + "_backprojectTexture_" + textureVariant.ToString();
+            string name = sceneMesh.Name + "_backprojectTexture";
+            if (textureVariant != TextureVariant.Original)
+            {
+                name += "_" + textureVariant.ToString();
+            }
+            name += suffix;
             pipeline.LogInfo("saving backproject {0} texture debug image", textureVariant);
             SaveImage(texture, name);
-            if (mesh != null)
+            if (withMesh && mesh != null)
             {
                 pipeline.LogInfo("saving backproject {0} textured debug mesh", textureVariant);
                 SaveMesh(mesh, name, name + imageExt);
@@ -782,13 +944,91 @@ namespace OPS.Landform
 
         protected void SaveDebugWedgeImage(Image img, Observation obs, string suffix)
         {
-            int bs = WedgeObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages, tcopts.TargetWedgeImageResolution);
+            int bs = WedgeObservations.AutoDecimate(obs, tcopts.DecimateDebugWedgeImages,
+                                                    tcopts.TargetWedgeImageResolution);
             if (bs > 1)
             {
                 img = img.Decimated(bs);
             }
             
             SaveImage(img, obs.Name + suffix);
+        }
+
+        protected void SaveSceneMesh(string outputMesh, bool withIndex = false)
+        {
+            var meshURL = CheckOutputURL(outputMesh, sceneMesh.Name, outputFolder, MeshSerializers.Instance);
+            var imgURL = StringHelper.ChangeUrlExtension(meshURL, imageExt);
+
+            if (withIndex)
+            {
+                var index = backprojectIndex;
+                if (index == null && sceneMesh.BackprojectIndexGuid != Guid.Empty)
+                {
+                    index = pipeline.GetDataProduct<TiffDataProduct>(project, sceneMesh.BackprojectIndexGuid).Image;
+                }
+                if (index != null)
+                {
+                    var ext = ".tif";
+                    var indexURL = StringHelper.ChangeUrlExtension(meshURL, ext);
+                    pipeline.LogInfo("saving {0}x{1} float tiff backproject index image {2}",
+                                     index.Width, index.Height, indexURL);
+                    TemporaryFile.GetAndDelete(ext, tmpFile =>
+                    {
+                        var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
+                        var serializer = new GDALSerializer(opts);
+                        serializer.Write<float>(tmpFile, index);
+                        pipeline.SaveFile(tmpFile, indexURL, constrainToStorage: false);
+                    });
+                }
+            }
+
+            var texture = sceneTexture;
+            if (texture == null)
+            {
+                Guid texGuid = Guid.Empty;
+                switch (tcopts.TextureVariant)
+                {
+                    case TextureVariant.Original: texGuid = sceneMesh.TextureGuid; break;
+                    case TextureVariant.Blurred: texGuid = sceneMesh.BlurredTextureGuid; break;
+                    case TextureVariant.Blended: texGuid = sceneMesh.BlendedTextureGuid; break;
+                    default: throw new Exception("unknown texture variant " + tcopts.TextureVariant);
+                }
+                if (texGuid != Guid.Empty)
+                {
+                    texture = pipeline.GetDataProduct<PngDataProduct>(project, texGuid).Image;
+                }
+            }
+
+            if (texture != null)
+            {
+                pipeline.LogInfo("saving {0}x{1} scene texture {2}", texture.Width, texture.Height, imgURL);
+                TemporaryFile.GetAndDelete(imageExt, tmpFile =>
+                {
+                    texture.Save<byte>(tmpFile);
+                    pipeline.SaveFile(tmpFile, imgURL, constrainToStorage: false);
+                });
+            }
+
+            var mesh = this.mesh;
+            if (mesh == null && sceneMesh.MeshGuid != Guid.Empty)
+            {
+                mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
+            }
+
+            if (mesh != null)
+            {
+                pipeline.LogInfo("saving {0}scene mesh", texture != null ? "textured " : "");
+                TemporaryFile.GetAndDelete(StringHelper.GetUrlExtension(meshURL), tmpFile =>
+                {
+                    string texFile = texture != null ? StringHelper.GetLastUrlPathSegment(imgURL) : null;
+                    mesh.Save(tmpFile, texFile);
+                    pipeline.SaveFile(tmpFile, meshURL, constrainToStorage: false);
+                });
+            }
+            else
+            {
+                pipeline.LogWarn("no scene mesh to save");
+            }
         }
     }
 }

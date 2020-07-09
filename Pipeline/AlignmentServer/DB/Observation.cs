@@ -9,7 +9,7 @@ using OPS.Util;
 
 namespace OPS.Pipeline.AlignmentServer
 {
-    public enum TextureVariant { Original, Blurred, Blended };
+    public enum TextureVariant { Original, Blurred, Blended, SkyBlended };
 
     /// <summary>
     /// Represents an image or 3D shape measurement of the environment
@@ -20,17 +20,36 @@ namespace OPS.Pipeline.AlignmentServer
     [DynamoDBWriteCapacity(50, 100)]
     public class Observation : IURLFileSet
     {
-        //index 0 is reserved to mean "no observation"
-        //also note, in legacy TerrainTools index 65535 (0xffff) is treated equivalent to 0 in LimberDMG
-        //and those values can get serialized out to the index image for pixels where backprojection failed
-        public const int MIN_INDEX = 1;
+        //not a valid observation index
+        //used to mark texels where backproject was not possible because there is no corresponding point on the mesh
+        //this can happen, for example, when the mesh is atlassed with more than one chart
+        //and there is a "gutter" between charts
+        //this is different than a texel which does map to the mesh but where backproject failed e.g. due to occlusion
+        //for that see NO_OBSERVATION_INDEX
+        public const int GUTTER_INDEX = 0;
+
+        //used to mark pixels in the backproject index that do correspond to points on the mesh
+        //(i.e. not pixels in the texture atlas gutter, for that see GUTTER_INDEX)
+        //but that did not successfully backproject to any observation
+        //for example this can occur for hole-filled portions of the mesh that are occluded in all observations
+        //mainly this can happen when orbital texturing is not available
+        //but it can happen inside "caves" even when orbital is available
+        public const int NO_OBSERVATION_INDEX = 1;
+
+        //minimum valid observation index
+        //(in legacy TerrainTools index 65535 and 0 are equivalently treated as "no observation"
+        //and those values can get serialized out to the index image for pixels where backprojection failed)
+        public const int MIN_INDEX = 2;
+
+        //limit indices to 16 bit
+        //because we use 16 bit PPM for overlay index products
+        public const int MAX_INDEX = 65535;
 
         //limit indices to unsigned ints that can be exactly represented in a float
         //https://stackoverflow.com/a/3793950
         //this makes it possible to store an observation index in one band of a float image
         //and we want to do that when creating backproject index images
-        //public const int MAX_INDEX = 16777216; //Max int that can be stored in float
-        public const int MAX_INDEX = 65535; //Max supported by PPMSerializer (16 bit per channel)
+        //public const int MAX_INDEX = 16777216;
 
         public const int ORBITAL_IMAGE_INDEX = MAX_INDEX - 1; 
         public const int ORBITAL_DEM_INDEX = ORBITAL_IMAGE_INDEX - 1;
@@ -53,6 +72,10 @@ namespace OPS.Pipeline.AlignmentServer
         public Guid BlurredGuid;
 
         public Guid BlendedGuid;
+
+        public Guid SkyBlendedGuid;
+
+        public Guid StatsGuid;
 
         public string FrameName;
 
@@ -121,6 +144,8 @@ namespace OPS.Pipeline.AlignmentServer
             this.FeaturesGuid = Guid.Empty;
             this.BlurredGuid = Guid.Empty;
             this.BlendedGuid = Guid.Empty;
+            this.SkyBlendedGuid = Guid.Empty;
+            this.StatsGuid = Guid.Empty;
             this.CameraModel = cameraModel;
             this.UseForAlignment = useForAlignment;
             this.UseForMeshing = useForMeshing;
@@ -237,6 +262,41 @@ namespace OPS.Pipeline.AlignmentServer
             foreach (string ext in AlternateExtensions)
             {
                 yield return ext;
+            }
+        }
+
+        public TextureVariant GetTextureVariantWithFallback(TextureVariant variant)
+        {
+            var fallback = TextureVariant.Original;
+            switch (variant)
+            {
+                case TextureVariant.Original: return variant;
+                case TextureVariant.Blurred: return BlurredGuid != Guid.Empty ? variant : fallback;
+                case TextureVariant.Blended: return BlendedGuid != Guid.Empty ? variant : fallback;
+                case TextureVariant.SkyBlended: return SkyBlendedGuid != Guid.Empty ? variant : fallback;
+                default: throw new Exception("unknown texture variant: " + variant);
+            }
+        }
+
+        public Guid GetTextureVariantGuid(TextureVariant variant)
+        {
+            switch (variant)
+            {
+                case TextureVariant.Blurred: return BlurredGuid;
+                case TextureVariant.Blended: return BlendedGuid;
+                case TextureVariant.SkyBlended: return SkyBlendedGuid;
+                default: throw new Exception("unsupported texture variant: " + variant); //including Original
+            }
+        }
+
+        public void SetTextureVariantGuid(TextureVariant variant, Guid guid)
+        {
+            switch (variant)
+            {
+                case TextureVariant.Blurred: BlurredGuid = guid; break;
+                case TextureVariant.Blended: BlendedGuid = guid; break;
+                case TextureVariant.SkyBlended: SkyBlendedGuid = guid; break;
+                default: throw new Exception("unsupported texture variant: " + variant); //including Original
             }
         }
 

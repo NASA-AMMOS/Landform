@@ -57,16 +57,16 @@ namespace OPS.TilingServer
                 return 1; //argument error
             }
 
-            if((project.GetTilingScheme() == TilingScheme.UserDefined ||
-                project.GetTilingScheme() == TilingScheme.Flat) && options.TileId == null)
+            bool userProvided = TilingSchemeBase.IsUserProvided(project.GetTilingScheme());
+
+            if (userProvided && options.TileId == null)
             {
                 pipeline.LogError("project \"{0}\" has user provided tiling - inputs must define tile id",
                                   options.ProjectName);
                 return 1; //argument error
             }
 
-            if ((project.GetTilingScheme() != TilingScheme.UserDefined &&
-                project.GetTilingScheme() != TilingScheme.Flat) && options.TileId != null)
+            if (!userProvided && options.TileId != null)
             {
                 pipeline.LogError("project \"{0}\" does not have user provided tiling - inputs must not define tile id",
                                   options.ProjectName);

@@ -43,19 +43,18 @@ namespace OPS.Imaging.Emgu
 
         /// <summary>
         /// Convert image to a grayscale Emgu image by averaging all color channels.
-        /// TODO: for feature detection we may want to use Image.LuminanceMode.GREEN
+        /// TODO: for feature detection we may want to use LuminanceMode.GREEN
         /// https://github.jpl.nasa.gov/OnSight/Landform/issues/654
         /// https://github.jpl.nasa.gov/OnSight/Landform/issues/502#issuecomment-194829
         /// </summary>
-        public static Image<Gray, byte> ToEmguGrayscale(this Image img,
-                                                        Colorize.LuminanceMode mode = Colorize.LuminanceMode.AVERAGE)
+        public static Image<Gray, byte> ToEmguGrayscale(this Image img, LuminanceMode mode = LuminanceMode.Average)
         {
             if (img.Bands == 1)
             {
                 return img.ToEmgu<Gray>();
             }
 
-            if (mode != Colorize.LuminanceMode.AVERAGE && img.Bands != 3)
+            if (mode != LuminanceMode.Average && img.Bands != 3)
             {
                 throw new ArgumentException(string.Format("luminance mode {0} requires 3 band image, got {1}",
                                                           mode, img.Bands));

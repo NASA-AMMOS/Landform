@@ -3,11 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
 using Embree;
-using System.Collections.Concurrent;
-using OPS.Imaging;
 using OPS.Util;
+using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.RayTrace
 {
@@ -16,11 +17,12 @@ namespace OPS.RayTrace
     /// </summary>
     public class SceneCaster
     {
-        private readonly Scene<Model> scene;
         const SceneFlags SCENE_FLAGS = SceneFlags.Static | SceneFlags.Coherent | SceneFlags.Incoherent | SceneFlags.Robust;
         const TraversalFlags TRAVERSAL_FLAGS = TraversalFlags.Single;
-        bool sceneBuilt = false;
-        Device device;
+
+        private readonly Device device;
+        private readonly Scene<Model> scene;
+        private bool sceneBuilt = false;
 
         /// <summary>
         /// Create a new scene
@@ -32,20 +34,40 @@ namespace OPS.RayTrace
         }
 
         /// <summary>
-        /// Add a mesh to the scene.  Note that meshes are stored by reference and any modification to the mesh between this call
-        /// and calls to Raycast will result in undetermined behaviour.  You should finish making all raycasts before mutating the mesh.
+        /// Create and build a new scene for one mesh.
         /// </summary>
-        /// <param name="mesh">Mesh to add.  If this mesh has UVs then so will HitData objects retured by collisions</param>
-        /// <param name="texture">Optional texture, if null hit objects returned by collisions with this mesh will not have a texture</param>
-        /// <param name="transform">This meshes transform in the scene</param>
+        public SceneCaster(OPS.Geometry.Mesh mesh, Image texture, Matrix transform) : this()
+        {
+            AddMesh(mesh, texture, transform);
+            Build();
+        }
+
+        /// <summary>
+        /// Create and build a new scene for one mesh.
+        /// </summary>
+        public SceneCaster(OPS.Geometry.Mesh mesh, Image texture = null) : this(mesh, texture, Matrix.Identity) { }
+
+        /// <summary>
+        /// Add a mesh to the scene.  Note that meshes are stored by reference and any modification to the mesh between
+        /// this call and calls to Raycast will result in undetermined behaviour.  You should finish making all raycasts
+        /// before mutating the mesh.
+        /// </summary>
+        /// <param name="mesh">Mesh to add.  If this mesh has UVs then so will HitData objects.</param>
+        /// <param name="texture">Optional texture, if null HitData objects will not have a texture.</param>
+        /// <param name="transform">This mesh's transform in the scene</param>
         public void AddMesh(OPS.Geometry.Mesh mesh, Image texture, Matrix transform)
         {
             if (sceneBuilt)
             {
-                throw new Exception("Cannot add mesh to a renderer after it its scene has been built");
+                throw new Exception("cannot add mesh after scene has been built");
             }
             var model = new Model(device, mesh, texture, transform, SCENE_FLAGS, TRAVERSAL_FLAGS);
             scene.Add(model);
+        }
+
+        public void AddMesh(OPS.Geometry.Mesh mesh, Image texture = null)
+        {
+            AddMesh(mesh, texture, Matrix.Identity);
         }
 
         /// <summary>
@@ -67,6 +89,7 @@ namespace OPS.RayTrace
         /// <summary>
         /// Raycast a single ray
         /// Returns null if no intersection
+        /// NOTE: this will return both frontface and backface hits
         /// </summary>
         /// <param name="ray"></param>
         /// <param name="near"></param>
@@ -83,6 +106,7 @@ namespace OPS.RayTrace
             return HitToHitData(ray, hit);
         }
 
+        /// NOTE: this will return both frontface and backface hits
         public Vector3? RaycastPosition(Ray ray, float near = 0, float far = float.PositiveInfinity)
         {
             if (!sceneBuilt)
@@ -102,6 +126,7 @@ namespace OPS.RayTrace
             }
         }
 
+        /// NOTE: this will return both frontface and backface hits
         public double? RaycastDistance(Ray ray, float near = 0, float far = float.PositiveInfinity)
         {
             if (!sceneBuilt)
@@ -120,6 +145,8 @@ namespace OPS.RayTrace
                 return null;
             }
         }
+
+        /// NOTE: this will return both frontface and backface hits
         public HitData[] Raycast4(Ray[] rays, float near = 0, float far = float.PositiveInfinity)
         {
             if (!sceneBuilt)

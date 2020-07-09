@@ -11,18 +11,18 @@ using OPS.Geometry;
 namespace OPS.Geometry
 {
     /// <summary>
-    /// Class to store s, t coordinates of a point within a triangle (using triangle edges as basis vectors relative to one corner)
+    /// Class to store barycentric coordinates of a point within a triangle
     /// </summary>
     public class BarycentricPoint
     {
-        bool isST; // Was this created using ST or b0,b1,b2
+        private bool isST; // Was this created using ST or b0,b1,b2
 
-        double s; // normalized along V0 -> V1
-        double t; // normalized along V0 -> V2
+        private double s; // normalized along V0 -> V1
+        private double t; // normalized along V0 -> V2
 
-        double b0; // barycentric coordinates
-        double b1;
-        double b2;
+        private double b0; // barycentric coordinates
+        private double b1;
+        private double b2;
 
         public Triangle tri;
 
@@ -33,12 +33,14 @@ namespace OPS.Geometry
                 intersectedEdge = tri.V1.UV - tri.V0.UV;
                 otherEdge = tri.V2.UV - tri.V0.UV;
                 return true;
-            } else if (isST && t < 1E-8 || !isST && b1 < 1E-8)
+            }
+            else if (isST && t < 1E-8 || !isST && b1 < 1E-8)
             {
                 intersectedEdge = tri.V2.UV - tri.V0.UV;
                 otherEdge = tri.V1.UV - tri.V0.UV;
                 return true;
-            } else if (isST && s + t > 1 - 1E-8 || !isST && b0 < 1E-8)
+            }
+            else if (isST && s + t > 1 - 1E-8 || !isST && b0 < 1E-8)
             {
                 intersectedEdge = tri.V2.UV - tri.V1.UV;
                 otherEdge = tri.V0.UV - tri.V1.UV;
@@ -84,9 +86,14 @@ namespace OPS.Geometry
             get
             {
                 if (isST)
-                    return tri.V0.Position + s * (tri.V1.Position - tri.V0.Position) + t * (tri.V2.Position - tri.V0.Position);
+                {
+                    return tri.V0.Position +
+                        s * (tri.V1.Position - tri.V0.Position) + t * (tri.V2.Position - tri.V0.Position);
+                }
                 else
+                {
                     return b0 * tri.V0.Position + b1 * tri.V1.Position + b2 * tri.V2.Position;
+                }
             }
         }
 
@@ -95,9 +102,13 @@ namespace OPS.Geometry
             get
             {
                 if (isST)
+                {
                     return tri.V0.Normal + s * (tri.V1.Normal - tri.V0.Normal) + t * (tri.V2.Normal - tri.V0.Normal);
+                }
                 else
+                {
                     return b0 * tri.V0.Normal + b1 * tri.V1.Normal + b2 * tri.V2.Normal;
+                }
             }
         }
 
@@ -106,9 +117,13 @@ namespace OPS.Geometry
             get
             {
                 if (isST)
+                {
                     return tri.V0.UV + s * (tri.V1.UV - tri.V0.UV) + t * (tri.V2.UV - tri.V0.UV);
+                }
                 else
+                {
                     return b0 * tri.V0.UV + b1 * tri.V1.UV + b2 * tri.V2.UV;
+                }
             }
         }
 
@@ -117,9 +132,13 @@ namespace OPS.Geometry
             get
             {
                 if (isST)
+                {
                     return tri.V0.Color + s * (tri.V1.Color - tri.V0.Color) + t * (tri.V2.Color - tri.V0.Color);
+                }
                 else
+                {
                     return b0 * tri.V0.Color + b1 * tri.V1.Color + b2 * tri.V2.Color;
+                }
             }
         }
     }

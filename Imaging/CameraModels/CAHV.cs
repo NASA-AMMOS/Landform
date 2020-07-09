@@ -102,7 +102,7 @@ namespace OPS.Imaging
             magi = uvec3.Length();              //magi = mag3(uvec3);
             if (magi <= EPSILON)
             {
-                throw new DivideByZeroException();
+                throw new CameraModelException("divide by zero");
             }
             magi = 1.0 / magi;
             uvec3 = uvec3 * magi;               //scale3(magi, uvec3, uvec3);
@@ -131,7 +131,7 @@ namespace OPS.Imaging
             d = pos - C;                                //sub3(pos3, c, d);
             double dotRange = Vector3.Dot(d, A);
             if (Math.Abs(dotRange) <= EPSILON)
-                throw new DivideByZeroException();
+                throw new CameraModelException("divide by zero");
             r_1 = 1.0 / dotRange;
             pixelPos.X = Vector3.Dot(d, H) * r_1;       //pos2[0] = dot3(d, h) * r_1;
             pixelPos.Y = Vector3.Dot(d, V) * r_1;       //pos2[1] = dot3(d, v) * r_1;   

@@ -30,6 +30,11 @@ namespace OPS.Util
             }
         }
 
+        public static string HMS(PerfTimer pt)
+        {
+            return HMS(pt.ElapsedMicroseconds / 1000.0);
+        }
+
         public static string HMS(Stopwatch sw)
         {
             return HMS(sw.ElapsedMilliseconds);

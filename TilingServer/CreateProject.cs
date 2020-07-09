@@ -18,10 +18,10 @@ namespace OPS.TilingServer
     [Verb("createproject", HelpText = "creates a project")]
     public class CreateProjectOptions : TilingServerCommandOptions
     {
-        [Option(Default = TilingScheme.Bin, HelpText = "tiling scheme")]
+        [Option(Default = TilingScheme.QuadAuto, HelpText = "tiling scheme (Bin, QuadX, QuadY, QuadZ, QuadAuto, Oct, UserDefined, Flat)")]
         public TilingScheme TilingScheme { get; set; }
 
-        [Option(Default = SkirtMode.None, HelpText = "skirt mode")]
+        [Option(Default = SkirtMode.Normal, HelpText = "skirt mode")]
         public SkirtMode SkirtMode { get; set; }
 
         [Option(Default = MeshReconstructionMethod.Poisson, HelpText = "mesh reconstruction method")]
@@ -35,6 +35,9 @@ namespace OPS.TilingServer
 
         [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline, currently only GenericTiling is supported")]
         public PipelineStateMachine.ProjectType ProjectType { get; set; }
+
+        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
+        public bool NoConvertLinerRGBToSRGB { get; set; }
 
         [Option(Default = null, HelpText = "write additional mesh format, or \"help\" to list")]
         public string ExportMeshFormat { get; set; }
@@ -73,13 +76,6 @@ namespace OPS.TilingServer
             {
                 pipeline.LogError("unsupported project type: {0}, currently only {1} is supported",
                                   options.ProjectType, PipelineStateMachine.ProjectType.GenericTiling);
-                return 1;
-            }
-
-            if(options.TilingScheme == TilingScheme.Flat)
-            {
-                pipeline.LogError("unsupported tiling scheme: {0}",
-                                  TilingScheme.Flat);
                 return 1;
             }
 
@@ -151,6 +147,7 @@ namespace OPS.TilingServer
                                          FacesPerTile = options.FacesPerTile,
                                          TileResolution = options.TileResolution,
                                          ProjectType = options.ProjectType,
+                                         ConvertLinearRGBToSRGB = !options.NoConvertLinerRGBToSRGB,
                                          ExportMeshFormat = exMeshFmt,
                                          ExportImageFormat = exImageFmt,
                                          MaxLeafGroupSize = options.MaxLeafGroupSize

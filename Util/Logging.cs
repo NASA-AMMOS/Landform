@@ -24,18 +24,17 @@ namespace OPS.Util
         /// for an aggregate we spew the message and stack trace of the first inner exception
         /// because that is most likely an unexpected error that needs to be debugged
         /// </summary>
-        void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                          bool aggregateStackTrace = true);
+        void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false);
     }
 
     public class ThunkLogger : ILogger
     {
         public Action<string> Info, Verbose, Debug, Warn, Error;
-        public Action<Exception, string, int, bool, bool> Exception;
+        public Action<Exception, string, int, bool> Exception;
 
         public ThunkLogger(Action<string> info = null, Action<string> verbose = null, Action<string> debug = null,
                            Action<string> warn = null, Action<string> error = null,
-                           Action<Exception, string, int, bool, bool> exception = null)
+                           Action<Exception, string, int, bool> exception = null)
         {
             this.Info = info;
             this.Verbose = verbose;
@@ -92,23 +91,22 @@ namespace OPS.Util
             }
         }
 
-        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                                 bool aggregateStackTrace = true)
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false)
         {
             if (Exception != null)
             {
-                Exception(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+                Exception(ex, msg, maxAggregateSpew, stackTrace);
             }
             else
             {
                 LogError((!string.IsNullOrEmpty(msg) ? msg + ": " : "") +
-                         $"({ex.GetType().Name}) {ex.Message}\n{ex.StackTrace}");
+                         $"({ex.GetType().Name}) {ex.Message}\n{Logging.GetStackTrace(ex)}");
                 var innerExceptions = Logging.GetInnerExceptions(ex);
                 if (innerExceptions != null)
                 {
                     foreach (var ex2 in innerExceptions)
                     {
-                        LogError($"{ex2.Message}\n{ex2.StackTrace}");
+                        LogException(ex2, null, maxAggregateSpew, stackTrace);
                     }
                 }
             }
@@ -143,17 +141,29 @@ namespace OPS.Util
 
         public static void LogException(ILog logger, Exception ex)
         {
-            logger.ErrorFormat("({0}} {1}\n{2}", ex.GetType().Name, ex.Message, ex.StackTrace);
+            logger.ErrorFormat("({0}) {1}\n{2}", ex.GetType().Name, ex.Message, GetStackTrace(ex));
             var innerExceptions = Logging.GetInnerExceptions(ex);
             if (innerExceptions != null)
             {
                 foreach (var ex2 in innerExceptions)
                 {
-                    logger.ErrorFormat("{0}\n{1}", ex2.Message, ex2.StackTrace);
+                    logger.ErrorFormat("{0}\n{1}", ex2.Message, GetStackTrace(ex2));
                 }
             }
         }
 
+        public static string GetStackTrace(Exception ex)
+        {
+            try
+            {
+                return ex.StackTrace;
+            }
+            catch (Exception ex2)
+            {
+                return "(error getting stack trace): " + ex2.Message;
+            }
+        }
+        
         public static string GetLogFile()
         {
             var h = (log4net.Repository.Hierarchy.Hierarchy) LogManager.GetRepository();
@@ -222,19 +232,27 @@ namespace OPS.Util
                 if (a is FileAppender)
                 {
                     FileAppender fa = (FileAppender)a;
-                    bool fileChanged = !string.IsNullOrEmpty(logFilename) || !string.IsNullOrEmpty(logFile);
-                    FileInfo oldFile = null;
-                    if (fileChanged)
+                    var oldFile = fa.File != null ? new FileInfo(fa.File) : null;
+                    if (string.IsNullOrEmpty(logFile) && !string.IsNullOrEmpty(logFilename))
                     {
-                        oldFile = new FileInfo(fa.File);
-                        if (!string.IsNullOrEmpty(logFile))
+                        if (oldFile != null)
                         {
-                            fa.File = logFile;
+                            logFile = Path.Combine(oldFile.DirectoryName, logFilename);
                         }
                         else
                         {
-                            fa.File = Path.Combine(oldFile.DirectoryName, logFilename);
+                            logFile = logFilename;
                         }
+                    }
+                    bool fileChanged = false;
+                    if (!string.IsNullOrEmpty(logFile))
+                    {
+                        logFile = StringHelper.NormalizeSlashes(logFile);
+                        fileChanged = fa.File == null || StringHelper.NormalizeSlashes(fa.File) != logFile;
+                    }
+                    if (fileChanged)
+                    {
+                        fa.File = logFile;
                     }
                     if (debug)
                     {
@@ -243,7 +261,8 @@ namespace OPS.Util
                     if (fileChanged || debug)
                     {
                         fa.ActivateOptions();
-                        if (oldFile != null && oldFile.Exists)
+
+                        if (fileChanged && oldFile.Exists)
                         {
                             //if (oldFile.Length == 0)
                             //https://github.jpl.nasa.gov/OnSight/Landform/issues/350

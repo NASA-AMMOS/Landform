@@ -348,5 +348,10 @@ namespace OPS.Util
             }
             return char.ToUpper(str[0]) + str.Substring(1);
         }
+
+        public static string Abbreviate(string str, int maxLen = 100)
+        {
+            return str.Length > maxLen ? (str.Substring(0, maxLen) + "...") : str;
+        }
     }
 }

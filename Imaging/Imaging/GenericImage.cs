@@ -198,6 +198,14 @@ namespace OPS.Imaging
             }
         }
 
+        public void FillMask(bool maskValue)
+        {
+            for (int i = 0; i < mask.Length; i++)
+            {
+                mask[i] = maskValue;
+            }
+        }
+
         /// <summary>
         /// Creates a mask and maskes out all pixels with the matching per-band values
         /// </summary>
@@ -326,6 +334,26 @@ namespace OPS.Imaging
         public virtual bool IsValid(int row, int column)
         {
             return IsValid((row * Width) + column);
+        }
+
+        public int CountValid()
+        {
+            if (!HasMask)
+            {
+                return Width * Height;
+            }
+            int numValid = 0;
+            for (int row = 0; row < Height; row++)
+            {
+                for (int col = 0; col < Width; col++)
+                {
+                    if (IsValid(row, col))
+                    {
+                        numValid++;
+                    }
+                }
+            }
+            return numValid;
         }
 
         /// <summary>

@@ -7,17 +7,23 @@ using System.Threading.Tasks;
 using System.Diagnostics;
 using Microsoft.Xna.Framework;
 using RTree;
-using Supercluster.KDTree;
 using OPS.Util;
 using OPS.Imaging;
 
 namespace OPS.Geometry
 {
-    public struct PixelPoint
+    //potentially huge lists of these things are thrown around in backproject
+    //let's keep memory usage down by making it a class (reference type) not a struct (value type)
+    public class PixelPoint
     {
         public Vector2 Pixel;
         public Vector3 Point;
-    };
+        public PixelPoint(Vector2 pixel, Vector3 point)
+        {
+            this.Pixel = pixel;
+            this.Point = point;
+        }
+    }
 
     /// <summary>
     /// A class for performing optimized operations on a mesh
@@ -93,7 +99,7 @@ namespace OPS.Geometry
                     vertexTree.Add(vertices[i].Bounds().ToRectangle(), i);
                 }
             }
-            if(HasUVs && buildUVFaceTree)
+            if (HasUVs && buildUVFaceTree)
             {
                 uvFaceTree = new RTree<int>(10, 5);
                 for(int i = 0; i < triangles.Count; i++)
@@ -113,15 +119,14 @@ namespace OPS.Geometry
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
             Mesh result = null;
-            if (this.HasFaces)
+            if (HasFaces)
             {
                 if (faceTree == null)
                 {
                     throw new Exception("MeshOperator must have a face tree in order to clip meshes");
                 }
-                List<Triangle> startingTriangles = faceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]).ToList();
                 List<Triangle> resTriangles = new List<Triangle>();
-                foreach (Triangle t in startingTriangles)
+                foreach (Triangle t in faceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]))
                 {
                     if (ragged)
                     {
@@ -138,7 +143,7 @@ namespace OPS.Geometry
             {
                 if (vertexTree == null)
                 {
-                    throw new Exception("MeshOperator must have a vertex tree in order to clip meshes");
+                    throw new Exception("MeshOperator must have a vertex tree in order to clip point clouds");
                 }
 
                 result = new Mesh(HasNormals, HasUVs, HasColors);
@@ -150,6 +155,51 @@ namespace OPS.Geometry
             }
             return result;
         }   
+
+        /// <summary>
+        /// compute the bounds that a mesh from a corresponding call to Clip() would have
+        /// </summary>
+        public BoundingBox ClippedMeshBounds(BoundingBox box, bool ragged = false)
+        {
+            BoundingBox ret = BoundingBoxExtensions.CreateEmpty();
+            if (HasFaces)
+            {
+                if (faceTree == null)
+                {
+                    throw new Exception("MeshOperator must have a face tree in order to clip meshes");
+                }
+                foreach (Triangle t in faceTree.Intersects(box.ToRectangle()).Select(x => triangles[x]))
+                {
+                    if (ragged)
+                    {
+                        BoundingBoxExtensions.Extend(ref ret, t);
+                    }
+                    else
+                    {
+                        foreach (var ct in t.Clip(box))
+                        {
+                            BoundingBoxExtensions.Extend(ref ret, ct);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (vertexTree == null)
+                {
+                    throw new Exception("MeshOperator must have a vertex tree in order to clip point clouds");
+                }
+                foreach (var v in vertexTree.Intersects(box.ToRectangle()).Select(x => vertices[x].Position))
+                {
+                    BoundingBoxExtensions.Extend(ref ret, v);
+                }
+            }
+            if (!box.FuzzyContains(ret, 1E-5) && !ragged)
+            {
+                throw new Exception("clipped mesh bounds exceeds bounding box");
+            }
+            return ret;
+        }
 
         /// <summary>
         /// Return the number of faces that are contained within or intersect with the given box
@@ -188,7 +238,7 @@ namespace OPS.Geometry
         {
             if (vertexTree == null)
             {
-                throw new Exception("MeshOperator must have a vertex tree in order to count vertices");
+                throw new Exception("MeshOperator must have a vertex tree in order to get vertices in box");
             }
             return vertexTree.Intersects(box.ToRectangle()).Select(i => vertices[i]).ToList();
         }
@@ -359,7 +409,7 @@ namespace OPS.Geometry
                     }
                 });
 
-            var results = pixelToPoint.Select(entry => new PixelPoint() { Pixel = entry.Key, Point = entry.Value }).ToList();
+            var results = pixelToPoint.Select(entry => new PixelPoint(entry.Key, entry.Value)).ToList();
 
             if(sorted)
             {

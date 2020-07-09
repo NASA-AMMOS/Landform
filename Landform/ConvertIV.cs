@@ -14,9 +14,9 @@ using OPS.Geometry;
 ///
 /// Can convert only the finest LOD or all LODs.
 ///
-/// If converting a single IV and --texturefile names a file, then that is used as the texture of the output mesh.
+/// If converting a single IV and --texture names a file, then that is used as the texture of the output mesh.
 ///
-/// If converting a directory --texturefile can give a file extension (with or without leading dot).  For each IV if
+/// If converting a directory --texture can give a file extension (with or without leading dot).  For each IV if
 /// there is a corresponding file with the same base name but the indicated extension, that is used as the mesh texture.
 ///
 /// Also see ConvertPDS.  If you have a directory of pairs *RASL*.iv / *RASL*.IMG you can run convert-pds first to
@@ -25,7 +25,7 @@ using OPS.Geometry;
 /// Example:
 ///
 ///  LandformUtil.exe convert-pds out/windjana/meshes
-///  LandformUtil.exe convert-iv out/windjana/meshes --all-lods
+///  LandformUtil.exe convert-iv out/windjana/meshes --alllods
 /// </summary>
 namespace OPS.Landform
 {
@@ -35,16 +35,16 @@ namespace OPS.Landform
         [Value(0, Required = true, HelpText = "Path to file or directory to be converted")]
         public string InputPath { get; set; }
 
-        [Option("texture", Required = false, Default = "png", HelpText = "Texture image file or extension")]
-        public string TextureFile { get; set; }
+        [Option(Required = false, Default = "png", HelpText = "Texture image file or extension")]
+        public string Texture { get; set; }
 
-        [Option("all-lods", Required = false, HelpText = "Convert all LODs")]
+        [Option(Required = false, HelpText = "Convert all LODs")]
         public bool AllLODs { get; set; }
 
-        [Option("output", Required = false, HelpText = "Output directory, omit to use same directory as input")]
-        public string OutputDir { get; set; }
+        [Option(Required = false, HelpText = "Output directory, omit to use same directory as input")]
+        public string OutputPath { get; set; }
 
-        [Option("type", Required = false, Default = "ply", HelpText = "Output file type (ply, obj)")]
+        [Option(Required = false, Default = "ply", HelpText = "Output file type (ply, obj)")]
         public string OutputType { get; set; }
     }
 
@@ -87,9 +87,9 @@ namespace OPS.Landform
                     destDir = Path.GetDirectoryName(options.InputPath); //destDir="" if InputPath was a bare filename
                 }
                 
-                if (options.OutputDir != null)
+                if (options.OutputPath != null)
                 {
-                    destDir = options.OutputDir;
+                    destDir = options.OutputPath;
                 }
                 
                 if (files != null && files.Length > 0)
@@ -102,7 +102,7 @@ namespace OPS.Landform
                     
                     string ext = "." + options.OutputType;
                     
-                    string tf = options.TextureFile;
+                    string tf = options.Texture;
                     string tfExt = Path.GetExtension(tf);
                     if (string.IsNullOrEmpty(tfExt))
                     {

@@ -18,6 +18,10 @@ namespace OPS.Pipeline.TilingServer
     [DynamoDBWriteCapacity(5, 50)]
     public class TilingProject
     {
+        public const string DEF_TILESET_MESH_FORMAT = "b3dm";
+        public const string DEF_TILESET_IMAGE_FORMAT = "jpg";
+        public const string DEF_TILESET_INDEX_FORMAT = "ppmz";
+
         [DynamoDBHashKey]
         public string Name;
 
@@ -45,6 +49,8 @@ namespace OPS.Pipeline.TilingServer
 
         public int MaxLeafGroupSize;
 
+        public bool ConvertLinearRGBToSRGB; //applies to tileset and export images, not internal images
+
         public string ExportDir = "www"; //disable exporting meshes and images if null or empty
 
         public string ExportMeshFormat = null; //disable exporting meshes if null or empty
@@ -63,11 +69,11 @@ namespace OPS.Pipeline.TilingServer
 
         public string TilesetDir = "www"; //disable saving 3D tiles format tiles if null or empty
 
-        public string TilesetMeshFormat = "b3dm"; //but pointclouds will be saved as pnts
+        public string TilesetMeshFormat = DEF_TILESET_MESH_FORMAT; //but pointclouds will be saved as pnts
 
-        public string TilesetImageFormat = "jpg"; //jpg or png, will be embedded in b3dm
+        public string TilesetImageFormat = DEF_TILESET_IMAGE_FORMAT; //jpg or png, will be embedded in b3dm
 
-        public string TilesetIndexFormat = "ppmz"; //e.g. tiff, ppm, ppmz, only used if InternalIndexFormat is also set
+        public string TilesetIndexFormat = DEF_TILESET_INDEX_FORMAT; //e.g. tiff, png, ppm[z]
 
         public bool EmbedIndexes = true; //embed tileset indexes in b3dm
 
@@ -93,7 +99,7 @@ namespace OPS.Pipeline.TilingServer
         /// <param name="name">Project names in the database must be unique</param>
         protected TilingProject(string name, TilingScheme tilingScheme, SkirtMode skirtMode,
                                 MeshReconstructionMethod reconMethod, int faces, int resolution,
-                                PipelineStateMachine.ProjectType projectType,
+                                PipelineStateMachine.ProjectType projectType, bool convertLinearRGBToSRGB,
                                 string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
             : this()
         {
@@ -105,6 +111,7 @@ namespace OPS.Pipeline.TilingServer
             TileResolution = resolution;
             ProjectType = projectType;
             TilesDefined = false;
+            ConvertLinearRGBToSRGB = convertLinearRGBToSRGB;
             ExportMeshFormat = exportMeshFormat;
             ExportImageFormat = exportImageFormat;
             MaxLeafGroupSize = maxLeafGroupSize;
@@ -114,11 +121,12 @@ namespace OPS.Pipeline.TilingServer
         public static TilingProject Create(PipelineCore pipeline, string name, TilingScheme tilingScheme,
                                            SkirtMode skirtMode, MeshReconstructionMethod reconMethod, int faces,
                                            int resolution, PipelineStateMachine.ProjectType projectType,
-                                           string exportMeshFormat, string exportImageFormat, int maxLeafGroupSize)
+                                           bool convertLinearRGBToSRGB, string exportMeshFormat,
+                                           string exportImageFormat, int maxLeafGroupSize)
         {
             TilingProject project = new TilingProject(name, tilingScheme, skirtMode, reconMethod, faces, resolution,
-                                                      projectType, exportMeshFormat, exportImageFormat,
-                                                      maxLeafGroupSize);
+                                                      projectType, convertLinearRGBToSRGB, exportMeshFormat,
+                                                      exportImageFormat, maxLeafGroupSize);
             project.Save(pipeline);
             return project;
         }
@@ -260,12 +268,20 @@ namespace OPS.Pipeline.TilingServer
         private List<string> LoadStringArray(string url, PipelineCore pipeline)
         {
             List<string> ret = new List<string>();
-            if (!string.IsNullOrEmpty(url) && pipeline.FileExists(url))
+            if (!string.IsNullOrEmpty(url))
             {
-                pipeline.GetFile(url, f =>
+                if (pipeline.FileExists(url))
                 {
-                    ret = ((JArray)JsonHelper.FromJson(File.ReadAllText(f), autoTypes: false)).ToObject<List<string>>();
-                });
+                    pipeline.GetFile(url, f =>
+                    {
+                        var txt = File.ReadAllText(f);
+                        ret = ((JArray)JsonHelper.FromJson(txt, autoTypes: false)).ToObject<List<string>>();
+                    });
+                }
+                else
+                {
+                    pipeline.LogWarn("{0} not found", url);
+                }
             }
             return ret;
         }

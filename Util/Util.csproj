@@ -68,6 +68,7 @@
     <Compile Include="Memoizer.cs" />
     <Compile Include="NumberHelper.cs" />
     <Compile Include="PathHelper.cs" />
+    <Compile Include="PerfTimer.cs" />
     <Compile Include="ProgramRunner.cs" />
     <Compile Include="ProgressReporter.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

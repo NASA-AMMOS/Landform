@@ -22,10 +22,10 @@ namespace PipelineTest
             MeshOperator op = new MeshOperator(box.ToMesh());
 
             ITileSplitCriteria split = new FaceSplitCriteria(7);
-            Assert.IsTrue(split.ShouldSplit(op, box));
+            Assert.IsTrue(split.ShouldSplit(box, op));
 
             BoundingBox quarterBox = new BoundingBox(Vector3.Zero, Vector3.One);
-            Assert.IsFalse(split.ShouldSplit(op, quarterBox));
+            Assert.IsFalse(split.ShouldSplit(quarterBox, op));
         }
 
         [TestMethod()]
@@ -117,11 +117,11 @@ namespace PipelineTest
             };
 
             ITileSplitCriteria split = new TextureSplitCriteriaBackproject(opts);
-            if(approx)
+            if (approx)
             {
                 split = new TextureSplitCriteriaApproximate(opts);
             }
-            return split.ShouldSplit(op, box);
+            return split.ShouldSplit(box, op);
         }
     }
 }

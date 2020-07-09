@@ -88,12 +88,12 @@ namespace OPS.Imaging
         }
 
         private static readonly Vector2[] NeighborPixelsOffsets4Centered =
-    {
-                new Vector2( -1.0,  0.0),
-                new Vector2(  0.0, -1.0),
-                new Vector2(  0.0,  1.0),
-                new Vector2(  1.0,  0.0)
-            };
+        {
+            new Vector2( -1.0,  0.0),
+            new Vector2(  0.0, -1.0),
+            new Vector2(  0.0,  1.0),
+            new Vector2(  1.0,  0.0)
+        };
 
         public static List<Vector2> GetOffsetPixels(Vector2 srcPixel, double offset)
         {
@@ -364,7 +364,7 @@ namespace OPS.Imaging
         /// This method does not retain metadata or camera model.
         /// If the image has a CalibratedCameraModel then you could use CalibratedCameraModel.Decimated().
         /// </summary>
-        public Image Decimated(int blocksize)
+        public Image Decimated(int blocksize, bool average = true)
         {
             if (blocksize == 1)
             {
@@ -399,7 +399,15 @@ namespace OPS.Imaging
                                             n++;
                                         }
                                     }
+                                    if (!average && n > 0)
+                                    {
+                                        break;
+                                    }
                                 }
+                            }
+                            if (!average && n > 0)
+                            {
+                                break;
                             }
                         }
                         if (n > 0)

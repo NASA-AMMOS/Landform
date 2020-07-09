@@ -10,8 +10,10 @@ using CommandLine;
 using Microsoft.Xna.Framework;
 using OPS.Util;
 using OPS.Imaging;
+using OPS.RayTrace;
 using OPS.Geometry;
 using OPS.Pipeline;
+using OPS.Pipeline.Texturing;
 using OPS.Pipeline.AlignmentServer;
 using OPS.Pipeline.TilingServer;
 
@@ -19,11 +21,11 @@ namespace OPS.Landform
 {
     public class TilingCommandOptions : TextureCommandOptions
     {
-        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing", Default = 256)]
-        public override int TextureResolution { get; set; }
+        [Option(HelpText = "Image resolution for output texture for each tile, 0 to disable texturing, -1 for unlimited (only when clipping textures)", Default = 256)]
+        public virtual int TileResolution { get; set; }
 
         [Option(HelpText = "Disable texturing", Default = false)]
-        public bool NoTextures { get; set; }
+        public virtual bool NoTextures { get; set; }
 
         [Option(HelpText = "Target maximum faces per tile", Default = 2000)]
         public int FacesPerTile { get; set; }
@@ -31,11 +33,14 @@ namespace OPS.Landform
         [Option(HelpText = "Don't delete tiling project if it already exists", Default = false)]
         public bool UseExistingTilingProject { get; set; }
 
-        [Option(Required = false, Default = SkirtMode.None, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
+        [Option(Default = SkirtMode.Normal, HelpText = "Skirt up direction (X, Y, Z, None, Normal)")]
         public SkirtMode SkirtMode { get; set; }
 
         [Option(Default = MeshReconstructionMethod.FSSR, HelpText = "Mesh reconstruction method (FSSR, Poisson)")]
         public MeshReconstructionMethod ReconstructionMethod { get; set; }
+
+        [Option(HelpText = "Don't convert tileset images from linear RGB to sRGB", Default = false)]
+        public bool NoConvertLinearRGBToSRGB { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
         public string ExportMeshFormat { get; set; }
@@ -43,38 +48,45 @@ namespace OPS.Landform
         [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
         public string ExportImageFormat { get; set; }
 
+        [Option(HelpText = "Disable internal generation of per-tile index images (needed for blend-after-tiling)", Default = false)]
+        public virtual bool NoIndexImages { get; set; }
+
+        [Option(HelpText = "Publish index images with tileset", Default = false)]
+        public bool PublishIndexImages { get; set; }
+
         [Option(HelpText = "Write out index images as seperate files", Default = false)]
         public bool NoEmbedIndexes { get; set; }
 
-        [Option(HelpText = "Publish index images with tileset", Default = false)]
-        public bool WithIndexImages { get; set; }
-
         [Option(HelpText = "Maximum runtime in seconds", Default = 60 * 60 * 10)] //10h
         public double MaxTime { get; set; }
-
     }
 
     public class TilingCommand : TextureCommand
     {
         private const int MAX_LEAF_GROUP_SIZE = 32;
-        private const int SLEEP_MS = 500;
+
         private const int TILING_NODE_LRU_MESH_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_IMAGE_CACHE_SIZE = 500;
         private const int TILING_NODE_LRU_INDEX_CACHE_SIZE = 500;
 
-        public const string OUT_DIR = "tiling/Tile";
+        public const string TILING_DIR = "tiling/Tile";
         public const string TILESET_DIR = "tiling/TileSet";
 
         protected TilingCommandOptions tilingOpts;
 
-        protected string tilesetFolder;
-
+        protected int tileResolution;
         protected bool withTextures;
         protected bool localSave;
         protected bool cloudSave;
 
         protected TilingProject tilingProject;
+        protected string tilesetFolder;
 
+        protected SceneNode tileTree;
+
+        protected int numBackprojectedSurfacePixels, numBackprojectedOrbitalPixels, numBackprojectFailedPixels;
+        protected int numBackprojectFallbacks;
+      
         protected TilingCommand(TilingCommandOptions tilingOpts) : base(tilingOpts)
         {
             this.tilingOpts = tilingOpts;
@@ -84,9 +96,9 @@ namespace OPS.Landform
             }
         }
 
-        protected virtual bool ParseArgumentsAndLoadCaches()
+        protected override bool ParseArgumentsAndLoadCaches(string outDir)
         {
-            if (!base.ParseArgumentsAndLoadCaches(OUT_DIR))
+            if (!base.ParseArgumentsAndLoadCaches(outDir))
             {
                 return false; //help
             }
@@ -103,8 +115,18 @@ namespace OPS.Landform
                 return false; //help
             }
 
-            withTextures = !tilingOpts.NoTextures && resolution > 0;
+            tileResolution = tilingOpts.TileResolution;
+            if (tileResolution > 0 && !NumberHelper.IsPowerOfTwo(tileResolution))
+            {
+                pipeline.LogWarn("tile texture resolution {0} not a power of two", tileResolution);
+            }
 
+            if (tileResolution < 0 && !AllowUnlimitedTileResolution())
+            {
+                throw new Exception("tile resolution must be nonnegative");
+            }
+
+            withTextures = !tilingOpts.NoTextures && tileResolution != 0;
             localSave = tilingOpts.WriteDebug || (!tilingOpts.NoSave && pipeline is LocalPipeline);
             cloudSave = !tilingOpts.NoSave && pipeline is CloudPipeline;
 
@@ -124,61 +146,29 @@ namespace OPS.Landform
                 sceneMesh = SceneMesh.Find(pipeline, project.Name, meshFrame);
             }
 
-            if (sceneMesh == null)
+            if (sceneMesh == null && RequireSceneMesh())
             {
-                throw new Exception(string.Format("no scene mesh for project {0} in frame {1}", project.Name, meshFrame));
+                throw new Exception($"no scene mesh for project {project.Name} in frame {meshFrame}");
             }
 
-            LoadTileList();
-
-            if (tileList != null)
-            {
-                if (tilingOpts.WithIndexImages && !tileList.HasIndexImages)
-                {
-                    throw new Exception("Tileset does not have index images. Consider disabling --withindeximages.");
-                }
-
-                withTextures &= !string.IsNullOrEmpty(tileList.ImageExt);
-            }
             return true;
         }
 
-        protected override bool ParseArgumentsAndLoadCaches(string outDir)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected override bool DeleteLocalProductsBeforeRedo()
+        protected virtual bool AllowUnlimitedTileResolution()
         {
             return false;
         }
 
-        protected override bool PassthroughMeshFrameAllowed()
+        protected virtual bool RequireSceneMesh()
         {
             return true;
         }
 
-        protected override void LoadFrameCache()
-        {
-            if (meshFrame != "passthrough")
-            {
-                base.LoadFrameCache();
-            }
-        }
-
-        protected override void LoadObservationCache()
-        {
-            if (meshFrame != "passthrough")
-            {
-                base.LoadObservationCache();
-            }
-        }
-
-        protected TilingProject GetOrDeleteTilingProject(ISet<string> keepMeshes = null)
+        protected TilingProject GetOrDeleteTilingProject(ISet<string> keepMeshes = null, bool forceDelete = false)
         {
             var tilingProject = TilingProject.Find(pipeline, project.Name);
 
-            if (!tilingOpts.UseExistingTilingProject && tilingProject != null)
+            if ((forceDelete || !tilingOpts.UseExistingTilingProject) && tilingProject != null)
             {
                 pipeline.LogInfo("deleting existing tiling project {0}", project.Name);
                 //deletes all db and storage entries - this can take a while
@@ -188,11 +178,6 @@ namespace OPS.Landform
             }
 
             return tilingProject;
-        }
-
-        protected string IndexName(string tileName)
-        {
-            return tileName + TileList.INDEX_FILE_SUFFIX;
         }
 
         protected void SaveTile(string name, Mesh mesh, Image image, Image index, bool local, bool cloud, bool isLeaf)
@@ -207,8 +192,7 @@ namespace OPS.Landform
                 }
                 if (index != null)
                 {
-                    string indexImageName = IndexName(name);
-                    SaveFloatTIFF(index, indexImageName);
+                    SaveFloatTIFF(index, name + TileList.INDEX_FILE_SUFFIX);
                 }
                 SaveMesh(mesh, name, imgName);
             }
@@ -280,6 +264,46 @@ namespace OPS.Landform
             }
         }
 
+        //saves tileTree directly as a 3DTiles tileset to project storage in <tilesetFolder>/<name>/
+        //uses in-core MeshImagePairs from tileTree if available
+        //otherwise reads tile meshes, images, and indexes from project storage, e.g. in tiling/Tile/<project.Name>/
+        //this is not the only way to save a tileset - could also call BuildParentTilesAndSaveTileset()
+        //but if all tile content is already saved in tiling/Tile/<project.Name>/
+        //and you don't need to do things like compute parent meshes, bounds, or geometric errors
+        //then this is more direct and it doesn't involve creating a TilingProject
+        protected void SaveTileset(string tilesetName, Func<SceneNode, string> nodeToUrl = null)
+        {
+            string inMeshExt = TilingProject.ToExt(tileList?.MeshExt ?? meshExt); //e.g. .ply
+            string inImgExt = TilingProject.ToExt(tileList?.ImageExt ?? imageExt); //e.g. .png
+            string inIdxExt = TilingProject.ToExt(TileList.INDEX_FILE_EXT); //e.g. .tiff
+
+            string tsMeshExt = TilingProject.ToExt(TilingProject.DEF_TILESET_MESH_FORMAT); //e.g. .b3dm
+            string tsImgExt = TilingProject.ToExt(TilingProject.DEF_TILESET_IMAGE_FORMAT); //e.g. .jpg
+            string tsIdxExt = TilingProject.ToExt(TilingProject.DEF_TILESET_INDEX_FORMAT); //e.g. .ppmz
+
+            bool withIdx = withTextures && tilingOpts.PublishIndexImages && (tileList?.HasIndexImages ?? false);
+            bool embedIdx = !tilingOpts.NoEmbedIndexes;
+
+            string tileFolder = outputFolder + "/" + project.Name;
+
+            Tile3DBuilder.ConvertTiles(pipeline, tileTree, tileFolder, tilesetFolder, tilesetName, withTextures,
+                                       withIdx, embedIdx, inMeshExt, inImgExt, inIdxExt, tsMeshExt, tsImgExt, tsIdxExt,
+                                       !tilingOpts.NoConvertLinearRGBToSRGB);
+
+            Tile3DBuilder.BuildAndSaveTileset(pipeline, tileTree, tilesetFolder, tilesetName,
+                                              nodeToUrl = nodeToUrl ?? (node => node.Name + tsMeshExt));
+        }
+
+        protected virtual void SaveTileset()
+        {
+            SaveTileset(project.Name);
+        }
+
+        protected virtual void CreateTilingProject()
+        {
+            CreateTilingProject(TilingScheme.UserDefined);
+        }
+
         protected void CreateTilingProject(TilingScheme tilingScheme)
         {
             var keepMeshes = new HashSet<string>();
@@ -289,6 +313,11 @@ namespace OPS.Landform
 
             if (tilingProject == null)
             {
+                if (string.IsNullOrEmpty(tilesetFolder))
+                {
+                    throw new Exception("tileset folder not set");
+                }
+
                 //in a user defined tiling scheme the inputs give a subset of all the tiles
                 //including at least all the leaves
                 //the tree topology is encoded in the names of the given tiles
@@ -296,9 +325,9 @@ namespace OPS.Landform
                 //we'll automatically create any and all parent tiles which were not provided as input
                 //in practice for the local-build-leaves -> local-build-tileset workflow
                 //all and only the leaves of the tree are supplied as user defined tiles here
-                if ((tilingScheme != TilingScheme.UserDefined) && (tilingScheme != TilingScheme.Flat))
+                if (!TilingSchemeBase.IsUserProvided(tilingScheme))
                 {
-                    throw new NotImplementedException("Only expecting user defined or flat schemes in this function");
+                    throw new NotImplementedException("only expecting user defined or flat schemes in this function");
                 }
 
                 var projectType = PipelineStateMachine.ProjectType.ParentTiling;
@@ -307,12 +336,13 @@ namespace OPS.Landform
 
                 tilingProject = TilingProject.Create(pipeline, project.Name, tilingScheme,
                                                      tilingOpts.SkirtMode, tilingOpts.ReconstructionMethod,
-                                                     tilingOpts.FacesPerTile, resolution, projectType,
-                                                     tilingOpts.ExportMeshFormat, tilingOpts.ExportImageFormat,
-                                                     maxTileGroupSize);
+                                                     tilingOpts.FacesPerTile, tileResolution, projectType,
+                                                     !tilingOpts.NoConvertLinearRGBToSRGB, tilingOpts.ExportMeshFormat,
+                                                     tilingOpts.ExportImageFormat, maxTileGroupSize);
 
                 tilingProject.ExportDir = null;
-                if (!string.IsNullOrEmpty(tilingOpts.ExportMeshFormat) || !string.IsNullOrEmpty(tilingOpts.ExportImageFormat))
+                if (!string.IsNullOrEmpty(tilingOpts.ExportMeshFormat) ||
+                    !string.IsNullOrEmpty(tilingOpts.ExportImageFormat))
                 {
                     tilingProject.ExportDir = tilesetFolder;
                 }
@@ -351,14 +381,21 @@ namespace OPS.Landform
             }
         }
 
-        protected void AddTileMeshes()
+        protected void AddTilingInputs()
         {
             List<string> tileNames = new List<string>(tileList.LeafNames);
             tileNames.AddRange(tileList.ParentNames);
 
-            pipeline.LogInfo("adding {0} tile meshes ({1} leaves, {2} parents){3}", tileNames.Count,
+            bool withIdx = withTextures && tileList.HasIndexImages && tilingOpts.PublishIndexImages;
+
+            pipeline.LogInfo("adding {0} tile meshes ({1} leaves, {2} parents){3}{4}", tileNames.Count,
                              tileList.LeafNames.Count(), tileList.ParentNames.Count(),
-                             withTextures ? " and textures" : "");
+                             withTextures ? " with textures" : "", withIdx ? " and indices" : "");
+
+            string inputUrl(string tile, string ext, string sfx = "")
+            {
+                return pipeline.GetStorageUrl(outputFolder, project.Name, tile + sfx + ext);
+            }
 
             var inputs = new List<string>();
             foreach (var tile in tileNames)
@@ -367,17 +404,9 @@ namespace OPS.Landform
                 {
                     pipeline.LogVerbose("adding/updating tile mesh {0}", tile);
                 }
-                string meshUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.MeshExt);
-                string imgUrl = null, indexUrl = null;
-                if (withTextures)
-                {
-                    imgUrl = pipeline.GetStorageUrl(outputFolder, project.Name, tile + tileList.ImageExt);
-                    if (tilingOpts.WithIndexImages)
-                    {
-                        indexUrl = pipeline.GetStorageUrl(outputFolder, project.Name,
-                                                          tile + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT);
-                    }
-                }
+                string meshUrl = inputUrl(tile, tileList.MeshExt);
+                string imgUrl = withTextures ? inputUrl(tile, tileList.ImageExt) : null;
+                string indexUrl = withIdx ? inputUrl(tile, TileList.INDEX_FILE_EXT, TileList.INDEX_FILE_SUFFIX) : null;
                 var input = TilingInput.Create(pipeline, tile, tilingProject, meshUrl, imgUrl, indexUrl, tile);
                 inputs.Add(input.Name);
             }
@@ -395,7 +424,7 @@ namespace OPS.Landform
                                           skipSavingInternalTileMeshesForUserDefinedNodes: true);
         }
 
-        protected void BuildParentTiles()
+        protected void BuildParentTilesAndSaveTileset()
         {
             PipelineExecutive executive = null;
             if (pipeline is LocalPipeline)
@@ -413,7 +442,7 @@ namespace OPS.Landform
                     throw new Exception("timed out waiting for parent tiles");
                 }
 
-                Thread.Sleep(SLEEP_MS);
+                Thread.Sleep(500);
 
                 //re-fetch project record to ensure database synchronization
                 tp = TilingProject.Find(pipeline, project.Name);
@@ -426,6 +455,40 @@ namespace OPS.Landform
             }
 
             TilingNode.DumpLRUCacheStats(pipeline);
+        }
+
+        protected Image BackprojectTile(SceneNode node, Mesh mesh, Image index, SceneCaster meshCaster,
+                                        SceneCaster occlusionScene, ObsSelectionStrategy strategy = null)
+        {
+            try
+            {
+                bool quiet = !(pipeline.Verbose || pipeline.Debug || tilingOpts.VerboseBackproject);
+                var results = BackprojectObservations(mesh, tileResolution, meshCaster, occlusionScene,
+                                                      out Backproject.Stats stats, strategy, node.Name, quiet);
+                
+                Interlocked.Add(ref numBackprojectedSurfacePixels, stats.BackprojectedSurfacePixels);
+                Interlocked.Add(ref numBackprojectedOrbitalPixels, stats.BackprojectedOrbitalPixels);
+                Interlocked.Add(ref numBackprojectFailedPixels, stats.BackprojectMissingPixels);
+                NumberHelper.InterlockedExchangeIfGreaterThan(ref numBackprojectFallbacks, stats.NumFallbacks);
+
+                var image = new Image(3, tileResolution, tileResolution);
+                Backproject.FillOutputTexture(pipeline, project, results, image, tilingOpts.TextureVariant,
+                                              tilingOpts.BackprojectInpaintMissing, tilingOpts.BackprojectInpaintGutter,
+                                              fallbackToOriginal: true, orbitalTexture: orbitalTexture,
+                                              colorizeHue: tilingOpts.Colorize ? medianHue : -1);
+
+                if (index != null)
+                {
+                    Backproject.FillIndexImage(results, index);
+                }
+
+                return image;
+            }
+            catch (Exception ex)
+            {
+                pipeline.LogException(ex, $"error backprojecting tile {node.Name}");
+                return null;
+            }
         }
     }
 }

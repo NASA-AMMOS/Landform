@@ -1,8 +1,10 @@
-﻿using System;
-using Microsoft.VisualStudio.TestTools.UnitTesting;
-using OPS.Imaging;
+﻿//#define ENABLE_GDAL_JPG_PNG_BMP
+
+using System;
 using System.IO;
+using OPS.Imaging;
 using OPS.Test;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace ImagingTest
 {
@@ -60,6 +62,7 @@ namespace ImagingTest
             TestPatternColors(new GDALSerializer().Read("gdalTestWriteDouble.tif", ImageConverters.ValueRangeToNormalizedImage), true);
         }
 
+#if ENABLE_GDAL_JPG_PNG_BMP
         [TestMethod]
         public void GDALTestReadWritePNG()
         {
@@ -90,7 +93,7 @@ namespace ImagingTest
             new GDALSerializer().Write<byte>("gdalTestWriteByte.bmp", pattern, ImageConverters.NormalizedImageToValueRange);
             TestPatternColors(new GDALSerializer().Read("gdalTestWriteByte.bmp", ImageConverters.ValueRangeToNormalizedImage), true);
         }
-
+#endif
 
         [TestMethod]
         public void GDALTestFillValue()

@@ -111,11 +111,10 @@ namespace OPS.Pipeline
             pipeline.LogError(logPrefix + string.Format(msg, args));
         }
 
-        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false,
-                                 bool aggregateStackTrace = true)
+        public void LogException(Exception ex, string msg = null, int maxAggregateSpew = 1, bool stackTrace = false)
         {
             msg = logPrefix + (msg ?? "");
-            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace, aggregateStackTrace);
+            pipeline.LogException(ex, msg, maxAggregateSpew, stackTrace);
         }
 
         public PipelineStateMachine(PipelineCore pipeline, string projectName)
@@ -215,7 +214,8 @@ namespace OPS.Pipeline
                 LogInfo("creating project");
                 TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconstructionMethod,
                                      m.FacesPerTile, m.TileResolution, m.ProjectType,
-                                     m.ExportMeshFormat, m.ExportImageFormat, m.MaxLeafGroupSize);
+                                     m.ConvertLinearRGBToSRGB, m.ExportMeshFormat, m.ExportImageFormat,
+                                     m.MaxLeafGroupSize);
             }
             else
             {
@@ -306,8 +306,7 @@ namespace OPS.Pipeline
         {
             LogInfo("tiles defined");
             var project = TilingProject.Find(pipeline, projectName);
-            if (project.TilingScheme == TilingScheme.UserDefined.ToString() || 
-                project.TilingScheme == TilingScheme.Flat.ToString())
+            if (TilingSchemeBase.IsUserProvided(project.GetTilingScheme()))
             {
                 LogInfo("input chunking skipped");
                 BuildNodes(project);
@@ -636,6 +635,7 @@ namespace OPS.Pipeline
         public int FacesPerTile;
         public int TileResolution;
         public PipelineStateMachine.ProjectType ProjectType;
+        public bool ConvertLinearRGBToSRGB;
         public string ExportMeshFormat;
         public string ExportImageFormat;
         public int MaxLeafGroupSize;

@@ -724,7 +724,7 @@ namespace OPS.Landform
 
                         pipeline.LogInfo("counting backprojected pixels from {0} leaves", tileList.LeafNames.Count);
 
-                        string leafFolder = DecorateOutDir(TilingCommand.OUT_DIR);
+                        string leafFolder = DecorateOutDir(TilingCommand.TILING_DIR);
                         CoreLimitedParallel.ForEach(tileList.LeafNames, leaf =>
                         {
                             string indexName = leaf + TileList.INDEX_FILE_SUFFIX + TileList.INDEX_FILE_EXT;
@@ -772,11 +772,11 @@ namespace OPS.Landform
                 {
                     pipeline.LogInfo("loading scene mesh from database to filter images");
                     var mesh = pipeline.GetDataProduct<PlyGZDataProduct>(project, sceneMesh.MeshGuid).Mesh;
-                    var meshHull = new ConvexHull(mesh);
+                    var meshHull = ConvexHull.CreateWithFallback(mesh);
                     
                     pipeline.LogInfo("testing {0} image frusta for intersection with scene mesh hull", images.Count);
-                    var obsToHull = Backproject.BuildConvexHulls(pipeline, frameCache, options.SiteDrive,
-                                                                 options.UsePriors, options.OnlyAligned, images);
+                    var obsToHull = Backproject.BuildFrustumHulls(pipeline, frameCache, options.SiteDrive,
+                                                                  options.UsePriors, options.OnlyAligned, images);
                     var tmp = new ConcurrentBag<string>();
                     CoreLimitedParallel.ForEach(images, obs =>
                     {
@@ -802,6 +802,14 @@ namespace OPS.Landform
             sceneManifest.AddOrUpdateContextualTileset(tilesetId, tilesetUrl, options.SiteDrive,
                                                        frameCache, options.UsePriors, options.OnlyAligned,
                                                        images, backprojectedPixels, pipeline);
+
+            string skyTilesetId = tilesetId + "_sky";
+            string skyTilesetUrl = GetExistingTileset(skyTilesetId);
+            if (skyTilesetUrl != null)
+            {
+                sceneManifest.AddOrUpdateSkyTileset(skyTilesetId, !options.NoURLs ? skyTilesetUrl : null,
+                                                    options.SiteDrive, pipeline);
+            }
         }
 
         private void UpdateTacticalMeshManifests()

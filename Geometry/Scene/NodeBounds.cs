@@ -11,10 +11,7 @@ namespace OPS.Geometry
     {
         public BoundingBox Bounds;
 
-        public NodeBounds()
-        {
-
-        }
+        public NodeBounds() { }
 
         public NodeBounds(BoundingBox bounds)
         {

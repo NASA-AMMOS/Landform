@@ -128,13 +128,12 @@ namespace OPS.Pipeline.TilingServer
             SceneNode root = null;
 
             var tilingScheme = project.GetTilingScheme();
-            bool userSupplied = tilingScheme == TilingScheme.UserDefined || tilingScheme == TilingScheme.Flat;
 
             var idToSceneNode = new Dictionary<string, SceneNode>();
             var idToTilingNode = new ConcurrentDictionary<string, TilingNode>();
 
             int numUserTiles = 0;
-            if (userSupplied) // build a tree based on user supplied leaf tiles
+            if (TilingSchemeBase.IsUserProvided(tilingScheme)) // build a tree based on user supplied leaf tiles
             {
                 // (user may or may not also have supplied some parent tiles)
 
@@ -146,18 +145,29 @@ namespace OPS.Pipeline.TilingServer
                     var id = input.TileId;
                     idToSceneNode[id] = new SceneNode(id);
                 }
+                var sceneNodes = idToSceneNode.Values;
 
                 numUserTiles = idToSceneNode.Count;
 
                 LogInfo("connecting {0} user defined nodes by name and adding missing parent nodes", numUserTiles);
 
-                if (tilingScheme == TilingScheme.UserDefined)
+                switch (tilingScheme)
                 {
-                    root = SceneNodeTilingExtensions.ConnectNodesByName(idToSceneNode.Values);
-                }
-                else
-                {
-                    root = SceneNodeTilingExtensions.ConnectNodesToRoot(idToSceneNode.Values);
+                    case TilingScheme.UserDefined:
+                    {
+                        root = SceneNodeTilingExtensions.ConnectNodesByName(sceneNodes);
+                        break;
+                    }
+                    case TilingScheme.Flat:
+                    {
+                        root = sceneNodes.Where(sn => sn.Name == "root").First();
+                        foreach (var child in sceneNodes.Where(sn => sn.Name != "root"))
+                        {
+                            child.Transform.SetParent(root.Transform);
+                        }
+                        break;
+                    }
+                    default: throw new Exception("unexpected tiling scheme: " + tilingScheme);
                 }
 
                 int n = 0;
@@ -200,6 +210,7 @@ namespace OPS.Pipeline.TilingServer
                     Interlocked.Increment(ref n);
                     spew("converted", n, 50);
                 });
+
                 LogInfo("computing tile tree bounds");
                 SceneNodeTilingExtensions.ComputeBounds(root, useExistingLeafBounds: true);
             }
@@ -213,7 +224,8 @@ namespace OPS.Pipeline.TilingServer
                     pairs.Add(DownloadInput(input));
                 }
                 LogInfo("loaded {0} input meshes, building tree", inputs.Count);
-                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, pairs, null, logPrefix);
+                root = BuildTileTreeFromInputs(pipeline, tilingScheme, project.FacesPerTile, pairs,
+                                               info: msg => LogInfo(msg), verbose: msg => LogVerbose(msg));
             }
 
             LogInfo("computing tiling node dependencies");
@@ -284,146 +296,73 @@ namespace OPS.Pipeline.TilingServer
             project.Save(pipeline);
         }
 
-        private static void EnsureLogPrefix(ref string logPrefix)
-        {
-            if (logPrefix == null)
-            {
-                logPrefix = "";
-            }
-            else if (!logPrefix.EndsWith(" "))
-            {
-                logPrefix += " ";
-            }
-        }
-
-        public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        List<Mesh> LODs, string logPrefix = null)
-        {
-            EnsureLogPrefix(ref logPrefix);
-
-            ITilingScheme scheme = GetTilingScheme(tilingScheme);
-
-            SceneNode root = BuildFixedLevelsBoundsTree(LODs, scheme, out int emptyTileCount);
-
-            if(emptyTileCount > 0)
-            {
-                pipeline.LogInfo("{0} tiles were empty", emptyTileCount);
-            }
-
-            return root;
-        }
-
-        public static SceneNode BuildSingleLevelBoundsTree(List<Mesh> inputs)
-        {
-            if( inputs.Count < 1)
-            {
-                throw new InvalidDataException("expecting at least one mesh for node tree");
-            }
-
-            Mesh combined = Mesh.Merge(inputs.ToArray(),clean:false,normalize:false);
-
-            //add root geometry so none will be created from children
-            SceneNode root = new SceneNode("");
-            root.Name = "";
-            root.AddComponent(new NodeBounds(combined.Bounds()));
-            root.AddComponent<MeshImagePair>(new MeshImagePair(inputs[0], null)); //TODO: ISSUE #1096 support empty nodes
-            root.AddComponent<NodeGeometricError>(new NodeGeometricError(100));
-
-            int counter = 1;
-            foreach(var input in inputs)
-            {
-                SceneNode leaf = CreateChildNode(root, ref counter, input.Bounds());
-                leaf.AddComponent<MeshImagePair>(new MeshImagePair(input, null));
-                leaf.AddComponent<NodeGeometricError>(new NodeGeometricError(0));
-            }
-
-            root.Name = "root";
-            return root;
-
-        }
         /// <summary>
-        /// if you have pre-defined LODs this function creates a tiletree that has a fixed depth matching
-        /// the number of LODs you are expecting. it does not use any mesh or texture based split criteria
+        /// creates a tile tree that has (up to) a fixed depth matching the number of existing LODs
+        //  does not use any mesh or texture based split criteria
         /// </summary>
-        /// <param name="LODPairs">expected sorted by decreasing quality (best first)</param>
+        /// <param name="lodMeshOps">sorted by decreasing quality (best first)</param>
         /// <returns></returns>
-        public static SceneNode BuildFixedLevelsBoundsTree(List<Mesh> LODs, ITilingScheme scheme, out int emptyTileCount)
+        public static SceneNode BuildTileTreeFromLODs(PipelineCore pipeline, TilingScheme tilingScheme,
+                                                      List<MeshOperator> lodMeshOps)
         {
-            if (LODs.Count < 2)
+            if (lodMeshOps.Count < 2)
             {
-                throw new InvalidDataException("expecting > 1 LOD, received " + LODs.Count);
+                throw new InvalidDataException("expecting > 1 LOD meshes, received " + lodMeshOps.Count);
             }
 
-            if (LODs.ElementAt(0).Vertices.Count < LODs.ElementAt(1).Vertices.Count)
+            if (lodMeshOps[0].CountVertices() < lodMeshOps[1].CountVertices())
             {
-                throw new InvalidDataException("expecting LOD 0 to be higher number of verts than LOD 1");
+                pipeline.LogWarn("expecting LOD 0 ({0} verts) to be finer than LOD 1 ({1} verts)",
+                                 lodMeshOps[0].CountVertices(), lodMeshOps[1].CountVertices());
             }
 
-            // get maximum bounds across all the lod levels (it is possible LODs might have 
-            // different bounds if decimation stretches or shrinks triangles
-            BoundingBox rootBounds = LODs.First().Bounds();
-            foreach (var lodMesh in LODs.Skip(1))
-            {
-                rootBounds = BoundingBox.CreateMerged(rootBounds, lodMesh.Bounds());
-            }
+            var scheme = TilingSchemeBase.Create(tilingScheme);
 
-            //add root
+            var lodBounds = lodMeshOps.Select(op => op.Bounds).ToArray();
+
+            //child node names are created by adding onto parent name
+            //so root name will be set to "root" after creating all descendants
             SceneNode root = new SceneNode("");
-            root.Name = "";
-            root.AddComponent(new NodeBounds(rootBounds));
 
-            //coarse to fine (coarsest is root)
-            emptyTileCount = 0;
-            List<SceneNode> previousLevelNodes = new List<SceneNode> { root };
-            foreach (var lodMesh in LODs.Reverse<Mesh>().Skip(1))
+            // it is possible lodMeshes might have different bounds if decimation stretches or shrinks triangles
+            root.AddComponent(new NodeBounds(BoundingBoxExtensions.Union(lodBounds)));
+
+            var previousLevelNodes = new List<SceneNode> { root };
+            for (int lod = lodMeshOps.Count - 2; lod >= 0; lod--)
             {
-                MeshOperator meshOp = new MeshOperator(lodMesh, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-                List<SceneNode> currentLevelNodes = new List<SceneNode>();
-                foreach (var parentNode in previousLevelNodes)
+                var meshOp = lodMeshOps[lod];
+                var currentLevelNodes = new List<SceneNode>();
+                foreach (var node in previousLevelNodes)
                 {                    
-                    var parentBounds = parentNode.GetComponent<NodeBounds>().Bounds;
-
-                    var childrenBounds = scheme.Split(null, parentBounds);
+                    var bounds = node.GetComponent<NodeBounds>().Bounds;
                     int counter = 0; //note this is always exactly one decimal digit
-                    foreach (var childBounds in childrenBounds)
+                    foreach (var cb in scheme.Split(bounds).Where(b => !meshOp.Empty(b)))
                     {
-                        if (!meshOp.Empty(childBounds))
-                        {
-                            currentLevelNodes.Add(CreateChildNode(parentNode, ref counter, childBounds));                           
-                        }
-                        else
-                        {
-                            emptyTileCount++;
-                        }
+                        currentLevelNodes.Add(CreateChildNode(node, cb, ref counter, meshOp));
                     }
                 }
-
                 previousLevelNodes = currentLevelNodes;
             }
-
             root.Name = "root";
             return root;
         }
 
         public static SceneNode BuildTileTreeFromInputs(PipelineCore pipeline, TilingScheme tilingScheme,
-                                                        int facesPerTile, List<MeshImagePair> pairs,
-                                                        SplitByTextureOpts texOpts = null, string logPrefix = null,
-                                                        double surfaceExtent = -1)
+                                                        int maxFacesPerTile, List<MeshImagePair> pairs,
+                                                        SplitByTextureOpts texOpts = null, double surfaceExtent = -1,
+                                                        Action<string> info = null, Action<string> verbose = null)
         {
-            EnsureLogPrefix(ref logPrefix);
-
-            pipeline.LogInfo("{0}build tile tree: building mesh clipper", logPrefix);
+            //TODO when merge branch dev/texture-utilization
+            //var multiClipper = new MultiMeshClipper(powerOfTwoTextures: powerOfTwoTextures, logger: pipeline);
             var multiClipper = new MultiMeshClipper();
             foreach (var pair in pairs)
             {
-                multiClipper.AddInput(new MultiMeshClipperInput(pair.Mesh, pair.Image));
+                multiClipper.AddInput(pair.Mesh, pair.Image);
             }
 
-            ITilingScheme scheme = GetTilingScheme(tilingScheme);
+            //lower cost split criteria come before higher cost
+            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(maxFacesPerTile) };
 
-            var splitCriteria = new List<ITileSplitCriteria> { new FaceSplitCriteria(facesPerTile) };
-
-            Action<string> info = null;
             if (texOpts != null)
             {
                 if (texOpts.useApproximateTileSplit)
@@ -433,41 +372,11 @@ namespace OPS.Pipeline.TilingServer
                 else
                 {
                     splitCriteria.Add(new TextureSplitCriteriaBackproject(texOpts));
-                    info = msg => pipeline.LogInfo(msg);
                 }
                
             }
 
-            pipeline.LogInfo("{0}build tile tree: building bounds tree, max {1} faces per tile, {2} split criteria, " +
-                             "texture split {3}", logPrefix, Fmt.KMG(facesPerTile), splitCriteria.Count,
-                             splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled");
-
-            return BuildBoundsTree(multiClipper, scheme, splitCriteria.ToArray(), surfaceExtent, info);
-        }
-
-        private static ITilingScheme GetTilingScheme(TilingScheme tilingScheme)
-        {
-            ITilingScheme scheme;
-            if (tilingScheme == TilingScheme.Bin)
-            {
-                scheme = new BinaryTreeTilingScheme();
-            }
-            else if (tilingScheme == TilingScheme.QuadX ||
-                     tilingScheme == TilingScheme.QuadY ||
-                     tilingScheme == TilingScheme.QuadZ)
-            {
-                scheme = new QuadTreeTilingScheme(tilingScheme);
-            }
-            else if (tilingScheme == TilingScheme.Oct)
-            {
-                scheme = new OctreeTilingScheme();
-            }
-            else
-            {
-                throw new Exception("unknown tiling scheme");
-            }
-
-            return scheme;
+            return BuildBoundsTree(multiClipper, tilingScheme, splitCriteria.ToArray(), surfaceExtent, info, verbose);
         }
 
         //each node name is of the form ABCDE... where
@@ -475,11 +384,22 @@ namespace OPS.Pipeline.TilingServer
         //B is the index of a child of the node corresponding to A, etc
         //thus each node name encodes a full path from the root to the node
         //and the collection of all leaf names encodes the full tree topology
-        public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, ITilingScheme tilingScheme,
+        public static SceneNode BuildBoundsTree(MultiMeshClipper multiClipper, TilingScheme tilingScheme,
                                                 ITileSplitCriteria[] splitCriteria, double surfaceExtent = -1,
-                                                Action<string> infoAction = null)
+                                                Action<string> info = null, Action<string> verbose = null)
         {
-            var info = infoAction ?? (msg => { });
+            info = info ?? (msg => { });
+            verbose = verbose ?? (msg => { });
+
+            string fsStatus = "unlimited";
+            var fs = splitCriteria.Where(sc => sc is FaceSplitCriteria).Cast<FaceSplitCriteria>().FirstOrDefault();
+            if (fs != null)
+            {
+                fsStatus = Fmt.KMG(fs.maxFaces);
+            }
+            string tsStatus = splitCriteria.Any(sc => sc is TextureSplitCriteria) ? "enabled" : "disabled";
+            info($"building bounds tree, {splitCriteria.Length} split criteria: " +
+                 $"{fsStatus} max faces per tile, texture split {tsStatus}");
 
             var totalBounds = multiClipper.TotalBounds;
 
@@ -494,27 +414,26 @@ namespace OPS.Pipeline.TilingServer
                                                 new Vector3(rad, rad, totalBounds.Max.Z));
             }
 
+            //child node names are created by adding onto parent name
+            //so root name will be set to "root" after creating all descendants
             SceneNode root = new SceneNode("");
+            var meshOps = multiClipper.GetMeshOps();
+
             root.AddComponent(new NodeBounds(totalBounds));
-            Queue<SceneNode> queue = new Queue<SceneNode>();
-            queue.Enqueue(root);
 
-            int tilesComplete = 0;
+            var scheme = TilingSchemeBase.Create(tilingScheme);
+
             int surfaceTiles = 0, orbitalTiles = 0, surfaceSplits = 0, orbitalSplits = 0;
-            while (queue.Count > 0)
+            var previousLevelNodes = new ConcurrentBag<SceneNode> { root };
+            while (previousLevelNodes.Count > 0)
             {
-                List<SceneNode> toProcess = new List<SceneNode>(queue.Count());
-                while (queue.Count() > 0)
+                var currentLevelNodes = new ConcurrentBag<SceneNode>();
+                CoreLimitedParallel.ForEach(previousLevelNodes, node =>
                 {
-                    toProcess.Add(queue.Dequeue());
-                }
-
-                CoreLimitedParallel.ForEach(toProcess, cur =>
-                {
-                    var curBounds = cur.GetComponent<NodeBounds>().Bounds;
+                    var bounds = node.GetComponent<NodeBounds>().Bounds;
 
                     var sc = splitCriteria;
-                    if (surfaceExtent == 0 || (surfaceBounds.HasValue && !surfaceBounds.Value.Intersects(curBounds)))
+                    if (surfaceExtent == 0 || (surfaceBounds.HasValue && !surfaceBounds.Value.Intersects(bounds)))
                     {
                         sc = orbitalSplitCriteria;
                         Interlocked.Increment(ref orbitalTiles);
@@ -523,7 +442,17 @@ namespace OPS.Pipeline.TilingServer
                     {
                         Interlocked.Increment(ref surfaceTiles);
                     }
-                    if (sc.Length > 0 && sc.Any(splitCrit => multiClipper.ShouldSplit(splitCrit, curBounds)))
+                    bool shouldSplit = false;
+                    foreach (var criteria in sc)
+                    {
+                        if (criteria.ShouldSplit(bounds, meshOps))
+                        {
+                            shouldSplit = true;
+                            verbose($"splitting tile {node.Name} due to {criteria.GetType().Name}");
+                            break;
+                        }
+                    }
+                    if (shouldSplit)
                     {
                         if (sc == orbitalSplitCriteria)
                         {
@@ -533,36 +462,33 @@ namespace OPS.Pipeline.TilingServer
                         {
                             Interlocked.Increment(ref surfaceSplits);
                         }
-                        info(string.Format("splitting tile: {0}", cur.Name));
-                        var childBounds = tilingScheme.Split(null, curBounds);
-                        childBounds = multiClipper.FilterEmptyBounds(childBounds);
-                        
-                        //For quad trees, expand bounds in the non-split dimension
-                        //Otherwise, we clip high peaks/low valleys in the decimated mesh
-                        //that exceed the bounds of the original mesh
-                        //childBounds = childBounds.Select(box => tilingScheme.ExpandBounds(box, null));
-                        //disabled - see https://github.jpl.nasa.gov/OnSight/Landform/pull/656
-                        
+
+                        var childrenBounds = scheme.Split(bounds);
+                        verbose($"split tile {node.Name} ({tilingScheme}, min axis {bounds.MinAxis()}): " +
+                                bounds.Fmt() + " -> " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
+                        childrenBounds = childrenBounds.Where(b => meshOps.Any(op => !op.Empty(b)));
+                        verbose($"filtered child bounds: " + string.Join(", ", childrenBounds.Select(cb => cb.Fmt())));
+
                         int counter = 0; //note this is always exactly one decimal digit
-                        foreach (var childBound in childBounds)
+                        foreach (var childBounds in childrenBounds)
                         {
-                            SceneNode child = CreateChildNode(cur, ref counter, childBound);
-                            
-                            lock (queue)
-                            {
-                                queue.Enqueue(child);
-                            }
-                            
+                            var child = CreateChildNode(node, childBounds, ref counter, meshOps);
+                            currentLevelNodes.Add(child);
+                            verbose($"made child {child.Name} " +
+                                    $"({childBounds.Fmt()} -> {child.GetComponent<NodeBounds>().Bounds.Fmt()}) " +
+                                    $"of {node.Name} ({bounds.Fmt()})");
                         }
                     }
                     else
                     {
-                        info(string.Format("not Splitting tile: {0} ({1})",
-                                           cur.Name, Interlocked.Increment(ref tilesComplete)));
+                        verbose($"not splitting {node.Name}");
                     }
                 });
+                previousLevelNodes = currentLevelNodes;
             }
+
             info($"split {surfaceSplits}/{surfaceTiles} surface tiles, {orbitalSplits}/{orbitalTiles} orbital");
+
             root.Name = "root";
             return root;
         }
@@ -596,12 +522,41 @@ namespace OPS.Pipeline.TilingServer
             return new MeshImagePair(mesh, image);
         }
 
-        private static SceneNode CreateChildNode(SceneNode cur, ref int counter, BoundingBox childBounds)
+        private static SceneNode CreateChildNode(SceneNode parent, BoundingBox bounds, ref int counter,
+                                                 params MeshOperator[] meshOps)
         {
-            SceneNode child = new SceneNode(cur.Name + counter, cur.Transform);
-            counter++;
+            string childName = parent.Name + counter++;
+            string parentName = !string.IsNullOrEmpty(parent.Name) ? parent.Name : "root";
 
-            child.AddComponent(new NodeBounds(childBounds));
+            //For user-defined nodes, which are typically leaves, the bounds will be recomputed as the predefined mesh's
+            //bounds in DownloadInputsAndBuildTree(), but the result should be pretty much the same as we compute here.
+            //For bounds computed in BuildLeaves, same story.
+            //
+            //For (non-user-defined) parent tiles the bounds will be updated when the parent tile mesh is created in
+            //BuildParent to ensure the parent bounds includes both its children and its own mesh, which may exceed
+            //these bounds a bit due to effects of mesh geometry decimation.
+            //
+            //Another thing to keep in mind here is that the bounds that were passed in to CreateChildNode() are
+            //generally just any subregion of the parent's bounds.  They are not necessarily tight to the child
+            //geometry, though it should have already been ensured that they contain at least some child geometry, not
+            //totally empty.  That is actually OK for most codepaths, because these bounds will generally be replaced by
+            //the actual child mesh bounds as explained above.  However, it is not good when using QuadAuto tiling
+            //scheme, because that needs to be able to reason correctly about which bounding box dimension is smallest
+            //(and correspondingly which face is largest).  So that is why we incur the extra cost of unioning the
+            //ClippedMeshBounds() here.
+
+            if (meshOps != null && meshOps.Length > 0)
+            {
+                bounds = BoundingBoxExtensions.Union(meshOps.Select(op => op.ClippedMeshBounds(bounds)).ToArray());
+            }
+
+            if (bounds.IsEmpty())
+            {
+                throw new Exception($"can't create empty child {childName} of {parentName}");
+            }
+
+            SceneNode child = new SceneNode(childName, parent.Transform);
+            child.AddComponent(new NodeBounds(bounds));
             return child;
         }
     }

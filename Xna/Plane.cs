@@ -26,12 +26,21 @@ namespace Microsoft.Xna.Framework
         /// </summary>
         /// <param name="point">The point to check</param>
         /// <param name="plane">The place to check</param>
-        /// <returns>The perpendicular distance from the point to the plane</returns>
+        /// <returns>The signed perpendicular distance from the point to the plane</returns>
         public static double PerpendicularDistance(ref Vector3 point, ref Plane plane)
         {
             // dist = (ax + by + cz + d) / sqrt(a*a + b*b + c*c)
-            return (double)Math.Abs((plane.Normal.X * point.X + plane.Normal.Y * point.Y + plane.Normal.Z * point.Z)
-                                    / Math.Sqrt(plane.Normal.X * plane.Normal.X + plane.Normal.Y * plane.Normal.Y + plane.Normal.Z * plane.Normal.Z));
+
+            //this the original XNA code, but it appears buggy (!?)
+            //(1) it's missing plane.D in the numerator
+            //(2) this is less a bug than a nit but it's better not to lose the sign of the distance
+            //it also appears to be unused, which is perhaps why it's buggy
+            //
+            //return (double)Math.Abs((plane.Normal.X * point.X + plane.Normal.Y * point.Y + plane.Normal.Z * point.Z)
+            //                        / Math.Sqrt(plane.Normal.X * plane.Normal.X + plane.Normal.Y * plane.Normal.Y + plane.Normal.Z * plane.Normal.Z));
+
+            return (double)(plane.Normal.X * point.X + plane.Normal.Y * point.Y + plane.Normal.Z * point.Z + plane.D)
+                / Math.Sqrt(plane.Normal.X * plane.Normal.X + plane.Normal.Y * plane.Normal.Y + plane.Normal.Z * plane.Normal.Z);
         }
     }
 	

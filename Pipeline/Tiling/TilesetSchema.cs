@@ -22,6 +22,9 @@ namespace OPS.Pipeline.Tile3D
         [Newtonsoft.Json.JsonProperty("tilesetVersion", Required = Newtonsoft.Json.Required.DisallowNull, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string TilesetVersion { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("gltfUpAxis", Required = Newtonsoft.Json.Required.DisallowNull, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string GLTFUpAxis { get; set; }
+
         [Newtonsoft.Json.JsonProperty("extensions", Required = Newtonsoft.Json.Required.DisallowNull, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.Dictionary<string, object> Extensions = new System.Collections.Generic.Dictionary<string, object>();
     

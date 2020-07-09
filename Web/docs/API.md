@@ -10,12 +10,13 @@ Create the named project.  Implements the [task API](#task-api).
 
 Accepts the following arugments:
 
-* *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `Oct`, or `UserDefined`; default `Bin`
-* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `None`
+* *tilingscheme*: tiling scheme; one of `Bin`, `QuadX`, `QuadY`, `QuadZ`, `QuadAuto`, `Oct`, `UserDefined`, `Flat`; default `QuadAuto`
+* *skirtmode*: skirt mode; one of `X`, `Y`, `Z`, `None`, `Normal`; default `Normal`
 * *reconmethod*: reconstruction method; one of `Poisson`, `FSSR`; default `Poisson`
 * *facespertile*: target maximum faces per tile; default 2000
 * *tileresolution*: maximum image resolution per tile; default 256
 * *projecttype*: project type; currently only `GenericTiling` is supported
+* *convertlinearrgbtosrgb*: convert from linear to sRGB colorspace before saving tileset and export images; default true
 * *exportmeshformat*: additional mesh format to write, one of `obj`, `ply`, `stl`, or none; default none
 * *exportimageformat*: additional image format to write, one of `tif`, `png`, `jpg`, or none; default none
 * *maxleafgroupsize*: maximum number of leaves to process as a group; default 32

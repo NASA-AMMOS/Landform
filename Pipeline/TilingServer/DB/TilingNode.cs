@@ -10,6 +10,7 @@ using OPS.Cloud;
 using OPS.Geometry;
 using OPS.Imaging;
 using OPS.Util;
+using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline.TilingServer
 {
@@ -225,7 +226,8 @@ namespace OPS.Pipeline.TilingServer
 
         /// <summary>
         /// Assigns a mesh and possibly a corresponding texture image to this node.
-        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, but up to caller to save this node itself back to database.
+        /// Sets MeshUrl, ImageUrl, BoundsWithSkirt, and creates/enlarges Bounds to contain mesh.
+        /// It is up to the caller to save this node itself back to database.
         /// Also uploads the mesh and image (if any) to S3.
         /// Up to three copies of each are uploaded:
         /// 1. in the tile folder for our internal use, in our internal formats (ply, png)
@@ -315,25 +317,6 @@ namespace OPS.Pipeline.TilingServer
                 }
             };
 
-            Action<string, Image> saveIndex = (path, img) =>
-            {
-                string ext = Path.GetExtension(path).ToLower();
-                if (ext == ".tif" || ext == ".tiff")
-                {
-                    var opts = new GDALTIFFWriteOptions(GDALTIFFWriteOptions.CompressionType.DEFLATE);
-                    var serializer = new GDALSerializer(opts);
-                    serializer.Write<float>(path, img);
-                }
-                else if (ext == ".ppm" || ext == ".ppmz")
-                {
-                    img.Save<ushort>(path);
-                }
-                else
-                {
-                    img.Save<byte>(path);
-                }
-            };
-
             if (enableInternal)
             {
                 //save node image to S3 for our internal use
@@ -353,7 +336,7 @@ namespace OPS.Pipeline.TilingServer
                         {
                             pair.Image.Save<byte>(tmpImage);
                             upload(tmpImage, ImageUrl);
-                            if (exImageUrl != null && exImageExt == imageExt)
+                            if (exImageUrl != null && exImageExt == imageExt && !project.ConvertLinearRGBToSRGB)
                             {
                                 upload(tmpImage, exImageUrl);
                                 uploadedExImage = true;
@@ -367,7 +350,8 @@ namespace OPS.Pipeline.TilingServer
                         {
                             TemporaryFile.GetAndDelete(indexExt, tmpIndex =>
                             {
-                                saveIndex(tmpIndex, pair.Index);
+                                Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
+                                                            msg => pipeline.LogWarn($"{msg} for tile {Id}"));
                                 upload(tmpIndex, IndexUrl);
                                 if(exIndexUrl != null && exIndexExt == indexExt)
                                 {
@@ -423,6 +407,20 @@ namespace OPS.Pipeline.TilingServer
                 }
             }
 
+            //ensure that bounds are set and contain mesh, if any
+            if (pair.Mesh != null)
+            {
+                var bounds = GetBounds();
+                if (!bounds.HasValue)
+                {
+                    SetBounds(pair.Mesh.Bounds());
+                }
+                else
+                {
+                    SetBounds(BoundingBoxExtensions.Union(bounds.Value, pair.Mesh.Bounds()));
+                }
+            }
+
             //save combined mesh and image as a 3D Tiles b3dm (batched 3D model) file for runtime visualization
             //or, if the mesh is not triangulated, then just save the point cloud as a pnts file
             //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
@@ -445,7 +443,12 @@ namespace OPS.Pipeline.TilingServer
 
                     if (pair.Image != null)
                     {
-                        pair.Image.Save<byte>(tmpImage);
+                        var img = pair.Image;
+                        if (project.ConvertLinearRGBToSRGB)
+                        {
+                            img = img.LinearRGBToSRGB();
+                        }
+                        img.Save<byte>(tmpImage);
                         if (exImageUrl != null && exImageExt == tileImageExt && !uploadedExImage)
                         {
                             upload(tmpImage, exImageUrl);
@@ -459,7 +462,8 @@ namespace OPS.Pipeline.TilingServer
                     
                     if (pair.Index != null && tmpIndex != null)
                     {
-                        saveIndex(tmpIndex, pair.Index);
+                        Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex,
+                                                    msg => pipeline.LogWarn($"{msg} for tile {Id}"));
                         if (exIndexUrl != null && exIndexExt == tileIndexExt && !uploadedExIndex)
                         {
                             upload(tmpIndex, exIndexUrl);
@@ -476,21 +480,9 @@ namespace OPS.Pipeline.TilingServer
                         Mesh tilesetMesh = pair.Mesh;
                         if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
                         {
-                            var bounds = GetBounds();
-                            if (!bounds.HasValue)
-                            {
-                                bounds = tilesetMesh.Bounds();
-                                SetBounds(bounds.Value);
-                            }
-                            else
-                            {
-                                SetBounds(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
-                            }
-                            
                             tilesetMesh = new Mesh(tilesetMesh);
                             tilesetMesh.AddSkirt(project.GetSkirtMode());
-                            
-                            SetBoundsWithSkirt(BoundingBoxExtensions.Union(bounds.Value, tilesetMesh.Bounds()));
+                            SetBoundsWithSkirt(BoundingBoxExtensions.Union(GetBounds().Value, tilesetMesh.Bounds()));
                         }
                         else
                         {
@@ -530,7 +522,12 @@ namespace OPS.Pipeline.TilingServer
             {
                 TemporaryFile.GetAndDelete(exImageExt, tmpImage => 
                 {
-                    pair.Image.Save<byte>(tmpImage);
+                    var img = pair.Image;
+                    if (project.ConvertLinearRGBToSRGB)
+                    {
+                        img = img.LinearRGBToSRGB();
+                    }
+                    img.Save<byte>(tmpImage);
                     upload(tmpImage, exImageUrl);
                     uploadedExImage = true;
                 });
@@ -541,7 +538,7 @@ namespace OPS.Pipeline.TilingServer
             {
                 TemporaryFile.GetAndDelete(exIndexExt, tmpIndex =>
                 {
-                    saveIndex(tmpIndex, pair.Index);
+                    Tile3DBuilder.SaveTileIndex(pair.Index, tmpIndex, msg => pipeline.LogWarn($"{msg} for tile {Id}"));
                     upload(tmpIndex, exImageUrl);
                     uploadedExIndex = true;
                 });

@@ -17,7 +17,7 @@ namespace OPS.Imaging
         /// Reads an image from disk and uses the specified
         /// converter to map from the raw data type to the
         /// normalized form expected by the Image class.
-        /// The type parameter for convert is determeined by 
+        /// The type parameter for convert is determined by 
         /// inspection on the underlying file.
         /// If a fillValue is defined then the image mask will be true for any pixels who match the fill values
         /// 

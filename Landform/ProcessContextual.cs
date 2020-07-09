@@ -29,8 +29,9 @@ using OPS.Pipeline.AlignmentServer;
 /// 5. build-tiling-input
 /// 6. blend-images
 /// 7. build-tileset
-/// 8. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
-/// 9. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
+/// 8. build-sky-sphere
+/// 9. update-scene-manifest (manifest just for the contextual mesh tileset with relative URLs)
+/// 10. update-scene-manifest (optional combined manifest for the scene with abolute URLs)
 ///
 /// As a service, process-contextual is designed to run over a long period of time, receiving messages on an SQS queue,
 /// creating contextual meshes, and uploading them back to S3.
@@ -62,7 +63,7 @@ using OPS.Pipeline.AlignmentServer;
 ///
 /// The output tileset is named TTTT_SSSDDDD where TTTT is the primary sol and SSSDDDD is the primary sitedrive.  It is
 /// written to rdrDir/tileset/TTTT_SSSDDDD (*), unless --outputfolder is specified, in which case it is written to a
-/// subdirectory TTTT_SSSDDDD there. (*) actually if rdrDir contains a prefix ending /rdr then the output directory is
+/// subdirectory TTTT_SSSDDDD there. (*) Actually if rdrDir contains a prefix ending /rdr then the output directory is
 /// that prefix but with rdr replaced with rdr/tileset/TTTT_SSSDDDD.
 ///
 /// When run as a service the RDR directory is also given as part of each SQS message.  Thus, the service will write the
@@ -74,7 +75,7 @@ using OPS.Pipeline.AlignmentServer;
 /// * a manifest file TTTT_SSSDDDD/TTTT_SSSDDDD_scene.json with relative URLs
 /// * a stats file TTTT_SSSDDDD/TTTT_SSSDDDD_stats.txt.
 /// 
-/// The output also includes a skysphere tileset, named TTTT_SSSDDD_sky_tileset.json
+/// Unless --nosky is specified all of the above also holds for a sky tileset named TTTT_SSSDDD_sky.
 /// 
 /// A combined scene manifest with absolute URLs can also be optionally created or updated as a sibling of the output
 /// tileset directory.  In that case the update-scene-manifest tool will also include any sibling tactical mesh tilesets
@@ -142,6 +143,12 @@ namespace OPS.Landform
         [Option(Required = false, Default = false, HelpText = "Don't generate tileset")]
         public bool NoTileset { get; set; }
 
+        [Option(Required = false, Default = false, HelpText = "Don't generate sky sphere tileset")]
+        public bool NoSky { get; set; }
+
+        [Option(HelpText = "Sky mode (Box, Sphere, TopoSphere)", Default = SkyMode.Box)]
+        public SkyMode SkyMode { get; set; }
+
         [Option(Required = false, Default = false, HelpText = "Don't write/update combined scene manifest on s3")]
         public bool NoCombinedManifest { get; set; }
 
@@ -178,6 +185,11 @@ namespace OPS.Landform
         [Option(HelpText = "Abort contextual mesh workflow on unexpected error in an alignment stage", Default = false)]
         public bool AbortOnAlignmentError { get; set; }
 
+        [Option(HelpText = "Surface geometry extent in meters", Default = BuildGeometry.DEF_SURFACE_EXTENT)]
+        public double SurfaceExtent { get; set; }
+
+        [Option(HelpText = "Combined surface and orbital geometry extent in meters", Default = BuildGeometry.DEF_EXTENT)]
+        public double Extent { get; set; }
         [Option(HelpText = "Run as contextual mesh master service", Default = false)]
         public bool Master { get; set; }
 
@@ -695,9 +707,7 @@ namespace OPS.Landform
             string ingestDir = solDir;
             string fetchDir = !string.IsNullOrEmpty(options.FetchDir) ? options.FetchDir : storageDir + "/" + FETCH_DIR;
             string tilesetDir = GetTilesetDir(venue, sdStr, project);
-            string skyTilesetDir = GetTilesetDir(venue, sdStr, project, isSky: true);
             string destDir = GetDestDir(solDir);
-            string skyDestDir = destDir + "/sky/";
 
             var orbitalCfg = OrbitalConfig.Instance;
             var orbitalDir = fetchDir + "/orbital/";
@@ -767,11 +777,8 @@ namespace OPS.Landform
 
                     RunCommand("heightmap-align", options.AbortOnAlignmentError, project, "--basesitedrive", sdStr);
                     
-                    RunCommand("build-geometry", project, "--meshframe", sdStr);
-
-                    RunCommand("build-sky-sphere", project, "--meshframe", sdStr);
-
-                    SaveTileset(skyTilesetDir, project, destDir);
+                    RunCommand("build-geometry", project, "--meshframe", sdStr, "--extent", options.Extent.ToString(),
+                               "--surfaceextent", options.SurfaceExtent.ToString());
 
                     RunCommand("build-tiling-input", project, "--meshframe", sdStr);
                     
@@ -783,6 +790,14 @@ namespace OPS.Landform
                                "--sol", solStr, "--sitedrive", sdStr, "--manifestfile", tilesetDir + "/" + SCENE_JSON);
 
                     SaveTileset(tilesetDir, project, destDir);
+
+                    if (!options.NoSky)
+                    {
+                        RunCommand("build-sky-sphere", project, "--meshframe", sdStr,
+                                   "--skymode", options.SkyMode.ToString());
+                        string skyTilesetDir = GetTilesetDir(venue, sdStr, project, BuildSkySphere.SKY_TILESET_DIR);
+                        SaveTileset(skyTilesetDir, project, destDir, "_sky");
+                    }
                 }
 
                 if (!options.NoCombinedManifest)

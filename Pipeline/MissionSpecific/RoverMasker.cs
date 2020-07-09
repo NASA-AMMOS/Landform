@@ -42,7 +42,6 @@ namespace OPS.Pipeline
     public abstract class RoverMasker
     {
         protected readonly MissionSpecific mission;
-        private const int DEF_MASK_BORDER = 10;
 
         public RoverMasker(MissionSpecific mission)
         {
@@ -80,7 +79,7 @@ namespace OPS.Pipeline
                 var posedRover = rover.BuildMesh(articulation, !mission.IsHazcam(mission.GetCamera(parser)));
 
                 //coarse test to see if rover is in frame at all (raycasts are expensive)
-                ConvexHull roverHull = new ConvexHull(posedRover);
+                ConvexHull roverHull = ConvexHull.CreateWithFallback(posedRover);
                 ConvexHull obsHull = ConvexHull.FromParams(metadata.CameraModel, metadata.Width, metadata.Height);
                 if (!obsHull.Intersects(roverHull))
                 {
@@ -146,7 +145,7 @@ namespace OPS.Pipeline
 
         virtual public int GetBorderPixels(PDSParser parser)
         {
-            return DEF_MASK_BORDER;
+            return ImageMasker.DEF_MASK_BORDER;
         }
     }
 

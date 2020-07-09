@@ -161,6 +161,7 @@
     <Compile Include="ConfigureBase.cs" />
     <Compile Include="ConfigureCloud.cs" />
     <Compile Include="ConfigureLocal.cs" />
+    <Compile Include="ConvertGLTF.cs" />
     <Compile Include="ConvertIV.cs" />
     <Compile Include="ConvertPDS.cs" />
     <Compile Include="DEM2Mesh.cs" />

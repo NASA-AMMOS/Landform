@@ -51,9 +51,15 @@ namespace OPS.Pipeline
                 throw new Exception("invalid subsamplingTriggeringSplit option");
         }
 
-        public bool ShouldSplit(MeshOperator meshOperator, BoundingBox areaOfInterest)
-        { 
+        public bool ShouldSplit(BoundingBox areaOfInterest, params MeshOperator[] meshOps)
+        {
             //#ISSUE 1038:  add the resolution of orbital to this decision
+
+            if (meshOps.Length != 1)
+            {
+                throw new ArgumentException("TextureSplitCriteria can only operate on a single mesh");
+            }
+            var meshOperator = meshOps[0];
 
             // coarse frustum test against the bounding box
             List<CameraInstance> intersectingCameras = options.cameraInstances.Where(ci => ci.hullInMesh != null && ci.hullInMesh.Intersects(areaOfInterest)).ToList();
@@ -68,7 +74,7 @@ namespace OPS.Pipeline
                 return false;
 
             // finer frustum test: get all observations that intersect mesh hull
-            ConvexHull clippedHull = new ConvexHull(clippedMesh);
+            ConvexHull clippedHull = ConvexHull.CreateWithFallback(clippedMesh);
             intersectingCameras = intersectingCameras.Where(ci => clippedHull.Intersects(ci.hullInMesh)).ToList();
 
             //no textures would be used on this mesh, no need to split
@@ -78,11 +84,7 @@ namespace OPS.Pipeline
             if (!GetDestTexelPerArea(clippedMesh, out double dstPixelsArea))
                 return false;
 
-            var clippedCaster = new SceneCaster();
-            clippedCaster.AddMesh(clippedMesh, null, Matrix.Identity);
-            clippedCaster.Build();
-
-            if (!GetSourcePixelPerArea(clippedMesh, clippedCaster, clippedHull, intersectingCameras, out double srcPixelsArea))
+            if (!GetSourcePixelPerArea(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsArea))
                 return false;
 
             double ratioOfSrcToDest = srcPixelsArea / dstPixelsArea;
@@ -91,7 +93,7 @@ namespace OPS.Pipeline
 
 
         //single pixel api, for a representative pixel what is the ratio of source to dest pixel areas
-        protected abstract bool GetSourcePixelPerArea(Mesh clippedMesh, SceneCaster clippedCaster, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea);
+        protected abstract bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea);
         protected abstract bool GetDestTexelPerArea(Mesh clippedMesh, out double dstPixelArea);
     }
 
@@ -110,7 +112,7 @@ namespace OPS.Pipeline
             return true;
         }
 
-        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, SceneCaster clippedCaster, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
         {
             srcPixelArea = 0;
 
@@ -138,6 +140,10 @@ namespace OPS.Pipeline
                 new MeshOperator(clippedMesh, buildFaceTree: false, buildVertexTree: false, buildUVFaceTree: true);
             List<PixelPoint> ptsToTest =
                 clippedOp.SubsampleUVSpace(options.pctPixelsToTest, options.tileResolution, options.tileResolution);
+
+            var clippedCaster = new SceneCaster();
+            clippedCaster.AddMesh(clippedMesh, null, Matrix.Identity);
+            clippedCaster.Build();
 
             //record the pixel area of the image that would be used to texture the mesh for each output atlas pixel
             Dictionary<CameraInstance, List<double>> srcAreaByCamera = new Dictionary<CameraInstance, List<double>>();
@@ -247,7 +253,7 @@ namespace OPS.Pipeline
 
                 //Issue #523: want median or average in case glancing angle?
                 //want a term that looks for consistancy in spacing? implies dead on?
-                double curSpread = ProjectedPixelDistances.GetMinPixelSpreadInMeters(meshCaster, options.scInMesh, camInst.cameraModel,
+                double curSpread = ProjectedPixelDistances.GetMinPixelSpreadInMeters(meshBounds, meshCaster, options.scInMesh, camInst.cameraModel,
                                                              camInst.cameraToMesh,
                                                              srcPixel.Value, pxlPt.Point, camInst.widthPixels, camInst.heightPixels, options.raycastTolerance);
                 if (curSpread < minSpread)
@@ -286,7 +292,7 @@ namespace OPS.Pipeline
             dstTexelArea = APPROX_TEXTURE_UTILIZATION * numTexels / clippedArea;
             return true;
         }
-        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, SceneCaster clippedCaster, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
         {
             srcPixelArea = 0;
 

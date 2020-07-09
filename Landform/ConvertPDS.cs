@@ -27,10 +27,10 @@ namespace OPS.Landform
         [Value(0, Required = true, HelpText = "Path to IMG file or directory to be converted")]
         public string Inputpath { get; set; }
 
-        [Option("output", Required = false, HelpText = "Output directory, omit to use same directory as input")]
-        public string OutputDir { get; set; }
+        [Option(Required = false, HelpText = "Output directory, omit to use same directory as input")]
+        public string OutputPath { get; set; }
 
-        [Option("type", Required = false, Default = "png", HelpText = "Output file type (jpg, png, tif)")]
+        [Option(Required = false, Default = "png", HelpText = "Output file type (jpg, png, tif)")]
         public string OutputType { get; set; }
     }
 
@@ -71,9 +71,9 @@ namespace OPS.Landform
                     destDir = Path.GetDirectoryName(options.Inputpath); //destDir="" if Inputpath was a bare filename
                 }
                 
-                if (options.OutputDir != null)
+                if (options.OutputPath != null)
                 {
-                    destDir = options.OutputDir;
+                    destDir = options.OutputPath;
                 }
                 
                 if (files != null && files.Length > 0)

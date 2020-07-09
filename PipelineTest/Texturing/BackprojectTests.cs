@@ -78,11 +78,17 @@ namespace PipelineTest
             Frame frame1 = Frame.Create(pipeline, projectName, "Frame1", root, false);
             Frame frame2 = Frame.Create(pipeline, projectName, "Frame2", root, false);
 
-            Observation obs1 = Observation.Create(pipeline, frame1, "Obs1", filename1, new CAHV(),
-                                                  true, true, true, 1408, 1200, 3, 8, 606, 1, 1, false);
-
-            Observation obs2 = Observation.Create(pipeline, frame2, "Obs2", filename2, new CAHV(),
-                                                  true, true, true, 1024, 1024, 1, 16, 609, 1, 2, false);
+            var obs1 = RoverObservation.Create(pipeline, frame1, "Obs1", filename1, new CAHV(),
+                                               true, true, true, 1408, 1200, 3, 8, 606, 1, 1,
+                                               31, 1094, RoverProductType.Image, RoverProductCamera.MastcamLeft,
+                                               RoverProductProducer.OPGS, RoverProductColor.FullColor,
+                                               false);
+            
+            var obs2 = RoverObservation.Create(pipeline, frame2, "Obs2", filename2, new CAHV(),
+                                               true, true, true, 1024, 1024, 1, 16, 609, 1, 2,
+                                               31, 1330, RoverProductType.Image, RoverProductCamera.NavcamLeft,
+                                               RoverProductProducer.OPGS, RoverProductColor.Grayscale,
+                                               false);
 
             Dictionary<Pixel, Backproject.ObsPixel> results = new Dictionary<Pixel, Backproject.ObsPixel>();
             
@@ -97,7 +103,12 @@ namespace PipelineTest
 
             //allocate output image
             Image outputImage = new Image(3, 128, 64);
-            Backproject.FillOutputTexture(pipeline, results, outputImage, TextureVariant.Original, inpaint: 0);
+            var stats = Backproject.FillOutputTexture(pipeline, null, results, outputImage, TextureVariant.Original,
+                                                      inpaintMissing: 0, inpaintGutter: 0);
+
+            Assert.AreEqual(outputImage.Width * outputImage.Height, stats.BackprojectedSurfacePixels);
+            Assert.AreEqual(0, stats.BackprojectedOrbitalPixels);
+            Assert.AreEqual(0, stats.BackprojectMissingPixels);
 
             Image img1 = pipeline.LoadImage(filename1);
             Image img2 = pipeline.LoadImage(filename2);

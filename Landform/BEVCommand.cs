@@ -390,11 +390,8 @@ namespace OPS.Landform
 
                     Interlocked.Increment(ref np);
 
-                    if (!bcopts.NoProgress)
-                    {
-                        pipeline.LogInfo("computing products for {0} observations in parallel, completed {1}/{2}",
-                                         np, nc, no);
-                    }
+                    pipeline.LogVerbose("computing products for {0} observations in parallel, completed {1}/{2}",
+                                        np, nc, no);
 
                     var mbsObs = (obs.HasMesh && useMeshRDRs) ? obs.MeshObservation : obs.Points ?? obs.Range;
                     int mbs = WedgeObservations.AutoDecimate(mbsObs, //null ok

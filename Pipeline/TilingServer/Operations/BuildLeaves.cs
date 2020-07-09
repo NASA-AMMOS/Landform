@@ -120,7 +120,7 @@ namespace OPS.Pipeline.TilingServer
                     image = new SparsePipelineImage(pipeline, ti.ImageBands, ti.ImageWidth, ti.ImageHeight,
                                                     chunkBaseUrl, ChunkInput.IMAGE_EXT, ChunkInput.CHUNK_RESOLUTION);
                 }
-                bakeClipper.AddInput(new MultiMeshClipperInput(mergedMesh, image));
+                bakeClipper.AddInput(mergedMesh, image);
             }
             bakeClipper.InitTextureBaker();
 
@@ -131,7 +131,9 @@ namespace OPS.Pipeline.TilingServer
                 LogLess("baking leaf {0} from {1} chunks ({2}/{3})",
                         leaf.Id, inputGroups.SelectMany(g => g.Chunks).Count(), ++nl, leaves.Count);
 
-                var m = bakeClipper.Clip(leaf.GetBoundsChecked());
+                var m = bakeClipper.Clip(leaf.GetBoundsChecked()); //these bounds may just partition space
+
+                leaf.SetBounds(m.Bounds()); //recompute bounds tight to actual leaf geometry
 
                 var pair = new MeshImagePair(m, null);
                 if (hasImages)

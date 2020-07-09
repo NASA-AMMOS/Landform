@@ -15,12 +15,13 @@ async function createProject(req, res) {
   try {
 
     const args = parseArgs(req, {
-      tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'Oct', 'UserDefined'] },
+      tilingscheme: { type: 'enum', options: ['Bin', 'QuadX', 'QuadY', 'QuadZ', 'QuadAuto', 'Oct', 'UserDefined'] },
       skirtmode: { type: 'enum', options: ['None', 'Normal', 'X', 'Y', 'Z'] },
       reconstructionmethod: { type: 'enum', options: ['Poisson', 'FSSR'] },
       facespertile: { type: 'int' },
       tileresolution: { type: 'int' },
       projecttype: { type: 'enum', options: ['GenericTiling'] },
+      convertlinearrgbtosrgb: { type: 'bool', default: true },
       exportmeshformat: { type: 'enum', options: ['', 'obj', 'ply', 'stl'] },
       exportimageformat: { type: 'enum', options: ['', 'tif', 'png', 'jpg'] },
       maxleafgroupsize: { type: 'int' },

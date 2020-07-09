@@ -19,11 +19,14 @@ namespace OPS.Pipeline
     {
         const double FRUSTUMHULLTESTEPSILON = 0.00001;
 
+        //meshBounds: bounds of the area of interest you are measuring
         //meshcaster: the area of interest you are measuring (usually a tile mesh)
-        //scenecaster: the entire scene's mesh
+        //occlusionScene: the entire scene's mesh
+        //if meshCaster = occlusionScene then meshBounds is used to differentiate hits on the mesh vs hits on other
+        //occluding geometry
         static public IDictionary<string, double> //observation name => median pixel spread
-            Calculate(FrameCache frameCache, SceneCaster meshCaster, SceneCaster occlusionScene,
-                      IDictionary<string, ConvexHull> obsToHull, BoundingBox specificMeshBounds,
+            Calculate(FrameCache frameCache, IDictionary<string, ConvexHull> obsToHull,
+                      BoundingBox meshBounds, SceneCaster meshCaster, SceneCaster occlusionScene,
                       double percentagePointsToTest, string outputFrame, bool usePriors, bool onlyAligned,
                       List<PixelPoint> pointsToBackproject, IEnumerable<Observation> observations,
                       double raycastTolerance,
@@ -64,7 +67,8 @@ namespace OPS.Pipeline
                 }
 
                 CameraModel cam = obs.CameraModel;
-                double pixelSpread = CalculateForObs(meshCaster, occlusionScene, samples, obs, cam, obsHull, obsToOutput, raycastTolerance);
+                double pixelSpread = CalculateForObs(meshBounds, meshCaster, occlusionScene, samples, obs, cam,
+                                                     obsHull, obsToOutput, raycastTolerance);
 
                 ret[obs.Name] = pixelSpread;
             }
@@ -74,55 +78,57 @@ namespace OPS.Pipeline
 
         /// <summary>
         /// Estimates minimum lineal meters on mesh per pixel in obs, median across allSamples.
+        /// meshBounds: the bounds of the individual mesh for which the pixel distances are being calculated
         /// meshCaster: the indvidual mesh for which the pixel distances are being calculated
-        /// sceneCaster: the broader whole-scene that may occlude the current mesh
-        /// raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections (surface acne)
+        /// occlusionScene: the broader whole-scene that may occlude the current mesh
+        /// if meshCaster = occlusionScene then meshBounds is used to differentiate hits on the mesh vs hits on other
+        /// occluding geometry
+        /// raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections
+        /// (surface acne)
         /// </summary>
-        public static double CalculateForObs(SceneCaster meshCaster, SceneCaster sceneCaster, List<PixelPoint> allSamples, Observation obs,
-                                             CameraModel cam, ConvexHull obsHull, Matrix obsToOutput, double raycastTolerance,
+        public static double CalculateForObs(BoundingBox meshBounds, SceneCaster meshCaster, SceneCaster occlusionScene,
+                                             List<PixelPoint> allSamples, Observation obs, CameraModel cam,
+                                             ConvexHull obsHull, Matrix obsToOutput, double raycastTolerance,
                                              double pctPtsToSample = 1.0)
         {
             int numPoints = allSamples.Count();
             int skip = numPoints / Math.Max(1, (int)(numPoints * pctPtsToSample));
             var samples = allSamples.Where((pt, index) => index % skip == 0).ToList();
-
             double[] spreads = new double[samples.Count];
-            int[] spreadToSample = new int[samples.Count];
-            int samplePointIndex = -1;
+
 #if NO_PARALLEL_RAYCASTS
-                Serial.
+            Serial.
 #else
             CoreLimitedParallel.
 #endif
-                For(0, samples.Count(), (sampleIndex) =>
+            For(0, samples.Count, sampleIndex =>
+            {
+                PixelPoint pt = samples[sampleIndex];
+                spreads[sampleIndex] = -1;
+                
+                //protect against bad ray calculations from camera model
+                if (obsHull.Contains(pt.Point, FRUSTUMHULLTESTEPSILON))
                 {
-                    int spreadIndex = Interlocked.Increment(ref samplePointIndex);
-                    PixelPoint pt = samples[sampleIndex];
-                    spreadToSample[spreadIndex] = sampleIndex;
-
-                    if (obsHull.Contains(pt.Point, FRUSTUMHULLTESTEPSILON)) //protect against bad ray calculations from camera model
+                    //Issue #523: want median or average in case glancing angle?
+                    //want a term that looks for consistancy in spacing? implies dead on?
+                    double dist = GetMinPixelSpreadInMeters(meshBounds, meshCaster, occlusionScene, cam, obsToOutput,
+                                                            pt.Pixel, pt.Point, obs.Width, obs.Height,
+                                                            raycastTolerance);
+                    if (dist >= 0 && dist < double.MaxValue)
                     {
-                        //Issue #523: want median or average in case glancing angle?
-                        //want a term that looks for consistancy in spacing? implies dead on?
-                        double dist = GetMinPixelSpreadInMeters(meshCaster, sceneCaster, cam, obsToOutput,
-                                                                pt.Pixel, pt.Point, obs.Width, obs.Height, raycastTolerance);
-                        spreads[spreadIndex] = dist;
+                        spreads[sampleIndex] = dist;
                     }
-                    else
-                    {
-                        spreads[spreadIndex] = double.MinValue;
-                    }
-                });
+                }
+            });
 
             //take median of valid spreads
-            var validSpreads = spreads.Where(spread => spread != double.MaxValue && spread != double.MinValue).ToList();
-            if (validSpreads.Count() > 0)
+            var validSpreads = spreads.Where(spread => spread >= 0).ToList();
+            if (validSpreads.Count == 0)
             {
-                validSpreads.Sort();
-                return validSpreads[validSpreads.Count / 2];
+                return double.MaxValue;
             }
-
-            return double.MaxValue;
+            validSpreads.Sort();
+            return validSpreads[validSpreads.Count / 2];
         }
 
         //raycast the 4 neighbors of a pixel
@@ -130,21 +136,37 @@ namespace OPS.Pipeline
         //then return the shortest
         //this should give an estimate of the source textures local resolution
         //using our best approximation of the mesh to compare against other images
+        //
+        //meshBounds: the bounds of the individual mesh for which the pixel distances are being calculated
+        //meshCaster: the indvidual mesh for which the pixel distances are being calculated
+        //occlusionScene: the broader whole-scene that may occlude the current mesh
+        //if meshCaster = occlusionScene then meshBounds is used to differentiate hits on the mesh vs hits on other
+        //occluding geometry
         //raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections
-        public static double GetMinPixelSpreadInMeters(SceneCaster meshCaster, SceneCaster sceneCaster, CameraModel camera, Matrix camToMesh,
-                                                       Vector2 srcPixel, Vector3 srcPos, int srcWidth, int srcHeight, double raycastTolerance)
+        public static double GetMinPixelSpreadInMeters(BoundingBox meshBounds, SceneCaster meshCaster,
+                                                       SceneCaster occlusionScene, CameraModel camera, Matrix camToMesh,
+                                                       Vector2 srcPixel, Vector3 srcPos, int srcWidth, int srcHeight,
+                                                       double raycastTolerance)
         {
-            double shortestDistance = double.MaxValue;
-
             var offsetPixels = Image.GetOffsetPixels(srcPixel, offset: 1.0)
-                .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight);
-            if (offsetPixels.Count() == 0)
+                .Where(px => px.X >= 0 && px.X < srcWidth && px.Y >= 0 && px.Y < srcHeight)
+                .ToList();
+
+            if (offsetPixels.Count == 0)
             {
                 return double.MaxValue;
             }
 
-            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(meshCaster,sceneCaster, camera, camToMesh,
-                                                                           offsetPixels, raycastTolerance);
+            List<Vector3> meshPositions = GetMeshPositionsForCameraPixels(meshBounds, meshCaster, occlusionScene,
+                                                                          camera, camToMesh, offsetPixels,
+                                                                          raycastTolerance);
+
+            if (meshPositions.Count == 0)
+            {
+                return double.MaxValue;
+            }
+
+            double shortestDistance = double.MaxValue;
             foreach (var curPos in meshPositions)
             {
                 double sqDist = (curPos - srcPos).LengthSquared();
@@ -159,17 +181,27 @@ namespace OPS.Pipeline
 
         //Issue #531: raycast bundle of 4 with embree
         //Note: if you are looking through a keyhole at your target point,
-        // you could get an overconfident answer of the quality as the corners hit a closer mesh than intended
-        //raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections (surface acne)
-        public static List<Vector3> GetMeshPositionsForCameraPixels(SceneCaster meshCaster, SceneCaster sceneCaster, CameraModel camera,
-                                                                    Matrix camToMesh, IEnumerable<Vector2> srcPixels, double raycastTolerance)
+        //you could get an overconfident answer of the quality as the corners hit a closer mesh than intended
+        //
+        //meshBounds: the bounds of the individual mesh for which the pixel distances are being calculated
+        //meshCaster: the indvidual mesh for which the pixel distances are being calculated
+        //occlusionScene: the broader whole-scene that may occlude the current mesh
+        //if meshCaster = occlusionScene then meshBounds is used to differentiate hits on the mesh vs hits on other
+        //occluding geometry
+        //raycastTolerance: a distance based on the scale of your geometries used to exclude self intersections
+        //(surface acne)
+        public static List<Vector3> GetMeshPositionsForCameraPixels(BoundingBox meshBounds, SceneCaster meshCaster,
+                                                                    SceneCaster occlusionScene, CameraModel camera,
+                                                                    Matrix camToMesh, IEnumerable<Vector2> srcPixels,
+                                                                    double raycastTolerance)
         {
             List<Vector3> result = new List<Vector3>();
 
             foreach (var curPixel in srcPixels)
             {
-                var meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, meshCaster, sceneCaster, raycastTolerance);
-                if(meshPos.HasValue)
+                var meshPos = Backproject.RaycastMesh(camera, camToMesh, curPixel, meshBounds, meshCaster,
+                                                      occlusionScene, raycastTolerance);
+                if (meshPos.HasValue)
                 {
                     result.Add(meshPos.Value);
                 }
@@ -187,24 +219,31 @@ namespace OPS.Pipeline
                 return null;
             }
 
-            //project into observation
-            Vector3 obsPos = Vector3.Transform(meshPos, meshToCam);
-            Vector2 obsPixel = camera.Project(obsPos, out double rangeMeshToImage);
-
-            if (rangeMeshToImage <= 0 ||
-                (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels ||
-                (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
+            try
             {
-                return null; //the center of the pixel may have passed the frustum test, but the pixel corner may not
+                //project into observation
+                Vector3 obsPos = Vector3.Transform(meshPos, meshToCam);
+                Vector2 obsPixel = camera.Project(obsPos, out double rangeMeshToImage);
+                
+                if (rangeMeshToImage <= 0 ||
+                    (int)obsPixel.X < 0 || (int)obsPixel.X >= widthPixels ||
+                    (int)obsPixel.Y < 0 || (int)obsPixel.Y >= heightPixels)
+                {
+                    return null; //the center of the pixel may have passed the frustum test, but the corner may not
+                }
+                
+                // raycast the scene to test if the desired position is occluded by terrain
+                if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+                {
+                    return null;
+                }
+                
+                return obsPixel;
             }
-
-            // raycast the scene to test if the desired position is occluded by terrain
-            if (Backproject.IsOccluded(camera, obsPixel, meshPos, sc, rangeMeshToImage, camToMesh))
+            catch (CameraModelException)
             {
-                return null;
+                return null; //happens infrequently, but not in frame
             }
-
-            return obsPixel;
         }
     }
 }

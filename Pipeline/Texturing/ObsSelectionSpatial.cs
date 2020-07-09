@@ -1,182 +1,282 @@
 ﻿using System;
+using System.IO;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
-using OPS.Geometry;
-using OPS.Imaging;
-using OPS.RayTrace;
-using OPS.Util;
 using Microsoft.Xna.Framework;
-using System.IO;
+using RTree;
+using OPS.Util;
+using OPS.MathExtensions;
+using OPS.RayTrace;
+using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.Pipeline.Texturing
 {
+    public enum SpatialSelectionMode
+    {
+        CombinedNeighbors,
+        CombinedFilteredNeighbors,
+        CombinedWeightedNeighbors,
+        CombinedFilteredWeightedNeighbors,
+        NearestNeighbor,
+        FattestNeighbor,
+        BestNeighbor
+    };
+
     // a strategy that samples the mesh at a fixed distribution on the surface
     // exhaustive results are calculated for each sampling point. when final sortings are 
-    // performed they apply a weighting to each of the sampling results based on the 
-    // sample points distance from the current point. the goal is higher fidelity than greedy
-    // and tunable noisiness that is better than exhaustive. 
+    // performed they use nearby precomputed results accordong to SelectionMode.
+    // the goal is higher fidelity than greedy and tunable noisiness that is better than exhaustive. 
     public class ObsSelectionSpatial : ObsSelectionStrategy
     {
+        public const double QUALITY_TO_SAMPLES_PER_SQUARE_METER = 100;
+        public const double SEARCH_RADIUS_SAMPLES = 2; //multipled by average sample spacing to get search radius
+
         public override ObsSelectionStrategyName Name { get { return ObsSelectionStrategyName.Spatial; } }
 
-        Dictionary<string, Backproject.Context> ObsToContext = new Dictionary<string, Backproject.Context>();
+        public SpatialSelectionMode SelectionMode = SpatialSelectionMode.CombinedFilteredWeightedNeighbors;
 
-        Dictionary<string, List<ScoredPoint>> ScoredRefPtsByObs = new Dictionary<string, List<ScoredPoint>>();
-        protected double RaycastTolerance;
+        private double sampleSpacing;
 
-        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster, SceneCaster occlusionScene,
-                                        List<Backproject.Context> contexts, int outputTextureResolution,
-                                        double raycastTolerance, double quality = 1)
+        private List<Vector3> samples;
+
+        private RTree<int> rTree;
+
+        //sorted contexts per ref point
+        private ConcurrentDictionary<int, List<ScoredContext>> scoredContexts =
+            new ConcurrentDictionary<int, List<ScoredContext>>();
+
+        public override void Initialize(Mesh mesh, MeshOperator meshOp, SceneCaster meshCaster,
+                                        SceneCaster occlusionScene, List<Backproject.Context> contexts)
         {
-            RaycastTolerance = raycastTolerance;
-
-            // any sorts that would be better served by orbital will have their contexts filtered
-
             // collect points on the surface of the mesh
-            double samplesPerMeter = quality * 100.0;
+            double samplesPerSquareMeter = Quality * QUALITY_TO_SAMPLES_PER_SQUARE_METER;
+            sampleSpacing = 1 / Math.Sqrt(2 * samplesPerSquareMeter); //https://mathoverflow.net/a/124740
 
-            //TODO why can't this just be new SurfacePointSampler().Sample()?
-            Mesh sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter);
+            samples = new SurfacePointSampler()
+                .Sample(mesh, samplesPerSquareMeter)
+                .Select(vertex => vertex.Position)
+                .ToList();
 
-            //guarantee at least a single point on the mesh (zero on mesh can occur with very small meshes)
-            while (sampledMesh.Vertices.Count == 0)
+            //BUG BUG TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1102
+            //we are getting way more points than thought we asked for
+            //a typical setting is Quality=0.05 meaning 5 samples per square meter
+            //in practice we are getting about 6 times that
+            //though that seems a more reasonable number to use for our purposes here than 5
+            //so this may be a case of Quality=0.05 was already tuned to compensate for this bug
+            //
+            //the problem is, our estimation of sampleSpacing above assumed that SurfacePointSampler would
+            //do the right thing and return approximately the requested samplesPerSquareMeter
+            //we need to compensate estimating sampleSpacing
+            //otherwise below in the FilterAndSortContexts() hotpath
+            //we will match on way too many reference points for each mesh point
+            //this can have an effect like *doubling* the total time spent in backproject
+            //with no noticeable change in result
+            double area = mesh.SurfaceArea();
+            double actualDensity = samples.Count / area;
+            double actualSampleSpacing = 1 / Math.Sqrt(2 * actualDensity);
+            //Console.WriteLine("generated {0} samples for {1}m^2 mesh (density {2} samples / m^2), requested {3}, " +
+            //                  "correcting sample spacing from {4} to {5}", samples.Count, area, actualDensity,
+            //                  samplesPerSquareMeter, sampleSpacing, actualSampleSpacing);
+            sampleSpacing = actualSampleSpacing;
+
+            if (samples.Count == 0) //handle case of very small mesh
             {
-                samplesPerMeter += 1;
-                sampledMesh = new SurfacePointSampler().GenerateSampledMesh(mesh, samplesPerMeter); //TODO: pick center?
+                samples.Add(mesh.Bounds().Center());
+            }
+
+            //add center point of each observation to make sure small fov images are considered
+            foreach (var ctx in contexts)
+            {
+                var ctrPixel = new Vector2(0.5 * ctx.Obs.Width, 0.5 * ctx.Obs.Height);
+                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, ctrPixel, meshOp.Bounds,
+                                                       meshCaster, occlusionScene, RaycastTolerance);
+                if (res.HasValue)
+                {
+                    samples.Add(res.Value);
+                }
             }
 
             if (!string.IsNullOrEmpty(DebugOutputPath))
             {
                 mesh.Save(PathHelper.EnsureDir(DebugOutputPath, "sceneMesh.ply"));
-                sampledMesh.Save(PathHelper.EnsureDir(DebugOutputPath, "spatialSamplePts_base.ply"));
+                var sampledMesh = new Mesh();
+                sampledMesh.Vertices = samples.Select(pt => new Vertex(pt)).ToList();
+                sampledMesh.Save(PathHelper.EnsureDir(DebugOutputPath, "spatialSamplePts.ply"));
             }
 
-            //add center point of each observation (to make sure small fov images are considered)
-            foreach (var ctx in contexts)
+            //build RTree
+            rTree = new RTree<int>();
+            for (int i = 0; i < samples.Count; i++)
             {
-                Vector2 pixel = new Vector2(ctx.Obs.Width / 2.0, ctx.Obs.Height / 2.0);
-                Vector3? res = Backproject.RaycastMesh(ctx.CameraModel, ctx.ObsToMesh, pixel, meshCaster, occlusionScene);
-                if (res.HasValue)
-                {
-                    sampledMesh.Vertices.Add(new Vertex(res.Value));
-                }
-            }
-
-            if (!string.IsNullOrEmpty(DebugOutputPath))
-            {
-                sampledMesh.Save(PathHelper.EnsureDir(DebugOutputPath, "spatialSamplePts_wObs.ply"));
-            }
-
-            //calculate the scores per reference point (grouped by observation)
-            var scoredRefPtsByObs = new Dictionary<string, ConcurrentBag<ObsSelectionStrategy.ScoredPoint>>();
-            foreach (var ctx in contexts)
-            {
-                scoredRefPtsByObs.Add(ctx.Obs.Name, new ConcurrentBag<ObsSelectionStrategy.ScoredPoint>());
-                ObsToContext.Add(ctx.Obs.Name, ctx);
+                rTree.Add(BoundingBoxExtensions.CreateFromPoint(samples[i]).ToRectangle(), i);
             }
 
             //exhaustively sort for each sample point
             var refSelect = new ObsSelectionExhaustive();
+            refSelect.Quality = Quality; //ISSUE 1091: should have an independent control for exhaustive quality
+            refSelect.MaxContexts = MaxContexts;
+            refSelect.EquivalentScoresAbs = EquivalentScoresAbs;
+            refSelect.EquivalentScoresRel = EquivalentScoresRel;
+            refSelect.PreferColor = PreferColor;
             refSelect.OrbitalMetersPerPixel = OrbitalMetersPerPixel;
-            refSelect.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts, outputTextureResolution, RaycastTolerance, quality); //ISSUE 1091: should have an independent control for exhaustive quality
+            refSelect.DebugOutputPath = DebugOutputPath;
+            refSelect.RaycastTolerance = RaycastTolerance;
+
+            refSelect.Initialize(mesh, meshOp, meshCaster, occlusionScene, contexts);
 
             //collect a sorted list of contexts (best to worst) for each sample point
-            CoreLimitedParallel.ForEach(sampledMesh.Vertices.Select(v => v.Position), pt =>
+            //only keeps contexts that have better effective resultion for the sample point than orbital (if any)
+            CoreLimitedParallel.For(0, samples.Count, i =>
             {
-                Dictionary<string, double> ptScoresByObs = new Dictionary<string, double>();
-
-                var sortedContexts = refSelect.FilterAndSortContexts(pt, meshCaster, contexts, ptScoresByObs);
-
-                foreach (var pair in ptScoresByObs)
+                scoredContexts[i] = refSelect.FilterAndSortContexts(samples[i], contexts, meshCaster);
+                if (!string.IsNullOrEmpty(DebugOutputPath) && scoredContexts[i].Count > 0)
                 {
-                    scoredRefPtsByObs[pair.Key].Add(new ObsSelectionStrategy.ScoredPoint(pt, pair.Value));
-                }
-
-                if (!string.IsNullOrEmpty(DebugOutputPath) && sortedContexts.Count() > 0)
-                {
-                    using (StreamWriter sw =
-                           new StreamWriter(PathHelper.EnsureDir(DebugOutputPath,
-                                                                 $"RefScoresForPoint_{pt.X}_{pt.Y}_{pt.Z}.txt")))
+                    string filename = $"RefScoresForPoint_{samples[i].X}_{samples[i].Y}_{samples[i].Z}.txt";
+                    using (StreamWriter sw = new StreamWriter(PathHelper.EnsureDir(DebugOutputPath, filename)))
                     {
                         sw.WriteLine(string.Format("{0}: {1}", "Observation Name", "Score (lower is better)"));
-                        foreach (var ctx in sortedContexts)
+                        foreach (var ctx in scoredContexts[i])
                         {
-                            sw.WriteLine(string.Format("{0}: {1}", ctx.Obs.Name, ptScoresByObs[ctx.Obs.Name]));
+                            sw.WriteLine(string.Format("{0}: {1}", ctx.Context.Obs.Name, ctx.Score));
                         }
                     }
                 }
             });
-
-            //flatten to list for later perf
-            foreach (var ctx in contexts)
-            {
-                ScoredRefPtsByObs.Add(ctx.Obs.Name, scoredRefPtsByObs[ctx.Obs.Name].ToList());
-            }
         }
 
-        public override List<Backproject.Context> FilterAndSortContexts(Vector3 forPoint, SceneCaster meshCaster,
-                                                                        List<Backproject.Context> contexts,
-                                                                        Dictionary<string, double> scoresByObs = null)
+        //this gets called in a smoking hot inner loop in Backproject
+        //small stuff here can get very expensive
+        public override List<ScoredContext> FilterAndSortContexts(Vector3 meshPoint, List<Backproject.Context> contexts,
+                                                                  SceneCaster meshCaster = null)
         {
-            var sortedContexts = new List<Backproject.Context>(contexts.Count);
-            var scoresByObsIndex = new Dictionary<int, double>(contexts.Count);
-
-            foreach (var ctx in contexts)
+            if (!meshPoint.IsFinite())
             {
-                if (!ObsToContext.ContainsKey(ctx.Obs.Name))
-                {
-                    throw new Exception("Unexpected context as compared to init: " + ctx.Obs.Name);
-                }
-
-                //early out if context has no chance for pt
-                if (ctx.FrustumHull.Contains(forPoint))
-                {
-                    double minWeightedScore = double.MaxValue;
-                   
-                    foreach (var pt in ScoredRefPtsByObs[ctx.Obs.Name])
-                    {
-                        if (pt.Score == double.MaxValue)
-                        {
-                            throw new Exception("invalid score provided");
-                        }
-
-                        //heuristic: makes a quality metric from the min pixel spread on the terrain
-                        //and the squared distance to ther reference pt
-                        double distanceToRefPtSq = Vector3.DistanceSquared(pt.Point, forPoint);
-                        double weightedScore = distanceToRefPtSq * pt.Score;
-                        if (weightedScore < minWeightedScore)
-                        {
-                            minWeightedScore = weightedScore;
-                        }
-                    }
-                    
-                    if (minWeightedScore != double.MaxValue)
-                    {
-                        scoresByObsIndex.Add(ctx.Obs.Index, minWeightedScore);
-                        sortedContexts.Add(ctx);
-                    }
-                    
-                }
+                return null; //backproject options sampleTransform (used e.g. by BuildSkySphere) can kill points
             }
 
-            sortedContexts
-                .Sort((ctx0, ctx1) => scoresByObsIndex[ctx0.Obs.Index].CompareTo(scoresByObsIndex[ctx1.Obs.Index]));
+            double searchRadius = SEARCH_RADIUS_SAMPLES * sampleSpacing;
+            var searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
+            var neighborIndices = rTree.Intersects(searchBounds).ToList();
 
-            //optionally return scores
-            if (scoresByObs != null)
+            while (neighborIndices.Count == 0 && searchRadius < 10 * sampleSpacing)
             {
-                scoresByObs.Clear();
-
-                foreach (var ctx in sortedContexts)
-                {
-                    scoresByObs.Add(ctx.Obs.Name, scoresByObsIndex[ctx.Obs.Index]);
-                }
+                //shouldn't get here often, but there is randomness in this world
+                searchRadius += 0.5 * sampleSpacing;
+                searchBounds = BoundingBoxExtensions.CreateFromPoint(meshPoint, 2 * searchRadius).ToRectangle();
+                neighborIndices = rTree.Intersects(searchBounds).ToList();
             }
 
-            return sortedContexts;
+            switch (SelectionMode)
+            {
+                case SpatialSelectionMode.CombinedNeighbors:
+                case SpatialSelectionMode.CombinedFilteredNeighbors:
+                {
+                    bool filter = SelectionMode == SpatialSelectionMode.CombinedFilteredNeighbors;
+                    var bestContexts = new BestContexts(this);
+                    foreach (var sampleIndex in neighborIndices)
+                    {
+                        //FrustumHull.Contains() seems to be about 4x as expensive as Backproject.InFrame() here
+                        //also InFrame() uses the (possibly nonlinear) camera model and gives a better answer
+                        //in the nonlin case the hull can be poorly fitting
+                        foreach (var ctx in scoredContexts[sampleIndex]
+                                 //.Where(c => !filter || c.Context.FrustumHull.Contains(meshPoint)))
+                                 .Where(c => !filter || Backproject.InFrame(meshPoint, c.Context)))
+                        {
+                            if (Backproject.InFrame(meshPoint, ctx.Context))
+                            {
+                                bestContexts.Add(ctx);
+                            }
+                        }
+                    }
+                    return bestContexts.GetSortedContexts();
+                }
+
+                case SpatialSelectionMode.CombinedWeightedNeighbors:
+                case SpatialSelectionMode.CombinedFilteredWeightedNeighbors:
+                {
+                    //furthest neighbor's scores will be doubled (lower scores are better)
+                    //nearest neighbor's scores will be unmodified
+                    bool filter = SelectionMode == SpatialSelectionMode.CombinedFilteredWeightedNeighbors;
+                    var bestContexts = new BestContexts(this);
+                    double nearest = double.PositiveInfinity, furthest = double.NegativeInfinity;
+                    foreach (var sampleIndex in neighborIndices)
+                    {
+                        double dist = Vector3.Distance(meshPoint, samples[sampleIndex]);
+                        nearest = Math.Min(nearest, dist);
+                        furthest = Math.Max(furthest, dist);
+                    }
+                    foreach (var sampleIndex in neighborIndices)
+                    {
+                        double dist = Vector3.Distance(meshPoint, samples[sampleIndex]);
+                        double factor = furthest - nearest;
+                        factor = factor > 1e-6 ? (1 / factor) : 1;
+                        double weight = 1 + MathE.Clamp01(factor * (dist - nearest));
+                        //weight = weight * weight; //could make it quadratic drop off
+                        foreach (var ctx in scoredContexts[sampleIndex]
+                                 .Where(c => !filter || Backproject.InFrame(meshPoint, c.Context)))
+                        {
+                            bestContexts.Add(ctx.Context, ctx.Score * weight);
+                        }
+                    }
+                    return bestContexts.GetSortedContexts();
+                }
+
+                case SpatialSelectionMode.NearestNeighbor:
+                {
+                    double nearestDistSq = double.PositiveInfinity;
+                    List<ScoredContext> bestContexts = null;
+                    foreach (var sampleIndex in neighborIndices)
+                    {
+                        double distSq = Vector3.DistanceSquared(meshPoint, samples[sampleIndex]);
+                        if (distSq < nearestDistSq)
+                        {
+                            nearestDistSq = distSq;
+                            bestContexts = scoredContexts[sampleIndex];
+                        }
+                    }
+                    return bestContexts;
+                }
+
+                case SpatialSelectionMode.FattestNeighbor:
+                {
+                    List<ScoredContext> bestContexts = null;
+                    foreach (var sampleIndex in neighborIndices)
+                    {
+                        if (bestContexts == null || scoredContexts[sampleIndex].Count > bestContexts.Count)
+                        {
+                            bestContexts = scoredContexts[sampleIndex];
+                        }
+                    }
+                    return bestContexts;
+                }
+
+                case SpatialSelectionMode.BestNeighbor:
+                {
+                    double bestScore = double.PositiveInfinity;
+                    List<ScoredContext> bestContexts = null;
+                    foreach (var sampleIndex in neighborIndices)
+                    {
+                        var neighborContexts = scoredContexts[sampleIndex];
+                        if (neighborContexts.Count > 0)
+                        {
+                            var bestNeighborScore = neighborContexts[0].Score;
+                            if (bestNeighborScore < bestScore)
+                            {
+                                bestContexts = neighborContexts;
+                                bestScore = bestNeighborScore;
+                            }
+                        }
+                    }
+                    return bestContexts;
+                }
+
+                default: throw new Exception("unknown selection mode: " + SelectionMode);
+            }
         }
     }
 }

@@ -42,10 +42,10 @@ namespace OPS.Landform
                     { typeof(AgisoftAlignerOptions), typeof(AgisoftAligner) },
 
                     { typeof(BuildGeometryOptions), typeof(BuildGeometry) },
+                    { typeof(BuildSkySphereOptions), typeof(BuildSkySphere) },
                     { typeof(BuildTextureOptions), typeof(BuildTexture) },
                     { typeof(BuildTilingInputOptions), typeof(BuildTilingInput) },
                     { typeof(BuildTilesetOptions), typeof(BuildTileset) },
-                    { typeof(BuildSkySphereOptions), typeof(BuildSkySphere) },
 
                     { typeof(BlendImagesOptions), typeof(BlendImages) },
                     { typeof(LimberDMGOptions), typeof(LimberDMGDriver) },
@@ -58,6 +58,7 @@ namespace OPS.Landform
 
                     { typeof(ConvertPDSOptions), typeof(ConvertPDS) },
                     { typeof(ConvertIVOptions), typeof(ConvertIV) },
+                    { typeof(ConvertGLTFOptions), typeof(ConvertGLTF) },
                     { typeof(DEM2MeshOptions), typeof(DEM2Mesh) },
 
                     { typeof(BenchmarkS3Options), typeof(BenchmarkS3) },

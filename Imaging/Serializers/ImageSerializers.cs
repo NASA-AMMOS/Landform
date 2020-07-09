@@ -26,6 +26,7 @@ namespace OPS.Imaging
             new FITSSerializer().Register(this);
             new RGBSerializer().Register(this);
             new PPMSerializer().Register(this);
+            new ImageSharpSerializer().Register(this);
         }
 
         public override string Kind()

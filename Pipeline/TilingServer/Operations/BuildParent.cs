@@ -45,8 +45,8 @@ namespace OPS.Pipeline.TilingServer
 
             LogLess("collecting dependencies to build parent {0}", parent.Id);
             var idToNode = new ConcurrentDictionary<string, SceneNode>();
-            var dependsOnTilingNodes = parent.DependsOn.Select(id => TilingNode.Find(pipeline, projectName, id));
-            CoreLimitedParallel.ForEach(dependsOnTilingNodes, tilingNode =>
+            var dependencies = parent.DependsOn.Select(id => TilingNode.Find(pipeline, projectName, id)).ToList();
+            CoreLimitedParallel.ForEach(dependencies, tilingNode =>
             {
                 try
                 {
@@ -87,20 +87,20 @@ namespace OPS.Pipeline.TilingServer
                 {
                     throw new Exception("failed to build parent from children");
                 }
-                var pair = parentSceneNode.GetComponent<MeshImagePair>();
-                parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
-                parent.SaveMesh(pair, pipeline, project);
-                parent.Save(pipeline);
+
+                parent.SaveMesh(parentSceneNode.GetComponent<MeshImagePair>(), pipeline, project);
             }
             else
             {
-                var meshImageParent = parent.LoadMeshImagePair(pipeline,loadImage:false);
-                parentSceneNode.AddComponent<MeshImagePair>(meshImageParent);
-
                 LogLess("generating parent {0} geometric error from {1} tiles", message.TileId, parent.DependsOn.Count);
-                parent.GeometricError = parentSceneNode.CalculateGeometricError();
-                parent.Save(pipeline);
+                parentSceneNode.AddComponent<MeshImagePair>(parent.LoadMeshImagePair(pipeline));
+                parentSceneNode.UpdateGeometricError(dependencies.Select(d => idToNode[d.Id]).ToList(),
+                                                     info: msg => LogLess(msg));
             }
+
+            parent.GeometricError = parentSceneNode.GetComponent<NodeGeometricError>().Error; 
+
+            parent.Save(pipeline);
 
             pipeline.EnqueueToMaster(new TileCompletedMessage(projectName) { TileId = parent.Id });
         }

@@ -417,7 +417,7 @@ namespace OPS.Geometry
         }
 
         public Mesh OrganizedMesh(double maxRadiusMeters = -1, Vector3? centerPoint = null, bool withUV = false,
-                                  bool reverseWinding = false)
+                                  bool withNormals = false, bool reverseWinding = false, bool quadsOnly = false)
         {
             var bounds = GetSubrectMeters(maxRadiusMeters, centerPoint);
             var pc = new Image(3, bounds.Width, bounds.Height);
@@ -439,8 +439,49 @@ namespace OPS.Geometry
                     }
                 }
             }
-            return OrganizedPointCloud.BuildOrganizedMesh(pc, generateUV: withUV, generateNormals: false,
-                                                          reverseWinding: reverseWinding);
+            return OrganizedPointCloud.BuildOrganizedMesh(pc, generateUV: withUV, generateNormals: withNormals,
+                                                          reverseWinding: reverseWinding, quadsOnly: quadsOnly);
+        }
+
+        /// <summary>
+        /// Make an organized mesh with optional masking and subsampling.
+        /// If innerBounds is specified that area is chopped out.
+        /// If filter is specified then any points which don't satisfy it are removed.
+        /// </summary>
+        public Mesh OrganizedMesh(Image.Subrect outerBounds, Image.Subrect innerBounds = null, double subsample = 1,
+                                  Func<Vector3, bool> filter = null, bool withUV = false, bool withNormals = false,
+                                  bool reverseWinding = false, bool quadsOnly = false)
+        {
+            int w = (int)Math.Ceiling((outerBounds.Width - 1) * subsample + 1);
+            int h = (int)Math.Ceiling((outerBounds.Height - 1) * subsample + 1);
+            double eps = 0.1;
+            var pc = new Image(3, w, h);
+            pc.CreateMask();
+            for (int r = 0; r < h; r++)
+            {
+                for (int c = 0; c < w; c++)
+                {
+                    Vector2 px = outerBounds.Linterp(((double)c) / (w - 1), ((double)r) / (h - 1));
+                    bool masked = true;
+                    if (innerBounds == null || !innerBounds.ContainsProper(px, eps))
+                    {
+                        var pt = GetInterpolatedXYZ(px);
+                        if (pt.HasValue)
+                        {
+                            if (filter == null || filter(pt.Value))
+                            {
+                                pc[0, r, c] = (float)pt.Value.X;
+                                pc[1, r, c] = (float)pt.Value.Y;
+                                pc[2, r, c] = (float)pt.Value.Z;
+                                masked = false;
+                            }
+                        }
+                    }
+                    pc.SetMaskValue(r, c, masked);
+                }
+            }
+            return OrganizedPointCloud.BuildOrganizedMesh(pc, generateUV: withUV, generateNormals: withNormals,
+                                                          reverseWinding: reverseWinding, quadsOnly: quadsOnly);
         }
 
         public Mesh AdaptiveMesh(double maxError, double maxRadiusMeters = -1, Vector3? centerPoint = null,

@@ -8,6 +8,7 @@ namespace OPS.MathExtensions
     public class MathE
     {
         public const double EPSILON = 1e-7;
+        public const double SQRT_3 = 1.73205080757;
 
         public static byte Clamp(byte v, byte min, byte max)
         {
@@ -202,6 +203,29 @@ namespace OPS.MathExtensions
             }
             var average = Average(values);
             return values.Select(v => (v - average) * (v - average)).Sum() / (values.Length - 1);                
+        }
+
+        /// <summary>
+        /// Normalize an angle in radians to the range [0, 2 * PI)
+        /// </summary>
+        public static double NormalizeAngle(double radians)
+        {
+            while (radians < 0)
+            {
+                radians += 2 * Math.PI;
+            }
+            while (radians >= 2 * Math.PI)
+            {
+                radians -= 2 * Math.PI;
+            }
+            return Clamp(radians, 0, 2 * Math.PI); //clamp accounts for small numerical error
+        }
+
+        public static bool IsFinite(double v)
+        {
+            //for some reason double.IsFinite() won't compile
+            //also I'm not sure if it checks for NaN
+            return !double.IsNaN(v) && v > double.NegativeInfinity && v < double.PositiveInfinity;
         }
     }
 }

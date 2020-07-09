@@ -135,24 +135,24 @@ namespace GeometryTest
         [TestMethod]
         public void TriangleClipTest()
         {
-            Plane p = new Plane(Vector3.Up, 2);
+            Plane p = new Plane(Vector3.Up, -2);
             Triangle t = new Triangle(new Vertex(0, 0, 0), new Vertex(1, 0, 0), new Vertex(1, 1, 0));
             // Test triangle completly below the plane
             Assert.AreEqual(0, t.Clip(p).ToArray().Count());
             // Test triangle completly above the plane
-            p.D = -2;
+            p.D = 2;
             Assert.AreEqual(1, t.Clip(p).ToArray().Count());
             Triangle other = t.Clip(p).ToArray()[0];
             Assert.AreEqual(t.V0, other.V0);
             Assert.AreEqual(t.V1, other.V1);
             Assert.AreEqual(t.V2, other.V2);
             // Test triangle with top part above the plane
-            p.D = 0.5;
+            p.D = -0.5;
             Assert.AreEqual(1, t.Clip(p).ToArray().Count());
             AssertVerticesContain(t.Clip(p).ToArray()[0],
                 new Vertex[] {new Vertex(0.5, 0.5, 0), new Vertex(1, 0.5, 0), new Vertex(1, 1, 0)});
             // Test triangle with bottom part above the plane
-            p.D = -0.5;
+            p.D = 0.5;
             p.Normal *= -1;
             Assert.AreEqual(2, t.Clip(p).ToArray().Count());
             Triangle a = t.Clip(p).ToArray()[0];

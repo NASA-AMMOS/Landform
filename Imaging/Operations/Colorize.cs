@@ -1,12 +1,18 @@
 using System;
 using System.Linq;
 using System.IO;
+using ColorMine.ColorSpaces;
 using Microsoft.Xna.Framework;
+using OPS.MathExtensions;
 
 namespace OPS.Imaging
 {
+    public enum LuminanceMode { Average, Max, ITU_BT709, Red, Green, Blue };
+
     public static class Colorize
     {
+        public const LuminanceMode DEF_LUMINANCE_MODE = LuminanceMode.ITU_BT709;
+
         /// <summary>
         /// converts the floating point values in the source image to colorized values. the previewBucketdistances
         /// are the boundaries for the colors in colorsLowToHigh. There should be one more color than distance to catch
@@ -63,24 +69,99 @@ namespace OPS.Imaging
             return result;
         }
 
+
+        public static Image ColorizeScalarImage(this Image img, double hue, double saturation = 0.5)
+        {
+            if (img.Bands != 1)
+            {
+                throw new InvalidDataException("expecting a single band image to be colorized");
+            }
+            Image result = img.Instantiate(3, img.Width, img.Height);
+            if (img.HasMask)
+            {
+                result.CreateMask(true);
+            }
+            double luminanceRange = Colorspace.GetLuminanceRange();
+            for (int r = 0; r < img.Height; ++r)
+            {
+                for (int c = 0; c < img.Width; ++c)
+                {
+                    if (!img.IsValid(r, c))
+                    {
+                        result.SetMaskValue(r, c, true);
+                    }
+                    else
+                    {
+                        float[] color = MonoToColor(img[0, r, c], hue, saturation);
+                        result[0, r, c] = color[0];
+                        result[1, r, c] = color[1];
+                        result[2, r, c] = color[2];
+                    }
+                }
+            }
+            return result;
+        }
+
+        public static Image ColorizeSelected(this Image img, double hue, Func<int, int, bool> filter,
+                                             LuminanceMode mode = DEF_LUMINANCE_MODE)
+        {
+            return img.ColorizeSelected(hue, 0.5, filter, mode);
+        }
+
+        public static Image ColorizeSelected(this Image img, double hue, double saturation, Func<int, int, bool> filter,
+                                             LuminanceMode mode = DEF_LUMINANCE_MODE)
+        {
+            if (img.Bands != 3)
+            {
+                throw new InvalidDataException("expecting a 3 band RGB image");
+            }
+            for (int r = 0; r < img.Height; ++r)
+            {
+                for (int c = 0; c < img.Width; ++c)
+                {
+                    if (img.IsValid(r, c) && filter(r, c))
+                    {
+                        float mono = ColorToMono(img[0, r, c], img[1, r, c], img[2, r, c], mode);
+                        float[] color = MonoToColor(mono, hue, saturation);
+                        img[0, r, c] = color[0];
+                        img[1, r, c] = color[1];
+                        img[2, r, c] = color[2];
+                    }
+                }
+            }
+            return img;
+        }
+
+        public static float[] MonoToColor(float mono, double hue, double saturation)
+        {
+            double luminance = mono * Colorspace.GetLuminanceRange();
+            Lab lab = new Lab { L = luminance, A = 0, B = 0 };
+            Hsv hsv = lab.To<Hsv>();
+            hsv.H = hue;
+            hsv.S = saturation;
+            Rgb rgb = hsv.To<Rgb>(); 
+            float[] color = new float[3];
+            color[0] = (float)MathE.Clamp01(rgb.R / 255);
+            color[1] = (float)MathE.Clamp01(rgb.G / 255);
+            color[2] = (float)MathE.Clamp01(rgb.B / 255);
+            return color;
+        }
+
         public static float[] MonoToColor(float mono)
         {
             return new float[3] { mono, mono, mono };
         }
 
-        public enum LuminanceMode { AVERAGE, MAX, ITU_BT709, RED, GREEN, BLUE };
-        public const LuminanceMode DEF_LUMINANCE_MODE = LuminanceMode.ITU_BT709;
-
         public static float ColorToMono(float r, float g, float b, LuminanceMode mode = DEF_LUMINANCE_MODE)
         {
             switch (mode)
             {
-                case LuminanceMode.AVERAGE: return (r + g + b) / 3;
-                case LuminanceMode.MAX: return Math.Max(r, Math.Max(g,  b));
+                case LuminanceMode.Average: return (r + g + b) / 3;
+                case LuminanceMode.Max: return Math.Max(r, Math.Max(g,  b));
                 case LuminanceMode.ITU_BT709: return  0.2126f * r + 0.7152f * g + 0.0722f * b;
-                case LuminanceMode.RED: return r;
-                case LuminanceMode.GREEN: return g;
-                case LuminanceMode.BLUE: return b;
+                case LuminanceMode.Red: return r;
+                case LuminanceMode.Green: return g;
+                case LuminanceMode.Blue: return b;
                 default: throw new ArgumentException("unhandled mode: " + mode);
             }
         }

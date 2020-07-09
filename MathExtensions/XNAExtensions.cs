@@ -137,6 +137,31 @@ namespace OPS.MathExtensions
         {
             return new Vector2(v.X, v.Y);
         }
+
+        public static Vector3 Invert(this Vector3 v)
+        {
+            return new Vector3(1 / v.X, 1 / v.Y, 1 / v.Z);
+        }
+
+        public static Vector2 Invert(this Vector2 v)
+        {
+            return new Vector2(1 / v.X, 1 / v.Y);
+        }
+
+        public static Vector2 Swap(this Vector2 v)
+        {
+            return new Vector2(v.Y, v.X);
+        }
+
+        public static bool IsFinite(this Vector3 v)
+        {
+            return MathE.IsFinite(v.X) && MathE.IsFinite(v.Y) && MathE.IsFinite(v.Z);
+        }
+
+        public static bool IsFinite(this Vector2 v)
+        {
+            return MathE.IsFinite(v.X) && MathE.IsFinite(v.Y);
+        }
     }
 
     public class XNAMatrixJsonConverter : JsonConverter

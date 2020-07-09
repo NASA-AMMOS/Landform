@@ -1,4 +1,5 @@
 ﻿//#define LEGACY_TUNING
+//#define PRE_G65_TUNING
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -44,16 +45,20 @@ namespace OPS.Imaging
         public const int DEF_NUM_RELAXATION_STEPS = 15;
         public const int DEF_NUM_MULTIGRID_ITERATIONS = 5;
         public const double DEF_LAMBDA = 0.003;
-        public const EdgeBehavior DEF_EDGE_BEHAVIOUR = EdgeBehavior.Clamp;
-        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLogLAB;
-#else
+#elif PRE_G65_TUNING
         public const double DEF_RESIDUAL_EPSILON = 0.01;
         public const int DEF_NUM_RELAXATION_STEPS = 500;
         public const int DEF_NUM_MULTIGRID_ITERATIONS = 5;
         public const double DEF_LAMBDA = 0.0001;
-        public const EdgeBehavior DEF_EDGE_BEHAVIOUR = EdgeBehavior.Clamp;
-        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLAB;
+#else
+        public const double DEF_RESIDUAL_EPSILON = 0.001;
+        public const int DEF_NUM_RELAXATION_STEPS = 1000;
+        public const int DEF_NUM_MULTIGRID_ITERATIONS = 10;
+        public const double DEF_LAMBDA = 0.00001;
 #endif
+
+        public const EdgeBehavior DEF_EDGE_BEHAVIOR = EdgeBehavior.Clamp;
+        public const ColorConversion DEF_COLOR_CONVERSION = ColorConversion.RGBToLogLAB;
 
         public enum Flags { NONE = 0, HOLD_CONSTANT = 1, GRADIENT_ONLY = 2, NO_DATA = 4 }
 
@@ -86,7 +91,7 @@ namespace OPS.Imaging
         private double lambda;
 
         /// <summary>
-        /// Boundary behaviour.
+        /// Boundary behavior.
         /// </summary>
         private EdgeBehavior edgeMode;
 
@@ -101,7 +106,7 @@ namespace OPS.Imaging
                          int numRelaxationSteps = DEF_NUM_RELAXATION_STEPS,
                          int numMultigridIterations = DEF_NUM_MULTIGRID_ITERATIONS,
                          double lambda = DEF_LAMBDA,
-                         EdgeBehavior edgeMode = DEF_EDGE_BEHAVIOUR,
+                         EdgeBehavior edgeMode = DEF_EDGE_BEHAVIOR,
                          ColorConversion colorConversion = DEF_COLOR_CONVERSION,
                          Action<string> progress = null)
         {
@@ -738,9 +743,6 @@ namespace OPS.Imaging
         ///
         /// The flags image may be omitted but the other two are required.
         ///
-        /// Note on invalid indices: index value 0 is always treated as flags = NO_DATA | HOLD_CONSTANT.
-        /// If legacyInvalidIndices is also set then 65535 is also treated the same way.
-        ///
         /// Note on image dimensions: the input images must all be the same size.  If either the width or height is not
         /// a power of two, all the inputs will be copied to temp images with power of two dimensions.  In this
         /// situation the Wrap edge modes may not work as originally intended because the images will be padded with
@@ -750,9 +752,9 @@ namespace OPS.Imaging
         /// <param name="composite">original mosaic of images</param>
         /// <param name="index">source of each pixel, should have either one band or same number as input image
         /// <param name="flags">extra options to apply at each pixel (see LimberDMG.Flags enum), null for none, otherwise should have either one band or same number as input image</param>
-        /// <param name="legacyInvalidIndices">treat index 65535 same as 0</param>
+        /// <param name="valid">optional predicate to check valid (row, col)</param>
         /// <returns></returns>
-        public Image StitchImage(Image composite, Image index, Image flags = null, bool legacyInvalidIndices = false)
+        public Image StitchImage(Image composite, Image index, Image flags = null, Func<int, int, bool> valid = null)
         {
             int originalWidth = composite.Width;
             int originalHeight = composite.Height;
@@ -815,13 +817,11 @@ namespace OPS.Imaging
                             {
                                 flag[0, r, c] = (float)Flags.NONE;
                             }
-                            for (int b = 0; b < ind.Bands; b++)
+                            if (valid != null && !valid(r, c))
                             {
-                                if (ind[b, r, c] == 0 || (legacyInvalidIndices && ind[b, r, c] == 0xffff))
+                                for (int b = 0; b < flag.Bands; b++)
                                 {
-                                    ind[b, r, c] = 0;
-                                    flag[flag.Bands > 1 ? b : 1, r, c] =
-                                        (float)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
+                                    flag[b, r, c] = (float)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
                                 }
                             }
                         }
@@ -838,25 +838,20 @@ namespace OPS.Imaging
                 index = ind;
                 flags = flag;
             }       
-            else
+            else if (valid != null || flags == null)
             {
-                if (legacyInvalidIndices)
-                {
-                    index = (Image)index.Clone(); //don't mutate inputs
-                }
+                //don't mutate inputs
                 flags = flags != null ? ((Image)flags.Clone()) : new Image(1, index.Width, index.Height);
 
                 for (int r = 0; r < index.Height; r++)
                 {
                     for (int c = 0; c < index.Width; c++)
                     {
-                        for (int b = 0; b < index.Bands; b++)
+                        if (valid != null && !valid(r, c))
                         {
-                            if (index[b, r, c] == 0 || (legacyInvalidIndices && index[b, r, c] == 0xffff))
+                            for (int b = 0; b < flags.Bands; b++)
                             {
-                                index[b, r, c] = 0;
-                                flags[flags.Bands > 1 ? b : 1, r, c] =
-                                    (float)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
+                                flags[b, r, c] = (float)(LimberDMG.Flags.NO_DATA | LimberDMG.Flags.HOLD_CONSTANT);
                             }
                         }
                     }
