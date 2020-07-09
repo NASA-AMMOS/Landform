@@ -57,7 +57,7 @@ namespace OPS.TilingServer
                 return 1; //argument error
             }
 
-            bool userProvided = TilingSchemeBase.IsUserProvided(project.GetTilingScheme());
+            bool userProvided = TilingSchemeBase.IsUserProvided(project.TilingScheme);
 
             if (userProvided && options.TileId == null)
             {

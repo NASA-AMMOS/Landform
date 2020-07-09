@@ -28,8 +28,10 @@ namespace OPS.Pipeline.TilingServer
             var project = TilingProject.Find(pipeline, projectName);
 
             LogInfo("building tile tree from database");
+
             var tilingNodes = new Dictionary<string, TilingNode>();
-            bool useBoundsWithSkirt = project.GetSkirtMode() != SkirtMode.None;
+
+            bool useBoundsWithSkirt = project.SkirtMode != SkirtMode.None;
             var root = TilingNode.BuildTreeFromDatabase(pipeline, project, useBoundsWithSkirt, tilingNodes);
 
             // Only nodes with mesh image pairs will be marked as having content in the tile builder

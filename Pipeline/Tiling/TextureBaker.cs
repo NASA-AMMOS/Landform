@@ -96,8 +96,8 @@ namespace OPS.Pipeline
             return (int)size;
         }
 
-        Octree triOctTree;
-        int destBands;
+        private Octree triOctTree;
+        private int destBands;
 
         public TextureBaker(MeshImagePair[] source, int maxNodeSize = 10, int maxDepth = 14)
         {
@@ -132,8 +132,20 @@ namespace OPS.Pipeline
 
         public Image Bake(Mesh dest, int destWidth, int destHeight, out Image destIndex, int padWidth = -1)
         {
+            return BakeImpl(dest, destWidth, destHeight, out destIndex, padWidth, withIndex: true);
+        }
+
+        public Image Bake(Mesh dest, int destWidth, int destHeight, int padWidth = -1)
+        {
+            return BakeImpl(dest, destWidth, destHeight, out Image destIndex, padWidth, withIndex: false);
+        }
+
+        private Image BakeImpl(Mesh dest, int destWidth, int destHeight, out Image destIndex, int padWidth,
+                               bool withIndex)
+        {
             // r tree for efficient uv to xyz conversion
             var destOperator = new MeshOperator(dest, buildFaceTree: false, buildVertexTree: false);
+
             // the new texture
             var destImage = new Image(destBands, destWidth, destHeight);
 
@@ -166,7 +178,6 @@ namespace OPS.Pipeline
                     {
                         Image image = txtTri.texture;
                         Image index = txtTri.index;
-                        indexFailed = indexFailed || index == null;
                         Vector2 pixel = image.UVToPixel(closest.UV);
 
                         float row = (float)pixel.Y;
@@ -177,7 +188,8 @@ namespace OPS.Pipeline
                         {
                             bands[b] = image.BicubicSample(b, row, col);
                         }
-                        if (!indexFailed)
+                        indexFailed = indexFailed || index == null;
+                        if (withIndex && !indexFailed)
                         {
                             idxBands = new float[index.Bands];
                             if (destIndex == null)
@@ -187,12 +199,12 @@ namespace OPS.Pipeline
                             }
                             for (int b = 0; b < idxBands.Count(); ++b)
                             {
-                                idxBands[b] = index.ReadClampedToBounds(b, col, row);
+                                idxBands[b] = index.NearestSample(b, row, col);
                             }
                         }
                         destImage.SetBandValues(r, c, bands);
                         destImage.SetMaskValue(r, c, false);
-                        if(!indexFailed)
+                        if (withIndex && !indexFailed)
                         {
                             destIndex.SetBandValues(r, c, idxBands);
                             destIndex.SetMaskValue(r, c, false);
@@ -200,21 +212,19 @@ namespace OPS.Pipeline
                     }
                 }
             }
-            // in paint
+
             destImage.Inpaint(padWidth);
-            if (!indexFailed)
+
+            if (withIndex && !indexFailed)
             {
                 destIndex.Inpaint(padWidth, useAnyNeighbor: true);
-            } else
+            }
+            else
             {
                 destIndex = null;
             }
+
             return destImage;
         }
-
-        public static Image BakeTexture(MeshImagePair[] source, Mesh dest, int destWidth, int destHeight, int padWidth = -1, int maxNodeSize = 10, int maxDepth=14)
-        {
-            return new TextureBaker(source, maxNodeSize, maxDepth).Bake(dest, destWidth, destHeight, out Image throwaway, padWidth);
-        } 
     }
 }

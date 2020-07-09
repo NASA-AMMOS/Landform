@@ -74,6 +74,30 @@ namespace OPS.Imaging
         }
 
         /// <summary>
+        /// Resize so that both width and height are less than or equal to maxSize.
+        /// Does nothing if maxSize is non-positive.
+        /// </summary>
+        public static Image ResizeMax(this Image img, int maxSize)
+        {
+            if (maxSize <= 0 || (img.Width <= maxSize && img.Height <= maxSize))
+            {
+                return img;
+            }
+            double f = img.Width < img.Height ? maxSize / ((double)img.Height) : maxSize / ((double)img.Width);
+            return Resize(img, (int)(f * img.Width), (int)(f * img.Height));
+        }
+
+        public static Image ResizeMaxNearest(this Image img, int maxSize)
+        {
+            if (maxSize <= 0 || (img.Width <= maxSize && img.Height <= maxSize))
+            {
+                return img;
+            }
+            double f = img.Width < img.Height ? maxSize / ((double)img.Height) : maxSize / ((double)img.Width);
+            return ResizeNearest(img, (int)(f * img.Width), (int)(f * img.Height));
+        }
+
+        /// <summary>
         /// Helper class containing data for each mapping between input and output pixels
         /// </summary>
         private class Weight
@@ -197,25 +221,53 @@ namespace OPS.Imaging
 
         /// <summary>
         /// Resize an image to the target width using a simple bicubic function
-        /// Considering using Resize() instead
+        /// Consider using Resize() instead
         /// TODO this does not respect the image mask, if any
         /// https://github.jpl.nasa.gov/OnSight/Landform/issues/430
         /// </summary>
-        /// <param name="targetWidth"></param>
-        /// <param name="targetHeight"></param>
-        /// <returns></returns>
-        public static Image ResizeSimpleBicubic(this Image img, int targetWidth, int targetHeight)
+        public static Image ResizeBicubic(this Image img, int targetWidth, int targetHeight)
         {
+            float wRatio = (img.Width - 1) / ((float)targetWidth - 1);
+            float hRatio = (img.Height - 1) / ((float)targetHeight - 1);
+
             Image result = img.Instantiate(img.Bands, targetWidth, targetHeight);
-            float wRatio = (img.Width - 1) / ((float)result.Width - 1);
-            float hRatio = (img.Height - 1) / ((float)result.Height - 1);
-            foreach (ImageCoordinate ic in result.Coordinates(true))
+
+            for (int b = 0; b < result.Bands; b++)
             {
-                result[ic.Band, ic.Row, ic.Col] = img.BicubicSample(ic.Band, ic.Row * hRatio, ic.Col * wRatio);
+                for (int r = 0; r < result.Height; r++)
+                {
+                    for (int c = 0; c < result.Width; c++)
+                    {
+                        result[b, r, c] = img.BicubicSample(b, r * hRatio, c * wRatio);
+                    }
+                }
             }
+
             return result;
         }
 
+        /// TODO this does not respect the image mask, if any
+        /// https://github.jpl.nasa.gov/OnSight/Landform/issues/430
+        public static Image ResizeNearest(this Image img, int targetWidth, int targetHeight)
+        {
+            float wRatio = (img.Width - 1) / ((float)targetWidth - 1);
+            float hRatio = (img.Height - 1) / ((float)targetHeight - 1);
+
+            Image result = img.Instantiate(img.Bands, targetWidth, targetHeight);
+
+            for (int b = 0; b < result.Bands; b++)
+            {
+                for (int r = 0; r < result.Height; r++)
+                {
+                    for (int c = 0; c < result.Width; c++)
+                    {
+                        result[b, r, c] = img.NearestSample(b, r * hRatio, c * wRatio);
+                    }
+                }
+            }
+
+            return result;
+        }
     }
 }
 

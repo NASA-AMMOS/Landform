@@ -38,30 +38,28 @@ namespace OPS.Geometry
         /// The definition of rectangular intersection they are using will return true
         /// if a rectangle is fully contained within another.
         /// </summary>
-        RTree<int> faceTree;
-        RTree<int> vertexTree;
-        RTree<int> uvFaceTree;
+        private RTree<int> faceTree;
+        private RTree<int> vertexTree;
+        private RTree<int> uvFaceTree;
 
-        List<Triangle> triangles;
-        List<Vertex> vertices;
+        private List<Triangle> triangles;
+        private List<Vertex> vertices;
 
         public int CountVertices()
         {
             return vertices.Count;
         }
 
-        public List<Triangle> Triangles
-        {
-            get
-            {
-                return new List<Triangle>(triangles);
-            }
-        }
+        public List<Triangle> Triangles { get { return new List<Triangle>(triangles); } }
 
         public bool HasUVs { get; private set; }
         public bool HasNormals { get; private set; }
         public bool HasColors { get; private set; }
         public bool HasFaces { get; private set; }
+
+        public bool HasFaceTree { get { return faceTree != null; } }
+        public bool HasVertexTree { get { return vertexTree != null; } }
+        public bool HasUVFaceTree { get { return uvFaceTree != null; } }
 
         /// <summary>
         /// Return the bounds of the mesh.  Bounds are cached so this method is fast.
@@ -75,9 +73,9 @@ namespace OPS.Geometry
         /// Create a mesh operator and compute accelerated structures
         /// </summary>
         /// <param name="mesh"></param>
-        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true, bool buildUVFaceTree = true, int maxEntries = 10, int minEntries = 5)
+        public MeshOperator(Mesh mesh, bool buildFaceTree = true, bool buildVertexTree = true,
+                            bool buildUVFaceTree = true, int maxEntries = 10, int minEntries = 5)
         {
-
             vertices = mesh.Vertices;
             HasUVs = mesh.HasUVs;
             HasNormals = mesh.HasNormals;

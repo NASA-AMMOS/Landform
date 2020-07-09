@@ -1,105 +1,110 @@
-﻿using Microsoft.Xna.Framework;
-using OPS.Geometry;
-using OPS.Imaging;
-using Sharp3DBinPacking;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using log4net;
-
+using Microsoft.Xna.Framework;
+using Sharp3DBinPacking;
+using OPS.MathExtensions;
+using OPS.Util;
+using OPS.Geometry;
+using OPS.Imaging;
 
 namespace OPS.Pipeline
 {
-    /// <summary>
-    /// Given one or more MeshImagePairs, can clip to create one textured mesh
-    /// </summary>
     public class TexturedMeshClipper
     {
-        static ILog logger = LogManager.GetLogger(typeof(TexturedMeshClipper));
+        public const double NON_POWER_OF_TWO_BIN_GROW_FACTOR = 1.1;
 
+        private List<MeshImagePair> inputs = new List<MeshImagePair>();
 
-        class MeshImageOperatorPair
-        {
-            public Image Image;
-            public MeshOperator MeshOperator;
-
-            public MeshImageOperatorPair(MeshOperator op, Image image)
-            {
-                this.Image = image;
-                this.MeshOperator = op;
-   
-            }
-
-            public MeshImageOperatorPair(Mesh m, Image image)
-            {
-                this.Image = image;
-                this.MeshOperator = new MeshOperator(m, buildFaceTree: true, buildVertexTree: false, buildUVFaceTree: false);
-            }
-        }
-
-        List<MeshImageOperatorPair> pairs;
+        private int borderSize;
+        private bool powerOfTwoTextures;
+        private bool allowRotation;
+        private ILogger logger;
+        private string logPrefix;
         
-        public TexturedMeshClipper()
-        {
-            pairs = new List<MeshImageOperatorPair>();
-        }
-
         /// <summary>
-        /// Adds MeshImagePair pair to list of MeshImagePairs to be clipped
+        /// If rotation is allowed in packing, small pixel texture may be introduced.
+        /// rotation is potentially unstable and may result in half pixel texture offsets
         /// </summary>
-        /// <param name="pair"></param>
-        public void AddMeshImagePair(MeshImagePair pair)
+        public TexturedMeshClipper(int borderSize = 5, bool powerOfTwoTextures = false, bool allowRotation = false,
+                                   ILogger logger = null, string logPrefix = null)
         {
-            if (!pair.Mesh.HasUVs)
-            {
-                throw new Exception("Expecting uvs on textured mesh clip");
-            }
-
-            pairs.Add(new MeshImageOperatorPair(pair.Mesh, pair.Image));
-        }
-
-        public void AddMeshImagePair(MeshOperator op, Image image)
-        {
-            if (!op.HasUVs)
-            {
-                throw new Exception("Expecting uvs on textured mesh clip");
-            }
-
-            pairs.Add(new MeshImageOperatorPair(op, image));
-        }
-
-        public void AddMeshImagePair(Mesh m, Image image)
-        {
-            if (!m.HasUVs)
-            {
-                throw new Exception("Expecting uvs on textured mesh clip");
-            }
-
-            pairs.Add(new MeshImageOperatorPair(m, image));
+            this.borderSize = borderSize;
+            this.powerOfTwoTextures = powerOfTwoTextures;
+            this.allowRotation = allowRotation;
+            this.logger = logger;
+            this.logPrefix = logPrefix ?? "textured mesh clipper";
         }
 
         /// <summary>
-        /// Area of original texture that is being used 
+        /// add an input dataset
+        /// </summary>
+        public void AddInput(MeshImagePair mip)
+        {
+            if (!mip.Mesh.HasUVs)
+            {
+                throw new Exception("expecting uvs on textured mesh clip");
+            }
+            mip.EnsureMeshOperator();
+            inputs.Add(mip);
+        }
+
+        /// <summary>
+        /// Clips every mesh to specified bounding box.
+        /// Creates new combined texture of packed patches from original images for each portion of clipped mesh.
+        /// Creates new combined mesh merging all the clipped triangles.
+        /// If maxTextureSize > 0 then the combined texture is resized if necessary before return.
+        /// </summary>
+        public MeshImagePair Clip(BoundingBox box, int maxTextureSize = -1)
+        {
+            var patches = new List<TexturePatch>();
+            foreach (var mip in inputs)
+            {
+                patches.AddRange(ComputePatches(mip.MeshOp.Clip(box), mip.Image, mip.Index));
+            }
+            return ClipAndRemapPatches(patches, maxTextureSize);
+        }
+
+        /// <summary>
+        /// Clip out the portion of fullImage used by clippedMesh, then remap the UVs of clippedMesh to match.
+        /// Note: mutates the UVs of clippedMesh in place.
+        /// If maxTextureSize > 0 then the combined texture is resized if necessary before return.
+        /// </summary>
+        public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image fullImage, Image fullImageIndex = null,
+                                                int maxTextureSize = -1)
+        {
+            if (!clippedMesh.HasUVs)
+            {
+                throw new ArgumentException("clipped mesh must have UVs");
+            }
+            var patches = ComputePatches(clippedMesh, fullImage, fullImageIndex);
+            return ClipAndRemapPatches(patches, maxTextureSize, clippedMesh);
+        }
+
+        /// <summary>
+        /// Portion of an original texture that is being used, along with triangles textured by it.
         /// </summary>
         private class TexturePatch
         {
-            public HashSet<Triangle> triangles;
-            public Image originalImage;
-            public Image patchImage;
-            BoundingBox uvBounds;
+            public readonly HashSet<Triangle> triangles = new HashSet<Triangle>();
+            public readonly Image originalImage, originalIndex;
+            public readonly bool hasNormals, hasColors;
 
-            public TexturePatch()
+            public Image patchImage, patchIndex;
+
+            private BoundingBox uvBounds;
+
+            public TexturePatch(Image originalImage, Image originalIndex, bool hasNormals, bool hasColors)
             {
-                this.triangles = new HashSet<Triangle>();
+                this.originalImage = originalImage;
+                this.originalIndex = originalIndex;
+                this.hasNormals = hasNormals;
+                this.hasColors = hasColors;
             }
 
             /// <summary>
-            /// Merge UV BoundingBox of given triang with border included with the bounding box of patch 
+            /// Merge UV BoundingBox of given triangle with border included with the bounding box of patch 
             /// </summary>
-            /// <param name="t"></param>
-            /// <param name="borderSize"></param>
             public void Add(Triangle t, int borderSize)
             {
                 var uvBounds = t.UVBounds();
@@ -135,41 +140,33 @@ namespace OPS.Pipeline
             }
 
             /// <summary>
-            /// Finds image corresponding to the patch on the original image
+            /// crops image corresponding to the patch from the original image
             /// </summary>
             public void ClipImage()
             {
-                var min = MinPixel();
-                var max = MaxPixel();
-                this.patchImage = new Image(originalImage.Bands, (int)max.X - (int)min.X, (int)max.Y - (int)min.Y);
-                for (int b = 0; b < patchImage.Bands; b++)
+                Vector2 min = MinPixel(), max = MaxPixel();
+
+                patchImage = originalImage.Crop(startRow: (int)min.Y, startCol: (int)min.X,
+                                                newWidth: (int)(max.X - min.X + 1),
+                                                newHeight: (int)(max.Y - min.Y + 1));
+                if (originalIndex != null)
                 {
-                    for (int r = 0; r < patchImage.Height; r++)
-                    {
-                        for (int c = 0; c < patchImage.Width; c++)
-                        {
-                            patchImage[b, r, c] = originalImage[b, r + (int)min.Y, c + (int)min.X];
-                        }
-                    }
+                    patchIndex = originalIndex.Crop(startRow: (int)min.Y, startCol: (int)min.X,
+                                                    newWidth: (int)(max.X - min.X + 1),
+                                                    newHeight: (int)(max.Y - min.Y + 1));
                 }
             }
         }
 
         /// <summary>
-        /// Creates a list of TexturePatches by creating a TexturePatch from the original texture
-        /// for every group of triangles whose UVBounds intersect, selecting which areas of the texture are being used
+        /// Creates a TexturePatch for every group of triangles whose UVBounds intersect.
         /// </summary>
-        /// <param name="mesh">input mesh with triangles of interest</param>
-        /// <param name="img">original image</param>
-        /// <param name="borderSize">pixel border around patches</param>
-        /// <returns></returns>
-        static private List<TexturePatch> ComputePatches(Mesh mesh, Image img, int borderSize)
+        private List<TexturePatch> ComputePatches(Mesh mesh, Image img, Image index)
         {
             mesh.Clean();
-            MeshOperator op = new MeshOperator(mesh, buildFaceTree: false, buildVertexTree: false);
+            var op = new MeshOperator(mesh, buildFaceTree: false, buildUVFaceTree: true, buildVertexTree: false);
             var triangles = op.Triangles;
-            List<TexturePatch> patches = new List<TexturePatch>();
-
+            var patches = new List<TexturePatch>();
             for (int i = 0; i < triangles.Count; i++)
             {
                 bool skip = false;
@@ -183,9 +180,8 @@ namespace OPS.Pipeline
                 }
                 if (!skip)
                 {
-                    TexturePatch patch = new TexturePatch();
-                    patch.originalImage = img;
-                    Queue<Triangle> trianglesToProcess = new Queue<Triangle>();
+                    var patch = new TexturePatch(img, index, mesh.HasNormals, mesh.HasColors);
+                    var trianglesToProcess = new Queue<Triangle>();
                     trianglesToProcess.Enqueue(triangles[i]);
                     while (trianglesToProcess.Count > 0)
                     {
@@ -207,27 +203,89 @@ namespace OPS.Pipeline
             return patches;
         }
 
-        static public MeshImagePair RemapMeshClipImage(Mesh clippedMesh, Image image, int borderSize = 5,
-                                                       bool allowRotation = false)
+        /// <summary>
+        /// Clip texture patches from all original images, pack them together into a combined texture, remap patch
+        /// triangle UVs to use the combined texture, and merge all patch triangles into one mesh.
+        /// Note: this mutates the patch triangle UVs in place.
+        /// Uses BinPacker to assemble the texture patches into the combined texture.
+        /// If there is only one original image and the union of the patch bounds is smaller than the bin packer result,
+        /// then just uses the union of the patch bounds.
+        /// If maxTextureSize > 0 then the combined texture is resized if necessary before return.
+        /// </summary>
+        private MeshImagePair ClipAndRemapPatches(List<TexturePatch> patches, int maxTextureSize, Mesh mesh = null)
         {
-            return ClipPatches(ComputePatches(clippedMesh, image, borderSize),
-                               clippedMesh.HasNormals, clippedMesh.HasColors, image.Bands, borderSize, allowRotation);
-        }
+            Action<string> warn = msg => { if (logger != null) logger.LogWarn(logPrefix + " " + msg); };
 
-        static private MeshImagePair ClipPatches(List<TexturePatch> patches, bool hasNormals, bool hasColors,
-                                                 int outputImageBands, int borderSize, bool allowRotation)
-        {
-            int maxWidth = 0, maxHeight = 0;
-            for (int b = 0; b < patches.Count; b++)
+            int packedWidth = 0, packedHeight = 0;
+            int maxPackedWidth = 0, maxPackedHeight = 0;
+            int minPackedArea = 0;
+            int imageBands = 0;
+            bool hasNormals = false, hasColors = false;
+            bool oneOriginalImage = true, oneOriginalIndex = true;
+            bool generateIndex = true;
+            foreach (var patch in patches)
             {
-                patches[b].ClipImage();
-                maxWidth = Math.Max(maxWidth, patches[b].patchImage.Width);
-                maxHeight = Math.Max(maxHeight, patches[b].patchImage.Height);
+                imageBands = Math.Max(imageBands, patch.originalImage.Bands);
+                hasNormals |= patch.hasNormals;
+                hasColors |= patch.hasColors;
+                patch.ClipImage();
+                packedWidth = Math.Max(packedWidth, patch.patchImage.Width);
+                packedHeight = Math.Max(packedHeight, patch.patchImage.Height);
+                maxPackedWidth += patch.patchImage.Width;
+                maxPackedHeight += patch.patchImage.Height;
+                oneOriginalImage &= patches[0].originalImage == patch.originalImage;
+                oneOriginalIndex &= patches[0].originalIndex == patch.originalIndex;
+                generateIndex &= patch.originalIndex != null;
+                minPackedArea += patch.patchImage.Width * patch.patchImage.Height;
             }
 
-            var binWidth = Math.Max(MathExtensions.MathE.CeilPowerOf2(maxWidth), 1);
-            var binHeight = Math.Max(MathExtensions.MathE.CeilPowerOf2(maxHeight), 1);
-            var binDepth = 1;
+            if (oneOriginalImage && !oneOriginalIndex)
+            {
+                warn("one original image but more than one original index");
+            }
+
+            if (mesh == null)
+            {
+                var tris = new List<Triangle>();
+                foreach (var p in patches)
+                {
+                    tris.AddRange(p.triangles);
+                }
+                mesh = new Mesh(tris, hasNormals: hasNormals, hasUVs: true, hasColors: hasColors);
+            }
+
+            if (powerOfTwoTextures)
+            {
+                packedWidth = MathE.CeilPowerOf2(packedWidth);
+                packedHeight = MathE.CeilPowerOf2(packedHeight);
+                maxPackedWidth = 2 * MathE.CeilPowerOf2(maxPackedWidth);
+                maxPackedHeight = 2 * MathE.CeilPowerOf2(maxPackedHeight);
+            }
+            else
+            {
+                double f = NON_POWER_OF_TWO_BIN_GROW_FACTOR;
+                f = f * f;
+                maxPackedWidth = (int)Math.Ceiling(maxPackedWidth * f);
+                maxPackedHeight = (int)Math.Ceiling(maxPackedHeight * f);
+            }
+
+            void grow()
+            {
+                double factor = powerOfTwoTextures ? 2.0 : NON_POWER_OF_TWO_BIN_GROW_FACTOR;
+                if (packedWidth <= packedHeight)
+                {
+                    packedWidth = (int)(packedWidth * factor);
+                }
+                else
+                {
+                    packedHeight = (int)(packedHeight * factor);
+                }
+            }
+
+            while (packedWidth * packedHeight < minPackedArea)
+            {
+                grow();
+            }
 
             Cuboid[] cuboids = new Cuboid[patches.Count];
             for (int i = 0; i < patches.Count; i++)
@@ -235,113 +293,259 @@ namespace OPS.Pipeline
                 cuboids[i] = new Cuboid(patches[i].patchImage.Width, patches[i].patchImage.Height, 1, 0, patches[i]);
             }
             BinPackResult packed = null;
-            var numBins = 0;
 
             //pack patches and adjust bin width and height until all patches packed into one bin
-            while (numBins != 1)
+            //should always terminate because bin size increases every iteration
+            bool packSucceded = false;
+            while (packedWidth <= maxPackedWidth && packedHeight <= maxPackedHeight)
             {
-                var parameter = new BinPackParameter(binWidth, binHeight, binDepth, 0, allowRotation, cuboids);
+                var parameter = new BinPackParameter(packedWidth, packedHeight, 1, 0, allowRotation, cuboids);
                 var binPacker = BinPacker.GetDefault(BinPackerVerifyOption.BestOnly);
                 packed = binPacker.Pack(parameter);
-                numBins = packed.BestResult.Count;
-                if (numBins != 1)
+                if (packed != null && packed.BestResult != null && packed.BestResult.Count == 1)
                 {
-                    if (binWidth <= binHeight)
+                    if (!powerOfTwoTextures)
                     {
-                        binWidth *= 2;
+                        int minX = int.MaxValue, minY = int.MaxValue, maxX = 0, maxY = 0;
+                        foreach (var cube in packed.BestResult.First())
+                        {
+                            var patchULCPixelInDest = new Vector2((int)cube.X, (int)cube.Y);
+                            minX = (int)Math.Min(minX, patchULCPixelInDest.X);
+                            minY = (int)Math.Min(minY, patchULCPixelInDest.Y);
+                            var patchLRCPixelInDest = patchULCPixelInDest +
+                                new Vector2((int)(cube.Width - 1), (int)(cube.Height - 1));
+                            maxX = (int)Math.Max(maxX, patchLRCPixelInDest.X);
+                            maxY = (int)Math.Max(maxY, patchLRCPixelInDest.Y);
+                        }
+                        if (minX != 0 || minY != 0)
+                        {
+                            warn($"pack result minRow={minY}, minCol={minX}, not (0,0)");
+                        }
+                        packedWidth = maxX + 1;
+                        packedHeight = maxY + 1;
+                    }
+                    packSucceded = true;
+                    break;
+                }
+                grow();
+            }
+
+            if (!packSucceded)
+            {
+                 warn($"failed to pack {patches.Count} patches, toal {minPackedArea} pixels, " +
+                      $"into at most {maxPackedWidth}x{maxPackedHeight} image");
+            }
+
+            Image img = null, index = null;
+            if (oneOriginalImage && oneOriginalIndex)
+            {
+                //check if it's more efficient to just crop out union of original patches than to use bin packing result
+                Vector2 minPixel = new Vector2(double.PositiveInfinity, double.PositiveInfinity);
+                Vector2 maxPixel = new Vector2(double.NegativeInfinity, double.NegativeInfinity);
+                foreach (var patch in patches)
+                {
+                    Vector2 l = patch.MinPixel();
+                    minPixel.X = Math.Min(minPixel.X, l.X);
+                    minPixel.Y = Math.Min(minPixel.Y, l.Y);
+                    Vector2 u = patch.MaxPixel();
+                    maxPixel.X = Math.Max(maxPixel.X, u.X);
+                    maxPixel.Y = Math.Max(maxPixel.Y, u.Y);
+                }
+
+                int w = (int)(maxPixel.X - minPixel.X + 1);
+                int h = (int)(maxPixel.Y - minPixel.Y + 1);
+
+                Image origImg = patches[0].originalImage;
+                Image origIndex = patches[0].originalIndex;
+
+                if (powerOfTwoTextures)
+                {
+                    w = MathE.CeilPowerOf2(w);
+                    h = MathE.CeilPowerOf2(h);
+                    if (w > origImg.Width || h > origImg.Height)
+                    {
+                        //origImg may not itself be power of two
+                        //but let's define our contract to only to be power of two *if* we generate a new texture
+                        w = origImg.Width;
+                        h = origImg.Height;
+                        minPixel = new Vector2(0, 0);
                     }
                     else
                     {
-                        binHeight *= 2;
-                    }
-                }
-            }
-
-            Image packedImg = new Image(outputImageBands, binWidth, binHeight);
-            var cubes = packed.BestResult.First();
-            //create new texture image from packing results
-            foreach (var cube in cubes)
-            {
-                var patch = (TexturePatch)cube.Tag;
-                bool rotate = false;
-                if (patch.patchImage.Width != cube.Width || patch.patchImage.Height != cube.Height)
-                {
-                    rotate = true;
-                    patch.patchImage = patch.patchImage.Rotate90Clockwise();
-                }
-                for (int b = 0; b < patch.patchImage.Bands; b++)
-                {
-                    for (int r = 0; r < patch.patchImage.Height; r++)
-                    {
-                        for (int c = 0; c < patch.patchImage.Width; c++)
+                        if (minPixel.X + w > origImg.Width)
                         {
-                            packedImg[b, r + (int)cube.Y, c + (int)cube.X] = patch.patchImage[b, r, c];
+                            minPixel.X = origImg.Width - w;
+                        }
+                        if (minPixel.Y + h > origImg.Height)
+                        {
+                            minPixel.Y = origImg.Height - h;
                         }
                     }
                 }
-                //remap UV coordinates
-                foreach (var t in patch.triangles)
+
+                if (!packSucceded || w * h <= packedWidth * packedHeight)
                 {
-                    foreach (var v in t.Vertices())
+                    if (w < origImg.Width || h < origImg.Height)
                     {
-                        Vector2 orignPixel = patch.originalImage.UVToPixel(v.UV);
-                        Vector2 patchPixel = orignPixel - patch.MinPixel();
-                        Vector2 destPixel = patchPixel;
-                        if (rotate)
+                        if (logger != null)
                         {
-                            destPixel = new Vector2((int)(patch.patchImage.Width - patchPixel.Y - 1), (int)patchPixel.X);
+                            logger.LogVerbose("{0} using {1}x{2} subregion of original image", logPrefix, w, h);
                         }
-                        destPixel += new Vector2((int)cube.X, (int)cube.Y);
-                        Vector2 destUV = packedImg.PixelToUV(destPixel);
-                        v.UV = destUV;
+
+                        img = origImg.Crop((int)minPixel.Y, (int)minPixel.X, w, h);
+
+                        if (origIndex != null)
+                        {
+                            index = origIndex.Crop((int)minPixel.Y, (int)minPixel.X, w, h);
+                        }
+
+                        //remap UVs
+                        foreach (var v in mesh.Vertices)
+                        {
+                            Vector2 origUV = v.UV;
+                            Vector2 origPixel = origImg.UVToPixel(origUV);
+                            Vector2 destPixel = origPixel - minPixel;
+                            v.UV = img.PixelToUV(destPixel);
+                            if (!Mesh.CheckUV(v.UV))
+                            {
+                                throw new Exception($"{logPrefix} bad UV: UV {origUV} => {v.UV}, " +
+                                                    $"pixel {origPixel} => {destPixel}");
+                            }
+                        }
+
+                        mesh.Clean(warn: warn);
+                    }
+                    else //throw in the towel
+                    {
+                        if (logger != null)
+                        {
+                            logger.LogVerbose("{0} using original image", logPrefix);
+                        }
+                        img = origImg;
+                        index = origIndex;
+                    }
+                }
+            }
+
+            if (packSucceded && img == null)
+            {
+                //create new texture image from packing results
+                if (logger != null)
+                {
+                    logger.LogVerbose("{0} using {1}x{2} bin packed result", logPrefix, packedWidth, packedHeight);
+                }
+
+                img = new Image(imageBands, packedWidth, packedHeight);
+                img.CreateMask(true);
+
+                if (generateIndex)
+                {
+                    index = new Image(3, packedWidth, packedHeight);
+                }
+
+                var newTris = new List<Triangle>(patches.Sum(p => p.triangles.Count));
+
+                bool anyRotated = false;
+                var cubes = packed.BestResult.First();
+                for (int i = 0; i < cubes.Count; i++)
+                {
+                    var cube = cubes[i];
+                    var patch = (TexturePatch)cube.Tag;
+
+                    int origPatchHeight = patch.patchImage.Height;
+
+                    bool rotated = false;
+                    if (allowRotation &&
+                        (patch.patchImage.Width != cube.Width || patch.patchImage.Height != cube.Height))
+                    {
+                        rotated = true;
+                        patch.patchImage = patch.patchImage.Rotate90Clockwise();
+                    }
+                    anyRotated |= rotated;
+
+                    var patchULCPixelInDest = new Vector2((int)cube.X, (int)cube.Y);
+                    if (logger != null)
+                    {
+                        logger.LogVerbose("{0} patch {1} ({2}x{3}), {4}rotated, ULC row={5}, col={6} in {7}x{8} dest",
+                                          logPrefix, i, patch.patchImage.Width, patch.patchImage.Height,
+                                          rotated ? "" : "not ", patchULCPixelInDest.Y, patchULCPixelInDest.X,
+                                          packedWidth, packedHeight);
+                    }
+
+                    img.Blit(patch.patchImage, dstCol: (int)cube.X, dstRow: (int)cube.Y, unmask: true);
+
+                    if (index != null)
+                    {
+                        index.Blit(patch.patchIndex, dstCol: (int)cube.X, dstRow: (int)cube.Y, unmask: true);
+                    }
+
+                    //remap UV coordinates
+                    foreach (var t in patch.triangles)
+                    {
+                        var newTri = new Triangle(t);
+                        foreach (var v in newTri.Vertices())
+                        {
+                            Vector2 origUV = v.UV;
+                            Vector2 origPixel = patch.originalImage.UVToPixel(origUV);
+                            Vector2 patchPixel = origPixel - patch.MinPixel();
+                            if (rotated)
+                            {
+                                double row = patchPixel.Y;
+                                double col = patchPixel.X;
+                                double newRow = col;
+                                double newCol = origPatchHeight - row - 1;
+                                patchPixel.Y = newRow;
+                                patchPixel.X = newCol;
+                            }
+                            var destPixel = patchULCPixelInDest + patchPixel;
+                            v.UV = img.PixelToUV(destPixel);
+                            if (!Mesh.CheckUV(v.UV))
+                            {
+                                throw new Exception($"{logPrefix} bad UV in patch {i}: UV {origUV} => {v.UV}, " +
+                                                    $"pixel {origPixel} => {patchPixel} => {destPixel}");
+                            }
+                        }
+                        newTris.Add(newTri);
                     }
                 }
 
+                //we can't just directly mutate the UVs on mesh
+                //because we may be splitting verts with the same position but different UVs
+                mesh.SetTriangles(newTris, warn: warn); //will merge duplicate verts and clean mesh
+
+                //we already included extra border pixels around each patch (see borderSize)
+                //but inpaint gutter just in case texture sampling goes beyond that
+                img.Inpaint();
+
+                if (anyRotated)
+                {
+                    warn("used bin packing with rotation, may be unstable");
+                }
             }
-            List<Triangle> resultTriangles = new List<Triangle>();
-            foreach (var p in patches)
+
+            if (img == null)
             {
-                resultTriangles.AddRange(p.triangles);
+                throw new Exception(logPrefix + " failed");
             }
-            MeshImagePair result = new MeshImagePair();
-            result.Image = packedImg;
-            result.Mesh = new Mesh(resultTriangles, hasNormals: hasNormals, hasUVs: true, hasColors: hasColors);
-            return result;
-        }
 
-        /// <summary>
-        /// Clips every mesh in the list of MeshImagePairs to specified bounding box. Creates new texture of patches from original images for each portion of clipped mesh packed into single image.
-        /// Each patch has border of borderSize pixels. Returns new single MeshImagePair with clipped mesh and packed image.
-        /// If rotation is allowed in packing, small pixel texture may be introduced.
-        /// </summary>
-        /// <param name="box"></param>
-        /// <param name="borderSize"></param>
-        /// <param name="allowRotation"></param>
-        /// <returns></returns>
-        public MeshImagePair Clip(BoundingBox box, int borderSize = 5, bool allowRotation = false)
-        {
-            if (allowRotation)
+            if (maxTextureSize > 0 && (img.Width > maxTextureSize || img.Height > maxTextureSize))
             {
-                logger.Warn("Clip Mesh rotation is potentially unstable and may result in half pixel texture offsets");
-            }
-            List<TexturePatch> patches = new List<TexturePatch>();
-        
-            int outputImageBands = 0;
-            bool hasNormals = false;
-            bool hasColors = false;
-            foreach (var pair in pairs)
-            {
-                Mesh clippedMesh = pair.MeshOperator.Clip(box);
-                clippedMesh.Clean();
-                patches.AddRange(ComputePatches(clippedMesh, pair.Image, borderSize));
-                outputImageBands = Math.Max(outputImageBands, pair.Image.Bands);
-                hasNormals |= pair.MeshOperator.HasNormals;
-                hasColors |= pair.MeshOperator.HasColors;
-
+                int origWidth = img.Width;
+                int origHeight = img.Height;
+                img = img.ResizeMax(maxTextureSize);
+                if (index != null)
+                {
+                    index = index.ResizeMaxNearest(maxTextureSize);
+                }
+                if (logger != null)
+                {
+                    logger.LogVerbose("{0} {1}x{2} image to {3}x{4}, max size {5}",
+                                      logPrefix, origWidth, origHeight, img.Width, img.Height, maxTextureSize);
+                }
             }
 
-            return ClipPatches(patches, hasNormals, hasColors, outputImageBands, borderSize, allowRotation);
 
+            return new MeshImagePair(mesh, img, index);
         }
     }
 }

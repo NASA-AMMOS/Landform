@@ -18,54 +18,36 @@ namespace OPS.Pipeline
     /// </summary>
     public class MultiMeshClipper
     {
-        private class Dataset
-        {
-            public Mesh Mesh;
-            public Image Image;
-            public MeshOperator MeshOperator;
-            public Dataset(Mesh mesh, Image img)
-            {
-                if (!mesh.HasNormals)
-                {
-                    mesh.GenerateVertexNormals();
-                }
-                this.Mesh = mesh;
-                this.Image = img;
-                MeshOperator = new MeshOperator(mesh, buildFaceTree: true, buildUVFaceTree: false,
-                                                buildVertexTree: !mesh.HasFaces);
-            }
-        }
+        public BoundingBox TotalBounds { get; private set; }
 
-        public BoundingBox TotalBounds;
-
-        private List<Dataset> datasets = new List<Dataset>();
+        private List<MeshImagePair> inputs = new List<MeshImagePair>();
         private TextureBaker textureBaker;
         private TexturedMeshClipper texturedMeshClipper = new TexturedMeshClipper();
 
         /// <summary>
         /// Adds a new input dataset
-        /// All datasets should be added before clipping is performed
+        /// All inputs should be added before clipping is performed
         /// Inputs should all be similar, meshes should have matching attributes
         /// and they should either all have textures or none should have textures.
         /// Otherwise the clipping behaviour is undefined
         /// </summary>
-        /// <param name="dataset"></param>
-        public void AddInput(Mesh mesh, Image img)
+        public void AddInput(MeshImagePair mip)
         {
             if (textureBaker != null)
             {
-                throw new Exception("Cannot add dataset after calling InitTextureBaker()");
+                throw new Exception("cannot add input after calling InitTextureBaker()");
             }
 
-            var dataset = new Dataset(mesh, img);
-            datasets.Add(dataset);
+            mip.EnsureMeshOperator();
 
-            var bounds = dataset.MeshOperator.Bounds;
-            TotalBounds = datasets.Count == 1 ? bounds : BoundingBoxExtensions.Union(TotalBounds, bounds);
+            inputs.Add(mip);
 
-            if (img != null && dataset.MeshOperator.HasUVs)
+            var bounds = mip.MeshOp.Bounds;
+            TotalBounds = inputs.Count == 1 ? bounds : BoundingBoxExtensions.Union(TotalBounds, bounds);
+
+            if (mip.Image != null && mip.Mesh.HasUVs)
             {
-                texturedMeshClipper.AddMeshImagePair(dataset.MeshOperator, img);
+                texturedMeshClipper.AddInput(mip);
             }
         }
 
@@ -75,10 +57,7 @@ namespace OPS.Pipeline
         /// </summary>
         public void InitTextureBaker()
         {            
-            var pairs = datasets
-                .Where(d => d.Image != null && d.Mesh.HasUVs)
-                .Select(d => new MeshImagePair(d.Mesh, d.Image))
-                .ToArray();
+            var pairs = inputs.Where(d => d.Image != null && d.Mesh.HasUVs).ToArray();
             if (pairs.Length > 0)
             {
                 textureBaker = new TextureBaker(pairs);
@@ -87,7 +66,7 @@ namespace OPS.Pipeline
 
         public MeshOperator[] GetMeshOps()
         {
-            return datasets.Select(dataset => dataset.MeshOperator).ToArray();
+            return inputs.Select(mip => mip.MeshOp).ToArray();
         }
 
         /// <summary>
@@ -100,7 +79,7 @@ namespace OPS.Pipeline
         /// <returns></returns>
         public Mesh Clip(BoundingBox box, bool ragged = false)
         {
-            var meshes = datasets.Where(d => !d.MeshOperator.Empty(box)).Select(d => d.MeshOperator.Clip(box, ragged));
+            var meshes = inputs.Where(mip => !mip.MeshOp.Empty(box)).Select(mip => mip.MeshOp.Clip(box, ragged));
             var merged = Mesh.Merge(meshes.ToArray());
             merged.Clean();
             return merged;

@@ -25,6 +25,8 @@ namespace OPS.Pipeline
 
         public int NumPixels { get { return ImageWidth * ImageHeight; } }
 
+        public bool HasIndex;
+
         public MeshImagePairStats() { }
 
         public MeshImagePairStats(MeshImagePair mip)
@@ -57,6 +59,7 @@ namespace OPS.Pipeline
                     ImageWidth = mip.Image.Width;
                     ImageHeight = mip.Image.Height;
                 }
+                HasIndex = mip.Index != null;
             }
         }
 

@@ -14,8 +14,9 @@ namespace OPS.Pipeline
 {
     public static class SceneNodeTilingExtensions
     {
-
         public const double DEFAULT_SEARCH_RATIO = 1.1f;
+
+        public static bool useTextureError;
 
         public static void SaveMesh(this SceneNode node, string directory, string meshExtension = "ply", string imageExtension = "jpg")
         {
@@ -66,8 +67,17 @@ namespace OPS.Pipeline
             return result;
         }
 
-        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds, int maxTextureSize = int.MaxValue)
+        public static int ComputeParentTileResolution(IEnumerable<MeshImagePair> pairs, BoundingBox cropBounds,
+                                                      int maxTextureSize = int.MaxValue)
         {
+            if (maxTextureSize == 0)
+            {
+                return 0; //texturing disabled
+            }
+            if (maxTextureSize < 0)
+            {
+                maxTextureSize = int.MaxValue;
+            }
             // Read all overlapping meshes, crop each to the extent of the leaf tile
             // and calculate the area the triangles occupy in units of pixels.  Sum all
             // the areas and round up to nearest power of two to decide size of the new tile
@@ -212,13 +222,13 @@ namespace OPS.Pipeline
             info("computing parent tile resolution");
             int size = ComputeParentTileResolution(pairs, combinedDecimated.Bounds(), maxTextureSize);
 
-            Image img = null;
-            Image index = null;
+            //we always bake parent tile textures, regardless of project.TextureMode
+            Image img = null, index = null;
             if (size != 0)
             {
                 info(string.Format("atlasing parent tile with UVAtlas, resolution {0}", size));
                 combinedDecimated = UVAtlas.Atlas(combinedDecimated, size, size);
-                if(combinedDecimated == null)
+                if (combinedDecimated == null)
                 {
                     error("failed to atlas combined children meshes");
                     return false;
@@ -316,7 +326,12 @@ namespace OPS.Pipeline
                 if (!useExistingLeafBounds || !leaf.HasComponent<NodeBounds>())
                 {
                     var pair = leaf.GetComponent<MeshImagePair>();
-                    leaf.GetOrAddComponent<NodeBounds>().Bounds = pair.Mesh.Bounds();
+                    var meshBounds = pair.Mesh.Bounds();
+                    if (meshBounds.IsEmpty())
+                    {
+                        meshBounds = new BoundingBox();
+                    }
+                    leaf.GetOrAddComponent<NodeBounds>().Bounds = meshBounds;
                 }
                 if (leaf.Parent != null)
                 {
@@ -329,7 +344,8 @@ namespace OPS.Pipeline
                 foreach (var p in curParents)
                 {
                     p.GetOrAddComponent<NodeBounds>().Bounds =
-                        BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds).ToArray());
+                        BoundingBoxExtensions.Union(p.Children.Select(c => c.GetOrAddComponent<NodeBounds>().Bounds)
+                                                    .ToArray());
                     if (p.HasComponent<MeshImagePair>() && p.GetComponent<MeshImagePair>().Mesh != null)
                     {
                         p.GetComponent<NodeBounds>().Bounds =
@@ -437,26 +453,31 @@ namespace OPS.Pipeline
                 {
                     accuracy = bounds.Bounds.MaxDimension() * HAUSDORFF_RELATIVE_ACCURACY;
                 }
-                meshError = maxDepError + mip.Mesh.HausdorffDistance(accuracy, dependencyMeshes.ToArray());
+                //the merged dependency meshes can be a significant superset of this node's mesh
+                //just compute the unidirectional Hausdorff distance from this node's mesh to the merged dep meshes
+                bool symmetric = false;
+                meshError = maxDepError + mip.Mesh.HausdorffDistance(accuracy, symmetric, dependencyMeshes.ToArray());
             }
 
             info($"{node.Name} mesh error {meshError:F3} (incl max {maxDepError:F3} of {nd} dependencies)");
 
             double textureError = 0; //lineal meters per texel
-            double pixelArea = 0, surfaceArea = 0;
-            if (mip.Image != null)
+            if (useTextureError)
             {
-                pixelArea = mip.Mesh.ComputePixelArea(mip.Image);
-                if (pixelArea > 0)
+                double pixelArea = 0, surfaceArea = 0;
+                if (mip.Image != null)
                 {
-                    surfaceArea = mip.Mesh.SurfaceArea();
-                    textureError = TEXTURE_ERROR_MULTIPLIER * Math.Sqrt(surfaceArea / pixelArea);
+                    pixelArea = mip.Mesh.ComputePixelArea(mip.Image);
+                    if (pixelArea > 0)
+                    {
+                        surfaceArea = mip.Mesh.SurfaceArea();
+                        textureError = TEXTURE_ERROR_MULTIPLIER * Math.Sqrt(surfaceArea / pixelArea);
+                    }
                 }
+                info($"{node.Name} texture error {textureError:F3}" +
+                     (pixelArea > 0 ? $" = {TEXTURE_ERROR_MULTIPLIER} * sqrt({surfaceArea:F3}m^2 / {pixelArea:F3}px^2)"
+                      : ""));
             }
-
-            info($"{node.Name} texture error {textureError:F3}" +
-                 (pixelArea > 0 ? $" = {TEXTURE_ERROR_MULTIPLIER} * sqrt({surfaceArea:F3}m^2 / {pixelArea:F3}px^2)"
-                  : ""));
 
             double error = Math.Max(meshError, textureError);
             info($"{node.Name} geometric error {error:F3}, meshError={meshError:F3}, textureError={textureError:F3}");
@@ -541,6 +562,12 @@ namespace OPS.Pipeline
                                             minImg.ImageWidth, minImg.ImageHeight,
                                             maxImg.ImageWidth, maxImg.ImageHeight,
                                             Fmt.KMG(imgStats.Sum(s => s.NumPixels)));
+                    }
+
+                    int numIndices = mipStats.Count(s => s.HasIndex);
+                    if (numIndices > 0)
+                    {
+                        msg += string.Format("{0}{1} indices", (msg != "") ? ", " : "", numIndices);
                     }
 
                     var vertStats = mipStats.Where(s => s.NumVerts > 0).OrderBy(s => s.NumVerts).ToList();

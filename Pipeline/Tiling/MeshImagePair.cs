@@ -1,10 +1,10 @@
-﻿using OPS.Geometry;
-using OPS.Imaging;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OPS.Imaging;
+using OPS.Geometry;
 
 namespace OPS.Pipeline
 {
@@ -16,17 +16,26 @@ namespace OPS.Pipeline
         public Mesh Mesh;
         public Image Image;
         public Image Index;
+        public MeshOperator MeshOp;
 
-        public MeshImagePair()
-        {
+        public MeshImagePair() { }
 
-        }
-
-        public MeshImagePair(Mesh mesh = null, Image image = null, Image index = null)
+        public MeshImagePair(Mesh mesh = null, Image image = null, Image index = null, MeshOperator meshOp = null)
         {
             this.Mesh = mesh;
             this.Image = image;
             this.Index = index;
+            this.MeshOp = meshOp;
+        }
+
+        public MeshOperator EnsureMeshOperator(bool buildUVFaceTree = false)
+        {
+            if (MeshOp == null || (buildUVFaceTree && !MeshOp.HasUVFaceTree))
+            {
+                MeshOp = new MeshOperator(Mesh, buildFaceTree: Mesh.HasFaces, buildUVFaceTree: buildUVFaceTree,
+                                          buildVertexTree: !Mesh.HasFaces);
+            }
+            return MeshOp;
         }
     }
 }

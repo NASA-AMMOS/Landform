@@ -79,11 +79,11 @@ namespace OPS.Pipeline.TilingServer
             {
                 LogLess("generating parent {0} mesh and geometric error from {1} tiles",
                         message.TileId, parent.DependsOn.Count);
-                if(!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.GetReconMethod(),
-                                                          project.FacesPerTile, project.TileResolution,
-                                                          project.GetSkirtMode(), 
-                                                          info: msg => LogLess(msg),
-                                                          error: msg => { throw new Exception(msg); }))
+                int maxTextureSize = project.TextureMode == TextureMode.None ? 0 : project.TextureResolution;
+                if (!parentSceneNode.BuildGeometryFromChildren(parentSceneNode, project.ReconstructionMethod,
+                                                               project.FacesPerTile, maxTextureSize,
+                                                               project.SkirtMode, info: msg => LogLess(msg),
+                                                               error: msg => { throw new Exception(msg); }))
                 {
                     throw new Exception("failed to build parent from children");
                 }

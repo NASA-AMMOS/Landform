@@ -30,8 +30,11 @@ namespace OPS.TilingServer
         [Option(Default = 2000, HelpText = "target maximum faces per tile")]
         public int FacesPerTile { get; set; }
 
-        [Option(Default = 256, HelpText = "maximum image resolution per tile")]
-        public int TileResolution { get; set; }
+        [Option(Default = 256, HelpText = "maximum image resolution per tile, 0 disables texturing, negative for unlimited/default")]
+        public int TextureResolution { get; set; }
+
+        [Option(Default = TextureMode.Bake, HelpText = "texture mode (None, Clip, Bake)")]
+        public TextureMode TextureMode { get; set; }
 
         [Option(Default = PipelineStateMachine.ProjectType.GenericTiling, HelpText = "processing pipline, currently only GenericTiling is supported")]
         public PipelineStateMachine.ProjectType ProjectType { get; set; }
@@ -145,8 +148,9 @@ namespace OPS.TilingServer
                                          SkirtMode = options.SkirtMode,
                                          ReconstructionMethod = options.ReconstructionMethod,
                                          FacesPerTile = options.FacesPerTile,
-                                         TileResolution = options.TileResolution,
                                          ProjectType = options.ProjectType,
+                                         TextureResolution = options.TextureResolution,
+                                         TextureMode = options.TextureMode,
                                          ConvertLinearRGBToSRGB = !options.NoConvertLinerRGBToSRGB,
                                          ExportMeshFormat = exMeshFmt,
                                          ExportImageFormat = exImageFmt,

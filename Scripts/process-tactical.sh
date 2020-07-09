@@ -93,7 +93,7 @@ fi
 help="\
 USAGE: process-tactical.sh IN_DIR MISSION [OUT_DIR]
 [--suffix foo] [--dryrun] [--help] [--nocleanup] [--onlycleanup] [--redo]
-[--debug] [--verbose] [--singlethreaded]
+[--writedebug] [--debug] [--verbose] [--singlethreaded]
 [--nolods] [--meshext iv] [--imgext IMG]
 [--exportmeshext ply] [--exportimgext png]
 [--configargs \"--arg val\"]
@@ -144,8 +144,8 @@ suffix=
 export=
 
 cfgargs=
-tilingargs=
-tilesetargs=
+tilingargs="--tileresolution=-1"
+tilesetargs="--notextureerror"
 manifestargs=
 syncargs=
 
@@ -163,6 +163,7 @@ while (( "$#" )); do
         "--redo") redo="--redo";;
         "--onlyupload") upload=true; only_upload=true; cleanup=; only_cleanup=; generate=;;
         "--quiet") dbg="$dbg --quiet";;
+        "--writedebug") dbg="$dbg --writedebug";;
         "--debug") dbg="$dbg --debug";;
         "--verbose") dbg="$dbg --verbose";;
         "--singlethreaded") dbg="$dbg --singlethreaded";;
@@ -175,8 +176,8 @@ while (( "$#" )); do
         "--nomanifest") manifest=;;
         "--nolods") lods=;;
         "--configargs") shift; expect $# "config args"; cfgargs="$1";;
-        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$1";;
-        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$1";;
+        "--tilingargs") shift; expect $# "tiling args"; tilingargs="$tilingargs $1";;
+        "--tilesetargs") shift; expect $# "tileset args"; tilesetargs="$tilesetargs $1";;
         "--manifestargs") shift; expect $# "manifest args"; manifestargs="$1";;
         "--syncargs") shift; expect $# "sync args"; syncargs="$1";;
     esac

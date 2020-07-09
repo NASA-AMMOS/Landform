@@ -83,9 +83,14 @@ namespace OPS.Geometry
         public Mesh(List<Triangle> triangles, bool hasNormals = false, bool hasUVs = false, bool hasColors = false,
                     Action<string> warn = null)
         {
-            Faces = new List<Face>(triangles.Count);
-            Vertices = new List<Vertex>(triangles.Count * 3);
             SetProperties(hasNormals, hasUVs, hasColors);
+            SetTriangles(triangles);
+        }
+
+        public void SetTriangles(IEnumerable<Triangle> triangles, bool normalize = true, Action<string> warn = null)
+        {
+            Faces = new List<Face>(triangles.Count());
+            Vertices = new List<Vertex>(triangles.Count() * 3);
             int idx = 0;
             foreach (Triangle t in triangles)
             {
@@ -95,7 +100,7 @@ namespace OPS.Geometry
                 Vertices.Add((Vertex)t.V1.Clone());
                 Vertices.Add((Vertex)t.V2.Clone());
             }
-            Clean(warn: warn);
+            Clean(normalize: normalize, removeDuplicateVerts: true, warn: warn);
         }
 
         /// <summary>
@@ -227,7 +232,7 @@ namespace OPS.Geometry
             }
         }
 
-        bool CheckUV(Vector2 uv)
+        public static bool CheckUV(Vector2 uv)
         {
             return 0 <= uv.X && uv.X <= 1 && 0 <= uv.Y && uv.Y <= 1;
         }
@@ -791,9 +796,7 @@ namespace OPS.Geometry
             List<Triangle> triangles = new List<Triangle>(Faces.Count);
             foreach (Face f in Faces)
             {
-                Triangle t = new Triangle(Vertices[f.P0],
-                                          Vertices[f.P1],
-                                          Vertices[f.P2]);
+                Triangle t = new Triangle(Vertices[f.P0], Vertices[f.P1], Vertices[f.P2]);
                 triangles.Add(t);
             }
             return triangles;
@@ -1682,28 +1685,25 @@ namespace OPS.Geometry
         }
 
         /// <summary>
-        /// Compute Hausdorff difference between this mesh and 1 or more other meshes
+        /// Compute Hausdorff difference between this mesh and 1 or more other meshes.
+        /// If symmetric = true then computes the bidirectional Hausdorff distance.
+        /// Otherwise computes the unidirectional Hausdorff distance from this mesh to the merged others.
         /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
-        public double HausdorffDistance(double maxErrorEpsilon, params Mesh[] other)
+        public double HausdorffDistance(double maxErrorEpsilon, bool symmetric, params Mesh[] other)
         {
             Mesh merged = Mesh.Merge(this.HasNormals, this.HasUVs, this.HasColors, other);
-            if (!this.Bounds().Intersects(merged.Bounds()))
-            {
-                return merged.Bounds().MaxDimension();
-            }
-            return OPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon);
-        }
 
-        /// <summary>
-        ///  Compute Hausdorff difference between this mesh and 1 or more other meshes using default maxErrorEpsilon
-        /// </summary>
-        /// <param name="other"></param>
-        /// <returns></returns>
-        public double HausdorffDistance(params Mesh[] other)
-        {
-            return HausdorffDistance(0.001, other);
+            //this isn't right
+            //just because the two bounds don't intersect
+            //doesn't mean the Hausdorff distance is related to the size of either bounds
+            //for example consider two parallel planar meshes, so by construction their bounds never intersect
+            //but their Hausdorff distance is the distance between them which can be arbitrarily small
+            //if (!this.Bounds().Intersects(merged.Bounds()))
+            //{
+            //    return merged.Bounds().MaxDimension();
+            //}
+
+            return OPS.Geometry.HausdorffDistance.Calculate(this, merged, maxErrorEpsilon, symmetric);
         }
 
         /// <summary>

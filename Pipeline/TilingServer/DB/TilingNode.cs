@@ -424,7 +424,11 @@ namespace OPS.Pipeline.TilingServer
             //save combined mesh and image as a 3D Tiles b3dm (batched 3D model) file for runtime visualization
             //or, if the mesh is not triangulated, then just save the point cloud as a pnts file
             //also saves export image to S3 iff it hasn't been uploaded already and is the same format as for 3D tiles
-            string tileMeshExt = pair.Mesh.HasFaces ? TilingProject.ToExt(project.TilesetMeshFormat) : ".pnts";
+            string tileMeshExt = TilingProject.ToExt(project.TilesetMeshFormat);
+            if (!pair.Mesh.HasFaces && pair.Mesh.HasVertices) //write empty mesh as ply
+            {
+                tileMeshExt = ".pnts";
+            }
             string tileImageExt = TilingProject.ToExt(project.TilesetImageFormat);
             string tileIndexExt = TilingProject.ToExt(project.TilesetIndexFormat);
             var exts = new List<string>() { tileMeshExt, tileImageExt };
@@ -478,10 +482,10 @@ namespace OPS.Pipeline.TilingServer
                     if (pair.Mesh != null)
                     {
                         Mesh tilesetMesh = pair.Mesh;
-                        if (tilesetMesh.HasFaces && project.GetSkirtMode() != SkirtMode.None)
+                        if (tilesetMesh.HasFaces && project.SkirtMode != SkirtMode.None)
                         {
                             tilesetMesh = new Mesh(tilesetMesh);
-                            tilesetMesh.AddSkirt(project.GetSkirtMode());
+                            tilesetMesh.AddSkirt(project.SkirtMode);
                             SetBoundsWithSkirt(BoundingBoxExtensions.Union(GetBounds().Value, tilesetMesh.Bounds()));
                         }
                         else

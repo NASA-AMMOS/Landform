@@ -96,7 +96,6 @@
     <Compile Include="Geometry\Procrustes.cs" />
     <Compile Include="Geometry\EdgeGraph\Edge.cs" />
     <Compile Include="Geometry\QuadricEdgeCollapse\EdgeCollapse.cs" />
-    <Compile Include="Geometry\HausdorffTriangle.cs" />
     <Compile Include="Geometry\HausdorffDistance.cs" />
     <Compile Include="Geometry\EdgeGraph\EdgeGraph.cs" />
     <Compile Include="Geometry\OctreeNode.cs" />

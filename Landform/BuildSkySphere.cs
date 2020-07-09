@@ -151,6 +151,7 @@ namespace OPS.Landform
     {
         public const double DEF_SCENE_RADIUS = 45;
         public const double DEF_FAR_RADIUS = 2000;
+        public const double MIN_AUTO_RADIUS = 16;
 
         public const int MAX_BLEND_SIZE = 8192;
 
@@ -290,7 +291,7 @@ namespace OPS.Landform
             sceneRadius = DEF_SCENE_RADIUS;
             if (sceneBounds.HasValue)
             {
-                sceneRadius = Math.Max(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
+                sceneRadius = Math.Min(sceneBounds.Value.Min.XY().Length(), sceneBounds.Value.Max.XY().Length());
             }
 
             if (options.SphereRadiusMeters.ToLower() == "auto")
@@ -302,6 +303,7 @@ namespace OPS.Landform
                     case SkyMode.TopoSphere: sphereRadius = DEF_FAR_RADIUS; break;
                     default: throw new Exception("unknown sky mode: " + options.SkyMode);
                 }
+                sphereRadius = Math.Max(MIN_AUTO_RADIUS, sphereRadius);
             }
             else
             {
@@ -595,11 +597,20 @@ namespace OPS.Landform
                 // llc----B----lrc
 
                 var sceneBounds = sceneMesh.GetBounds().Value;
+
                 Vector2 llc = sceneBounds.Min.XY();
+                if (llc.Length() > MathE.EPSILON)
+                {
+                    llc = sphereRadius * Vector2.Normalize(llc);
+                }
                 Vector2 urc = sceneBounds.Max.XY();
+                if (urc.Length() > MathE.EPSILON)
+                {
+                    urc = sphereRadius * Vector2.Normalize(urc);
+                }
                 Vector2 ulc = new Vector2(urc.X, llc.Y);
                 Vector2 lrc = new Vector2(llc.X, urc.Y);
-                Vector2 mrc = new Vector2(0, urc.Y);
+                Vector2 mrc = 0.5 * (urc + lrc);
 
                 Func<double, double, double, double> bracket = (min, max, val) => (val - min) / (max - min);
 
@@ -699,13 +710,11 @@ namespace OPS.Landform
 
                 var mip = tile.GetComponent<MeshImagePair>();
 
-                mip.Index = new Image(3, tileResolution, tileResolution);
-                mip.Image = BackprojectTile(tile, mip.Mesh, mip.Index, new SceneCaster(mip.Mesh),
-                                            sceneOccludesSky ? sceneCaster : null);
+                BackprojectTile(mip, tile.Name, new SceneCaster(mip.Mesh), sceneOccludesSky ? sceneCaster : null);
 
-                if (mip.Image != null)
+                if (mip.Mesh != null && mip.Image != null && mip.Index != null)
                 {
-                    SaveTile(tile.Name, mip.Mesh, mip.Image, mip.Index, localSave, cloudSave, tile.IsLeaf);
+                    SaveTile(mip, tile.Name, localSave, cloudSave, tile.IsLeaf);
                     Interlocked.Increment(ref numSucceded);
                 }
                 else
@@ -714,7 +723,7 @@ namespace OPS.Landform
                 }
 
                 //conserve memory
-                tile.AddComponent(new MeshImagePairStats(tile.GetComponent<MeshImagePair>()));
+                tile.AddComponent(new MeshImagePairStats(mip));
                 tile.RemoveComponent<MeshImagePair>();
 
                 Interlocked.Decrement(ref np);

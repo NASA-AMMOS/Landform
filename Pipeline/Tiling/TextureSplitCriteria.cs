@@ -31,6 +31,7 @@ namespace OPS.Pipeline
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
         public double raycastTolerance;
+        public bool redoUVs;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
@@ -66,12 +67,16 @@ namespace OPS.Pipeline
 
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)
+            {
                 return false;
+            }
 
             // may have too few faces to ever service texture resolution (output atlas too low res)
             Mesh clippedMesh = meshOperator.Clip(areaOfInterest);
-            if (clippedMesh.Faces.Count <= 2)
+            if (clippedMesh.Faces.Count < 2)
+            {
                 return false;
+            }
 
             // finer frustum test: get all observations that intersect mesh hull
             ConvexHull clippedHull = ConvexHull.CreateWithFallback(clippedMesh);
@@ -79,15 +84,23 @@ namespace OPS.Pipeline
 
             //no textures would be used on this mesh, no need to split
             if (intersectingCameras.Count == 0)
+            {
                 return false;
+            }
 
             if (!GetDestTexelPerArea(clippedMesh, out double dstPixelsArea))
+            {
                 return false;
+            }
 
             if (!GetSourcePixelPerArea(clippedMesh, clippedHull, intersectingCameras, out double srcPixelsArea))
+            {
                 return false;
+            }
+
 
             double ratioOfSrcToDest = srcPixelsArea / dstPixelsArea;
+
             return ratioOfSrcToDest > options.splitPixelTexelRatio;
         }
 
@@ -117,13 +130,15 @@ namespace OPS.Pipeline
             srcPixelArea = 0;
 
             //generate an atlas for the mesh if needed
-            if (!clippedMesh.HasUVs)
+            if (!clippedMesh.HasUVs || options.redoUVs)
             {
                 try
                 {
                     clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution);
                     if (clippedMesh == null)
+                    {
                         return false;
+                    }
                 }
                 catch
                 {
@@ -133,6 +148,10 @@ namespace OPS.Pipeline
                     //this would recurse down to single triangle tiles
                     return false;
                 }
+            }
+            else
+            {
+                clippedMesh.RescaleUVsForTexture(options.tileResolution, options.tileResolution);
             }
 
             //choose a sub-set of points (for perf) from the output atlas texture to test
@@ -292,41 +311,50 @@ namespace OPS.Pipeline
             dstTexelArea = APPROX_TEXTURE_UTILIZATION * numTexels / clippedArea;
             return true;
         }
-        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull, List<CameraInstance> intersectingCameras, out double srcPixelArea)
+
+        protected override bool GetSourcePixelPerArea(Mesh clippedMesh, ConvexHull clippedHull,
+                                                      List<CameraInstance> intersectingCameras, out double srcPixelArea)
         {
             srcPixelArea = 0;
 
             double minAreaPerPixelInMeters = double.MaxValue;
             foreach (var camInst in intersectingCameras)
             {
-                //find the closest point on the mesh to the camera
-                // this will be used for the estimate of the pixel density
-                // in an attempt to be conservative
-                Vector3 camInMesh = Vector3.Transform(((CAHV)camInst.cameraModel).C, camInst.cameraToMesh);
-                double minDistSq = double.MaxValue;
-                foreach (var vert in clippedMesh.Vertices)
+                // project grid of 25 central rays from camera to estimate closest distance to mesh
+                var pixels = new List<Vector2>(25);
+                int rowSkip = camInst.heightPixels / 6;
+                int colSkip = camInst.widthPixels / 6;
+                for (int r = rowSkip; r < camInst.heightPixels; r += rowSkip)
                 {
-                    double curDistSq = Vector3.DistanceSquared(camInMesh, vert.Position);
-                    if (curDistSq < minDistSq)
+                    for (int c = colSkip; c < camInst.heightPixels; c += colSkip)
                     {
-                        minDistSq = curDistSq;
+                        pixels.Add(new Vector2(c, r));
                     }
                 }
 
-                if (minDistSq == double.MaxValue)
+                var pts = ProjectedPixelDistances.GetMeshPositionsForCameraPixels(clippedMesh.Bounds(),
+                                                                                  options.scInMesh, options.scInMesh,
+                                                                                  camInst.cameraModel,
+                                                                                  camInst.cameraToMesh, pixels,
+                                                                                  options.raycastTolerance);
+                if (pts.Count < 1)
                 {
                     continue;
                 }
-                double minDist = Math.Sqrt(minDistSq);
 
-                //calculate the distance between pixel corners and use the diagonal to approximate the area 
-                // (uses a square pixel approximation) 
-                Vector2 []corners = Image.GetPixelCorners(new Vector2(camInst.widthPixels / 2.0, camInst.heightPixels / 2.0));
+                Vector3 camInMesh = Vector3.Transform(((CAHV)camInst.cameraModel).C, camInst.cameraToMesh);
+                double minDist = pts.Min(pt => Vector3.Distance(camInMesh, pt));
+
+                // use a square pixel approximation
+                Vector2 []corners = Image.GetPixelCorners(new Vector2(camInst.widthPixels / 2.0,
+                                                                      camInst.heightPixels / 2.0));
                 Vector3 ptUpperLeftCorner = camInst.cameraModel.Unproject(corners[0], minDist);
                 Vector3 ptUpperRightCorner = camInst.cameraModel.Unproject(corners[1], minDist);
                 Vector3 ptLowerRightCorner = camInst.cameraModel.Unproject(corners[2], minDist);
                 Vector3 ptLowerLeftCorner = camInst.cameraModel.Unproject(corners[3], minDist);
-                double curAreaPerPixelInMeters = Vector3.Distance(ptUpperLeftCorner, ptUpperRightCorner) * Vector3.Distance(ptUpperLeftCorner, ptLowerLeftCorner);
+                double projectedWidth = Vector3.Distance(ptUpperLeftCorner, ptUpperRightCorner);
+                double projectedHeight = Vector3.Distance(ptUpperLeftCorner, ptLowerLeftCorner);
+                double curAreaPerPixelInMeters = projectedWidth * projectedHeight;
                 if (curAreaPerPixelInMeters < minAreaPerPixelInMeters)
                 {
                     minAreaPerPixelInMeters = curAreaPerPixelInMeters;
@@ -335,6 +363,7 @@ namespace OPS.Pipeline
 
             //convert area in m^2 of 1 pixel to number of pixels in 1 m^2
             srcPixelArea = 1 / minAreaPerPixelInMeters;
+
             return minAreaPerPixelInMeters != double.MaxValue;
         }
     }

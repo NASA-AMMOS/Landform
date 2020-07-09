@@ -213,7 +213,7 @@ namespace OPS.Pipeline
             {
                 LogInfo("creating project");
                 TilingProject.Create(pipeline, projectName, m.TilingScheme, m.SkirtMode, m.ReconstructionMethod,
-                                     m.FacesPerTile, m.TileResolution, m.ProjectType,
+                                     m.FacesPerTile, m.TextureResolution, m.TextureMode, m.ProjectType,
                                      m.ConvertLinearRGBToSRGB, m.ExportMeshFormat, m.ExportImageFormat,
                                      m.MaxLeafGroupSize);
             }
@@ -306,7 +306,7 @@ namespace OPS.Pipeline
         {
             LogInfo("tiles defined");
             var project = TilingProject.Find(pipeline, projectName);
-            if (TilingSchemeBase.IsUserProvided(project.GetTilingScheme()))
+            if (TilingSchemeBase.IsUserProvided(project.TilingScheme))
             {
                 LogInfo("input chunking skipped");
                 BuildNodes(project);
@@ -633,7 +633,8 @@ namespace OPS.Pipeline
         public SkirtMode SkirtMode;
         public MeshReconstructionMethod ReconstructionMethod;
         public int FacesPerTile;
-        public int TileResolution;
+        public int TextureResolution;
+        public TextureMode TextureMode;
         public PipelineStateMachine.ProjectType ProjectType;
         public bool ConvertLinearRGBToSRGB;
         public string ExportMeshFormat;

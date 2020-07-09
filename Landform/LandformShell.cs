@@ -63,6 +63,9 @@ namespace OPS.Landform
         [Option(HelpText = "Extra export image format, e.g. png, jpg, help for list", Default = null)]
         public string ExportImageFormat { get; set; }
 
+        [Option(HelpText = "Publish index images with tileset", Default = false)]
+        public bool PublishIndexImages { get; set; }
+
         [Option(HelpText = "Extra fetch arguments", Default = null)]
         public string FetchArgs { get; set; }
     }
@@ -499,6 +502,11 @@ namespace OPS.Landform
             {
                 args.Add("--exportimageformat");
                 args.Add(lsopts.ExportImageFormat);
+            }
+
+            if (lsopts.PublishIndexImages)
+            {
+                args.Add("--publishindeximages");
             }
 
             RunCommand("build-tileset", args.Concat(extraArgs).ToArray());
