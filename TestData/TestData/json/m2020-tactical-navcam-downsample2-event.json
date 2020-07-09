@@ -1,0 +1,12 @@
+{
+  "Type" : "Notification",
+  "MessageId" : "e048cb8c-e3c7-523a-be69-9dc1f55735ae",
+  "TopicArn" : "arn:aws-us-gov:sns:us-gov-west-1:017717573760:m20-ids-g-sns-gahlf1",
+  "Subject" : "Amazon S3 Notification",
+  "Message" : "{\"Records\":[{\"eventVersion\":\"2.1\",\"eventSource\":\"aws:s3\",\"awsRegion\":\"us-gov-west-1\",\"eventTime\":\"2019-11-18T21:59:44.631Z\",\"eventName\":\"ObjectCreated:Put\",\"userIdentity\":{\"principalId\":\"AWS:AROAKDVTRAY5NQNNBPBPC:ghollins\"},\"requestParameters\":{\"sourceIPAddress\":\"137.78.33.54\"},\"responseElements\":{\"x-amz-request-id\":\"388357E13A1F46C3\",\"x-amz-id-2\":\"K1abzp12E1KEdzQHjy4erw4imgrNSIv7sLUTg2hfMHtXodXae7THwbZnWUb93SXMEiGm1/3KfgY=\"},\"s3\":{\"s3SchemaVersion\":\"1.0\",\"configurationId\":\"tf-s3-topic-20191118215246258500000001\",\"bucket\":{\"name\":\"m20-ids-g-landform\",\"ownerIdentity\":{\"principalId\":\"AWS:017717573760\"},\"arn\":\"arn:aws-us-gov:s3:::m20-ids-g-data-gahlf1\"},\"object\":{\"key\":\"TestData/roastt-dev-0205/ods/roastt/sol/00403/ids/rdr/ncam/NLF_0403R0403123835_000RASLN0200010NCAM00501_0M0290J01.iv\",\"size\": 3778560,\"eTag\":\"afa2e1cb4d588edf78b6fdb0184a76dd\",\"sequencer\":\"005DD3145084A6950F\"}}}]}",
+  "Timestamp" : "2019-11-18T21:59:44.769Z",
+  "SignatureVersion" : "1",
+  "Signature" : "p3ZeCHGGZ5TVMt0eCkrdHGbNrs98ULVTK8aBykzlju3Pvw84QyxMsJtuAS6noG9pqDgOzTTj9LWOeLE+b4Qugv9jhfsy8f7e6P1feJr426mfFhq2nBvauKq84EOdwQyL0kTbjMCNm/pjXOsa2ZIwkMTMsqoni4uYi8/QlokBGWnUEF/QP9mCLHsCNvRrLn1bXt+bV2TkKmqr7mwUbmjwe1IsfWBRKbhWXkseAUek/SboZXfstKbQbNZNaY+Duu7fti7wOVVYepDcMlOSw7J6rZ52LzH0wRvabG7285JaT8VXOszYMYvGOxaoO9inyuVtF0aTA+uY2/N3Y2SFPLfxmQ==",
+  "SigningCertURL" : "https://sns.us-gov-west-1.amazonaws.com/SimpleNotificationService-3fd1396f1802e9805e77cb51575c7e53.pem",
+  "UnsubscribeURL" : "https://sns.us-gov-west-1.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws-us-gov:sns:us-gov-west-1:017717573760:m20-ids-g-sns-gahlf1:d3883c16-ab5b-4fd6-9bc9-9fd6ea1f86a1"
+}

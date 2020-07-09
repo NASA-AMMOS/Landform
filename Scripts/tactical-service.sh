@@ -15,8 +15,14 @@
 #
 # ./Scripts/m20-credss.sh
 #
-# ./Scripts/tactical-service.sh M2020 --landformownedqueues --queuename=m20-ids-g-landform-tactical-$USERNAME \
-#     --meshformat=IV
+# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-landform-tactical-$USERNAME \
+#     --landformownedqueues --service 
+#
+# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-landform-tactical-$USERNAME \
+#    --sendmessage TestData/TestData/json/m2020-tactical-navcam-downsample1-event.json
+#
+# ./Scripts/tactical-service.sh ROASTT20 --queuename=m20-ids-g-landform-tactical-$USERNAME \
+#     --landformownedqueues --deletequeues
 
 if [ $# -lt 1 ]; then
     echo "USAGE: tactical-service.sh MISSION ..."
@@ -39,7 +45,7 @@ venue=${service}-service
 
 stdopts="--configdir=$cfgdir --configfolder=$cfgfolder --logdir=$logdir --tempdir=$tmpdir"
 cfgopts="$stdopts --venue=$venue --maxcores=0 --randomseed=-1 --storagedir=$storagedir"
-svcopts="$stdopts --stacktraces --service --mission=$mission"
+svcopts="$stdopts --stacktraces --mission=$mission"
 
 set -x # echo commands
 
