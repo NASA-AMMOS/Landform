@@ -633,11 +633,17 @@ namespace OPS.Landform
             var dmg = new LimberDMG(residualEpsilon, numRelaxationSteps, numMultigridIterations, lambda,
                                     edgeMode, LimberDMG.ColorConversion.RGBToLAB, msg => pipeline.LogVerbose(msg));
 
-            blurred.DumpStats(msg => pipeline.LogInfo("initial image: " + msg));
+            if (pipeline.Verbose)
+            {
+                blurred.DumpStats(msg => pipeline.LogInfo("initial image: " + msg));
+            }
 
             var blended = dmg.StitchImage(blurred, index, flags);
 
-            blended.DumpStats(msg => pipeline.LogInfo("blended image: " + msg));
+            if (pipeline.Verbose)
+            {
+                blended.DumpStats(msg => pipeline.LogInfo("blended image: " + msg));
+            }
 
             return blended;
         }
