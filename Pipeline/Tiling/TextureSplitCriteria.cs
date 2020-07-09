@@ -31,6 +31,7 @@ namespace OPS.Pipeline
         public CameraInstance[] cameraInstances;
         public SceneCaster scInMesh;
         public double raycastTolerance;
+        public bool redoUVs;
     }
 
     abstract public class TextureSplitCriteria : ITileSplitCriteria
@@ -129,13 +130,15 @@ namespace OPS.Pipeline
             srcPixelArea = 0;
 
             //generate an atlas for the mesh if needed
-            if (!clippedMesh.HasUVs)
+            if (!clippedMesh.HasUVs || options.redoUVs)
             {
                 try
                 {
                     clippedMesh = UVAtlas.Atlas(clippedMesh, options.tileResolution, options.tileResolution);
                     if (clippedMesh == null)
+                    {
                         return false;
+                    }
                 }
                 catch
                 {
