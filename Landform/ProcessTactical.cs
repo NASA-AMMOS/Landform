@@ -182,6 +182,19 @@ namespace OPS.Landform
 
         protected override bool AcceptMessage(QueueMessage msg, out string reason)
         {
+            //Filter out some subfolders on S3.
+            //https://github.jpl.nasa.gov/OnSight/Landform/issues/1110
+            bool acceptBucketPath(string url)
+            {
+                string path = (new S3Url(url)).Path.ToLower();
+                return !path.StartsWith("/ids-pipeline/") &&
+                    path.Contains("/rdr/") &&
+                    !path.Contains("/rdr/browse/") &&
+                    !path.Contains("/rdr/mosaic/") &&
+                    !path.Contains("/rdr/mesh/") &&
+                    !path.Contains("/rdr/tileset/");
+            }
+
             reason = null;
             try
             {
@@ -194,6 +207,11 @@ namespace OPS.Landform
                 if (StringHelper.GetUrlExtension(url).ToLower() != meshExt)
                 {
                     reason = "unhandled file type: " + url;
+                    return false;
+                }
+                if (!acceptBucketPath(url))
+                {
+                    reason = "rejected bucket path: " + url;
                     return false;
                 }
                 var idStr = StringHelper.GetLastUrlPathSegment(url, stripExtension: true);
