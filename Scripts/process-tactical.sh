@@ -228,6 +228,8 @@ for f in `find ${indir} -name '*'.${meshext}`; do
 
     if [ -f $mesh -a -f $img ]; then
 
+        SECONDS=0
+
         if [ "$dry" ]; then log=; else mkdir -p $logdir; printf "${cmdline}\r\n" > $log; fi
 
         printf "processing tactical tileset for ${mesh}, ${img}\r\n" | tee -a $log
