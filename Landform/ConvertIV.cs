@@ -6,6 +6,7 @@ using log4net;
 using OPS.Util;
 using OPS.Imaging;
 using OPS.Geometry;
+using OPS.Pipeline;
 
 /// <summary>
 /// Utility to convert IV meshes to other formats.
@@ -124,6 +125,21 @@ namespace OPS.Landform
                             if (!File.Exists(tft))
                             {
                                 tft = tf;
+                            }
+                        }
+                        //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/951
+                        //see comments in ProcessTactical.cs AddImage()
+                        var id = RoverProductId.Parse(bn, throwOnFail: false);
+                        if (id != null)
+                        {
+                            string dir = Path.GetDirectoryName(files[i]);
+                            foreach (string tryId in id.DescendingVersions(10))
+                            {
+                                tft = Path.Combine(dir, tryId + tfExt);
+                                if (File.Exists(tft))
+                                {
+                                    break;
+                                }
                             }
                         }
                         if (!File.Exists(tft))

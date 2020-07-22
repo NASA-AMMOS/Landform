@@ -424,14 +424,16 @@ namespace OPS.Pipeline
         }
 
         public void AddOrUpdateTacticalTileset(string tilesetUrl, PDSParser parser, MissionSpecific mission,
-                                               ILogger logger = null)
+                                               string tilesetId = null, ILogger logger = null)
         {
-            string productId = parser.ProductIdString;
+            string imageId = parser.ProductIdString;
+            tilesetId = tilesetId ?? imageId;
 
             if (logger != null)
             {
-                logger.LogInfo("{0} manifest for tactical mesh tileset {1}",
-                               Tilesets.ContainsKey(productId) ? "updating" : "adding", productId);
+                logger.LogInfo("{0} manifest for tactical mesh tileset {1}{2}",
+                               Tilesets.ContainsKey(tilesetId) ? "updating" : "adding", tilesetId,
+                               tilesetId != imageId ? $" (PDS image {imageId})" : "");
             }
 
             string tmFrame = mission.GetTacticalMeshFrame();
@@ -445,19 +447,19 @@ namespace OPS.Pipeline
             var meshFrameId = string.Format("site_{0:D3}", parser.Site);
             var imageFrameId = mission.GetObservationFrameName(parser);
 
-            var tileset = GetOrAddTileset(productId);
+            var tileset = GetOrAddTileset(tilesetId);
             tileset.uri = tilesetUrl;
             tileset.frame_id = meshFrameId;
             tileset.groups.Clear();
             tileset.groups.Add("tactical");
             tileset.groups.Add(camera.ToString());
             tileset.image_ids.Clear();
-            tileset.image_ids.Add(productId);
+            tileset.image_ids.Add(imageId);
             tileset.sols.Clear();
             tileset.sols.Add(parser.PlanetDayNumber);
 
-            var image = GetOrAddImage(productId);
-            image.product_id = productId;
+            var image = GetOrAddImage(imageId);
+            image.product_id = imageId;
             image.uri = null; //see UpdateImageURIs()
             image.thumbnail = null; //see UpdateImageURIs()
             image.frame_id = imageFrameId;
