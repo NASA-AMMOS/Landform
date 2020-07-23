@@ -30,7 +30,7 @@ namespace OPS.Util
             return Path.GetDirectoryName(path);
         }
 
-        public static string GetExe()
+        public static string GetExe(string replaceFilename = null)
         {
             try
             {
@@ -39,6 +39,19 @@ namespace OPS.Util
                 while (exe.StartsWith("/"))
                 {
                     exe = exe.Substring(1);
+                }
+                if (!string.IsNullOrEmpty(replaceFilename))
+                {
+                    string dir = StringHelper.StripLastUrlPathSegment(exe);
+                    if (dir == exe) //exe had no directory
+                    {
+                        dir = "";
+                    }
+                    else
+                    {
+                        dir += "/";
+                    }
+                    exe = dir + replaceFilename;
                 }
                 return exe;
             }

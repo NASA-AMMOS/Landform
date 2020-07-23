@@ -9,17 +9,16 @@ rem https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data
 
 set service=contextual-master
 
-set mission=M2020
-if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
+rem --- begin service boilerplate ---
 
 set lfver=newest
 if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
-set queue=m20-ids-g-landform-contextual-master
-if not "%LANDFORM_CONTEXTUAL_MASTER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_MASTER_QUEUE%
+set mission=M2020
+if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
-set failqueue=auto
-if not "%LANDFORM_CONTEXTUAL_MASTER_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_MASTER_FAIL_QUEUE%
+set missionvenue=
+if not "%LANDFORM_MISSION_VENUE%"=="" set missionvenue=%LANDFORM_MISSION_VENUE%
 
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
@@ -36,6 +35,14 @@ if not "%LANDFORM_BIN_DIR%"=="" set bindir=%LANDFORM_BIN_DIR%
 
 set landform=%bindir%\Landform.exe
 if not "%LANDFORM_BIN%"=="" set landform=%LANDFORM_BIN%
+
+rem --- end service boilerplate, begin service specific boilerplate ---
+
+set queue=m20-ids-g-landform-contextual-master
+if not "%LANDFORM_CONTEXTUAL_MASTER_QUEUE%"=="" set queue=%LANDFORM_CONTEXTUAL_MASTER_QUEUE%
+
+set failqueue=auto
+if not "%LANDFORM_CONTEXTUAL_MASTER_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_CONTEXTUAL_MASTER_FAIL_QUEUE%
 
 set storagedir=c:\temp\landform-%service%-storage
 if not "%LANDFORM_CONTEXTUAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_CONTEXTUAL_STORAGE_DIR%
@@ -54,6 +61,8 @@ if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXT
 
 set venue=%service%-service
 if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
+
+rem --- end service specific boilerplate, begin service specific ---
 
 set workerqueue=m20-ids-g-landform-contextual-worker
 if not "%LANDFORM_CONTEXTUAL_WORKER_QUEUE%"=="" set workerqueue=%LANDFORM_CONTEXTUAL_WORKER_QUEUE%
@@ -98,7 +107,8 @@ if not "%LANDFORM_CONTEXTUAL_MAX_SOL_RANGE%"=="" (
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
-set svcopts=%stdopts% --stacktraces --master --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
+set svcopts=%stdopts% --stacktraces --master --mission=%mission% --missionvenue=%missionvenue%
+set svcopts=%svcopts% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
 
 set appsdir=%bindir%\ExternalApps

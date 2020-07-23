@@ -289,6 +289,10 @@ namespace OPS.Landform
             meshExt = options.MeshFormat;
             if (string.IsNullOrEmpty(meshExt) || meshExt.ToLower() == "mission")
             {
+                if (mission == null)
+                {
+                    throw new Exception("--mission must be specified without explicit --meshext");
+                }
                 meshExt = mission.GetTacticalMeshExt();
             }
             if (string.IsNullOrEmpty(meshExt) || (MeshSerializers.Instance.CheckFormat(meshExt) == null))
@@ -475,7 +479,7 @@ namespace OPS.Landform
             
         private void BuildTacticalTileset(MeshImagePair pair)
         {
-            string missionStr = mission.GetMission().ToString();
+            string missionStr = mission != null ? mission.GetMission().ToString() : "None";
             string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName :
                 StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);

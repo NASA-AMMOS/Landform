@@ -68,6 +68,9 @@ namespace OPS.Landform
 
         [Option(HelpText = "Extra fetch arguments", Default = null)]
         public string FetchArgs { get; set; }
+
+        [Option(HelpText = "Mission venue (omit, mission, or auto for default)", Default = null)]
+        public string MissionVenue { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -82,12 +85,16 @@ namespace OPS.Landform
         protected LandformShellOptions lsopts;
 
         protected string landformExe;
+
         protected string storageDir;
-        protected string awsProfile;
-        protected string awsRegion;
+
         protected string logFile;
+
         protected string configFolder;
         protected string configFile;
+
+        protected string awsProfile, originalAWSProfile;
+        protected string awsRegion;
 
         private volatile Process currentProcess;
 
@@ -136,7 +143,17 @@ namespace OPS.Landform
             }
 
             mission = GetMission();
-            pipeline.LogInfo("mission: {0}", mission.GetMission());
+            pipeline.LogInfo("mission: {0}", mission != null ? mission.GetMission().ToString() : "None");
+
+            if (string.IsNullOrEmpty(lsopts.MissionVenue) || lsopts.MissionVenue.ToLower() == "mission" ||
+                lsopts.MissionVenue.ToLower() == "auto")
+            {
+                lsopts.MissionVenue = null;
+            }
+            else
+            {
+                pipeline.LogInfo("mission venue: {0}", lsopts.MissionVenue);
+            }
 
             pipeline.LogInfo("recursive search: {0}", lsopts.RecursiveSearch);
             pipeline.LogInfo("case sensitive search: {0}", lsopts.CaseSensitiveSearch);
@@ -160,13 +177,15 @@ namespace OPS.Landform
 
             awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile :
                 cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
-                mission.GetDefaultAWSProfile();
+                mission != null ? mission.GetDefaultAWSProfile() : null;
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion :
                 cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
-                mission.GetDefaultAWSRegion();
+                mission != null ? mission.GetDefaultAWSRegion() : null;
             pipeline.LogInfo("AWS region: {0}", awsRegion);
+
+            originalAWSProfile = awsProfile;
 
             logFile = Logging.GetLogFile();
             string logPrefix = GetLogFilePrefix();
@@ -196,6 +215,21 @@ namespace OPS.Landform
         {
             return MissionSpecific.GetInstance(lsopts.Mission);
         } 
+
+        protected virtual void RefreshCredentials()
+        {
+            pipeline.LogInfo("refreshing credentials");
+
+            if (mission != null)
+            {
+                var newProfile = mission.RefreshCredentials(lsopts.MissionVenue, originalAWSProfile, awsRegion,
+                                                            lsopts.Quiet || lsopts.QuietSubcommands, lsopts.DryRun,
+                                                            throwOnFail: false, logger: pipeline);
+                awsProfile = newProfile ?? originalAWSProfile;
+            }
+
+            _storageHelper = null;
+        }
 
         protected abstract string GetLogFilePrefix();
 

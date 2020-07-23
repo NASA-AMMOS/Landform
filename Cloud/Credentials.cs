@@ -11,11 +11,9 @@ namespace OPS.Cloud
     public class Credentials
     {
         /// <summary>
-        /// Load aws credentials using a profle name
+        /// Load aws credentials using a profile name
         /// These can be defined in ~/.aws/credentials
         /// </summary>
-        /// <param name="awsProfileName"></param>
-        /// <returns></returns>
         public static AWSCredentials Get(string awsProfileName)
         {
             var chain = new CredentialProfileStoreChain();
@@ -30,8 +28,6 @@ namespace OPS.Cloud
         /// <summary>
         /// Reports whether credentials exist for a profile name
         /// </summary>
-        /// <param name="awsProfileName"></param>
-        /// <returns></returns>
         public static bool Exists(string awsProfileName)
         {
             var chain = new CredentialProfileStoreChain();

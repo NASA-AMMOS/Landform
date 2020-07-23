@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -24,6 +25,80 @@ namespace OPS.Pipeline
         public override Mission GetMission()
         {
             return Mission.M2020;
+        }
+
+        public override string RefreshCredentials(string venue = null, string awsProfile = null,
+                                                  string awsRegion = null, bool quiet = false, bool dryRun = false,
+                                                  bool throwOnFail = false, ILogger logger = null)
+        {
+            venue = venue ?? "dev";
+                
+            int duration = 8 * 60 * 60; //8h
+            string section = "credss-app";
+
+            awsProfile = GetDefaultAWSProfile();
+            awsRegion = GetDefaultAWSRegion();
+
+            if (venue == "sops")
+            {
+                awsProfile = null; //use EC2 instance role
+            }
+
+            string user = null, pass = null;
+            using (var ps = new ParameterStore(awsProfile, awsRegion))
+            {
+                user = ps.GetParameter($"/m20/{venue}/ids/pipeline/csso_username");
+                pass = ps.GetParameter($"/m20/{venue}/ids/pipeline/csso_password");
+            }
+
+            string credssExe = PathHelper.GetExe("credss.exe");
+            string cmd = $"--venue {venue} --app-account -d {duration} -a -s {section} -u USER -p PASS";
+
+            if (logger != null)
+            {
+                logger.LogInfo("{0}running {1} {2}", dryRun ? "dry " : "", credssExe, cmd);
+            }
+
+            //avoid plaintexting credentials in log
+            cmd = cmd.Replace("USER", user);
+            cmd = cmd.Replace("PASS", pass);
+
+            void error(string msg)
+            {
+                if (throwOnFail)
+                {
+                    throw new Exception(msg);
+                }
+                else if (logger != null)
+                {
+                    logger.LogError(msg);
+                }
+            }
+
+            if (!File.Exists(credssExe))
+            {
+                error($"\"{credssExe}\" not found");
+                return null;
+            }
+
+            if (!dryRun)
+            {
+                var runner = new ProgramRunner(credssExe, cmd, captureOutput: quiet);
+                int code = runner.Run(); //blocks until process exits or dies
+                if (code != 0)
+                {
+                    string msg = (runner.ErrorText ?? "").TrimEnd('\r', '\n');
+                    error(string.Format("{0} failed with code {1}{2}{3}", credssExe, code,
+                                        code == -1 ? " (killed)" : "", msg != "" ? (Environment.NewLine + msg) : ""));
+                }
+            }
+
+            return section;
+        }
+
+        public override int GetDefaultCredentialRefreshSec()
+        {
+            return 4 * 60 * 60; //4h
         }
 
         //some images have invalid PLANET_DAY_NUMBER
@@ -599,6 +674,57 @@ namespace OPS.Pipeline
                 "\"AuthCookieName\": \"ssosession\",\n" +
                 "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
                 "}";
+        }
+    }
+
+    public class MissionM20SOPS : MissionM2020
+    {
+        public override Mission GetMission()
+        {
+            return Mission.M20SOPS;
+        }
+
+        public override string RefreshCredentials(string venue = null, string awsProfile = null,
+                                                  string awsRegion = null, bool quiet = false, bool dryRun = false,
+                                                  bool throwOnFail = false, ILogger logger = null)
+        {
+            return base.RefreshCredentials(venue ?? "sops", awsProfile, awsRegion, quiet, dryRun, throwOnFail, logger);
+        }
+
+        public override string GetS3Proxy()
+        {
+            return "https://data.m20-sops.jpl.nasa.gov"; //TODO
+        }
+
+        public override bool AllowPlacesDB()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
+        }
+
+        public override string GetOrbitalConfigDefaults()
+        {
+            //TODO
+            return "{\n" +
+                "\"DEMURL\": \"\",\n" +
+                "\"ImageURL\": \"\",\n" +
+                "\"DEMStoragePath\": \"\",\n" +
+                "\"ImageStoragePath\": \"\",\n" +
+                "\"DEMPlacesDBIndex\": -1,\n" +
+                "\"ImagePlacesDBIndex\": -1\n" +
+                "}";
+        }
+
+        public override string GetPlacesConfigDefaults()
+        {
+            //TODO
+            //return "{\n" +
+            //    "\"Url\": \"https://places.sops.m20.jpl.nasa.gov\",\n" +
+            //    "\"View\": \"best_tactical\",\n" +
+            //    "\"AuthCookieName\": \"ssosession\",\n" +
+            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
+            //    "}";
+
+            return null;
         }
     }
 }

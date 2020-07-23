@@ -12,7 +12,7 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20 }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, M20SOPS }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
     {
@@ -42,6 +42,7 @@ namespace OPS.Pipeline
                 case Mission.TT4: return new MissionTT4();
                 case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM();
                 case Mission.ROASTT20: return new MissionROASTT20();
+                case Mission.M20SOPS: return new MissionM20SOPS();
                 default: throw new NotImplementedException("unknown mission");
             }
         }
@@ -731,6 +732,27 @@ namespace OPS.Pipeline
         public virtual string GetDefaultAWSProfile()
         {
             return "credss-default";
+        }
+
+        /// <summary>
+        /// Refresh AWS and any other credentials that may be needed for this mission.
+        /// Uses the default venue, profile, and region for the mission by default.
+        /// Returns new profile name, or null if failed or unchanged.
+        /// </summary>
+        public virtual string RefreshCredentials(string venue = null, string awsProfile = null,
+                                                 string awsRegion = null, bool quiet = false, bool dryRun = false,
+                                                 bool throwOnFail = false, ILogger logger = null)
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Get the desired maximum time between credential refresh.
+        /// If non-positive then credential refresh is not required.
+        /// </summary>
+        public virtual int GetDefaultCredentialRefreshSec()
+        {
+            return 0;
         }
 
         /// <summary>
