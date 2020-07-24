@@ -21,40 +21,40 @@ namespace OPS.Landform
         [Option(Required = true, Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder")]
+        [Option(Default = null, HelpText = "Output directory or S3 folder")]
         public override string OutputFolder { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Recursively search under input folders")]
+        [Option(Default = false, HelpText = "Recursively search under input folders")]
         public virtual bool RecursiveSearch { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Case sensitive search")]
+        [Option(Default = false, HelpText = "Case sensitive search")]
         public virtual bool CaseSensitiveSearch { get; set; }
 
-        [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
+        [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        [Option(Default = false, HelpText = "Dry run")]
         public bool DryRun { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't cleanup temp files")]
+        [Option(Default = false, HelpText = "Don't cleanup temp files")]
         public bool NoCleanup { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Hide output of subcommands")]
+        [Option(Default = false, HelpText = "Hide output of subcommands")]
         public bool QuietSubcommands { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override subcommand storage directory")]
+        [Option(Default = null, HelpText = "Override subcommand storage directory")]
         public string StorageDir { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
+        [Option(Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
+        [Option(Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
-        [Option(Required = false, Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
+        [Option(Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
         public int RandomSeed { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
+        [Option(Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
         public int MaxCores { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]

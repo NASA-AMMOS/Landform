@@ -70,10 +70,10 @@ namespace OPS.Landform
         [Value(2, Required = false, HelpText = "RDR search locations (only if not using --raw), comma separated, with sol replaced with ##### (e.g. s3://landform/MSL/ods/surface/sol/#####/opgs/rdr). See https://github.jpl.nasa.gov/OnSight/Landform/wiki/M2020-Data-Notes")]
         public string SearchLocations { get; set; } = null;
 
-        [Option(Required = false, Default = false, HelpText = "Treat input as raw URLs, not sol numbers")]
+        [Option(Default = false, HelpText = "Treat input as raw URLs, not sol numbers")]
         public bool Raw { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Suppress subdirs in output")]
+        [Option(Default = false, HelpText = "Suppress subdirs in output")]
         public bool NoSubdirs { get; set; }
 
         [Option(HelpText = "Only use specific observations, comma separated (e.g. MLF_452276219RASLS0311330MCAM02600M1)", Default = null)]
@@ -89,118 +89,118 @@ namespace OPS.Landform
         [Option(HelpText = "Only use observations from specific site drives SSSSSDDDDD, comma separated, wildcard xxxxx", Default = null)]
         public string OnlyForSiteDrives { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Text file listing filenames or product IDs to include, one per line")]
+        [Option(Default = null, HelpText = "Text file listing filenames or product IDs to include, one per line")]
         public string Include { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Text file listing filenames or product IDs to exclude, one per line")]
+        [Option(Default = null, HelpText = "Text file listing filenames or product IDs to exclude, one per line")]
         public string Exclude { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "comma separated list of observation wildcard patterns to include")]
+        [Option(Default = null, HelpText = "comma separated list of observation wildcard patterns to include")]
         public string IncludePattern { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "comma separated list of observation wildcard patterns to exclude")]
+        [Option(Default = null, HelpText = "comma separated list of observation wildcard patterns to exclude")]
         public string ExcludePattern { get; set; }
 
-        [Option(Required = false, Default = "rdr/browse,rdr/mesh,rdr/mosaic,rdr/tileset", HelpText = "comma separated list of subdirs to exclude")]
+        [Option(Default = "rdr/browse,rdr/mesh,rdr/mosaic,rdr/tileset", HelpText = "comma separated list of subdirs to exclude")]
         public string ExcludeSubdirs { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Download PNG products")]
+        [Option(Default = false, HelpText = "Download PNG products")]
         public bool WithPNG { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Download RGB products")]
+        [Option(Default = false, HelpText = "Download RGB products")]
         public bool WithRGB { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't download OBJ products")]
+        [Option(Default = false, HelpText = "Don't download OBJ products")]
         public bool NoOBJ { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't download IV products")]
+        [Option(Default = false, HelpText = "Don't download IV products")]
         public bool NoIV { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Download VIC products")]
+        [Option(Default = false, HelpText = "Download VIC products")]
         public bool WithVIC { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't download PDS products")]
+        [Option(Default = false, HelpText = "Don't download PDS products")]
         public bool NoPDS { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Comma separated list of unified mesh filenames or URLs to use (overrides default algorithm to select lastest for each sitedrive)")]
+        [Option(Default = null, HelpText = "Comma separated list of unified mesh filenames or URLs to use (overrides default algorithm to select lastest for each sitedrive)")]
         public string UnifiedMeshes { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't download and use unified meshes for filtering")]
+        [Option(Default = false, HelpText = "Don't download and use unified meshes for filtering")]
         public bool NoUnifiedMeshes { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't limit products from cameras used for geometry to only sitedrives with unified meshes for that camera")]
+        [Option(Default = false, HelpText = "Don't limit products from cameras used for geometry to only sitedrives with unified meshes for that camera")]
         public bool NoLimitGeometryCamerasToSiteDrivesWithUnifiedMeshes { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't use unified meshes to filter raster products")]
+        [Option(Default = false, HelpText = "Don't use unified meshes to filter raster products")]
         public bool NoFilterRasterProductsByUnifiedMesh { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
+        [Option(Default = false, HelpText = "Don't generalize unified meshes to both eyes")]
         public bool RespectUnifiedMeshStereoEye { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't generalize unified meshes to all geometries (nonlinear, linearized)")]
+        [Option(Default = false, HelpText = "Don't generalize unified meshes to all geometries (nonlinear, linearized)")]
         public bool RespectUnifiedMeshGeometry { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
+        [Option(Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
+        [Option(Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Max fetched bytes, integer with optional case-insensitive suffix K,M,G, unlimited if omitted or non-positive")]
+        [Option(Default = null, HelpText = "Max fetched bytes, integer with optional case-insensitive suffix K,M,G, unlimited if omitted or non-positive")]
         public string MaxDownload { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Make --maxdownload apply to total disk usage recursively under output directory, not just current downloads")]
+        [Option(Default = false, HelpText = "Make --maxdownload apply to total disk usage recursively under output directory, not just current downloads")]
         public bool AccountExisting { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Delete least recently used files recursively under output directory to enforce --maxdownload, requires --accountexisting")]
+        [Option(Default = false, HelpText = "Delete least recently used files recursively under output directory to enforce --maxdownload, requires --accountexisting")]
         public bool DeleteLRU { get; set; }
        
-        [Option(Required = false, Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
+        [Option(Default = -1, HelpText = "Limit the number of concurrent downloads, negative to use all available cores")]
         public int ConcurrentDownloads { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Overwrite existing files")]
+        [Option(Default = false, HelpText = "Overwrite existing files")]
         public bool Overwrite { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Overwrite existing files even if they are the same size")]
+        [Option(Default = false, HelpText = "Overwrite existing files even if they are the same size")]
         public bool ForceOverwrite { get; set; }
 
-        [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
+        [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
         [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Comma separated list of filename extensions to trace")]
+        [Option(Default = null, HelpText = "Comma separated list of filename extensions to trace")]
         public string TraceExts { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Comma separated list of filename prefixes to trace")]
+        [Option(Default = null, HelpText = "Comma separated list of filename prefixes to trace")]
         public string Trace { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Quiet output")]
+        [Option(Default = false, HelpText = "Quiet output")]
         public bool Quiet { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Verbose output")]
+        [Option(Default = false, HelpText = "Verbose output")]
         public bool Verbose { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Debug output")]
+        [Option(Default = false, HelpText = "Debug output")]
         public bool Debug { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override log file")]
+        [Option(Default = null, HelpText = "Override log file")]
         public string LogFile { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override temp dir")]
+        [Option(Default = null, HelpText = "Override temp dir")]
         public string TempDir { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override config dir (for compatibility)")]
+        [Option(Default = null, HelpText = "Override config dir (for compatibility)")]
         public string ConfigFolder { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Print summary")]
+        [Option(Default = false, HelpText = "Print summary")]
         public bool Summary { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        [Option(Default = false, HelpText = "Dry run")]
         public bool DryRun { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Synonymous with --dryrun (for compatibility)")]
+        [Option(Default = false, HelpText = "Synonymous with --dryrun (for compatibility)")]
         public bool NoSave { get; set; }
     }
 

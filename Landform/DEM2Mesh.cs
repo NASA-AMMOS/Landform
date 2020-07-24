@@ -30,64 +30,64 @@ namespace OPS.Landform
         [Value(1, Required = false, HelpText = "Optional image to texture the mesh.  The image must be the same aspect and physical extent as the DEM, but can have a different resolution.")]
         public string InputImage { get; set; }
 
-        [Option(Required = false, Default = "auto", HelpText = "Size of a pixel in the input DEM in meters, or \"auto\" to use mission default, or 1 if no mission.")]
+        [Option(Default = "auto", HelpText = "Size of a pixel in the input DEM in meters, or \"auto\" to use mission default, or 1 if no mission.")]
         public string DEMMetersPerPixel { get; set; }
 
-        [Option(Required = false, Default = "auto", HelpText = "Size of a pixel in the input image in meters, or \"auto\" to use mission default, or 1 if no mission.")]
+        [Option(Default = "auto", HelpText = "Size of a pixel in the input image in meters, or \"auto\" to use mission default, or 1 if no mission.")]
         public string ImageMetersPerPixel { get; set; }
 
-        [Option(Required = false, Default = "auto", HelpText = "Scale DEM values to vertical meters, or \"auto\" to use mission default, or 1 if no mission")]
+        [Option(Default = "auto", HelpText = "Scale DEM values to vertical meters, or \"auto\" to use mission default, or 1 if no mission")]
         public string VerticalScale { get; set; }
 
-        [Option(Required = false, Default = "auto", HelpText = "DEM body, \"mars\", \"earth\", or \"auto\" to use mission default, or mars if no mission.")]
+        [Option(Default = "auto", HelpText = "DEM body, \"mars\", \"earth\", or \"auto\" to use mission default, or mars if no mission.")]
         public string DEMBody { get; set; }
 
-        [Option(Required = false, Default = "png", HelpText = "Export format for texture (examples: jpg or png")]
+        [Option(Default = "png", HelpText = "Export format for texture (examples: jpg or png")]
         public string ImageFormat { get; set; }
 
-        [Option(Required = false, Default = "obj", HelpText = "Export format for mesh (examples: obj or ply")]
+        [Option(Default = "obj", HelpText = "Export format for mesh (examples: obj or ply")]
         public string MeshFormat { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "Adaptive mesh to this error threshold.  Set to 0 to build a full organized mesh instead of adaptive meshing.")]
+        [Option(Default = 0, HelpText = "Adaptive mesh to this error threshold.  Set to 0 to build a full organized mesh instead of adaptive meshing.")]
         public double MaxError { get; set; }
 
-        [Option(Required = false, Default = 1, HelpText = "Organized mesh subsample factor.  Set > 1 to decimate, < 1 to interpolate")]
+        [Option(Default = 1, HelpText = "Organized mesh subsample factor.  Set > 1 to decimate, < 1 to interpolate")]
         public double SubsampleMesh { get; set; }
 
-        [Option(Required = false, Default = DEM.DEF_MIN_FILTER, HelpText = "Dem values less than this will be ignored")]
+        [Option(Default = DEM.DEF_MIN_FILTER, HelpText = "Dem values less than this will be ignored")]
         public double DEMMinFilter { get; set; }
 
-        [Option(Required = false, Default = DEM.DEF_MAX_FILTER, HelpText = "Dem values larger than this will be ignored")]
+        [Option(Default = DEM.DEF_MAX_FILTER, HelpText = "Dem values larger than this will be ignored")]
         public double DEMMaxFilter { get; set; }
 
-        [Option(Required = false, Default = "", HelpText = "Origin at and output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission and PlacesDB support")]
+        [Option(Default = "", HelpText = "Origin at and output to sitedrive frame SSSSSDDDDD or SSSDDDD, requires --mission and PlacesDB support")]
         public string OutputFrame { get; set; }
 
-        [Option(Required = false, Default = 200, HelpText = "Radius in meters around origin pixel to build mesh, negative for unlimited")]
+        [Option(Default = 200, HelpText = "Radius in meters around origin pixel to build mesh, negative for unlimited")]
         public float RadiusMeters { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Origin pixel in format \"(X,Y)[m]\" or \"(LON,LAT)deg\", exclusive with --outputframe, defaults to center of DEM")]
+        [Option(Default = null, HelpText = "Origin pixel in format \"(X,Y)[m]\" or \"(LON,LAT)deg\", exclusive with --outputframe, defaults to center of DEM")]
         public string OriginPixel { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "If greater than one then decimate the input DEM and image by this blocksize")]
+        [Option(Default = 0, HelpText = "If greater than one then decimate the input DEM and image by this blocksize")]
         public int DecimateBlocksize { get; set; }
 
-        [Option(Required = false, Default = 4096, HelpText = "Maximum output texture resolution, 0 disables output texture, negative for unlimited")]
+        [Option(Default = 4096, HelpText = "Maximum output texture resolution, 0 disables output texture, negative for unlimited")]
         public int MaxTextureResolution { get; set; }
 
         [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
 
-        [Option(Required = false, Default = -1, HelpText = "index of DEM metadata in PlacesDB, negative to use orbital config default for mission")]
+        [Option(Default = -1, HelpText = "index of DEM metadata in PlacesDB, negative to use orbital config default for mission")]
         public int DEMPlacesDBIndex { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Compare planar approximation to spherical for mesh region")]
+        [Option(Default = false, HelpText = "Compare planar approximation to spherical for mesh region")]
         public bool CheckPlanarity { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Only compare planar approximation to spherical for mesh region")]
+        [Option(Default = false, HelpText = "Only compare planar approximation to spherical for mesh region")]
         public bool OnlyCheckPlanarity { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        [Option(Default = false, HelpText = "Dry run")]
         public bool NoSave { get; set; }
     }
 
