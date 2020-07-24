@@ -14,7 +14,7 @@ rm -rf $dir
 mkdir $dir
 
 #copy without subdirs
-for src in TilingServer/bin/Release LandformUtil/bin/Release Landform/bin/Release; do
+for src in TilingServer/bin/Release Landform/bin/Release; do
     echo "copying $src/* to $dir"
     cp -R $src/* $dir
 done
