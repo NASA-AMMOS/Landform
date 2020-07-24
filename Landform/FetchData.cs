@@ -192,6 +192,9 @@ namespace OPS.Landform
         public string TempDir { get; set; }
 
         [Option(Default = null, HelpText = "Override config dir (for compatibility)")]
+        public string ConfigDir { get; set; }
+
+        [Option(Default = null, HelpText = "Override config folder (for compatibility)")]
         public string ConfigFolder { get; set; }
 
         [Option(Default = false, HelpText = "Print summary")]
