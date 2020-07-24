@@ -75,8 +75,8 @@ namespace OPS.Landform
         [Option(Required = false, Default = 4096, HelpText = "Maximum output texture resolution, 0 disables output texture, negative for unlimited")]
         public int MaxTextureResolution { get; set; }
 
-        [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
-        public Mission Mission { get; set; }
+        [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        public string Mission { get; set; }
 
         [Option(Required = false, Default = -1, HelpText = "index of DEM metadata in PlacesDB, negative to use orbital config default for mission")]
         public int DEMPlacesDBIndex { get; set; }

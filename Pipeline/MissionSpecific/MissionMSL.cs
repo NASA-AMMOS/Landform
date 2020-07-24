@@ -17,6 +17,8 @@ namespace OPS.Pipeline
         public const int MIN_MASTCAM_FOCUS_CUTOFF = 3;
         public const int MAX_MASTCAM_WIDTH = 1344; //TODO this is unused
 
+        public MissionMSL(string venue = null) : base(venue) { }
+
         public override Mission GetMission()
         {
             return Mission.MSL;
@@ -313,10 +315,10 @@ namespace OPS.Pipeline
             //https://places-msl.dev.m20.jpl.nasa.gov
 
             return "{\n" +
-                "\"Url\": \"https://places-msl.dev.m20.jpl.nasa.gov\",\n" +
+                $"\"Url\": \"https://places-msl.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
-                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
+                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
         }
     }

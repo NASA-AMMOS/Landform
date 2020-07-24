@@ -22,17 +22,16 @@ namespace OPS.Pipeline
         public const int VERSION_FIELD = 52;
         public const int VERSION_FIELD_LENGTH = 2;
 
+        public MissionM2020(string venue = null) : base(venue) { }
+
         public override Mission GetMission()
         {
             return Mission.M2020;
         }
 
-        public override string RefreshCredentials(string venue = null, string awsProfile = null,
-                                                  string awsRegion = null, bool quiet = false, bool dryRun = false,
-                                                  bool throwOnFail = false, ILogger logger = null)
+        public override string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = false,
+                                                  bool dryRun = false, bool throwOnFail = false, ILogger logger = null)
         {
-            venue = venue ?? "dev";
-                
             int duration = 8 * 60 * 60; //8h
             string section = "credss-app";
 
@@ -300,11 +299,6 @@ namespace OPS.Pipeline
                 camera == RoverProductCamera.SHERLOCWATSONLeft || camera == RoverProductCamera.SHERLOCWATSONRight;
         }
 
-        public override bool AllowPlacesDB()
-        {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
-        }
-
         public override RoverProductId ParseProductId(string id)
         {
             id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
@@ -391,14 +385,13 @@ namespace OPS.Pipeline
 
         public override string GetS3Proxy()
         {
-            return "https://data.m20-dev.jpl.nasa.gov";
+            return $"https://data.{venue}.m20.jpl.nasa.gov";
         }
 
         public override string GetOrbitalConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
-            //use assets at
-            //s3://m20-ids-g-landform/M2020/orbital
+            //use assets at s3://m20-ids-g-landform/M2020/orbital
             return "{\n" +
                 "\"DEMURL\": \"\",\n" +
                 "\"ImageURL\": \"\",\n" +
@@ -409,6 +402,11 @@ namespace OPS.Pipeline
                 "}";
         }
 
+        public override bool AllowPlacesDB()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
+        }
+
         public override string GetPlacesConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
@@ -417,19 +415,19 @@ namespace OPS.Pipeline
 
             //though that'd just be for dev, still TBD what the places instance will be for flight
 
-            //return "{\n" +
-            //    "\"Url\": \"https://places-pipeline.dev.m20.jpl.nasa.gov\",\n" +
-            //    "\"View\": \"best_tactical\",\n" +
-            //    "\"AuthCookieName\": \"ssosession\",\n" +
-            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
-            //    "}";
-
-            return null;
+            return "{\n" +
+                $"\"Url\": \"https://places-pipeline.{venue}.m20.jpl.nasa.gov\",\n" +
+                "\"View\": \"best_tactical\",\n" +
+                "\"AuthCookieName\": \"ssosession\",\n" +
+                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
+                "}";
         }
     }
 
     public class MissionROASTT19 : MissionM2020 
     {
+        public MissionROASTT19(string venue = null) : base(venue) { }
+
         public override Mission GetMission()
         {
             return Mission.ROASTT19;
@@ -448,18 +446,25 @@ namespace OPS.Pipeline
             return TranslateCamera(ParseProductId(parser.ProductIdString).Camera);
         }
 
+        public override string GetOrbitalConfigDefaults()
+        {
+            return null; //don't have orbital for ROASTT19
+        }
+
+        public override bool AllowPlacesDB()
+        {
+            return false; //as of 3/19/20 it doesn't look like this PLACES instance is live anymore
+        }
+
         public override string GetPlacesConfigDefaults()
         {
-            //NOTE as of 3/19/20 it doesn't look like this PLACES instance is live anymore
-            //return
-            //    "{ " +
-            //    "\"Url\": \"https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places\", " +
-            //    "\"View\": \"best_tactical\", " +
-            //    "\"AuthCookieName\": \"ssosession\", " +
-            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"" +
-            //    "}";
-
-            return null;
+            return
+                "{ " +
+                "\"Url\": \"https://places-external-roastt.m20-training.jpl.nasa.gov/m2020-places\", " +
+                "\"View\": \"best_tactical\", " +
+                "\"AuthCookieName\": \"ssosession\", " +
+                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"" +
+                "}";
         }
     }
 
@@ -467,6 +472,8 @@ namespace OPS.Pipeline
     {
         public const int SEQUENCE_FIELD = 35; 
         public const int SEQUENCE_FIELD_LENGTH = 9; 
+
+        public MissionTT4(string venue = null) : base(venue) { }
 
         public override Mission GetMission()
         {
@@ -486,21 +493,22 @@ namespace OPS.Pipeline
 
         public override string GetOrbitalConfigDefaults()
         {
-            //don't have orbital for TT4
-            return null;
+            return null; //don't have orbital for TT4
+        }
+
+        public override bool AllowPlacesDB()
+        {
+            return false; //as of 3/19/20 it is unlikely that this PLACES instance still is populated with TT4 data
         }
 
         public override string GetPlacesConfigDefaults()
         {
-            //NOTE as of 3/19/20 it is unlikely that this PLACES instance still is populated with TT4 data
-            //return "{\n" +
-            //    "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\",\n" +
-            //    "\"View\": \"best_tactical\",\n" +
-            //    "\"AuthCookieName\": \"ssosession\",\n" +
-            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
-            //    "}";
-
-            return null;
+            return "{\n" +
+                "\"Url\": \"https://places-sstage.m20.jpl.nasa.gov\",\n" +
+                "\"View\": \"best_tactical\",\n" +
+                "\"AuthCookieName\": \"ssosession\",\n" +
+                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
+                "}";
         }
     }
 
@@ -570,6 +578,8 @@ namespace OPS.Pipeline
             }
         }
 
+        public MissionScarecrowEECAM(string venue = null) : base(venue) { }
+
         public override RoverProductId ParseProductId(string id)
         {
             id = StringHelper.GetLastUrlPathSegment(id, stripExtension: true);
@@ -583,8 +593,7 @@ namespace OPS.Pipeline
         public override string GetOrbitalConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
-            //use assets at
-            //s3://m20-ids-g-landform/MarsYard_Aerial06062019
+            //use assets at s3://m20-ids-g-landform/MarsYard_Aerial06062019
             return "{\n" +
                 "\"DEMURL\": \"\",\n" +
                 "\"ImageURL\": \"\",\n" +
@@ -596,15 +605,21 @@ namespace OPS.Pipeline
                 "}";
         }
 
+        public override bool AllowPlacesDB()
+        {
+            return false; //don't have places for scarecrow-eecam
+        }
+
         public override string GetPlacesConfigDefaults()
         {
-            //don't have places for scarecrow-eecam
             return null;
         }
     }
 
     public class MissionROASTT20 : MissionM2020
     {
+        public MissionROASTT20(string venue = null) : base(venue) { }
+
         public override Mission GetMission()
         {
             return Mission.ROASTT20;
@@ -649,8 +664,7 @@ namespace OPS.Pipeline
         public override string GetOrbitalConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1004
-            //use assets at
-            //s3://m20-ids-g-landform/ROASTT20/orbital
+            //use assets at s3://m20-ids-g-landform/ROASTT20/orbital
             return "{\n" +
                 "\"DEMURL\": \"\",\n" +
                 "\"ImageURL\": \"\",\n" +
@@ -662,6 +676,11 @@ namespace OPS.Pipeline
                 "}";
         }
 
+        public override bool AllowPlacesDB()
+        {
+            return true;
+        }
+
         public override string GetPlacesConfigDefaults()
         {
             //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/725#issuecomment-267319
@@ -669,41 +688,26 @@ namespace OPS.Pipeline
             //https://places-roastt.dev.m20.jpl.nasa.gov
 
             return "{\n" +
-                "\"Url\": \"https://places-rocs.dev.m20.jpl.nasa.gov\",\n" +
+                $"\"Url\": \"https://places-rocs.{venue}.m20.jpl.nasa.gov\",\n" +
                 "\"View\": \"best_tactical\",\n" +
                 "\"AuthCookieName\": \"ssosession\",\n" +
-                "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
+                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
                 "}";
         }
     }
 
     public class MissionM20SOPS : MissionM2020
     {
+        public MissionM20SOPS(string venue = null) : base(venue ?? "sops") { }
+
         public override Mission GetMission()
         {
             return Mission.M20SOPS;
         }
 
-        public override string RefreshCredentials(string venue = null, string awsProfile = null,
-                                                  string awsRegion = null, bool quiet = false, bool dryRun = false,
-                                                  bool throwOnFail = false, ILogger logger = null)
-        {
-            return base.RefreshCredentials(venue ?? "sops", awsProfile, awsRegion, quiet, dryRun, throwOnFail, logger);
-        }
-
-        public override string GetS3Proxy()
-        {
-            return "https://data.m20-sops.jpl.nasa.gov"; //TODO
-        }
-
-        public override bool AllowPlacesDB()
-        {
-            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
-        }
-
         public override string GetOrbitalConfigDefaults()
         {
-            //TODO
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/1019
             return "{\n" +
                 "\"DEMURL\": \"\",\n" +
                 "\"ImageURL\": \"\",\n" +
@@ -714,17 +718,20 @@ namespace OPS.Pipeline
                 "}";
         }
 
+        public override bool AllowPlacesDB()
+        {
+            return false; //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
+        }
+
         public override string GetPlacesConfigDefaults()
         {
-            //TODO
-            //return "{\n" +
-            //    "\"Url\": \"https://places.sops.m20.jpl.nasa.gov\",\n" +
-            //    "\"View\": \"best_tactical\",\n" +
-            //    "\"AuthCookieName\": \"ssosession\",\n" +
-            //    "\"AuthCookieFile\": \"~/.cssotoken/dev/ssosession\"\n" +
-            //    "}";
-
-            return null;
+            //TODO https://github.jpl.nasa.gov/OnSight/Landform/issues/535
+            return "{\n" +
+                $"\"Url\": \"https://places.{venue}.m20.jpl.nasa.gov\",\n" +
+                "\"View\": \"best_tactical\",\n" +
+                "\"AuthCookieName\": \"ssosession\",\n" +
+                $"\"AuthCookieFile\": \"~/.cssotoken/{venue}/ssosession\"\n" +
+                "}";
         }
     }
 }

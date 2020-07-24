@@ -18,8 +18,8 @@ namespace OPS.Landform
 {
     public class LandformShellOptions : LandformCommandOptions
     {
-        [Option(Required = true, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
-        public Mission Mission { get; set; }
+        [Option(Required = true, Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        public string Mission { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder")]
         public override string OutputFolder { get; set; }
@@ -68,9 +68,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Extra fetch arguments", Default = null)]
         public string FetchArgs { get; set; }
-
-        [Option(HelpText = "Mission venue (omit, mission, or auto for default)", Default = null)]
-        public string MissionVenue { get; set; }
     }
 
     public abstract class LandformShell : LandformCommand
@@ -144,16 +141,7 @@ namespace OPS.Landform
 
             mission = GetMission();
             pipeline.LogInfo("mission: {0}", mission != null ? mission.GetMission().ToString() : "None");
-
-            if (string.IsNullOrEmpty(lsopts.MissionVenue) || lsopts.MissionVenue.ToLower() == "mission" ||
-                lsopts.MissionVenue.ToLower() == "auto")
-            {
-                lsopts.MissionVenue = null;
-            }
-            else
-            {
-                pipeline.LogInfo("mission venue: {0}", lsopts.MissionVenue);
-            }
+            pipeline.LogInfo("mission venue: {0}", mission != null ? mission.GetMissionVenue() : "None");
 
             pipeline.LogInfo("recursive search: {0}", lsopts.RecursiveSearch);
             pipeline.LogInfo("case sensitive search: {0}", lsopts.CaseSensitiveSearch);
@@ -222,8 +210,8 @@ namespace OPS.Landform
 
             if (mission != null)
             {
-                var newProfile = mission.RefreshCredentials(lsopts.MissionVenue, originalAWSProfile, awsRegion,
-                                                            lsopts.Quiet || lsopts.QuietSubcommands, lsopts.DryRun,
+                bool quiet = lsopts.Quiet || lsopts.QuietSubcommands;
+                var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, quiet, lsopts.DryRun,
                                                             throwOnFail: false, logger: pipeline);
                 awsProfile = newProfile ?? originalAWSProfile;
             }
@@ -590,7 +578,7 @@ namespace OPS.Landform
 
             if (mission != null)
             {
-                args.AddRange(new string[] { "--mission", mission.GetMission().ToString() });
+                args.AddRange(new string[] { "--mission", mission.GetMissionWithVenue() });
             }
 
             if (!string.IsNullOrEmpty(awsProfile))

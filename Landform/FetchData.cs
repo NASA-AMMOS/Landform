@@ -167,8 +167,8 @@ namespace OPS.Landform
         [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
-        [Option(Required = false, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
-        public Mission Mission { get; set; }
+        [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        public string Mission { get; set; }
 
         [Option(Required = false, Default = null, HelpText = "Comma separated list of filename extensions to trace")]
         public string TraceExts { get; set; }

@@ -102,7 +102,7 @@ namespace OPS.Landform
         [Value(0, HelpText = "Project name, optional if --nocontextual", Default = null)]
         public override string ProjectName { get; set; }
 
-        [Option(HelpText = "Mission name, required without project name", Default = null)]
+        [Option(Default = null, HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
         public string Mission { get; set; }
 
         [Option(HelpText = "Path/URL to directory containing existing tilesets, can be inferred from --manifestfile", Default = null)]

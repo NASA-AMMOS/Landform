@@ -706,7 +706,7 @@ namespace OPS.Landform
             }
             rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
-            string missionStr = mission != null ? mission.GetMission().ToString() : "None";
+            string missionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
             string solStr = string.Format("{0:D4}", primarySol);
             string sdsStr = string.Join(",", siteDrives.ToArray());

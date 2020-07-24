@@ -17,9 +17,6 @@ if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 set mission=M2020
 if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
-set missionvenue=
-if not "%LANDFORM_MISSION_VENUE%"=="" set missionvenue=%LANDFORM_MISSION_VENUE%
-
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
 
@@ -95,8 +92,7 @@ rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
-set svcopts=%stdopts% --stacktraces --service --mission=%mission% --missionvenue=%missionvenue%
-set svcopts=%svcopts% --queuename=%queue% --failqueuename=%failqueue%
+set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
 set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
 
 set contextualopts=--maxfetch=%maxfetch% --maxorbital=%maxorbital% %nocombinedmanifest% %noorbital% %nosky% %skymode%
