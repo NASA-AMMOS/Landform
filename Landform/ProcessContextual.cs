@@ -540,6 +540,16 @@ namespace OPS.Landform
             return true;
         }
 
+        protected override void RefreshCredentials()
+        {
+            base.RefreshCredentials();
+
+            if (workerQueue != null)
+            {
+                workerQueue = GetWorkerMessageQueue();
+            }
+        }
+
         protected override bool IsService()
         {
             return options.Service || (!serviceUtilMode && options.Master);
@@ -555,12 +565,12 @@ namespace OPS.Landform
             return "log-Landform-process-contextual";
         }
 
-        protected override string GetConfigSuffix()
+        protected override string GetSubcommandConfigFolder()
         {
-            return "-contextual";
+            return "contextual-subcommands";
         }
 
-        protected override string GetCacheDir()
+        protected override string GetSubcommandCacheDir()
         {
             return "contextual";
         }
@@ -696,7 +706,8 @@ namespace OPS.Landform
             }
             rdrDir = StringHelper.NormalizeUrl(rdrDir, preserveTrailingSlash: false);
 
-            string missionStr = mission.GetMission().ToString();
+            string missionStr = mission != null ? mission.GetMission().ToString() : "None";
+            string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string sdStr = primarySiteDrive.ToString();
             string solStr = string.Format("{0:D4}", primarySol);
             string sdsStr = string.Join(",", siteDrives.ToArray());
@@ -765,7 +776,7 @@ namespace OPS.Landform
                     {
                         throw new NotImplementedException("ingestion from multi-sol s3 wildcard not implemented");
                     }
-                    RunCommand("ingest", project, "--mission", missionStr, "--onlyforsitedrives", sdsStr,
+                    RunCommand("ingest", project, "--mission", fullMissionStr, "--onlyforsitedrives", sdsStr,
                                "--inputpath", ingestDir + "/" + (options.RecursiveSearch ? "**" : "*"),
                                noOrbital, noSurface, "--orbitaldem", orbitalDEMFile, "--orbitalimage", orbitalImageFile,
                                "--orbitalframe", sdStr);
@@ -835,7 +846,7 @@ namespace OPS.Landform
                 pipeline.LogWarn("unhandled list file name {0}", url);
                 return null;
             }
-            var preferredEye = mission.PreferEyeForGeometry();
+            var preferredEye = mission != null ? mission.PreferEyeForGeometry() : RoverStereoEye.Any;
             bool filter(RoverProductId id, int sol)
             {
                 return mission.UseForMeshing(id) && RoverStereoPair.IsStereoEye(id.Camera, preferredEye);
@@ -1220,39 +1231,42 @@ namespace OPS.Landform
                                 pipeline.LogInfo("{0} sitedrives, min sol {1}, max sol {2}",
                                                  listFiles.Select(l => l.SiteDrive).Distinct().Count(),
                                                  listFiles.Min(l => l.MinSol), listFiles.Max(l => l.MaxSol));
-                                
-                                if (placesDB == null && usePlaces)
+
+                                lock (credentialRefreshLock)
                                 {
-                                    try
+                                    if (placesDB == null && usePlaces)
                                     {
-                                        placesDB = new PlacesDB(pipeline);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
-                                        usePlaces = false;
-                                    }
-                                }
-                                pipeline.LogInfo("{0}using PlacesDB {1}",
-                                                 usePlaces ? "" : "not ", usePlaces ? placesCfg.Url : "");
-                                
-                                foreach (var stampedList in changedLists)
-                                {
-                                    try
-                                    {
-                                        var msg = SiteDriveChanged(stampedList.Value, listFiles, placesDB);
-                                        if (msg != null)
+                                        try
                                         {
-                                            msgs.Add(new Stamped<ContextualMeshMessage>(msg, stampedList.Timestamp));
+                                            placesDB = new PlacesDB(pipeline);
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            pipeline.LogError("error initializing PlacesDB: {0}", ex.Message);
+                                            usePlaces = false;
                                         }
                                     }
-                                    catch (Exception ex)
+                                    pipeline.LogInfo("{0}using PlacesDB {1}",
+                                                     usePlaces ? "" : "not ", usePlaces ? placesCfg.Url : "");
+                                    
+                                    foreach (var stampedList in changedLists)
                                     {
-                                        pipeline.LogException(ex, "error processing sitedrive " +
-                                                              stampedList.Value.SiteDrive);
+                                        try
+                                        {
+                                            var msg = SiteDriveChanged(stampedList.Value, listFiles, placesDB);
+                                            if (msg != null)
+                                            {
+                                                msgs.Add(new Stamped<ContextualMeshMessage>(msg, stampedList.Timestamp));
+                                            }
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            pipeline.LogException(ex, "error processing sitedrive " +
+                                                                  stampedList.Value.SiteDrive);
+                                        }
                                     }
                                 }
-                                
+
                                 lastMasterPass[rdrDir] = now;
                             }
                         }

@@ -12,12 +12,15 @@ using OPS.Pipeline.AlignmentServer;
 
 namespace OPS.Pipeline
 {
-    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20 }
+    public enum Mission { None, MSL, M2020, ROASTT19, TT4, ScarecrowEECAM, ROASTT20, M20SOPS }
 
     public abstract class MissionSpecific : ConfigDefaultsProvider
     {
-        protected MissionSpecific()
+        protected readonly string venue;
+
+        protected MissionSpecific(string venue = null)
         {
+            this.venue = venue ?? "dev";
             Config.DefaultsProvider = this;
         }
 
@@ -31,27 +34,56 @@ namespace OPS.Pipeline
             }
         }
 
-        public static MissionSpecific GetInstance(Mission mission)
+        public static MissionSpecific GetInstance(Mission mission, string venue = null)
         {
             switch (mission)
             {
                 case Mission.None: return null;
-                case Mission.MSL: return new MissionMSL();
-                case Mission.M2020: return new MissionM2020();
-                case Mission.ROASTT19: return new MissionROASTT19();
-                case Mission.TT4: return new MissionTT4();
-                case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM();
-                case Mission.ROASTT20: return new MissionROASTT20();
+                case Mission.MSL: return new MissionMSL(venue);
+                case Mission.M2020: return new MissionM2020(venue);
+                case Mission.ROASTT19: return new MissionROASTT19(venue);
+                case Mission.TT4: return new MissionTT4(venue);
+                case Mission.ScarecrowEECAM: return new MissionScarecrowEECAM(venue);
+                case Mission.ROASTT20: return new MissionROASTT20(venue);
+                case Mission.M20SOPS: return new MissionM20SOPS(venue);
                 default: throw new NotImplementedException("unknown mission");
             }
         }
 
+        /// <summary>
+        /// If mission string contains a colon then parse it as mission:venue
+        /// </summary>
         public static MissionSpecific GetInstance(string mission)
         {
-            return GetInstance((Mission)Enum.Parse(typeof(Mission), mission, ignoreCase: false));
+            string venue = null;
+            int colon = mission.IndexOf(':');
+            if (colon >= 0)
+            {
+                if (colon < mission.Length - 1) //leave venue=null if colon is last char (rather than set venue="")
+                {
+                    venue = mission.Substring(colon + 1);
+                }
+                mission = mission.Substring(0, colon);
+            }
+            return GetInstance(mission, venue);
+        }
+
+        public static MissionSpecific GetInstance(string mission, string venue)
+        {
+            return GetInstance((Mission)Enum.Parse(typeof(Mission), mission, ignoreCase: true), venue);
         }
 
         public abstract Mission GetMission();
+
+        public string GetMissionVenue()
+        {
+            return venue;
+        }
+
+        public string GetMissionWithVenue()
+        {
+            return $"{GetMission().ToString()}:{venue}";
+        }
 
         public virtual string RootFrameName()
         {
@@ -731,6 +763,26 @@ namespace OPS.Pipeline
         public virtual string GetDefaultAWSProfile()
         {
             return "credss-default";
+        }
+
+        /// <summary>
+        /// Refresh AWS and any other credentials that may be needed for this mission.
+        /// Uses the default profile and region for the mission by default.
+        /// Returns new profile name or null if failed or unchanged.
+        /// </summary>
+        public virtual string RefreshCredentials(string awsProfile = null, string awsRegion = null, bool quiet = true,
+                                                 bool dryRun = false, bool throwOnFail = false, ILogger logger = null)
+        {
+            return null;
+        }
+
+        /// <summary>
+        /// Get the desired maximum time between credential refresh.
+        /// If non-positive then credential refresh is not required.
+        /// </summary>
+        public virtual int GetDefaultCredentialRefreshSec()
+        {
+            return 0;
         }
 
         /// <summary>

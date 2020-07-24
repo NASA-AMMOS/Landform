@@ -14,7 +14,7 @@ namespace OPS.Pipeline
 
         public InitializeAlignmentProject(PipelineCore pipeline) : base(pipeline) { }
 
-        public Project Initialize(string projectName, string productPath, string inputPath, Mission mission,
+        public Project Initialize(string projectName, string productPath, string inputPath, string mission,
                                   bool recreateIfExists)
         {
             Project project = null;
@@ -34,7 +34,6 @@ namespace OPS.Pipeline
                                      projectName, ex.Message);
                 }
             }
-
 
             string rootName = MissionSpecific.GetInstance(mission).RootFrameName();
 

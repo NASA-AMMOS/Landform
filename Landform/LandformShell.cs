@@ -18,43 +18,46 @@ namespace OPS.Landform
 {
     public class LandformShellOptions : LandformCommandOptions
     {
-        [Option(Required = true, Default = Mission.None, HelpText = "Mission flag enables mission specific behavior, e.g. None, MSL, M2020")]
-        public Mission Mission { get; set; }
+        [Option(Required = true, Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        public string Mission { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Output directory or S3 folder")]
+        [Option(Default = null, HelpText = "Output directory or S3 folder")]
         public override string OutputFolder { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Recursively search under input folders")]
+        [Option(Default = false, HelpText = "Recursively search under input folders")]
         public virtual bool RecursiveSearch { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Case sensitive search")]
+        [Option(Default = false, HelpText = "Case sensitive search")]
         public virtual bool CaseSensitiveSearch { get; set; }
 
-        [Option(Required = false, Default = 3, HelpText = "Max retries for each download")]
+        [Option(Default = 3, HelpText = "Max retries for each download")]
         public int MaxRetries { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Dry run")]
+        [Option(Default = false, HelpText = "Dry run")]
         public bool DryRun { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Don't cleanup temp files")]
+        [Option(Default = false, HelpText = "Don't cleanup temp files")]
         public bool NoCleanup { get; set; }
 
-        [Option(Required = false, Default = false, HelpText = "Hide output of subcommands")]
+        [Option(Default = false, HelpText = "Hide output of subcommands")]
         public bool QuietSubcommands { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override subcommand storage directory")]
+        [Option(Default = null, HelpText = "Override subcommand storage directory")]
         public string StorageDir { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
+        [Option(Default = null, HelpText = "AWS profile or omit to use default credentials (can be \"none\")")]
         public string AWSProfile { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
+        [Option(Default = null, HelpText = "AWS region or omit to use default, e.g. us-west-1, us-gov-west-1 (can be \"none\")")]
         public string AWSRegion { get; set; }
 
-        [Option(Required = false, Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
+        [Option(HelpText = "Credential refresh period in seconds, -1 for mission default, 0 to disable", Default = -1)]
+        public int CredentialRefreshSec { get; set; }
+
+        [Option(Default = -1, HelpText = "RNG seed, -1 to use a time dependent seed")]
         public int RandomSeed { get; set; }
 
-        [Option(Required = false, Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
+        [Option(Default = 0, HelpText = "0 to use all available cores, N to use up to N, -M to reserve M")]
         public int MaxCores { get; set; }
 
         [Option(HelpText = "Extra export mesh format, e.g. ply, obj, help for list", Default = null)]
@@ -82,12 +85,35 @@ namespace OPS.Landform
         protected LandformShellOptions lsopts;
 
         protected string landformExe;
+
         protected string storageDir;
-        protected string awsProfile;
+
+        protected string subcommandLogFile;
+
+        protected string subcommandConfigFolder;
+        protected string subcommandConfigFile;
+
+        protected string awsProfile, originalAWSProfile;
         protected string awsRegion;
-        protected string logFile;
-        protected string configFolder;
-        protected string configFile;
+
+        protected double lastCredentialRefreshSecUTC;
+        protected int credentialRefreshSec;
+
+        /// <summary>
+        /// ServiceLoop() acquires credentialRefreshLock before calling RefreshCredentials().
+        /// Other uses of credentials throughout ServiceLoop() (i.e. in the main thread), including in subclass
+        /// implementations of HandleMessage(), are not locked because they cannot overlap with the call to
+        /// RefreshCredentials() which is in the same thread.
+        ///
+        /// Other threads which require credentials should hold credentialRefreshLock (only) while needed.  Not to avoid
+        /// concurrent use of credentials, which is totally fine (and even necessary e.g. for HeartbeatLoop()), but to
+        /// prevent RefreshCredentials() from being called while the credentials may be in use.
+        ///
+        /// For example
+        /// * HeartbeatLoop() acquires credentials when it needs to update SQS message timeouts.
+        /// * ProcessContextual.MasterLoop() acquires credentials while it may use PLACES.
+        /// </summary>
+        protected object credentialRefreshLock = new Object();
 
         private volatile Process currentProcess;
 
@@ -136,7 +162,8 @@ namespace OPS.Landform
             }
 
             mission = GetMission();
-            pipeline.LogInfo("mission: {0}", mission.GetMission());
+            pipeline.LogInfo("mission: {0}", mission != null ? mission.GetMission().ToString() : "None");
+            pipeline.LogInfo("mission venue: {0}", mission != null ? mission.GetMissionVenue() : "None");
 
             pipeline.LogInfo("recursive search: {0}", lsopts.RecursiveSearch);
             pipeline.LogInfo("case sensitive search: {0}", lsopts.CaseSensitiveSearch);
@@ -160,29 +187,44 @@ namespace OPS.Landform
 
             awsProfile = !string.IsNullOrEmpty(lsopts.AWSProfile) ? lsopts.AWSProfile :
                 cp != null && !string.IsNullOrEmpty(cp.AWSProfile) ? cp.AWSProfile :
-                mission.GetDefaultAWSProfile();
+                mission != null ? mission.GetDefaultAWSProfile() : null;
             pipeline.LogInfo("AWS profile: {0}", awsProfile);
 
             awsRegion = !string.IsNullOrEmpty(lsopts.AWSRegion) ? lsopts.AWSRegion :
                 cp != null && !string.IsNullOrEmpty(cp.AWSRegion) ? cp.AWSRegion :
-                mission.GetDefaultAWSRegion();
+                mission != null ? mission.GetDefaultAWSRegion() : null;
             pipeline.LogInfo("AWS region: {0}", awsRegion);
 
-            logFile = Logging.GetLogFile();
+            originalAWSProfile = awsProfile;
+
+            credentialRefreshSec = lsopts.CredentialRefreshSec >= 0 ? lsopts.CredentialRefreshSec :
+                mission != null ? mission.GetDefaultCredentialRefreshSec() : 0;
+            pipeline.LogInfo("AWS credential refresh: {0}",
+                             credentialRefreshSec > 0 ? Fmt.HMS(credentialRefreshSec * 1e3) : "disabled");
+
+            if (credentialRefreshSec > 0)
+            {
+                RefreshCredentials();
+            }
+
+            string logFile = Logging.GetLogFile();
             string logPrefix = GetLogFilePrefix();
             if (logFile.IndexOf(logPrefix) >= 0)
             {
-                logFile = logFile.Replace(logPrefix, logPrefix + "-subcommands");
+                subcommandLogFile = logFile.Replace(logPrefix, logPrefix + "-subcommands");
             }
             else
             {
-                logFile = Path.Combine(Path.GetDirectoryName(logFile), "subcommands-" + Path.GetFileName(logFile));
+                subcommandLogFile = Path.Combine(Path.GetDirectoryName(logFile),
+                                                 Path.GetFileNameWithoutExtension(logFile) + "-subcommands" +
+                                                 Path.GetExtension(logFile));
             }
-            pipeline.LogInfo("subcommand log file: {0}", logFile);
+            pipeline.LogInfo("subcommand log file: {0}", subcommandLogFile);
 
-            configFolder = Config.ConfigFolder + GetConfigSuffix();
-            configFile = Path.Combine(Config.GetConfigDir(), configFolder, pipeline.Config.ConfigFileName() + ".json");
-            pipeline.LogInfo("subcommand config file: {0}", configFile);
+            subcommandConfigFolder = GetSubcommandConfigFolder();
+            subcommandConfigFile = Path.Combine(Config.GetConfigDir(), subcommandConfigFolder,
+                                                pipeline.Config.ConfigFileName() + ".json");
+            pipeline.LogInfo("subcommand config file: {0}", subcommandConfigFile);
 
             return true;
         }
@@ -197,11 +239,27 @@ namespace OPS.Landform
             return MissionSpecific.GetInstance(lsopts.Mission);
         } 
 
+        protected virtual void RefreshCredentials()
+        {
+            pipeline.LogInfo("refreshing credentials");
+
+            lastCredentialRefreshSecUTC = UTCTime.Now();
+
+            if (mission != null)
+            {
+                var newProfile = mission.RefreshCredentials(originalAWSProfile, awsRegion, !pipeline.Verbose,
+                                                            lsopts.DryRun, throwOnFail: false, logger: pipeline);
+                awsProfile = newProfile ?? originalAWSProfile;
+            }
+
+            _storageHelper = null;
+        }
+
         protected abstract string GetLogFilePrefix();
 
-        protected abstract string GetConfigSuffix();
+        protected abstract string GetSubcommandConfigFolder();
         
-        protected abstract string GetCacheDir();
+        protected abstract string GetSubcommandCacheDir();
 
         protected bool FileExists(string url)
         {
@@ -218,7 +276,7 @@ namespace OPS.Landform
 
         protected string GetFile(string url, bool filenameUnique = true)
         {
-            return GetFile(pipeline, () => storageHelper, url, GetCacheDir(), filenameUnique,
+            return GetFile(pipeline, () => storageHelper, url, GetSubcommandCacheDir(), filenameUnique,
                            lsopts.MaxRetries, lsopts.DryRun);
         }
 
@@ -361,9 +419,10 @@ namespace OPS.Landform
             }
             var stdArgs = new Dictionary<string, string>()
                 {
-                    { "--logfile", logFile }, //already handles --logdir
+                    { "--logfile", subcommandLogFile }, //already handles --logdir
                     { "--tempdir", lsopts.TempDir },
-                    { "--configfolder", configFolder }
+                    { "--configdir", Config.GetConfigDir() },
+                    { "--configfolder", subcommandConfigFolder }
                 };
             foreach (var entry in stdArgs)
             {
@@ -440,9 +499,9 @@ namespace OPS.Landform
                     Directory.Delete(venueDir, recursive: true);
                 }
                 
-                if (File.Exists(configFile))
+                if (File.Exists(subcommandConfigFile))
                 {
-                    File.Delete(configFile);
+                    File.Delete(subcommandConfigFile);
                 }
                 
                 pipeline.DeleteDownloadCache();
@@ -556,7 +615,7 @@ namespace OPS.Landform
 
             if (mission != null)
             {
-                args.AddRange(new string[] { "--mission", mission.GetMission().ToString() });
+                args.AddRange(new string[] { "--mission", mission.GetMissionWithVenue() });
             }
 
             if (!string.IsNullOrEmpty(awsProfile))

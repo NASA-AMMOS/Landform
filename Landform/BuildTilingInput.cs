@@ -45,6 +45,9 @@ namespace OPS.Landform
         [Value(0, Required = false, HelpText = "project name, defaults to input mesh basename if --inputmesh and --input texture are specified", Default = null)]
         public override string ProjectName { get; set; }
 
+        [Option(Default = "None", HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture (or texturing disabled), optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        public string Mission { get; set; }
+
         [Option(Default = null, HelpText = "Scene mesh texture image to bake into tiles, backproject observations instead if omitted")]
         public string InputTexture { get; set; }
 
@@ -74,9 +77,6 @@ namespace OPS.Landform
 
         [Option(HelpText = "Debug function that skips all tiles except the one with this name", Default = null)]
         public string OnlyTilesNamed { get; set; }
-
-        [Option(HelpText = "Mission to use if creating project (only if --inputmesh and --inputtexture (or texturing disabled)", Default = Mission.None)]
-        public Mission Mission { get; set; }
 
         [Option(HelpText = "Don't use approximated areas for the tilesplit test", Default = false)]
         public bool NoApproxTileSplit { get; set; }
@@ -275,7 +275,7 @@ namespace OPS.Landform
                 {
                     return project;
                 }
-                if (options.Mission == Mission.None)
+                if (string.IsNullOrEmpty(options.Mission) || options.Mission.ToLower() == "none")
                 {
                     throw new Exception("cannot create project: mission must be specified");
                 }

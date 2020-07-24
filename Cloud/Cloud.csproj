@@ -32,13 +32,16 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="AWSSDK.Core, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
-      <HintPath>..\packages\AWSSDK.Core.3.3.103.66\lib\net45\AWSSDK.Core.dll</HintPath>
+      <HintPath>..\packages\AWSSDK.Core.3.3.107.27\lib\net45\AWSSDK.Core.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.DynamoDBv2, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
       <HintPath>..\packages\AWSSDK.DynamoDBv2.3.3.102.4\lib\net45\AWSSDK.DynamoDBv2.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.S3, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
       <HintPath>..\packages\AWSSDK.S3.3.3.107.2\lib\net45\AWSSDK.S3.dll</HintPath>
+    </Reference>
+    <Reference Include="AWSSDK.SimpleSystemsManagement, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
+      <HintPath>..\packages\AWSSDK.SimpleSystemsManagement.3.3.126.15\lib\net45\AWSSDK.SimpleSystemsManagement.dll</HintPath>
     </Reference>
     <Reference Include="AWSSDK.SQS, Version=3.3.0.0, Culture=neutral, PublicKeyToken=885c28607f98e604, processorArchitecture=MSIL">
       <HintPath>..\packages\AWSSDK.SQS.3.3.102.33\lib\net45\AWSSDK.SQS.dll</HintPath>
@@ -86,23 +89,13 @@
     <Compile Include="Messaging\MessageQueue.cs" />
     <Compile Include="Messaging\S3EventMessage.cs" />
     <Compile Include="Messaging\SNSMessageWrapper.cs" />
+    <Compile Include="ParameterStore.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Storage\S3Url.cs" />
     <Compile Include="Storage\StorageHelper.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <None Include="Infrastructure\align-appspec.yml" />
-    <None Include="Infrastructure\mesh-appspec.yml" />
-    <None Include="Infrastructure\deployLandform.ps1" />
-    <None Include="Infrastructure\deployLambdas.ps1" />
-    <None Include="Infrastructure\deployStack.ps1" />
-    <None Include="Infrastructure\EC2Scripts\alignmentappstart.ps1" />
-    <None Include="Infrastructure\EC2Scripts\appvalidate.ps1" />
-    <None Include="Infrastructure\README.md" />
-    <None Include="Infrastructure\EC2Scripts\appkill.ps1" />
-    <None Include="Infrastructure\EC2Scripts\preinstall.ps1" />
-    <None Include="Infrastructure\EC2Scripts\appstart.ps1" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
@@ -124,15 +117,9 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="Infrastructure\StackResources\alignment.template" />
-    <Content Include="Infrastructure\StackResources\console.template" />
-    <Content Include="Infrastructure\StackResources\tiling.template" />
-    <Content Include="Infrastructure\StackResources\vcredist_x64_2013.exe" />
-    <Content Include="Infrastructure\StackResources\vc_redist.x64.exe" />
-  </ItemGroup>
-  <ItemGroup>
     <Analyzer Include="..\packages\AWSSDK.DynamoDBv2.3.3.102.4\analyzers\dotnet\cs\AWSSDK.DynamoDBv2.CodeAnalysis.dll" />
     <Analyzer Include="..\packages\AWSSDK.S3.3.3.107.2\analyzers\dotnet\cs\AWSSDK.S3.CodeAnalysis.dll" />
+    <Analyzer Include="..\packages\AWSSDK.SimpleSystemsManagement.3.3.126.15\analyzers\dotnet\cs\AWSSDK.SimpleSystemsManagement.CodeAnalysis.dll" />
     <Analyzer Include="..\packages\AWSSDK.SQS.3.3.102.33\analyzers\dotnet\cs\AWSSDK.SQS.CodeAnalysis.dll" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

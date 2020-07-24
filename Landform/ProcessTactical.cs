@@ -289,6 +289,10 @@ namespace OPS.Landform
             meshExt = options.MeshFormat;
             if (string.IsNullOrEmpty(meshExt) || meshExt.ToLower() == "mission")
             {
+                if (mission == null)
+                {
+                    throw new Exception("--mission must be specified without explicit --meshext");
+                }
                 meshExt = mission.GetTacticalMeshExt();
             }
             if (string.IsNullOrEmpty(meshExt) || (MeshSerializers.Instance.CheckFormat(meshExt) == null))
@@ -319,12 +323,12 @@ namespace OPS.Landform
             return "log-Landform-process-tactical";
         }
 
-        protected override string GetConfigSuffix()
+        protected override string GetSubcommandConfigFolder()
         {
-            return "-tactical";
+            return "tactical-subcommands";
         }
 
-        protected override string GetCacheDir()
+        protected override string GetSubcommandCacheDir()
         {
             return "tactical";
         }
@@ -475,7 +479,8 @@ namespace OPS.Landform
             
         private void BuildTacticalTileset(MeshImagePair pair)
         {
-            string missionStr = mission.GetMission().ToString();
+            string missionStr = mission != null ? mission.GetMission().ToString() : "None";
+            string fullMissionStr = mission != null ? mission.GetMissionWithVenue() : "None";
             string project = !string.IsNullOrEmpty(options.ProjectName) ? options.ProjectName :
                 StringHelper.GetLastUrlPathSegment(pair.mesh, stripExtension: true);
             string venue = string.Format("tactical_{0}_{1}", missionStr, project);
@@ -502,13 +507,13 @@ namespace OPS.Landform
 
                 if (!options.NoTileset)
                 {
-                    RunCommand("build-tiling-input", project, "--mission", missionStr,
+                    RunCommand("build-tiling-input", project, "--mission", fullMissionStr,
                                "--inputmesh", meshFile, "--inputtexture", imageFile, "--loadlods",
                                "--tileresolution", "-1");
                     
                     BuildTileset(project, "--notextureerror");
                     
-                    RunCommand("update-scene-manifest", "--mission", missionStr,
+                    RunCommand("update-scene-manifest", "--mission", fullMissionStr,
                                "--awsprofile", awsProfile, "--awsregion", awsRegion,
                                "--manifestfile", tilesetDir + "/" + SCENE_JSON,
                                "--nocontextual", "--nourls", "--tacticalpdsfile", imageFile);

@@ -9,23 +9,13 @@ rem https://github.jpl.nasa.gov/OnSight/Landform/wiki/Deploying-on-EC2#user-data
 
 set service=tactical
 
-set mission=M2020
-if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
-
-set meshformat=mission
-if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
-
-set indices=
-if not "%LANDFORM_TACTICAL_INDICES%"=="" set indices==--publishindeximages
+rem --- begin service boilerplate ---
 
 set lfver=newest
 if not "%LANDFORM_VERSION%"=="" set lfver=%LANDFORM_VERSION%
 
-set queue=m20-ids-g-landform-tactical
-if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
-
-set failqueue=auto
-if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
+set mission=M2020
+if not "%LANDFORM_MISSION%"=="" set mission=%LANDFORM_MISSION%
 
 set awsprofile=none
 if not "%LANDFORM_AWS_PROFILE%"=="" set awsprofile=%LANDFORM_AWS_PROFILE%
@@ -43,6 +33,17 @@ if not "%LANDFORM_BIN_DIR%"=="" set bindir=%LANDFORM_BIN_DIR%
 set landform=%bindir%\Landform.exe
 if not "%LANDFORM_BIN%"=="" set landform=%LANDFORM_BIN%
 
+set credentialrefresh=
+if not "%LANDFORM_CREDENTIAL_REFRESH_SEC%"=="" set credentialrefresh=--credentialrefreshsec=%CREDENTIAL_REFRESH_SEC%
+
+rem --- end service boilerplate, begin service specific boilerplate ---
+
+set queue=m20-ids-g-landform-tactical
+if not "%LANDFORM_TACTICAL_QUEUE%"=="" set queue=%LANDFORM_TACTICAL_QUEUE%
+
+set failqueue=auto
+if not "%LANDFORM_TACTICAL_FAIL_QUEUE%"=="" set failqueue=%LANDFORM_TACTICAL_FAIL_QUEUE%
+
 set storagedir=c:\temp\landform-%service%-storage
 if not "%LANDFORM_TACTICAL_STORAGE_DIR%"=="" set storagedir=%LANDFORM_TACTICAL_STORAGE_DIR%
 
@@ -53,18 +54,28 @@ set tmpdir=c:\temp\landform-%service%
 if not "%LANDFORM_TACTICAL_TEMP_DIR%"=="" set tmpdir=%LANDFORM_TACTICAL_TEMP_DIR%
 
 set cfgdir=c:\cfg
-if not "%LANDFORM_CONTEXTUAL_CONFIG_DIR%"=="" set cfgdir=%LANDFORM_CONTEXTUAL_CONFIG_DIR%
+if not "%LANDFORM_TACTICAL_CONFIG_DIR%"=="" set cfgdir=%LANDFORM_TACTICAL_CONFIG_DIR%
 
 set cfgfolder=%service%
-if not "%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_CONTEXTUAL_CONFIG_FOLDER%
+if not "%LANDFORM_TACTICAL_CONFIG_FOLDER%"=="" set cfgfolder=%LANDFORM_TACTICAL_CONFIG_FOLDER%
 
 set venue=%service%-service
-if not "%LANDFORM_CONTEXTUAL_VENUE%"=="" set venue=%LANDFORM_CONTEXTUAL_VENUE%
+if not "%LANDFORM_TACTICAL_VENUE%"=="" set venue=%LANDFORM_TACTICAL_VENUE%
+
+rem --- end service specific boilerplate, begin service specific ---
+
+set meshformat=mission
+if not "%LANDFORM_TACTICAL_MESH_FORMAT%"=="" set meshformat=%LANDFORM_TACTICAL_MESH_FORMAT%
+
+set indices=
+if not "%LANDFORM_TACTICAL_INDICES%"=="" set indices==--publishindeximages
+
+rem --- end service specific ---
 
 set stdopts=--configdir=%cfgdir% --configfolder=%cfgfolder% --logdir=%logdir% --tempdir=%tmpdir%
 set cfgopts=%stdopts% --venue=%venue% --maxcores=0 --randomseed=-1 --storagedir=%storagedir%
 set svcopts=%stdopts% --stacktraces --service --mission=%mission% --queuename=%queue% --failqueuename=%failqueue%
-set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion%  
+set svcopts=%svcopts% --awsprofile=%awsprofile% --awsregion=%awsregion% %credentialrefresh%
 
 set tacticalopts=--meshformat=%meshformat% %indices%
 

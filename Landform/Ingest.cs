@@ -118,16 +118,16 @@ namespace OPS.Landform
         [Option(HelpText = "Recreate transform priors that already exist", Default = false)]
         public bool RedoPriors { get; set; }
 
-        [Option(HelpText = "Mission flag enables mission specific behavior", Default = Mission.M2020)]
-        public Mission Mission { get; set; }
+        [Option(Default = "None", HelpText = "Mission flag enables mission specific behavior, optional :venue override, e.g. None, MSL, M2020, M20SOPS, M20SOPS:dev, M20SOPS:sbeta")]
+        public string Mission { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override default orbital DEM file path")]
+        [Option(Default = null, HelpText = "Override default orbital DEM file path")]
         public string OrbitalDEM { get; set; }
 
-        [Option(Required = false, Default = null, HelpText = "Override default orbital image file path")]
+        [Option(Default = null, HelpText = "Override default orbital image file path")]
         public string OrbitalImage { get; set; }
 
-        [Option(Required = false, Default = "root", HelpText = "Frame in which to ingest orbital assets, either a sitedrive SSSDDDD, \"root\", or \"project_root\"")]
+        [Option(Default = "root", HelpText = "Frame in which to ingest orbital assets, either a sitedrive SSSDDDD, \"root\", or \"project_root\"")]
         public string OrbitalFrame { get; set; }
     }
 
